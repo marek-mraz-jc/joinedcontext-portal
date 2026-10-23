@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fromIso, seconds, shortens, toIso, written } from "../src/pages/spaces/retention";
+import { fromIso, seconds, shortens, toIso, withRecord, written } from "../src/pages/spaces/retention";
 
 describe("retention durations (DM-82)", () => {
   it("reads and writes the broker's form within one minute and 3650 days", () => {
@@ -56,5 +56,27 @@ describe("retention durations (DM-82)", () => {
       { entityType: "Vehicle", history: "off" },
       { entityType: "Stop", history: "forever", reason: "the archive is the dataset" },
     ]);
+  });
+
+  it("keeps each rule's recording and attributes as read, and a rule of a recording only (T-5058)", () => {
+    const held = [
+      {
+        entityType: "BikeHireDockingStation",
+        history: "P30D",
+        record: "onChange",
+        heartbeat: "PT1H",
+        attributes: { dateModified: { record: "never" } },
+      },
+      { entityType: "Stop", record: "every" },
+    ];
+    expect(written(held)).toEqual(held);
+  });
+
+  it("drops the onChange settings with any other record, and gives onChange a heartbeat (DM-108, T-5058)", () => {
+    const rule = { entityType: "Station", history: "P30D", record: "onChange", heartbeat: "P1D", deadband: 1 };
+    expect(withRecord(rule, "observed")).toEqual({ entityType: "Station", history: "P30D", record: "observed" });
+    expect(withRecord(rule, undefined)).toEqual({ entityType: "Station", history: "P30D" });
+    expect(withRecord({ entityType: "Station" }, "onChange")).toEqual({ entityType: "Station", record: "onChange", heartbeat: "PT1H" });
+    expect(withRecord(rule, "onChange", "PT15M")).toEqual({ ...rule, heartbeat: "PT15M" });
   });
 });

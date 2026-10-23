@@ -18,10 +18,11 @@ use serde::Serialize;
 use serde_json::Value;
 use utoipa::ToSchema;
 
-/// The history the broker keeps for a type no rule names (DM-97, ANTARES_RETENTION_HISTORY_DEFAULT).
-pub const PLATFORM_HISTORY: &str = "P28D";
-/// The `history` of a type that records no rows, and the rule every type falls back to (DM-97).
+/// The `history` of a type that records no rows (DM-97).
 const HISTORY_OFF: &str = "off";
+/// The history the broker keeps for a type no rule names: none, since the platform runs it with
+/// `ANTARES_TEMPORAL_RECORD=ruled` (history opt-in, DM-132, T-5056).
+pub const PLATFORM_HISTORY: &str = HISTORY_OFF;
 const ANY_TYPE: &str = "*";
 
 const KINDS: &[&str] = &[
@@ -321,7 +322,14 @@ pub fn verdict(
         return Verdict::UnboundedGrowth;
     }
     let received = observed.contains(&ObservedAt::Received);
-    if received && record == jc_core::kinds::RECORD_EVERY {
+    // `observed` stamped on receive is newer on every write: a row per write, as `every` (DM-132).
+    if received
+        && [
+            jc_core::kinds::RECORD_EVERY,
+            jc_core::kinds::space::RECORD_OBSERVED,
+        ]
+        .contains(&record)
+    {
         return Verdict::DuplicatesRows;
     }
     if received && measured {
@@ -426,7 +434,7 @@ pub fn rows(input: &Input) -> Vec<AuditRow> {
                             .and_then(|a| a.record.clone())
                             .or(r.record.clone())
                     })
-                    .unwrap_or_else(|| jc_core::kinds::RECORD_EVERY.to_owned()),
+                    .unwrap_or_else(|| jc_core::kinds::space::RECORD_OBSERVED.to_owned()),
             };
             let model_unit = (input.unit)(&entity_type, &attribute);
             let measured = seen.received_with_unit || model_unit.is_some();
@@ -606,7 +614,7 @@ root = {
                 (
                     "Stop".into(),
                     "name".into(),
-                    "every".into(),
+                    "observed".into(),
                     "P7D".into(),
                     vec![],
                     Verdict::DuplicatesRows
@@ -622,7 +630,7 @@ root = {
                 (
                     "Vehicle".into(),
                     "speed".into(),
-                    "every".into(),
+                    "observed".into(),
                     "PT1H".into(),
                     vec!["model MTS".into()],
                     Verdict::Ok
@@ -634,8 +642,9 @@ root = {
             retention: &none,
             ..input
         };
-        assert!(rows(&input)
-            .iter()
-            .all(|r| r.history == PLATFORM_HISTORY && r.lifetime == ["PT5M"]));
+        assert!(rows(&input).iter().all(|r| r.history == PLATFORM_HISTORY
+            && r.record == "none"
+            && r.verdict == Verdict::Ok
+            && r.lifetime == ["PT5M"]));
     }
 }

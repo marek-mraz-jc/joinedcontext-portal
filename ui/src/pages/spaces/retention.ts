@@ -21,6 +21,36 @@ export interface RetentionRule {
   history?: string;
   /** Why the type keeps its whole history: only with `history: forever`. */
   reason?: string;
+  /** Which rows of history the broker writes (DM-108, DM-109, DM-132); absent is `observed`. */
+  record?: string;
+  /** With `record: onChange`: a row at least this often (DM-109). */
+  heartbeat?: string;
+  deadband?: number;
+  minDistance?: number;
+  /** Per-attribute recordings, as `dateModified: { record: never }`; the editor keeps them as stored. */
+  attributes?: Record<string, unknown>;
+}
+
+/** The `record` modes the editor offers a type, the broker's default first (DM-132). */
+export const RECORDS = ["observed", "every", "onChange"] as const;
+/** The `record` a rule without one gets from the broker under `ANTARES_TEMPORAL_RECORD=ruled`. */
+export const RECORD_DEFAULT = "observed";
+export const RECORD_ON_CHANGE = "onChange";
+
+/**
+ * `rule` recording `record` (absent: the broker's default): the settings only `onChange` reads go
+ * with any other mode, so the manifest stays one the platform accepts (DM-108).
+ */
+export function withRecord(rule: RetentionRule, record: string | undefined, heartbeat?: string): RetentionRule {
+  const { record: _record, heartbeat: _heartbeat, deadband, minDistance, ...rest } = rule;
+  if (record !== RECORD_ON_CHANGE) return record === undefined ? rest : { ...rest, record };
+  return {
+    ...rest,
+    record,
+    heartbeat: heartbeat ?? rule.heartbeat ?? "PT1H",
+    ...(deadband === undefined ? {} : { deadband }),
+    ...(minDistance === undefined ? {} : { minDistance }),
+  };
 }
 
 /** The `entityType` of the space's default rule: history of every type without its own (DM-97). */
@@ -72,25 +102,21 @@ export function shortens(held: RetentionRule[], draft: RetentionRule[]): boolean
   });
 }
 
-/** The rules as the manifest writes them: a type kept forever in both has no rule. */
+/**
+ * The rules as the manifest writes them: a type kept forever in both, with no recording of its
+ * own, has no rule. Everything else a rule holds (its recording, its attributes) is written as read.
+ */
 export function written(rules: RetentionRule[]): RetentionRule[] {
   return rules
-    .filter((rule) => rule.current !== undefined || rule.history !== undefined)
-    .map(({ entityType, current, history, reason }) => ({
+    .map(({ entityType, current, history, reason, ...recording }) => ({
       entityType,
       ...(current === undefined ? {} : { current }),
       ...(history === undefined ? {} : { history }),
       ...(history === HISTORY_FOREVER && reason !== undefined ? { reason } : {}),
-    }));
+      ...Object.fromEntries(Object.entries(recording).filter(([, value]) => value !== undefined)),
+    }))
+    .filter((rule) => Object.keys(rule).length > 1);
 }
-
-/**
- * The history the platform keeps when no rule sets one (DM-97): the broker's
- * `ANTARES_RETENTION_HISTORY_DEFAULT`, which the platform deployment sets to `P28D`.
- * ponytail: the Portal does not read the broker's setting; an installation that changes it shows
- * this value until the Portal serves the broker's own.
- */
-export const PLATFORM_HISTORY = "P28D";
 
 /** Where an effective rule comes from, most specific first (DM-97). */
 export type Layer = "entity" | "type" | "space" | "platform";
@@ -104,7 +130,7 @@ export interface Effective {
 
 /**
  * The history kept for `type` (DM-97): an Entity's own `historyRetention` (a duration or `off`;
- * anything else is ignored), then the type's rule, then the space's `*` rule, then the platform.
+ * anything else is ignored), then the type's rule, then the space's `*` rule; without any, none.
  */
 export function effectiveHistory(type: string, rules: RetentionRule[], own?: string): Effective {
   if (own !== undefined && (own === HISTORY_OFF || seconds(own) !== undefined)) return { value: own, layer: "entity" };
@@ -112,7 +138,8 @@ export function effectiveHistory(type: string, rules: RetentionRule[], own?: str
   if (ruled !== undefined) return { value: ruled, layer: type === ANY_TYPE ? "space" : "type" };
   const any = rules.find((rule) => rule.entityType === ANY_TYPE)?.history;
   if (any !== undefined) return { value: any, layer: "space" };
-  return { value: PLATFORM_HISTORY, layer: "platform" };
+  // The platform runs the broker with ANTARES_TEMPORAL_RECORD=ruled: no rule, no history (DM-132).
+  return { value: HISTORY_OFF, layer: "platform" };
 }
 
 /**
