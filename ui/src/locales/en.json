@@ -1352,7 +1352,9 @@
       "lead": "Answer a person's request about the data this space holds on them: export everything that names them, or erase it from current values, history and every copy. Only an owner of the space can do this, and each request is recorded with its reason. The space's model must name which attribute identifies the person.",
       "hint": {
         "subject": "The value the model's person attribute holds, exactly as stored, for example r-42. It is sent only in the request and is never kept or shown in the log.",
-        "reason": "Why you act, recorded with the request, for example: Art. 17 request 2026-10-19-07."
+        "reason": "Why you act, recorded with the request, for example: Art. 17 request 2026-10-19-07.",
+        "approveSubject": "The identifier the request gave, for example r-42. It must be the one the proposal names; it is never kept.",
+        "declineReason": "Why, recorded with the decision, for example: The person withdrew the request."
       },
       "subject": "Person's identifier",
       "subjectError": {
@@ -1367,10 +1369,10 @@
       },
       "export": "Export the person's data",
       "erase": "Erase the person's data…",
-      "confirmTitle": "Erase this person's data from {space}?",
-      "confirmLead": "The erasure cannot be undone. It removes the values from current state, every history version and every copy; a record without values stays.",
-      "confirm": "Erase",
-      "nothing": "The space holds nothing about this person. Erasing still records the request.",
+      "confirmTitle": "Propose erasing this person's data from {space}?",
+      "confirmLead": "Another owner of this space approves the erasure before anything goes; until then nothing is erased. Once approved it cannot be undone: it removes the values from current state, every history version and every copy, and a record without values stays.",
+      "confirm": "Propose erasure",
+      "nothing": "The space holds nothing about this person now. Proposing still records the request; the space is searched again when another owner approves it.",
       "wouldErase": {
         "attrs": "{count, plural, one {{type}: the personal attributes ({attrs}) of # entity} other {{type}: the personal attributes ({attrs}) of # entities}}",
         "entity": "{count, plural, one {{type}: # whole entity} other {{type}: # whole entities}}"
@@ -1378,7 +1380,10 @@
       "state": {
         "open": "Erasure {id} is running ({count} entities). This page checks again every few seconds.",
         "done": "Erasure {id} is done: every store reports its entities erased ({count} entities).",
-        "failed": "Erasure {id} failed in a store after an hour of retries. Read the error below and ask the platform team to fix that store; the erasure stays logged."
+        "failed": "Erasure {id} failed in a store after an hour of retries. Read the error below and ask the platform team to fix that store; the erasure stays logged.",
+        "proposed": "Erasure {id} is proposed ({count} entities found). Nothing is erased until another owner of this space approves it, by {expires}.",
+        "declined": "Erasure {id} was declined. Nothing was erased.",
+        "expired": "Erasure {id} expired without approval. Nothing was erased; propose it again if the request still stands."
       },
       "store": "{store}: {state}, {count} removed",
       "stores": {
@@ -1394,7 +1399,21 @@
         "done": "done",
         "failed": "failed: read the error and retry later"
       },
-      "exported": "{count, plural, one {Exported # record to a file in your downloads.} other {Exported # records to a file in your downloads.}}"
+      "exported": "{count, plural, one {Exported # record to a file in your downloads.} other {Exported # records to a file in your downloads.}}",
+      "proposals": {
+        "title": "Erasures waiting for a second owner",
+        "empty": "No erasure waits for approval. When an owner proposes one, it appears here for another owner of this space to approve or decline.",
+        "item": "{id}: proposed by {by} on {at}, {count, plural, one {# entity} other {# entities}} found, open until {expires}",
+        "approve": "Approve…",
+        "decline": "Decline…",
+        "own": "You proposed this erasure: another owner of the space approves it."
+      },
+      "approveTitle": "Approve erasure {id}?",
+      "approveLead": "Type the person's identifier from the request. The Portal checks it against the proposal, searches the space again and erases what it holds. This cannot be undone.",
+      "approveConfirm": "Approve and erase",
+      "declineTitle": "Decline erasure {id}?",
+      "declineLead": "Nothing is erased. The reason is kept in the audit record.",
+      "declineConfirm": "Decline erasure"
     },
     "viewHints": {
       "moveReason": "Kept with each move in the change history, e.g. \"Moved after the venue cancelled\".",

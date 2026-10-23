@@ -7,6 +7,11 @@
 //! is down keeps the erasure open instead of finishing it early. After [`MAX_ATTEMPTS`] a store
 //! is `failed` and the erasure stays open for a person to read why.
 //!
+//! Four eyes (DM-142, T-5356): an owner's request is a proposal that erases nothing. Another
+//! person with `approve` on the ContextSpace approves it with the subject typed again, whose
+//! keyed hash must be the proposal's, or either owner declines it; a proposal nobody decided in
+//! [`PROPOSAL_DAYS`] days reads `expired`. Only an approved erasure reaches a store.
+//!
 //! The stores: the broker (current state, every version, dead letters; it keeps its own record
 //! and applies it again after a restore), the Portal's own copies (the trash, the comments), the
 //! CKAN DataStore tables (asked by the reconciler, which holds the catalogue credentials), the
@@ -39,6 +44,36 @@ pub const MAX_ATTEMPTS: u32 = 60;
 /// The longest subject value or reason a request carries.
 pub const MAX_SUBJECT: usize = 256;
 pub const MAX_REASON: usize = 500;
+/// How long a proposal waits for its second owner before it reads `expired`.
+pub const PROPOSAL_DAYS: i64 = 7;
+
+/// Where an erasure stands with its four eyes (DM-142).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Approval {
+    /// One owner asked; nothing is erased.
+    Proposed,
+    /// A second person approved it: the stores are asked.
+    Approved,
+    Declined,
+}
+
+impl Approval {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Proposed => "proposed",
+            Self::Approved => "approved",
+            Self::Declined => "declined",
+        }
+    }
+
+    fn parse(text: &str) -> Self {
+        match text {
+            "proposed" => Self::Proposed,
+            "declined" => Self::Declined,
+            _ => Self::Approved,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -116,16 +151,40 @@ pub struct Erasure {
     pub space: String,
     pub subject: String,
     pub reason: String,
+    /// Who proposed it.
     pub actor: String,
     pub requested_at: time::OffsetDateTime,
     pub completed_at: Option<time::OffsetDateTime>,
     pub groups: Vec<Group>,
     pub stores: BTreeMap<String, Store>,
+    pub approval: Approval,
+    /// Who approved or declined it, and when; `None` while proposed and for the erasures
+    /// logged before the four eyes.
+    pub decided_by: Option<String>,
+    pub decided_at: Option<time::OffsetDateTime>,
+    pub decline_reason: Option<String>,
 }
 
 impl Erasure {
-    /// `done` once every store is, `failed` once none is pending and one gave up, else `open`.
+    /// When an undecided proposal stops being approvable.
+    pub fn expires_at(&self) -> time::OffsetDateTime {
+        self.requested_at + time::Duration::days(PROPOSAL_DAYS)
+    }
+
+    /// `proposed` until a second person decides (`expired` after [`PROPOSAL_DAYS`]), `declined`;
+    /// once approved `done` when every store is, `failed` once none is pending and one gave up,
+    /// else `open`.
     pub fn state(&self) -> &'static str {
+        self.state_at(time::OffsetDateTime::now_utc())
+    }
+
+    pub fn state_at(&self, now: time::OffsetDateTime) -> &'static str {
+        match self.approval {
+            Approval::Declined => return "declined",
+            Approval::Proposed if now >= self.expires_at() => return "expired",
+            Approval::Proposed => return "proposed",
+            Approval::Approved => {}
+        }
         let states = || self.stores.values().map(|s| s.state);
         if states().all(|s| s == StoreState::Done) {
             "done"
@@ -157,15 +216,25 @@ impl Erasure {
                 counts.insert("versions", versions);
             }
         }
-        json!({
+        let mut view = json!({
             "id": self.id,
             "state": self.state(),
             "requestedAt": rfc(self.requested_at),
             "completedAt": self.completed_at.map(rfc),
+            "proposedBy": self.actor,
             "entities": self.urns().len(),
             "counts": counts,
             "stores": self.stores,
-        })
+        });
+        match self.approval {
+            Approval::Proposed => view["expiresAt"] = json!(rfc(self.expires_at())),
+            Approval::Approved => view["approvedBy"] = json!(self.decided_by),
+            Approval::Declined => view["declinedBy"] = json!(self.decided_by),
+        }
+        if let Some(at) = self.decided_at {
+            view["decidedAt"] = json!(rfc(at));
+        }
+        view
     }
 }
 
@@ -179,7 +248,8 @@ pub fn preview(groups: &[Group]) -> Value {
     })
 }
 
-/// A fresh erasure: every store pending but the two this platform does not keep.
+/// A fresh proposal: every store pending but the two this platform does not keep, none asked
+/// until a second person approves it.
 pub fn begin(
     (project, space): (&str, &str),
     subject: String,
@@ -209,6 +279,10 @@ pub fn begin(
         completed_at: None,
         groups,
         stores,
+        approval: Approval::Proposed,
+        decided_by: None,
+        decided_at: None,
+        decline_reason: None,
     }
 }
 
@@ -404,6 +478,14 @@ pub fn subject_query(slot: &str, subject: &str) -> String {
 
 // --- the log ------------------------------------------------------------------------------
 
+/// The columns every read of the log selects, in [`Row`]'s order.
+macro_rules! columns {
+    () => {
+        "id, project, space, subject, reason, actor, requested_at, completed_at, groups, stores, \
+         approval, decided_by, decided_at, decline_reason"
+    };
+}
+
 type Row = (
     String,
     String,
@@ -415,11 +497,29 @@ type Row = (
     Option<time::OffsetDateTime>,
     Value,
     Value,
+    String,
+    Option<String>,
+    Option<time::OffsetDateTime>,
+    Option<String>,
 );
 
 fn from_row(row: Row) -> Erasure {
-    let (id, project, space, subject, reason, actor, requested_at, completed_at, groups, stores) =
-        row;
+    let (
+        id,
+        project,
+        space,
+        subject,
+        reason,
+        actor,
+        requested_at,
+        completed_at,
+        groups,
+        stores,
+        approval,
+        decided_by,
+        decided_at,
+        decline_reason,
+    ) = row;
     Erasure {
         id,
         project,
@@ -431,13 +531,17 @@ fn from_row(row: Row) -> Erasure {
         completed_at,
         groups: serde_json::from_value(groups).unwrap_or_default(),
         stores: serde_json::from_value(stores).unwrap_or_default(),
+        approval: Approval::parse(&approval),
+        decided_by,
+        decided_at,
+        decline_reason,
     }
 }
 
 pub async fn insert(pool: &PgPool, erasure: &Erasure) -> Result<(), sqlx::Error> {
     sqlx::query(
-        "INSERT INTO erasures (id, project, space, subject, reason, actor, requested_at, groups, stores) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        "INSERT INTO erasures (id, project, space, subject, reason, actor, requested_at, groups, stores, approval) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
     )
     .bind(&erasure.id)
     .bind(&erasure.project)
@@ -448,6 +552,7 @@ pub async fn insert(pool: &PgPool, erasure: &Erasure) -> Result<(), sqlx::Error>
     .bind(erasure.requested_at)
     .bind(json!(erasure.groups))
     .bind(json!(erasure.stores))
+    .bind(erasure.approval.as_str())
     .execute(pool)
     .await
     .map(|_| ())
@@ -460,10 +565,11 @@ pub async fn get(
     space: &str,
     id: &str,
 ) -> Result<Option<Erasure>, sqlx::Error> {
-    sqlx::query_as::<_, Row>(
-        "SELECT id, project, space, subject, reason, actor, requested_at, completed_at, groups, stores \
-         FROM erasures WHERE id = $1 AND project = $2 AND space = $3",
-    )
+    sqlx::query_as::<_, Row>(concat!(
+        "SELECT ",
+        columns!(),
+        " FROM erasures WHERE id = $1 AND project = $2 AND space = $3"
+    ))
     .bind(id)
     .bind(project)
     .bind(space)
@@ -472,14 +578,79 @@ pub async fn get(
     .map(|row| row.map(from_row))
 }
 
-/// The erasures with a store still pending, oldest first.
+/// The space's newest erasures, proposals included, for its owners' list.
+pub async fn list(pool: &PgPool, project: &str, space: &str) -> Result<Vec<Erasure>, sqlx::Error> {
+    sqlx::query_as::<_, Row>(concat!(
+        "SELECT ",
+        columns!(),
+        " FROM erasures WHERE project = $1 AND space = $2 ORDER BY requested_at DESC LIMIT 50"
+    ))
+    .bind(project)
+    .bind(space)
+    .fetch_all(pool)
+    .await
+    .map(|rows| rows.into_iter().map(from_row).collect())
+}
+
+/// Approves a proposal as `approver` with the Entities found now, in one statement, so two
+/// approvals never both run it: `None` when it is no longer an approvable proposal of someone
+/// else (decided, expired, or the approver's own).
+pub async fn approve(
+    pool: &PgPool,
+    (project, space, id): (&str, &str, &str),
+    approver: &str,
+    groups: &[Group],
+) -> Result<Option<Erasure>, sqlx::Error> {
+    sqlx::query_as::<_, Row>(concat!(
+        "UPDATE erasures SET approval = 'approved', decided_by = $4, decided_at = now(), groups = $5 \
+         WHERE id = $1 AND project = $2 AND space = $3 AND approval = 'proposed' AND actor <> $4 \
+           AND requested_at > now() - make_interval(days => $6) RETURNING ",
+        columns!()
+    ))
+    .bind(id)
+    .bind(project)
+    .bind(space)
+    .bind(approver)
+    .bind(json!(groups))
+    .bind(i32::try_from(PROPOSAL_DAYS).unwrap_or(i32::MAX))
+    .fetch_optional(pool)
+    .await
+    .map(|row| row.map(from_row))
+}
+
+/// Declines a proposal still undecided and not expired; `None` otherwise.
+pub async fn decline(
+    pool: &PgPool,
+    (project, space, id): (&str, &str, &str),
+    decider: &str,
+    reason: &str,
+) -> Result<Option<Erasure>, sqlx::Error> {
+    sqlx::query_as::<_, Row>(concat!(
+        "UPDATE erasures SET approval = 'declined', decided_by = $4, decided_at = now(), decline_reason = $5 \
+         WHERE id = $1 AND project = $2 AND space = $3 AND approval = 'proposed' \
+           AND requested_at > now() - make_interval(days => $6) RETURNING ",
+        columns!()
+    ))
+    .bind(id)
+    .bind(project)
+    .bind(space)
+    .bind(decider)
+    .bind(reason.trim())
+    .bind(i32::try_from(PROPOSAL_DAYS).unwrap_or(i32::MAX))
+    .fetch_optional(pool)
+    .await
+    .map(|row| row.map(from_row))
+}
+
+/// The approved erasures with a store still pending, oldest first.
 pub async fn open(pool: &PgPool) -> Result<Vec<Erasure>, sqlx::Error> {
-    sqlx::query_as::<_, Row>(
-        "SELECT id, project, space, subject, reason, actor, requested_at, completed_at, groups, stores \
-         FROM erasures WHERE completed_at IS NULL AND EXISTS \
+    sqlx::query_as::<_, Row>(concat!(
+        "SELECT ",
+        columns!(),
+        " FROM erasures WHERE completed_at IS NULL AND approval = 'approved' AND EXISTS \
          (SELECT 1 FROM jsonb_each(stores) s WHERE s.value->>'state' = 'pending') \
-         ORDER BY requested_at LIMIT 100",
-    )
+         ORDER BY requested_at LIMIT 100"
+    ))
     .fetch_all(pool)
     .await
     .map(|rows| rows.into_iter().map(from_row).collect())
@@ -509,6 +680,10 @@ pub async fn save(pool: &PgPool, id: &str, name: &str, store: &Store) -> Result<
 /// subject's own value, which the log never keeps: given on the first attempt only, so the
 /// stored conversations are searched for it then and for the Entities' URNs on a retry.
 pub async fn attempt(state: &AppState, pool: &PgPool, erasure: &Erasure, words: Option<&str>) {
+    // Only a second person's approval lets an erasure reach a store (DM-142).
+    if erasure.approval != Approval::Approved {
+        return;
+    }
     for (name, store) in &erasure.stores {
         if store.state != StoreState::Pending || name == CKAN {
             continue;
@@ -685,10 +860,12 @@ pub(crate) async fn reapply(state: &AppState, pool: &PgPool) -> Result<(usize, u
         .views
         .as_ref()
         .ok_or("this Portal has no broker address or admin token")?;
-    let done: Vec<Erasure> = sqlx::query_as::<_, Row>(
-        "SELECT id, project, space, subject, reason, actor, requested_at, completed_at, groups, stores \
-         FROM erasures WHERE stores->'broker'->>'state' = 'done' ORDER BY requested_at",
-    )
+    let done: Vec<Erasure> = sqlx::query_as::<_, Row>(concat!(
+        "SELECT ",
+        columns!(),
+        " FROM erasures WHERE approval = 'approved' AND stores->'broker'->>'state' = 'done' \
+         ORDER BY requested_at"
+    ))
     .fetch_all(pool)
     .await
     .map_err(|err| err.to_string())?
@@ -795,6 +972,12 @@ mod tests {
         assert!(is_id(&erasure.id), "{}", erasure.id);
         assert_eq!(erasure.reason, "Art. 17");
         assert_eq!(erasure.stores["exports"].state, StoreState::Done);
+        assert_eq!(
+            erasure.state(),
+            "proposed",
+            "nothing runs on one owner's call"
+        );
+        erasure.approval = Approval::Approved;
         assert_eq!(erasure.state(), "open");
         for store in erasure.stores.values_mut() {
             *store = store.after(Ok((1, None)));
@@ -835,6 +1018,35 @@ mod tests {
         assert!(!recorded(&[record("s1", json!(["a"]))], "s1", &group));
         assert!(!recorded(&[record("s2", json!(["a", "b"]))], "s1", &group));
         assert!(!recorded(&[], "s1", &group));
+    }
+
+    #[test]
+    fn a_proposal_waits_for_a_second_person_and_expires_after_seven_days() {
+        let mut erasure = begin(
+            ("hel", "bikes"),
+            "0".repeat(32),
+            "Art. 17",
+            "user:anna",
+            vec![],
+        );
+        let at = erasure.requested_at;
+        assert_eq!(erasure.state_at(at), "proposed");
+        assert_eq!(erasure.state_at(at + time::Duration::days(6)), "proposed");
+        assert_eq!(erasure.state_at(at + time::Duration::days(7)), "expired");
+        let view = erasure.view();
+        assert_eq!(view["proposedBy"], "user:anna");
+        assert!(view["expiresAt"].is_string(), "{view}");
+        assert!(view.get("approvedBy").is_none(), "{view}");
+        erasure.approval = Approval::Declined;
+        erasure.decided_by = Some("user:boris".into());
+        erasure.decline_reason = Some("the person withdrew the request".into());
+        assert_eq!(erasure.state_at(at + time::Duration::days(30)), "declined");
+        let view = erasure.view();
+        assert_eq!(view["declinedBy"], "user:boris");
+        assert!(
+            !view.to_string().contains("withdrew"),
+            "the view carries no reason: {view}"
+        );
     }
 
     #[test]

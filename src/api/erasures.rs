@@ -4,6 +4,10 @@
 //! The space's owner runs them (`approve` on its ContextSpace). The subject's value travels in the
 //! request body, never in a URL an access log keeps; the log holds its keyed hash only. Every
 //! call needs a `reason` and is audited with it.
+//!
+//! An erasure takes four eyes (DM-142, T-5356): the request is a proposal, and another person with
+//! `approve` on the ContextSpace approves it by typing the subject again, or either owner declines
+//! it. A bearer token never decides one.
 
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, Query, State};
@@ -30,6 +34,21 @@ pub struct SubjectRequest {
     /// The value of the class's `dataSubjectRef` slot.
     pub subject: String,
     /// Why, for the audit record: the request's reference, the legal ground.
+    pub reason: String,
+}
+
+/// The approver's second look: the subject typed again, never kept.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ApproveRequest {
+    /// The value of the class's `dataSubjectRef` slot, as the proposal named it.
+    pub subject: String,
+}
+
+/// Why the proposal is declined, for the audit record.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DeclineRequest {
     pub reason: String,
 }
 
@@ -83,17 +102,78 @@ async fn subject_classes(
 
 fn checked(body: Result<Json<SubjectRequest>, JsonRejection>) -> Result<SubjectRequest, ApiError> {
     let Json(request) = body.map_err(|e| ApiError::BadRequest(e.body_text()))?;
-    let reason = request.reason.trim();
+    reason_checked(&request.reason)?;
+    if let Some(why) = erasure::subject_refusal(&request.subject) {
+        return Err(ApiError::BadRequest(why));
+    }
+    Ok(request)
+}
+
+fn reason_checked(reason: &str) -> Result<(), ApiError> {
+    let reason = reason.trim();
     if reason.is_empty() || reason.chars().count() > erasure::MAX_REASON {
         return Err(ApiError::BadRequest(format!(
             "reason is required, at most {} characters (reason-required)",
             erasure::MAX_REASON
         )));
     }
-    if let Some(why) = erasure::subject_refusal(&request.subject) {
-        return Err(ApiError::BadRequest(why));
+    Ok(())
+}
+
+/// A person decides an erasure with their own Portal session; a service account's or an agent's
+/// token never does, whatever its grants (DM-142, AG-133).
+fn refuse_bearer(user: &CurrentUser) -> Result<(), ApiError> {
+    if user.0.identity.client.is_some() {
+        return Err(ApiError::Denied(
+            "an erasure is approved or declined by a person in the Portal, never with a service \
+             account's or an agent's token (DM-142, AG-133)"
+                .into(),
+        ));
     }
-    Ok(request)
+    Ok(())
+}
+
+fn erasure_log(state: &AppState) -> Result<&sqlx::PgPool, ApiError> {
+    state.db.as_ref().ok_or_else(|| {
+        ApiError::Unavailable("this Portal keeps no erasure log (no database)".into())
+    })
+}
+
+fn log_unread(err: sqlx::Error) -> ApiError {
+    tracing::warn!(error = %err, "the erasure log was not read");
+    ApiError::Unavailable("the erasure log could not be read".into())
+}
+
+/// One erasure of the space, or the 404 an unknown or misshapen id gets.
+async fn held(
+    pool: &sqlx::PgPool,
+    (project, space, id): (&str, &str, &str),
+) -> Result<erasure::Erasure, ApiError> {
+    let gone = || {
+        ApiError::NotFound(format!(
+            "erasure '{id}' not found in context space '{space}'"
+        ))
+    };
+    if !erasure::is_id(id) {
+        return Err(gone());
+    }
+    erasure::get(pool, project, space, id)
+        .await
+        .map_err(log_unread)?
+        .ok_or_else(gone)
+}
+
+/// The 409 for a decision on an erasure that is no longer a proposal.
+fn not_proposed(found: &erasure::Erasure) -> ApiError {
+    ApiError::Conflict(format!(
+        "erasure {} is {}: only a proposal is approved or declined (DM-142)",
+        found.id,
+        found.state()
+    ))
+}
+
+fn actor_of(user: &CurrentUser) -> String {
+    format!("user:{}", user.0.identity.username)
 }
 
 /// The Entities of each class naming the subject, read through the space surface as the
@@ -243,8 +323,8 @@ pub(crate) async fn export_subject(
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/spaces/{space}/erasures",
-    summary = "Erase a Data Subject",
-    description = "Erases the data subject from the space: the personal Attributes (or the whole Entity of a personal class) of every Entity naming it, from the broker's current state and every version, the CKAN DataStore copy, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers at once with the erasure, which stays open until every store reports done; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.",
+    summary = "Propose a Data Subject's Erasure",
+    description = "Proposes erasing the data subject from the space: once another person with `approve` on the ContextSpace approves it (DM-142), the personal Attributes (or the whole Entity of a personal class) of every Entity naming it go from the broker's current state and every version, the CKAN DataStore copy, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers with the proposal, `proposed` and nothing erased, which expires after 7 days; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.",
     tag = "spaces",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -254,7 +334,7 @@ pub(crate) async fn export_subject(
     request_body(content = SubjectRequest, example = json!({"subject": "r-42", "reason": "Art. 17 request 2026-10-19-07"})),
     responses(
         (status = 200, description = "With `?dryRun=All`: what the erasure would take, per class, and nothing erased or logged", body = Object),
-        (status = 202, description = "The erasure, its Location and its state per store", body = Object),
+        (status = 202, description = "The proposal, `proposed`, and its Location; nothing erased", body = Object),
         (status = 400, description = "No reason, a subject that cannot be searched for, or a model that names no subject", body = crate::error::ProblemDetails),
         (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
         (status = 403, description = "The caller reads the space but does not own it", body = crate::error::ProblemDetails),
@@ -273,13 +353,54 @@ pub(crate) async fn erase_subject(
     let spec = owned(&state, &user, &project, &space)?;
     let dry = is_dry_run(&dry)?;
     let request = checked(body)?;
-    let pool = state.db.clone().ok_or_else(|| {
-        ApiError::Unavailable("this Portal keeps no erasure log (no database)".into())
-    })?;
+    let pool = erasure_log(&state)?;
     let hash = erasure::subject_hash(subject_key(&state)?, &project, &space, &request.subject);
-    let classes = subject_classes(&state, (&project, &space), &spec).await?;
-    let (_, found) = named(&state, &project, &space, &classes, &request.subject).await?;
-    let groups: Vec<Group> = found
+    let groups = groups_of(&state, (&project, &space), &spec, &request.subject).await?;
+    if dry {
+        return Ok(Json(erasure::preview(&groups)).into_response());
+    }
+    let proposed = erasure::begin(
+        (&project, &space),
+        hash.clone(),
+        &request.reason,
+        &actor_of(&user),
+        groups,
+    );
+    erasure::insert(pool, &proposed).await.map_err(|err| {
+        tracing::warn!(error = %err, "an erasure was not logged");
+        ApiError::Unavailable("the erasure log could not be written; nothing was proposed".into())
+    })?;
+    audited(
+        &state,
+        &user,
+        &project,
+        &space,
+        "proposed a data subject's erasure",
+        json!({ "subject": hash, "reason": request.reason.trim(), "erasure": proposed.id, "entities": proposed.urns().len() }),
+    )
+    .await;
+    let location = format!(
+        "/api/v1/projects/{project}/spaces/{space}/erasures/{}",
+        proposed.id
+    );
+    Ok((
+        StatusCode::ACCEPTED,
+        [(header::LOCATION, location)],
+        Json(proposed.view()),
+    )
+        .into_response())
+}
+
+/// The Entities naming the subject now, one group per class with the Attributes to erase.
+async fn groups_of(
+    state: &AppState,
+    (project, space): (&str, &str),
+    spec: &Value,
+    subject: &str,
+) -> Result<Vec<Group>, ApiError> {
+    let classes = subject_classes(state, (project, space), spec).await?;
+    let (_, found) = named(state, project, space, &classes, subject).await?;
+    Ok(found
         .into_iter()
         .map(|(class, held)| Group {
             class: class.class,
@@ -289,45 +410,179 @@ pub(crate) async fn erase_subject(
                 .collect(),
             attrs: class.attrs,
         })
-        .collect();
-    if dry {
-        return Ok(Json(erasure::preview(&groups)).into_response());
+        .collect())
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/spaces/{space}/erasures",
+    summary = "List Erasures",
+    description = "The space's newest 50 erasures, newest first, proposals waiting for a second owner included (DM-142). For the space's owners.",
+    tag = "spaces",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("space" = String, Path, description = "Context Space name"),
+    ),
+    responses(
+        (status = 200, description = "`{ \"items\": [erasure] }`", body = Object),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 403, description = "The caller reads the space but does not own it", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such space the caller may read", body = crate::error::ProblemDetails),
+        (status = 503, description = "No database", body = crate::error::ProblemDetails),
+    )
+)]
+pub(crate) async fn list_erasures(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, space)): Path<(String, String)>,
+) -> Result<Json<Value>, ApiError> {
+    owned(&state, &user, &project, &space)?;
+    let items = erasure::list(erasure_log(&state)?, &project, &space)
+        .await
+        .map_err(log_unread)?;
+    Ok(Json(
+        json!({ "items": items.iter().map(erasure::Erasure::view).collect::<Vec<_>>() }),
+    ))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/spaces/{space}/erasures/{id}/approve",
+    summary = "Approve an Erasure",
+    description = "A second person with `approve` on the ContextSpace approves an owner's proposal by typing the subject again; its keyed hash must be the proposal's. The space is searched again and the erasure runs, as `open` until every store reports done (DM-126, DM-142). The proposer, a bearer token and an expired or decided proposal are refused.",
+    tag = "spaces",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("space" = String, Path, description = "Context Space name"),
+        ("id" = String, Path, description = "The erasure's id"),
+    ),
+    request_body(content = ApproveRequest, example = json!({"subject": "r-42"})),
+    responses(
+        (status = 200, description = "The approved erasure and its state per store", body = Object),
+        (status = 400, description = "A subject that cannot be searched for", body = crate::error::ProblemDetails),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 403, description = "The caller does not own the space, proposed the erasure (`self-approval`) or sent a bearer token", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such space or erasure", body = crate::error::ProblemDetails),
+        (status = 409, description = "The erasure is no longer a proposal: approved, declined or expired", body = crate::error::ProblemDetails),
+        (status = 422, description = "The subject typed is not the one the proposal names (`subject`)", body = crate::error::ProblemDetails),
+        (status = 503, description = "No database, space surface or key", body = crate::error::ProblemDetails),
+    )
+)]
+pub(crate) async fn approve_erasure(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, space, id)): Path<(String, String, String)>,
+    body: Result<Json<ApproveRequest>, JsonRejection>,
+) -> Result<Json<Value>, ApiError> {
+    let spec = owned(&state, &user, &project, &space)?;
+    refuse_bearer(&user)?;
+    let Json(request) = body.map_err(|e| ApiError::BadRequest(e.body_text()))?;
+    if let Some(why) = erasure::subject_refusal(&request.subject) {
+        return Err(ApiError::BadRequest(why));
     }
-    let actor = format!("user:{}", user.0.identity.username);
-    let mut started = erasure::begin(
-        (&project, &space),
-        hash.clone(),
-        &request.reason,
-        &actor,
-        groups,
-    );
-    erasure::insert(&pool, &started).await.map_err(|err| {
-        tracing::warn!(error = %err, "an erasure was not logged");
-        ApiError::Unavailable("the erasure log could not be written; nothing was erased".into())
-    })?;
+    let pool = erasure_log(&state)?;
+    let found = held(pool, (&project, &space, &id)).await?;
+    let approver = actor_of(&user);
+    if found.actor == approver {
+        return Err(ApiError::SelfApproval(format!(
+            "you proposed erasure {id}; another owner of space '{space}' approves it (DM-142)"
+        )));
+    }
+    if found.state() != "proposed" {
+        return Err(not_proposed(&found));
+    }
+    let hash = erasure::subject_hash(subject_key(&state)?, &project, &space, &request.subject);
+    if hash != found.subject {
+        return Err(ApiError::Unprocessable {
+            detail: "subject: this is not the data subject the proposal names; type the value the request gave".into(),
+            errors: vec!["subject".into()],
+        });
+    }
+    let groups = groups_of(&state, (&project, &space), &spec, &request.subject).await?;
+    let approved = erasure::approve(pool, (&project, &space, &id), &approver, &groups)
+        .await
+        .map_err(|err| {
+            tracing::warn!(error = %err, "an erasure's approval was not logged");
+            ApiError::Unavailable("the erasure log could not be written; nothing was erased".into())
+        })?
+        .ok_or_else(|| not_proposed(&found))?;
     audited(
         &state,
         &user,
         &project,
         &space,
-        "erased a data subject",
-        json!({ "subject": hash, "reason": request.reason.trim(), "erasure": started.id, "entities": started.urns().len() }),
+        "approved a data subject's erasure",
+        json!({ "subject": hash, "erasure": id, "proposedBy": approved.actor, "entities": approved.urns().len() }),
     )
     .await;
-    erasure::attempt(&state, &pool, &started, Some(&request.subject)).await;
-    if let Ok(Some(now)) = erasure::get(&pool, &project, &space, &started.id).await {
-        started = now;
-    }
-    let location = format!(
-        "/api/v1/projects/{project}/spaces/{space}/erasures/{}",
-        started.id
-    );
-    Ok((
-        StatusCode::ACCEPTED,
-        [(header::LOCATION, location)],
-        Json(started.view()),
+    erasure::attempt(&state, pool, &approved, Some(&request.subject)).await;
+    let now = erasure::get(pool, &project, &space, &id)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or(approved);
+    Ok(Json(now.view()))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/spaces/{space}/erasures/{id}/decline",
+    summary = "Decline an Erasure",
+    description = "An owner of the space, the proposer included, declines a proposal with a reason; nothing is erased (DM-142). Audited with the reason.",
+    tag = "spaces",
+    params(
+        ("project" = String, Path, description = "Project name"),
+        ("space" = String, Path, description = "Context Space name"),
+        ("id" = String, Path, description = "The erasure's id"),
+    ),
+    request_body(content = DeclineRequest, example = json!({"reason": "the person withdrew the request"})),
+    responses(
+        (status = 200, description = "The declined erasure", body = Object),
+        (status = 400, description = "No reason", body = crate::error::ProblemDetails),
+        (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 403, description = "The caller does not own the space or sent a bearer token", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such space or erasure", body = crate::error::ProblemDetails),
+        (status = 409, description = "The erasure is no longer a proposal", body = crate::error::ProblemDetails),
+        (status = 503, description = "No database", body = crate::error::ProblemDetails),
     )
-        .into_response())
+)]
+pub(crate) async fn decline_erasure(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, space, id)): Path<(String, String, String)>,
+    body: Result<Json<DeclineRequest>, JsonRejection>,
+) -> Result<Json<Value>, ApiError> {
+    owned(&state, &user, &project, &space)?;
+    refuse_bearer(&user)?;
+    let Json(request) = body.map_err(|e| ApiError::BadRequest(e.body_text()))?;
+    reason_checked(&request.reason)?;
+    let pool = erasure_log(&state)?;
+    let found = held(pool, (&project, &space, &id)).await?;
+    if found.state() != "proposed" {
+        return Err(not_proposed(&found));
+    }
+    let declined = erasure::decline(
+        pool,
+        (&project, &space, &id),
+        &actor_of(&user),
+        &request.reason,
+    )
+    .await
+    .map_err(|err| {
+        tracing::warn!(error = %err, "an erasure's decline was not logged");
+        ApiError::Unavailable("the erasure log could not be written".into())
+    })?
+    .ok_or_else(|| not_proposed(&found))?;
+    audited(
+        &state,
+        &user,
+        &project,
+        &space,
+        "declined a data subject's erasure",
+        json!({ "subject": declined.subject, "erasure": id, "reason": request.reason.trim() }),
+    )
+    .await;
+    Ok(Json(declined.view()))
 }
 
 #[utoipa::path(
@@ -355,25 +610,8 @@ pub(crate) async fn get_erasure(
     Path((project, space, id)): Path<(String, String, String)>,
 ) -> Result<Json<Value>, ApiError> {
     owned(&state, &user, &project, &space)?;
-    let gone = || {
-        ApiError::NotFound(format!(
-            "erasure '{id}' not found in context space '{space}'"
-        ))
-    };
-    let pool = state.db.as_ref().ok_or_else(|| {
-        ApiError::Unavailable("this Portal keeps no erasure log (no database)".into())
-    })?;
-    if !erasure::is_id(&id) {
-        return Err(gone());
-    }
-    erasure::get(pool, &project, &space, &id)
-        .await
-        .map_err(|err| {
-            tracing::warn!(error = %err, "the erasure log was not read");
-            ApiError::Unavailable("the erasure log could not be read".into())
-        })?
-        .map(|found| Json(found.view()))
-        .ok_or_else(gone)
+    let pool = erasure_log(&state)?;
+    Ok(Json(held(pool, (&project, &space, &id)).await?.view()))
 }
 
 pub fn router() -> Router<AppState> {
@@ -384,10 +622,55 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/projects/{project}/spaces/{space}/erasures",
-            post(erase_subject),
+            get(list_erasures).post(erase_subject),
         )
         .route(
             "/projects/{project}/spaces/{space}/erasures/{id}",
             get(get_erasure),
         )
+        .route(
+            "/projects/{project}/spaces/{space}/erasures/{id}/approve",
+            post(approve_erasure),
+        )
+        .route(
+            "/projects/{project}/spaces/{space}/erasures/{id}/decline",
+            post(decline_erasure),
+        )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::auth::session::{Identity, Session};
+
+    fn person(client: Option<&str>) -> CurrentUser {
+        CurrentUser(Session {
+            identity: Identity {
+                client: client.map(str::to_owned),
+                subject: "sub-boris".into(),
+                username: "boris".into(),
+                email: Some("boris@hel.fi".into()),
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+            },
+            expires_at: 9_999_999_999,
+            issued_at: 1000,
+            id_token: "dummy".into(),
+            access_expires_at: 9_999_999_999,
+            refresh_token: None,
+        })
+    }
+
+    #[test]
+    fn a_bearer_token_never_decides_an_erasure() {
+        // A token an agent exchanged for an owner carries the owner and the agent's client (AG-94).
+        let refused = refuse_bearer(&person(Some("helsinki-jc-agent-proxy")));
+        assert!(
+            matches!(&refused, Err(ApiError::Denied(m)) if m.contains("DM-142")),
+            "{refused:?}"
+        );
+        assert!(refuse_bearer(&person(None)).is_ok());
+        assert_eq!(actor_of(&person(None)), "user:boris");
+    }
 }

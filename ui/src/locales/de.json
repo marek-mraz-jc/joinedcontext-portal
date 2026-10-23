@@ -1352,7 +1352,9 @@
       "lead": "Beantworten Sie die Anfrage einer Person zu den Daten, die dieser Bereich über sie hält: Exportieren Sie alles, was sie nennt, oder löschen Sie es aus aktuellen Werten, Verlauf und jeder Kopie. Nur ein Eigentümer des Bereichs kann das, und jede Anfrage wird mit ihrem Grund protokolliert. Das Modell des Bereichs muss angeben, welches Attribut die Person identifiziert.",
       "hint": {
         "subject": "Der Wert im Personenattribut des Modells, genau wie gespeichert, zum Beispiel r-42. Er wird nur in der Anfrage gesendet und nie gespeichert oder im Protokoll gezeigt.",
-        "reason": "Warum Sie handeln, mit der Anfrage protokolliert, zum Beispiel: Antrag nach Art. 17 2026-10-19-07."
+        "reason": "Warum Sie handeln, mit der Anfrage protokolliert, zum Beispiel: Antrag nach Art. 17 2026-10-19-07.",
+        "approveSubject": "Die Kennung aus der Anfrage, zum Beispiel r-42. Sie muss die im Vorschlag genannte sein; sie wird nie gespeichert.",
+        "declineReason": "Warum, mit der Entscheidung festgehalten, zum Beispiel: Die Person hat die Anfrage zurückgezogen."
       },
       "subject": "Kennung der Person",
       "subjectError": {
@@ -1367,10 +1369,10 @@
       },
       "export": "Daten der Person exportieren",
       "erase": "Daten der Person löschen…",
-      "confirmTitle": "Daten dieser Person aus {space} löschen?",
-      "confirmLead": "Die Löschung lässt sich nicht rückgängig machen. Sie entfernt die Werte aus dem aktuellen Stand, jeder Verlaufsversion und jeder Kopie; ein Eintrag ohne Werte bleibt.",
-      "confirm": "Löschen",
-      "nothing": "Der Bereich hält nichts über diese Person. Die Löschung protokolliert die Anfrage trotzdem.",
+      "confirmTitle": "Löschung der Daten dieser Person aus {space} vorschlagen?",
+      "confirmLead": "Ein weiterer Eigentümer dieses Bereichs genehmigt die Löschung, bevor etwas entfernt wird; bis dahin wird nichts gelöscht. Nach der Genehmigung ist sie endgültig: Sie entfernt die Werte aus dem aktuellen Stand, jeder Version der Historie und jeder Kopie, und ein Eintrag ohne Werte bleibt.",
+      "confirm": "Löschung vorschlagen",
+      "nothing": "Der Bereich enthält derzeit nichts über diese Person. Der Vorschlag hält die Anfrage trotzdem fest; der Bereich wird bei der Genehmigung erneut durchsucht.",
       "wouldErase": {
         "attrs": "{count, plural, one {{type}: die personenbezogenen Attribute ({attrs}) von # Entität} other {{type}: die personenbezogenen Attribute ({attrs}) von # Entitäten}}",
         "entity": "{count, plural, one {{type}: # ganze Entität} other {{type}: # ganze Entitäten}}"
@@ -1378,7 +1380,10 @@
       "state": {
         "open": "Löschung {id} läuft (Entitäten: {count}). Diese Seite prüft alle paar Sekunden erneut.",
         "done": "Löschung {id} ist fertig: jeder Speicher meldet die Löschung (Entitäten: {count}).",
-        "failed": "Löschung {id} ist nach einer Stunde Wiederholungen in einem Speicher gescheitert. Lesen Sie den Fehler unten und bitten Sie das Plattform-Team, diesen Speicher zu reparieren; die Löschung bleibt protokolliert."
+        "failed": "Löschung {id} ist nach einer Stunde Wiederholungen in einem Speicher gescheitert. Lesen Sie den Fehler unten und bitten Sie das Plattform-Team, diesen Speicher zu reparieren; die Löschung bleibt protokolliert.",
+        "proposed": "Löschung {id} ist vorgeschlagen ({count} Entitäten gefunden). Nichts wird gelöscht, bis ein weiterer Eigentümer dieses Bereichs sie bis {expires} genehmigt.",
+        "declined": "Löschung {id} wurde abgelehnt. Nichts wurde gelöscht.",
+        "expired": "Löschung {id} ist ohne Genehmigung abgelaufen. Nichts wurde gelöscht; schlagen Sie sie erneut vor, wenn die Anfrage weiter gilt."
       },
       "store": "{store}: {state}, {count} entfernt",
       "stores": {
@@ -1394,7 +1399,21 @@
         "done": "fertig",
         "failed": "gescheitert: Fehler lesen und später erneut versuchen"
       },
-      "exported": "{count, plural, one {# Datensatz in eine Datei in Ihren Downloads exportiert.} other {# Datensätze in eine Datei in Ihren Downloads exportiert.}}"
+      "exported": "{count, plural, one {# Datensatz in eine Datei in Ihren Downloads exportiert.} other {# Datensätze in eine Datei in Ihren Downloads exportiert.}}",
+      "proposals": {
+        "title": "Löschungen, die auf einen zweiten Eigentümer warten",
+        "empty": "Keine Löschung wartet auf Genehmigung. Schlägt ein Eigentümer eine vor, erscheint sie hier, damit ein weiterer Eigentümer des Bereichs sie genehmigt oder ablehnt.",
+        "item": "{id}: vorgeschlagen von {by} am {at}, {count, plural, one {# Entität} other {# Entitäten}} gefunden, offen bis {expires}",
+        "approve": "Genehmigen…",
+        "decline": "Ablehnen…",
+        "own": "Sie haben diese Löschung vorgeschlagen: Ein anderer Eigentümer des Bereichs genehmigt sie."
+      },
+      "approveTitle": "Löschung {id} genehmigen?",
+      "approveLead": "Geben Sie die Kennung der Person aus der Anfrage ein. Das Portal vergleicht sie mit dem Vorschlag, durchsucht den Bereich erneut und löscht, was er enthält. Das lässt sich nicht rückgängig machen.",
+      "approveConfirm": "Genehmigen und löschen",
+      "declineTitle": "Löschung {id} ablehnen?",
+      "declineLead": "Nichts wird gelöscht. Der Grund wird im Prüfprotokoll festgehalten.",
+      "declineConfirm": "Löschung ablehnen"
     },
     "viewHints": {
       "moveReason": "Wird bei jeder Verschiebung im Änderungsverlauf gespeichert, z. B. „Verschoben, weil der Ort abgesagt hat“.",
