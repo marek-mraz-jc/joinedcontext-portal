@@ -888,6 +888,8 @@ pub fn withdrawn(previous: &Mirror, published: &BTreeSet<(String, String)>) -> V
             // A withdrawal deletes by name: no title is written and no organization created.
             language: None,
             instance_title: None,
+            // A withdrawal draws no chart.
+            history: Default::default(),
         });
     }
     gone
