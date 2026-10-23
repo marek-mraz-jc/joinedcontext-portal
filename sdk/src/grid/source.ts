@@ -62,6 +62,8 @@ export interface HistoryWindow {
 export interface EntitySource {
   /** The source orders the whole answer by `GridQuery.orderBy`; without it the grid sorts a page. */
   orders?: boolean;
+  /** The Endpoint base (`/api/endpoint/{slug}`) whose OGC vector tiles draw the map past a count (T-5195). */
+  tilesAt?: string;
   query(q: GridQuery, page: { offset: number; limit: number }): Promise<GridPage>;
   get(id: string): Promise<RichRow | null>;
   history?(id: string, attr: string, window: HistoryWindow): Promise<HistoryPoint[]>;
@@ -213,7 +215,7 @@ export function historyOf(body: unknown, attr: string): HistoryPoint[] {
  * One NGSI-LD API under `base`. `hidden` is what a 404 becomes on a query, a history read or a
  * write: a Context Space surface says the same whether the space is missing or not granted.
  */
-function ngsiSource(base: string, transport: Transport, language: string, hidden?: string): EntitySource {
+function ngsiSource(base: string, transport: Transport, language: string, hidden?: string, tilesAt?: string): EntitySource {
   const refuse = (status: number, body: unknown, fallback: string): never => {
     if (status === 404 && hidden) throw new SourceError(404, hidden);
     throw new SourceError(status, detailOf(body, fallback), slotOf(body));
@@ -223,6 +225,7 @@ function ngsiSource(base: string, transport: Transport, language: string, hidden
 
   return {
     orders: true,
+    tilesAt,
     async query(q, page) {
       const { status, body, headers } = await transport({
         method: "GET",
@@ -266,7 +269,8 @@ function ngsiSource(base: string, transport: Transport, language: string, hidden
 
 /** What one Endpoint answers, by its slug (EP-55). */
 export function endpointSource(slug: string, transport: Transport, language = "en"): EntitySource {
-  return ngsiSource(`/api/endpoint/${encodeURIComponent(slug)}/ngsi-ld/v1`, transport, language);
+  const endpoint = `/api/endpoint/${encodeURIComponent(slug)}`;
+  return ngsiSource(`${endpoint}/ngsi-ld/v1`, transport, language, undefined, endpoint);
 }
 
 /** A whole Context Space surface, by its segment (SP-06); a 404 never says whether the space exists. */

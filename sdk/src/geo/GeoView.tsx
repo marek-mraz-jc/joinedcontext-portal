@@ -14,8 +14,17 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { mapWorkerReady, NO_BASEMAP, styleFor } from "../sdk/map";
 import { mapColors } from "../sdk/tokens";
 import type { Geometry, Position } from "./validate";
+import { registerTileProtocol, tileUrl } from "./tiles";
 
 const SOURCE = "geometry";
+const TILES = "tiles";
+const TILE_LAYERS = ["tile-areas", "tile-lines", "tile-points"] as const;
+
+/** Every entity of a type as the Endpoint's vector tiles: the template and the tile layer's name. */
+export interface TileSource {
+  template: string;
+  layer: string;
+}
 
 const workerReady = mapWorkerReady();
 
@@ -89,6 +98,9 @@ export function fillOf(
   ];
 }
 
+/** What the count line says while the tiles draw every entity, not only the page's. */
+export const TILED_NOTE = "Every entity, from the Endpoint's vector tiles";
+
 export function GeoView({
   value,
   selectedId,
@@ -97,6 +109,7 @@ export function GeoView({
   basemap,
   label = "Geometry",
   ramp,
+  tiles,
 }: {
   value: Geometry | GeoFeature | GeoFeature[] | null;
   /** The feature drawn as chosen; `null` draws none of them chosen. */
@@ -109,6 +122,8 @@ export function GeoView({
   label?: string;
   /** The range of the features' numeric `value`: areas are filled on the tokens' ramp over it. */
   ramp?: [number, number];
+  /** Past a count, every entity from the Endpoint's tiles, drawn under `value` (T-5195). */
+  tiles?: TileSource | null;
 }): React.JSX.Element {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
@@ -147,6 +162,8 @@ export function GeoView({
         canvasContextAttributes: { preserveDrawingBuffer: true },
       });
       map.current = instance;
+      // For a person debugging a screenshot or a journey: the map instance, as `MapView` has `kitMap`.
+      (window as unknown as { kitGeoMap?: MapLibreMap }).kitGeoMap = instance;
       instance.on("error", (event) => {
         // A silent map is the hardest kind to read from a screenshot, as in `MapView`.
         console.error("kit: map error", event.error?.message ?? event);
@@ -185,7 +202,7 @@ export function GeoView({
             "circle-stroke-color": colors.stroke,
           },
         });
-        for (const layer of ["areas", "lines", "points"]) {
+        for (const layer of ["areas", "lines", "points", ...TILE_LAYERS]) {
           instance?.on("click", layer, (event) => {
             const id = event.features?.[0]?.properties?.id;
             if (typeof id === "string") {
@@ -216,6 +233,29 @@ export function GeoView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, low, high]);
 
+  // The tiles go under the page's shapes, so the chosen row and its colour stay on top; a shape
+  // in a tile is told apart by its `id` tag, which is the entity's URN.
+  const template = tiles?.template;
+  const layer = tiles?.layer;
+  useEffect(() => {
+    const instance = map.current;
+    if (!ready || !instance || !template || !layer) return;
+    registerTileProtocol();
+    instance.addSource(TILES, { type: "vector", tiles: [tileUrl(template)], minzoom: 0, maxzoom: 16, promoteId: "id" });
+    const of = (id: string, type: "fill" | "line" | "circle", geometry: string[], paint: Record<string, unknown>) =>
+      instance.addLayer(
+        { id, type, source: TILES, "source-layer": layer, filter: ["match", ["geometry-type"], geometry, true, false], paint } as Parameters<MapLibreMap["addLayer"]>[0],
+        "areas",
+      );
+    of(TILE_LAYERS[0], "fill", ["Polygon", "MultiPolygon"], { "fill-color": drawn, "fill-opacity": 0.2 });
+    of(TILE_LAYERS[1], "line", ["LineString", "MultiLineString", "Polygon", "MultiPolygon"], { "line-color": drawn, "line-width": 2 });
+    of(TILE_LAYERS[2], "circle", ["Point", "MultiPoint"], { "circle-radius": 5, "circle-color": drawn, "circle-stroke-width": 1, "circle-stroke-color": colors.stroke });
+    return () => {
+      for (const id of TILE_LAYERS) if (instance.getLayer?.(id)) instance.removeLayer(id);
+      if (instance.getSource?.(TILES)) instance.removeSource(TILES);
+    };
+  }, [ready, template, layer, drawn, colors.stroke]);
+
   const fitted = useRef(false);
   useEffect(() => {
     if (!ready) {
@@ -240,9 +280,11 @@ export function GeoView({
       <div className="map" ref={container} data-testid="geo-map" role="application" aria-label={label} />
       {!basemap && <span className="map-notice">{NO_BASEMAP}</span>}
       <span className="map-count">
-        {features.length === 0
-          ? "No geometry"
-          : `${features.length} shape${features.length === 1 ? "" : "s"}`}
+        {tiles
+          ? TILED_NOTE
+          : features.length === 0
+            ? "No geometry"
+            : `${features.length} shape${features.length === 1 ? "" : "s"}`}
       </span>
     </div>
   );
