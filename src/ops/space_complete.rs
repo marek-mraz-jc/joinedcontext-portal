@@ -710,7 +710,9 @@ pub async fn run(
             "spec": {
                 "contextSpaceRef": space_name,
                 "slug": crate::agents::share::slug(),
-                "audience": "project",
+                // Only this project reads it until someone widens it (EP-14, EP-15).
+                "audience": "project-list",
+                "allowedProjects": [project],
                 "enabledRepresentations": ["ngsi-ld"]
             }
         }));
