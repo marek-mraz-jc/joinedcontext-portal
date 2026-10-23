@@ -14,9 +14,11 @@
 //!   there is no gateway operation a Policy could ever grant for it;
 //! - the tenant travels as the CIM 009 header on this internal hop and on no other (SP-08,
 //!   SP-09): no client sends it and no client sees it;
-//! - no credential travels at all. The hop is inside the mesh, and a member is read by the
-//!   broker as a tenant of itself, so there is nothing to authenticate as and nothing to store
-//!   (CLAUDE.md: no static keys between cluster services).
+//! - the hop carries no subject, so the broker admits it only with its admin bearer token
+//!   (`JC_PORTAL_BROKER_ADMIN_TOKEN_FILE`, the one the view writer sends; Antares T-5032): a pod
+//!   that merely reaches the broker port registers nothing. No credential lands in a
+//!   registration: a member is read by the broker as a tenant of itself, so there is nothing
+//!   to store.
 //!
 //! Only a registration this reconciler declared in a previous run is ever deleted, so a
 //! registration somebody wrote straight into the broker is left alone.
@@ -27,6 +29,7 @@ use jcctl::csr::{registration, registration_id, MemberSource};
 use jcctl::loader::{RawManifest, RawMetadata};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
 use std::time::Duration;
 
 /// A broker call that has not answered in this long is a failed sync, not a slow one.
@@ -55,6 +58,9 @@ pub struct RegistrationSync {
     /// The Context Gateway as this Portal reaches it, without a trailing slash: where a
     /// caller-identity registration names its member Endpoint (T-3999, PF-113).
     gateway: Option<String>,
+    /// The broker's admin token (`JC_PORTAL_BROKER_ADMIN_TOKEN_FILE`), read on every call and
+    /// sent only as the bearer of this hop. `None` sends none, for a broker without one.
+    token_file: Option<PathBuf>,
 }
 
 impl RegistrationSync {
@@ -68,7 +74,32 @@ impl RegistrationSync {
             broker: broker.into().trim_end_matches('/').to_owned(),
             template: None,
             gateway: None,
+            token_file: None,
         }
+    }
+
+    /// Sends the broker's admin token, read from `token_file` on every call, as the bearer of
+    /// each registration write and delete (T-5032).
+    pub fn with_admin_token(mut self, token_file: Option<PathBuf>) -> Self {
+        self.token_file = token_file;
+        self
+    }
+
+    /// `request` with the admin bearer, when a token file is configured. A configured file
+    /// that cannot be read fails the call instead of sending it without the credential.
+    fn authorized(
+        &self,
+        request: reqwest::RequestBuilder,
+    ) -> Result<reqwest::RequestBuilder, String> {
+        let Some(file) = &self.token_file else {
+            return Ok(request);
+        };
+        std::fs::read_to_string(file)
+            .ok()
+            .map(|token| token.trim().to_owned())
+            .filter(|token| !token.is_empty())
+            .map(|token| request.bearer_auth(token))
+            .ok_or_else(|| "the broker's admin token is not readable".to_owned())
     }
 
     /// Names each member Endpoint on the gateway at `gateway` (`JC_PORTAL_GATEWAY_URL`), so a
@@ -205,8 +236,7 @@ impl RegistrationSync {
         body: &Value,
     ) -> Result<(), String> {
         let created = self
-            .http
-            .post(format!("{ngsi_ld}/csourceRegistrations"))
+            .authorized(self.http.post(format!("{ngsi_ld}/csourceRegistrations")))?
             .header(TENANT_HEADER, space)
             .json(body)
             .send()
@@ -226,8 +256,10 @@ impl RegistrationSync {
             object.remove("type");
         }
         let updated = self
-            .http
-            .patch(format!("{ngsi_ld}/csourceRegistrations/{id}"))
+            .authorized(
+                self.http
+                    .patch(format!("{ngsi_ld}/csourceRegistrations/{id}")),
+            )?
             .header(TENANT_HEADER, space)
             .json(&patch)
             .send()
@@ -241,8 +273,10 @@ impl RegistrationSync {
 
     async fn delete(&self, ngsi_ld: &str, space: &str, id: &str) -> Result<(), String> {
         let response = self
-            .http
-            .delete(format!("{ngsi_ld}/csourceRegistrations/{id}"))
+            .authorized(
+                self.http
+                    .delete(format!("{ngsi_ld}/csourceRegistrations/{id}")),
+            )?
             .header(TENANT_HEADER, space)
             .send()
             .await
