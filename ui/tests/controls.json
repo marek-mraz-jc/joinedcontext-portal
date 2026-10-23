@@ -1138,6 +1138,7 @@
       },
       "tests": [
         "endpoint_geo_property.test.ts",
+        "endpoint_ical_qr.test.tsx",
         "part_endpoint_links.test.tsx",
         "part_operation_groups.test.tsx"
       ]

@@ -1645,6 +1645,8 @@
     "ical": {
       "subscribe": "Kalenderabo",
       "preview": "Feed öffnen (.ics)",
+      "qr": "QR-Code des Kalenderabos {address}",
+      "qrHint": "Scannen Sie ihn mit der Handykamera, um den Kalender hinzuzufügen.",
       "off": "Schalten Sie den iCalendar-Feed unter Darstellungen ein, um seine Felder zuzuordnen.",
       "help": "Aus welchem Attribut des Raummodells jedes Kalenderfeld stammt. Eine leere Zeile nutzt das grau gezeigte Attribut der Vorlage. Prüfen Sie das Formular, um das Urteil des Servers gegen das Datenmodell zu sehen.",
       "start": "Beginnen mit",

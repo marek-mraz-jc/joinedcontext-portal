@@ -1645,6 +1645,8 @@
     "ical": {
       "subscribe": "Odber kalendára",
       "preview": "Otvoriť kalendár (.ics)",
+      "qr": "QR kód odberu kalendára {address}",
+      "qrHint": "Naskenujte ho fotoaparátom telefónu a kalendár sa pridá.",
       "off": "Zapnite kalendár iCalendar v časti Reprezentácie, aby ste mohli mapovať jeho polia.",
       "help": "Z ktorého atribútu modelu priestoru pochádza každé pole kalendára. Prázdny riadok použije atribút predvoľby, zobrazený sivo. Skontrolujte formulár a uvidíte verdikt servera voči dátovému modelu.",
       "start": "Začať od",
