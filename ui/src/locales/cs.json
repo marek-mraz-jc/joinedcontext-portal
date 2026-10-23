@@ -1367,6 +1367,11 @@
     }
   },
   "endpoints": {
+    "surfaceFit": {
+      "lead": "Datový model prostoru {space} tyto standardy neumí poskytovat, proto jsou jejich políčka šedá:",
+      "openModel": "Otevřít datový model {model}",
+      "addModel": "Přidat datový model pro prostor"
+    },
     "check": "Zkontrolovat",
     "lead": "Kde je prostor publikován: kdo ho smí volat, v jakých reprezentacích a pod jakou URL.",
     "title": "Rozhraní",

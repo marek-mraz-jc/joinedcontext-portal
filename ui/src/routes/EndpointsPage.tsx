@@ -46,7 +46,14 @@ import {
   SPACE_LABEL,
   spaceOf,
 } from "../components/endpoints/sharing";
-import { endpointSchema, endpointUiSchema, generateSlug, REPRESENTATIONS } from "../schemas/kinds";
+import {
+  ALWAYS_ON_REPRESENTATIONS,
+  endpointSchema,
+  endpointUiSchema,
+  generateSlug,
+  REPRESENTATIONS,
+} from "../schemas/kinds";
+import { disabledRepresentations, surfaceFitQuery, surfaceGaps } from "../api/surfaceFit";
 import type { JsonSchema } from "../components/forms/types";
 import { ModelPicker } from "../pages/endpoints/ModelPicker";
 import { FilterProof, classesWithSlots } from "../pages/endpoints/FilterProof";
@@ -763,6 +770,10 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   const [verdict, setVerdict] = useState<Verdict | null>(null);
 
   const editedSpace = editing?.contextSpaceRef;
+  // What the space's model cannot serve greys its checkbox out, with the reason under the form
+  // (EP-125, T-5299); propose refuses the same surfaces with the same sentences.
+  const fitQuery = useQuery(surfaceFitQuery(project, editedSpace ?? ""));
+  const fitGaps = editedSpace ? surfaceGaps(fitQuery.data) : [];
   const spaceHasModel =
     editedSpace !== undefined &&
     asManifests(modelsQuery.data?.items ?? []).some(
@@ -1210,6 +1221,14 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       : withoutBurst(audienceSchema);
   const uiSchema = {
     ...endpointUiSchema,
+    enabledRepresentations: {
+      ...endpointUiSchema.enabledRepresentations,
+      "ui:enumDisabled": disabledRepresentations(
+        ALWAYS_ON_REPRESENTATIONS,
+        editedSpace ? fitQuery.data : undefined,
+        editing?.enabledRepresentations,
+      ),
+    },
     rateLimits: { requestsPerMinute: { "ui:options": { emptyLabel: t("endpoints.rateClass.none") } } },
     ...(pickable.length > 0 ? { allowedProjects: { "ui:widget": "checkboxes" } } : {}),
   };
@@ -1632,6 +1651,30 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
             {editing?.audience === "public" ? (
               <Alert role="note" tone="warning">
                 {t("endpoints.publicNotice")}
+              </Alert>
+            ) : null}
+
+            {fitGaps.length > 0 && editedSpace ? (
+              <Alert role="note" tone="warning">
+                <p>{t("endpoints.surfaceFit.lead", { space: editedSpace })}</p>
+                <ul className="list-disc pl-5" data-testid="surface-gaps">
+                  {fitGaps.map(({ representation, gap }) => (
+                    <li key={representation}>{gap}</li>
+                  ))}
+                </ul>
+                {fitQuery.data?.dataModel ? (
+                  <Link
+                    to="/projects/$project/models/$name"
+                    params={{ project, name: fitQuery.data.dataModel }}
+                    className="underline"
+                  >
+                    {t("endpoints.surfaceFit.openModel", { model: fitQuery.data.dataModel })}
+                  </Link>
+                ) : (
+                  <Link to="/projects/$project/models" params={{ project }} className="underline">
+                    {t("endpoints.surfaceFit.addModel")}
+                  </Link>
+                )}
               </Alert>
             ) : null}
 
