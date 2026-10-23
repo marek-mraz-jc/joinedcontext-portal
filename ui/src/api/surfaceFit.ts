@@ -6,7 +6,6 @@ import type { components } from "./schema";
  * `ical` with the sentence the Portal refuses it with, or none when the model serves it.
  */
 export type SurfaceFit = components["schemas"]["SurfaceFit"];
-export type SurfaceGap = components["schemas"]["SurfaceGap"];
 
 export function surfaceFitQuery(project: string, space: string) {
   return {
