@@ -1244,7 +1244,7 @@ fn reason_header(cause: Cause, pipeline: &str, run: &str) -> String {
 }
 
 /// The delete stream: one message per `CHUNK` ids, each first read for its entities'
-/// `modifiedAt`, so one someone changed after the pipeline last wrote it (`wrote`, unix seconds,
+/// `modifiedAt` by a batch query (queryBatch, the read admission demands beside deleteBatch), so one someone changed after the pipeline last wrote it (`wrote`, unix seconds,
 /// beside each id) is kept and reported as `edited` (PL-100); the rest is a batch delete on the
 /// Endpoint, its answer reduced to what went, what was gone already and what the gateway
 /// refused, and posted to `report`. A chunk whose read fails deletes nothing. The ids ride
@@ -1277,11 +1277,11 @@ pub fn render(
             { "unarchive": { "format": "json_array" } },
             { "try": [
                 { "branch": {
-                    "request_map": "meta jc_ids = this.ids.map_each(i -> i.escape_url_query()).join(\",\")\nroot = \"\"",
+                    "request_map": "root = {\"type\": \"Query\", \"entities\": [{\"type\": \"*\", \"id\": this.ids}]}",
                     "processors": [{ "http": {
-                        "url": format!("{entities}/entities?id=${{! meta(\"jc_ids\") }}&options=sysAttrs,keyValues&limit={CHUNK}"),
-                        "verb": "GET",
-                        "headers": { "Accept": "application/json" },
+                        "url": format!("{entities}/entityOperations/query?options=sysAttrs,keyValues&limit={CHUNK}"),
+                        "verb": "POST",
+                        "headers": { "Content-Type": "application/json", "Accept": "application/json" },
                         "oauth2": oauth2,
                         "timeout": "30s",
                         "retries": 1,
@@ -1778,10 +1778,18 @@ mod tests {
         // Each chunk first reads its entities' modifiedAt through the same Endpoint (PL-100).
         let read =
             &stream["pipeline"]["processors"][1]["try"][0]["branch"]["processors"][0]["http"];
-        assert_eq!(read["verb"], "GET");
+        // POST entityOperations/query is the gateway's queryBatch, the read admission demands:
+        // GET /entities would be queryEntity, which a pipeline's grants do not hold.
+        assert!(crate::pipeline_expiry::SOURCE_DELETE_OPERATIONS
+            .contains(&(jc_core::kinds::Operation::QueryBatch, "queryBatch")));
+        assert_eq!(read["verb"], "POST");
         assert_eq!(
             read["url"],
-            "${JC_GATEWAY_URL}/api/endpoint/ep-slug/ngsi-ld/v1/entities?id=${! meta(\"jc_ids\") }&options=sysAttrs,keyValues&limit=100"
+            "${JC_GATEWAY_URL}/api/endpoint/ep-slug/ngsi-ld/v1/entityOperations/query?options=sysAttrs,keyValues&limit=100"
+        );
+        assert_eq!(
+            stream["pipeline"]["processors"][1]["try"][0]["branch"]["request_map"],
+            r#"root = {"type": "Query", "entities": [{"type": "*", "id": this.ids}]}"#
         );
         let http =
             &stream["pipeline"]["processors"][1]["try"][2]["branch"]["processors"][0]["http"];

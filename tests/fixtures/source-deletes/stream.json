@@ -37,7 +37,8 @@
                 {
                   "http": {
                     "headers": {
-                      "Accept": "application/json"
+                      "Accept": "application/json",
+                      "Content-Type": "application/json"
                     },
                     "oauth2": {
                       "client_key": "helsinki-pipelines",
@@ -47,12 +48,12 @@
                     },
                     "retries": 1,
                     "timeout": "30s",
-                    "url": "${JC_GATEWAY_URL}/api/endpoint/ep-slug/ngsi-ld/v1/entities?id=${! meta(\"jc_ids\") }&options=sysAttrs,keyValues&limit=100",
-                    "verb": "GET"
+                    "url": "${JC_GATEWAY_URL}/api/endpoint/ep-slug/ngsi-ld/v1/entityOperations/query?options=sysAttrs,keyValues&limit=100",
+                    "verb": "POST"
                   }
                 }
               ],
-              "request_map": "meta jc_ids = this.ids.map_each(i -> i.escape_url_query()).join(\",\")\nroot = \"\"",
+              "request_map": "root = {\"type\": \"Query\", \"entities\": [{\"type\": \"*\", \"id\": this.ids}]}",
               "result_map": "root.found = this.map_each(e -> {\"id\": e.id.or(\"\"), \"at\": e.modifiedAt.or(\"\").ts_unix().catch(0)})"
             }
           },
