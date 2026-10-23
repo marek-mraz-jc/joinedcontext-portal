@@ -392,10 +392,12 @@ impl<'a> Builder<'a> {
             .items
             .into_iter()
             .filter_map(|p| {
-                serde_json::from_value(p.spec.clone())
+                serde_json::from_value::<PolicySpec>(p.spec.clone())
                     .ok()
                     .map(|spec| (p.metadata.name, spec))
             })
+            // One grant per rule, `{policy}#{n}` (ADR-N-057); an invalid shape grants nothing.
+            .flat_map(|(name, spec)| spec.expand(&name).unwrap_or_default())
             .collect();
         Self {
             mirror,
