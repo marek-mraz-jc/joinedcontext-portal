@@ -391,6 +391,41 @@ pub async fn source_deletes(
     }
 }
 
+/// `POST /internal/pipelines/{project}/{name}/source-events`: the ids an events stream's
+/// `deletedWhen` marked in one message, and the records it could not judge (PL-98, T-5360).
+pub(crate) async fn source_events(
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> StatusCode {
+    if crate::auth::internal::authenticate_pipeline_of(&state, &headers, &project, &name)
+        .await
+        .is_err()
+    {
+        return StatusCode::UNAUTHORIZED;
+    }
+    let Ok(marks) = serde_json::from_slice::<crate::pipeline_source_deletes::Marks>(&body) else {
+        return StatusCode::BAD_REQUEST;
+    };
+    if marks.ids.len() + marks.failed.len() > BATCH {
+        return StatusCode::PAYLOAD_TOO_LARGE;
+    }
+    let Some(pipeline) = state.mirror.get(&project, "Pipeline", &name) else {
+        return StatusCode::NOT_FOUND;
+    };
+    if crate::pipeline_source_deletes::events_rule(&pipeline.spec).is_none() {
+        return StatusCode::CONFLICT;
+    }
+    match crate::pipeline_source_deletes::marked_at_source(&state, &project, &name, marks).await {
+        Ok(()) => StatusCode::NO_CONTENT,
+        Err(error) => {
+            tracing::warn!(%project, pipeline = %name, %error, "a source's delete marks were not kept");
+            StatusCode::SERVICE_UNAVAILABLE
+        }
+    }
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route(
@@ -408,6 +443,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/internal/pipelines/{project}/{name}/source-deletes",
             post(source_deletes),
+        )
+        .route(
+            "/internal/pipelines/{project}/{name}/source-events",
+            post(source_events),
         )
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
 }
@@ -584,6 +623,35 @@ mod tests {
                 .expect("count"),
             0
         );
+    }
+
+    /// PL-98 (T-5360): only the pipeline's own workload may post delete marks.
+    #[tokio::test]
+    async fn delete_marks_without_the_pipelines_token_are_401_and_mark_nothing() {
+        use tower::ServiceExt;
+        let state = world();
+        state
+            .source_ledger
+            .seen("ovzdusie", "stations", "r0", &["urn:a:1".to_owned()], true)
+            .await
+            .expect("seen");
+        let response = router()
+            .with_state(state.clone())
+            .oneshot(
+                axum::http::Request::post("/internal/pipelines/ovzdusie/stations/source-events")
+                    .header("content-type", "application/json")
+                    .body(axum::body::Body::from(r#"{"run":"r1","ids":["urn:a:1"]}"#))
+                    .expect("a request"),
+            )
+            .await
+            .expect("an answer");
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert!(state
+            .source_ledger
+            .marking()
+            .await
+            .expect("marking")
+            .is_empty());
     }
 
     #[test]

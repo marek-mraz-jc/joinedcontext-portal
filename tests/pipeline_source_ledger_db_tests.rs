@@ -3,7 +3,7 @@
 //! Runs when `JC_PORTAL_TEST_DATABASE_URL` points at a PostgreSQL the test may write to; otherwise
 //! it says so and returns, like the other database suites.
 
-use joinedcontext_portal::pipeline_source_deletes::{Hold, HoldReason, Ledger};
+use joinedcontext_portal::pipeline_source_deletes::{Cause, Hold, HoldReason, Ledger};
 
 fn database_url() -> Option<String> {
     std::env::var("JC_PORTAL_TEST_DATABASE_URL")
@@ -106,11 +106,11 @@ async fn the_report_keeps_the_last_complete_run_and_the_removals() {
 
     let ids = ["urn:a", "urn:b"].map(str::to_owned);
     ledger
-        .removed(p, "open", "x", "r2", &ids)
+        .removed(p, "open", "x", ("r2", Cause::Snapshot), &ids)
         .await
         .expect("removed");
     ledger
-        .removed(p, "other", "y", "r7", &["urn:c".to_owned()])
+        .removed(p, "other", "y", ("r7", Cause::Event), &["urn:c".to_owned()])
         .await
         .expect("removed");
     let of_x = ledger
@@ -130,5 +130,56 @@ async fn the_report_keeps_the_last_complete_run_and_the_removals() {
     assert_eq!(
         (in_other[0].pipeline.as_str(), in_other[0].run.as_str()),
         ("y", "r7")
+    );
+    assert_eq!(in_other[0].reason, "source-event: pipeline y run r7");
+}
+
+/// PL-98, PL-100 (T-5360): marks hold only ledger ids, go per run, oldest run first, and leave
+/// the ledger marked no more once taken; each written id has its write time.
+#[tokio::test]
+async fn marks_are_taken_per_run_and_only_for_ledger_ids() {
+    let Some(url) = database_url() else {
+        eprintln!("JC_PORTAL_TEST_DATABASE_URL is not set: the marks' database half is not run");
+        return;
+    };
+    let pool = joinedcontext_portal::db::connect(&url)
+        .await
+        .expect("the test database answers and migrates");
+    let ledger = Ledger::new(Some(pool));
+    let project = fresh_project();
+    let p = project.as_str();
+    let ids = ["urn:a", "urn:b", "urn:c"].map(str::to_owned);
+    ledger.seen(p, "ev", "r0", &ids, true).await.expect("seen");
+    let held = ledger
+        .mark(p, "ev", "r2", &["urn:a".to_owned(), "urn:z".to_owned()])
+        .await
+        .expect("mark");
+    assert_eq!(held, ["urn:a"]);
+    ledger
+        .mark(p, "ev", "r1", &["urn:b".to_owned(), "urn:c".to_owned()])
+        .await
+        .expect("mark");
+    assert!(ledger
+        .marking()
+        .await
+        .expect("marking")
+        .contains(&(p.to_owned(), "ev".to_owned())));
+    let first = ledger.take_marked(p, "ev").await.expect("take");
+    assert_eq!(
+        first,
+        Some((
+            "r1".to_owned(),
+            vec!["urn:b".to_owned(), "urn:c".to_owned()]
+        ))
+    );
+    let second = ledger.take_marked(p, "ev").await.expect("take");
+    assert_eq!(second, Some(("r2".to_owned(), vec!["urn:a".to_owned()])));
+    assert_eq!(ledger.take_marked(p, "ev").await.expect("take"), None);
+    let written = ledger.written(p, "ev", &ids).await.expect("written");
+    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+    assert_eq!(written.len(), 3);
+    assert!(
+        written.values().all(|at| (now - at).abs() < 600),
+        "{written:?}"
     );
 }
