@@ -178,3 +178,31 @@ async fn the_delete_door_refuses_the_last_administrator_with_409() {
     use axum::response::IntoResponse;
     assert_eq!(refused.into_response().status(), StatusCode::CONFLICT);
 }
+
+/// With several Organizations (ADR-N-058) only the installation's administrators keep it
+/// running: another Organization's admin binding does not let its last one go (T-5241, T-5248).
+#[test]
+fn another_organizations_administrator_does_not_replace_the_installations_last() {
+    let mirror = organization(&[("admin", "org-admin")]);
+    for (name, installation) in [("hel", true), ("zilina", false)] {
+        mirror.upsert(envelope(
+            "Organization",
+            name,
+            ORG_NAMESPACE,
+            json!({ "domain": format!("{name}.sk"), "installation": installation }),
+        ));
+    }
+    mirror.upsert(envelope(
+        "RoleBinding",
+        "zilina-admins",
+        ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": "eva@zilina.sk" }], "role": "org-admin",
+                "scope": { "organization": "zilina" } }),
+    ));
+    let detail = refused(keeps_an_administrator(
+        &mirror,
+        remove("RoleBinding", "admin"),
+    ));
+    assert!(detail.contains("admin"), "{detail}");
+    assert!(keeps_an_administrator(&mirror, remove("RoleBinding", "zilina-admins")).is_ok());
+}

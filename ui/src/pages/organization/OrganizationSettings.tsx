@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests, ORG_NAMESPACE } from "../../api/manifest";
+import { useChosenOrganizationName } from "../../api/projects";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import type { EditableForm } from "../../components/EditResourceDialog";
 import { EmptyState, Skeleton } from "../../components/ui";
@@ -29,6 +30,8 @@ interface ProjectsPolicy {
 interface OrganizationSpec {
   domain?: string;
   gitRepositoryUrl?: string;
+  /** The installation Organization (PF-121); its administrators run every other one. */
+  installation?: boolean;
   locales?: string[];
   defaultLocale?: string;
   contacts?: Contact[];
@@ -94,7 +97,13 @@ export function OrganizationSettings(): JSX.Element {
     queryKey: ["organization-limits"],
     queryFn: async () => unwrap(await api.GET("/api/v1/organization/limits")),
   });
-  const organization = asManifests(organizations.data?.items ?? [])[0];
+  // With several Organizations: the one `?org=` chooses, else the installation's (ADR-N-058 2.7).
+  const chosen = useChosenOrganizationName();
+  const all = asManifests(organizations.data?.items ?? []);
+  const organization =
+    all.find((item) => item.metadata.name === chosen) ??
+    all.find((item) => (item.spec as OrganizationSpec | undefined)?.installation === true) ??
+    all[0];
   const spec = (organization?.spec ?? {}) as OrganizationSpec;
   const policy = spec.projects ?? {};
   const form: EditableForm = {
