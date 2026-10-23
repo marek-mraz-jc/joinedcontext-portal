@@ -170,7 +170,9 @@ describe("the places that name a model or a type", () => {
 
   it("a pipeline's target type", async () => {
     await renderRoute({ path: "/projects/helsinki/pipelines", answer });
-    const link = await screen.findByRole("link", { name: "AirQualityObserved" });
+    // Past the harness's 5 s on a CI runner under coverage, as the endpoint's types above
+    // (ci-full 39901479856).
+    const link = await screen.findByRole("link", { name: "AirQualityObserved" }, { timeout: 10_000 });
     expect(link).toHaveAttribute("href", "/projects/helsinki/models/air?class=AirQualityObserved");
     expect(link.parentElement).toHaveTextContent(`${en.pipelines.writesType} AirQualityObserved`);
   });

@@ -176,16 +176,26 @@ pub struct Missing {
 }
 
 tokio::task_local! {
-    /// The resources proposed in one Change with the manifest under check, as `(kind, name)`:
-    /// a reference to one of them resolves when that Change merges (T-5109). Only
-    /// `jc_space_complete` sets it, around the check of each draft of the bundle it commits whole.
-    pub static BUNDLE: Vec<(String, String)>;
+    /// The manifests proposed in one Change with the manifest under check: a reference to one of
+    /// them resolves when that Change merges (T-5109), and a write one of them binds is made
+    /// (PL-111). Only `jc_space_complete` sets it, around the check of each draft of the bundle it
+    /// commits whole.
+    pub static BUNDLE: Vec<Value>;
+}
+
+/// The manifests of the Change being checked ([`BUNDLE`]); empty outside `jc_space_complete`.
+pub fn bundled() -> Vec<Value> {
+    BUNDLE.try_with(Clone::clone).unwrap_or_default()
 }
 
 /// Whether the Change being checked proposes `kind` `name` itself ([`BUNDLE`]).
 fn in_bundle(kind: &str, name: &str) -> bool {
     BUNDLE
-        .try_with(|bundle| bundle.iter().any(|(k, n)| k == kind && n == name))
+        .try_with(|bundle| {
+            bundle
+                .iter()
+                .any(|m| m["kind"] == kind && m["metadata"]["name"] == name)
+        })
         .unwrap_or(false)
 }
 

@@ -1299,7 +1299,7 @@ async fn a_lifetime_naming_no_slot_of_the_spaces_model_is_refused_before_a_chang
             api_version: API_VERSION.to_owned(),
             kind: "Endpoint".to_owned(),
             metadata: ObjectMeta::new("public-air", "ovzdusie"),
-            spec: json!({ "contextSpaceRef": "ovzdusie", "slug": "public-air" }),
+            spec: json!({ "contextSpaceRef": "ovzdusie", "slug": "k7m2qz4tv6xh3n5jb2ryd3wcfa", "audience": "public" }),
             status: None,
         },
     ] {

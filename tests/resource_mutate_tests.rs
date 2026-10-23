@@ -1534,6 +1534,18 @@ async fn a_subscription_carrying_a_literal_credential_is_refused() {
     );
 }
 
+/// The Endpoint the ovzdusie pipelines write through, so no write they propose is one nobody
+/// can make (PL-111).
+fn public_air() -> ResourceEnvelope {
+    ResourceEnvelope {
+        api_version: API_VERSION.into(),
+        kind: "Endpoint".into(),
+        metadata: ObjectMeta::new("public-air", "ovzdusie"),
+        spec: json!({ "contextSpaceRef": "ovzdusie", "slug": "k7m2qz4tv6xh3n5jb2ryd3wcfa", "audience": "public" }),
+        status: None,
+    }
+}
+
 /// PF-73, PF-74: the write that would put the project over a quota is refused before a change
 /// exists, and the refusal names the count and the limit. The dry run says the same, so a person
 /// learns it from the form and not from the merge request.
@@ -1573,6 +1585,7 @@ async fn the_pipeline_above_the_quota_is_refused_with_the_count_and_the_limit() 
         }))
         .expect("a data source"),
     );
+    state.mirror.upsert(public_air());
     state
         .mirror
         .upsert(serde_json::from_value::<ResourceEnvelope>(pipeline("first")).expect("a pipeline"));
@@ -2051,7 +2064,9 @@ async fn a_step_names_its_own_secret_as_a_variable_and_nothing_else() {
             .expect("request")
     };
     async fn answer(config: &Config, request: Request<Body>) -> (StatusCode, String) {
-        let app = server::app(AppState::new(config.clone(), None));
+        let state = AppState::new(config.clone(), None);
+        state.mirror.upsert(public_air());
+        let app = server::app(state);
         let response = app.oneshot(request).await.expect("response");
         let status = response.status();
         let bytes = response
