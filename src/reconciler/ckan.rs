@@ -26,6 +26,11 @@
 //!   answered 429, and each refusal was retried on the next tick. So an unchanged Endpoint is
 //!   published again only after [`REFRESH`], a failed one backs off, and the calls of a run to
 //!   the catalogue keep [`CALL_GAP`] apart.
+//! - **The catalogue is asked about an organization once a pass, on its Service (T-5314).** Every
+//!   publication asked `organization_show` through the public edge: 184 calls in two minutes for
+//!   one organization on prod, against the public's own limit. A pass remembers each organization
+//!   it saw ([`Organizations`]), and the deployment's own catalogue is called at the in-cluster
+//!   address the operator maps its public URL to ([`CkanSync::reaching`]).
 //!
 //! Everything CKAN is spoken to through `jcctl`'s blocking client, so each publication runs on a
 //! blocking thread: dropping a blocking `reqwest` client inside the reconciler's runtime panics.
@@ -110,6 +115,10 @@ pub struct CkanSync {
     /// When this Portal may next call the catalogue or read the gateway, shared by every
     /// publication (T-4717).
     last_call: Arc<Mutex<Option<Instant>>>,
+    /// The deployment's own catalogue: its public URL, without a trailing slash, and the
+    /// in-cluster address its API is called at instead (T-5314). `None` calls every instance
+    /// at its `spec.url`.
+    api_route: Option<(String, String)>,
 }
 
 impl CkanSync {
@@ -122,6 +131,28 @@ impl CkanSync {
             said: Arc::default(),
             pacing: Arc::default(),
             last_call: Arc::default(),
+            api_route: None,
+        }
+    }
+
+    /// Calls the API of the instance whose `spec.url` is `public` at `api` instead, the
+    /// catalogue's Service in this cluster (T-5314). Links in a dataset keep the public URL; only
+    /// the calls move. The operator sets both, never a manifest: an instance URL a project
+    /// writes cannot send this Portal's calls to an address inside the cluster.
+    pub fn reaching(mut self, public: &str, api: &str) -> Self {
+        self.api_route = Some((
+            public.trim_end_matches('/').to_owned(),
+            api.trim_end_matches('/').to_owned(),
+        ));
+        self
+    }
+
+    /// Where the API of `instance` is called: its in-cluster address when it is this
+    /// deployment's own catalogue, else its `spec.url`.
+    pub fn api_url(&self, instance: &CkanInstanceSpec) -> String {
+        match &self.api_route {
+            Some((public, api)) if instance.base_url() == public => api.clone(),
+            _ => instance.base_url().to_owned(),
         }
     }
 
@@ -192,6 +223,7 @@ impl CkanSync {
     ) -> Vec<Report> {
         let mut reports = Vec::new();
         let mut wanted: Vec<Target> = Vec::new();
+        let known = Organizations::default();
         let mut unread = false;
         for project in projects(repo) {
             match publisher::targets(repo, &project) {
@@ -250,7 +282,7 @@ impl CkanSync {
                 continue;
             }
             let measured = self.measured(repo, &target);
-            let report = self.one(&target, false, repository, measured).await;
+            let report = self.one(&target, false, repository, measured, &known).await;
             self.pacing
                 .lock()
                 .unwrap_or_else(|p| p.into_inner())
@@ -259,7 +291,7 @@ impl CkanSync {
         }
         for target in withdrawn(previous, &published) {
             let measured = Measurements::default();
-            reports.push(self.one(&target, true, repository, measured).await);
+            reports.push(self.one(&target, true, repository, measured, &known).await);
         }
         // A project whose publications did not read keeps its datasets out of `kept`, and a
         // shared organization would lose them: no sweep in such a pass.
@@ -267,7 +299,10 @@ impl CkanSync {
             sweeps.clear();
         }
         for ((_, organization), (target, kept)) in sweeps {
-            reports.extend(self.sweep(&target, organization, kept, repository).await);
+            reports.extend(
+                self.sweep(&target, organization, kept, repository, &known)
+                    .await,
+            );
         }
         self.log(&reports);
         reports
@@ -335,6 +370,7 @@ impl CkanSync {
             .collect();
         let mut gone = 0;
         for target in targets {
+            let api_url = self.api_url(&target.instance);
             let repository = repository.to_path_buf();
             let age_key_file = self.age_key_file.clone();
             let ids = ids.to_vec();
@@ -345,8 +381,7 @@ impl CkanSync {
                 };
                 let token = publisher::token(&target.instance, &repository, source)
                     .map_err(|err| err.to_string())?;
-                let mut api = HttpCkan::new(target.instance.base_url(), token)
-                    .map_err(|err| err.to_string())?;
+                let mut api = HttpCkan::new(&api_url, token).map_err(|err| err.to_string())?;
                 erase_rows_with(&mut api, target.dataset_name(), &ids)
             })
             .await
@@ -362,6 +397,7 @@ impl CkanSync {
         withdraw: bool,
         repository: &Path,
         measured: Measurements,
+        known: &Organizations,
     ) -> Report {
         let project = target.id.namespace.clone().unwrap_or_default();
         let endpoint = target.id.name.clone();
@@ -370,6 +406,8 @@ impl CkanSync {
         let repository = repository.to_path_buf();
         let age_key_file = self.age_key_file.clone();
         let last_call = self.last_call.clone();
+        let api_url = self.api_url(&target.instance);
+        let known = known.clone();
         // Resolving the token, opening the socket and reading the gateway are all blocking, and
         // dropping a blocking client inside this runtime panics, so the whole publication of one
         // Endpoint happens on a blocking thread.
@@ -380,9 +418,8 @@ impl CkanSync {
             };
             let token = publisher::token(&target.instance, &repository, source)
                 .map_err(|err| err.to_string())?;
-            let api =
-                HttpCkan::new(target.instance.base_url(), token).map_err(|err| err.to_string())?;
-            let mut api = Paced::new(api, last_call, CALL_GAP);
+            let api = HttpCkan::new(&api_url, token).map_err(|err| err.to_string())?;
+            let mut api = Paced::new(api, last_call, CALL_GAP).remembering(&api_url, known);
             if withdraw {
                 return withdraw_one(&mut api, &target);
             }
@@ -415,12 +452,15 @@ impl CkanSync {
         organization: String,
         kept: BTreeSet<String>,
         repository: &Path,
+        known: &Organizations,
     ) -> Vec<Report> {
         let project = target.id.namespace.clone().unwrap_or_default();
         let target = target.clone();
         let repository = repository.to_path_buf();
         let age_key_file = self.age_key_file.clone();
         let last_call = self.last_call.clone();
+        let api_url = self.api_url(&target.instance);
+        let known = known.clone();
         let work = tokio::task::spawn_blocking(move || {
             let source = publisher::TokenSource {
                 env: None,
@@ -428,9 +468,8 @@ impl CkanSync {
             };
             let token = publisher::token(&target.instance, &repository, source)
                 .map_err(|err| err.to_string())?;
-            let api =
-                HttpCkan::new(target.instance.base_url(), token).map_err(|err| err.to_string())?;
-            let mut api = Paced::new(api, last_call, CALL_GAP);
+            let api = HttpCkan::new(&api_url, token).map_err(|err| err.to_string())?;
+            let mut api = Paced::new(api, last_call, CALL_GAP).remembering(&api_url, known);
             sweep_with(&mut api, &organization, &kept)
         })
         .await;
@@ -541,12 +580,54 @@ pub struct Paced<A> {
     api: A,
     last: Arc<Mutex<Option<Instant>>>,
     gap: Duration,
+    /// The catalogue this client calls and the organizations its pass has seen there (T-5314).
+    known: Option<(String, Organizations)>,
 }
+
+/// The organizations one reconcile pass has seen, by catalogue and slug, as CKAN last answered
+/// them (T-5314). A pass over every Endpoint of one organization asks `organization_show` once;
+/// the next pass starts empty, so a title changed in CKAN by hand is seen again within one sync.
+pub type Organizations = Arc<Mutex<BTreeMap<(String, String), serde_json::Value>>>;
+
+/// The `*_show` action a [`Paced`] client answers from [`Organizations`].
+const ORGANIZATION_SHOW: &str = "organization_show";
 
 impl<A> Paced<A> {
     /// `api` paced against every other client holding `last`.
     pub fn new(api: A, last: Arc<Mutex<Option<Instant>>>, gap: Duration) -> Self {
-        Self { api, last, gap }
+        Self {
+            api,
+            last,
+            gap,
+            known: None,
+        }
+    }
+
+    /// Answers `organization_show` from `known` once `catalogue` has answered it in this pass,
+    /// and keeps what an `organization_create` or `organization_patch` answers (T-5314).
+    pub fn remembering(mut self, catalogue: &str, known: Organizations) -> Self {
+        self.known = Some((catalogue.to_owned(), known));
+        self
+    }
+
+    fn held(&self, name: &str) -> Option<serde_json::Value> {
+        let (catalogue, known) = self.known.as_ref()?;
+        let known = known.lock().unwrap_or_else(|p| p.into_inner());
+        known.get(&(catalogue.clone(), name.to_owned())).cloned()
+    }
+
+    /// Keeps `organization` as the pass's answer for `name`, or forgets `name` when the answer
+    /// is not an organization, so the next publication asks CKAN again.
+    fn remember(&self, name: &str, organization: Option<&serde_json::Value>) {
+        let Some((catalogue, known)) = &self.known else {
+            return;
+        };
+        let key = (catalogue.clone(), name.to_owned());
+        let mut known = known.lock().unwrap_or_else(|p| p.into_inner());
+        match organization.filter(|org| org.get("name").is_some()) {
+            Some(organization) => known.insert(key, organization.clone()),
+            None => known.remove(&key),
+        };
     }
 
     /// Runs `read`, which makes `calls` requests of its own to the gateway, inside the same pace:
@@ -579,8 +660,17 @@ impl<A> Paced<A> {
 
 impl<A: CkanApi> CkanApi for Paced<A> {
     fn show(&self, action: &str, name: &str) -> Result<Option<serde_json::Value>, CkanError> {
+        if action == ORGANIZATION_SHOW {
+            if let Some(held) = self.held(name) {
+                return Ok(Some(held));
+            }
+        }
         self.wait();
-        self.api.show(action, name)
+        let shown = self.api.show(action, name)?;
+        if action == ORGANIZATION_SHOW {
+            self.remember(name, shown.as_ref());
+        }
+        Ok(shown)
     }
 
     fn action(
@@ -589,7 +679,19 @@ impl<A: CkanApi> CkanApi for Paced<A> {
         payload: &serde_json::Value,
     ) -> Result<serde_json::Value, CkanError> {
         self.wait();
-        self.api.action(action, payload)
+        let answered = self.api.action(action, payload)?;
+        // The slug is the name the publisher created the organization under or the id it
+        // patched it by; CKAN answers both with the organization as it now stands.
+        if matches!(action, "organization_create" | "organization_patch") {
+            if let Some(name) = payload
+                .get("name")
+                .or_else(|| payload.get("id"))
+                .and_then(serde_json::Value::as_str)
+            {
+                self.remember(name, Some(&answered));
+            }
+        }
+        Ok(answered)
     }
 }
 

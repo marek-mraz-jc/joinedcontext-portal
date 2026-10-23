@@ -910,6 +910,11 @@ impl AppState {
             if !branding.documentation_base_url.is_empty() {
                 catalogue = catalogue.documented_at(branding.documentation_base_url);
             }
+            // The deployment's own catalogue is called on its Service, not through the public
+            // edge whose limit the visitors share (T-5314).
+            if let Some((public, api)) = &self.config.ckan_api_route {
+                catalogue = catalogue.reaching(public.as_str(), api.as_str());
+            }
             // Each dataset carries the pass rate and the freshness of its space (DM-95).
             catalogue =
                 catalogue.with_quality(Arc::clone(&self.quality), Arc::clone(&self.quality_checks));

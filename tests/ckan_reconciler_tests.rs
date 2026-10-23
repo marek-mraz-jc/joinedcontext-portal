@@ -16,8 +16,9 @@ use jcctl::commands::publish_ckan::{Rows, Target};
 use jcctl::loader::{RawManifest, RawMetadata, ResourceId};
 use jcctl::publish::ckan::{InMemoryCkan, Outcome, Settings};
 use joinedcontext_portal::reconciler::ckan::{
-    fingerprint, publish_with, publish_without_rows, sweep_with, withdrawn, CkanSync, Paced,
-    Pacing, Publication, Report, CALL_GAP, MOST_BACKOFF, RECORD_READS, REFRESH, ROWS_READS,
+    fingerprint, publish_with, publish_without_rows, sweep_with, withdrawn, CkanSync,
+    Organizations, Paced, Pacing, Publication, Report, CALL_GAP, MOST_BACKOFF, RECORD_READS,
+    REFRESH, ROWS_READS,
 };
 use joinedcontext_portal::resource::ResourceEnvelope;
 use joinedcontext_portal::store::Mirror;
@@ -1016,4 +1017,149 @@ fn the_gateway_reads_of_each_publication_keep_the_catalogues_pace() {
     let before = Instant::now();
     api.reads(0, || ());
     assert!(before.elapsed() < gap);
+}
+
+/// The publisher's catalogue double behind a shared handle, so each Endpoint's client is a new
+/// one as in a pass, noting every `*_show` it is asked.
+struct Shared(Arc<Mutex<(InMemoryCkan, Vec<String>)>>);
+
+impl jcctl::publish::ckan::CkanApi for Shared {
+    fn show(
+        &self,
+        action: &str,
+        name: &str,
+    ) -> Result<Option<Value>, jcctl::publish::ckan::CkanError> {
+        let mut held = self.0.lock().expect("catalogue");
+        held.1.push(format!("{action} {name}"));
+        held.0.show(action, name)
+    }
+
+    fn action(
+        &mut self,
+        action: &str,
+        payload: &Value,
+    ) -> Result<Value, jcctl::publish::ckan::CkanError> {
+        let answered = self
+            .0
+            .lock()
+            .expect("catalogue")
+            .0
+            .action(action, payload)?;
+        // CKAN answers organization_create with the organization; the double answers `{}`.
+        Ok(match action {
+            "organization_create" => payload.clone(),
+            _ => answered,
+        })
+    }
+}
+
+#[test]
+fn a_pass_over_many_endpoints_of_one_organization_asks_for_it_once() {
+    // T-5314: prod's edge saw 184 organization_show calls in two minutes for one organization,
+    // one per published Endpoint, all through the public limit.
+    let catalogue = Arc::new(Mutex::new((
+        InMemoryCkan::new().with_token(TOKEN),
+        Vec::new(),
+    )));
+    let shows = |catalogue: &Arc<Mutex<(InMemoryCkan, Vec<String>)>>| {
+        let held = catalogue.lock().expect("catalogue");
+        held.1
+            .iter()
+            .filter(|call| call.starts_with("organization_show"))
+            .count()
+    };
+    let last = Arc::new(Mutex::new(None));
+    let known = Organizations::default();
+    let api_url = "http://ckan.ckan.svc.cluster.local:5000";
+    for n in 0..5 {
+        let mut api = Paced::new(Shared(catalogue.clone()), last.clone(), Duration::ZERO)
+            .remembering(api_url, known.clone());
+        let target = target(&format!("helsinki-bikes-{n}"), "public", dataset_only());
+        let published = publish_with(&mut api, &target, &record(), None, &settings())
+            .expect("the endpoint publishes");
+        assert!(
+            matches!(published, Publication::Published { .. }),
+            "{published:?}"
+        );
+    }
+    // The first asks, finds none and creates it; the other four take what the creation answered.
+    assert_eq!(shows(&catalogue), 1);
+    assert_eq!(
+        catalogue
+            .lock()
+            .expect("catalogue")
+            .0
+            .actions()
+            .iter()
+            .filter(|a| **a == "organization_create")
+            .count(),
+        1
+    );
+    for n in 0..5 {
+        assert!(catalogue
+            .lock()
+            .expect("catalogue")
+            .0
+            .package(&format!("helsinki-bikes-{n}"))
+            .is_some());
+    }
+
+    // Another catalogue, or the next pass, asks again: nothing outlives one pass of one catalogue.
+    let elsewhere = Paced::new(Shared(catalogue.clone()), last.clone(), Duration::ZERO)
+        .remembering("https://data.example.fi", known.clone());
+    jcctl::publish::ckan::CkanApi::show(&elsewhere, "organization_show", "hel-fi").expect("show");
+    let next_pass = Paced::new(Shared(catalogue.clone()), last, Duration::ZERO)
+        .remembering(api_url, Organizations::default());
+    jcctl::publish::ckan::CkanApi::show(&next_pass, "organization_show", "hel-fi").expect("show");
+    assert_eq!(shows(&catalogue), 3);
+}
+
+#[test]
+fn an_organization_the_catalogue_answers_with_nothing_usable_is_asked_again() {
+    // The double answers organization_patch with `{}`: that is no organization to answer from.
+    use jcctl::publish::ckan::CkanApi;
+    let catalogue = Arc::new(Mutex::new((
+        InMemoryCkan::new()
+            .with_token(TOKEN)
+            .with_organization("hel-fi"),
+        Vec::new(),
+    )));
+    let known = Organizations::default();
+    let mut api = Paced::new(Shared(catalogue.clone()), Arc::default(), Duration::ZERO)
+        .remembering("https://data.example.fi", known.clone());
+    api.show("organization_show", "hel-fi").expect("show");
+    api.show("organization_show", "hel-fi").expect("show");
+    api.action(
+        "organization_patch",
+        &json!({ "id": "hel-fi", "title": "Helsinki" }),
+    )
+    .expect("patch");
+    api.show("organization_show", "hel-fi").expect("show");
+    let calls = catalogue.lock().expect("catalogue").1.clone();
+    assert_eq!(
+        calls,
+        ["organization_show hel-fi", "organization_show hel-fi"]
+    );
+}
+
+#[test]
+fn only_the_deployments_own_catalogue_is_called_on_its_service() {
+    let own: jc_core::kinds::ckan::CkanInstanceSpec =
+        serde_json::from_value(instance()).expect("an instance");
+    let mut other_spec = instance();
+    other_spec["url"] = json!("https://data.other.example.fi/");
+    let other: jc_core::kinds::ckan::CkanInstanceSpec =
+        serde_json::from_value(other_spec).expect("an instance");
+
+    let sync = CkanSync::new(HOST).reaching(
+        "https://data.example.fi/",
+        "http://ckan.ckan.svc.cluster.local:5000/",
+    );
+    assert_eq!(
+        sync.api_url(&own),
+        "http://ckan.ckan.svc.cluster.local:5000"
+    );
+    assert_eq!(sync.api_url(&other), "https://data.other.example.fi");
+    // Without the operator's route every catalogue is called where its manifest says.
+    assert_eq!(CkanSync::new(HOST).api_url(&own), "https://data.example.fi");
 }
