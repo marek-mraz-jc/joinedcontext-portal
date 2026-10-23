@@ -194,8 +194,13 @@ describe("kpi-forecast", () => {
 
   it("says it is working while the history is read, and a history read that throws no Problem still says why", async () => {
     const c = client();
+    // One read for the whole case, made before the page asks: under load the page's effect that
+    // starts the read can run after "Lasketaan…" is found, and a reject captured only then was
+    // still the no-op, so the case waited out the timeout (T-5329).
     let fail: (reason: unknown) => void = () => undefined;
-    c.temporal.list = () => new Promise((_, reject) => (fail = reject));
+    const read = new Promise<never>((_, reject) => (fail = reject));
+    read.catch(() => undefined);
+    c.temporal.list = () => read;
     show(c);
     expect(await screen.findByText("Lasketaan…")).toBeInTheDocument();
     // No answer from an empty history while the real one is read.

@@ -467,6 +467,22 @@ routes:
     rule: "space-read, then approve on ContextSpace in the space (DM-127)"
     expect: [401, 403, allow, allow, allow, allow, 404, 403]
     note: "an owner's 503 is the fixture's: it has no database"
+  - route: GET /projects/{project}/spaces/{space}/erasures
+    rule: "space-read, then approve on ContextSpace in the space (DM-142)"
+    expect: [401, 403, allow, allow, allow, allow, 404, 403]
+    note: "an owner's 503 is the fixture's: it has no database"
+  - route: POST /projects/{project}/spaces/{space}/erasures/{id}/approve
+    rule: "space-read, then approve on ContextSpace in the space, a person's session, not the proposer (DM-142)"
+    expect: [403, 403, allow, allow, allow, allow, 404, 403]
+    values: {"id": "er-20261019-0a1b2c3d4e5f"}
+    body: {"subject": "r-42"}
+    note: "an owner's 503 is the fixture's: it has no database; self-approval is in tests/erasure_api_tests.rs, the bearer refusal in src/api/erasures.rs"
+  - route: POST /projects/{project}/spaces/{space}/erasures/{id}/decline
+    rule: "space-read, then approve on ContextSpace in the space, a person's session (DM-142)"
+    expect: [403, 403, allow, allow, allow, allow, 404, 403]
+    values: {"id": "er-20261019-0a1b2c3d4e5f"}
+    body: {"reason": "the person withdrew the request"}
+    note: "an owner's 503 is the fixture's: it has no database"
   - route: GET /projects/{project}/spaces/{space}/retention/deleted
     rule: "space-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

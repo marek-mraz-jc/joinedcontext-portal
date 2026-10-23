@@ -1138,6 +1138,7 @@
       },
       "tests": [
         "endpoint_geo_property.test.ts",
+        "endpoint_ical_qr.test.tsx",
         "part_endpoint_links.test.tsx",
         "part_operation_groups.test.tsx"
       ]
@@ -1873,7 +1874,7 @@
     },
     "src/pages/spaces/SpacePersonalData.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 4
       },
       "tests": [
         "space_personal_data.test.tsx"

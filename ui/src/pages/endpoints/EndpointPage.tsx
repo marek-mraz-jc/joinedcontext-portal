@@ -36,6 +36,7 @@ import {
   webcalUrl,
   useCatalogueLinks,
 } from "../../components/endpoints/links";
+import { QrCode } from "../../components/endpoints/QrCode";
 import { useBranding } from "../../branding";
 import { spaceOf } from "../../components/endpoints/sharing";
 import { bindingOf, spaceSegment } from "../../components/endpoints/policyBinding";
@@ -429,6 +430,10 @@ export function EndpointPage({
                         <code className="break-all font-mono text-caption">{webcalUrl(url)}</code>
                         <CopyUrlButton url={webcalUrl(url)} />
                       </div>
+                      <figure className="flex flex-wrap items-center gap-3">
+                        <QrCode value={webcalUrl(url)} label={t("endpoints.ical.qr", { address: webcalUrl(url) })} />
+                        <figcaption className="max-w-60 text-caption text-fg-muted">{t("endpoints.ical.qrHint")}</figcaption>
+                      </figure>
                     </div>
                   </Fact>
                 );

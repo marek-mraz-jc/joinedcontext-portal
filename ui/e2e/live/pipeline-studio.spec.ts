@@ -21,7 +21,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Locator, Page } from "@playwright/test";
-import { APPROVER, STEWARD, VIEWER, approve, checkManifest, csrf, proposedChange, removeCompletely, signIn, sweepDrafts } from "./portal";
+import { APPROVER, STEWARD, VIEWER, approve, checkManifest, csrf, proposedChange, removeCompletely, signIn, sweepDrafts, waitGone } from "./portal";
 
 const PROJECT = "helsinki";
 const SUFFIX = process.env.E2E_SUFFIX ?? new Date().toISOString().slice(11, 16).replace(":", "");
@@ -57,7 +57,7 @@ const BIKES_MAPPING = [
   "})",
 ].join("\n");
 
-/** One CSV row of `file.csv`, one message: the runner's csv input sends a row at a time. */
+/** One CSV row of `file.csv`, one message: the DataSource says `format: csv` (PL-114, T-5350). */
 const CSV_MAPPING = [
   'root = if this.id.or("").has_prefix("urn:ngsi-ld:BikeHireDockingStation:") { {',
   '  "id": this.id,',
@@ -203,6 +203,8 @@ test.describe.serial("pipeline studio on dev (T-3967)", () => {
     const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/pipelines?lang=en`);
     const approver = await signIn(browser, APPROVER, `/projects/${PROJECT}/approvals?lang=en`);
     const page = steward.page;
+    let walked = false;
+    let cleanup: unknown;
     try {
       // The CSV the walk (c) reads: the bike stations of helsinki-all, as anybody downloads them.
       const slug = await slugOf(page, ALL);
@@ -217,6 +219,8 @@ test.describe.serial("pipeline studio on dev (T-3967)", () => {
             verb: "GET",
             headers: { Accept: "text/csv" },
             timeout: "30s",
+            // Without it the runner hands the whole file to the mapping as one message (T-5350).
+            format: "csv",
           },
         },
       });
@@ -275,15 +279,29 @@ test.describe.serial("pipeline studio on dev (T-3967)", () => {
           description: JSON.stringify({ buildMs: built, liveMs: Date.now() - approved, sent, type: walk.type }),
         });
       }
+      walked = true;
     } finally {
-      for (const walk of WALKS) {
-        await removeCompletely(steward, PROJECT, "pipelines", walk.name);
+      // The DataSource goes only once the Pipelines reading it are gone (409 before), and a
+      // cleanup failure never replaces the walk's own failure in the report (T-5350).
+      try {
+        for (const walk of WALKS) {
+          await removeCompletely(steward, PROJECT, "pipelines", walk.name);
+        }
+        for (const walk of WALKS) {
+          await waitGone(page, PROJECT, "pipelines", walk.name);
+        }
+        await removeCompletely(steward, PROJECT, "datasources", CSV_SOURCE);
+        await sweepDrafts(steward.context, page, PROJECT, new RegExp(`^studio-(hfp|poll|csv)-${SUFFIX}$`));
+      } catch (error) {
+        cleanup = error;
+        if (!walked) info.annotations.push({ type: "cleanup failed", description: String(error) });
+      } finally {
+        await steward.context.close();
+        await approver.context.close();
       }
-      await removeCompletely(steward, PROJECT, "datasources", CSV_SOURCE);
-      await sweepDrafts(steward.context, page, PROJECT, new RegExp(`^studio-(hfp|poll|csv)-${SUFFIX}$`));
-      await steward.context.close();
-      await approver.context.close();
     }
+    // Reached only when the walk passed: then a failed cleanup fails the test on its own.
+    if (cleanup !== undefined) throw cleanup;
   });
 
   test("an empty target, a wire into a source and a literal secret are refused by name", async ({ browser }) => {

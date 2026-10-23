@@ -28,7 +28,7 @@
     }
   },
   "colour_is_a_token": {
-    "_max": 4,
+    "_max": 5,
     "src/api/schema.d.ts": {
       "lines": 15,
       "group": "ui-parts"
@@ -42,6 +42,11 @@
       "lines": 9,
       "group": "ui-parts",
       "reason": "The map's palette, and the only colour values left in the dashboards folder. Four of the seven are the YlOrRd ramp the Layer manifests name - a data scale that must read the same in both themes and must not move when an installation changes its primary. The other three are what a renderer with no stylesheet falls back to; a browser resolves the token every time. Two more turn a token written in CSS a map style cannot parse (color-mix, oklab) into the plain rgb the style can (T-3256): computed from the token, not a colour chosen here."
+    },
+    "src/components/endpoints/QrCode.tsx": {
+      "lines": 2,
+      "group": "ui-parts",
+      "reason": "T-5296: a QR code is read by a phone camera, not a person: its modules stay black on a white quiet zone in both themes, since the dark theme's paper and ink would invert it and many scanners refuse an inverted code."
     }
   },
   "focus_is_not_stolen": {
