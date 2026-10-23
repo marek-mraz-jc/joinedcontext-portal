@@ -892,6 +892,14 @@ fn endpoint(
     if !allowed_projects.is_empty() {
         endpoint_spec["allowedProjects"] = json!(allowed_projects);
     }
+    // An app that names `ical` subscribes people to `ical/v1/events.ics`: a calendar is served
+    // only for a listed output (EP-159, T-5208), so it gets the one the preset maps.
+    if representations.contains(&Representation::Ical.as_str()) {
+        endpoint_spec["representations"] = json!({ "ical": [{
+            "name": jc_core::kinds::ical_mapping::LEGACY_OUTPUT,
+            "sources": [{ "type": "Event", "preset": "sdm-event" }],
+        }] });
+    }
     // The app's grants are held on this endpoint and nowhere else of the space: every caller it
     // admits holds its caller role, and the members of an app role that role (AP-96, AP-97).
     endpoint_spec["callerRole"] = json!(true);

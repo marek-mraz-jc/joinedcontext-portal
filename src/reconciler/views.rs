@@ -883,11 +883,21 @@ fn view_of(
         ),
     );
     view.insert("operations".into(), json!(operations));
-    // The feed outputs as the Endpoint lists them, the broker's `antares-feed` contract (EP-150);
-    // a view without the member serves no feed.
+    // the broker serves a calendar only for the outputs listed here (EP-159, T-5208), and the feed
+    // outputs as the Endpoint lists them, the broker's `antares-feed` contract (EP-150); a view
+    // without a member serves no such format.
+    let mut representations = serde_json::Map::new();
+    let ical = e.spec.ical_outputs();
+    if !ical.is_empty() {
+        let outputs = serde_json::to_value(ical).map_err(|err| err.to_string())?;
+        representations.insert("ical".into(), outputs);
+    }
     let feeds = e.spec.feed_outputs();
     if !feeds.is_empty() {
-        view.insert("representations".into(), json!({ "feed": feeds }));
+        representations.insert("feed".into(), json!(feeds));
+    }
+    if !representations.is_empty() {
+        view.insert("representations".into(), Value::Object(representations));
     }
     Ok(Value::Object(view))
 }
@@ -3709,6 +3719,40 @@ mod tests {
         assert!(gateway["operations"]
             .as_array()
             .is_some_and(|ops| ops.contains(&json!("5.8.1"))));
+    }
+
+    /// T-5208 (EP-159): the broker serves a calendar only for the outputs the view lists, so the
+    /// view carries the Endpoint's `representations.ical` as written, and nothing when the
+    /// Endpoint lists none or does not serve `ical`.
+    #[test]
+    fn the_view_carries_the_ical_outputs_the_endpoint_lists() {
+        let s = sources(vec![("cars", cars())]);
+        let outputs = json!([{"name": "vsetky", "title": {"sk": "Všetky"}, "lang": "sk",
+            "sources": [{"type": "Event", "preset": "sdm-event",
+                         "mapping": {"LAST-MODIFIED": "dateModified"}}],
+            "filter": {"q": "eventCategory==\"sport\""}}]);
+        let with = |served: Value, ical: Option<&Value>| {
+            let mut spec = json!({"policyRef": "urn:ngsi-ld:Policy:city.example:city-air:cars",
+                                  "enabledRepresentations": served});
+            if let Some(ical) = ical {
+                spec["representations"] = json!({ "ical": ical });
+            }
+            endpoint_view(&s, &endpoint(spec)).unwrap_or_else(|why| panic!("a view: {why}"))
+        };
+        let view = with(json!(["ngsi-ld", "ical"]), Some(&outputs));
+        assert_eq!(view["representations"], json!({ "ical": outputs }));
+        assert!(with(json!(["ngsi-ld", "ical"]), None)
+            .get("representations")
+            .is_none());
+        let legacy = with(
+            json!(["ngsi-ld", "ical"]),
+            Some(&json!({"preset": "schema-org"})),
+        );
+        assert_eq!(
+            legacy["representations"],
+            json!({"ical": [{"name": "events", "sources": [{"type": "Event", "preset": "schema-org"}]}]}),
+            "the deprecated single object is the output `events`"
+        );
     }
 
     /// T-3788: the space view is the `*` form, every type and Attribute; the engine narrows
