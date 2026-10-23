@@ -18,6 +18,9 @@ export interface Strings {
   noEndpoint: string;
   refused: (what: string, reason: string) => string;
   truncated: (what: string, count: number) => string;
+  /** A type past the cap, read inside the map's view (T-5155). */
+  inView: (what: string, count: number) => string;
+  inViewTruncated: (what: string, count: number) => string;
   mapLabel: string;
   noBasemap: string;
   notOnMap: string;
@@ -41,6 +44,8 @@ const cs: Strings = {
   noEndpoint: "Aplikace nemá zveřejněný přístup k otevřeným datům Prahy, a nemá tedy co zobrazit.",
   refused: (what, reason) => `${what} se nepodařilo načíst: ${reason}`,
   truncated: (what, count) => `${what}: zobrazeno je prvních ${count}; upřesněte hledání.`,
+  inView: (what, count) => `${what}: ${count} v zobrazené části mapy; posuňte nebo přibližte mapu pro další.`,
+  inViewTruncated: (what, count) => `${what}: prvních ${count} v zobrazené části mapy; přibližte mapu.`,
   mapLabel: "Mapa míst; stejná místa jsou v seznamu vedle mapy",
   noBasemap: "Podkladová mapa není nastavena, místa jsou zobrazena na prázdném pozadí.",
   notOnMap: "bez polohy, jen v seznamu",
@@ -64,6 +69,8 @@ const en: Strings = {
   noEndpoint: "This app has no published access to Prague's open data, so it has nothing to show.",
   refused: (what, reason) => `${what} could not be loaded: ${reason}`,
   truncated: (what, count) => `${what}: the first ${count} are shown; narrow the search.`,
+  inView: (what, count) => `${what}: ${count} in the map's view; move or zoom the map for others.`,
+  inViewTruncated: (what, count) => `${what}: the first ${count} in the map's view; zoom in.`,
   mapLabel: "Map of the places; the same places are in the list beside the map",
   noBasemap: "No base map is configured, so the places are drawn on a plain background.",
   notOnMap: "no position, in the list only",

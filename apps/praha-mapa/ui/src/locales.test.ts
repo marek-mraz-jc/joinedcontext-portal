@@ -16,6 +16,8 @@ describe("locales", () => {
       expect(strings.results(7)).toMatch(/^7 /);
       expect(strings.refused("Places", "no grant")).toContain("no grant");
       expect(strings.truncated("Places", 4000)).toContain("4000");
+      expect(strings.inView("Places", 12)).toContain("12");
+      expect(strings.inViewTruncated("Places", 4000)).toContain("4000");
     }
   });
 
