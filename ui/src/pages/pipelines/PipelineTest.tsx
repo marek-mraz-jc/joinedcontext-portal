@@ -7,6 +7,7 @@ import { CodeBlock, Alert, Button, Checkbox, FilePicker } from "../../components
 import type { DebugEntry } from "./DebugPanel";
 import { messagesOf } from "./pipelineDebug";
 import type { PipelineForm } from "./PipelineEditor";
+import type { Manifest } from "../../api/manifest";
 import { FormHeading } from "../../components/forms/FormRoute";
 
 /**
@@ -28,6 +29,31 @@ export interface Draft {
   idColumn: string;
   columns: string[];
   bloblang: string;
+}
+
+/**
+ * How the `http` DataSource the draft reads hands a poll's body to the steps (PL-113): `csv`, one
+ * message per row, when its `http.format` says so, else `whole`, the body as one message.
+ * Undefined when the draft reads no `http` DataSource: then the sample's own format holds.
+ */
+export function sourceBodyOf(draft: PipelineForm | undefined, dataSources: Manifest[]): "csv" | "whole" | undefined {
+  const name = draft?.source?.dataSourceRef;
+  const source = name ? dataSources.find((candidate) => candidate.metadata.name === name) : undefined;
+  if (source?.spec.type !== "http") {
+    return undefined;
+  }
+  return (source.spec.http as { format?: unknown } | undefined)?.format === "csv" ? "csv" : "whole";
+}
+
+/**
+ * The split a test runs: the source's, so the test sees the messages the live run sends. A CSV
+ * sample of a source that sends its whole body stays one message, as it will live (T-5350).
+ */
+export function testFormatOf(format: SampleFormat, body: "csv" | "whole" | undefined): SampleFormat {
+  if (body === "csv") {
+    return "csv";
+  }
+  return body === "whole" && format === "csv" ? "text" : format;
 }
 
 /** The format a file name says, then what its first bytes say. */
@@ -224,6 +250,8 @@ export interface PipelineTestProps {
   toManifest: (form: PipelineForm) => unknown;
   /** The `http` DataSource's own URL, offered as the sample the runner fetches (PL-48). */
   sampleUrl?: string;
+  /** How that DataSource hands its body to the steps (`sourceBodyOf`, PL-113). */
+  sourceBody?: "csv" | "whole";
   /** The test's answer for the mapping it ran (PL-49). */
   onVerdict?: (ok: boolean, bloblang: string) => void;
   /** Notifies whenever the test trace is produced or cleared. */
@@ -235,7 +263,7 @@ export interface PipelineTestProps {
 /** A sample is a file held in memory, or a URL the runner fetches itself (PL-43, PL-48). */
 type SampleSource = { name: string; format: SampleFormat } & ({ text: string; url?: undefined } | { url: string; text?: undefined });
 
-export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, onVerdict, onTrace, onDebug }: PipelineTestProps): JSX.Element {
+export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, sourceBody, onVerdict, onTrace, onDebug }: PipelineTestProps): JSX.Element {
   const { t } = useTranslation();
   const [sample, setSample] = useState<SampleSource | null>(null);
   // The mapping a sample drafted while the compute node already held one: offered, never applied
@@ -267,7 +295,7 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
     const text = await readText(file);
     const space = spaceOfTarget(draft?.targetEndpoint, project);
     const drafted = draftFromSample(file.name, text, space);
-    setSample({ name: file.name, text, format: drafted?.format ?? formatOf(file.name, text) });
+    setSample({ name: file.name, text, format: testFormatOf(drafted?.format ?? formatOf(file.name, text), sourceBody) });
     setOffered(drafted && bloblang.trim() !== "" ? drafted : null);
     if (drafted) {
       onChange(withSample(draft ?? { class: "auto" }, drafted));
@@ -333,6 +361,11 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
         {t("pipelines.test.title")}
       </FormHeading>
       <p className="text-caption text-fg-muted">{t("pipelines.test.lead")}</p>
+      {sourceBody === "whole" && sample?.text !== undefined && formatOf(sample.name, sample.text) === "csv" ? (
+        <Alert tone="info" data-testid="test-whole-body">
+          {t("pipelines.test.wholeBody")}
+        </Alert>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <FilePicker
           label={t("pipelines.test.chooseFile")}
@@ -363,7 +396,7 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
               setTrace(null);
               onTrace?.(null);
               setError(null);
-              setSample({ name: sampleUrl, url: sampleUrl, format: "json" });
+              setSample({ name: sampleUrl, url: sampleUrl, format: sourceBody === "csv" ? "csv" : "json" });
             }}
           >
             {t("pipelines.test.useUrl")}
@@ -372,7 +405,7 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
         {sample ? (
           <span className="font-mono text-caption text-fg-muted">
             {sample.url !== undefined
-              ? t("pipelines.test.urlSample", { url: sample.url })
+              ? t("pipelines.test.urlSample", { url: sample.url, format: sample.format })
               : t("pipelines.test.sample", { name: sample.name, format: sample.format, bytes: sample.text.length })}
           </span>
         ) : null}

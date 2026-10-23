@@ -639,7 +639,8 @@ fn answers_xml(spec: &Value, url: &str) -> bool {
 }
 
 /// How one fetch of a DataSource at `url` is read, shared by the workbench's sample and the
-/// DataSource Check (MF-39, PL-43): a CSV split into rows, an XML feed taken as it is and turned
+/// DataSource Check (MF-39, PL-43): a CSV split into rows when the connection says `format: csv`
+/// (PL-113) and kept whole otherwise, as the runner hands it over, an XML feed taken as it is and turned
 /// into JSON by the same `xml` step a pipeline reading it starts with, anything else parsed as
 /// JSON. Reading XML as JSON failed on its first `<` and the page said the source answered a
 /// web page (T-4818). The spec's target is the minimum a PipelineSpec needs to exist.
@@ -653,10 +654,15 @@ pub(crate) fn sampling(
         .unwrap_or(&url)
         .to_ascii_lowercase();
     let xml = answers_xml(spec, &url);
+    // The runner splits an `http` body into rows only when the DataSource says `format: csv`
+    // (PL-113); any other CSV reaches the steps whole, so the sample does too (T-5350).
+    let rows = spec.pointer("/http/format").and_then(Value::as_str) == Some("csv");
     let format = if xml {
         SampleFormat::Text
-    } else if path.ends_with(".csv") {
+    } else if rows {
         SampleFormat::Csv
+    } else if path.ends_with(".csv") {
+        SampleFormat::Text
     } else {
         SampleFormat::Json
     };
@@ -1076,13 +1082,30 @@ mod tests {
         let by_path = json!({ "type": "http", "http": { "url": "https://x.example/feed.XML" } });
         let (sample, _) = sampling(&by_path, "https://x.example/feed.XML".into()).expect("plan");
         assert_eq!(sample.format, SampleFormat::Text);
-        for (url, format) in [
-            ("https://x.example/bikes.json", SampleFormat::Json),
-            ("https://x.example/stops.csv?x=1", SampleFormat::Csv),
+        // T-5350, PL-113: rows only when the connection says `format: csv`, as the runner sends
+        // them; a `.csv` URL without it reaches the steps whole, so its sample is one message.
+        for (http, format) in [
+            (
+                json!({ "url": "https://x.example/bikes.json" }),
+                SampleFormat::Json,
+            ),
+            (
+                json!({ "url": "https://x.example/stops.csv?x=1" }),
+                SampleFormat::Text,
+            ),
+            (
+                json!({ "url": "https://x.example/stops.csv?x=1", "format": "csv" }),
+                SampleFormat::Csv,
+            ),
+            (
+                json!({ "url": "https://x.example/export", "format": "csv" }),
+                SampleFormat::Csv,
+            ),
         ] {
-            let spec = json!({ "type": "http", "http": { "url": url } });
-            let (sample, plan) = sampling(&spec, url.into()).expect("plan");
-            assert_eq!(sample.format, format, "{url}");
+            let url = http["url"].as_str().expect("url").to_owned();
+            let spec = json!({ "type": "http", "http": http });
+            let (sample, plan) = sampling(&spec, url.clone()).expect("plan");
+            assert_eq!(sample.format, format, "{http}");
             assert!(plan.steps().is_empty(), "{url}");
         }
     }

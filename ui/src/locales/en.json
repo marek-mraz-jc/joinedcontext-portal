@@ -2507,7 +2507,8 @@
       "line": "line {line}",
       "ready": "All {count} messages map to entities. Propose the pipeline below.",
       "useUrl": "Test on the source's URL",
-      "urlSample": "{url} · json · fetched by the runner",
+      "urlSample": "{url} · {format} · fetched by the runner",
+      "wholeBody": "The source sends a CSV file as one message, so this test does too. To map it one row at a time, add format: csv to the data source's http block (spec.http.format: csv).",
       "gate": "Test the mapping first: Propose opens when the test is green for this mapping.",
       "replaceDrafted": "Replace with a drafted mapping"
     },
