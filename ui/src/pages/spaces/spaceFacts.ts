@@ -5,6 +5,7 @@
 import type { Manifest } from "../../api/manifest";
 import { refName } from "../../api/manifest";
 import { admitsPerson } from "../../components/endpoints/sharing";
+import { policyRefsOf } from "../../components/endpoints/policyBinding";
 
 const SPACE_LABEL = "joinedcontext.com/space";
 const RESULTS_COUNT_HEADER = "NGSILD-Results-Count";
@@ -46,7 +47,7 @@ export function pickReadEndpoint(
   }
   const readable = groups === undefined ? endpoints : endpoints.filter((endpoint) => admitsPerson(endpoint, groups, project));
   return (
-    readable.find((endpoint) => endpoint.spec.policyRef === undefined) ??
+    readable.find((endpoint) => policyRefsOf(endpoint) === undefined) ??
     readable.find((endpoint) => endpoint.spec.audience === "public")
   );
 }

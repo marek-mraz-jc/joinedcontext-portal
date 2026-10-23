@@ -111,6 +111,7 @@ import { ConfirmDialog, Field, Input, RadioGroup, Select } from "../../component
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { SourceRemovalsPanel } from "../pipelines/PipelineSourceReport";
 import { useUrlParam, useUrlUrn } from "../../navigation/urlState";
+import { policyRefsOf } from "../../components/endpoints/policyBinding";
 
 const SAMPLE_LIMIT = 3;
 
@@ -2017,9 +2018,9 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                   slug?: string;
                   audience?: string;
                   enabledRepresentations?: string[];
-                  policyRef?: string;
                 };
                 const endpointSlug = spec.slug ?? "";
+                const policyRefs = policyRefsOf(endpoint);
                 const catalogue = catalogueLink(project, endpoint);
                 return (
                   <TableRow key={endpoint.metadata.name}>
@@ -2029,8 +2030,8 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                       </div>
                       <div className="font-mono text-caption text-fg-subtle">
                         {endpoint.metadata.title ? endpoint.metadata.name : null}
-                        {spec.policyRef
-                          ? `${endpoint.metadata.title ? " · " : ""}${refName(spec.policyRef)}`
+                        {policyRefs
+                          ? `${endpoint.metadata.title ? " · " : ""}${policyRefs.map(refName).join(", ")}`
                           : ""}
                       </div>
                     </TableCell>
