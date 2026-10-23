@@ -94,6 +94,11 @@ pub struct Config {
     /// `{instance}-mqtt`): set, the reconciler applies one release per `MqttBroker` there from the
     /// deployment's template (ADR-N-048, T-3994); unset, it applies none and says so.
     pub mqtt_namespace: Option<String>,
+    /// The Context Gateway's namespace (`JC_PORTAL_GATEWAY_NAMESPACE`, `{instance}-context-gateway`):
+    /// set, the reconciler writes each space's resolved `spec.personalData.keyRef` there as the
+    /// Secret `personal-data-keys`, which the gateway mounts at `JC_GATEWAY_PERSONAL_KEYS`
+    /// (DM-121); unset, the keys reach only the Portal's own data subject lookup.
+    pub gateway_namespace: Option<String>,
     /// The platform host the context spaces are served on, which is where a declared
     /// `Subscription` is written (`JC_PORTAL_GATEWAY_URL`,
     /// `/cs/{space}/ngsi-ld/v1/subscriptions`, T-0931). `None`
@@ -322,6 +327,7 @@ impl std::fmt::Debug for Config {
             .field("pipeline_namespace", &self.pipeline_namespace)
             .field("app_identity_namespace", &self.app_identity_namespace)
             .field("mqtt_namespace", &self.mqtt_namespace)
+            .field("gateway_namespace", &self.gateway_namespace)
             .field("gateway_url", &self.gateway_url)
             .field("gateway_client_id", &self.gateway_client_id)
             .field("agent_proxy_client_id", &self.agent_proxy_client_id)
@@ -1557,6 +1563,7 @@ impl Config {
         let pipeline_namespace = dns_label(&lookup, "JC_PORTAL_PIPELINE_NAMESPACE")?;
         let app_identity_namespace = dns_label(&lookup, "JC_PORTAL_APP_IDENTITY_NAMESPACE")?;
         let mqtt_namespace = dns_label(&lookup, "JC_PORTAL_MQTT_NAMESPACE")?;
+        let gateway_namespace = dns_label(&lookup, "JC_PORTAL_GATEWAY_NAMESPACE")?;
         if pipeline_identity && pipeline_namespace.is_none() {
             return Err(ConfigError::Invalid {
                 var: "JC_PORTAL_PIPELINE_IDENTITY",
@@ -1663,6 +1670,7 @@ impl Config {
             pipeline_namespace,
             app_identity_namespace,
             mqtt_namespace,
+            gateway_namespace,
             gateway_url,
             gateway_client_id: lookup("JC_PORTAL_GATEWAY_CLIENT_ID")
                 .filter(|v| !v.trim().is_empty()),
@@ -1731,6 +1739,7 @@ impl Config {
             pipeline_namespace: None,
             app_identity_namespace: None,
             mqtt_namespace: None,
+            gateway_namespace: None,
             gateway_url: None,
             gateway_client_id: None,
             agent_proxy_client_id: None,

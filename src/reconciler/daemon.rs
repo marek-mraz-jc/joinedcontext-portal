@@ -204,6 +204,9 @@ pub struct Syncer {
     /// (MF-44, T-2297). `None` leaves the webhook route shut, which is what a Portal with no
     /// reconciler should answer.
     webhook_secrets: Option<Arc<crate::sync::webhook_secrets::Accepted>>,
+    /// Where each pass leaves every space's resolved `spec.personalData.keyRef`, and the
+    /// gateway's namespace it writes them into as one Secret (DM-121). `None` resolves none.
+    personal_keys: Option<(Arc<crate::personal_keys::Keys>, Option<String>)>,
     /// The open-data catalogue wave (EP-62, T-2405). `None` leaves an Endpoint's
     /// `spec.publish.ckan` a declaration nobody carries out, which is what a Portal with no
     /// gateway host configured can honestly do.
@@ -288,6 +291,7 @@ impl Syncer {
             pipeline_secrets: None,
             author_rights: None,
             webhook_secrets: None,
+            personal_keys: None,
             ckan: None,
             catalog: None,
             domains: None,
@@ -338,6 +342,18 @@ impl Syncer {
         accepted: Arc<crate::sync::webhook_secrets::Accepted>,
     ) -> Self {
         self.webhook_secrets = Some(accepted);
+        self
+    }
+
+    /// Resolves each space's `spec.personalData.keyRef` into `keys` at every pass, and writes
+    /// them into `gateway_namespace` as the Secret the gateway mounts (DM-121). Every replica
+    /// resolves them, since any replica answers a data subject's request.
+    pub fn with_personal_keys(
+        mut self,
+        keys: Arc<crate::personal_keys::Keys>,
+        gateway_namespace: Option<String>,
+    ) -> Self {
+        self.personal_keys = Some((keys, gateway_namespace));
         self
     }
 
@@ -941,6 +957,10 @@ impl Syncer {
         //     follower's early return: any replica can be the one an origin's hook reaches, and
         //     a follower holding none would refuse a signature that is right.
         self.resolve_webhook_secrets(&fresh_mirror, scratch.path())
+            .await;
+        // 5a-keys. Each space's personal-data key, for the subject lookup and the gateway
+        //     (DM-121); before the early return for the same reason.
+        self.resolve_personal_keys(&fresh_mirror, scratch.path())
             .await;
 
         // 5b. Every replica serves `/apps/*` from its own disk, so each one fetches the builds
@@ -2257,6 +2277,88 @@ impl Syncer {
         }
 
         runner.refused().clone()
+    }
+
+    /// Resolves every space's `spec.personalData.keyRef` (DM-121) and hands the keys to the
+    /// subject lookup and, by space segment, to the gateway's Secret.
+    ///
+    /// A key that does not resolve or is shorter than 32 bytes is left out and logged by space
+    /// and secret name, never by value: the gateway then refuses that space's hashed writes and
+    /// the Portal its subject lookup, rather than storing or searching for the raw value. The
+    /// Secret is written whole at each pass, so a space that drops its key loses it there too.
+    async fn resolve_personal_keys(&self, mirror: &Mirror, repository: &std::path::Path) {
+        let Some((keys, gateway_namespace)) = self.personal_keys.as_ref() else {
+            return;
+        };
+        let mut held = BTreeMap::new();
+        let mut by_segment = BTreeMap::new();
+        for namespace in mirror.namespaces() {
+            let page = mirror.list(
+                &namespace,
+                "ContextSpace",
+                &crate::store::ListOptions::default(),
+            );
+            for envelope in page.items {
+                let space = envelope.metadata.name.clone();
+                let Some(block) = envelope.spec.get("personalData") else {
+                    continue;
+                };
+                let reference = match serde_json::from_value::<jc_core::kinds::SpacePersonalData>(
+                    block.clone(),
+                ) {
+                    Ok(block) => block.key_ref,
+                    Err(err) => {
+                        tracing::warn!(project = %namespace, space = %space, error = %err,
+                            "a space's personalData block is not one; its keyedHash slots have no key");
+                        continue;
+                    }
+                };
+                let resolved = match self.pipeline_secrets.as_ref() {
+                    Some(resolver) => resolver.one(repository, &reference).await,
+                    None => Err(crate::pipeline_secrets::SecretError::NoBackend {
+                        name: reference.name.clone(),
+                    }),
+                };
+                let key = match resolved {
+                    Ok(raw) => crate::personal_keys::usable(&raw),
+                    // The reference is named, the value never is (PL-17, MF-24).
+                    Err(err) => {
+                        tracing::warn!(project = %namespace, space = %space, secret = %reference.name, error = %err,
+                            "a space's personal-data key does not resolve; its keyedHash slots have no key");
+                        continue;
+                    }
+                };
+                let Some(key) = key else {
+                    tracing::warn!(project = %namespace, space = %space, secret = %reference.name,
+                        "a space's personal-data key is shorter than 32 bytes; its keyedHash slots have no key");
+                    continue;
+                };
+                by_segment.insert(
+                    crate::spaces::segment(mirror, &namespace, &space),
+                    key.clone(),
+                );
+                held.insert((namespace.clone(), space), key);
+            }
+        }
+        keys.replace(held);
+        let (Some((kube, _)), Some(gateway)) = (self.credentials.as_ref(), gateway_namespace)
+        else {
+            if !by_segment.is_empty() {
+                tracing::info!(spaces = by_segment.len(),
+                    "no gateway namespace or no cluster: the personal-data keys reach only the subject lookup");
+            }
+            return;
+        };
+        let secret = crate::personal_keys::secret(gateway, &by_segment);
+        match kube.apply(&secret).await {
+            Ok(()) => tracing::debug!(
+                spaces = by_segment.len(),
+                "the gateway's personal-data keys are in place"
+            ),
+            Err(err) => {
+                tracing::warn!(error = %err, "the gateway's personal-data keys were not written")
+            }
+        }
     }
 
     /// Resolves the inbound webhook secret of every `SyncSource` that declares one (MF-44).

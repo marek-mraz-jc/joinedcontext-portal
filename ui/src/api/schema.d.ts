@@ -20234,7 +20234,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description The subject slot is ingested as keyedHash and the Portal does not hold the space's key yet */
+            /** @description The subject slot is ingested as keyedHash and the Portal holds no key for the space (spec.personalData.keyRef) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -20835,7 +20835,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description The subject slot is ingested as keyedHash and the Portal does not hold the space's key yet */
+            /** @description The subject slot is ingested as keyedHash and the Portal holds no key for the space (spec.personalData.keyRef) */
             409: {
                 headers: {
                     [name: string]: unknown;

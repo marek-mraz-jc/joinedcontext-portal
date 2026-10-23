@@ -361,16 +361,40 @@ pub fn subject_classes(linkml: &str) -> Vec<SubjectClass> {
     out
 }
 
-/// Why a subject cannot be searched for when a class holds it as a keyed hash: the broker holds
-/// the HMAC under the space's key, which this Portal does not hold yet, so asking for the raw
-/// value would find nothing and end `done` with no Entities, a silent miss. Refused until the
-/// reconciler mounts the key.
+/// Why a subject cannot be searched for when a class holds it as a keyed hash and the Portal
+/// holds no key for the space: the broker holds the HMAC under the space's key, so asking for
+/// the raw value would find nothing and end `done` with no Entities, a silent miss.
 pub fn hashed_refusal(classes: &[SubjectClass]) -> Option<String> {
     let class = classes.iter().find(|c| c.hashed)?;
     Some(format!(
-        "the subject slot '{}' of '{}' is ingested as keyedHash and this Portal does not hold the space's key (spec.personalData.keyRef) yet, so it cannot find the subject; nothing was read or erased",
+        "the subject slot '{}' of '{}' is ingested as keyedHash and this Portal holds no key for the space: set spec.personalData.keyRef to a secret of at least 32 bytes, or check the Portal's log for why it did not resolve; nothing was read or erased",
         class.slot, class.class
     ))
+}
+
+/// The `q` of each class, in order: a class holding the subject as a keyed hash is searched for
+/// the subject's hash under the space's key, the way the gateway stored it (DM-121). Without the
+/// key the raw value would find nothing, so the lookup is refused with [`hashed_refusal`].
+pub fn subject_queries(
+    classes: &[SubjectClass],
+    subject: &str,
+    key: Option<&jc_core::Secret>,
+) -> Result<Vec<String>, String> {
+    if key.is_none() {
+        if let Some(why) = hashed_refusal(classes) {
+            return Err(why);
+        }
+    }
+    Ok(classes
+        .iter()
+        .map(|class| match key.filter(|_| class.hashed) {
+            Some(key) => subject_query(
+                &class.slot,
+                &crate::personal_keys::hash(key, subject.trim()),
+            ),
+            None => subject_query(&class.slot, subject),
+        })
+        .collect())
 }
 
 /// The NGSI-LD `q` that finds the Entities naming `subject` in `slot`.
@@ -976,6 +1000,36 @@ classes:
             "{why}"
         );
         assert_eq!(hashed_refusal(&classes[1..2]), None);
+
+        // T-5336: with the space's key the hashed class is searched for the gateway's HMAC of
+        // the subject (`openssl dgst -sha256 -hmac`), the plain class for the subject itself.
+        let key = jc_core::Secret::new("0123456789abcdef0123456789abcdef");
+        let plain = SubjectClass {
+            hashed: false,
+            ..classes[0].clone()
+        };
+        let hashed = SubjectClass {
+            hashed: true,
+            ..classes[0].clone()
+        };
+        let both = [hashed, plain];
+        let queries = subject_queries(&both, " r-42 ", Some(&key)).expect("the key is held");
+        let slot = &both[0].slot;
+        assert_eq!(
+            queries,
+            [
+                format!(
+                    "{slot}==\"606a62f1ce588d825f88912faeb84707ca3a1f7acdecffad13b0bd1d7ac56396\""
+                ),
+                format!("{slot}==\"r-42\""),
+            ]
+        );
+        let refused = subject_queries(&both, "r-42", None).expect_err("no key");
+        assert!(refused.contains("spec.personalData.keyRef"), "{refused}");
+        assert_eq!(
+            subject_queries(&both[1..], "r-42", None),
+            Ok(vec![format!("{slot}==\"r-42\"")])
+        );
         assert!(subject_classes("classes: {}").is_empty());
     }
 }
