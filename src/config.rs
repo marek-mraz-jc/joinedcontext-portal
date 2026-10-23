@@ -195,6 +195,13 @@ pub struct Config {
     /// neutral joinedcontext defaults, which is what an installation without branding looks
     /// like; it is never an error.
     pub branding_file: Option<String>,
+    /// The deployment's own open-data catalogue, called in the cluster (T-5314):
+    /// `JC_PORTAL_CKAN_URL` is the public URL a CkanInstance's `spec.url` names (e.g.
+    /// `https://opendata.example.org`), `JC_PORTAL_CKAN_API_URL` the catalogue's Service the
+    /// reconciler calls its API at instead (e.g. `http://ckan.ckan.svc.cluster.local:5000`), so
+    /// publishing does not spend the public edge's limit. Both or neither; `None` calls every
+    /// catalogue at its public URL.
+    pub ckan_api_route: Option<(Url, Url)>,
     /// The directory the ConfigMap `jc-validation-results` is mounted at (`JC_HEALTH_DIR`;
     /// OPS-53): one digest per validation check, read on every request to
     /// `/api/v1/organization/health`. `None` answers an empty list; it is never an error.
@@ -350,6 +357,7 @@ impl std::fmt::Debug for Config {
             .field("apps_db", &self.apps_db)
             .field("pipeline_secrets", &self.pipeline_secrets)
             .field("branding_file", &self.branding_file)
+            .field("ckan_api_route", &self.ckan_api_route)
             .field("health_dir", &self.health_dir)
             .field(
                 "database_url",
@@ -724,6 +732,77 @@ fn apps_url(lookup: &impl Fn(&str) -> Option<String>) -> Result<Option<Url>, Con
         return Err(invalid("an origin only, without a path, query or fragment"));
     }
     Ok(Some(url))
+}
+
+/// The catalogue's public URL and the in-cluster address its API is called at (T-5314). The
+/// public one is `https://` like every CkanInstance URL (EP-67); the API one may be plain
+/// `http://` only on a cluster Service name, where the mesh carries the token, never across a
+/// network the operator does not hold.
+fn ckan_api_route(
+    lookup: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<(Url, Url)>, ConfigError> {
+    let set = |var: &str| {
+        lookup(var)
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty())
+    };
+    let (public, api) = match (set("JC_PORTAL_CKAN_URL"), set("JC_PORTAL_CKAN_API_URL")) {
+        (None, None) => return Ok(None),
+        (Some(public), Some(api)) => (public, api),
+        (None, Some(_)) => {
+            return Err(ConfigError::Invalid {
+                var: "JC_PORTAL_CKAN_URL",
+                reason: "JC_PORTAL_CKAN_API_URL is set, so the public catalogue URL it stands \
+                         in for is needed too, e.g. https://opendata.example.org"
+                    .into(),
+            })
+        }
+        (Some(_), None) => {
+            return Err(ConfigError::Invalid {
+                var: "JC_PORTAL_CKAN_API_URL",
+                reason: "JC_PORTAL_CKAN_URL is set, so the in-cluster address of its API is \
+                         needed too, e.g. http://ckan.ckan.svc.cluster.local:5000"
+                    .into(),
+            })
+        }
+    };
+    let parse = |var: &'static str, raw: &str| -> Result<Url, ConfigError> {
+        let invalid = |reason: String| ConfigError::Invalid { var, reason };
+        let url: Url = raw
+            .parse()
+            .map_err(|e: url::ParseError| invalid(e.to_string()))?;
+        if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
+            return Err(invalid("an http(s) URL naming a host".into()));
+        }
+        if !url.username().is_empty() || url.password().is_some() {
+            return Err(invalid(
+                "a URL without credentials: the API token is the only credential (EP-67)".into(),
+            ));
+        }
+        Ok(url)
+    };
+    let public = parse("JC_PORTAL_CKAN_URL", &public)?;
+    if public.scheme() != "https" {
+        return Err(ConfigError::Invalid {
+            var: "JC_PORTAL_CKAN_URL",
+            reason: "the public catalogue URL is https://, as every CkanInstance URL (EP-67)"
+                .into(),
+        });
+    }
+    let api = parse("JC_PORTAL_CKAN_API_URL", &api)?;
+    let in_cluster = api
+        .host_str()
+        .is_some_and(|host| host.ends_with(".svc") || host.ends_with(".svc.cluster.local"));
+    if api.scheme() != "https" && !in_cluster {
+        return Err(ConfigError::Invalid {
+            var: "JC_PORTAL_CKAN_API_URL",
+            reason:
+                "plain http only to a cluster Service (`<name>.<namespace>.svc.cluster.local`); \
+                     anywhere else the token would cross the network in the clear"
+                    .into(),
+        });
+    }
+    Ok(Some((public, api)))
 }
 
 /// Where build pods run (AP-130): nothing when `JC_PORTAL_BUILD_NAMESPACE` is unset, and every
@@ -1631,6 +1710,7 @@ impl Config {
         let agent_settings = agent_settings(&lookup)?;
         let app_tests = app_tests(&lookup)?;
         let branding_file = lookup("JC_BRANDING_FILE").filter(|path| !path.trim().is_empty());
+        let ckan_api_route = ckan_api_route(&lookup)?;
         let health_dir = lookup("JC_HEALTH_DIR").filter(|path| !path.trim().is_empty());
         let database_url = lookup("JC_PORTAL_DATABASE_URL").filter(|url| !url.trim().is_empty());
         let bootstrap_admins = lookup("JC_PORTAL_BOOTSTRAP_ADMINS")
@@ -1697,6 +1777,7 @@ impl Config {
             apps_cache_dir,
             apps_url,
             branding_file,
+            ckan_api_route,
             health_dir,
             database_url,
             bootstrap_admins,
@@ -1767,6 +1848,7 @@ impl Config {
             apps_cache_dir: None,
             apps_url: None,
             branding_file: None,
+            ckan_api_route: None,
             health_dir: None,
             database_url: None,
             // The dev realm's approver role: a test session that carries it may do everything,
@@ -1825,6 +1907,84 @@ mod tests {
 
     fn one(var: &'static str, value: &'static str) -> impl Fn(&str) -> Option<String> {
         move |name: &str| (name == var).then(|| value.to_owned())
+    }
+
+    /// T-5314: the catalogue's API moves to its Service only with both URLs, the public one https,
+    /// and plain http only to a cluster Service name; each refusal names the variable to fix.
+    #[test]
+    fn the_catalogue_api_route_needs_both_urls_and_http_only_inside_the_cluster() {
+        let route = |public: Option<&'static str>, api: Option<&'static str>| {
+            ckan_api_route(&move |name: &str| match name {
+                "JC_PORTAL_CKAN_URL" => public.map(str::to_owned),
+                "JC_PORTAL_CKAN_API_URL" => api.map(str::to_owned),
+                _ => None,
+            })
+        };
+        assert_eq!(route(None, None).unwrap(), None);
+        assert_eq!(route(Some(" "), Some("")).unwrap(), None);
+        let (public, api) = route(
+            Some("https://opendata.example.org"),
+            Some("http://ckan.ckan.svc.cluster.local:5000"),
+        )
+        .unwrap()
+        .expect("a route");
+        assert_eq!(public.as_str(), "https://opendata.example.org/");
+        assert_eq!(api.as_str(), "http://ckan.ckan.svc.cluster.local:5000/");
+        assert!(route(
+            Some("https://o.example.org"),
+            Some("https://ckan.internal.example.org")
+        )
+        .unwrap()
+        .is_some());
+        for (public, api, named) in [
+            (
+                None,
+                Some("http://ckan.ckan.svc:5000"),
+                "JC_PORTAL_CKAN_URL",
+            ),
+            (
+                Some("https://o.example.org"),
+                None,
+                "JC_PORTAL_CKAN_API_URL",
+            ),
+            (
+                Some("http://o.example.org"),
+                Some("http://ckan.ckan.svc:5000"),
+                "JC_PORTAL_CKAN_URL",
+            ),
+            (
+                Some("https://o.example.org"),
+                Some("http://ckan.example.org:5000"),
+                "JC_PORTAL_CKAN_API_URL",
+            ),
+            (
+                Some("https://o.example.org"),
+                Some("http://svc.example.org"),
+                "JC_PORTAL_CKAN_API_URL",
+            ),
+            (
+                Some("https://o.example.org"),
+                Some("http://u:p@ckan.ckan.svc:5000"),
+                "JC_PORTAL_CKAN_API_URL",
+            ),
+            (
+                Some("https://o.example.org"),
+                Some("ftp://ckan.ckan.svc"),
+                "JC_PORTAL_CKAN_API_URL",
+            ),
+            (
+                Some("opendata"),
+                Some("http://ckan.ckan.svc:5000"),
+                "JC_PORTAL_CKAN_URL",
+            ),
+        ] {
+            match route(public, api) {
+                Err(ConfigError::Invalid { var, .. }) => {
+                    assert_eq!(var, named, "{public:?} {api:?}")
+                }
+                other => panic!("{public:?} {api:?}: {other:?}"),
+            }
+        }
     }
 
     /// T-4470: the parts `Config::from_vars` was cut into, each on its own input.
