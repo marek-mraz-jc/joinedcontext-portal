@@ -1,5 +1,5 @@
-//! Alerts a person chooses (API/01 §37, PL-71, T-3261): subscribe to a pipeline, a space or a type
-//! in a space, mute, and read the notices the leader's evaluator left (`crate::alerts`).
+//! Alerts a person chooses (API/01 §37, PL-71, T-3261): subscribe to a pipeline, a space, a type
+//! in a space or an agent profile (T-5301), mute, and read the notices the leader's evaluator left (`crate::alerts`).
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -43,7 +43,45 @@ fn readable(
                 .ok_or_else(|| ApiError::BadRequest("a type is named `{space}/{Type}`".into()))?;
             crate::api::entity_trash::readable(state, user, project, space)
         }
+        Scope::Agent => agent_readable(state, user, project, target),
     }
+}
+
+/// An agent profile's alerts count every person's runs, which only an approver of the project
+/// sees on the Activity tab (AG-93): `403` naming the project for anyone else, before the
+/// profile is looked up, so the answer tells them nothing of it; `404` for one that does not exist.
+fn agent_readable(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    profile: &str,
+) -> Result<(), ApiError> {
+    crate::api::changes::may_approve_anything(state, &user.0.identity, project).map_err(|_| {
+        ApiError::Denied(format!(
+            "project: the alerts of `{profile}` count every person's runs in {project}, which \
+                 only an approver of the project sees; pick a project you approve in, or ask a \
+                 steward of {project} for the approver role"
+        ))
+    })?;
+    if state
+        .mirror
+        .get(crate::permissions::ORG_NAMESPACE, "AgentProfile", profile)
+        .is_none()
+    {
+        return Err(ApiError::NotFound(format!(
+            "target: no agent profile `{profile}`"
+        )));
+    }
+    Ok(())
+}
+
+/// Whether the caller may still read what a notice names, with their grants now.
+fn notice_readable(state: &AppState, user: &CurrentUser, notice: &Notice) -> bool {
+    if notice.event.is_agent() {
+        return crate::api::changes::may_approve_anything(state, &user.0.identity, &notice.project)
+            .is_ok();
+    }
+    crate::api::pipelines::readable_pipeline(state, user, &notice.project, &notice.pipeline).is_ok()
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -96,11 +134,11 @@ pub async fn list_alerts(
     put,
     path = "/api/v1/alerts",
     summary = "Subscribe To An Alert",
-    description = "Subscribes the caller to a pipeline's, a space's or a type's failure, stale and zero-output alerts, or changes their subscription of the same target (API/01 §37). E-mail is refused while the Portal has no mail relay.",
+    description = "Subscribes the caller to a pipeline's, a space's or a type's failure, stale and zero-output alerts, or to an agent profile's refusal spikes, token-cap share and off-hours writes (scope `agent`, approvers of the project only), or changes their subscription of the same target (API/01 §37). E-mail is refused while the Portal has no mail relay.",
     tag = "auth",
     request_body(
         content = NewSubscription,
-        description = "The project, the scope (`pipeline`, `space` or `type`), its target, the events and the delivery",
+        description = "The project, the scope (`pipeline`, `space`, `type` or `agent`), its target, the events and the delivery",
         content_type = "application/json",
         example = json!({ "project": "helsinki", "scope": "space", "target": "bikes", "events": ["failure", "zero"], "delivery": "portal" })
     ),
@@ -108,6 +146,7 @@ pub async fn list_alerts(
         (status = 200, description = "The subscription", body = Subscription),
         (status = 400, description = "An unknown scope, event or delivery, or e-mail", body = crate::error::ProblemDetails),
         (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
+        (status = 403, description = "An agent profile in a project the caller does not approve in", body = crate::error::ProblemDetails),
         (status = 404, description = "A target the caller may not read", body = crate::error::ProblemDetails),
         (status = 422, description = "An unknown key", body = crate::error::ProblemDetails),
         (status = 503, description = "The alerts are not reachable", body = crate::error::ProblemDetails),
@@ -240,15 +279,7 @@ pub async fn list_notices(
     // Read with the caller's grants now: a pipeline they lost access to shows nothing.
     let items: Vec<Notice> = notices
         .into_iter()
-        .filter(|notice| {
-            crate::api::pipelines::readable_pipeline(
-                &state,
-                &user,
-                &notice.project,
-                &notice.pipeline,
-            )
-            .is_ok()
-        })
+        .filter(|notice| notice_readable(&state, &user, notice))
         .collect();
     let unread = items.iter().filter(|notice| !notice.read).count() as i64;
     Ok(Json(Notices { items, unread }))

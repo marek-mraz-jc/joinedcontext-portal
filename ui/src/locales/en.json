@@ -7528,7 +7528,10 @@
           "refusalSpike": "{profile} in {project}: {count} refused tool calls in the last hour, the latest {when}.",
           "spendShare": "Run “{run}” of {profile} has used {count} % of its token cap.",
           "offHoursWrite": "Writes outside office hours (Monday to Friday 06:00–18:00 UTC) by run “{run}” of {profile}: {count}, the first {when}."
-        }
+        },
+        "alertMe": "Alert me…",
+        "alertMeHint": "Get a notice in the inbox when this agent has a refusal spike, nears its token cap or writes outside office hours.",
+        "alertMeNone": "You approve changes in no project, and only an approver sees every person's runs. Ask a steward of the project for the approver role."
       }
     }
   },
@@ -8982,14 +8985,18 @@
     "lead": {
       "pipeline": "Choose what to be told about this pipeline.",
       "space": "Choose what to be told about every pipeline writing into this space.",
-      "type": "Choose what to be told about every pipeline writing this type into the space."
+      "type": "Choose what to be told about every pipeline writing this type into the space.",
+      "agent": "Choose what to be told about this agent's runs in a project you approve in."
     },
     "events": "Tell me when",
     "event": {
       "failure": "it fails",
       "stale": "its data goes stale",
       "zero": "it writes nothing",
-      "invalid": "its data breaks a model rule it did not break the day before"
+      "invalid": "its data breaks a model rule it did not break the day before",
+      "refusalSpike": "it has 5 or more tool calls refused within an hour",
+      "spendShare": "a run of it uses 80 % or more of its token cap",
+      "offHoursWrite": "a run of it writes outside office hours (Monday to Friday 06:00–18:00 UTC)"
     },
     "delivery": "How",
     "portal": "In the Portal, as it happens",
@@ -9021,7 +9028,9 @@
       "recovered": "{pipeline} recovered: no longer {event}",
       "digest": "Today's digest, {pipeline}: {event}"
     },
-    "muteDay": "Mute the alerts of {pipeline} for a day"
+    "muteDay": "Mute the alerts of {pipeline} for a day",
+    "project": "Project",
+    "projectHelp": "The alerts count every person's runs in this project. Only projects you approve in are offered, for example helsinki."
   },
   "help": {
     "title": "Help",

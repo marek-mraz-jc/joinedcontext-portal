@@ -31,6 +31,8 @@ pub enum Scope {
     Pipeline,
     Space,
     Type,
+    /// An agent profile's runs in the project (T-5301): its target is the profile's name.
+    Agent,
 }
 
 #[derive(
@@ -44,6 +46,15 @@ pub enum Event {
     Zero,
     /// The daily quality run found a rule and path the space's data did not break the day before.
     Invalid,
+    /// `REFUSAL_SPIKE` or more refused tool calls of one agent profile within an hour (AG-136).
+    #[serde(rename = "refusalSpike")]
+    RefusalSpike,
+    /// A run of the profile used `SPEND_SHARE_PERCENT` of its token cap or more.
+    #[serde(rename = "spendShare")]
+    SpendShare,
+    /// A run of the profile wrote outside office hours.
+    #[serde(rename = "offHoursWrite")]
+    OffHoursWrite,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -60,6 +71,7 @@ impl Scope {
             Self::Pipeline => "pipeline",
             Self::Space => "space",
             Self::Type => "type",
+            Self::Agent => "agent",
         }
     }
     fn parse(text: &str) -> Option<Self> {
@@ -67,6 +79,7 @@ impl Scope {
             "pipeline" => Self::Pipeline,
             "space" => Self::Space,
             "type" => Self::Type,
+            "agent" => Self::Agent,
             _ => return None,
         })
     }
@@ -79,6 +92,9 @@ impl Event {
             Self::Stale => "stale",
             Self::Zero => "zero",
             Self::Invalid => "invalid",
+            Self::RefusalSpike => "refusalSpike",
+            Self::SpendShare => "spendShare",
+            Self::OffHoursWrite => "offHoursWrite",
         }
     }
     fn parse(text: &str) -> Option<Self> {
@@ -87,8 +103,18 @@ impl Event {
             "stale" => Self::Stale,
             "zero" => Self::Zero,
             "invalid" => Self::Invalid,
+            "refusalSpike" => Self::RefusalSpike,
+            "spendShare" => Self::SpendShare,
+            "offHoursWrite" => Self::OffHoursWrite,
             _ => return None,
         })
+    }
+    /// Whether the event is about an agent profile's runs, not a pipeline.
+    pub fn is_agent(self) -> bool {
+        matches!(
+            self,
+            Self::RefusalSpike | Self::SpendShare | Self::OffHoursWrite
+        )
     }
 }
 
@@ -137,6 +163,7 @@ pub struct Notice {
     /// The subscription it came from, which "Mute" names.
     pub subscription: i64,
     pub project: String,
+    /// The pipeline, or the agent profile for `refusalSpike`, `spendShare` and `offHoursWrite`.
     pub pipeline: String,
     pub event: Event,
     /// `opened`, `recovered` or `digest`.
@@ -250,16 +277,24 @@ fn held_of(row: SubscriptionRow) -> Option<Held> {
 /// A subscription checked: its scope, events and delivery read, each event once.
 pub fn checked(new: &NewSubscription) -> Result<(Scope, Vec<Event>, Delivery), String> {
     let scope = Scope::parse(&new.scope)
-        .ok_or_else(|| format!("`{}` is not pipeline, space or type", new.scope))?;
+        .ok_or_else(|| format!("`{}` is not pipeline, space, type or agent", new.scope))?;
+    let (agent, names) = if scope == Scope::Agent {
+        (true, "refusalSpike, spendShare or offHoursWrite")
+    } else {
+        (false, "failure, stale, zero or invalid")
+    };
     if new.events.is_empty() {
-        return Err("name at least one of failure, stale, zero and invalid".into());
+        return Err(format!("events: name at least one of {names}"));
     }
     let mut events = BTreeSet::new();
     for event in &new.events {
-        events.insert(
-            Event::parse(event)
-                .ok_or_else(|| format!("`{event}` is not failure, stale, zero or invalid"))?,
-        );
+        let parsed = Event::parse(event)
+            .filter(|e| e.is_agent() == agent)
+            .ok_or_else(|| format!("events: `{event}` is not {names}"))?;
+        events.insert(parsed);
+    }
+    if new.target.is_empty() {
+        return Err("target: name what the alert watches".into());
     }
     let delivery =
         match new.delivery.as_str() {
@@ -961,7 +996,22 @@ pub fn covers(subscription: &Subscription, pipeline: &Watched) -> bool {
             .is_some_and(|(space, kind)| {
                 pipeline.spaces.contains(space) && pipeline.types.contains(kind)
             }),
+        Scope::Agent => false,
     }
+}
+
+/// Whether a subscription covers an incident: an agent event its profile's `agent`
+/// subscription, any other event the pipeline it names.
+pub fn covers_key(subscription: &Subscription, key: &IncidentKey, pipelines: &[Watched]) -> bool {
+    if key.2.is_agent() {
+        return subscription.scope == Scope::Agent
+            && subscription.project == key.0
+            && subscription.target == key.1;
+    }
+    pipelines
+        .iter()
+        .find(|p| p.project == key.0 && p.name == key.1)
+        .is_some_and(|p| covers(subscription, p))
 }
 
 /// The incidents to open (signals with none open) and to close (open ones whose signal cleared).
@@ -1017,6 +1067,9 @@ pub struct Evaluator {
     )>,
     /// The weekly link check, started from a run when it is due (T-5133).
     links: Option<Arc<crate::link_check::Checker>>,
+    /// The agent runs whose refusal spikes, token-cap share and off-hours writes open incidents
+    /// (T-5301).
+    agents: Option<Arc<crate::agents::store::AgentStore>>,
     running: AtomicBool,
 }
 
@@ -1035,6 +1088,7 @@ impl Evaluator {
             health: tokio::sync::Mutex::new(None),
             log: None,
             links: None,
+            agents: None,
             running: AtomicBool::new(false),
         }
     }
@@ -1070,6 +1124,39 @@ impl Evaluator {
     pub fn with_link_check(mut self, links: Option<Arc<crate::link_check::Checker>>) -> Self {
         self.links = links;
         self
+    }
+
+    /// Alerts the subscribers of an agent profile (T-5301).
+    pub fn with_agent_runs(mut self, agents: Arc<crate::agents::store::AgentStore>) -> Self {
+        self.agents = Some(agents);
+        self
+    }
+
+    /// The agent signals of the last hour. When the run store does not answer, the open agent
+    /// incidents hold, so a lost read never reads as a recovery.
+    async fn add_agents(
+        &self,
+        open: &BTreeMap<IncidentKey, Incident>,
+        signals: &mut Vec<Signal>,
+        now: DateTime<Utc>,
+    ) {
+        let Some(agents) = &self.agents else {
+            return;
+        };
+        match crate::api::agent_activity::signals(agents, &self.mirror, now).await {
+            Ok(found) => signals.extend(found),
+            Err(error) => {
+                tracing::warn!(%error, "the agent runs were not read for the alerts");
+                signals.extend(
+                    open.values()
+                        .filter(|i| i.key.2.is_agent())
+                        .map(|i| Signal {
+                            key: i.key.clone(),
+                            detail: i.detail.clone(),
+                        }),
+                );
+            }
+        }
     }
 
     /// The health signals, read again once an hour: a run ends at most a few times a day.
@@ -1155,19 +1242,17 @@ impl Evaluator {
             }
         }
         let open = self.store.open_incidents().await?;
+        self.add_agents(&open, &mut signals, now).await;
         let (opening, closing) = step(&open, &signals);
         let subscriptions = self.store.all().await?;
         let audience = |key: &IncidentKey| {
-            let pipeline = pipelines
-                .iter()
-                .find(|p| p.project == key.0 && p.name == key.1);
             subscriptions
                 .iter()
-                .filter(move |held| {
+                .filter(|held| {
                     held.subscription.delivery == Delivery::Portal
                         && held.subscription.events.contains(&key.2)
                         && held.muted_until.is_none_or(|until| until <= now)
-                        && pipeline.is_some_and(|p| covers(&held.subscription, p))
+                        && covers_key(&held.subscription, key, &pipelines)
                 })
                 .collect::<Vec<_>>()
         };
@@ -1210,10 +1295,7 @@ impl Evaluator {
                 if !muted {
                     for (incident, recovered) in &day {
                         let since = held.digest_at.unwrap_or(now - Duration::days(1));
-                        let covered = pipelines
-                            .iter()
-                            .find(|p| p.project == incident.key.0 && p.name == incident.key.1)
-                            .is_some_and(|p| covers(&held.subscription, p));
+                        let covered = covers_key(&held.subscription, &incident.key, &pipelines);
                         if incident.opened_at > since
                             && covered
                             && held.subscription.events.contains(&incident.key.2)
@@ -1342,6 +1424,160 @@ mod tests {
         assert!(checked(&new("space", "bikes", &["zero"], "email"))
             .unwrap_err()
             .contains("no mail relay"));
+    }
+
+    #[test]
+    fn an_agent_subscription_takes_only_agent_events_and_a_pipeline_one_none() {
+        let new = |scope: &str, target: &str, events: &[&str]| NewSubscription {
+            project: "helsinki".into(),
+            scope: scope.into(),
+            target: target.into(),
+            events: events.iter().map(|e| (*e).to_owned()).collect(),
+            delivery: "portal".into(),
+        };
+        assert_eq!(
+            checked(&new("agent", "analyst", &["spendShare", "refusalSpike"])),
+            Ok((
+                Scope::Agent,
+                vec![Event::RefusalSpike, Event::SpendShare],
+                Delivery::Portal
+            ))
+        );
+        assert_eq!(
+            checked(&new("agent", "analyst", &["failure"])),
+            Err("events: `failure` is not refusalSpike, spendShare or offHoursWrite".into())
+        );
+        assert_eq!(
+            checked(&new("pipeline", "bikes", &["offHoursWrite"])),
+            Err("events: `offHoursWrite` is not failure, stale, zero or invalid".into())
+        );
+        assert_eq!(
+            checked(&new("agent", "", &["spendShare"])),
+            Err("target: name what the alert watches".into())
+        );
+        assert_eq!(
+            serde_json::to_value(Event::OffHoursWrite).unwrap(),
+            json!("offHoursWrite")
+        );
+    }
+
+    #[test]
+    fn an_agent_incident_is_covered_only_by_its_profile_s_agent_subscription() {
+        let bikes = [watched("analyst", "mobility", "Bike")];
+        let key: IncidentKey = ("helsinki".into(), "analyst".into(), Event::RefusalSpike);
+        assert!(covers_key(
+            &subscription(Scope::Agent, "analyst"),
+            &key,
+            &bikes
+        ));
+        assert!(!covers_key(
+            &subscription(Scope::Agent, "builder"),
+            &key,
+            &bikes
+        ));
+        assert!(
+            !covers_key(&subscription(Scope::Pipeline, "analyst"), &key, &bikes),
+            "a pipeline of the same name"
+        );
+        let pipeline_key: IncidentKey = ("helsinki".into(), "analyst".into(), Event::Failure);
+        assert!(!covers_key(
+            &subscription(Scope::Agent, "analyst"),
+            &pipeline_key,
+            &bikes
+        ));
+        assert!(covers_key(
+            &subscription(Scope::Pipeline, "analyst"),
+            &pipeline_key,
+            &bikes
+        ));
+    }
+
+    fn agent_run(id: &str, created_at: &str) -> crate::agents::run::AgentRun {
+        serde_json::from_value(json!({
+            "id": id, "project": "helsinki", "appName": "air", "endpointName": "air",
+            "endpointSlug": "air", "endpoints": [], "profile": "analyst", "kind": "data",
+            "unattended": false, "appClass": "ui", "visibility": "project", "prompt": "p",
+            "promptDigest": "sha256:p", "dataNeeds": [], "allowsWrite": false, "branch": "b",
+            "pathPrefix": "p/", "status": "building", "ticketHash": "x", "files": {},
+            "steps": 0, "tokensUsed": 0, "createdBy": "ana@hel.fi", "origin": "person",
+            "starter": null, "createdAt": created_at, "expiresAt": "2099-01-01T00:00:00Z",
+        }))
+        .expect("a run")
+    }
+
+    #[tokio::test]
+    async fn a_refusal_spike_tells_the_profile_s_subscriber_once_and_recovers_after_the_hour() {
+        let agents = Arc::new(crate::agents::store::AgentStore::new(None));
+        let run = agent_run("r1", &rfc3339(Utc::now() - Duration::minutes(10)));
+        agents.create_run(&run).await.unwrap();
+        for _ in 0..crate::api::agent_activity::REFUSAL_SPIKE {
+            agents
+                .append_event(
+                    "r1",
+                    "tool",
+                    json!({ "tool": "jc_resource_list", "status": "failed", "error": "no" }),
+                )
+                .await
+                .unwrap();
+        }
+        // After the refusals: a signal counts only what happened up to the evaluator's now.
+        let now = Utc::now() + Duration::seconds(1);
+        let mirror = mirror();
+        let store = Arc::new(AlertStore::new(None));
+        let evaluator = Evaluator::new(
+            Arc::clone(&mirror),
+            Arc::new(crate::quality::Store::default()),
+            Arc::clone(&store),
+        )
+        .with_agent_runs(Arc::clone(&agents));
+        let jana = store
+            .upsert(
+                "jana",
+                "helsinki",
+                Scope::Agent,
+                "analyst",
+                &[Event::RefusalSpike],
+                Delivery::Portal,
+            )
+            .await
+            .unwrap();
+        for (who, target, event) in [
+            ("eeva", "analyst", Event::SpendShare),
+            ("mikko", "builder", Event::RefusalSpike),
+        ] {
+            store
+                .upsert(
+                    who,
+                    "helsinki",
+                    Scope::Agent,
+                    target,
+                    &[event],
+                    Delivery::Portal,
+                )
+                .await
+                .unwrap();
+        }
+        evaluator.run(now).await.unwrap();
+        evaluator.run(now + Duration::minutes(1)).await.unwrap();
+        evaluator.run(now + Duration::hours(2)).await.unwrap();
+
+        let told = store.notices(&["jana".into()]).await.unwrap();
+        assert_eq!(
+            told.iter().map(|n| n.change.as_str()).collect::<Vec<_>>(),
+            vec!["recovered", "opened"]
+        );
+        assert!(told.iter().all(|n| n.subscription == jana.id
+            && n.event == Event::RefusalSpike
+            && n.pipeline == "analyst"));
+        assert_eq!(told[1].detail, "5 refused tool calls in the last hour");
+        assert!(
+            store.notices(&["eeva".into()]).await.unwrap().is_empty(),
+            "another event"
+        );
+        assert!(
+            store.notices(&["mikko".into()]).await.unwrap().is_empty(),
+            "another profile"
+        );
     }
 
     #[test]

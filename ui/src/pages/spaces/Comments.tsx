@@ -170,6 +170,7 @@ export function CommentsPanel({ project, space, urn }: { project: string; space:
  * in its menu; opening one marks it read and goes to its space.
  */
 const ALERT_NOTICES_KEY = ["alerts", "notices"];
+const AGENT_EVENTS = new Set<string>(["refusalSpike", "spendShare", "offHoursWrite"]);
 
 export function NotificationsMenu({ project, waiting = 0 }: { project: string; waiting?: number }): JSX.Element {
   const { t, i18n } = useTranslation();
@@ -263,7 +264,12 @@ export function NotificationsMenu({ project, waiting = 0 }: { project: string; w
               className="flex-col items-start gap-0.5"
               onSelect={() => {
                 if (!notice.read) readAlert.mutate(notice.id);
-                void navigate({ href: `/projects/${encodeURIComponent(notice.project)}/pipelines` });
+                // An agent's alert opens the agent's Activity tab (T-5301), a pipeline's the pipelines.
+                void navigate({
+                  href: AGENT_EVENTS.has(notice.event)
+                    ? `/organization/agents/org/AgentProfile/${encodeURIComponent(notice.pipeline)}#activity`
+                    : `/projects/${encodeURIComponent(notice.project)}/pipelines`,
+                });
               }}
             >
               <span className={notice.read ? "text-fg-muted" : "font-semibold"}>

@@ -22,6 +22,7 @@ import {
   TableSkeleton,
 } from "../../components/ui";
 import { PageFailed } from "../../components/ui/PageState";
+import { AlertDialog } from "../../components/AlertDialog";
 
 type Activity = components["schemas"]["AgentActivity"];
 type ActivityRun = components["schemas"]["ActivityRun"];
@@ -64,6 +65,51 @@ function seconds(ms: number | null | undefined): string | null {
  * its verdict and the problem text of a refusal, the writes with their reasons, tokens and cost;
  * the alerts above them; Stop on a run in flight. Only runs the person may see arrive.
  */
+/** "Alert me…" for one agent profile once its activity loaded: greyed with the reason when the person approves in no project. */
+export function AgentAlertControl({
+  profile,
+  ready,
+  projects = [],
+}: {
+  profile: string | undefined;
+  ready: boolean;
+  projects: string[] | undefined;
+}) {
+  const { t } = useTranslation();
+  const [alerting, setAlerting] = useState(false);
+  if (profile === undefined || !ready) return null;
+  const none = projects.length === 0;
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="secondary"
+          disabled={none}
+          disabledReason={none ? t("organization.agents.activity.alertMeNone") : undefined}
+          onClick={() => setAlerting(true)}
+        >
+          {t("organization.agents.activity.alertMe")}
+        </Button>
+        <p className="text-caption text-fg-muted">
+          {none
+            ? t("organization.agents.activity.alertMeNone")
+            : t("organization.agents.activity.alertMeHint")}
+        </p>
+      </div>
+      {alerting && projects[0] ? (
+        <AlertDialog
+          project={projects[0]}
+          projects={projects}
+          scope="agent"
+          target={profile}
+          label={profile}
+          onClose={() => setAlerting(false)}
+        />
+      ) : null}
+    </>
+  );
+}
+
 export function AgentActivity({
   scope,
 }: {
@@ -99,7 +145,7 @@ export function AgentActivity({
   });
   const runs = activity.data?.pages.flatMap((page) => page.runs) ?? [];
   const alerts = activity.data?.pages[0]?.alerts ?? [];
-  const choices = activity.data?.pages[0]?.choices ?? { people: [], spaces: [] };
+  const choices = activity.data?.pages[0]?.choices ?? { people: [], spaces: [], alertProjects: [] };
   const denied =
     activity.error instanceof ApiError && activity.error.status === 403
       ? (activity.error.problem?.detail ?? activity.error.message)
@@ -113,6 +159,11 @@ export function AgentActivity({
       >
         {t("organization.agents.activity.title")}
       </h2>
+      <AgentAlertControl
+        profile={scope.profile}
+        ready={activity.isSuccess}
+        projects={choices.alertProjects}
+      />
       {scope.run === undefined ? (
         <form
           className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
