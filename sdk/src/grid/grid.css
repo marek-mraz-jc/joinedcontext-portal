@@ -1196,7 +1196,10 @@ button.jc-cell-chip:hover {
   }
   .jc-grid-pager .jc-grid-pager-step { min-width: 2.75rem; min-height: 2.75rem; font-size: 1.25rem; }
   .jc-grid-pages { flex-wrap: nowrap; }
-  .jc-grid-filter-toggle { display: inline-flex; align-items: center; margin: var(--jc-space-2, 8px); }
+  .jc-grid-filter-toggle { display: inline-flex; align-items: center; align-self: flex-start; width: fit-content; margin: var(--jc-space-2, 8px); }
+  .jc-grid-filter-toggle::after { content: "\25BE"; margin-inline-start: var(--jc-space-2, 8px); }
+  .jc-grid-filter-toggle[aria-expanded="true"]::after { content: "\25B4"; }
+  .jc-grid-pages button { min-width: 2.75rem; min-height: 2.75rem; }
   .jc-grid:not([data-filters="open"]) .jc-grid-filter-row { display: none; }
   .jc-grid :is(th, td).jc-grid-pinned { min-width: min(58vw, 15rem); }
 }
