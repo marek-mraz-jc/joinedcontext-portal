@@ -52,6 +52,7 @@ pub mod import_git;
 pub mod internal;
 pub mod knowledge;
 pub mod knowledge_usage;
+pub mod kpi_check;
 pub mod live;
 pub mod mqtt_allowance;
 pub mod mqtt_captured;
@@ -130,6 +131,7 @@ pub fn router() -> Router<AppState> {
         .merge(access_explore::router())
         .merge(agent_access::router())
         .merge(endpoint_preview::router())
+        .merge(kpi_check::router())
         .merge(setup::router())
         .merge(pipelines::router())
         .merge(preferences::router())

@@ -16,6 +16,7 @@ import { TypeLink } from "../pages/models/ModelLinks";
 import { ResourceList } from "../components/ResourceList";
 import { ResourceRowActions } from "../components/ResourceRowActions";
 import { PipelineEditorDialog, expiryWindow } from "../pages/pipelines/PipelineEditor";
+import { KpiEditorDialog } from "../pages/pipelines/KpiEditor";
 import { PipelineRejectedDialog } from "../pages/pipelines/PipelineRejected";
 import { PipelineRunsDialog } from "../pages/pipelines/PipelineRuns";
 import { PipelineHealthView } from "../pages/pipelines/PipelineHealth";
@@ -167,6 +168,8 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
     initial !== undefined || editing !== null || urlDraftName !== undefined,
   );
   const [formError, setFormError] = useState<string | null>(null);
+  // The KPI editor over several sources (PL-105), opened from the KPI recipe.
+  const [kpiOpen, setKpiOpen] = useState(false);
   // The pipeline whose rejected records are open (PL-61).
   const [rejectedOf, setRejectedOf] = useState<string | null>(null);
   // The pipeline whose runs and log are open (PL-62).
@@ -673,6 +676,20 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
           onSubmit={(envelope, draft, files) =>
             propose.mutate({ envelope, name: editing ? editing.metadata.name : null, draft, files })
           }
+          onSeveralSources={() => {
+            setDialogOpen(false);
+            setInitial(undefined);
+            setKpiOpen(true);
+          }}
+        />
+      ) : null}
+      {kpiOpen ? (
+        <KpiEditorDialog
+          project={project}
+          pending={propose.isPending}
+          error={formError}
+          onClose={() => setKpiOpen(false)}
+          onPropose={(envelope) => propose.mutate({ envelope, name: null }, { onSuccess: () => setKpiOpen(false) })}
         />
       ) : null}
     </div>

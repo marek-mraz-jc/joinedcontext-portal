@@ -2849,6 +2849,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/kpis/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check A KPI Over Several Sources
+         * @description Checks a v1alpha2 Pipeline draft with one kpi step by jc-core's admission rules (PL-102, PL-103), with each attribute's unit from its space's model, and says of each source whether the pipeline's account may read it. `preview: true` also computes the indicator on each source Endpoint's current page, read as the person (PL-105). Needs propose on Pipeline in the project, from a person's session; a source in a space the caller may not read is named as unknown. Changes no data.
+         */
+        post: operations["check_kpi"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/mqtt/allowance": {
         parameters: {
             query?: never;
@@ -6506,6 +6526,64 @@ export interface components {
         KeepRequest: {
             /** @description The NGSI-LD entity as the person read it, normalized. */
             entity: Record<string, never>;
+        };
+        /** @description The body of `POST …/kpis/check`. */
+        KpiCheckRequest: {
+            /** @description The draft `joinedcontext.com/v1alpha2` Pipeline with one `kpi` step. */
+            pipeline: {
+                [key: string]: unknown;
+            };
+            /** @description Also compute the indicator on the sources' current pages. */
+            preview?: boolean;
+        };
+        /** @description The check's answer. */
+        KpiChecked: {
+            preview?: null | components["schemas"]["KpiPreview"];
+            /** @description Empty when the draft is a KPI admission takes. */
+            problems: components["schemas"]["KpiProblem"][];
+            sources: components["schemas"]["KpiSource"][];
+        };
+        /** @description The indicator on the sources' current pages. */
+        KpiPreview: {
+            /**
+             * @description Why nothing is computed: a division by zero, an average over nothing, a source that did
+             *     not answer (PL-104).
+             */
+            problem?: string | null;
+            /** @description The rows each source's page held, at most 100. */
+            rows: {
+                [key: string]: number;
+            };
+            /** @description One value per key, one for a join by time. */
+            values: components["schemas"]["KpiValue"][];
+        };
+        /** @description One field jc-core refuses, and why. */
+        KpiProblem: {
+            /** @description The manifest path at fault, `spec.steps.kpi.formula`. */
+            field: string;
+            /** @description The rule it breaks, in words. */
+            reason: string;
+        };
+        /** @description What the editor knows of one source. */
+        KpiSource: {
+            /** @description The source Endpoint. */
+            endpoint: string;
+            /** @description The source's `name`, the input's name in the formula. */
+            name: string;
+            /**
+             * @description Whether the pipeline's account reads the source's type through the Endpoint now: a
+             *     Policy grants it, or the Endpoint is public (PL-55, PL-90).
+             */
+            readable: boolean;
+        };
+        /** @description One computed indicator. */
+        KpiValue: {
+            /** @description The entity or area key; absent for a join by time. */
+            key?: string | null;
+            /** @description The indicator's `{localId}`. */
+            name: string;
+            /** Format: double */
+            value: number;
         };
         /**
          * @description Change risk classification lane (CC-63).
@@ -17713,6 +17791,136 @@ export interface operations {
             };
             /** @description The knowledge assistant is not reachable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    check_kpi: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "pipeline": {
+                 *         "apiVersion": "joinedcontext.com/v1alpha2",
+                 *         "kind": "Pipeline",
+                 *         "metadata": {
+                 *           "name": "parking-per-stop"
+                 *         },
+                 *         "spec": {
+                 *           "class": "scheduled",
+                 *           "outputs": [
+                 *             {
+                 *               "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:helsinki-kpi:kpi-writer"
+                 *             }
+                 *           ],
+                 *           "schedule": "0 * * * *",
+                 *           "sources": [
+                 *             {
+                 *               "endpointRef": {
+                 *                 "kind": "Endpoint",
+                 *                 "name": "helsinki-parking"
+                 *               },
+                 *               "name": "parking",
+                 *               "query": {
+                 *                 "attrs": [
+                 *                   "occupiedSpotNumber",
+                 *                   "district"
+                 *                 ],
+                 *                 "type": "ParkingSite"
+                 *               }
+                 *             },
+                 *             {
+                 *               "endpointRef": {
+                 *                 "kind": "Endpoint",
+                 *                 "name": "helsinki-transit"
+                 *               },
+                 *               "name": "stops",
+                 *               "query": {
+                 *                 "attrs": [
+                 *                   "district"
+                 *                 ],
+                 *                 "type": "TransitStop"
+                 *               }
+                 *             }
+                 *           ],
+                 *           "steps": [
+                 *             {
+                 *               "kind": "kpi",
+                 *               "kpi": {
+                 *                 "formula": "sum(parking.occupiedSpotNumber) / count(stops)",
+                 *                 "join": {
+                 *                   "by": "area",
+                 *                   "keys": {
+                 *                     "parking": "district",
+                 *                     "stops": "district"
+                 *                   }
+                 *                 },
+                 *                 "name": "parking-per-stop",
+                 *                 "unitCode": "C62"
+                 *               }
+                 *             }
+                 *           ]
+                 *         }
+                 *       },
+                 *       "preview": true
+                 *     }
+                 */
+                "application/json": components["schemas"]["KpiCheckRequest"];
+            };
+        };
+        responses: {
+            /** @description The problems, the sources and, when asked, the preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KpiChecked"];
+                };
+            };
+            /** @description The body is not a Pipeline of this project */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No propose on Pipeline here, or a workload token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -1544,6 +1544,18 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
       ]
     },
+    "src/pages/pipelines/KpiEditor.tsx": {
+      "walkedBy": "worker-t4935",
+      "date": "2026-10-22",
+      "screenshots": [
+        "evidence/worker-t4935/T-4935/kpi-editor-empty-desktop.png",
+        "evidence/worker-t4935/T-4935/kpi-editor-empty-phone.png",
+        "evidence/worker-t4935/T-4935/kpi-editor-refused-desktop.png",
+        "evidence/worker-t4935/T-4935/kpi-editor-refused-phone.png",
+        "evidence/worker-t4935/T-4935/kpi-editor-filled-desktop.png",
+        "evidence/worker-t4935/T-4935/kpi-editor-filled-phone.png"
+      ]
+    },
     "src/pages/pipelines/LifetimeChoice.tsx": null,
     "src/pages/pipelines/FlowMapView.tsx": {
       "walkedBy": "worker-t4862",

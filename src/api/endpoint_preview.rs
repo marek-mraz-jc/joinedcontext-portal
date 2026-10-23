@@ -214,7 +214,7 @@ fn query_of(request: &PreviewRequest) -> Result<String, String> {
 /// Whose reading the page is, as the gateway names a caller on every hop to the broker
 /// (Antares `addons/joinedcontext-policy/README.md` section 1): the anonymous caller on a public
 /// Endpoint (EP-16), the person on the others (EP-14).
-fn subject(identity: &Identity, public: bool) -> Vec<(&'static str, String)> {
+pub(crate) fn subject(identity: &Identity, public: bool) -> Vec<(&'static str, String)> {
     if public {
         return vec![("x-jc-roles", "public".to_owned())];
     }

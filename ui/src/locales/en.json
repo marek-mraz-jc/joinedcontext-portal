@@ -2937,7 +2937,8 @@
         "type": "Entity type",
         "attribute": "Attribute to average",
         "attributeHelp": "A numeric attribute of the type, e.g. pm10.",
-        "typeHelp": "A type the chosen endpoint's space models; its numbers are offered below."
+        "typeHelp": "A type the chosen endpoint's space models; its numbers are offered below.",
+        "several": "Combine several sources…"
       },
       "problem": {
         "source": "Choose the source.",
@@ -3323,6 +3324,91 @@
         "failing": "Failing",
         "never": "Not run yet"
       }
+    },
+    "kpiEditor": {
+      "title": "New KPI over several sources",
+      "lead": "Pick two to five endpoints, say how their rows meet and what to compute. Each field is checked as you type; Preview computes the value on what the endpoints serve now. Nothing is written until the change is approved.",
+      "name": "Indicator name",
+      "titleField": "Title",
+      "sources": "Sources",
+      "sourceName": "Input name",
+      "endpoint": "Endpoint",
+      "type": "Entity type",
+      "attribute": "Number it reads",
+      "addSource": "Add a source",
+      "remove": "Remove",
+      "removeSource": "Remove source {name}",
+      "readable": "The pipeline can read this",
+      "notReadable": "The pipeline cannot read this yet",
+      "askAccess": "After the change is approved, ask for access in the pipeline's Access tab; until then each run fails with this source's refusal.",
+      "noEndpoints": "This project has no endpoint you can read yet. Publish a space through an endpoint first, then come back.",
+      "join": "How the rows meet",
+      "joinBy": {
+        "time": "All rows of the run, one value",
+        "area": "Per area both sources share",
+        "entity": "Per entity both sources name"
+      },
+      "joinHint": {
+        "time": "One indicator per run over every row each source returned.",
+        "area": "One indicator per area value every source has, its slug added to the name.",
+        "entity": "One indicator per entity every source names, its slug added to the name."
+      },
+      "key": {
+        "area": "Area attribute",
+        "entity": "Entity attribute",
+        "column": "Key"
+      },
+      "choice": "What to compute",
+      "choices": {
+        "count": "Count the rows of the first source",
+        "sum": "Sum of the first source's number",
+        "average": "Average of the first source's number",
+        "share": "Share: first sum divided by second sum",
+        "per": "First sum per row of the second source"
+      },
+      "writes": "The formula it writes: {formula}",
+      "advanced": "Advanced: type the formula",
+      "formula": "Formula",
+      "unit": "Unit code",
+      "schedule": "How often",
+      "every": {
+        "quarter": "Every 15 minutes",
+        "hourly": "Every hour",
+        "daily": "Every day at 03:00 UTC"
+      },
+      "target": "Written through",
+      "noTarget": "The project has no endpoint in a KPI space (a space whose name ends in -kpi). Create one first.",
+      "preview": "Preview",
+      "runPreview": "Compute now",
+      "previewing": "Computing…",
+      "previewHint": "Reads up to 100 rows of each source as you see them and computes {formula}.",
+      "noKeys": "No key appears in every source, so no indicator would be written now.",
+      "indicator": "Indicator",
+      "value": "Value",
+      "wholeRun": "Whole run",
+      "rows": "{name}: {count} rows",
+      "fixFirst": "Fix the fields marked above first.",
+      "missing": {
+        "name": "Give the indicator a name first.",
+        "source": "Pick an endpoint and an entity type for every source first.",
+        "target": "Pick the endpoint the indicator is written through first."
+      },
+      "hint": {
+        "name": "Lower-case letters, digits and hyphens, at most 48, for example parking-per-stop.",
+        "title": "What people read in lists, for example Occupied parking places per transit stop.",
+        "sources": "Each source reads one entity type through one endpoint, for example parking sites through helsinki-parking.",
+        "sourceName": "How the formula names this source, for example parking.",
+        "endpoint": "An endpoint of this project you may read, for example helsinki-parking.",
+        "type": "The entity type this source reads, for example the parking sites of the space's model.",
+        "attribute": "The numeric attribute a sum or average reads, for example occupiedSpotNumber.",
+        "unit": "The result's UN/CEFACT code, for example C62 for a count or ratio, P1 for a percentage.",
+        "schedule": "How often a run computes the indicator, for example every hour.",
+        "target": "The KPI space's endpoint the indicator is written through, for example kpi-writer.",
+        "formula": "sum, avg, min, max of input.attribute and count(input), with + - * / and parentheses, for example sum(parking.occupiedSpotNumber) / count(stops).",
+        "areaKey": "The attribute holding the area name or code on this source, for example district.",
+        "entityKey": "id for the entity itself, or the relationship naming it, for example refParkingSite."
+      },
+      "previewFirst": "Preview runs once every field is checked without a problem."
     }
   },
   "dashboards": {
