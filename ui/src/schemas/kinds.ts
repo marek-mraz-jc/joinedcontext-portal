@@ -393,10 +393,13 @@ export const CKAN_ORGANIZATION = "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$";
  * Checkboxes for the representation set, the always-on ones shown checked and locked (EP-10,
  * EP-24), a slider for the cache TTL; the rest is default.
  */
+/** The representations every Endpoint serves, shown checked and locked (EP-10, EP-24). */
+export const ALWAYS_ON_REPRESENTATIONS = ["ngsi-ld", "mcp"] as const;
+
 export const endpointUiSchema: UiSchema = {
   enabledRepresentations: {
     "ui:widget": "checkboxes",
-    "ui:enumDisabled": ["ngsi-ld", "mcp"],
+    "ui:enumDisabled": [...ALWAYS_ON_REPRESENTATIONS],
   },
   representations: { "ui:field": "representationOutputs" },
   caching: { maxAgeSeconds: { "ui:widget": "range" } },

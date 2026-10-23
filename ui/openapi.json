@@ -16284,6 +16284,68 @@
         }
       }
     },
+    "/api/v1/projects/{project}/spaces/{space}/surface-fit": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Read Surface Fit",
+        "description": "For each representation that needs the space's data model (SensorThings, iCalendar), the sentence an Endpoint listing it is refused with, or none when the model serves it. Reading the space is all it needs.",
+        "operationId": "surface_fit",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The surfaces and their gaps",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SurfaceFit"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/spaces/{space}/temporal-audit": {
       "get": {
         "tags": [
@@ -30995,6 +31057,51 @@
           }
         },
         "additionalProperties": false
+      },
+      "SurfaceFit": {
+        "type": "object",
+        "description": "What one space's model serves of the surfaces that need a model.",
+        "required": [
+          "surfaces"
+        ],
+        "properties": {
+          "dataModel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The DataModel the surfaces are judged by, the one the form links to; none for a space\nwithout its own model."
+          },
+          "surfaces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SurfaceGap"
+            },
+            "description": "One row per representation that needs the model (`sta`, `ical`)."
+          }
+        }
+      },
+      "SurfaceGap": {
+        "type": "object",
+        "description": "One representation and why the model cannot serve it.",
+        "required": [
+          "representation"
+        ],
+        "properties": {
+          "gap": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The sentence propose refuses it with; none when the model serves it. `ical` is judged by\nits mapping as well, which the form checks on save.",
+            "example": "`sta` needs a type with a numeric attribute that declares its unit"
+          },
+          "representation": {
+            "type": "string",
+            "description": "The representation's wire name, as `enabledRepresentations` lists it.",
+            "example": "sta"
+          }
+        }
       },
       "SyncRunReport": {
         "type": "object",

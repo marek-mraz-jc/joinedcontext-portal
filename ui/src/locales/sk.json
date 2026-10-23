@@ -1352,6 +1352,11 @@
     }
   },
   "endpoints": {
+    "surfaceFit": {
+      "lead": "Dátový model priestoru {space} tieto štandardy nedokáže poskytovať, preto sú ich políčka sivé:",
+      "openModel": "Otvoriť dátový model {model}",
+      "addModel": "Pridať dátový model pre priestor"
+    },
     "check": "Skontrolovať",
     "lead": "Kde je priestor publikovaný: kto ho smie volať, v akých reprezentáciách a pod akou URL.",
     "title": "Endpointy",
