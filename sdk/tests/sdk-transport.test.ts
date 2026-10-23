@@ -199,6 +199,15 @@ describe("bridgeTransport", () => {
     expect(self.removeEventListener).toHaveBeenCalled();
   });
 
+  // DM-113: a preview's write goes out with the reviewer's session, so the framing page needs the
+  // application's reason to send it on.
+  it("hands the framing page a write's reason", () => {
+    const target = { postMessage: vi.fn() } as unknown as Window;
+    const self = { addEventListener: vi.fn(), removeEventListener: vi.fn() } as unknown as Window;
+    void bridgeTransport({ target, self, timeoutMs: 5000 })({ method: "DELETE", path: "/api/endpoint/demo/ngsi-ld/v1/entities/x", reason: "closed" });
+    expect(target.postMessage).toHaveBeenCalledWith(expect.objectContaining({ kind: "jc-request", method: "DELETE", reason: "closed" }), "*");
+  });
+
   it("times out to status 0 when framing page does not answer", async () => {
     const target = { postMessage: vi.fn() } as unknown as Window;
     const self = {

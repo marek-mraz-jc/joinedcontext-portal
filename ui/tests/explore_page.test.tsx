@@ -87,7 +87,7 @@ function urlOf(input: unknown): string {
 
 /** The explorer with one endpoint, one model and one row, opened on that row's detail. */
 async function openDetail(remove: () => Response, access?: unknown, entity: unknown = ROW) {
-  const calls: { method: string; url: string; csrf: string | null }[] = [];
+  const calls: { method: string; url: string; csrf: string | null; reason: string | null }[] = [];
   vi.stubGlobal(
     "fetch",
     vi.fn((input: unknown, init?: RequestInit) => {
@@ -100,6 +100,7 @@ async function openDetail(remove: () => Response, access?: unknown, entity: unkn
         csrf:
           request?.headers.get("x-csrf-token") ??
           ((init?.headers as Record<string, string> | undefined)?.["x-csrf-token"] ?? null),
+        reason: request?.headers.get("jc-reason") ?? null,
       });
       if (method === "DELETE") {
         return Promise.resolve(remove());
@@ -284,6 +285,7 @@ describe("removing an entity from the explorer (UI-60, T-0912)", () => {
     );
     await userEvent.click(screen.getByTestId("explore-delete"));
     expect(within(screen.getByRole("dialog")).getByText(new RegExp(ROW.id))).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(new RegExp(en.explore.removeReason)), "duplicate");
     await userEvent.click(screen.getByTestId("explore-delete-confirm"));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "the policy of this endpoint does not let you write BikeHireDockingStation",
@@ -302,11 +304,27 @@ describe("removing an entity from the explorer (UI-60, T-0912)", () => {
     document.cookie = "__Host-jc_csrf=token-for-the-session; Secure; path=/";
     const calls = await openDetail(() => new Response(null, { status: 204 }));
     await userEvent.click(screen.getByTestId("explore-delete"));
+    await userEvent.type(screen.getByLabelText(new RegExp(en.explore.removeReason)), "Duplikát, ďalší je 12");
     await userEvent.click(screen.getByTestId("explore-delete-confirm"));
     await waitFor(() => expect(screen.queryByTestId("explore-entity")).not.toBeInTheDocument());
     const deletes = calls.filter((call) => call.method === "DELETE");
     expect(deletes).toHaveLength(1);
     expect(deletes[0].csrf).toBe("token-for-the-session");
+    // DM-113: the person's words reach the gateway percent-encoded as JC-Reason.
+    expect(deletes[0].reason).toBe(encodeURIComponent("Duplikát, ďalší je 12"));
+  });
+
+  it("asks why before it deletes, and sends nothing without a reason", async () => {
+    await i18n.changeLanguage("en");
+    const calls = await openDetail(() => new Response(null, { status: 204 }));
+    await userEvent.click(screen.getByTestId("explore-delete"));
+    const reason = screen.getByLabelText(new RegExp(en.explore.removeReason));
+    expect(reason).toHaveAccessibleDescription(new RegExp(en.explore.removeReasonHint.slice(0, 20)));
+    await userEvent.type(reason, "   ");
+    await userEvent.click(screen.getByTestId("explore-delete-confirm"));
+    expect(await within(screen.getByRole("dialog")).findByText(en.explore.removeReasonError.required)).toBeInTheDocument();
+    expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(0);
+    expect(screen.getByTestId("explore-entity")).toBeInTheDocument();
   });
 });
 

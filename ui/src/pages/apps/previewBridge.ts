@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import { api, readCsrfToken } from "../../api/client";
 import { pickElement } from "../../assistant/state";
+import { MAX_REASON } from "../../components/entities/filters";
 
 /**
  * The bridge of a sandboxed preview (SDK-18, AP-63, Architecture/20 §5). The frame has no origin
@@ -336,15 +337,28 @@ export interface Preview {
 
 export type Outcome = "forwarded" | "refused" | "relayed" | "ignored";
 
+/** What a preview's write says when the application names no reason of its own (DM-113). */
+export const PREVIEW_REASON = "written by an application preview";
+
+/** The frame's own reason when the gateway would take it (1 to 500 characters), else the preview's. */
+export function previewReason(asked: unknown): string {
+  const trimmed = typeof asked === "string" ? asked.trim() : "";
+  return trimmed !== "" && [...trimmed].length <= MAX_REASON ? trimmed : PREVIEW_REASON;
+}
+
 async function perform(
   method: string,
   path: string,
   body: unknown,
   fetchImpl: typeof fetch,
+  reason?: string,
 ): Promise<{ status: number; body: unknown }> {
   const headers: Record<string, string> = { accept: "application/json" };
   if (method !== "GET") {
     headers["x-csrf-token"] = readCsrfToken() ?? "";
+    if (reason !== undefined) {
+      headers["JC-Reason"] = encodeURIComponent(reason);
+    }
     if (body !== undefined) {
       headers["content-type"] = "application/json";
     }
@@ -454,7 +468,8 @@ export async function handleBridgeMessage(
     );
     return "refused";
   }
-  const answer = await perform(m.method as string, m.path as string, m.body, fetchImpl);
+  const reason = operation === "read" ? undefined : previewReason(m.reason);
+  const answer = await perform(m.method as string, m.path as string, m.body, fetchImpl, reason);
   source.postMessage({ kind: "jc-response", id: m.id, ...answer }, "*");
   return "forwarded";
 }

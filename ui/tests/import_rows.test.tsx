@@ -299,7 +299,8 @@ describe("creating through the gateway", () => {
     const answer = await createInBatches(send, "helsinki", entities, (sent) => progress.push(sent));
     expect(answer).toEqual({ created: BATCH + 2, rejected: [] });
     expect(send).toHaveBeenCalledTimes(2);
-    expect(send.mock.calls[0][0]).toMatchObject({ method: "POST", path: "/cs/helsinki/ngsi-ld/v1/entityOperations/create" });
+    // DM-113: an import through the Portal names why it writes.
+    expect(send.mock.calls[0][0]).toMatchObject({ method: "POST", path: "/cs/helsinki/ngsi-ld/v1/entityOperations/create", reason: "imported from a file" });
     expect((send.mock.calls[0][0].body as unknown[]).length).toBe(BATCH);
     expect(progress).toEqual([BATCH, BATCH + 2]);
   });

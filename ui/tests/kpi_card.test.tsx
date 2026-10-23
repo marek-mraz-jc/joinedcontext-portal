@@ -89,6 +89,8 @@ describe("the indicator card", () => {
     expect(init.method).toBe("POST");
     expect(init.credentials).toBe("same-origin");
     expect((init.headers as Record<string, string>)["x-csrf-token"]).toBe("csrf-xyz");
+    // DM-113: the indicator's write names why it was written.
+    expect((init.headers as Record<string, string>)["JC-Reason"]).toBe(encodeURIComponent(en.agentRun.kpi.reason));
     expect((init.headers as Record<string, string>)["content-type"]).toBe("application/ld+json");
     expect(JSON.parse(init.body as string)).toEqual(ENTITY);
     expect(await screen.findByText(en.agentRun.kpi.written)).toBeInTheDocument();

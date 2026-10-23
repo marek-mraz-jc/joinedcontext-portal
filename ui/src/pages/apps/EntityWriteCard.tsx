@@ -82,7 +82,11 @@ export function EntityWriteCard({ write, live }: { write: EntityWrite; live: boo
           {
             method: "PATCH",
             credentials: "same-origin",
-            headers: { "content-type": "application/json", "x-csrf-token": readCsrfToken() ?? "" },
+            headers: {
+              "content-type": "application/json",
+              "x-csrf-token": readCsrfToken() ?? "",
+              "JC-Reason": encodeURIComponent(t("agentRun.write.reason")),
+            },
             body: JSON.stringify(
               Object.fromEntries(entity.changes.map((change) => [change.attribute, { type: "Property", value: change.after }])),
             ),

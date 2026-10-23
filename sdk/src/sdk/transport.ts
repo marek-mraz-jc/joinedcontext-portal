@@ -185,6 +185,7 @@ export function bridgeTransport(options?: BridgeOptions): Transport {
           method: request.method,
           path: request.path,
           body: request.body,
+          reason: request.reason,
         },
         "*",
       );

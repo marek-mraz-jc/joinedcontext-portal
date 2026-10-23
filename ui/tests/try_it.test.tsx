@@ -151,15 +151,19 @@ describe("the copy into a preview", () => {
       refZone: { type: "Relationship", object: ["urn:ngsi-ld:Zone:hel.fi:helsinki-air:z", "urn:ngsi-ld:Zone:Helsinki-7"] },
     };
     const written: unknown[] = [];
+    const reasons: string[] = [];
     const fetcher = async (input: string, init?: RequestInit): Promise<Response> => {
       if (input.endsWith("/types")) return new Response(JSON.stringify({ typeList: ["Station"] }), { status: 200 });
       if (input.includes("/entities?")) return new Response(JSON.stringify([entity]), { status: 200 });
       written.push(JSON.parse(String(init?.body)));
+      reasons.push((init?.headers as Record<string, string>)["JC-Reason"]);
       return new Response(null, { status: 204 });
     };
     const result = await copyIntoPreview("origin", "preview", fetcher);
     expect(result).toEqual({ copied: { Station: 1 } });
     expect(written).toEqual([[entity]]);
+    // DM-113: the copy is a write through the Portal and names why.
+    expect(reasons).toEqual([encodeURIComponent("copied from origin into its preview")]);
   });
 
   it("reads at most the bound per type and writes every page through the preview", async () => {

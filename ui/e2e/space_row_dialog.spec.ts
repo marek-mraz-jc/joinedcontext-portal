@@ -136,6 +136,12 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await page.getByRole("button", { name: "Add row" }).click();
     const form = page.getByRole("dialog", { name: /^New / });
     await expect(form.getByRole("button", { name: "Create", exact: true })).toBeVisible();
+    // DM-113 (T-5341): the form asks why, starting from a sentence the person may change.
+    const reason = form.getByRole("textbox", { name: /^Reason/ });
+    await expect(reason).toHaveValue("Entered through the form");
+    await reason.clear();
+    await form.getByRole("button", { name: "Create", exact: true }).click();
+    await expect(form.getByText("Enter why you add it, for example: Inspection on 2026-10-22.")).toBeVisible();
     await shot(page, `row-add-${label}`);
   });
 }

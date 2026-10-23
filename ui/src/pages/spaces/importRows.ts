@@ -660,7 +660,7 @@ export function toEntities(
 // ---------------------------------------------------------------------------------------------
 
 /** The request the import makes, the shape of the SDK's origin transport. */
-export type Send = (request: { method: "POST"; path: string; body?: unknown }) => Promise<{ status: number; body?: unknown }>;
+export type Send = (request: { method: "POST"; path: string; body?: unknown; reason?: string }) => Promise<{ status: number; body?: unknown }>;
 
 /** What the gateway's problem says, or the status when it says nothing. */
 function said(body: unknown, status: number): string {
@@ -681,6 +681,8 @@ export async function createInBatches(
   onProgress: (sent: number) => void = () => {},
   // `upsert` makes the same file imported twice the same entities, not a refusal (T-3840).
   operation: "create" | "upsert" = "create",
+  // Every write from the Portal's UI names why, sent as `JC-Reason` (DM-113).
+  reason = "imported from a file",
 ): Promise<{ created: number; rejected: Rejected[]; denied?: string }> {
   let created = 0;
   const rejected: Rejected[] = [];
@@ -689,7 +691,7 @@ export async function createInBatches(
     const batch = entities.slice(at, at + BATCH);
     let answer: { status: number; body?: unknown };
     try {
-      answer = await send({ method: "POST", path, body: batch.map((item) => item.entity) });
+      answer = await send({ method: "POST", path, body: batch.map((item) => item.entity), reason });
     } catch (error) {
       answer = { status: 0, body: { detail: error instanceof Error ? error.message : String(error) } };
     }

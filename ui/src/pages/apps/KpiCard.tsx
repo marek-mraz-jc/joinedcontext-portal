@@ -149,7 +149,12 @@ export function KpiCard({
       const response = await fetch(`/api/endpoint/${encodeURIComponent(kpi.endpointSlug)}/ngsi-ld/v1/entities`, {
         method: "POST",
         credentials: "same-origin",
-        headers: { "content-type": "application/ld+json", "x-csrf-token": readCsrfToken() ?? "" },
+        headers: {
+          "content-type": "application/ld+json",
+          "x-csrf-token": readCsrfToken() ?? "",
+          // Every write from the Portal's UI names why (DM-113).
+          "JC-Reason": encodeURIComponent(t("agentRun.kpi.reason")),
+        },
         body: JSON.stringify(kpi.entity),
       });
       if (response.ok) {

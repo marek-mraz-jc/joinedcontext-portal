@@ -416,17 +416,28 @@ export async function fetchEntities(
   return { rows: entities(await response.json()), count: parseResultsCount(response.headers) };
 }
 
+/** The longest `JC-Reason` the gateway takes (DM-113): 1 to 500 characters once trimmed. */
+export const MAX_REASON = 500;
+
+/** What is wrong with a reason a person typed, or null when the gateway takes it (DM-113). */
+export function reasonProblem(reason: string): "required" | "tooLong" | null {
+  const trimmed = reason.trim();
+  if (trimmed === "") return "required";
+  return [...trimmed].length > MAX_REASON ? "tooLong" : null;
+}
+
 /**
  * One entity removed through the endpoint that shows it, with the signed-in person's session
- * (UI-60). The Endpoint's Policy decides: a person without the grant is refused, and the
- * gateway's own sentence is what the explorer shows.
+ * (UI-60) and the person's `reason`, sent percent-encoded as `JC-Reason` (DM-113). The Endpoint's
+ * Policy decides: a person without the grant is refused, and the gateway's own sentence is what
+ * the explorer shows.
  */
-export async function deleteEntity(slug: string, id: string): Promise<void> {
+export async function deleteEntity(slug: string, id: string, reason: string): Promise<void> {
   const response = await globalThis.fetch(
     new Request(endpointUrl(slug, `/ngsi-ld/v1/entities/${encodeURIComponent(id)}`), {
       method: "DELETE",
       credentials: "same-origin",
-      headers: { "x-csrf-token": readCsrfToken() ?? "" },
+      headers: { "x-csrf-token": readCsrfToken() ?? "", "JC-Reason": encodeURIComponent(reason.trim()) },
     }),
   );
   if (!response.ok) {

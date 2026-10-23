@@ -39,7 +39,7 @@ afterEach(() => {
 
 describe("the form view", () => {
   it("creates one entity through the space surface from the shown, typed answers", async () => {
-    const posted: { path: string; body: Record<string, unknown> }[] = [];
+    const posted: { path: string; body: Record<string, unknown>; reason: string | null }[] = [];
     renderPage(
       <FormView
         space="parking"
@@ -53,7 +53,11 @@ describe("the form view", () => {
         path: "/projects/city/spaces/parking",
         answer: async (url, request) => {
           if (request.method !== "POST") return undefined;
-          posted.push({ path: url.pathname, body: (await request.json()) as Record<string, unknown> });
+          posted.push({
+            path: url.pathname,
+            body: (await request.json()) as Record<string, unknown>,
+            reason: request.headers.get("jc-reason"),
+          });
           return new Response(null, { status: 201 });
         },
       },
@@ -69,6 +73,8 @@ describe("the form view", () => {
 
     await waitFor(() => expect(posted).toHaveLength(1));
     expect(posted[0].path).toBe("/cs/parking/ngsi-ld/v1/entities");
+    // DM-113: the form's reason, as it stood, travels percent-encoded as JC-Reason.
+    expect(posted[0].reason).toBe(encodeURIComponent(en.spaces.form.reasonDefault));
     const { id, ...rest } = posted[0].body;
     expect(String(id)).toMatch(/^urn:ngsi-ld:ParkingSpot:[0-9a-f-]{36}$/);
     expect(rest).toEqual({
@@ -102,6 +108,30 @@ describe("the form view", () => {
     await userEvent.click(screen.getByRole("button", { name: en.spaces.form.submit }));
     expect(await screen.findByText(/the policy does not grant createEntity/)).toBeInTheDocument();
     expect(posts).toBe(1);
+  });
+
+  it("asks why the person adds it: an empty reason stops the send, a typed one is sent", async () => {
+    const reasons: (string | null)[] = [];
+    renderPage(<FormView space="parking" type="ParkingSpot" slots={SLOTS} enums={ENUMS} search={new URLSearchParams("name=Hlavná")} />, {
+      path: "/projects/city/spaces/parking",
+      answer: async (_url, request) => {
+        if (request.method !== "POST") return undefined;
+        reasons.push(request.headers.get("jc-reason"));
+        return new Response(null, { status: 201 });
+      },
+    });
+    const reason = await screen.findByRole("textbox", { name: new RegExp(en.spaces.form.reason) });
+    expect(reason).toHaveValue(en.spaces.form.reasonDefault);
+    expect(reason).toHaveAccessibleDescription(new RegExp(en.spaces.form.hint.reason.slice(0, 20)));
+    await userEvent.clear(reason);
+    await userEvent.click(screen.getByRole("button", { name: en.spaces.form.submit }));
+    expect(screen.getByText(en.spaces.form.reasonError.required)).toBeInTheDocument();
+    expect(reason).toHaveAttribute("aria-invalid", "true");
+    expect(reasons).toHaveLength(0);
+
+    await userEvent.type(reason, "Kontrola 22. 10.");
+    await userEvent.click(screen.getByRole("button", { name: en.spaces.form.submit }));
+    await waitFor(() => expect(reasons).toEqual([encodeURIComponent("Kontrola 22. 10.")]));
   });
 });
 
