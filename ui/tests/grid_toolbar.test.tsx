@@ -14,7 +14,7 @@ import type { EntitySource, FilterColumn, FilterGroup, GridQuery } from "@joined
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { conditionCount, EMPTY_GROUP, FilterPanel, readGroup } from "../src/components/entities/FilterPanel";
-import { FooterAggregate, percent, ToolbarPopover } from "../src/components/entities/GridToolbar";
+import { FooterAggregate, footerText, percent, ToolbarPopover } from "../src/components/entities/GridToolbar";
 import { mayDelete } from "../src/components/entities/AccessPanel";
 import type { Aggregation } from "../src/components/entities/GridToolbar";
 import { viewerWriteFindings } from "./pageChecks";
@@ -178,6 +178,17 @@ describe("FooterAggregate", () => {
   it("divides only by a whole", () => {
     expect(percent(1, 0)).toBeNull();
     expect(percent(1, 3)).toBe("33.3 %");
+  });
+
+  it("shows each aggregation only once the counts it needs arrived", () => {
+    expect(footerText("count", 4, null, null)).toBe("4");
+    expect(footerText("filled", null, 3, null)).toBe("3");
+    expect(footerText("empty", 4, 3, null)).toBe("1");
+    expect(footerText("empty", null, 3, null)).toBeNull();
+    expect(footerText("percentFilled", 4, 3, null)).toBe("75 %");
+    expect(footerText("percentEmpty", 4, 3, null)).toBe("25 %");
+    expect(footerText("median", 4, 3, "12")).toBe("12");
+    expect(footerText("none", 4, 3, "12")).toBeNull();
   });
 });
 
