@@ -14,8 +14,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { AppShell, endpointSource, Page, styleFor, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
-import type { EntitySource, ShellPage } from "@joinedcontext/sdk";
+import { AppShell, areaQuery, endpointSource, Page, ringOfBounds, styleFor, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
+import type { EntitySource, GeoQuery, ShellPage } from "@joinedcontext/sdk";
 import { byOrder, featuresOf, KIND_COLOUR, KIND_SHAPE, KINDS, KINDS_OF, kindOf, matches, placeOf, TYPES } from "./places";
 import type { Kind, Place, Type } from "./places";
 import { stringsFor } from "./locales";
@@ -30,10 +30,22 @@ export const MOST = 4000;
 const CENTRE: [number, number] = [14.4378, 50.0755];
 const SOURCE_ID = "places";
 
+/** The part of the map in view, west, south, east, north in WGS 84. */
+export type Bbox = [number, number, number, number];
+
+/** `inView`: read inside the map's view, because the whole type is more than `MOST` (T-5155). */
 type Layer =
   | { status: "loading" }
-  | { status: "ready"; places: Place[]; truncated: boolean }
+  | { status: "ready"; places: Place[]; truncated: boolean; inView?: boolean }
   | { status: "failed"; reason: string };
+
+/** The view as the endpoint's geo query: the places `within` its rectangle, clamped to the globe. */
+export function areaOf([west, south, east, north]: Bbox): GeoQuery | null {
+  const lon = (value: number) => Math.min(180, Math.max(-180, value));
+  const lat = (value: number) => Math.min(90, Math.max(-90, value));
+  const ring = ringOfBounds(lon(west), lat(south), lon(east), lat(north));
+  return areaQuery({ geoproperty: "location", geometry: { type: "Polygon", coordinates: [ring] } });
+}
 
 function useEndpointSlug(): string | null {
   const { config } = useClient();
@@ -52,11 +64,11 @@ export function reasonOf(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
-/** Every place of one type, page by page up to `MOST`, each sorted into its kind. */
-async function loadType(source: EntitySource, type: Type, locale: string): Promise<Layer> {
+/** Every place of one type, page by page up to `MOST`, each sorted into its kind; in `area` only, when given. */
+export async function loadType(source: EntitySource, type: Type, locale: string, area?: GeoQuery): Promise<Layer> {
   const places: Place[] = [];
   for (let offset = 0; offset < MOST; offset += PAGE) {
-    const page = await source.query({ type }, { offset, limit: PAGE });
+    const page = await source.query(area ? { type, area } : { type }, { offset, limit: PAGE });
     for (const row of page.rows) {
       const kind = kindOf(row, type);
       if (kind) places.push(placeOf(row, kind, locale));
@@ -66,11 +78,17 @@ async function loadType(source: EntitySource, type: Type, locale: string): Promi
   return { status: "ready", places, truncated: true };
 }
 
-export function useLayers(): { layers: Record<Type, Layer> | null } {
+/**
+ * Each type whole, and past `MOST` the part in `view`: re-read after every pan or zoom, as the
+ * Portal's explorer map does (T-5061), so 11 000 sorting isles stay whole where one looks. Only the
+ * newest view is kept: an older answer that arrives late is dropped.
+ */
+export function useLayers(view: Bbox | null = null): { layers: Record<Type, Layer> | null } {
   const { config } = useClient();
   const slug = useEndpointSlug();
   const language = config.language ?? "sk";
   const [layers, setLayers] = useState<Record<Type, Layer> | null>(null);
+  const [viewed, setViewed] = useState<Partial<Record<Type, Layer>>>({});
   const source = useMemo(
     () => (slug ? endpointSource(slug, transportFor(config), language) : null),
     // `config` is the document the Portal served once; the slug and the language are what change.
@@ -82,6 +100,7 @@ export function useLayers(): { layers: Record<Type, Layer> | null } {
     if (!source) return;
     let live = true;
     setLayers({ PointOfInterest: { status: "loading" }, WasteContainerIsle: { status: "loading" } });
+    setViewed({});
     for (const type of TYPES) {
       loadType(source, type, language.slice(0, 2))
         .catch((cause: unknown): Layer => ({ status: "failed", reason: reasonOf(cause) }))
@@ -94,7 +113,39 @@ export function useLayers(): { layers: Record<Type, Layer> | null } {
     };
   }, [source, language]);
 
-  return { layers: source ? layers : null };
+  const paged = TYPES.filter((type) => {
+    const layer = layers?.[type];
+    return layer?.status === "ready" && layer.truncated && !layer.inView;
+  });
+  const pagedKey = paged.join(",");
+  const viewKey = view?.join(",") ?? "";
+  useEffect(() => {
+    const area = view ? areaOf(view) : null;
+    if (!source || !area || paged.length === 0) return;
+    let live = true;
+    for (const type of paged) {
+      loadType(source, type, language.slice(0, 2), area)
+        .then((layer): Layer => (layer.status === "ready" ? { ...layer, inView: true } : layer))
+        .catch((cause: unknown): Layer => ({ status: "failed", reason: reasonOf(cause) }))
+        .then((layer) => {
+          if (live) setViewed((before) => ({ ...before, [type]: layer }));
+        });
+    }
+    return () => {
+      live = false;
+    };
+    // The view and the types to page are what change; their keys stand for them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source, language, pagedKey, viewKey]);
+
+  if (!source) return { layers: null };
+  if (!layers) return { layers };
+  const merged = { ...layers };
+  for (const type of paged) {
+    const inView = viewed[type];
+    if (inView) merged[type] = inView;
+  }
+  return { layers: merged };
 }
 
 /** The map in the SDK's shell, which holds the entity panel (SDK-39). */
@@ -108,7 +159,8 @@ export default function App() {
 function PlacesPage() {
   const { config } = useClient();
   const s = stringsFor(config.language);
-  const { layers } = useLayers();
+  const [view, setView] = useState<Bbox | null>(null);
+  const { layers } = useLayers(view);
   const { selected, select } = useEntitySelection();
   const endpoint = useEndpointName();
   const [shown, setShown] = useState<Record<Kind, boolean>>({ school: true, culture: true, publicToilet: true, ticketSale: true, waste: false });
@@ -188,6 +240,13 @@ function PlacesPage() {
                   </p>
                 );
               }
+              if (layer.status === "ready" && layer.inView) {
+                return (
+                  <p key={type} role="status" className="note">
+                    {layer.truncated ? s.inViewTruncated(s.type[type], MOST) : s.inView(s.type[type], layer.places.length)}
+                  </p>
+                );
+              }
               if (layer.status === "ready" && layer.truncated) {
                 return (
                   <p key={type} className="note">
@@ -199,7 +258,7 @@ function PlacesPage() {
             })}
 
             <div className="map-screen">
-              <PlaceMap places={visible} picked={pickedId} onPick={pick} s={s} />
+              <PlaceMap places={visible} picked={pickedId} onPick={pick} onView={setView} s={s} />
               <div className="side">
                 <section className="results" aria-labelledby="results-heading">
                   <h2 id="results-heading">{s.results(visible.length)}</h2>
@@ -241,11 +300,14 @@ function PlaceMap({
   places,
   picked,
   onPick,
+  onView,
   s,
 }: {
   places: Place[];
   picked: string | null;
   onPick: (id: string) => void;
+  /** Told the part in view once the map is drawn and after every pan or zoom. */
+  onView: (view: Bbox) => void;
   s: Strings;
 }) {
   // The basemap is the platform's, named in the document the Portal served; the app names no tile
@@ -260,12 +322,20 @@ function PlaceMap({
   // The handler the map was built with would keep the places of its first render: read the latest.
   const onPickLatest = useRef(onPick);
   onPickLatest.current = onPick;
+  const onViewLatest = useRef(onView);
+  onViewLatest.current = onView;
 
   useEffect(() => {
     if (!holder.current || map.current) return;
     const drawn = new MapLibreMap({ container: holder.current, style: styleFor(basemap), center: CENTRE, zoom: 12 });
+    const tell = () => {
+      const bounds = drawn.getBounds();
+      onViewLatest.current([bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]);
+    };
+    drawn.on("moveend", tell);
     drawn.on("load", () => {
       ready.current = true;
+      tell();
       drawn.addSource(SOURCE_ID, { type: "geojson", data: latest.current });
       drawn.addLayer({
         id: SOURCE_ID,
