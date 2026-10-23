@@ -179,6 +179,21 @@ export function PipelineHealthView({
                       {t("pipelines.health.failedRuns", { count: item.failedRuns })}
                     </span>
                   ) : null}
+                  {item.errors != null && item.errors.errors > 0 ? (
+                    <span
+                      className={
+                        item.state === "failing"
+                          ? "text-caption text-danger tabular-nums"
+                          : "text-caption text-fg-muted tabular-nums"
+                      }
+                    >
+                      {t("pipelines.health.errorRatio", {
+                        percent: item.errors.percent.toLocaleString(locale),
+                        errors: item.errors.errors.toLocaleString(locale),
+                        records: item.errors.records.toLocaleString(locale),
+                      })}
+                    </span>
+                  ) : null}
                   {item.alert ? (
                     <span className="text-caption text-danger">{t("pipelines.health.alerted")}</span>
                   ) : null}

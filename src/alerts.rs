@@ -899,8 +899,9 @@ pub fn held_signals(
     }
 }
 
-/// The incident a source's health opens (T-5048): `failure` after 3 failed runs in a row,
-/// `zero` for a newest run more than 80 % under the week's median.
+/// The incident a source's health opens (T-5048): `failure` after 3 failed runs in a row or for
+/// an hour that lost more than 5 % of its records (T-5291), `zero` for a newest run more than
+/// 80 % under the week's median.
 pub fn health_signal(project: &str, health: &crate::pipeline_health::Health) -> Option<Signal> {
     if !health.alert {
         return None;
@@ -913,6 +914,20 @@ pub fn health_signal(project: &str, health: &crate::pipeline_health::Health) -> 
                 detail: format!(
                     "{} runs in a row sent nothing: {}",
                     health.failed_runs,
+                    health
+                        .last_error
+                        .as_deref()
+                        .unwrap_or("the log names no error")
+                ),
+            }
+        } else if let Some(errors) = health.errors.filter(|errors| errors.over()) {
+            Signal {
+                key: key(Event::Failure),
+                detail: format!(
+                    "{} of {} records in the last hour failed or were refused ({} %): {}",
+                    errors.errors,
+                    errors.records,
+                    errors.percent,
                     health
                         .last_error
                         .as_deref()
@@ -1080,6 +1095,13 @@ impl Evaluator {
                     std::slice::from_ref(&pipeline.name),
                 )
                 .await?;
+                for h in &health {
+                    crate::telemetry::pipeline_error_ratio(
+                        &pipeline.project,
+                        &h.pipeline,
+                        h.errors.map_or(0.0, |e| e.errors as f64 / e.records as f64),
+                    );
+                }
                 read.extend(
                     health
                         .iter()
@@ -1573,6 +1595,20 @@ mod tests {
             Some(Signal {
                 key: ("helsinki".into(), "bikes".into(), Event::Zero),
                 detail: "the last run sent 3 records against a 7-day median of 40".into()
+            })
+        );
+        // T-5291: an hour that lost a tenth of its records is a failure, named with the ratio.
+        health.errors = Some(crate::pipeline_health::ErrorRatio {
+            errors: 10,
+            records: 100,
+            percent: 10.0,
+        });
+        health.last_error = Some("step 2 threw: no date".into());
+        assert_eq!(
+            health_signal("helsinki", &health),
+            Some(Signal {
+                key: ("helsinki".into(), "bikes".into(), Event::Failure),
+                detail: "10 of 100 records in the last hour failed or were refused (10 %): step 2 threw: no date".into()
             })
         );
     }

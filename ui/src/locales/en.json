@@ -3338,7 +3338,7 @@
     },
     "health": {
       "caption": "Health of each source",
-      "lead": "Each pipeline's newest run against the week before it; the sources that need a hand come first. A source turns red when its newest run sent nothing and its log says why, or sent more than 80 % less than its 7-day median. After 3 failed runs in a row, or such a drop, the people who follow it get an alert.",
+      "lead": "Each pipeline's newest run against the week before it; the sources that need a hand come first. A source turns red when its newest run sent nothing and its log says why, or sent more than 80 % less than its 7-day median. It also turns red, and its followers get an alert at once, when more than 5 % of the last hour's records failed. After 3 failed runs in a row, or such a drop, the people who follow it get an alert.",
       "empty": "No pipelines to check yet",
       "emptyHint": "Add a pipeline on the List tab. Its health shows here after its first run.",
       "summary": "{broken, plural, one {# of {total} sources needs} other {# of {total} sources need}} a look; {alerted, plural, =0 {none is alerted yet} one {# is alerted} other {# are alerted}}.",
@@ -3351,6 +3351,7 @@
       "lastLogLine": "Last error",
       "never": "Never",
       "failedRuns": "{count, plural, one {# failed run} other {# failed runs in a row}}",
+      "errorRatio": "{percent} % failed in the last hour ({errors} of {records})",
       "alerted": "Alert sent to followers",
       "median": "median {median}",
       "openRuns": "Runs and log of {name}",

@@ -3338,7 +3338,7 @@
     },
     "health": {
       "caption": "Zdraví každého zdroje",
-      "lead": "Nejnovější běh každé pipeline oproti týdnu před ním; zdroje, které je třeba řešit, jsou nahoře. Zdroj zčervená, když jeho nejnovější běh nezapsal nic a log říká proč, nebo zapsal o více než 80 % méně než jeho 7denní medián. Po 3 neúspěšných bězích za sebou nebo takovém poklesu dostanou jeho sledující upozornění.",
+      "lead": "Nejnovější běh každé pipeline oproti týdnu před ním; zdroje, které je třeba řešit, jsou nahoře. Zdroj zčervená, když jeho nejnovější běh nezapsal nic a log říká proč, nebo zapsal o více než 80 % méně než jeho 7denní medián. Zčervená i tehdy, když za poslední hodinu selhalo víc než 5 % záznamů, a sledující dostanou upozornění hned. Po 3 neúspěšných bězích za sebou nebo takovém poklesu dostanou jeho sledující upozornění.",
       "empty": "Zatím nejsou pipelines ke kontrole",
       "emptyHint": "Přidejte pipeline na kartě Seznam. Její zdraví se zde ukáže po prvním běhu.",
       "summary": "{broken, plural, one {# z {total} zdrojů je třeba} other {# z {total} zdrojů je třeba}} zkontrolovat; {alerted, plural, =0 {upozornění zatím nešlo} one {upozornění šlo pro #} other {upozornění šlo pro #}}.",
@@ -3351,6 +3351,7 @@
       "lastLogLine": "Poslední chyba",
       "never": "Nikdy",
       "failedRuns": "{count, plural, one {# neúspěšný běh} few {# neúspěšné běhy za sebou} other {# neúspěšných běhů za sebou}}",
+      "errorRatio": "{percent} % selhalo za poslední hodinu ({errors} z {records})",
       "alerted": "Sledující dostali upozornění",
       "median": "medián {median}",
       "openRuns": "Běhy a log {name}",

@@ -90,6 +90,9 @@ const PIPELINE_MISSING: &str = "jc_pipeline_missing";
 /// 1 when the daily quality run found a running pipeline's newest entity older than its freshness
 /// target, by project and pipeline (T-5020, DM-74).
 const PIPELINE_STALE: &str = "jc_pipeline_stale";
+/// Failed and rejected records of the hour ending at a pipeline's newest run against every record
+/// those runs took, 0 to 1, by project and pipeline (T-5291).
+const PIPELINE_ERROR_RATIO: &str = "jc_pipeline_error_ratio";
 /// Seconds one queued pipeline run held the runner, by outcome (PL-78).
 const PIPELINE_RUN_SECONDS: &str = "jc_pipeline_run_seconds";
 /// Up to the 15 min a run may take.
@@ -157,6 +160,10 @@ fn handle() -> &'static PrometheusHandle {
         metrics::describe_gauge!(
             PIPELINE_STALE,
             "1 when a running pipeline's newest entity is older than its freshness target"
+        );
+        metrics::describe_gauge!(
+            PIPELINE_ERROR_RATIO,
+            "share of the last hour's pipeline records a step threw on or the model refused"
         );
         metrics::describe_histogram!(
             PIPELINE_RUN_SECONDS,
@@ -283,6 +290,15 @@ pub fn pipeline_stale(project: &str, pipeline: &str, stale: bool) {
         ("pipeline", pipeline.to_owned()),
     ];
     metrics::gauge!(PIPELINE_STALE, &labels).set(if stale { 1.0 } else { 0.0 });
+}
+
+/// A pipeline's error ratio as the hourly health read found it (T-5291): 0 without records.
+pub fn pipeline_error_ratio(project: &str, pipeline: &str, ratio: f64) {
+    let labels = [
+        ("project", project.to_owned()),
+        ("pipeline", pipeline.to_owned()),
+    ];
+    metrics::gauge!(PIPELINE_ERROR_RATIO, &labels).set(ratio);
 }
 
 /// One queued pipeline run ended: `finished`, `failed` or `timeout` (PL-78).
@@ -454,7 +470,14 @@ mod agent_series_tests {
         super::pipeline_missing("helsinki", "registry", 1);
         super::pipeline_orphans("helsinki", "registry", 0);
         super::pipeline_stale("helsinki", "road-weather", true);
+        super::pipeline_error_ratio("helsinki", "hsl-hfp-vehicles", 0.1);
         let text = super::handle().render();
+        assert!(
+            text.contains(
+                "jc_pipeline_error_ratio{project=\"helsinki\",pipeline=\"hsl-hfp-vehicles\"} 0.1"
+            ),
+            "{text}"
+        );
         assert!(
             text.contains("jc_pipeline_stale{project=\"helsinki\",pipeline=\"road-weather\"} 1"),
             "{text}"

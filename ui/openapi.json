@@ -27540,6 +27540,34 @@
         "title": "Phase",
         "description": "Lifecycle phase enumeration."
       },
+      "PipelineErrorRatio": {
+        "type": "object",
+        "description": "How many of the records the runs of an hour took did not reach the space (T-5291).",
+        "required": [
+          "errors",
+          "records",
+          "percent"
+        ],
+        "properties": {
+          "errors": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Records a step threw on or the model refused.",
+            "minimum": 0
+          },
+          "percent": {
+            "type": "number",
+            "format": "double",
+            "description": "`errors` of `records`, in percent, one decimal."
+          },
+          "records": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Every record the runs took: sent, failed and rejected.",
+            "minimum": 0
+          }
+        }
+      },
       "PipelineHealth": {
         "type": "object",
         "description": "What the health view shows for one pipeline.",
@@ -27552,7 +27580,7 @@
         "properties": {
           "alert": {
             "type": "boolean",
-            "description": "The check names it: failed [`ALERT_STREAK`] runs in a row, or a drop."
+            "description": "The check names it: failed [`ALERT_STREAK`] runs in a row, a drop, or an error ratio above\n[`ERROR_SHARE`]."
           },
           "changePercent": {
             "type": [
@@ -27561,6 +27589,17 @@
             ],
             "format": "int64",
             "description": "The newest run against that median, in percent: -100 sent nothing, 0 the same."
+          },
+          "errors": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PipelineErrorRatio",
+                "description": "The failed and rejected records of the hour ending at the newest run, among the runs that\nsent something; none when those runs took no record."
+              }
+            ]
           },
           "failedRuns": {
             "type": "integer",
