@@ -106,6 +106,7 @@ fn target(name: &str, audience: &str, publication: Value) -> Target {
         instance: serde_json::from_value(instance()).expect("an instance"),
         language: None,
         instance_title: None,
+        history: Default::default(),
     }
 }
 
