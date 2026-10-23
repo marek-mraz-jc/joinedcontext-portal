@@ -1689,7 +1689,7 @@ pub fn endpoint_source_url(
 }
 
 /// The runner's cache in which an on-change stream keeps the hash of the last page it passed
-/// (PL-51); the runner declares it per project as [`cache_label`] makes it (T-5337).
+/// (PL-51); the runner declares it per project as `cache_label` makes it (T-5337).
 pub const CHANGE_CACHE: &str = "pipeline_changes";
 /// How often an on-change stream looks at its source when the pipeline names no period.
 const CHANGE_POLL: &str = "10s";
