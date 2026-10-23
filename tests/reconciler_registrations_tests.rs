@@ -346,3 +346,51 @@ async fn a_manifest_that_does_not_parse_is_reported_and_the_rest_of_the_pass_con
         [(id_path("parking"), "helsinki-hub".to_owned())]
     );
 }
+
+/// T-5032: the hop carries no subject, so every create, patch and delete sends the broker's
+/// admin token as its bearer, read from the file on each call.
+#[tokio::test]
+async fn every_registration_call_sends_the_broker_admin_token() {
+    let file = std::env::temp_dir().join(format!("t5032-broker-admin-{}", std::process::id()));
+    std::fs::write(&file, "broker-admin-secret\n").expect("token written");
+    let broker = broker(409, 204).await;
+    let sync = RegistrationSync::new(broker.uri()).with_admin_token(Some(file.clone()));
+    let now = mirror(vec![declared("helsinki", "hub", "transport")]);
+    let previous = mirror(vec![declared("helsinki", "hub", "parking")]);
+    let outcomes = sync.converge(&now, &previous).await;
+    let _ = std::fs::remove_file(&file);
+    assert_eq!(outcomes[0].2, RegistrationOutcome::Written);
+    let seen = broker.received_requests().await.unwrap_or_default();
+    let methods: Vec<String> = seen.iter().map(|r| r.method.to_string()).collect();
+    assert_eq!(methods, ["POST", "PATCH", "DELETE"]);
+    for request in &seen {
+        assert_eq!(
+            request
+                .headers
+                .get("authorization")
+                .and_then(|v| v.to_str().ok()),
+            Some("Bearer broker-admin-secret"),
+            "{} {}",
+            request.method,
+            request.url
+        );
+    }
+}
+
+/// T-5032: a token file that is configured and unreadable fails the write rather than sending
+/// it without the credential, and the broker hears nothing.
+#[tokio::test]
+async fn an_unreadable_admin_token_writes_nothing() {
+    let broker = broker(201, 204).await;
+    let sync = RegistrationSync::new(broker.uri())
+        .with_admin_token(Some("/nonexistent/broker-admin-token".into()));
+    let now = mirror(vec![declared("helsinki", "hub", "transport")]);
+    let outcomes = sync.converge(&now, &Mirror::new()).await;
+    match &outcomes[..] {
+        [(_, _, RegistrationOutcome::Error(reason))] => {
+            assert!(reason.contains("admin token is not readable"), "{reason}");
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(calls(&broker).await.is_empty());
+}
