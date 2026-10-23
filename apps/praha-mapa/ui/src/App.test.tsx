@@ -16,13 +16,18 @@ const setData = vi.fn();
 const addSource = vi.fn();
 /** What the map was told to call on a click on its points. */
 const clicks: Array<(event: { features?: Array<{ properties?: Record<string, unknown> }> }) => void> = [];
+/** What the map calls after a pan or zoom, and the part it says is in view. */
+const moves: Array<() => void> = [];
+let bounds: [number, number, number, number] = [14.3, 50.0, 14.5, 50.1];
 
 vi.mock("maplibre-gl", () => {
   class Map {
     on(event: string, layerOrHandler: unknown, handler?: unknown) {
       if (event === "load" && typeof layerOrHandler === "function") layerOrHandler();
       if (event === "click" && typeof handler === "function") clicks.push(handler as (typeof clicks)[number]);
+      if (event === "moveend" && typeof layerOrHandler === "function") moves.push(layerOrHandler as () => void);
     }
+    getBounds = () => ({ getWest: () => bounds[0], getSouth: () => bounds[1], getEast: () => bounds[2], getNorth: () => bounds[3] });
     addSource = addSource;
     addLayer = vi.fn();
     getSource = () => ({ setData });
@@ -33,7 +38,7 @@ vi.mock("maplibre-gl", () => {
 vi.mock("maplibre-gl/dist/maplibre-gl.css", () => ({}));
 
 const App = (await import("./App")).default;
-const { MOST, reasonOf } = await import("./App");
+const { areaOf, MOST, reasonOf } = await import("./App");
 const { KINDS } = await import("./places");
 const { answer } = await import("./fixtures/praha");
 const { LOCALES } = await import("./locales");
@@ -208,6 +213,74 @@ describe("the Prague map", () => {
     await userEvent.type(screen.getByRole("searchbox", { name: s.search }), "nic takoveho");
     await userEvent.click(screen.getByRole("checkbox", { name: `${s.kind.waste} (${MOST})` }));
     expect(within(results()).getByText(s.noResults)).toBeInTheDocument();
+  });
+
+  it("past the cap reads the isles inside the map's view, and again after a pan, keeping the newest view", async () => {
+    const isle = (i: number) => ({ ...(answer("WasteContainerIsle")[0] as object), id: `urn:ngsi-ld:WasteContainerIsle:praha.eu:praha-mesto:${i}` });
+    const many = Array.from({ length: 200 }, (_, i) => isle(i));
+    bounds = [14.3, 50.0, 14.5, 50.1];
+    moves.length = 0;
+    // The first view answers late, after the pan's: its places must not come back.
+    let lateFirst: (() => void) | null = null;
+    const areas: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (path: string) => {
+        const params = new URL(path, "http://portal.test").searchParams;
+        const type = params.get("type");
+        if (type !== "WasteContainerIsle") return json(answer(type));
+        if (params.get("georel") === null) return json(many);
+        expect(params.get("georel")).toBe("within");
+        expect(params.get("geometry")).toBe("Polygon");
+        expect(params.get("geoproperty")).toBe("location");
+        const coordinates = params.get("coordinates") ?? "";
+        areas.push(coordinates);
+        if (coordinates.includes("14.3,")) {
+          await new Promise<void>((resolve) => (lateFirst = resolve));
+          return json([isle(9001), isle(9002), isle(9003), isle(9004), isle(9005)]);
+        }
+        return json([isle(9100), isle(9101)]);
+      }),
+    );
+    const client = stubClient(undefined, { slug: SLUG, orgDomain: "praha.eu", space: "praha-mesto", transport: "origin", appName: "praha-mapa", language: "cs" });
+    render(
+      <JcProvider client={client}>
+        <App />
+      </JcProvider>,
+    );
+    await waitFor(() => expect(areas).toHaveLength(1));
+    expect(JSON.parse(areas[0])).toEqual([[[14.3, 50], [14.5, 50], [14.5, 50.1], [14.3, 50.1], [14.3, 50]]]);
+    expect(screen.getByText(s.truncated(s.type.WasteContainerIsle, MOST))).toBeInTheDocument();
+
+    bounds = [14.6, 50.0, 14.8, 50.1];
+    act(() => moves.forEach((move) => move()));
+    expect(await screen.findByText(s.inView(s.type.WasteContainerIsle, 2))).toBeInTheDocument();
+    await act(async () => lateFirst?.());
+    expect(screen.getByText(s.inView(s.type.WasteContainerIsle, 2))).toHaveAttribute("role", "status");
+    expect(screen.getByRole("checkbox", { name: `${s.kind.waste} (2)` })).toBeInTheDocument();
+  });
+
+  it("says when the view itself holds more than the map draws", async () => {
+    const many = Array.from({ length: 200 }, (_, i) => ({ ...(answer("WasteContainerIsle")[0] as object), id: `urn:ngsi-ld:WasteContainerIsle:praha.eu:praha-mesto:${i}` }));
+    moves.length = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (path: string) => {
+        const type = new URL(path, "http://portal.test").searchParams.get("type");
+        return json(type === "WasteContainerIsle" ? many : answer(type));
+      }),
+    );
+    const client = stubClient(undefined, { slug: SLUG, orgDomain: "praha.eu", space: "praha-mesto", transport: "origin", appName: "praha-mapa", language: "cs" });
+    render(
+      <JcProvider client={client}>
+        <App />
+      </JcProvider>,
+    );
+    expect(await screen.findByText(s.inViewTruncated(s.type.WasteContainerIsle, MOST))).toBeInTheDocument();
+  });
+
+  it("clamps a view past the globe's edge to it", () => {
+    expect(JSON.parse(areaOf([-200, -95, 200, 95])?.coordinates ?? "")).toEqual([[[-180, -90], [180, -90], [180, 90], [-180, 90], [-180, -90]]]);
   });
 
   it("says a failure that is no answer of the endpoint in its own words", async () => {

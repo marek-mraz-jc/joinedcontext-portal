@@ -73,10 +73,11 @@ describe("EntityGrid rows (T-4883)", () => {
   it("hands its filterable columns to the host", async () => {
     const seen: FilterColumn[][] = [];
     render(<EntityGrid config={config} source={fixtureSource(entities)} onFilterColumns={(c) => seen.push(c)} />);
-    await waitFor(() => expect(screen.getByText("Kamppi")).toBeInTheDocument());
-    const last = seen.at(-1)!;
-    expect(last.find((c) => c.attr === "bikes")?.kind).toBe("number");
-    expect(last.find((c) => c.attr === "name")?.kind).toBe("text");
+    // The host hears the columns from an effect after the rows render (T-5359): wait for the settled list,
+    // not for the row text, which can show before that effect ran.
+    await waitFor(() => expect(seen.at(-1)?.find((c) => c.attr === "bikes")?.kind).toBe("number"));
+    expect(screen.getByText("Kamppi")).toBeInTheDocument();
+    expect(seen.at(-1)?.find((c) => c.attr === "name")?.kind).toBe("text");
   });
 });
 
