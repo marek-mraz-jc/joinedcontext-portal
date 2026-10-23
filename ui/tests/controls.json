@@ -323,6 +323,15 @@
         "view_bar.test.tsx"
       ]
     },
+    "src/components/entities/GridToolbar.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "grid_sort_group.test.tsx",
+        "grid_toolbar.test.tsx"
+      ]
+    },
     "src/components/entities/ViewOptions.tsx": {
       "controls": {
         "Button": 4,

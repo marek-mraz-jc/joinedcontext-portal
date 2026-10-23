@@ -1077,6 +1077,23 @@ button.jc-cell-chip:hover {
   vertical-align: top;
 }
 
+.jc-grid-group th {
+  text-align: start;
+  font-weight: 600;
+  background: var(--jc-color-card, #f5f5f5);
+  border-top: 1px solid var(--jc-color-line, #e0e0e0);
+}
+
+.jc-grid-group-name {
+  color: var(--jc-color-muted, #555);
+  font-weight: 400;
+}
+
+.jc-grid-group-extra {
+  margin-inline-start: 0.5rem;
+  font-weight: 400;
+}
+
 .jc-grid-tfoot td {
   position: sticky;
   bottom: 0;

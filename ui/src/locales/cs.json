@@ -1224,7 +1224,12 @@
         "filled": "Vyplněné",
         "empty": "Prázdné",
         "percentFilled": "Procento vyplněných",
-        "percentEmpty": "Procento prázdných"
+        "percentEmpty": "Procento prázdných",
+        "min": "Minimum",
+        "max": "Maximum",
+        "median": "Medián",
+        "earliest": "Nejdřívější",
+        "latest": "Nejpozdější"
       },
       "aggregateFailed": "Endpoint nevrátil počet; zkuste znovu nebo zužte filtr.",
       "aggregateFailedShort": "Nespočteno",
@@ -1259,7 +1264,25 @@
       "setRefused": "{n, plural, one {# řádek se nezměnil} few {# řádky se nezměnily} other {# řádků se nezměnilo}}",
       "setDone": "Všech {n} řádků se změnilo.",
       "setIncomplete": "Vyberte pole, hodnotu, kterou bere, a důvod.",
-      "setApply": "Nastavit v {n} řádcích"
+      "setApply": "Nastavit v {n} řádcích",
+      "sort": "Seřadit",
+      "sortLegend": "Seřadit řádky podle",
+      "sortHint": "Nejvýše 3 klíče; každý seřadí řádky, které předchozí nechá stejné, v celé filtrované množině. Příklad: Město od A do Z, potom Název od A do Z.",
+      "sortEmpty": "Pořadí není nastaveno: řádky přicházejí tak, jak je drží endpoint. Přidejte klíč nebo klikněte na záhlaví sloupce.",
+      "sortAdd": "Přidat klíč řazení",
+      "sortFull": "Pohled řadí nejvýše podle {n} klíčů.",
+      "sortDirectionOf": "Směr klíče řazení {n}",
+      "sortAsc": "Vzestupně (A do Z, 1 do 9)",
+      "sortDesc": "Sestupně (Z do A, 9 do 1)",
+      "groupLegend": "Seskupit řádky podle",
+      "groupHint": "Nejvýše 3 pole, vnější první; řádky se stejnou hodnotou jsou spolu pod záhlavím s jejich počtem. Příklad: Stav, potom Město.",
+      "groupEmpty": "Bez seskupení: přidejte pole, aby byly řádky se stejnou hodnotou spolu.",
+      "groupAdd": "Přidat pole seskupení",
+      "groupFull": "Pohled seskupuje nejvýše podle {n} polí.",
+      "keyFieldOf": "{legend}, pole {n}",
+      "keyRemoveOf": "Odebrat {field}",
+      "keyNoField": "Každé pole tohoto typu už je v seznamu.",
+      "groupCount": "{count, plural, one {# řádek} few {# řádky} other {# řádků}}"
     },
     "temporal": {
       "title": "Jak vznikají řádky historie",
@@ -5328,7 +5351,8 @@
       "filterEnum": "Vyberte test; u „kterákoli z“ zvolte jednu nebo více povolených hodnot:",
       "filterOther": "Vyberte test, např. má hodnotu nebo prázdné.",
       "editAsText": "Napište dotaz NGSI-LD sami, např. pm10>40;name~=\"Espoo\"."
-    }
+    },
+    "groupNoValue": "(bez hodnoty)"
   },
   "explore": {
     "title": "Procházet data",

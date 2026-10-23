@@ -271,3 +271,98 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await shot(page, `grid-share-${label}`);
   });
 }
+
+// T-5188: the Sort panel's keys and the Group panel's fields reach the endpoint as one `orderBy`,
+// each group gets a header with the endpoint's count, and the footer reads a maximum off the
+// endpoint's own order. The space surface here filters, orders and counts like the broker does.
+type Row = ReturnType<typeof event>;
+const valueOf = (row: Row, attr: string): unknown => (row as Record<string, { value?: unknown } | undefined>)[attr]?.value;
+
+function answer(url: URL): { rows: Row[]; total: number } {
+  let rows = Array.from({ length: 24 }, (_, i) => event(i + 1));
+  for (const term of (url.searchParams.get("q") ?? "").split(";").filter(Boolean)) {
+    const equal = /^(\w+)=="(.*)"$/.exec(term);
+    if (equal) rows = rows.filter((row) => valueOf(row, equal[1]) === equal[2]);
+    else if (/^!\w+$/.test(term)) rows = rows.filter((row) => valueOf(row, term.slice(1)) === undefined);
+    else if (/^\w+$/.test(term)) rows = rows.filter((row) => valueOf(row, term) !== undefined);
+  }
+  const keys = (url.searchParams.get("orderBy") ?? "").split(",").filter(Boolean).map((key) => key.split(";"));
+  rows.sort((a, b) => {
+    for (const [attr, dir] of keys) {
+      const x = valueOf(a, attr);
+      const y = valueOf(b, attr);
+      if (x === y) continue;
+      if (x === undefined || y === undefined) return x === undefined ? 1 : -1;
+      const by = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y));
+      return dir === "desc" ? -by : by;
+    }
+    return 0;
+  });
+  const offset = Number(url.searchParams.get("offset") ?? 0);
+  const limit = Number(url.searchParams.get("limit") ?? 24);
+  return { rows: rows.slice(offset, offset + limit), total: rows.length };
+}
+
+for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
+  test(`The grid sorts by three keys, groups with headers and reads a maximum (${label})`, async ({ page }) => {
+    const orders: string[] = [];
+    await page.setViewportSize({ width, height });
+    await stubApi(page, [], []);
+    await page.route((url) => url.pathname.startsWith("/cs/") && url.pathname.endsWith("/entities"), async (route) => {
+      const url = new URL(route.request().url());
+      if (route.request().method() !== "GET") return route.fallback();
+      orders.push(url.searchParams.get("orderBy") ?? "");
+      const { rows, total } = answer(url);
+      return route.fulfill({ status: 200, contentType: "application/json", headers: { "NGSILD-Results-Count": String(total) }, body: JSON.stringify(rows) });
+    });
+    await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
+    const toolbar = page.getByTestId("grid-toolbar");
+    await expect(page.getByText("Workshop for Families").first()).toBeVisible();
+
+    // Sort: empty says what to do; two keys, the first turned round.
+    await toolbar.locator("summary", { hasText: "Sort" }).click();
+    await expect(page.getByText("No order set: the rows come as the endpoint keeps them.", { exact: false })).toBeVisible();
+    await shot(page, `grid-sort-empty-${label}`);
+    await page.getByRole("button", { name: "Add a sort key" }).click();
+    await page.getByRole("combobox", { name: "Sort rows by, field 1" }).selectOption("startDate");
+    await page.getByRole("combobox", { name: "Direction of sort key 1" }).selectOption("desc");
+    await page.getByRole("button", { name: "Add a sort key" }).click();
+    await page.getByRole("combobox", { name: "Sort rows by, field 2" }).selectOption("name");
+    await expect.poll(() => orders.at(-1)).toBe("startDate;desc,name");
+    expect(await axeViolations(page)).toEqual([]);
+    await shot(page, `grid-sort-two-keys-${label}`);
+    await page.keyboard.press("Escape");
+    await expect(toolbar.locator("summary", { hasText: "Sort" })).toContainText("2");
+
+    // Group by the start: the rows come ordered by it first, each date under a counted header.
+    await toolbar.locator("summary", { hasText: "Group" }).click();
+    await page.getByRole("button", { name: "Add a group field" }).click();
+    await page.getByRole("combobox", { name: "Group rows by, field 1" }).selectOption("startDate");
+    await expect.poll(() => orders.at(-1)).toBe("startDate;desc,name");
+    await page.keyboard.press("Escape");
+    const headers = page.locator("tr.jc-grid-group");
+    await expect(headers.first()).toContainText("Starts");
+    await expect(headers.first()).toContainText("2026-10-27");
+    await expect(headers.first()).toContainText("3 rows");
+    expect(await headers.count()).toBe(7);
+    expect(await axeViolations(page)).toEqual([]);
+    const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(sideways).toBeLessThanOrEqual(0);
+    await shot(page, `grid-grouped-${label}`);
+
+    // A second group level under the first.
+    await toolbar.locator("summary", { hasText: "Group" }).click();
+    await page.getByRole("button", { name: "Add a group field" }).click();
+    await page.getByRole("combobox", { name: "Group rows by, field 2" }).selectOption("name");
+    await page.keyboard.press("Escape");
+    await expect(page.locator('tr.jc-grid-group[data-level="1"]').first()).toContainText("1 row");
+    await shot(page, `grid-grouped-two-${label}`);
+
+    // The footer's maximum is the first row of the endpoint's descending order among filled rows.
+    await page.getByRole("combobox", { name: "Footer of Places" }).selectOption("max");
+    await expect.poll(() => orders.includes("audience;desc")).toBe(true);
+    await expect(page.locator("tfoot output").filter({ hasText: "230" })).toBeVisible();
+    await page.locator("tfoot").scrollIntoViewIfNeeded();
+    await shot(page, `grid-footer-max-${label}`);
+  });
+}

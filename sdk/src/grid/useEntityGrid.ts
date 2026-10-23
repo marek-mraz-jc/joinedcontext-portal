@@ -110,6 +110,8 @@ export interface GridLabels {
   relationMore: string;
   /** The row's detail panel (T-3097): the identifier opens it, the panel's name, and closing it. */
   openRow: string;
+  /** A group header's value where the rows have none (T-5188). */
+  groupNoValue: string;
   rowDetail: string;
   /** The detail's first tab, with the row's values (T-4828). */
   rowFields: string;
@@ -251,6 +253,7 @@ export const DEFAULT_LABELS: GridLabels = {
   relationFailed: "The search failed",
   relationMore: "and more",
   openRow: "Open",
+  groupNoValue: "(no value)",
   rowDetail: "Details",
   rowFields: "Fields",
   close: "Close",
@@ -360,6 +363,29 @@ export interface UseEntityGridOptions {
   hidden?: readonly string[];
   /** The person's own order, widths and labels of the columns (T-4827). */
   layout?: ColumnLayout;
+  /** The keys that order rows the sort leaves equal, at most two more (T-5188, CIM 009 4.23). */
+  thenBy?: readonly SortKey[];
+  /**
+   * The attributes the rows are grouped by, outermost first, at most three (T-5188): the rows are
+   * ordered by them before the sort, so each group's rows come together under its header.
+   */
+  groupBy?: readonly string[];
+}
+
+/** One key of an order: the attribute and its direction. */
+export interface SortKey {
+  attr: string;
+  dir: "asc" | "desc";
+}
+
+/**
+ * The order the grid asks for: the group keys first, ascending unless the sort names the same
+ * attribute, then the sort and its further keys, each attribute once.
+ */
+export function orderKeys(groupBy: readonly string[], sort: SortKey | null, thenBy: readonly SortKey[]): SortKey[] {
+  const sorts = [...(sort ? [sort] : []), ...thenBy];
+  const keys = [...groupBy.map((attr) => sorts.find((key) => key.attr === attr) ?? { attr, dir: "asc" as const }), ...sorts];
+  return keys.filter((key, at) => keys.findIndex((other) => other.attr === key.attr) === at);
 }
 
 /** Rows one scrolling grid holds at most; past it the grid says to narrow the filter. */
@@ -598,6 +624,9 @@ export function filterKindOf(
 
 export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   const { config, source, labels: labelsPartial, state: controlledState, onStateChange, query: queryPartial, enums, relations, virtual = false, hidden, layout } = options;
+  // By content, as `hidden`: a host building new arrays each render does not ask again.
+  const thenByKey = JSON.stringify(options.thenBy ?? []);
+  const groupByKey = JSON.stringify(options.groupBy ?? []);
   // The list by content, so a host that builds a new array each render does not rebuild columns.
   const hiddenKey = (hidden ?? []).join("\u0000");
   const labels = useMemo(() => mergeLabels(DEFAULT_LABELS, labelsPartial), [labelsPartial]);
@@ -656,22 +685,31 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   // A source that orders the whole answer is asked to (`orderBy`, CIM 009 4.23), so the first page
   // holds the first rows of the set; elsewhere the order is of the loaded page only (UI-66).
   // The entity's own timestamps are no attribute `orderBy` names here: they sort the page.
-  const serverOrder = source.orders === true && sort !== null && !sort.attr.startsWith("entity:")
-    ? (sort.dir === "desc" ? `${sort.attr};desc` : sort.attr)
+  const keys = useMemo(
+    () => orderKeys(JSON.parse(groupByKey) as string[], sort, JSON.parse(thenByKey) as SortKey[]),
+    [groupByKey, sort, thenByKey],
+  );
+  const serverOrder = source.orders === true && keys.length > 0 && !keys.some((key) => key.attr.startsWith("entity:"))
+    ? keys.map((key) => (key.dir === "desc" ? `${key.attr};desc` : key.attr)).join(",")
     : undefined;
   const sortedRows = useMemo(() => {
-    if (!sort || serverOrder) return rows;
-    const factor = sort.dir === "asc" ? 1 : -1;
-    const key = (row: RichRow) => cellText(row.cells[sort.attr]);
-    return [...rows].sort((a, b) => {
-      const x = key(a);
-      const y = key(b);
+    if (keys.length === 0 || serverOrder) return rows;
+    const compare = (key: SortKey, a: RichRow, b: RichRow) => {
+      const x = cellText(a.cells[key.attr]);
+      const y = cellText(b.cells[key.attr]);
       const nx = Number(x);
       const ny = Number(y);
       const byNumber = x !== "" && y !== "" && !Number.isNaN(nx) && !Number.isNaN(ny);
-      return factor * (byNumber ? nx - ny : x.localeCompare(y));
+      return (key.dir === "asc" ? 1 : -1) * (byNumber ? nx - ny : x.localeCompare(y));
+    };
+    return [...rows].sort((a, b) => {
+      for (const key of keys) {
+        const by = compare(key, a, b);
+        if (by !== 0) return by;
+      }
+      return 0;
     });
-  }, [rows, sort, serverOrder]);
+  }, [rows, keys, serverOrder]);
 
   const filterColumns = useMemo(
     (): FilterColumn[] =>
