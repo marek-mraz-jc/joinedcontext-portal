@@ -6,6 +6,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { RouterProvider, createMemoryHistory, createRootRoute, createRouter } from "@tanstack/react-router";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
@@ -52,7 +53,17 @@ function renderAccess(domainVerification: unknown, page = false) {
   render(
     <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
-        {page ? <App /> : <OrganizationDomain />}
+        {page ? (
+          <App />
+        ) : (
+          // The section reads ?org= through the router (T-5248), so it stands in one as on the page.
+          <RouterProvider
+            router={createRouter({
+              routeTree: createRootRoute({ component: OrganizationDomain }),
+              history: createMemoryHistory({ initialEntries: ["/organization/settings"] }),
+            })}
+          />
+        )}
       </I18nextProvider>
     </QueryClientProvider>,
   );
