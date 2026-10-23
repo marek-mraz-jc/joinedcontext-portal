@@ -27,7 +27,8 @@ use std::time::Duration;
 use jc_core::kinds::SyncOrigin;
 use jcctl::sync::{RemoteError, SyncRemote};
 
-use super::guard::{follows, internal_host, PublicOnly};
+use super::guard::{https_redirects, internal_host};
+use jc_core::outbound::PublicOnly;
 
 /// How long one request may take.
 const TIMEOUT: Duration = Duration::from_secs(30);
@@ -64,16 +65,10 @@ impl HttpRemote {
     /// decision and not a process, and the caller runs the whole of it on a blocking task
     /// rather than holding a runtime worker while a repository is downloaded.
     pub fn new() -> Result<Self, reqwest::Error> {
-        let redirect = reqwest::redirect::Policy::custom(|attempt| {
-            if follows(attempt.url(), attempt.previous().len(), MAX_REDIRECTS) {
-                attempt.follow()
-            } else {
-                attempt.stop()
-            }
-        });
         Ok(Self {
             http: reqwest::blocking::Client::builder()
-                .redirect(redirect)
+                .no_proxy()
+                .redirect(https_redirects(MAX_REDIRECTS))
                 .dns_resolver(Arc::new(PublicOnly))
                 .timeout(TIMEOUT)
                 .build()?,

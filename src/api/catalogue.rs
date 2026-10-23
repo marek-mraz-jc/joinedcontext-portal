@@ -53,31 +53,26 @@ static HTTP: LazyLock<reqwest::Client> = LazyLock::new(|| {
 /// URL is an outside one: a name resolving into the cluster is refused by the resolver, a redirect
 /// is followed only to a public `https` address and only a few hops, and no proxy from the
 /// environment resolves past the guard. [`HTTP`] keeps the reads of the installation's own gateway.
-static CKAN_HTTP: LazyLock<reqwest::Client> = LazyLock::new(|| {
-    let redirect = reqwest::redirect::Policy::custom(|attempt| {
-        if crate::sync::guard::follows(attempt.url(), attempt.previous().len(), CKAN_REDIRECTS) {
-            attempt.follow()
-        } else {
-            attempt.stop()
-        }
-    });
-    reqwest::Client::builder()
+static CKAN_HTTP: LazyLock<reqwest::Client> =
+    LazyLock::new(|| ckan_client(Duration::from_secs(10)));
+
+/// A client for reads of a `CkanInstance`'s URL that take at most `total` (T-4776, T-5335): the
+/// platform's outbound guard ([`jc_core::outbound::client`]) with the Portal's `https`-only
+/// redirect rule.
+pub fn ckan_client(total: Duration) -> reqwest::Client {
+    jc_core::outbound::client(Duration::from_secs(5), total)
         .user_agent("joinedcontext-portal catalogue")
-        .no_proxy()
-        .dns_resolver(Arc::new(crate::sync::guard::PublicOnly))
-        .redirect(redirect)
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(10))
+        .redirect(crate::sync::guard::https_redirects(CKAN_REDIRECTS))
         .build()
         .unwrap_or_default()
-});
+}
 
 /// How many redirects a CKAN read follows.
 const CKAN_REDIRECTS: usize = 3;
 
 /// The longest CKAN answer read: a search of [`ROWS`] packages is a few megabytes, so a host that
 /// streams more is cut off instead of filling the Portal's memory (T-4776).
-const MAX_CKAN_ANSWER: usize = 32 * 1024 * 1024;
+pub(crate) const MAX_CKAN_ANSWER: usize = 32 * 1024 * 1024;
 
 /// A catalogue's base URL and the search text.
 type SearchKey = (String, String);
@@ -796,32 +791,23 @@ async fn action_with(
     params: &[(&str, &str)],
 ) -> Result<Value, Failure> {
     let url = format!("{base}/api/3/action/{action}");
-    let mut response = http
+    let response = http
         .get(&url)
         .query(params)
         .send()
         .await
         .map_err(|e| Failure::Unreachable(format!("{base} did not answer: {e}")))?;
     let status = response.status();
-    let too_long =
-        || Failure::Unreachable(format!("{base} answered more than {MAX_CKAN_ANSWER} bytes"));
-    if response
-        .content_length()
-        .is_some_and(|len| len > MAX_CKAN_ANSWER as u64)
-    {
-        return Err(too_long());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response
-        .chunk()
+    let bytes = jc_core::outbound::read_capped(response, MAX_CKAN_ANSWER)
         .await
-        .map_err(|e| Failure::Unreachable(format!("{base} broke off its answer: {e}")))?
-    {
-        if bytes.len() + chunk.len() > MAX_CKAN_ANSWER {
-            return Err(too_long());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
+        .map_err(|e| match e {
+            jc_core::outbound::BodyError::Transport(e) => {
+                Failure::Unreachable(format!("{base} broke off its answer: {e}"))
+            }
+            jc_core::outbound::BodyError::TooLarge(max) => {
+                Failure::Unreachable(format!("{base} answered more than {max} bytes"))
+            }
+        })?;
     let body: Value = serde_json::from_slice(&bytes).map_err(|e| {
         Failure::Unreachable(format!(
             "{base} answered {status} with no CKAN document: {e}"

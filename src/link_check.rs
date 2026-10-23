@@ -527,13 +527,13 @@ impl LinkStore {
     }
 }
 
-/// The client that asks event links: no proxy, [`crate::sync::guard::PublicOnly`] judges every
+/// The client that asks event links: no proxy, [`jc_core::outbound::PublicOnly`] judges every
 /// name once it resolves (each redirect hop included), so a public name answering 10.x or
 /// 127.x is never asked. Redirects are followed by hand in [`HostQueue`].
 fn link_client() -> reqwest::Client {
     reqwest::Client::builder()
         .no_proxy()
-        .dns_resolver(Arc::new(crate::sync::guard::PublicOnly))
+        .dns_resolver(Arc::new(jc_core::outbound::PublicOnly))
         .connect_timeout(CONNECT_TIMEOUT)
         .timeout(TIMEOUT)
         .redirect(reqwest::redirect::Policy::none())
@@ -1131,7 +1131,7 @@ mod tests {
         let url = Url::parse(&format!("http://localhost:{port}/podujatia/1")).expect("url");
         let refused = http.head(url.clone()).send().await.expect_err("refused");
         assert!(
-            format!("{refused:?}").contains("not a public address"),
+            jc_core::outbound::refused(&refused).is_some(),
             "{refused:?}"
         );
         let inventoried = BTreeSet::from(["localhost".to_owned()]);
