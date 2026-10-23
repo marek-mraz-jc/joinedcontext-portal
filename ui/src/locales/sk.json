@@ -1065,7 +1065,7 @@
           "entity": "{type} uchováva históriu {kept}.",
           "type": "Pravidlo typu uchováva históriu {type}: {kept}.",
           "space": "Predvoľba priestoru uchováva históriu {type}: {kept}.",
-          "platform": "Žiadne pravidlo tohto priestoru neurčuje históriu {type}: predvoľba platformy ju uchováva {kept}.",
+          "platform": "Žiadne pravidlo tohto priestoru nepomenúva {type}, preto neuchováva históriu, len aktuálne hodnoty.",
           "none": "{type} uchováva históriu {kept}."
         }
       }
@@ -1093,7 +1093,7 @@
     },
     "retention": {
       "title": "Uchovávanie",
-      "lead": "Ako dlho tento priestor uchováva údaje každého typu. Typ, ktorého pravidlo o histórii nič nehovorí, preberá riadok Všetky ostatné typy a bez neho predvolenú hodnotu platformy; kratšie pravidlo alebo vypnutá história údaje natrvalo vymaže.",
+      "lead": "Ako dlho tento priestor uchováva údaje každého typu. Históriu uchováva len typ, ktorý pravidlo pomenúva: vlastným riadkom alebo riadkom Všetky ostatné typy; typ bez pravidla uchováva len aktuálne hodnoty. Kratšie pravidlo alebo vypnutá história údaje natrvalo vymaže.",
       "noTypes": "Model priestoru zatiaľ nemenuje žiadne typy.",
       "caption": "Ako dlho sa uchovávajú údaje každého typu",
       "type": "Typ",
@@ -1133,7 +1133,7 @@
       "foreverAsNow": "Uchovať navždy (ako teraz)",
       "anyType": "Všetky ostatné typy",
       "spaceDefault": "Predvolené v priestore",
-      "platformDefault": "Predvolené v platforme",
+      "platformDefault": "Bez pravidla: bez histórie",
       "perType": "Nastavuje sa pre každý typ",
       "defaultAsNow": "{fallback} (ako teraz)",
       "layer": {
@@ -1143,7 +1143,22 @@
         "platform": "predvoľba platformy",
         "none": "kým ich niekto nezmaže"
       },
-      "entityWins": "Vlastný expiresAt entity ju v tom čase odstráni a jej vlastný historyRetention určí jej históriu: obe majú prednosť pred pravidlami nižšie."
+      "entityWins": "Vlastný expiresAt entity ju v tom čase odstráni a jej vlastný historyRetention určí jej históriu: obe majú prednosť pred pravidlami nižšie.",
+      "durationHint": "Každé trvanie je celý počet minút, hodín alebo dní, od jednej minúty po 3650 dní: napríklad 30 dní meraní senzora.",
+      "record": {
+        "column": "Riadky histórie",
+        "of": "Riadky histórie typu {type}",
+        "heartbeatOf": "Riadok aspoň každých, pre {type}",
+        "noRows": "Žiadne riadky: história sa neuchováva",
+        "asDefault": "{mode} (predvolené)",
+        "hint": "Riadky histórie: Novšie pozorovania zapíšu riadok len vtedy, keď je observedAt novší ako posledný riadok, takže senzor, ktorý pošle to isté meranie znova, nepridá nič; Každé pozorovanie zapíše riadok pre každý nový observedAt, napríklad počet za 15 minút; Len zmeny zapíšu riadok pri zmene hodnoty a aspoň raz za zvolený interval, napríklad voľné bicykle stanice.",
+        "mode": {
+          "observed": "Novšie pozorovania",
+          "every": "Každé pozorovanie",
+          "onChange": "Len zmeny",
+          "never": "Žiadne riadky"
+        }
+      }
     },
     "upload": {
       "open": "Nahrať CSV",

@@ -31,6 +31,24 @@ for (const view of ["the records", "a note under review"]) {
   }
 }
 
+// T-5137: a member of the region who is no steward sees the notes as text, with the sentence that
+// says who edits them, at a laptop and a phone.
+const STEWARDS_ONLY = "Poznámky upravujú iba správcovia kraja.";
+for (const width of [1440, 400]) {
+  test(`a member who is no steward at ${width} px: the notes read-only, and who edits them`, async ({ page }, testInfo) => {
+    const served = await serve(page, "member");
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(BASE);
+    await expect(page.getByRole("row").filter({ has: page.getByRole("gridcell") })).toHaveCount(REGION.length);
+    await expect(page.getByText(STEWARDS_ONLY)).toBeVisible();
+    await expect(page.getByRole("textbox", { name: NOTE_BOX })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: REVIEW })).toHaveCount(0);
+    await testInfo.attach(`member-${width}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+    expect(await layoutProblems(page, LIVE_BLOCKS)).toEqual([]);
+    expect(served).toEqual({ outside: [], missing: [], problems: [] });
+  });
+}
+
 // T-3387, SDK-40: a record opened in the SDK's entity panel by its row's button, at a phone and a
 // laptop, light and dark. Nobody is signed in here, so the panel links to the Portal and offers no Edit.
 for (const scheme of ["light", "dark"] as const) {

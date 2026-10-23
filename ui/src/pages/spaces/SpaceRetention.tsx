@@ -28,12 +28,17 @@ import {
   fromIso,
   HISTORY_FOREVER,
   HISTORY_OFF,
+  RECORD_DEFAULT,
+  RECORD_ON_CHANGE,
+  RECORDS,
   rulesOf,
   shortens,
   toIso,
   UNITS,
+  withRecord,
   written,
 } from "./retention";
+import { HEARTBEATS } from "../pipelines/history";
 import type { Effective, RetentionRule, Unit } from "./retention";
 
 type Count = components["schemas"]["RetentionCount"];
@@ -65,11 +70,20 @@ function isoOf(cell: Cell): string | undefined | null {
   return stored !== undefined && toIso(stored) === iso ? cell.stored : iso;
 }
 
+/** A type's row as the editor holds it: both durations, the record mode and its heartbeat. */
+interface Draft {
+  current: Cell;
+  history: Cell;
+  record: string;
+  heartbeat: string;
+}
+
 /**
  * How long a space keeps each type's data (DM-82, DM-85, ADR-N-046): the rules in plain units,
  * what the broker's sweeps deleted, and for the space's owners an editor that names what a shorter
  * rule deletes before it is proposed. A type whose rule says nothing of history takes the space's
- * default, the row "*", and without one the platform's (DM-97).
+ * default, the row "*", and without either keeps no history: the platform runs the broker with
+ * history opt-in (DM-132). Each type also says which rows of its history the broker writes.
  */
 export function SpaceRetention({
   project,
@@ -91,7 +105,7 @@ export function SpaceRetention({
     ANY_TYPE,
   ];
   const typed = shown.length > 1;
-  const [draft, setDraft] = useState<Record<string, { current: Cell; history: Cell }> | null>(null);
+  const [draft, setDraft] = useState<Record<string, Draft> | null>(null);
   const [counts, setCounts] = useState<Count[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [proposed, setProposed] = useState(false);
@@ -171,6 +185,26 @@ export function SpaceRetention({
       </span>
     );
   };
+  // Which rows the broker writes of a type that keeps history (DM-108, DM-109, DM-132).
+  const recordShown = (type: string) => {
+    if (type === ANY_TYPE) return t("spaces.retention.perType");
+    if (effectiveHistory(type, held).value === HISTORY_OFF) return t("spaces.retention.record.noRows");
+    const rule = ruleOf(type);
+    const mode = rule?.record ?? RECORD_DEFAULT;
+    return (
+      <span className="flex flex-col">
+        <span>{t(`spaces.retention.record.mode.${mode}`, { defaultValue: mode })}</span>
+        {mode === RECORD_ON_CHANGE && rule?.heartbeat ? (
+          <span className="text-caption text-fg-muted">
+            {t(`pipelines.history.heartbeat.${rule.heartbeat}`, { defaultValue: rule.heartbeat })}
+          </span>
+        ) : null}
+        <span className="text-caption text-fg-muted">
+          {rule?.record === undefined ? t("spaces.retention.layer.platform") : t("spaces.retention.layer.type")}
+        </span>
+      </span>
+    );
+  };
   const removed = (type: string) => {
     const rows = (deleted.data ?? []).filter((row) => row.entityType === type);
     const of = (kind: string) => rows.find((row) => row.kind === kind)?.count ?? 0;
@@ -184,7 +218,13 @@ export function SpaceRetention({
       const current = isoOf(draft[type].current);
       const history = isoOf(draft[type].history);
       if (current === null || history === null) return null;
-      rules.push({ entityType: type, current, history, reason: ruleOf(type)?.reason });
+      const own = ruleOf(type);
+      const rule = { ...own, entityType: type, current, history, reason: own?.reason };
+      // The space's default row keeps its recording as stored; a type writes the chosen one, and
+      // the default stays unwritten where the rule never named it.
+      const chosen = draft[type].record;
+      const record = chosen === RECORD_DEFAULT && own?.record === undefined ? undefined : chosen;
+      rules.push(type === ANY_TYPE ? rule : withRecord(rule, record, draft[type].heartbeat));
     }
     return written(rules);
   };
@@ -209,7 +249,12 @@ export function SpaceRetention({
       Object.fromEntries(
         shown.map((type) => [
           type,
-          { current: cellOf(ruleOf(type)?.current), history: cellOf(ruleOf(type)?.history) },
+          {
+            current: cellOf(ruleOf(type)?.current),
+            history: cellOf(ruleOf(type)?.history),
+            record: ruleOf(type)?.record ?? RECORD_DEFAULT,
+            heartbeat: ruleOf(type)?.heartbeat ?? "PT1H",
+          },
         ]),
       ),
     );
@@ -264,6 +309,49 @@ export function SpaceRetention({
     );
   };
 
+  const recordEditor = (type: string) => {
+    if (draft === null || type === ANY_TYPE) return null;
+    const row = draft[type];
+    const set = (next: Partial<Draft>) => setDraft({ ...draft, [type]: { ...row, ...next } });
+    // A stored value the editor does not offer (as `never`) stays a choice while it is held.
+    const modes: readonly string[] = (RECORDS as readonly string[]).includes(row.record) ? RECORDS : [...RECORDS, row.record];
+    const beats: readonly string[] = (HEARTBEATS as readonly string[]).includes(row.heartbeat) ? HEARTBEATS : [...HEARTBEATS, row.heartbeat];
+    return (
+      <span className="flex flex-col gap-1">
+        <Select
+          className="min-w-60"
+          aria-label={t("spaces.retention.record.of", { type: named(type) })}
+          aria-describedby="retention-record-hint"
+          value={row.record}
+          onChange={(event) => set({ record: event.target.value })}
+        >
+          {modes.map((mode) => (
+            <option key={mode} value={mode}>
+              {mode === RECORD_DEFAULT
+                ? t("spaces.retention.record.asDefault", { mode: t(`spaces.retention.record.mode.${mode}`) })
+                : t(`spaces.retention.record.mode.${mode}`, { defaultValue: mode })}
+            </option>
+          ))}
+        </Select>
+        {row.record === RECORD_ON_CHANGE ? (
+          <Select
+            className="min-w-60"
+            aria-label={t("spaces.retention.record.heartbeatOf", { type: named(type) })}
+            aria-describedby="retention-record-hint"
+            value={row.heartbeat}
+            onChange={(event) => set({ heartbeat: event.target.value })}
+          >
+            {beats.map((beat) => (
+              <option key={beat} value={beat}>
+                {t(`pipelines.history.heartbeat.${beat}`, { defaultValue: beat })}
+              </option>
+            ))}
+          </Select>
+        ) : null}
+      </span>
+    );
+  };
+
   const pending = drafted();
   return (
     <div className="space-y-3">
@@ -277,6 +365,7 @@ export function SpaceRetention({
           <TableHeaderCell>{t("spaces.retention.type")}</TableHeaderCell>
           <TableHeaderCell>{t("spaces.retention.current")}</TableHeaderCell>
           <TableHeaderCell>{t("spaces.retention.history")}</TableHeaderCell>
+          <TableHeaderCell>{t("spaces.retention.record.column")}</TableHeaderCell>
           <TableHeaderCell>{t("spaces.retention.deleted")}</TableHeaderCell>
         </TableHead>
         <TableBody>
@@ -285,11 +374,18 @@ export function SpaceRetention({
               <TableCell>{named(type)}</TableCell>
               <TableCell>{editor(type, "current") ?? plain(type, "current")}</TableCell>
               <TableCell>{editor(type, "history") ?? plain(type, "history")}</TableCell>
+              <TableCell>{recordEditor(type) ?? recordShown(type)}</TableCell>
               <TableCell>{deleted.isError ? t("spaces.retention.deletedUnknown") : removed(type)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
+      {draft !== null && (
+        <div className="space-y-1 text-caption text-fg-muted">
+          <p>{t("spaces.retention.durationHint")}</p>
+          <p id="retention-record-hint">{t("spaces.retention.record.hint")}</p>
+        </div>
+      )}
       {problem !== null && <Alert tone="danger">{problem}</Alert>}
       {proposed && <Alert tone="success">{t("spaces.retention.proposed")}</Alert>}
       {draft === null ? (

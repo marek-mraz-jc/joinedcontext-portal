@@ -17,10 +17,10 @@
  * which offers Edit to a reader whose rights allow the note, on the note alone (README).
  */
 import { useMemo } from "react";
-import { AppShell, endpointSource, EntityGrid, Page, Problem, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
+import { AppShell, endpointSource, EntityGrid, Page, Problem, transportFor, useAccess, useClient, useEntitySelection } from "@joinedcontext/sdk";
 import { recordRenderers } from "./cells";
 import { Overview } from "./Overview";
-import { gridConfig, notesOnly } from "./records";
+import { gridConfig, NOTE, notesOnly } from "./records";
 import { bodyOf, noteWords, SPACE_OF, stringsFor } from "./locales";
 
 export default function App() {
@@ -49,8 +49,13 @@ function Records() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [slug, language],
   );
-  const grid = useMemo(() => (slug ? gridConfig(slug, s.column) : null), [slug, s.column]);
   const endpoint = listed?.name;
+  // The note opens only for a reader whose access document grants the write (T-5091: the steward
+  // role); the gateway decides each save again. Until the document arrives the grid is a reader.
+  const { access, error: accessError, can } = useAccess(endpoint);
+  const mayNote = can("updateAttrs", "KeyPerformanceIndicator", NOTE).ok;
+  const accessKnown = access !== null || accessError !== null;
+  const grid = useMemo(() => (slug ? gridConfig(slug, s.column, mayNote) : null), [slug, s.column, mayNote]);
   const renderers = useMemo(
     () =>
       recordRenderers(s.locale.startsWith("sk") ? "sk" : "en", { locale: s.locale, showId: s.showId, openRecord: s.openRecord }, (row) =>
@@ -79,6 +84,11 @@ function Records() {
               <p className="note">{s.recordsWhy}</p>
               <p className="note">{s.readOnlyWhy}</p>
               <p className="note">{s.noteWhy}</p>
+              {accessKnown && !mayNote ? (
+                <p className="note" role="note">
+                  {s.noteStewardsOnly[body]}
+                </p>
+              ) : null}
             </div>
             <EntityGrid config={grid} source={source} labels={s.grid} renderers={renderers} />
           </section>

@@ -203,7 +203,7 @@ RUN for name in sharing-private sharing-project sharing-organization sharing-rol
 
 FROM rust:1.97-slim-trixie@sha256:8e8cf8f7fd54a2d23d5a743b3a03f56e26b6c774276c33fa0595111704ebb15c AS build
 WORKDIR /src
-# tikv-jemalloc-sys (locked through context-gateway, T-4782) runs `make` in its build script,
+# tikv-jemalloc-sys (the binary's allocator, T-5283) runs `make` in its build script,
 # and the slim image has none (T-4987).
 RUN apt-get update && apt-get install -y --no-install-recommends make && \
     rm -rf /var/lib/apt/lists/*
@@ -256,4 +256,8 @@ EXPOSE 8080
 ENV JC_PORTAL_BIND=0.0.0.0:8080
 # The bundles above; a deployment that mounts its own artifact root sets it elsewhere.
 ENV JC_PORTAL_APPS_DIR=/srv/apps
+# The binary's jemalloc (T-5283), set as the gateway's (T-4782): a background thread purges freed
+# pages after a second, so a reconcile's /metrics texts leave the process when it ends; four
+# arenas, whatever the node's core count. Measured in tests/allocator_tests.rs, which reads this line.
+ENV _RJEM_MALLOC_CONF=background_thread:true,narenas:4,dirty_decay_ms:1000,muzzy_decay_ms:0
 ENTRYPOINT ["/usr/local/bin/joinedcontext-portal"]

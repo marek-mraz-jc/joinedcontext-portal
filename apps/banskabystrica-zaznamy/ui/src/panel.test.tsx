@@ -3,7 +3,7 @@
  * Portal for a reader who may not write, and for a steward whose rights allow the note, the note
  * alone is editable there; a refusal and a conflict are said in words.
  */
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { JcProvider, projectRow, toRichRow } from "@joinedcontext/sdk";
 import type { AccessDocument } from "@joinedcontext/sdk";
@@ -58,7 +58,9 @@ function show(access: AccessDocument, refuse?: Refuse) {
 
 /** Opens the record that carries a note: the panel edits what a record holds. */
 async function openFirst() {
-  const noted = (await screen.findByDisplayValue("Porovnané s ročenkou mesta, sedí.")).closest("tr") as HTMLElement;
+  // A steward's row holds the note in its editor, a reader's as text (T-5137).
+  const note = "Porovnané s ročenkou mesta, sedí.";
+  const noted = (await waitFor(() => screen.queryByDisplayValue(note) ?? screen.getByText(note))).closest("tr") as HTMLElement;
   fireEvent.click(within(noted).getByRole("button", { name: "Otvoriť záznam" }));
   const panel = await screen.findByRole("dialog");
   await within(panel).findByText("KeyPerformanceIndicator");

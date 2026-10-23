@@ -1065,7 +1065,7 @@
           "entity": "{type} behält die Historie {kept}.",
           "type": "Die Regel des Typs behält die Historie von {type}: {kept}.",
           "space": "Der Standard des Raums behält die Historie von {type}: {kept}.",
-          "platform": "Keine Regel dieses Raums setzt die Historie von {type}: der Plattformstandard behält sie {kept}.",
+          "platform": "Keine Regel dieses Bereichs nennt {type}, daher behält er keinen Verlauf, nur seine aktuellen Werte.",
           "none": "{type} behält die Historie {kept}."
         }
       }
@@ -1093,7 +1093,7 @@
     },
     "retention": {
       "title": "Aufbewahrung",
-      "lead": "Wie lange dieser Raum die Daten jedes Typs aufbewahrt. Ein Typ, dessen Regel nichts zum Verlauf sagt, übernimmt die Zeile Alle anderen Typen und ohne sie die Vorgabe der Plattform; eine kürzere Regel oder ein ausgeschalteter Verlauf löscht Daten endgültig.",
+      "lead": "Wie lange dieser Bereich die Daten jedes Typs aufbewahrt. Nur ein Typ, den eine Regel nennt, behält einen Verlauf: seine eigene Zeile oder die Zeile Alle anderen Typen; ein Typ ohne Regel behält nur seine aktuellen Werte. Eine kürzere Regel oder ein ausgeschalteter Verlauf löscht Daten endgültig.",
       "noTypes": "Das Modell des Raums nennt noch keine Typen.",
       "caption": "Wie lange die Daten jedes Typs aufbewahrt werden",
       "type": "Typ",
@@ -1133,7 +1133,7 @@
       "foreverAsNow": "Für immer behalten (wie bisher)",
       "anyType": "Alle anderen Typen",
       "spaceDefault": "Vorgabe des Raums",
-      "platformDefault": "Vorgabe der Plattform",
+      "platformDefault": "Keine Regel: kein Verlauf",
       "perType": "Pro Typ festgelegt",
       "defaultAsNow": "{fallback} (wie bisher)",
       "layer": {
@@ -1143,7 +1143,22 @@
         "platform": "Plattformstandard",
         "none": "bis sie gelöscht werden"
       },
-      "entityWins": "Das eigene expiresAt einer Entität entfernt sie zu dieser Zeit, ihr eigenes historyRetention bestimmt ihre Historie: beide gehen den Regeln unten vor."
+      "entityWins": "Das eigene expiresAt einer Entität entfernt sie zu dieser Zeit, ihr eigenes historyRetention bestimmt ihre Historie: beide gehen den Regeln unten vor.",
+      "durationHint": "Jede Dauer ist eine ganze Zahl von Minuten, Stunden oder Tagen, von einer Minute bis 3650 Tage: zum Beispiel 30 Tage Messwerte eines Sensors.",
+      "record": {
+        "column": "Verlaufszeilen",
+        "of": "Verlaufszeilen von {type}",
+        "heartbeatOf": "Zeile mindestens alle, für {type}",
+        "noRows": "Keine Zeilen: kein Verlauf",
+        "asDefault": "{mode} (Standard)",
+        "hint": "Verlaufszeilen: Neuere Beobachtungen schreibt eine Zeile nur, wenn observedAt neuer als die letzte Zeile ist, ein Sensor, der denselben Messwert erneut sendet, fügt also keine hinzu; Jede Beobachtung schreibt eine Zeile für jedes neue observedAt, etwa eine Zählung je 15 Minuten; Nur Änderungen schreibt eine Zeile, wenn sich ein Wert ändert, und mindestens einmal im gewählten Intervall, etwa die freien Räder einer Station.",
+        "mode": {
+          "observed": "Neuere Beobachtungen",
+          "every": "Jede Beobachtung",
+          "onChange": "Nur Änderungen",
+          "never": "Keine Zeilen"
+        }
+      }
     },
     "upload": {
       "open": "CSV hochladen",

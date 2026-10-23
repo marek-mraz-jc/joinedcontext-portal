@@ -143,7 +143,7 @@ describe("the words and the grid", () => {
   });
 
   it("label a column it has no word for by its attribute, and take a note given bare", () => {
-    expect(gridConfig("s", {}).columns.every((column) => column.label === column.attr)).toBe(true);
+    expect(gridConfig("s", {}, true).columns.every((column) => column.label === column.attr)).toBe(true);
     const words = { tooLong: (max: number) => `max ${max}`, forbidden: "no <>", notText: "text" };
     expect(noteFault({ stewardNote: "bare note" }, words)).toBeNull();
   });

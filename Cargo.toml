@@ -91,6 +91,9 @@ axum-extra = { version = "0.12", features = ["cookie-private"] }
 tower = "0.5"
 tower-http = { version = "0.7", features = ["cors", "set-header", "trace"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net", "sync", "time"] }
+# The binary's allocator (main.rs, T-5283), as the gateway's (T-4782): glibc kept the runner's
+# freed /metrics texts resident, jemalloc's background thread gives them back.
+tikv-jemallocator = "0.7"
 # The builder run's event stream (AG-45). `sync` alone: the one wrapper needed is the one that
 # turns a broadcast receiver into the `Stream` axum's SSE response wants, and axum has no
 # stream type of its own.

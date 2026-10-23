@@ -491,6 +491,19 @@ describe("the import dialog", () => {
     expect(created.expiresAt).toBe("2999-01-01T00:00:00.000Z");
   });
 
+  it("says a type no rule names keeps no history (T-5058, DM-132)", async () => {
+    await i18n.changeLanguage("en");
+    const user = userEvent.setup();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ImportRowsDialog open onOpenChange={() => {}} target={TARGET} slots={SLOTS} send={vi.fn<Send>()} onImported={() => {}} retention={[]} />
+      </I18nextProvider>,
+    );
+    await user.upload(screen.getByLabelText("Choose a file"), new File(["Title\nKamppi\n"], "stations.csv"));
+    const expiry = await screen.findByTestId("import-expiry");
+    expect(within(expiry).getByText(/No rule of this space names BikeHireDockingStation, so it keeps no history/)).toBeInTheDocument();
+  });
+
   it("says in one sentence that nothing was written when the space refuses the person (T-4867)", async () => {
     await i18n.changeLanguage("en");
     const user = userEvent.setup();
