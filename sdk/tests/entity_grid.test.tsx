@@ -511,7 +511,11 @@ describe("EntityGrid", () => {
       filterHintDate: "Vyberte test a zvoľte dátum, napr. po 2026-10-01.",
       filterHintEnum: "Vyberte test; pri „ktorákoľvek z“ zvoľte jednu alebo viac povolených hodnôt:",
       filterHintOther: "Vyberte test, napr. má hodnotu alebo prázdne.",
-      editAsTextHint: "Napíšte dopyt NGSI-LD sami, napr. pm10>40;name~=\"Espoo\".",
+      editAsTextHint: "Napíšte dopyt NGSI-LD sami",
+      exampleLead: "napr.",
+      queryAll: "všetky záznamy",
+      copied: "Skopírované",
+      scrollHint: "Vpravo sú ďalšie stĺpce: posuňte tabuľku do strany.",
       sortPage: "Zoradiť túto stranu podľa",
       matching: "vyhovujúcich",
       columnMenu: "Možnosti stĺpca",
@@ -542,7 +546,10 @@ describe("EntityGrid", () => {
     });
     fireEvent.click(screen.getByLabelText("Možnosti stĺpca: Bikes"));
     // Every visible string is the host's: none of the English defaults that differ from Slovak shows.
-    const text = document.body.textContent ?? "";
+    // The query hint's example is data (an attribute name such as availableBikeNumber), not a label.
+    const page = document.body.cloneNode(true) as HTMLElement;
+    page.querySelectorAll(".jc-grid-query-hint code").forEach((code) => code.remove());
+    const text = page.textContent ?? "";
     const pairs: [string, string][] = Object.entries(DEFAULT_LABELS).flatMap(([key, english]) =>
       typeof english === "string"
         ? [[key, english] as [string, string]]
@@ -640,8 +647,40 @@ describe("EntityGrid", () => {
       await waitFor(() => expect(screen.getByText("Kamppi")).toBeInTheDocument());
       expect(screen.getByLabelText("Filter: Bikes")).toHaveAccessibleDescription(expect.stringContaining(DEFAULT_LABELS.filterHintNumber));
       expect(screen.getByLabelText("Filter: Name")).toHaveAccessibleDescription(DEFAULT_LABELS.filterHintText);
-      expect(screen.getByLabelText(DEFAULT_LABELS.editAsText)).toHaveAccessibleDescription(DEFAULT_LABELS.editAsTextHint);
-      expect(screen.getByText(DEFAULT_LABELS.editAsTextHint)).toBeVisible();
+      expect(screen.getByLabelText(DEFAULT_LABELS.editAsText)).toHaveAccessibleDescription(
+        `${DEFAULT_LABELS.editAsTextHint}, ${DEFAULT_LABELS.exampleLead} availableBikeNumber>=5.`,
+      );
+    });
+
+    // T-5415: the hint's example comes from this type's own first row, the empty query reads
+    // "all records", and the copy button says it copied.
+    it("builds the query hint from the shown rows and copies with a copied state", async () => {
+      const writeText = vi.fn(() => Promise.resolve());
+      Object.assign(navigator, { clipboard: { writeText } });
+      const { source } = recordingSource(bikeEntities);
+      const { container } = render(<EntityGrid config={config} source={source} />);
+      await waitFor(() => expect(screen.getByText("Kamppi")).toBeInTheDocument());
+      expect(container.querySelector(".jc-grid-query-hint code")?.textContent).toBe("availableBikeNumber>=5");
+      expect(container.querySelector(".jc-grid-query-value")?.textContent).toBe(DEFAULT_LABELS.queryAll);
+      expect(screen.queryByRole("button", { name: DEFAULT_LABELS.copyQuery })).toBeNull();
+      fireEvent.change(screen.getByLabelText("Filter: Bikes"), { target: { value: "gt" } });
+      fireEvent.change(screen.getByLabelText("Value: Bikes"), { target: { value: "4" } });
+      const copy = await screen.findByRole("button", { name: DEFAULT_LABELS.copyQuery });
+      fireEvent.click(copy);
+      await waitFor(() => expect(screen.getByRole("button", { name: DEFAULT_LABELS.copied })).toBeInTheDocument());
+      expect(writeText).toHaveBeenCalledWith(expect.stringContaining("availableBikeNumber>4"));
+    });
+
+    // T-5415: on a phone the filter row folds under one button that counts the active filters.
+    it("folds the filter row under a button that says how many filters are on", async () => {
+      const { source } = recordingSource(bikeEntities);
+      const { container } = render(<EntityGrid config={config} source={source} />);
+      await waitFor(() => expect(screen.getByText("Kamppi")).toBeInTheDocument());
+      const toggle = screen.getByRole("button", { name: DEFAULT_LABELS.filterRow });
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      expect(container.querySelector(".jc-grid")).toHaveAttribute("data-filters", "open");
     });
 
     // T-5093: a host with its own "Query" toggle keeps the box out from between the rows and the count.
@@ -652,7 +691,7 @@ describe("EntityGrid", () => {
       expect(screen.queryByText(DEFAULT_LABELS.copyQuery)).toBeNull();
       expect(screen.queryByLabelText(DEFAULT_LABELS.editAsText)).toBeNull();
       rerender(<EntityGrid config={config} source={source} queryBox />);
-      expect(screen.getByText(DEFAULT_LABELS.copyQuery)).toBeInTheDocument();
+      expect(screen.getByLabelText(DEFAULT_LABELS.editAsText)).toBeInTheDocument();
     });
 
     it("asks nothing until the filter is complete, and starts again at the first page", async () => {

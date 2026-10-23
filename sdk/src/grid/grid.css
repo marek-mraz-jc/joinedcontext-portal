@@ -1163,3 +1163,55 @@ a.jc-cell--link:focus-visible {
 .jc-grid-pages button { min-width: 2rem; min-height: 2rem; }
 .jc-grid-pages button[aria-current="page"] { font-weight: 600; text-decoration: underline; }
 @media (pointer: coarse) { .jc-grid-pages button { min-width: 44px; min-height: 44px; } }
+
+/* T-5415: the query block as one row of a code line, a real copy button and a checkbox 8 px from its
+   words; the current page in the accent colour; on a phone the pager is one line (‹ 1 2 3 ›) under
+   its count, the filter row folds under a button and the row's name takes the room it needs. */
+.jc-grid-query-label { font-weight: 600; }
+.jc-grid-query-value { padding: 2px 6px; border-radius: var(--jc-radius-sm, 4px); background: var(--jc-color-card, #f5f5f5); }
+.jc-grid-query-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--jc-space-2, 8px) var(--jc-space-4, 16px); }
+.jc-grid-query-copy,
+.jc-grid-filter-toggle {
+  min-height: 2.75rem;
+  padding: var(--jc-space-1, 4px) var(--jc-space-3, 12px);
+  border: 1px solid var(--jc-color-line, #e0e0e0);
+  border-radius: var(--jc-radius-sm, 4px);
+  background: var(--jc-color-card, #f5f5f5);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.jc-grid-query-switch { display: inline-flex; align-items: center; gap: var(--jc-space-2, 8px); min-height: 2.75rem; }
+.jc-grid-query-switch input { width: 1.25rem; height: 1.25rem; margin: 0; }
+.jc-grid-query-hint code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.jc-grid-pager-step { display: inline-flex; align-items: center; justify-content: center; gap: var(--jc-space-1, 4px); }
+.jc-grid-pages button[aria-current="page"] {
+  background: var(--jc-color-accent, #0066cc);
+  border-color: var(--jc-color-accent, #0066cc);
+  color: var(--jc-color-surface, #ffffff);
+  text-decoration: none;
+}
+.jc-grid-filter-toggle { display: none; }
+.jc-grid-scroll-hint { margin: 0; padding: var(--jc-space-1, 4px) var(--jc-space-2, 8px); font-size: 0.8125rem; opacity: 0.75; }
+
+@media (width <= 640px) {
+  .jc-grid-pager { flex-wrap: wrap; column-gap: var(--jc-space-1, 4px); }
+  .jc-grid-pager .jc-grid-total { order: -1; flex-basis: 100%; text-align: center; }
+  .jc-grid-pager:has(.jc-grid-pages) .jc-grid-page-info { display: none; }
+  .jc-grid-pager-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .jc-grid-pager .jc-grid-pager-step { min-width: 2.75rem; min-height: 2.75rem; font-size: 1.25rem; }
+  .jc-grid-pages { flex-wrap: nowrap; }
+  .jc-grid-filter-toggle { display: inline-flex; align-items: center; align-self: flex-start; width: fit-content; margin: var(--jc-space-2, 8px); }
+  .jc-grid-filter-toggle::after { content: "\25BE"; margin-inline-start: var(--jc-space-2, 8px); }
+  .jc-grid-filter-toggle[aria-expanded="true"]::after { content: "\25B4"; }
+  .jc-grid-pages button { min-width: 2.75rem; min-height: 2.75rem; }
+  .jc-grid:not([data-filters="open"]) .jc-grid-filter-row { display: none; }
+  .jc-grid :is(th, td).jc-grid-pinned { min-width: min(58vw, 15rem); }
+}

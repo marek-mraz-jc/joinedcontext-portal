@@ -610,12 +610,12 @@ describe("the space's own data", () => {
   it("folds the grid's query behind the toolbar's Query toggle (T-5093)", async () => {
     renderInside({ status: 200, count: 1 });
     expect(await screen.findByText("12 µg/m³")).toBeInTheDocument();
-    expect(screen.queryByText(en.entityGrid.copyQuery)).toBeNull();
+    expect(screen.queryByLabelText(en.entityGrid.editAsText)).toBeNull();
     const toggle = screen.getByRole("button", { name: en.spaces.toolbar.query });
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-pressed", "true");
-    expect(await screen.findByText(en.entityGrid.copyQuery)).toBeInTheDocument();
+    expect(await screen.findByLabelText(en.entityGrid.editAsText)).toBeInTheDocument();
   });
 
   it("reads a view's rows again when the space says entities of its type changed (T-3105)", async () => {
