@@ -21,11 +21,27 @@ export interface Rule {
  * document yet means no: what only an administrator sees is not shown while it is unknown.
  */
 export function administersOrganization(effective: Effective | undefined): boolean {
-  return (
-    effective !== undefined &&
-    allows(effective, "RoleBinding", "approve") &&
-    allows(effective, "RoleBinding", "delete")
-  );
+  if (effective === undefined) {
+    return false;
+  }
+  // A grant narrowed to one Organization's own settings makes nobody the installation's
+  // administrator (ADR-N-058 section 2.4), as `Effective::administers_organization` decides.
+  const installationWide = Array.isArray(effective.grants)
+    ? { ...effective, grants: effective.grants.filter((grant) => !grant.organization) }
+    : effective;
+  return allows(installationWide, "RoleBinding", "approve") && allows(installationWide, "RoleBinding", "delete");
+}
+
+/**
+ * The Organization whose own settings, bindings and groups the caller administers without
+ * administering the installation (ADR-N-058 section 2.4, T-5248): the `organization` of their
+ * narrowed grants at the organization namespace, else `undefined`.
+ */
+export function ownOrganizationOf(effective: Effective | undefined): string | undefined {
+  if (effective === undefined || !Array.isArray(effective.grants) || administersOrganization(effective)) {
+    return undefined;
+  }
+  return effective.grants.find((grant) => grant.organization)?.organization ?? undefined;
 }
 
 export function allows(effective: Effective | undefined, kind: string, verb: Verb): boolean {
@@ -130,11 +146,12 @@ export function usePermissions(project: string) {
  * server asks. `known` is false until the document is read, and a document that never came means
  * no: what only an administrator sees is not shown while it is unknown.
  */
-export function useAdministers(): { known: boolean; administers: boolean } {
+export function useAdministers(): { known: boolean; administers: boolean; own?: string } {
   const permissions = usePermissions(ORG_NAMESPACE);
   return {
     known: !permissions.isLoading,
     administers: administersOrganization(permissions.data),
+    own: ownOrganizationOf(permissions.data),
   };
 }
 
