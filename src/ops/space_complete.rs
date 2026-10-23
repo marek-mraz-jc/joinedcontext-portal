@@ -774,7 +774,15 @@ pub async fn run(
 
     // Save ContextSpace draft
     if let Some(m) = space_manifest {
-        let checked = checked_draft(caller, state, project, m, inferred_space, &drafts).await?;
+        let checked = checked_draft(
+            caller,
+            state,
+            project,
+            m,
+            inferred_space,
+            bundle_of(&drafts),
+        )
+        .await?;
         drafts.push(checked);
     }
 
@@ -844,7 +852,10 @@ pub async fn run(
                 &audience,
                 &caller.identity.username,
             ) {
-                let checked = checked_draft(caller, state, project, policy, true, &drafts).await?;
+                // The Endpoint below binds these grants in the same Change (PL-111).
+                let mut bundle = bundle_of(&drafts);
+                bundle.push(m.clone());
+                let checked = checked_draft(caller, state, project, policy, true, bundle).await?;
                 drafts.push(checked);
             }
         }
@@ -854,14 +865,15 @@ pub async fn run(
             project,
             m,
             inferred_endpoint || app_endpoint,
-            &drafts,
+            bundle_of(&drafts),
         )
         .await?;
         drafts.push(checked);
     }
     if input.upload && sample_bytes.is_some() {
         let grant = upload_policy(project, &space_name, &class_name, &caller.identity.username);
-        let checked = checked_draft(caller, state, project, grant, true, &drafts).await?;
+        let checked =
+            checked_draft(caller, state, project, grant, true, bundle_of(&drafts)).await?;
         drafts.push(checked);
     }
 
@@ -913,7 +925,7 @@ pub async fn run(
     }
 
     for m in map_manifests {
-        let checked = checked_draft(caller, state, project, m, true, &drafts).await?;
+        let checked = checked_draft(caller, state, project, m, true, bundle_of(&drafts)).await?;
         drafts.push(checked);
     }
 
@@ -1600,15 +1612,20 @@ fn map_of(
     ]
 }
 
+/// The manifests of the drafts so far, which the next draft is proposed with.
+fn bundle_of(drafts: &[CompletedDraft]) -> Vec<Value> {
+    drafts.iter().map(|d| d.manifest.clone()).collect()
+}
+
 /// One draft kept with the verdict of `jc_manifest_dry_run` on it; `inferred` when the completion
-/// drafted it rather than found it.
+/// drafted it rather than found it. `bundle` holds the drafts proposed with it as one Change.
 async fn checked_draft(
     caller: &Caller,
     state: &AppState,
     project: &str,
     manifest: Value,
     inferred: bool,
-    before: &[CompletedDraft],
+    bundle: Vec<Value>,
 ) -> Result<CompletedDraft, OpError> {
     let kind = manifest["kind"].as_str().unwrap_or_default().to_owned();
     let name = manifest["metadata"]["name"]
@@ -1628,12 +1645,8 @@ async fn checked_draft(
         )
         .await
         .map_err(ops::drafts::draft_error)?;
-    // The drafts before this one are proposed with it as one Change, so a reference to one of
-    // them (the space naming its new model, the Endpoint its new space) resolves (T-5109).
-    let bundle = before
-        .iter()
-        .map(|d| (d.kind.clone(), d.name.clone()))
-        .collect();
+    // The bundle is proposed with this draft as one Change, so a reference to one of its drafts
+    // (the space naming its new model, the Endpoint its new space) resolves (T-5109).
     let check = ops::call(
         ops::find("jc_manifest_dry_run").expect("jc_manifest_dry_run is registered"),
         caller,

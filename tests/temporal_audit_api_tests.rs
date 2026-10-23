@@ -113,8 +113,8 @@ async fn a_reader_gets_a_row_per_attribute_of_the_pipelines_that_write_the_space
     assert_eq!(
         rows(&body),
         [
-            pair("vehicles", "mode", "every", "duplicates-rows"),
-            pair("vehicles", "speed", "every", "ok"),
+            pair("vehicles", "mode", "observed", "duplicates-rows"),
+            pair("vehicles", "speed", "observed", "ok"),
         ]
     );
     assert_eq!(body["rows"][1]["observedAt"], json!(["mapped"]));

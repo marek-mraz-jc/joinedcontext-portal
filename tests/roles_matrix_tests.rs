@@ -273,7 +273,13 @@ async fn forge() -> MockServer {
 /// context space the manifests read, and one existing resource of each family.
 fn state_with(gitea: &MockServer) -> AppState {
     let state = common::state_on(gitea);
-    let kinds: Vec<&str> = FAMILIES.iter().map(|family| family.kind).collect();
+    // Entity: a pipeline writes only what its proposer may write, the space behind its target
+    // Endpoint (PL-94).
+    let kinds: Vec<&str> = FAMILIES
+        .iter()
+        .map(|family| family.kind)
+        .chain(["Entity"])
+        .collect();
     for who in PEOPLE {
         state.mirror.upsert(envelope(
             "Role",
@@ -305,6 +311,14 @@ fn state_with(gitea: &MockServer) -> AppState {
         "bikes-team",
         ORG_NAMESPACE,
         json!({ "displayName": "Bikes team" }),
+    ));
+    // The Endpoint the Pipeline family writes through: without it every Pipeline proposal
+    // writes a space nobody can write and is refused (PL-111).
+    state.mirror.upsert(envelope(
+        "Endpoint",
+        "helsinki-all",
+        PROJECT,
+        json!({ "contextSpaceRef": "helsinki", "slug": "hq4tm7ge2xdv6ksb3ncf5arw2y", "audience": "organization" }),
     ));
     state.mirror.upsert(envelope(
         "Layer",

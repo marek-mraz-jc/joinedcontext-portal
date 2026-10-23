@@ -78,7 +78,7 @@ fn world(gitea: &MockServer) -> AppState {
             "Endpoint",
             &format!("ep-{space}"),
             PROJECT,
-            json!({ "contextSpaceRef": space, "slug": format!("ep-{space}"), "audience": "internal" }),
+            json!({ "contextSpaceRef": space, "slug": format!("{space}7r2m4xqzvbn3tdw6hcy5pajfe"), "audience": "organization" }),
         ));
     }
     state.mirror.upsert(ResourceEnvelope {

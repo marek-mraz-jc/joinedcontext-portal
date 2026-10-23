@@ -353,6 +353,15 @@ async fn workspace_write_refused_when_quota_exceeded() {
         }))
         .unwrap(),
     );
+    // The Endpoint both pipelines write through, so only the quota refuses the second (PL-111).
+    state.mirror.upsert(
+        serde_json::from_value(json!({
+            "apiVersion": API_VERSION, "kind": "Endpoint",
+            "metadata": { "name": "public-air", "namespace": "ovzdusie" },
+            "spec": { "contextSpaceRef": "air", "slug": "k7m2qz4tv6xh3n5jb2ryd3wcfa", "audience": "public" }
+        }))
+        .unwrap(),
+    );
     state
         .mirror
         .upsert(serde_json::from_value(pipeline("first")).unwrap());

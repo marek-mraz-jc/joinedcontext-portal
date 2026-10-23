@@ -61,7 +61,7 @@ fn state(runner: Option<&MockServer>) -> AppState {
         "Endpoint",
         "bikes-write",
         PROJECT,
-        json!({ "contextSpaceRef": "bikes", "slug": "k7r2m4xq9vbn3tdw6hcy5pajfe" }),
+        json!({ "contextSpaceRef": "bikes", "slug": "k7r2m4xqzvbn3tdw6hcy5pajfe", "audience": "organization" }),
     ));
     mirror.upsert(envelope(
         "DataSource",

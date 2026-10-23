@@ -2065,9 +2065,27 @@ fn check_unmade_writes(
         return Ok(());
     }
     let options = crate::store::ListOptions::default();
+    // The drafts proposed in the same Change stand in for what the mirror holds of them.
+    let bundle: Vec<ResourceEnvelope> = crate::references::bundled()
+        .into_iter()
+        .filter_map(|m| serde_json::from_value::<ResourceEnvelope>(m).ok())
+        .filter(|e| WRITE_BINDING_KINDS.contains(&e.kind.as_str()))
+        .map(|mut e| {
+            e.metadata.namespace = Some(project.to_owned());
+            e.status = None;
+            e
+        })
+        .collect();
+    let bundled = |e: &ResourceEnvelope| {
+        bundle
+            .iter()
+            .any(|b| b.kind == e.kind && b.metadata.name == e.metadata.name)
+    };
     let current: Vec<ResourceEnvelope> = WRITE_BINDING_KINDS
         .iter()
         .flat_map(|kind| state.mirror.list(project, kind, &options).items)
+        .filter(|e| !bundled(e))
+        .chain(bundle.iter().cloned())
         .collect();
     let same =
         |e: &ResourceEnvelope| e.kind == envelope.kind && e.metadata.name == envelope.metadata.name;
