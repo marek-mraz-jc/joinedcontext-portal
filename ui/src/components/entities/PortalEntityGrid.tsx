@@ -54,6 +54,11 @@ function writeColumns(project: string, type: string, columns: ColumnLayout): voi
   }
 }
 
+/** The order this browser remembers for a type's grid, for a host that shows it (T-5188). */
+export function rememberedSort(project: string, type: string): GridState["sort"] {
+  return readLayout(project, type)?.sort ?? null;
+}
+
 function readLayout(project: string, type: string): Layout | null {
   try {
     const raw = window.localStorage.getItem(layoutKey(project, type));
@@ -180,6 +185,7 @@ export function gridLabels(t: (key: string) => string): GridLabels {
     relationFailed: t("entityGrid.relationFailed"),
     relationMore: t("entityGrid.relationMore"),
     openRow: t("entityGrid.openRow"),
+    groupNoValue: t("entityGrid.groupNoValue"),
     rowDetail: t("entityGrid.rowDetail"),
     rowFields: t("entityGrid.rowFields"),
     close: t("entityGrid.close"),

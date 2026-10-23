@@ -28,6 +28,8 @@ pub const COLOURS: [&str; 5] = ["neutral", "info", "success", "warning", "danger
 pub const MAX_TITLE: usize = 120;
 pub const MAX_Q: usize = 4096;
 pub const MAX_SORT: usize = 3;
+/// The fields a grid groups its rows by, outermost first (`settings.groupBy`, T-5188).
+pub const MAX_GROUP_BY: usize = 3;
 pub const MAX_COLOUR_RULES: usize = 20;
 pub const MAX_CONFIG_BYTES: usize = 64 * 1024;
 /// Views one person keeps in one space: a list a person reads, not a dump.
@@ -218,6 +220,7 @@ impl ViewConfig {
                 "config.colour holds at most {MAX_COLOUR_RULES} rules"
             ));
         }
+        self.check_group_by()?;
         for rule in &self.colour {
             check_q("config.colour[].when", &rule.when)?;
             if !COLOURS.contains(&rule.colour.as_str()) {
@@ -237,6 +240,35 @@ impl ViewConfig {
             ));
         }
         Ok(())
+    }
+}
+
+impl ViewConfig {
+    /// A grid's `settings.groupBy`: at most [`MAX_GROUP_BY`] distinct attribute names.
+    fn check_group_by(&self) -> Result<(), DataViewError> {
+        let Some(raw) = self.settings.get("groupBy") else {
+            return Ok(());
+        };
+        let names: Vec<&str> = match raw.as_array() {
+            Some(list) => list.iter().filter_map(serde_json::Value::as_str).collect(),
+            None => Vec::new(),
+        };
+        let listed = raw.as_array().map_or(0, Vec::len);
+        let distinct = names
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len();
+        if !raw.is_array() || names.len() != listed || listed > MAX_GROUP_BY || distinct != listed {
+            return Err(DataViewError::Invalid(format!(
+                "config.settings.groupBy is a list of at most {MAX_GROUP_BY} different attribute names"
+            )));
+        }
+        match names.iter().find(|name| !is_attr(name)) {
+            Some(name) => Err(DataViewError::Invalid(format!(
+                "config.settings.groupBy: '{name}' is not an attribute name"
+            ))),
+            None => Ok(()),
+        }
     }
 }
 
@@ -716,6 +748,24 @@ mod tests {
             bad(json!({ "config": { "colour": [{ "when": "a==1", "colour": "#ff0000" }] } }))
                 .contains("#ff0000")
         );
+        for refused in [
+            json!("status"),
+            json!(["a", "b", "c", "d"]),
+            json!(["a", "a"]),
+            json!(["a", 1]),
+        ] {
+            assert!(
+                bad(json!({ "config": { "settings": { "groupBy": refused } } }))
+                    .contains("config.settings.groupBy")
+            );
+        }
+        assert!(bad(json!({ "config": { "settings": { "groupBy": ["a b"] } } })).contains("'a b'"));
+        let mut grouped = view();
+        grouped
+            .config
+            .settings
+            .insert("groupBy".into(), json!(["status", "city"]));
+        assert_eq!(grouped.validate(), Ok(()));
         let huge = json!({ "config": { "settings": { "blob": "x".repeat(MAX_CONFIG_BYTES) } } });
         assert!(bad(huge).contains("bytes"));
     }

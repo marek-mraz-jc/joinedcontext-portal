@@ -22,7 +22,7 @@ export interface GridQuery {
   ids?: string[];
   /** The area drawn on the map, as a geo query the endpoint answers (UI-72). */
   area?: GeoQuery;
-  /** The order of the whole answer, as CIM 009 4.23 writes it: `attr` or `attr;desc`. */
+  /** The order of the whole answer, as CIM 009 4.23 writes it: `attr` or `attr;desc`, keys by commas. */
   orderBy?: string;
 }
 
@@ -301,27 +301,37 @@ export function fixtureSource(entities: Record<string, unknown>[], language = "e
 }
 
 /**
- * `rows` in the order `orderBy` names (`attr` or `attr;desc`, one key), as the broker orders them
- * (CIM 009 4.23.1): numbers by value, other values by their text, an entity without the attribute
- * after every one that has it, either way.
+ * `rows` in the order `orderBy` names (`attr`, `attr;desc`, several keys by commas), as the broker
+ * orders them (CIM 009 4.23.1): numbers by value, other values by their text, an entity without
+ * the attribute after every one that has it, either way; a later key orders what an earlier one
+ * leaves equal.
  */
 export function orderRows(rows: RichRow[], orderBy: string): RichRow[] {
-  const [attr, dir] = orderBy.split(";");
-  const factor = dir === "desc" ? -1 : 1;
-  const valueOf = (row: RichRow): unknown => {
+  const keys = orderBy.split(",").map((part) => {
+    const [attr, dir] = part.split(";");
+    return { attr, factor: dir === "desc" ? -1 : 1 };
+  });
+  const valueOf = (row: RichRow, attr: string): unknown => {
     if (attr === "id") return row.id;
     const cell = row.cells[attr];
     const one = Array.isArray(cell) ? cell[0] : cell;
     return one?.kind === "relationship" ? one.object : one?.value;
   };
-  return [...rows].sort((a, b) => {
-    const x = valueOf(a);
-    const y = valueOf(b);
+  const compare = (attr: string, factor: number, a: RichRow, b: RichRow): number => {
+    const x = valueOf(a, attr);
+    const y = valueOf(b, attr);
     const missingX = x === undefined || x === null;
     const missingY = y === undefined || y === null;
     if (missingX || missingY) return Number(missingX) - Number(missingY);
     if (typeof x === "number" && typeof y === "number") return factor * (x - y);
     return factor * String(x).localeCompare(String(y));
+  };
+  return [...rows].sort((a, b) => {
+    for (const { attr, factor } of keys) {
+      const by = compare(attr, factor, a, b);
+      if (by !== 0) return by;
+    }
+    return 0;
   });
 }
 

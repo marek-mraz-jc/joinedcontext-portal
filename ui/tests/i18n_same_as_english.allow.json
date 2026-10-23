@@ -104,7 +104,9 @@
     "iCal",
     "iCalendar",
     "QGIS",
-    "ArcGIS Pro"
+    "ArcGIS Pro",
+    "Maximum",
+    "Minimum"
   ],
   "cs": [
     "@context",
@@ -208,7 +210,9 @@
     "iCal",
     "iCalendar",
     "QGIS",
-    "ArcGIS Pro"
+    "ArcGIS Pro",
+    "Maximum",
+    "Minimum"
   ],
   "de": [
     "@context",
@@ -347,6 +351,9 @@
     "iCal",
     "iCalendar",
     "QGIS",
-    "ArcGIS Pro"
+    "ArcGIS Pro",
+    "Maximum",
+    "Median",
+    "Minimum"
   ]
 }

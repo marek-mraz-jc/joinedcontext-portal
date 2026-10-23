@@ -1224,7 +1224,12 @@
         "filled": "Filled",
         "empty": "Empty",
         "percentFilled": "Percent filled",
-        "percentEmpty": "Percent empty"
+        "percentEmpty": "Percent empty",
+        "min": "Minimum",
+        "max": "Maximum",
+        "median": "Median",
+        "earliest": "Earliest",
+        "latest": "Latest"
       },
       "aggregateFailed": "The endpoint did not answer the count; try again or narrow the filter.",
       "aggregateFailedShort": "Not counted",
@@ -1259,7 +1264,25 @@
       "setRefused": "{n, plural, one {# row was} other {# rows were}} not changed",
       "setDone": "All {n} rows were changed.",
       "setIncomplete": "Choose a field, a value it takes and why.",
-      "setApply": "Set in {n} rows"
+      "setApply": "Set in {n} rows",
+      "sort": "Sort",
+      "sortLegend": "Sort rows by",
+      "sortHint": "Up to 3 keys; each orders the rows the one before leaves equal, over the whole filtered set. Example: City A to Z, then Name A to Z.",
+      "sortEmpty": "No order set: the rows come as the endpoint keeps them. Add a key to sort, or click a column header.",
+      "sortAdd": "Add a sort key",
+      "sortFull": "A view sorts by at most {n} keys.",
+      "sortDirectionOf": "Direction of sort key {n}",
+      "sortAsc": "Ascending (A to Z, 1 to 9)",
+      "sortDesc": "Descending (Z to A, 9 to 1)",
+      "groupLegend": "Group rows by",
+      "groupHint": "Up to 3 fields, outermost first; rows with the same value come together under a header with their count. Example: Status, then City.",
+      "groupEmpty": "No grouping: add a field to put rows of the same value together.",
+      "groupAdd": "Add a group field",
+      "groupFull": "A view groups by at most {n} fields.",
+      "keyFieldOf": "{legend}, field {n}",
+      "keyRemoveOf": "Remove {field}",
+      "keyNoField": "Every field of this type is already in the list.",
+      "groupCount": "{count, plural, one {# row} other {# rows}}"
     },
     "temporal": {
       "title": "How history rows are created",
@@ -5328,7 +5351,8 @@
       "filterEnum": "Choose a test; with any of, pick one or more allowed values:",
       "filterOther": "Choose a test, e.g. has a value, or empty.",
       "editAsText": "Write the NGSI-LD query yourself, e.g. pm10>40;name~=\"Espoo\"."
-    }
+    },
+    "groupNoValue": "(no value)"
   },
   "explore": {
     "title": "Explore data",
