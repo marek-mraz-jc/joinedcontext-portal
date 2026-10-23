@@ -469,9 +469,10 @@ export function EmbedSnippet({ publicId, title, language }: { publicId: string; 
     return <p>{t("knowledge.embed.noDomain")}</p>;
   }
   const launcher = launcherSnippet(branding.domain, publicId, language);
-  // A blank page holding the launcher alone: scripts run, but the frame has no origin of its own,
-  // so nothing in it reaches the Portal's cookies or pages.
-  const preview = `<!doctype html><html lang="${language ?? "sk"}"><head><meta charset="utf-8"></head><body>${launcher}</body></html>`;
+  // A blank page holding the launcher alone, served by the Portal under its own policy: a
+  // srcdoc frame would inherit the Portal's `script-src 'self'` and refuse the launcher (T-5328).
+  // Scripts run, but the frame has no origin of its own, so nothing in it reaches the Portal.
+  const preview = `/assistant-preview/${encodeURIComponent(publicId)}${language ? `?lang=${encodeURIComponent(language)}` : ""}`;
   return (
     <div className="space-y-4">
       <p>{t("knowledge.embed.launcherIntro")}</p>
@@ -480,7 +481,7 @@ export function EmbedSnippet({ publicId, title, language }: { publicId: string; 
         title={t("knowledge.embed.preview")}
         sandbox="allow-scripts"
         referrerPolicy="no-referrer"
-        srcDoc={preview}
+        src={preview}
         className="h-80 w-full rounded border border-border bg-surface"
       />
       <p className="text-caption text-fg-muted">{t("knowledge.embed.previewHint")}</p>
