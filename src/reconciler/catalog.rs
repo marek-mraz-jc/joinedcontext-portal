@@ -38,6 +38,8 @@ const BATCH: usize = 100;
 /// Datasets per page of CKAN's `package_search`, its own ceiling, and the pages read at most.
 const CKAN_PAGE: usize = 1000;
 const CKAN_PAGES: usize = 20;
+/// How long one page of CKAN's `package_search` may take.
+pub const CKAN_TIMEOUT: Duration = Duration::from_secs(60);
 /// How long the memory of the last write is trusted before the catalogue is listed again.
 const RELIST: Duration = Duration::from_secs(3600);
 
@@ -58,6 +60,9 @@ pub struct Run {
 /// The catalogue wave of one Portal.
 pub struct CatalogSync {
     watch: Arc<Watch>,
+    /// The client of the CKAN reads: a `CkanInstance` names its URL, so the read is an outside
+    /// one, guarded as the catalogue page's is (T-5335).
+    ckan: reqwest::Client,
     /// Per catalogue Endpoint slug, what the last run left in it, by id, and when it was last
     /// listed.
     written: Mutex<HashMap<String, Memory>>,
@@ -67,10 +72,12 @@ pub struct CatalogSync {
 }
 
 impl CatalogSync {
-    /// A wave writing through the Portal's own client on the gateway `watch` speaks to.
-    pub fn new(watch: Arc<Watch>) -> Self {
+    /// A wave writing through the Portal's own client on the gateway `watch` speaks to, reading
+    /// CKAN through `ckan`: [`crate::api::catalogue::ckan_client`] in the Portal.
+    pub fn new(watch: Arc<Watch>, ckan: reqwest::Client) -> Self {
         Self {
             watch,
+            ckan,
             written: Mutex::new(HashMap::new()),
             counts: Mutex::new(HashMap::new()),
         }
@@ -106,7 +113,7 @@ impl CatalogSync {
             wanted = entities(nodes, &places, None);
         }
         for site in &sites {
-            let packages = packages(http, site).await?;
+            let packages = packages(&self.ckan, site).await?;
             wanted.extend(entities(
                 nodes,
                 &places,
@@ -415,12 +422,20 @@ pub fn ckan_sites(repo: &Repository) -> std::collections::BTreeSet<String> {
         .collect()
 }
 
-/// Every public dataset of the CKAN at `site`, read anonymously a page at a time.
+/// Every public dataset of the CKAN at `site`, read anonymously a page at a time through `http`,
+/// a [`crate::api::catalogue::ckan_client`]; each page up to its cap.
 async fn packages(http: &reqwest::Client, site: &str) -> Result<Vec<Package>, String> {
+    // An address written into the URL is never resolved, so the resolver never judges it.
+    if let Some(ip) = crate::sync::guard::internal_host(site) {
+        return Err(format!(
+            "CKAN at {site} names the internal address {ip}; a catalogue is read on the public \
+             internet only"
+        ));
+    }
     let mut out = Vec::new();
     let mut start = 0usize;
     for _ in 0..CKAN_PAGES {
-        let page: Value = http
+        let response = http
             .get(format!("{site}/api/3/action/package_search"))
             .query(&[
                 ("rows", CKAN_PAGE.to_string()),
@@ -431,8 +446,8 @@ async fn packages(http: &reqwest::Client, site: &str) -> Result<Vec<Package>, St
             .send()
             .await
             .and_then(reqwest::Response::error_for_status)
-            .map_err(|err| format!("CKAN at {site} did not list its datasets: {err}"))?
-            .json()
+            .map_err(|err| format!("CKAN at {site} did not list its datasets: {err}"))?;
+        let page: Value = crate::capped::json(response, crate::api::catalogue::MAX_CKAN_ANSWER)
             .await
             .map_err(|err| format!("CKAN at {site} did not answer JSON: {err}"))?;
         let (results, count) = ckan_page(&page)

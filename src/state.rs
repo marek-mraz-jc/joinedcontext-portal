@@ -978,9 +978,13 @@ impl AppState {
                     store: Arc::clone(&self.quality),
                 }));
                 // The NGSI-LD catalogue writes through the same client (T-4500).
-                syncer = syncer.with_catalog(Arc::new(
-                    crate::reconciler::catalog::CatalogSync::new(Arc::clone(&watch)),
-                ));
+                syncer =
+                    syncer.with_catalog(Arc::new(crate::reconciler::catalog::CatalogSync::new(
+                        Arc::clone(&watch),
+                        crate::api::catalogue::ckan_client(
+                            crate::reconciler::catalog::CKAN_TIMEOUT,
+                        ),
+                    )));
                 syncer = syncer.with_drift(watch, Arc::clone(&self.drift));
             }
             _ => tracing::info!(
