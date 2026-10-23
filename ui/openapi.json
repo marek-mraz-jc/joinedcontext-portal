@@ -15434,7 +15434,7 @@
             }
           },
           "409": {
-            "description": "The subject slot is ingested as keyedHash and the Portal does not hold the space's key yet",
+            "description": "The subject slot is ingested as keyedHash and the Portal holds no key for the space (spec.personalData.keyRef)",
             "content": {
               "application/json": {
                 "schema": {
@@ -16262,7 +16262,7 @@
             }
           },
           "409": {
-            "description": "The subject slot is ingested as keyedHash and the Portal does not hold the space's key yet",
+            "description": "The subject slot is ingested as keyedHash and the Portal holds no key for the space (spec.personalData.keyRef)",
             "content": {
               "application/json": {
                 "schema": {

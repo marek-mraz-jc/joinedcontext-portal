@@ -78,9 +78,6 @@ async fn subject_classes(
             "the model '{model}' names no data subject: a class needs the annotation dataSubjectRef (Architecture/11 §9)"
         )));
     }
-    if let Some(why) = erasure::hashed_refusal(&classes) {
-        return Err(ApiError::Conflict(why));
-    }
     Ok(classes)
 }
 
@@ -108,6 +105,12 @@ async fn named(
     classes: &[SubjectClass],
     subject: &str,
 ) -> Result<(String, Vec<(SubjectClass, Vec<Value>)>), ApiError> {
+    let queries = erasure::subject_queries(
+        classes,
+        subject,
+        state.personal_keys.of(project, space).as_ref(),
+    )
+    .map_err(ApiError::Conflict)?;
     let watch = state.drift_watch.as_ref().ok_or_else(no_surface)?;
     let unavailable = |reason: String| {
         tracing::warn!(%reason, "a space was not read for a data subject");
@@ -116,8 +119,7 @@ async fn named(
     let token = watch.scan_token().await.map_err(unavailable)?;
     let segment = crate::spaces::segment(&state.mirror, project, space);
     let mut found = Vec::new();
-    for class in classes {
-        let q = erasure::subject_query(&class.slot, subject);
+    for (class, q) in classes.iter().zip(queries) {
         let entities = watch
             .named(&token, &segment, &class.class, &q)
             .await
@@ -186,7 +188,7 @@ fn subject_key(state: &AppState) -> Result<&str, ApiError> {
         (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
         (status = 403, description = "The caller reads the space but does not own it", body = crate::error::ProblemDetails),
         (status = 404, description = "No such space the caller may read", body = crate::error::ProblemDetails),
-        (status = 409, description = "The subject slot is ingested as keyedHash and the Portal does not hold the space's key yet", body = crate::error::ProblemDetails),
+        (status = 409, description = "The subject slot is ingested as keyedHash and the Portal holds no key for the space (spec.personalData.keyRef)", body = crate::error::ProblemDetails),
         (status = 503, description = "The space or the key is not available", body = crate::error::ProblemDetails),
     )
 )]
@@ -257,7 +259,7 @@ pub(crate) async fn export_subject(
         (status = 401, description = "Not signed in", body = crate::error::ProblemDetails),
         (status = 403, description = "The caller reads the space but does not own it", body = crate::error::ProblemDetails),
         (status = 404, description = "No such space the caller may read", body = crate::error::ProblemDetails),
-        (status = 409, description = "The subject slot is ingested as keyedHash and the Portal does not hold the space's key yet", body = crate::error::ProblemDetails),
+        (status = 409, description = "The subject slot is ingested as keyedHash and the Portal holds no key for the space (spec.personalData.keyRef)", body = crate::error::ProblemDetails),
         (status = 503, description = "No database, space surface or key", body = crate::error::ProblemDetails),
     )
 )]

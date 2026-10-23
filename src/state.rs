@@ -74,6 +74,9 @@ pub struct AppState {
     /// What authorises a run through the sync webhook route, by source (MF-44). Always present;
     /// empty until the reconciler has resolved a pass, so the door is shut before it is opened.
     pub webhook_secrets: Arc<crate::sync::webhook_secrets::Accepted>,
+    /// Each space's personal-data key as the last sync resolved it (DM-121): what a data
+    /// subject is hashed with to find a `keyedHash` subject slot. Empty until a sync ran.
+    pub personal_keys: Arc<crate::personal_keys::Keys>,
     /// The compiled model of every space that names one: what the reconciler renders the
     /// validation stage from and the rejected route names a rule by (PL-60, PL-61).
     pub model_schemas: Arc<crate::pipeline_validation::ModelSchemas>,
@@ -206,6 +209,7 @@ impl AppState {
             activity,
             activity_events,
             webhook_secrets: Arc::new(crate::sync::webhook_secrets::Accepted::new()),
+            personal_keys: Arc::default(),
             drift: Arc::new(crate::reconciler::drift::Store::default()),
             quality: Arc::new(crate::quality::Store::default()),
             quality_checks,
@@ -381,6 +385,10 @@ impl AppState {
             let client = Arc::new(client);
             let mut syncer = Syncer::new(Arc::clone(&client), Arc::clone(&state.mirror))
                 .with_webhook_secrets(Arc::clone(&state.webhook_secrets))
+                .with_personal_keys(
+                    Arc::clone(&state.personal_keys),
+                    state.config.gateway_namespace.clone(),
+                )
                 .with_activity(state.activity.clone())
                 .with_pipeline_outcomes(
                     Arc::clone(&state.rejected),

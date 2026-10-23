@@ -49,6 +49,7 @@ pub mod mqtt_allowance;
 pub mod mqtt_capture;
 pub mod people;
 pub mod permissions;
+pub mod personal_keys;
 pub mod pipeline_expiry;
 pub mod pipeline_health;
 pub mod pipeline_history;
