@@ -472,6 +472,34 @@ fn geo_query(written: &str) -> Result<Value, String> {
     Ok(Value::Object(object))
 }
 
+/// Each Subscription's status from what its space answered (T-0931, CC-72).
+pub(super) fn record(fresh_mirror: &Mirror, outcomes: Vec<(String, String, SubscriptionOutcome)>) {
+    for (namespace, name, outcome) in outcomes {
+        let Some(mut envelope) = fresh_mirror.get(&namespace, "Subscription", &name) else {
+            continue;
+        };
+        if let Some(status) = envelope.status.as_mut() {
+            match &outcome {
+                SubscriptionOutcome::Written(notifications) => {
+                    status.phase = crate::resource::Phase::Live;
+                    status.conditions = Vec::new();
+                    status.notifications = notifications.clone();
+                }
+                SubscriptionOutcome::Error(reason) => {
+                    status.phase = crate::resource::Phase::Error;
+                    status.conditions = vec![super::streams::make_condition(
+                        "SubscriptionWritten",
+                        "False",
+                        "SpaceRefused",
+                        reason,
+                    )];
+                }
+            }
+        }
+        fresh_mirror.upsert(envelope);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

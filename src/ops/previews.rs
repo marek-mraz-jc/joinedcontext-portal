@@ -164,7 +164,7 @@ async fn render(state: &AppState, workspace: &Workspace) -> Result<Arc<Render>, 
     let staged = match state.mirror.repository_of(&workspace.project) {
         Some(repository) => assembled(state, workspace, &head, &repository).await?,
         None => {
-            let scratch = crate::reconciler::daemon::stage(gitea, &head)
+            let scratch = crate::reconciler::staging::stage(gitea, &head)
                 .await
                 .map_err(|err| ApiError::Unavailable(format!("the branch did not stage: {err}")))?;
             if let Ok(projects) = std::fs::read_dir(scratch.path().join("projects")) {
@@ -225,8 +225,8 @@ async fn assembled(
     workspace: &Workspace,
     head: &str,
     repository: &str,
-) -> Result<(Vec<crate::reconciler::daemon::Scratch>, std::path::PathBuf), ApiError> {
-    use crate::reconciler::daemon::{stage, stage_project, Scratch};
+) -> Result<(Vec<crate::reconciler::staging::Scratch>, std::path::PathBuf), ApiError> {
+    use crate::reconciler::staging::{stage, stage_project, Scratch};
     let unstaged = |err: crate::reconciler::SyncError| {
         ApiError::Unavailable(format!("the branch did not stage: {err}"))
     };
