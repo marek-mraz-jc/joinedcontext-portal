@@ -16,6 +16,7 @@ import { unitTitle } from "../sdk/units";
 import { useEntitySelection } from "../sdk/panel";
 import type { GridMapLabels } from "./GridMap";
 import { mapAttrOf } from "./mapRows";
+import { TILE_THRESHOLD, useTileTemplate } from "../geo/tiles";
 import type { DrawEngine, GeoLabels } from "../geo/GeoEditor";
 import type { GeometryType } from "../geo/validate";
 import { optionLabel } from "../enums";
@@ -768,6 +769,13 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const mapConfig = hookOptions.config.map;
   const mapAttr = mapConfig?.enabled ? mapAttrOf(rows, mapConfig.attr) : null;
   const mapPosition = mapConfig?.position ?? "right";
+  // Past a count the map also draws the whole type from the Endpoint's tiles (T-5195). A tile takes
+  // no query, so a narrowed answer stays on the page's shapes, and only `location` is tiled.
+  const tileTemplate = useTileTemplate(
+    hookOptions.source.tilesAt ?? null,
+    hookOptions.config.type,
+    mapAttr === "location" && !grid.narrowed && (grid.total ?? 0) > TILE_THRESHOLD,
+  );
   const activeRowId = rows[state.activeCell?.row ?? -1]?.id ?? null;
   const listedRow = detailId === null ? undefined : rows.find((row) => row.id === detailId);
   // A deep link to a row the page has not loaded: read by its id, through the same source and Policy.
@@ -1288,6 +1296,11 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
               // The shape and the row are one selection: clicking a shape moves the grid's active
               // cell to that row, which is what the keyboard and the screen reader follow.
               grid.setActive(index, state.activeCell?.col ?? 0);
+            } else if (selection.inShell) {
+              // A shape from a tile whose row is on no loaded page: its detail is read by the URN.
+              selection.select({ id, type: hookOptions.config.type });
+            } else {
+              setDetailId(id);
             }
           }}
           edits={state.edits}
@@ -1298,6 +1311,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           onArea={grid.setArea}
           boundsNow={mapBounds}
           labels={mapLabels}
+          tiles={tileTemplate ? { template: tileTemplate, layer: hookOptions.config.type } : null}
           basemap={basemap}
           engine={mapEngine}
           geoLabels={geoLabels}

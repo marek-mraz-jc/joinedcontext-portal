@@ -16,7 +16,7 @@ import React, { useId, useMemo, useState } from "react";
 import { GeoEditor } from "../geo/GeoEditor";
 import type { DrawEngine, GeoLabels } from "../geo/GeoEditor";
 import { GeoView } from "../geo/GeoView";
-import type { GeoFeature } from "../geo/GeoView";
+import type { GeoFeature, TileSource } from "../geo/GeoView";
 import type { Geometry, GeometryType } from "../geo/validate";
 import { areaQuery, ringOfBounds } from "./geoarea";
 import type { GeoArea, GeoQuery } from "./geoarea";
@@ -111,6 +111,8 @@ export interface GridMapProps {
   engine?: DrawEngine;
   geoLabels?: Partial<GeoLabels>;
   position?: "right" | "bottom";
+  /** Every entity of the type from the Endpoint's vector tiles, under the page's shapes (T-5195). */
+  tiles?: TileSource | null;
 }
 
 export function GridMap({
@@ -130,6 +132,7 @@ export function GridMap({
   engine,
   geoLabels,
   position = "right",
+  tiles,
 }: GridMapProps): React.JSX.Element {
   const labels = { ...DEFAULT_GRID_MAP_LABELS, ...labelsPartial };
   const [editing, setEditing] = useState(false);
@@ -241,6 +244,7 @@ export function GridMap({
           onSelect={onActivate}
           basemap={basemap}
           label={labels.panel}
+          tiles={tiles}
         />
       )}
 

@@ -5,10 +5,14 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import type { Row } from "../ngsi";
 import { columnKind, extent, format, pointOf } from "../ngsi";
 import { mapWorkerReady, NO_BASEMAP, styleFor } from "../sdk/map";
+import type { TileSource } from "../geo/GeoView";
+import { TILED_NOTE } from "../geo/GeoView";
+import { registerTileProtocol, tileUrl } from "../geo/tiles";
 
 export { NO_BASEMAP, styleFor };
 
 const SOURCE = "rows";
+const TILES = "tiles";
 
 const workerReady = mapWorkerReady();
 
@@ -60,6 +64,7 @@ export function MapView({
   selected,
   onSelect,
   basemap,
+  tiles,
 }: {
   rows: Row[];
   location: string;
@@ -69,6 +74,8 @@ export function MapView({
   selected: string | null;
   onSelect: (id: string) => void;
   basemap?: string;
+  /** Past the rows a source reads, every entity from the Endpoint's tiles, under the rows (T-5195). */
+  tiles?: TileSource | null;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
@@ -109,6 +116,10 @@ export function MapView({
         source: SOURCE,
         paint: { "circle-radius": 6, "circle-color": ["get", "color"], "circle-stroke-width": 1.5, "circle-stroke-color": "#ffffff" },
       });
+      instance.on("click", "tile-dots", (event) => {
+        const id = event.features?.[0]?.properties?.id;
+        if (typeof id === "string") select.current(id);
+      });
       instance.on("click", "dots", (event) => {
         const id = event.features?.[0]?.properties?.id;
         if (typeof id === "string") select.current(id);
@@ -122,6 +133,32 @@ export function MapView({
       map.current = null;
     };
   }, []);
+
+  // The tiles go under the rows, so a row keeps its colour and a tile's shape is told apart by its
+  // `id` tag, the entity's URN.
+  const template = tiles?.template;
+  const layer = tiles?.layer;
+  useEffect(() => {
+    const instance = map.current;
+    if (!ready || !instance || !template || !layer) return;
+    registerTileProtocol();
+    instance.addSource(TILES, { type: "vector", tiles: [tileUrl(template)], minzoom: 0, maxzoom: 16, promoteId: "id" });
+    instance.addLayer(
+      {
+        id: "tile-dots",
+        type: "circle",
+        source: TILES,
+        "source-layer": layer,
+        filter: ["match", ["geometry-type"], ["Point", "MultiPoint"], true, false],
+        paint: { "circle-radius": 5, "circle-color": accent, "circle-stroke-width": 1, "circle-stroke-color": "#ffffff" },
+      },
+      "dots",
+    );
+    return () => {
+      if (instance.getLayer?.("tile-dots")) instance.removeLayer("tile-dots");
+      if (instance.getSource?.(TILES)) instance.removeSource(TILES);
+    };
+  }, [ready, template, layer, accent]);
 
   const fitted = useRef(false);
   useEffect(() => {
@@ -141,7 +178,10 @@ export function MapView({
     <div className="map-wrap">
       <div className="map" ref={container} data-testid="map" role="application" aria-label="Map" />
       {!basemap && <span className="map-notice">{NO_BASEMAP}</span>}
-      <span className="map-count">{collection.features.length} on the map{chosen ? ` · ${chosen.properties.label}` : ""}</span>
+      <span className="map-count">
+        {tiles ? TILED_NOTE : `${collection.features.length} on the map`}
+        {chosen ? ` · ${chosen.properties.label}` : selected && tiles ? ` · ${selected}` : ""}
+      </span>
     </div>
   );
 }

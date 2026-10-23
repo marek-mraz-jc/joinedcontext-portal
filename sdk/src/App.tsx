@@ -3,13 +3,14 @@ import type { Cell, FilterState, RelationshipObject, Row } from "./ngsi";
 import { isRelationshipObject } from "./ngsi";
 import { applyFilters, columnKind, distinct, extent, format, loadSource, toRow } from "./ngsi";
 import type { Filter, Source, Spec, View } from "./spec";
-import { pagesOf, sourceOf } from "./spec";
+import { DEFAULT_LIMIT, MAX_LIMIT, pagesOf, sourceOf } from "./spec";
 import { download, toCsv, toGeoJson, toPdf, toPng } from "./artifact";
 import { Chart } from "./views/Chart";
 import { Detail } from "./views/Detail";
 import { Form } from "./views/Form";
 import { GridView } from "./views/GridView";
 import { MapView } from "./views/MapView";
+import { useTileTemplate } from "./geo/tiles";
 import { Stats } from "./views/Stats";
 import { Table } from "./views/Table";
 import type { Schema, WriteResult } from "./write";
@@ -192,6 +193,16 @@ function ViewCard({
   const cardRef = useRef<HTMLElement>(null);
   const source = sourceOf(spec, view);
   const units = unitsOf(schema?.[source.type]);
+  // A map whose source read its whole limit holds more than it drew: past that, and with nothing
+  // narrowing it (a q, a filter on screen, a preview's inlined rows), it also draws the Endpoint's
+  // tiles of the type (T-5195).
+  const limit = Math.min(source.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
+  const narrowed = Boolean(source.q) || filters.some((filter, index) => (filter.source ?? source.name) === source.name && filterState[index] !== undefined && filterState[index] !== "");
+  const tileTemplate = useTileTemplate(
+    `/api/endpoint/${encodeURIComponent(slug)}`,
+    source.type,
+    view.kind === "map" && (view.location ?? "location") === "location" && !inlineRows && !narrowed && rows.length >= limit,
+  );
   const body = (() => {
     switch (view.kind) {
       case "stats":
@@ -207,6 +218,7 @@ function ViewCard({
             selected={selected}
             onSelect={onSelect}
             basemap={basemap}
+            tiles={tileTemplate ? { template: tileTemplate, layer: source.type } : null}
           />
         );
       case "table":
