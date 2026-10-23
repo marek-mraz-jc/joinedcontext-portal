@@ -7546,7 +7546,10 @@
           "refusalSpike": "{profile} v {project}: {count} odmítnutých volání nástrojů za poslední hodinu, poslední {when}.",
           "spendShare": "Běh „{run}“ profilu {profile} spotřeboval {count} % svého limitu tokenů.",
           "offHoursWrite": "Zápisy mimo pracovní dobu (pondělí až pátek 06:00–18:00 UTC) běhu „{run}“ profilu {profile}: {count}, první {when}."
-        }
+        },
+        "alertMe": "Upozornit mě…",
+        "alertMeHint": "Dostanete oznámení do schránky, když má tento agent nával odmítnutí, blíží se limitu tokenů nebo zapisuje mimo pracovní dobu.",
+        "alertMeNone": "Neschvalujete změny v žádném projektu a běhy všech lidí vidí jen schvalovatel. Požádejte správce projektu o roli schvalovatele."
       }
     }
   },
@@ -9000,14 +9003,18 @@
     "lead": {
       "pipeline": "Vyberte, o čem vás u této pipeline upozornit.",
       "space": "Vyberte, o čem vás upozornit u každé pipeline, která zapisuje do tohoto prostoru.",
-      "type": "Vyberte, o čem vás upozornit u každé pipeline, která zapisuje tento typ do prostoru."
+      "type": "Vyberte, o čem vás upozornit u každé pipeline, která zapisuje tento typ do prostoru.",
+      "agent": "Vyberte, o čem vás máme informovat u běhů tohoto agenta v projektu, ve kterém schvalujete."
     },
     "events": "Upozornit, když",
     "event": {
       "failure": "selže",
       "stale": "její data zastarají",
       "zero": "nic nezapíše",
-      "invalid": "jeho data poruší pravidlo modelu, které den předtím neporušila"
+      "invalid": "jeho data poruší pravidlo modelu, které den předtím neporušila",
+      "refusalSpike": "má 5 nebo více odmítnutých volání nástrojů za hodinu",
+      "spendShare": "jeho běh spotřebuje 80 % nebo více limitu tokenů",
+      "offHoursWrite": "jeho běh zapisuje mimo pracovní dobu (pondělí až pátek 06:00–18:00 UTC)"
     },
     "delivery": "Jak",
     "portal": "V Portálu, hned",
@@ -9039,7 +9046,9 @@
       "recovered": "{pipeline} je v pořádku: už {event} neplatí",
       "digest": "Dnešní přehled, {pipeline}: {event}"
     },
-    "muteDay": "Ztlumit upozornění {pipeline} na den"
+    "muteDay": "Ztlumit upozornění {pipeline} na den",
+    "project": "Projekt",
+    "projectHelp": "Upozornění počítají běhy všech lidí v tomto projektu. Nabízíme jen projekty, ve kterých schvalujete, například helsinki."
   },
   "help": {
     "title": "Nápověda",

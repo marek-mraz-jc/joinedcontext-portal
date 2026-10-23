@@ -405,6 +405,7 @@ impl AppState {
                     )
                     .with_source_holds(Arc::clone(&state.source_ledger))
                     .with_run_health(Arc::clone(&state.pipeline_log))
+                    .with_agent_runs(Arc::clone(&state.agents))
                     .with_health_log(
                         Arc::clone(&state.health_log),
                         Arc::new(crate::health_probe::Probes::new(

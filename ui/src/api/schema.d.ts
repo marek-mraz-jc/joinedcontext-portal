@@ -39,7 +39,7 @@ export interface paths {
         get: operations["list_alerts"];
         /**
          * Subscribe To An Alert
-         * @description Subscribes the caller to a pipeline's, a space's or a type's failure, stale and zero-output alerts, or changes their subscription of the same target (API/01 §37). E-mail is refused while the Portal has no mail relay.
+         * @description Subscribes the caller to a pipeline's, a space's or a type's failure, stale and zero-output alerts, or to an agent profile's refusal spikes, token-cap share and off-hours writes (scope `agent`, approvers of the project only), or changes their subscription of the same target (API/01 §37). E-mail is refused while the Portal has no mail relay.
          */
         put: operations["subscribe"];
         post?: never;
@@ -4438,6 +4438,11 @@ export interface components {
             since?: string | null;
         };
         ActivityChoices: {
+            /**
+             * @description The projects in which this caller may subscribe to an agent's alerts (`PUT /alerts`,
+             *     scope `agent`): those they approve in, sorted (T-5301).
+             */
+            alertProjects: string[];
             /** @description The starters of the runs, sorted. */
             people: string[];
             /** @description The Context Spaces the runs read, sorted. */
@@ -4673,7 +4678,7 @@ export interface components {
         /** @enum {string} */
         AlertDelivery: "portal" | "digest";
         /** @enum {string} */
-        AlertEvent: "failure" | "stale" | "zero" | "invalid";
+        AlertEvent: "failure" | "stale" | "zero" | "invalid" | "refusalSpike" | "spendShare" | "offHoursWrite";
         /** @enum {string} */
         AlertKind: "refusalSpike" | "spendShare" | "offHoursWrite";
         /** @description How long a subscription stays muted, or `null` to unmute. */
@@ -4690,6 +4695,7 @@ export interface components {
             event: components["schemas"]["AlertEvent"];
             /** Format: int64 */
             id: number;
+            /** @description The pipeline, or the agent profile for `refusalSpike`, `spendShare` and `offHoursWrite`. */
             pipeline: string;
             project: string;
             read: boolean;
@@ -4705,7 +4711,7 @@ export interface components {
             unread: number;
         };
         /** @enum {string} */
-        AlertScope: "pipeline" | "space" | "type";
+        AlertScope: "pipeline" | "space" | "type" | "agent";
         /** @description One subscription as the API shows it. */
         AlertSubscription: {
             delivery: components["schemas"]["AlertDelivery"];
@@ -8942,7 +8948,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        /** @description The project, the scope (`pipeline`, `space` or `type`), its target, the events and the delivery */
+        /** @description The project, the scope (`pipeline`, `space`, `type` or `agent`), its target, the events and the delivery */
         requestBody: {
             content: {
                 /**
@@ -8988,7 +8994,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            /** @description An agent profile in a project the caller does not approve in */
             403: {
                 headers: {
                     [name: string]: unknown;

@@ -278,3 +278,103 @@ async fn a_notice_is_its_subscriber_s_and_goes_quiet_when_they_lose_read() {
     let after = body(&send(&state, person("jana"), "GET", NOTICES, None).await);
     assert!(after["items"].as_array().unwrap().is_empty(), "{after}");
 }
+
+/// Agent alerts as notices (T-5301): an approver of the project subscribes to an agent profile;
+/// a reader who is not one is refused naming the target, an unknown profile is not there; the
+/// refusal spike reaches the approver's inbox and goes quiet when they lose the approver role.
+#[tokio::test]
+async fn an_approver_hears_of_an_agent_s_refusal_spike_and_a_reader_may_not_subscribe() {
+    let state = world().await;
+    state.mirror.upsert(envelope(
+        "AgentProfile",
+        "analyst",
+        ORG_NAMESPACE,
+        json!({ "model": { "maxTokensPerRun": 1000 } }),
+    ));
+    state.mirror.upsert(envelope(
+        "Role",
+        "approver",
+        ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["Pipeline"], "verbs": ["read", "approve"] }] }),
+    ));
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "eeva-approver",
+        ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": "eeva@hel.fi" }], "role": "approver", "scope": { "project": "helsinki" } }),
+    ));
+    let new = |target: &str| json!({ "project": "helsinki", "scope": "agent", "target": target, "events": ["refusalSpike"], "delivery": "portal" });
+
+    let reader = send(&state, person("jana"), "PUT", ALERTS, Some(new("analyst"))).await;
+    assert_eq!(reader.status, StatusCode::FORBIDDEN, "{}", reader.text);
+    assert!(reader.text.contains("project:"), "{}", reader.text);
+    // Whether a profile exists is nothing a non-approver learns.
+    let probe = send(&state, person("jana"), "PUT", ALERTS, Some(new("nobody"))).await;
+    assert_eq!(probe.status, StatusCode::FORBIDDEN, "{}", probe.text);
+    let unknown = send(&state, person("eeva"), "PUT", ALERTS, Some(new("nobody"))).await;
+    assert_eq!(unknown.status, StatusCode::NOT_FOUND, "{}", unknown.text);
+    let wrong = send(
+        &state,
+        person("eeva"),
+        "PUT",
+        ALERTS,
+        Some(json!({ "project": "helsinki", "scope": "agent", "target": "analyst", "events": ["failure"], "delivery": "portal" })),
+    )
+    .await;
+    assert_eq!(wrong.status, StatusCode::BAD_REQUEST, "{}", wrong.text);
+    let made = send(&state, person("eeva"), "PUT", ALERTS, Some(new("analyst"))).await;
+    assert_eq!(made.status, StatusCode::OK, "{}", made.text);
+    assert_eq!(body(&made)["scope"], "agent");
+
+    let run: joinedcontext_portal::agents::run::AgentRun = serde_json::from_value(json!({
+        "id": "r1", "project": "helsinki", "appName": "air", "endpointName": "air",
+        "endpointSlug": "air", "endpoints": [], "profile": "analyst", "kind": "data",
+        "unattended": false, "appClass": "ui", "visibility": "project", "prompt": "p",
+        "promptDigest": "sha256:p", "dataNeeds": [], "allowsWrite": false, "branch": "b",
+        "pathPrefix": "p/", "status": "building", "ticketHash": "x", "files": {},
+        "steps": 0, "tokensUsed": 0, "createdBy": "jana@hel.fi", "origin": "person",
+        "starter": null, "createdAt": chrono::Utc::now().to_rfc3339(),
+        "expiresAt": "2099-01-01T00:00:00Z",
+    }))
+    .expect("a run");
+    state.agents.create_run(&run).await.expect("stored");
+    for _ in 0..5 {
+        state
+            .agents
+            .append_event(
+                "r1",
+                "tool",
+                json!({ "tool": "jc_resource_list", "status": "failed", "error": "no" }),
+            )
+            .await
+            .expect("an event");
+    }
+    Evaluator::new(
+        Arc::clone(&state.mirror),
+        Arc::clone(&state.quality),
+        Arc::clone(&state.alerts),
+    )
+    .with_agent_runs(Arc::clone(&state.agents))
+    .run(chrono::Utc::now())
+    .await
+    .expect("a run");
+
+    let notices = body(&send(&state, person("eeva"), "GET", NOTICES, None).await);
+    assert_eq!(notices["unread"], 1, "{notices}");
+    assert_eq!(notices["items"][0]["event"], "refusalSpike");
+    assert_eq!(notices["items"][0]["pipeline"], "analyst");
+    assert!(
+        body(&send(&state, person("jana"), "GET", NOTICES, None).await)["items"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+
+    state.mirror.remove(&ResourceKey {
+        namespace: ORG_NAMESPACE.into(),
+        kind: "RoleBinding".into(),
+        name: "eeva-approver".into(),
+    });
+    let after = body(&send(&state, person("eeva"), "GET", NOTICES, None).await);
+    assert!(after["items"].as_array().unwrap().is_empty(), "{after}");
+}

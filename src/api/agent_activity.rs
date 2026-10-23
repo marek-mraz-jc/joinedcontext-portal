@@ -19,10 +19,13 @@ use serde_json::Value;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::agents::run::{AgentRun, AgentRunEvent, AgentRunStatus};
+use crate::agents::store::{AgentStore, RunFilter, StoreError};
+use crate::alerts::{Event, Signal};
 use crate::auth::session::CurrentUser;
 use crate::error::ApiError;
 use crate::pipeline_outcomes::mask_text;
 use crate::state::AppState;
+use crate::store::Mirror;
 
 /// Refusals of one agent within an hour that make a spike.
 pub const REFUSAL_SPIKE: usize = 5;
@@ -81,6 +84,9 @@ pub struct ActivityChoices {
     pub people: Vec<String>,
     /// The Context Spaces the runs read, sorted.
     pub spaces: Vec<String>,
+    /// The projects in which this caller may subscribe to an agent's alerts (`PUT /alerts`,
+    /// scope `agent`): those they approve in, sorted (T-5301).
+    pub alert_projects: Vec<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -302,6 +308,7 @@ async fn visible(
     let identity = &user.0.identity;
     let mut seen = Vec::new();
     let (mut people, mut spaces) = (BTreeSet::new(), BTreeSet::new());
+    let mut alert_projects = Vec::new();
     let mut reads_any = false;
     for project in state.mirror.namespaces() {
         if filter.query.project.as_ref().is_some_and(|p| p != &project) {
@@ -312,6 +319,9 @@ async fn visible(
             continue;
         }
         reads_any = true;
+        if crate::api::changes::may_approve_anything(state, identity, &project).is_ok() {
+            alert_projects.push(project.clone());
+        }
         let proposes = effective
             .check("App", jc_core::kinds::Verb::Propose, None)
             .is_ok();
@@ -339,6 +349,7 @@ async fn visible(
     let choices = ActivityChoices {
         people: people.into_iter().collect(),
         spaces: spaces.into_iter().collect(),
+        alert_projects,
     };
     filter.check_choices(&choices)?;
     Ok((seen, choices))
@@ -368,7 +379,7 @@ async fn activity(
             row(s, &own)
         })
         .collect();
-    let alerts = alerts(&rows, &|profile| token_cap(state, profile), now);
+    let alerts = alerts(&rows, &|profile| token_cap(&state.mirror, profile), now);
     Ok(AgentActivity {
         choices,
         ..page(rows, filter, alerts)
@@ -405,9 +416,8 @@ fn page(rows: Vec<ActivityRun>, filter: &Filter<'_>, alerts: Vec<AgentAlert>) ->
     }
 }
 
-fn token_cap(state: &AppState, profile: &str) -> Option<u64> {
-    state
-        .mirror
+fn token_cap(mirror: &Mirror, profile: &str) -> Option<u64> {
+    mirror
         .get(crate::permissions::ORG_NAMESPACE, "AgentProfile", profile)
         .and_then(|p| p.spec.pointer("/model/maxTokensPerRun")?.as_u64())
 }
@@ -607,6 +617,80 @@ fn alert(kind: AlertKind, run: &ActivityRun, count: u64, at: &str) -> AgentAlert
         run_title: Some(run.title.clone()),
         count,
         at: at.to_owned(),
+    }
+}
+
+/// The alerts of the last hour as incident signals for the subscribers of each profile
+/// (T-5301): every person-started run of every project, as an approver sees them, a run counted
+/// while it is live or finished within the hour. One signal per project, profile and kind, the
+/// newest; its detail names the run and the count.
+pub async fn signals(
+    store: &AgentStore,
+    mirror: &Mirror,
+    now: DateTime<Utc>,
+) -> Result<Vec<Signal>, StoreError> {
+    let hour_ago = now - Duration::hours(1);
+    let filter = RunFilter {
+        origin: Some("person".into()),
+        ..RunFilter::default()
+    };
+    let mut seen = Vec::new();
+    for project in mirror.namespaces() {
+        for run in store
+            .list_runs_filtered(&project, &filter, SCANNED as i64)
+            .await?
+        {
+            let live = AgentRunStatus::parse(&run.status).is_some_and(|s| !s.is_terminal());
+            let recent = run
+                .finished_at
+                .as_deref()
+                .and_then(parse_time)
+                .is_some_and(|at| at >= hour_ago);
+            if live || recent {
+                seen.push(Seen {
+                    run,
+                    may_stop: false,
+                });
+            }
+        }
+    }
+    let ids: Vec<String> = seen.iter().map(|s| s.run.id.clone()).collect();
+    let mut events = store.events_of(&ids, &["tool", "usage"]).await?;
+    let rows: Vec<ActivityRun> = seen
+        .into_iter()
+        .map(|s| {
+            let own = events.remove(&s.run.id).unwrap_or_default();
+            row(s, &own)
+        })
+        .collect();
+    let mut found: Vec<Signal> = Vec::new();
+    for alert in alerts(&rows, &|profile| token_cap(mirror, profile), now) {
+        let event = match alert.kind {
+            AlertKind::RefusalSpike => Event::RefusalSpike,
+            AlertKind::SpendShare => Event::SpendShare,
+            AlertKind::OffHoursWrite => Event::OffHoursWrite,
+        };
+        let key = (alert.project.clone(), alert.profile.clone(), event);
+        if !found.iter().any(|signal| signal.key == key) {
+            found.push(Signal {
+                key,
+                detail: signal_detail(&alert),
+            });
+        }
+    }
+    Ok(found)
+}
+
+/// What a notice says beside its title: the count, and the run it names.
+fn signal_detail(alert: &AgentAlert) -> String {
+    let run = alert.run_title.as_deref().unwrap_or_default();
+    match alert.kind {
+        AlertKind::RefusalSpike => format!("{} refused tool calls in the last hour", alert.count),
+        AlertKind::SpendShare => format!("run “{run}” used {} % of its token cap", alert.count),
+        AlertKind::OffHoursWrite => format!(
+            "run “{run}” wrote {} time(s) outside office hours, the first at {}",
+            alert.count, alert.at
+        ),
     }
 }
 

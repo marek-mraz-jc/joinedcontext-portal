@@ -7546,7 +7546,10 @@
           "refusalSpike": "{profile} in {project}: {count} abgelehnte Werkzeugaufrufe in der letzten Stunde, zuletzt {when}.",
           "spendShare": "Lauf „{run}“ von {profile} hat {count} % seines Token-Limits verbraucht.",
           "offHoursWrite": "Schreibvorgänge außerhalb der Bürozeiten (Montag bis Freitag 06:00–18:00 UTC) durch Lauf „{run}“ von {profile}: {count}, zuerst {when}."
-        }
+        },
+        "alertMe": "Benachrichtigen…",
+        "alertMeHint": "Sie erhalten einen Hinweis im Posteingang, wenn dieser Agent gehäuft abgelehnt wird, sich seinem Token-Limit nähert oder außerhalb der Bürozeiten schreibt.",
+        "alertMeNone": "Sie genehmigen in keinem Projekt Änderungen, und nur wer genehmigt, sieht die Läufe aller Personen. Bitten Sie eine verantwortliche Person des Projekts um die Genehmigerrolle."
       }
     }
   },
@@ -9000,14 +9003,18 @@
     "lead": {
       "pipeline": "Wählen Sie, worüber Sie bei dieser Pipeline informiert werden.",
       "space": "Wählen Sie, worüber Sie bei jeder Pipeline informiert werden, die in diesen Raum schreibt.",
-      "type": "Wählen Sie, worüber Sie bei jeder Pipeline informiert werden, die diesen Typ in den Raum schreibt."
+      "type": "Wählen Sie, worüber Sie bei jeder Pipeline informiert werden, die diesen Typ in den Raum schreibt.",
+      "agent": "Wählen Sie, worüber Sie bei den Läufen dieses Agenten in einem Projekt informiert werden, in dem Sie genehmigen."
     },
     "events": "Melden, wenn",
     "event": {
       "failure": "sie fehlschlägt",
       "stale": "ihre Daten veralten",
       "zero": "sie nichts schreibt",
-      "invalid": "seine Daten eine Modellregel verletzen, die sie am Vortag nicht verletzten"
+      "invalid": "seine Daten eine Modellregel verletzen, die sie am Vortag nicht verletzten",
+      "refusalSpike": "ihm werden 5 oder mehr Werkzeugaufrufe innerhalb einer Stunde verweigert",
+      "spendShare": "ein Lauf verbraucht 80 % oder mehr seines Token-Limits",
+      "offHoursWrite": "ein Lauf schreibt außerhalb der Bürozeiten (Montag bis Freitag 06:00–18:00 UTC)"
     },
     "delivery": "Wie",
     "portal": "Im Portal, sofort",
@@ -9039,7 +9046,9 @@
       "recovered": "{pipeline} wieder in Ordnung: nicht mehr {event}",
       "digest": "Heutige Übersicht, {pipeline}: {event}"
     },
-    "muteDay": "Benachrichtigungen von {pipeline} für einen Tag stummschalten"
+    "muteDay": "Benachrichtigungen von {pipeline} für einen Tag stummschalten",
+    "project": "Projekt",
+    "projectHelp": "Die Hinweise zählen die Läufe aller Personen in diesem Projekt. Angeboten werden nur Projekte, in denen Sie genehmigen, zum Beispiel helsinki."
   },
   "help": {
     "title": "Hilfe",

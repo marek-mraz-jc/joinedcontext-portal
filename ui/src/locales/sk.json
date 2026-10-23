@@ -7546,7 +7546,10 @@
           "refusalSpike": "{profile} v {project}: {count} odmietnutých volaní nástrojov za poslednú hodinu, posledné {when}.",
           "spendShare": "Beh „{run}“ profilu {profile} minul {count} % svojho limitu tokenov.",
           "offHoursWrite": "Zápisy mimo pracovného času (pondelok až piatok 06:00–18:00 UTC) behu „{run}“ profilu {profile}: {count}, prvý {when}."
-        }
+        },
+        "alertMe": "Upozorniť ma…",
+        "alertMeHint": "Dostanete oznámenie do schránky, keď má tento agent nával odmietnutí, blíži sa k limitu tokenov alebo zapisuje mimo pracovného času.",
+        "alertMeNone": "Neschvaľujete zmeny v žiadnom projekte a behy všetkých ľudí vidí len schvaľovateľ. Požiadajte správcu projektu o rolu schvaľovateľa."
       }
     }
   },
@@ -9000,14 +9003,18 @@
     "lead": {
       "pipeline": "Vyberte, o čom vás pri tejto pipeline upozorniť.",
       "space": "Vyberte, o čom vás upozorniť pri každej pipeline, ktorá zapisuje do tohto priestoru.",
-      "type": "Vyberte, o čom vás upozorniť pri každej pipeline, ktorá zapisuje tento typ do priestoru."
+      "type": "Vyberte, o čom vás upozorniť pri každej pipeline, ktorá zapisuje tento typ do priestoru.",
+      "agent": "Vyberte, o čom vás máme informovať pri behoch tohto agenta v projekte, v ktorom schvaľujete."
     },
     "events": "Upozorniť, keď",
     "event": {
       "failure": "zlyhá",
       "stale": "jej údaje zastarajú",
       "zero": "nič nezapíše",
-      "invalid": "jeho dáta porušia pravidlo modelu, ktoré deň predtým neporušili"
+      "invalid": "jeho dáta porušia pravidlo modelu, ktoré deň predtým neporušili",
+      "refusalSpike": "má 5 alebo viac odmietnutých volaní nástrojov za hodinu",
+      "spendShare": "jeho beh spotrebuje 80 % alebo viac limitu tokenov",
+      "offHoursWrite": "jeho beh zapisuje mimo pracovného času (pondelok až piatok 06:00–18:00 UTC)"
     },
     "delivery": "Ako",
     "portal": "V Portáli, hneď",
@@ -9039,7 +9046,9 @@
       "recovered": "{pipeline} je v poriadku: už {event} neplatí",
       "digest": "Dnešný prehľad, {pipeline}: {event}"
     },
-    "muteDay": "Stlmiť upozornenia {pipeline} na deň"
+    "muteDay": "Stlmiť upozornenia {pipeline} na deň",
+    "project": "Projekt",
+    "projectHelp": "Upozornenia počítajú behy všetkých ľudí v tomto projekte. Ponúkame len projekty, v ktorých schvaľujete, napríklad helsinki."
   },
   "help": {
     "title": "Pomocník",
