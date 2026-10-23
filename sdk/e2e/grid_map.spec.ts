@@ -111,10 +111,10 @@ test.beforeAll(async () => {
   files["/"] = files["/index.html"];
   // Served from the package it belongs to: vite does not copy the worker into the bundle, and
   // without it no style ever finishes loading.
-  files["/assets/maplibre-gl-worker.mjs"] = readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), "..", "node_modules", "maplibre-gl", "dist", "maplibre-gl-worker.mjs"),
-    "utf8",
-  );
+  // maplibre 6's worker imports `maplibre-gl-shared.mjs`: without it the map never loads (T-5195).
+  for (const name of ["maplibre-gl-worker.mjs", "maplibre-gl-shared.mjs"]) {
+    files[`/assets/${name}`] = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "node_modules", "maplibre-gl", "dist", name), "utf8");
+  }
 });
 
 async function serve(page: import("@playwright/test").Page, problems: string[]): Promise<void> {
@@ -148,6 +148,7 @@ test("the panel mounts a real map beside the rows, with the page's shapes on it"
   // A real MapLibre canvas, with the two stations that have a geometry on it.
   await expect(page.locator(".jc-grid-map .maplibregl-map")).toBeVisible();
   await expect(page.getByText("2 shapes")).toBeVisible();
+  await page.waitForFunction(() => (window as unknown as { kitGeoMap?: { loaded(): boolean } }).kitGeoMap?.loaded() === true);
 
   // The drawn area, by a real click, and the page still answers afterwards (T-2276).
   await page.getByRole("button", { name: "Draw area" }).click();
