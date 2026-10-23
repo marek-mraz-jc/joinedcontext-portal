@@ -1873,7 +1873,7 @@
     },
     "src/pages/spaces/SpacePersonalData.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 4
       },
       "tests": [
         "space_personal_data.test.tsx"

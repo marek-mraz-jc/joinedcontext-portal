@@ -15322,12 +15322,92 @@
       }
     },
     "/api/v1/projects/{project}/spaces/{space}/erasures": {
+      "get": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "List Erasures",
+        "description": "The space's newest 50 erasures, newest first, proposals waiting for a second owner included (DM-142). For the space's owners.",
+        "operationId": "list_erasures",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{ \"items\": [erasure] }`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller reads the space but does not own it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No database",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "spaces"
         ],
-        "summary": "Erase a Data Subject",
-        "description": "Erases the data subject from the space: the personal Attributes (or the whole Entity of a personal class) of every Entity naming it, from the broker's current state and every version, the CKAN DataStore copy, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers at once with the erasure, which stays open until every store reports done; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.",
+        "summary": "Propose a Data Subject's Erasure",
+        "description": "Proposes erasing the data subject from the space: once another person with `approve` on the ContextSpace approves it (DM-142), the personal Attributes (or the whole Entity of a personal class) of every Entity naming it go from the broker's current state and every version, the CKAN DataStore copy, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers with the proposal, `proposed` and nothing erased, which expires after 7 days; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.",
         "operationId": "erase_subject",
         "parameters": [
           {
@@ -15384,7 +15464,7 @@
             }
           },
           "202": {
-            "description": "The erasure, its Location and its state per store",
+            "description": "The proposal, `proposed`, and its Location; nothing erased",
             "content": {
               "application/json": {
                 "schema": {
@@ -15526,6 +15606,264 @@
           },
           "404": {
             "description": "No such space or erasure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No database",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/erasures/{id}/approve": {
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Approve an Erasure",
+        "description": "A second person with `approve` on the ContextSpace approves an owner's proposal by typing the subject again; its keyed hash must be the proposal's. The space is searched again and the erasure runs, as `open` until every store reports done (DM-126, DM-142). The proposer, a bearer token and an expired or decided proposal are refused.",
+        "operationId": "approve_erasure",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The erasure's id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveRequest"
+              },
+              "example": {
+                "subject": "r-42"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The approved erasure and its state per store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A subject that cannot be searched for",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller does not own the space, proposed the erasure (`self-approval`) or sent a bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space or erasure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The erasure is no longer a proposal: approved, declined or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The subject typed is not the one the proposal names (`subject`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No database, space surface or key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/erasures/{id}/decline": {
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Decline an Erasure",
+        "description": "An owner of the space, the proposer included, declines a proposal with a reason; nothing is erased (DM-142). Audited with the reason.",
+        "operationId": "decline_erasure",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The erasure's id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclineRequest"
+              },
+              "example": {
+                "reason": "the person withdrew the request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The declined erasure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No reason",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller does not own the space or sent a bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space or erasure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The erasure is no longer a proposal",
             "content": {
               "application/json": {
                 "schema": {
@@ -21179,6 +21517,20 @@
           }
         }
       },
+      "ApproveRequest": {
+        "type": "object",
+        "description": "The approver's second look: the subject typed again, never kept.",
+        "required": [
+          "subject"
+        ],
+        "properties": {
+          "subject": {
+            "type": "string",
+            "description": "The value of the class's `dataSubjectRef` slot, as the proposal named it."
+          }
+        },
+        "additionalProperties": false
+      },
       "Artifacts": {
         "type": "object",
         "description": "What one Model Tools run rendered. Every artifact is optional: a version that does not\nrender one omits it, and a source that does not compile yet answers with `errors` filled in\nand the artifacts absent. A half-written model is the normal state of an editor.",
@@ -24000,6 +24352,19 @@
       "Decision": {
         "type": "object",
         "description": "Why an owner declines or revokes.",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclineRequest": {
+        "type": "object",
+        "description": "Why the proposal is declined, for the audit record.",
         "required": [
           "reason"
         ],

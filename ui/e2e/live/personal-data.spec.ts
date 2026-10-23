@@ -8,7 +8,7 @@
  *  2. The export answers the space's Entities naming the subject, `no-store`; a call without a
  *     reason is refused with `reason-required`, and a viewer is refused.
  *  3. A dry run counts what an erasure would take and erases nothing; the erasure answers `202`
- *     with the address of its state, which answers per store.
+ *     `proposed` with the address of its state, which answers per store, and is declined again.
  *
  * The space holds no Entity of the subject: what an erasure takes out of the broker, the CKAN
  * DataStore and the conversations is T-4668's own evidence on dev. Names are `t4668-…-HHMM`;
@@ -166,4 +166,13 @@ test("the owner of a space exports and erases a data subject with a reason, and 
   expect(erasure.entities).toBe(0);
   expect(Object.keys(erasure.stores ?? {})).toContain("broker");
   expect(JSON.stringify(erasure), "no subject value in the erasure").not.toContain(SUBJECT.subject);
+  // Four eyes (DM-142): the erasure is a proposal until another owner approves it; the proposer
+  // withdraws it here, so the run leaves nothing waiting.
+  expect((erasure as { state?: string }).state).toBe("proposed");
+  const own = await page.request.post(`${location}/approve`, { headers, data: { subject: SUBJECT.subject } });
+  expect(own.status(), await own.text()).toBe(403);
+  expect(await own.text()).toContain("self-approval");
+  const withdrawn = await page.request.post(`${location}/decline`, { headers, data: { reason: "live journey cleanup" } });
+  expect(withdrawn.status(), await withdrawn.text()).toBe(200);
+  expect(((await withdrawn.json()) as { state?: string }).state).toBe("declined");
 });
