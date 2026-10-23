@@ -116,31 +116,32 @@ export function percent(part: number, whole: number): string | null {
 }
 
 /**
- * One column's footer: the aggregation picked for it, counted by the endpoint (`count=true`) over
+ * The footer text of `value` from the whole count, the filled count and an ordered read; `null`
+ * while a count it needs is missing.
+ */
+export function footerText(value: Aggregation, whole: number | null, some: number | null, picked: string | null): string | null {
+  if (ORDERED_ANY.has(value)) return picked;
+  if (value === "count") return whole === null ? null : String(whole);
+  if (value === "filled") return some === null ? null : String(some);
+  if (whole === null || some === null) return null;
+  if (value === "empty") return String(whole - some);
+  if (value === "percentFilled") return percent(some, whole);
+  if (value === "percentEmpty") return percent(whole - some, whole);
+  return null;
+}
+
+/** Whether any query the footer runs failed or still waits; a disabled query counts for neither. */
+function footerState(runs: { on: boolean; isError: boolean; isPending: boolean }[]): { failed: boolean; waiting: boolean } {
+  const on = runs.filter((run) => run.on);
+  return { failed: on.some((run) => run.isError), waiting: on.some((run) => run.isPending) };
+}
+
+/**
+ * The counts and the ordered read behind one footer, counted by the endpoint (`count=true`) over
  * the view's whole query. A filled count is the query with the attribute present (`q=attr`), so a
  * reader's grant narrows it exactly as it narrows the rows.
  */
-export function FooterAggregate({
-  source,
-  type,
-  attr,
-  label,
-  q,
-  kind,
-  value,
-  onChange,
-}: {
-  source: EntitySource;
-  type: string;
-  attr: string;
-  label: string;
-  q?: string;
-  /** The column's filter kind (`number`, `date`, …): which ordered aggregations it offers. */
-  kind?: string;
-  value: Aggregation;
-  onChange: (next: Aggregation) => void;
-}): JSX.Element {
-  const { t } = useTranslation();
+function useFooterValue(source: EntitySource, type: string, attr: string, q: string | undefined, value: Aggregation) {
   const ordered = ORDERED_ANY.has(value);
   const needsTotal = value !== "none" && value !== "filled" && !ordered;
   const needsFilled = value !== "none" && value !== "count";
@@ -175,17 +176,40 @@ export function FooterAggregate({
       return orderedValue(page.rows.map((row) => row.cells[attr]), value);
     },
   });
-  const failed = (needsTotal && total.isError) || (needsFilled && filled.isError) || (read !== null && picked.isError);
-  const waiting = (needsTotal && total.isPending) || (needsFilled && filled.isPending) || (read !== null && picked.isPending);
-  const whole = total.data ?? null;
+  return {
+    ...footerState([
+      { on: needsTotal, isError: total.isError, isPending: total.isPending },
+      { on: needsFilled, isError: filled.isError, isPending: filled.isPending },
+      { on: read !== null, isError: picked.isError, isPending: picked.isPending },
+    ]),
+    shown: footerText(value, total.data ?? null, some, picked.data ?? null),
+  };
+}
+
+/** One column's footer: the aggregation picked for it and its value over the view's whole query. */
+export function FooterAggregate({
+  source,
+  type,
+  attr,
+  label,
+  q,
+  kind,
+  value,
+  onChange,
+}: {
+  source: EntitySource;
+  type: string;
+  attr: string;
+  label: string;
+  q?: string;
+  /** The column's filter kind (`number`, `date`, …): which ordered aggregations it offers. */
+  kind?: string;
+  value: Aggregation;
+  onChange: (next: Aggregation) => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const { failed, waiting, shown } = useFooterValue(source, type, attr, q, value);
   const offered = aggregationsFor(kind, source.orders === true);
-  let shown: string | null = null;
-  if (value === "count") shown = whole === null ? null : String(whole);
-  if (value === "filled") shown = some === null ? null : String(some);
-  if (value === "empty") shown = whole === null || some === null ? null : String(whole - some);
-  if (value === "percentFilled") shown = whole === null || some === null ? null : percent(some, whole);
-  if (value === "percentEmpty") shown = whole === null || some === null ? null : percent(whole - some, whole);
-  if (ordered) shown = picked.data ?? null;
   return (
     <div className="flex items-center gap-1">
       {/* Baserow's quiet "Summarize" (T-5093): a text button under the column, its choice the
