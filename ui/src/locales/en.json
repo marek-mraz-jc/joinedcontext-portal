@@ -1065,7 +1065,7 @@
           "entity": "{type} keeps history {kept}.",
           "type": "The type's rule keeps the history of {type}: {kept}.",
           "space": "The space default keeps the history of {type}: {kept}.",
-          "platform": "No rule of this space sets the history of {type}: the platform default keeps it {kept}.",
+          "platform": "No rule of this space names {type}, so it keeps no history, only its current values.",
           "none": "{type} keeps history {kept}."
         }
       }
@@ -1093,7 +1093,7 @@
     },
     "retention": {
       "title": "Retention",
-      "lead": "How long this space keeps each type's data. A type whose rule says nothing of history takes the row All other types, and without it the platform default; a shorter rule, or history turned off, deletes data for good.",
+      "lead": "How long this space keeps each type's data. Only a type a rule names keeps history: its own row, or the row All other types; a type no rule names keeps its current values only. A shorter rule, or history turned off, deletes data for good.",
       "noTypes": "The space's model names no types yet.",
       "caption": "How long each type's data is kept",
       "type": "Type",
@@ -1133,7 +1133,7 @@
       "foreverAsNow": "Keep forever (as now)",
       "anyType": "All other types",
       "spaceDefault": "Space default",
-      "platformDefault": "Platform default",
+      "platformDefault": "No rule: no history",
       "perType": "Set per type",
       "defaultAsNow": "{fallback} (as now)",
       "layer": {
@@ -1143,7 +1143,22 @@
         "platform": "platform default",
         "none": "until deleted"
       },
-      "entityWins": "An entity's own expiresAt removes it at that time, and its own historyRetention sets its history: both win over the rules below."
+      "entityWins": "An entity's own expiresAt removes it at that time, and its own historyRetention sets its history: both win over the rules below.",
+      "durationHint": "Each duration is a whole number of minutes, hours or days, from one minute to 3650 days: for example 30 days of a sensor's readings.",
+      "record": {
+        "column": "Rows of history",
+        "of": "Rows of history of {type}",
+        "heartbeatOf": "Row at least every, for {type}",
+        "noRows": "No rows: no history kept",
+        "asDefault": "{mode} (default)",
+        "hint": "Rows of history: Newer observations writes a row only when observedAt is newer than the last row, so a sensor sending the same reading again adds none; Every observation writes a row for each new observedAt, as a count per 15 minutes; Only changes writes a row when a value changes and at least once per chosen interval, as the free bikes of a station.",
+        "mode": {
+          "observed": "Newer observations",
+          "every": "Every observation",
+          "onChange": "Only changes",
+          "never": "No rows"
+        }
+      }
     },
     "upload": {
       "open": "Upload CSV",

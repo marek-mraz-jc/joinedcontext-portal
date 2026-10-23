@@ -59,7 +59,7 @@ pub fn plans(name: &str, spec: &PipelineSpec) -> Vec<Plan> {
         .collect()
 }
 
-/// The history the space keeps of `entity_type`: its rule's, the `*` rule's, or the platform's.
+/// The history the space keeps of `entity_type`: its rule's, the `*` rule's, or none (DM-132).
 pub fn type_history(rules: &[RetentionRule], entity_type: &str) -> String {
     let rule = |t: &str| rules.iter().find(|r| r.entity_type == t);
     rule(entity_type)
@@ -155,8 +155,9 @@ pub fn refusal(
         return Some((
             "historyOff",
             format!(
-                "space {space} keeps no history of {t} (history: off), so no row is kept; choose \
-                 keep the latest value only"
+                "space {space} keeps no history of {t} (its history is off, or no rule names it), so \
+                 no row is kept; choose keep the latest value only, or ask a steward to set {t}'s \
+                 history in the space's Retention tab"
             ),
         ));
     }
@@ -379,8 +380,13 @@ mod tests {
     fn the_fold_writes_what_the_broker_can_keep_and_leaves_the_rest_to_the_space() {
         let space = rules(json!([
             { "entityType": "Vehicle", "history": "P30D", "attributes": { "delay": { "record": "every" } } },
-            { "entityType": "Stop", "history": "off" }
+            { "entityType": "Stop", "history": "off" },
+            { "entityType": "*", "history": "P7D" }
         ]));
+        let bus = Plan {
+            entity_type: "Bus".to_owned(),
+            ..plan("bus", "speed", Keep::Every, None, None)
+        };
         let folded = fold(
             &space,
             &[
@@ -393,10 +399,7 @@ mod tests {
                     entity_type: "Stop".to_owned(),
                     ..plan("stops", "name", Keep::Every, None, None)
                 },
-                Plan {
-                    entity_type: "Bus".to_owned(),
-                    ..plan("bus", "speed", Keep::Every, None, None)
-                },
+                bus.clone(),
             ],
         );
         let vehicle = &folded[0];
@@ -419,16 +422,19 @@ mod tests {
             "two plans that disagree fold none"
         );
         assert!(folded[1].attributes.is_empty(), "nothing under history off");
-        assert_eq!(folded[2].entity_type, "Bus");
+        assert_eq!(folded[3].entity_type, "Bus");
         assert_eq!(
-            folded[2].history, None,
+            folded[3].history, None,
             "a new rule keeps the space's * history"
         );
         assert_eq!(
-            folded[2].attributes["speed"].record.as_deref(),
+            folded[3].attributes["speed"].record.as_deref(),
             Some("every")
         );
         assert_eq!(fold(&space, &[]), space);
+        // T-5058 (DM-132): without a * rule a type no rule names keeps no history, so nothing folds.
+        let unruled = &space[..2];
+        assert_eq!(fold(unruled, &[bus]), unruled.to_vec());
     }
 
     #[test]

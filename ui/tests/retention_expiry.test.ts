@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { effectiveCurrent, effectiveHistory, PLATFORM_HISTORY, rulesOf } from "../src/pages/spaces/retention";
+import { effectiveCurrent, effectiveHistory, rulesOf } from "../src/pages/spaces/retention";
 import { generate, migrated, plusSeconds, preview, problemsOf, readBack, type Attribute, type MapperState } from "../src/pages/pipelines/outputMapper";
 import { choiceOf } from "../src/pages/pipelines/lifetime";
 import { EXPIRES_AT, expiresOf, toEntities } from "../src/pages/spaces/importRows";
@@ -23,8 +23,8 @@ describe("the effective retention of a type", () => {
     expect(effectiveHistory("Vehicle", rules)).toEqual({ value: "PT8H", layer: "type" });
     expect(effectiveHistory("Sensor", rules)).toEqual({ value: "P90D", layer: "space" });
     expect(effectiveHistory("*", rules)).toEqual({ value: "P90D", layer: "space" });
-    expect(effectiveHistory("Sensor", rules.slice(0, 3))).toEqual({ value: PLATFORM_HISTORY, layer: "platform" });
-    expect(PLATFORM_HISTORY).toBe("P28D");
+    // T-5058: history is opt-in (ANTARES_TEMPORAL_RECORD=ruled): a type no rule names keeps none.
+    expect(effectiveHistory("Sensor", rules.slice(0, 3))).toEqual({ value: "off", layer: "platform" });
   });
 
   it("holds off and forever at the type, and ignores an entity value that is neither a duration nor off", () => {

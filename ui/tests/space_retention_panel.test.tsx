@@ -57,13 +57,18 @@ describe("the Retention section (DM-82, DM-85)", () => {
     const stop = within(table).getByRole("row", { name: /Stop/ });
     expect(within(stop).getByText(en.spaces.retention.forever)).toBeInTheDocument();
     expect(within(stop).getByText(en.spaces.retention.layer.none)).toBeInTheDocument();
-    expect(within(stop).getByText("28 days")).toBeInTheDocument();
+    // T-5058: history is opt-in, so a type no rule names keeps none and writes no rows.
+    expect(within(stop).getByText(en.spaces.retention.offShown)).toBeInTheDocument();
     expect(within(stop).getByText(en.spaces.retention.layer.platform)).toBeInTheDocument();
+    expect(within(stop).getByText(en.spaces.retention.record.noRows)).toBeInTheDocument();
+    // A type that keeps history writes a row per newer observation unless its rule says otherwise.
+    expect(within(vehicle).getByText(en.spaces.retention.record.mode.observed)).toBeInTheDocument();
     // DM-97: the space's default row comes last and sets history only.
     const rows = within(table).getAllByRole("row");
     const any = rows[rows.length - 1];
     expect(within(any).getByText(en.spaces.retention.anyType)).toBeInTheDocument();
-    expect(within(any).getByText(en.spaces.retention.perType)).toBeInTheDocument();
+    // Its current values and its rows of history are set per type.
+    expect(within(any).getAllByText(en.spaces.retention.perType)).toHaveLength(2);
     await expectNoAxeViolations(container);
   });
 
@@ -164,7 +169,7 @@ describe("the Retention section (DM-82, DM-85)", () => {
       en.spaces.retention.unit.days,
     ]);
     expect(options("History of Stop: unit")).toEqual([
-      "Platform default (as now)",
+      "No rule: no history (as now)",
       en.spaces.retention.off,
       en.spaces.retention.unit.minutes,
       en.spaces.retention.unit.hours,
@@ -243,5 +248,60 @@ describe("the Retention section (DM-82, DM-85)", () => {
         { entityType: "*", history: "P30D" },
       ],
     });
+  });
+
+  it("records a type's rows as chosen and keeps every other part of its rule (T-5058, DM-132)", async () => {
+    const stored = {
+      ...MANIFEST,
+      spec: {
+        retention: [
+          {
+            entityType: "Vehicle",
+            history: "P30D",
+            record: "onChange",
+            heartbeat: "PT1H",
+            attributes: { dateModified: { record: "never" } },
+          },
+          { entityType: "Stop", history: "P7D" },
+        ],
+      },
+    } as unknown as Manifest;
+    const sent: { method: string; path: string; body: unknown }[] = [];
+    const { container } = renderPage(<SpaceRetention project="helsinki" space="bikes" manifest={stored} types={["Stop", "Vehicle"]} />, {
+      path: "/projects/helsinki/spaces/bikes",
+      answer: async (url, request) => {
+        if (url.pathname === `${BASE}/retention/deleted`) return json(DELETED);
+        if (request.method === "PUT") {
+          sent.push({ method: request.method, path: url.pathname + url.search, body: await request.clone().json() });
+          return json({ ...stored, status: {} });
+        }
+        return undefined;
+      },
+    });
+    const table = await screen.findByRole("table", { name: en.spaces.retention.caption });
+    const vehicle = within(table).getByRole("row", { name: /Vehicle/ });
+    expect(within(vehicle).getByText(en.spaces.retention.record.mode.onChange)).toBeInTheDocument();
+    expect(within(vehicle).getByText(en.pipelines.history.heartbeat.PT1H)).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: en.spaces.retention.edit }));
+    // Each select names its type and points at the hint with an example.
+    const stop = screen.getByRole("combobox", { name: "Rows of history of Stop" });
+    expect(stop).toHaveValue("observed");
+    expect(stop).toHaveAccessibleDescription(en.spaces.retention.record.hint);
+    expect(screen.getByText(en.spaces.retention.durationHint)).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Row at least every, for Vehicle" })).toHaveValue("PT1H");
+    await user.selectOptions(stop, "onChange");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Row at least every, for Stop" }), "P1D");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Rows of history of Vehicle" }), "observed");
+    expect(screen.queryByRole("combobox", { name: "Row at least every, for Vehicle" })).toBeNull();
+    await expectNoAxeViolations(container);
+    await user.click(screen.getByRole("button", { name: en.spaces.retention.save }));
+    expect(await screen.findByText(en.spaces.retention.proposed)).toBeInTheDocument();
+    expect(sent.map((one) => one.path)).toEqual([`${BASE}?dryRun=All`, BASE]);
+    // Vehicle keeps its attribute recordings; onChange's heartbeat goes with observed.
+    expect((sent[1]?.body as { spec: { retention: unknown } }).spec.retention).toEqual([
+      { entityType: "Stop", history: "P7D", record: "onChange", heartbeat: "P1D" },
+      { entityType: "Vehicle", history: "P30D", attributes: { dateModified: { record: "never" } }, record: "observed" },
+    ]);
   });
 });

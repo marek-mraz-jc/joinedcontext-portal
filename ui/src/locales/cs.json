@@ -1065,7 +1065,7 @@
           "entity": "{type} uchovává historii {kept}.",
           "type": "Pravidlo typu uchovává historii {type}: {kept}.",
           "space": "Výchozí nastavení prostoru uchovává historii {type}: {kept}.",
-          "platform": "Žádné pravidlo tohoto prostoru neurčuje historii {type}: výchozí nastavení platformy ji uchovává {kept}.",
+          "platform": "Žádné pravidlo tohoto prostoru nejmenuje {type}, proto neuchovává historii, jen aktuální hodnoty.",
           "none": "{type} uchovává historii {kept}."
         }
       }
@@ -1093,7 +1093,7 @@
     },
     "retention": {
       "title": "Uchovávání",
-      "lead": "Jak dlouho tento prostor uchovává data každého typu. Typ, jehož pravidlo o historii nic neříká, přebírá řádek Všechny ostatní typy a bez něj výchozí hodnotu platformy; kratší pravidlo nebo vypnutá historie data trvale smaže.",
+      "lead": "Jak dlouho tento prostor uchovává data každého typu. Historii uchovává jen typ, který pravidlo jmenuje: vlastním řádkem nebo řádkem Všechny ostatní typy; typ bez pravidla uchovává jen aktuální hodnoty. Kratší pravidlo nebo vypnutá historie data natrvalo smaže.",
       "noTypes": "Model prostoru zatím nejmenuje žádné typy.",
       "caption": "Jak dlouho se uchovávají data každého typu",
       "type": "Typ",
@@ -1133,7 +1133,7 @@
       "foreverAsNow": "Uchovat navždy (jako teď)",
       "anyType": "Všechny ostatní typy",
       "spaceDefault": "Výchozí v prostoru",
-      "platformDefault": "Výchozí v platformě",
+      "platformDefault": "Bez pravidla: bez historie",
       "perType": "Nastavuje se pro každý typ",
       "defaultAsNow": "{fallback} (jako teď)",
       "layer": {
@@ -1143,7 +1143,22 @@
         "platform": "výchozí nastavení platformy",
         "none": "dokud je někdo nesmaže"
       },
-      "entityWins": "Vlastní expiresAt entity ji v tu dobu odstraní a její vlastní historyRetention určí její historii: obojí má přednost před pravidly níže."
+      "entityWins": "Vlastní expiresAt entity ji v tu dobu odstraní a její vlastní historyRetention určí její historii: obojí má přednost před pravidly níže.",
+      "durationHint": "Každé trvání je celý počet minut, hodin nebo dní, od jedné minuty po 3650 dní: například 30 dní měření senzoru.",
+      "record": {
+        "column": "Řádky historie",
+        "of": "Řádky historie typu {type}",
+        "heartbeatOf": "Řádek alespoň každých, pro {type}",
+        "noRows": "Žádné řádky: historie se neuchovává",
+        "asDefault": "{mode} (výchozí)",
+        "hint": "Řádky historie: Novější pozorování zapíší řádek jen tehdy, když je observedAt novější než poslední řádek, takže senzor, který pošle stejné měření znovu, nepřidá nic; Každé pozorování zapíše řádek pro každý nový observedAt, například počet za 15 minut; Jen změny zapíší řádek při změně hodnoty a alespoň jednou za zvolený interval, například volná kola stanice.",
+        "mode": {
+          "observed": "Novější pozorování",
+          "every": "Každé pozorování",
+          "onChange": "Jen změny",
+          "never": "Žádné řádky"
+        }
+      }
     },
     "upload": {
       "open": "Nahrát CSV",
