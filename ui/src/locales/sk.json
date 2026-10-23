@@ -1224,7 +1224,12 @@
         "filled": "Vyplnené",
         "empty": "Prázdne",
         "percentFilled": "Percento vyplnených",
-        "percentEmpty": "Percento prázdnych"
+        "percentEmpty": "Percento prázdnych",
+        "min": "Minimum",
+        "max": "Maximum",
+        "median": "Medián",
+        "earliest": "Najskorší",
+        "latest": "Najneskorší"
       },
       "aggregateFailed": "Endpoint nevrátil počet; skúste znova alebo zúžte filter.",
       "aggregateFailedShort": "Nespočítané",
@@ -1259,7 +1264,25 @@
       "setRefused": "{n, plural, one {# riadok sa nezmenil} few {# riadky sa nezmenili} other {# riadkov sa nezmenilo}}",
       "setDone": "Všetkých {n} riadkov sa zmenilo.",
       "setIncomplete": "Vyberte pole, hodnotu, ktorú berie, a dôvod.",
-      "setApply": "Nastaviť v {n} riadkoch"
+      "setApply": "Nastaviť v {n} riadkoch",
+      "sort": "Zoradiť",
+      "sortLegend": "Zoradiť riadky podľa",
+      "sortHint": "Najviac 3 kľúče; každý zoradí riadky, ktoré predchádzajúci nechá rovnaké, v celej filtrovanej množine. Príklad: Mesto od A po Z, potom Názov od A po Z.",
+      "sortEmpty": "Poradie nie je nastavené: riadky prichádzajú tak, ako ich drží endpoint. Pridajte kľúč alebo kliknite na hlavičku stĺpca.",
+      "sortAdd": "Pridať kľúč zoradenia",
+      "sortFull": "Pohľad zoraďuje najviac podľa {n} kľúčov.",
+      "sortDirectionOf": "Smer kľúča zoradenia {n}",
+      "sortAsc": "Vzostupne (A po Z, 1 po 9)",
+      "sortDesc": "Zostupne (Z po A, 9 po 1)",
+      "groupLegend": "Zoskupiť riadky podľa",
+      "groupHint": "Najviac 3 polia, vonkajšie prvé; riadky s rovnakou hodnotou sú spolu pod hlavičkou s ich počtom. Príklad: Stav, potom Mesto.",
+      "groupEmpty": "Bez zoskupenia: pridajte pole, aby boli riadky s rovnakou hodnotou spolu.",
+      "groupAdd": "Pridať pole zoskupenia",
+      "groupFull": "Pohľad zoskupuje najviac podľa {n} polí.",
+      "keyFieldOf": "{legend}, pole {n}",
+      "keyRemoveOf": "Odstrániť {field}",
+      "keyNoField": "Každé pole tohto typu už je v zozname.",
+      "groupCount": "{count, plural, one {# riadok} few {# riadky} other {# riadkov}}"
     },
     "temporal": {
       "title": "Ako vznikajú riadky histórie",
@@ -5329,7 +5352,8 @@
       "filterEnum": "Vyberte test; pri „ktorákoľvek z“ zvoľte jednu alebo viac povolených hodnôt:",
       "filterOther": "Vyberte test, napr. má hodnotu alebo prázdne.",
       "editAsText": "Napíšte dopyt NGSI-LD sami, napr. pm10>40;name~=\"Espoo\"."
-    }
+    },
+    "groupNoValue": "(bez hodnoty)"
   },
   "explore": {
     "title": "Prehliadať dáta",

@@ -1224,7 +1224,12 @@
         "filled": "Gefüllt",
         "empty": "Leer",
         "percentFilled": "Anteil gefüllt",
-        "percentEmpty": "Anteil leer"
+        "percentEmpty": "Anteil leer",
+        "min": "Minimum",
+        "max": "Maximum",
+        "median": "Median",
+        "earliest": "Frühester",
+        "latest": "Spätester"
       },
       "aggregateFailed": "Der Endpoint hat die Anzahl nicht geliefert; erneut versuchen oder den Filter enger fassen.",
       "aggregateFailedShort": "Nicht gezählt",
@@ -1259,7 +1264,25 @@
       "setRefused": "{n, plural, one {# Zeile wurde} other {# Zeilen wurden}} nicht geändert",
       "setDone": "Alle {n} Zeilen wurden geändert.",
       "setIncomplete": "Wählen Sie ein Feld, einen passenden Wert und eine Begründung.",
-      "setApply": "In {n} Zeilen setzen"
+      "setApply": "In {n} Zeilen setzen",
+      "sort": "Sortieren",
+      "sortLegend": "Zeilen sortieren nach",
+      "sortHint": "Bis zu 3 Schlüssel; jeder ordnet die Zeilen, die der vorige gleich lässt, über die ganze gefilterte Menge. Beispiel: Stadt A bis Z, dann Name A bis Z.",
+      "sortEmpty": "Keine Reihenfolge gesetzt: die Zeilen kommen, wie der Endpunkt sie hält. Fügen Sie einen Schlüssel hinzu oder klicken Sie auf einen Spaltenkopf.",
+      "sortAdd": "Sortierschlüssel hinzufügen",
+      "sortFull": "Eine Ansicht sortiert nach höchstens {n} Schlüsseln.",
+      "sortDirectionOf": "Richtung von Sortierschlüssel {n}",
+      "sortAsc": "Aufsteigend (A bis Z, 1 bis 9)",
+      "sortDesc": "Absteigend (Z bis A, 9 bis 1)",
+      "groupLegend": "Zeilen gruppieren nach",
+      "groupHint": "Bis zu 3 Felder, das äußere zuerst; Zeilen mit demselben Wert stehen zusammen unter einer Kopfzeile mit ihrer Anzahl. Beispiel: Status, dann Stadt.",
+      "groupEmpty": "Keine Gruppierung: fügen Sie ein Feld hinzu, damit Zeilen mit demselben Wert zusammenstehen.",
+      "groupAdd": "Gruppierfeld hinzufügen",
+      "groupFull": "Eine Ansicht gruppiert nach höchstens {n} Feldern.",
+      "keyFieldOf": "{legend}, Feld {n}",
+      "keyRemoveOf": "{field} entfernen",
+      "keyNoField": "Jedes Feld dieses Typs ist schon in der Liste.",
+      "groupCount": "{count, plural, one {# Zeile} other {# Zeilen}}"
     },
     "temporal": {
       "title": "Wie Verlaufszeilen entstehen",
@@ -5329,7 +5352,8 @@
       "filterEnum": "Einen Test wählen; bei „eines von“ einen oder mehrere erlaubte Werte wählen:",
       "filterOther": "Einen Test wählen, z. B. hat einen Wert oder leer.",
       "editAsText": "Die NGSI-LD-Abfrage selbst schreiben, z. B. pm10>40;name~=\"Espoo\"."
-    }
+    },
+    "groupNoValue": "(kein Wert)"
   },
   "explore": {
     "title": "Daten erkunden",
