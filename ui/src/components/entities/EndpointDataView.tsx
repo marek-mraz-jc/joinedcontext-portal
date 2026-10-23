@@ -748,9 +748,9 @@ export function EndpointDataView({
 
   return (
     <div {...windowProps(full, t("endpoints.data.title"))}>
-      {/* One level of controls (T-5415): type and page size side by side from 720 px, full width each
+      {/* One level of controls (T-5415): type and page size side by side from md (768 px), full width each
           on a phone, so both selects have one width and one left edge. */}
-      <div className="grid gap-3 min-[720px]:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2">
       <Field id={`endpoint-data-type-${slug}`} label={t("endpoints.data.type")} description={t("endpoints.data.typeHelp")}>
         <Select
           id={`endpoint-data-type-${slug}`}
