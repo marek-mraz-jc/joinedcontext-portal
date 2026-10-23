@@ -1,0 +1,315 @@
+//! A pipeline's identity and writes inside its stream (T-5340 split it out of `streams`): the
+//! project's pipeline client and its secret variable, the caches it owns, the in-flight bounds
+//! and the gateway outputs that write and record refusals. The client secret is only ever named
+//! as a `${JC_CLIENT_SECRET_<PROJECT>}` variable, never rendered.
+
+use jc_core::kinds::pipeline::{OutputMode, PipelineSpec};
+use serde_json::Value;
+
+use super::RenderError;
+
+/// The `ServiceAccount` every project's streams run as. Derived, not configured: a Pipeline
+/// names no account, and the seeds declare `pipelines` in each project that has one.
+/// ponytail: one account per project; a `spec.serviceAccountRef` on Pipeline is the upgrade.
+pub(crate) const PIPELINE_ACCOUNT: &str = "pipelines";
+
+/// The runner environment variable that holds one project's pipeline client secret:
+/// `banskabystrica` becomes `JC_CLIENT_SECRET_BANSKABYSTRICA`. A project name is a DNS-1123
+/// label, so the only character to translate is the hyphen.
+fn client_secret_var(project: &str) -> String {
+    let mut name = String::from("JC_CLIENT_SECRET_");
+    for ch in project.chars() {
+        name.push(if ch.is_ascii_alphanumeric() {
+            ch.to_ascii_uppercase()
+        } else {
+            '_'
+        });
+    }
+    name
+}
+
+/// The credential a stream presents, on the read of a private source and on every write: its
+/// own project's `pipelines` ServiceAccount (PF-46, AG-52).
+///
+/// One runner-wide `${JC_CLIENT_ID}` used to stand here, so every stream of every project
+/// presented Helsinki's client and the gateway refused each write to another project's endpoint
+/// with `token is not bound to this resource` — about 1900 refusals in 45 minutes on dev
+/// (T-2384). The client id is `jc_core`'s derived `{project}-{account}` and is an `azp`, not a
+/// secret, so it is written into the stream; the secret is never written, the stream names the
+/// environment variable the deployment resolves from that client's Secret.
+pub(crate) fn pipeline_oauth2(project: &str) -> serde_json::Value {
+    serde_json::json!({
+        "enabled": true,
+        "client_key": jc_core::kinds::service_account::keycloak_client_id(project, PIPELINE_ACCOUNT),
+        "client_secret": format!("${{{}}}", client_secret_var(project)),
+        "token_url": "${JC_TOKEN_URL}"
+    })
+}
+
+/// The client id a stream names to the runner's token sidecar: its pipeline, `{project}/{pipeline}`.
+pub fn sidecar_client(project: &str, pipeline: &str) -> String {
+    format!("{project}/{pipeline}")
+}
+
+/// Turns every credential of `project`'s `pipelines` account in a rendered stream into its own
+/// pipeline's (PL-19): the stream names `{project}/{pipeline}` to the runner's token sidecar at
+/// `${JC_PIPELINE_TOKEN_URL}`, which presents that pipeline's own Kubernetes token to Keycloak.
+/// No secret is named, not even a placeholder: the sidecar reads the client id from Basic and
+/// wants none, and a stream without the key has none for the runner's API to serve (T-4044).
+/// The sinks to the Portal present the project's client too (T-4038), so they become the
+/// pipeline's as well, which the internal listener admits (T-3193).
+pub fn with_pipeline_identity(stream: &mut Value, project: &str, pipeline: &str) {
+    let account = jc_core::kinds::service_account::keycloak_client_id(project, PIPELINE_ACCOUNT);
+    match stream {
+        Value::Object(map) => {
+            if let Some(oauth2) = map.get_mut("oauth2") {
+                if oauth2.get("client_key").and_then(Value::as_str) == Some(account.as_str()) {
+                    *oauth2 = serde_json::json!({
+                        "enabled": true,
+                        "client_key": sidecar_client(project, pipeline),
+                        "token_url": "${JC_PIPELINE_TOKEN_URL}"
+                    });
+                }
+            }
+            for value in map.values_mut() {
+                with_pipeline_identity(value, project, pipeline);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                with_pipeline_identity(item, project, pipeline);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Makes a rendered stream its project's own before the runner gets it: the credential
+/// ([`own_client`]) and every cache it names ([`own_caches`]).
+pub(crate) fn own_credential(value: &mut Value, project: &str) {
+    own_client(value, project);
+    own_caches(value, project);
+}
+
+/// Rewrites an author's `${JC_CLIENT_ID}` and `${JC_CLIENT_SECRET}` into the stream's own
+/// project's pipeline client (PL-16, T-3163).
+///
+/// The runner's environment holds every project's client secret, and its plain
+/// `JC_CLIENT_SECRET` is one project's, so a step that wrote it as it stands would present that
+/// project's client from any other. jc-core lets a step name only these two aliases of a
+/// credential; here they become the same client [`pipeline_oauth2`] renders for the project.
+fn own_client(value: &mut Value, project: &str) {
+    match value {
+        Value::String(text) if text.contains("${JC_CLIENT_") => {
+            *text = text
+                .replace(
+                    "${JC_CLIENT_ID}",
+                    &jc_core::kinds::service_account::keycloak_client_id(project, PIPELINE_ACCOUNT),
+                )
+                .replace(
+                    "${JC_CLIENT_SECRET}",
+                    &format!("${{{}}}", client_secret_var(project)),
+                );
+        }
+        Value::Array(items) => items.iter_mut().for_each(|item| own_client(item, project)),
+        Value::Object(map) => map.values_mut().for_each(|item| own_client(item, project)),
+        _ => {}
+    }
+}
+
+/// The processors that name a runner cache, and the field that holds its label.
+const CACHE_FIELDS: &[(&str, &str)] = &[
+    ("cache", "resource"),
+    ("cached", "cache"),
+    ("dedupe", "cache"),
+];
+
+/// The label one project's cache `name` has on the runner (PL-50, T-5337): `<project>__<name>`,
+/// the project with `-` as `_`, since a Bento label holds only `[a-z0-9_]`. jc-core refuses a
+/// step's cache name with `__` or an edge `_`, so no two projects' labels meet.
+pub(super) fn cache_label(project: &str, name: &str) -> String {
+    format!("{}__{name}", project.replace('-', "_"))
+}
+
+/// Puts every cache a stream names, the platform's own [`CHANGE_CACHE`] among them, under its
+/// project's prefix (PL-50, T-5337). One runner may carry every project's streams, and the
+/// caches its resources file declares are visible to each of them: under the bare name one
+/// project's step read and overwrote what another's cached.
+fn own_caches(value: &mut Value, project: &str) {
+    match value {
+        Value::Array(items) => items.iter_mut().for_each(|item| own_caches(item, project)),
+        Value::Object(map) => {
+            for (key, inner) in map.iter_mut() {
+                let field = CACHE_FIELDS
+                    .iter()
+                    .find(|(processor, _)| processor == key)
+                    .map(|(_, at)| *at);
+                if let Some(Value::String(name)) = field.and_then(|at| inner.get_mut(at)) {
+                    *name = cache_label(project, name);
+                }
+                own_caches(inner, project);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// How many writes of a polled stream may wait on the gateway at once (T-4069). A poll's page
+/// is up to 1000 entities per request, and Bento's default of 64 in flight let every stream hold
+/// 64 pages while a slow gateway timed them out and they were retried, which grew the runner
+/// until it was OOMKilled. A polled source loses nothing by waiting: its input stops reading
+/// while the slots are full, and the next poll reads the newer state. A resident source (MQTT,
+/// WebSocket) keeps [`WRITES_IN_FLIGHT`], since its messages arrive whether or not it reads them.
+/// ponytail: one bound for every polled stream; size it per stream when one needs more.
+pub(super) const POLLED_IN_FLIGHT: u64 = 4;
+
+/// How many writes of a resident stream wait on the gateway at once: the 64 Bento's
+/// `http_client` output kept in flight when the write was the output (T-4036). The write is a
+/// processor now (T-4056), so the pipeline's threads are its window: one thread is one write
+/// waiting, and at the default (`GOMAXPROCS`, one on dev's runner) the HSL feed would be
+/// written one position at a time again. Measured with Bento 1.22 and a stub gateway: 64 threads
+/// write about 150 a second at 0.42 s a write and keep up with 500 a second at 30 ms, as the
+/// output did.
+pub(super) const WRITES_IN_FLIGHT: u64 = 64;
+
+/// Sets the stream's write window: [`POLLED_IN_FLIGHT`] for a polled source,
+/// [`WRITES_IN_FLIGHT`] otherwise.
+pub(super) fn bound_in_flight(stream: &mut Value, polled: bool) {
+    let threads = if polled {
+        POLLED_IN_FLIGHT
+    } else {
+        WRITES_IN_FLIGHT
+    };
+    if let Some(pipeline) = stream.get_mut("pipeline").and_then(Value::as_object_mut) {
+        pipeline.insert("threads".to_owned(), threads.into());
+    }
+}
+
+/// Where every stream writes: the endpoint's batch upsert, as the pipeline's service account.
+/// No pipeline answers a caller: a client-facing API is the Context Gateway's (PL-06, EP-05).
+/// `replace` drops `options=update`, so the entity becomes exactly the record (PL-79); every
+/// other write merges the attributes it names into what is there.
+///
+/// An answer no retry can fix (a malformed entity, a batch too large) is not retried for good,
+/// which stalled the messages behind it and flooded the gateway's log (T-1465). A token, a
+/// policy or the gateway can recover, so 401, 403, 429 and 5xx stay retried.
+pub(super) fn upsert(project: &str, slug: &str, replace: bool) -> Value {
+    let options = if replace { "" } else { "?options=update" };
+    serde_json::json!({
+        "url": format!("${{JC_GATEWAY_URL}}/api/endpoint/{slug}/ngsi-ld/v1/entityOperations/upsert{options}"),
+        "verb": "POST",
+        "headers": {
+            "Content-Type": "application/json"
+        },
+        "oauth2": pipeline_oauth2(project),
+        "timeout": "30s",
+        "rate_limit": "pipeline_egress",
+        "drop_on": [400, 413, 422]
+    })
+}
+
+/// The upsert as an output, for a replay of rejected records, whose answer no run log waits on.
+pub(crate) fn gateway_output(project: &str, slug: &str) -> serde_json::Value {
+    serde_json::json!({ "http_client": upsert(project, slug, false) })
+}
+
+/// The label of a stream's write to its `at`-th target, `prefix` naming the route it belongs to.
+pub(super) fn write_label(prefix: &str, at: usize) -> String {
+    format!("{prefix}write_{at}")
+}
+
+/// Whether a component label is one of [`write_label`]'s: its latency is the stream's write
+/// latency (T-4056), the refusals switch beside it is not.
+pub(crate) fn is_write_label(label: &str) -> bool {
+    label.rsplit_once("write_").is_some_and(|(prefix, at)| {
+        (prefix.is_empty() || prefix.ends_with('_'))
+            && !at.is_empty()
+            && at.bytes().all(|b| b.is_ascii_digit())
+    })
+}
+
+/// The metadata key a write leaves the records its target refused in (T-4056), read by the
+/// outcome sink ([`crate::pipeline_log::REFUSED_PREFIX`]).
+fn refused_key(label: &str) -> String {
+    format!("{}{label}", crate::pipeline_log::REFUSED_PREFIX)
+}
+
+/// Whether the `at`-th output of `outputs()` replaces its entities (PL-79).
+pub(super) fn replaces(pipeline: &PipelineSpec, at: usize) -> bool {
+    pipeline
+        .outputs()
+        .get(at)
+        .is_some_and(|output| output.mode == Some(OutputMode::Replace))
+}
+
+/// The writes to `targets` (an Endpoint slug and whether its output replaces the entity, PL-79),
+/// one after the other, each a `branch` around the upsert (T-4056).
+///
+/// Bento's `http_client` output never shows its answer to anything, so a `207` whose items the
+/// endpoint refused was logged as sent. As a processor the write keeps the answer: the branch's
+/// `result_map` leaves each refused item's id and the gateway's words for it in metadata, and
+/// the outcome sink logs those records `failed` instead of `sent`. A write that still fails after
+/// its retries leaves the message errored, and [`written`] nacks it back to the input, which
+/// replays it (T-2983) as the output's failure did.
+pub(super) fn writes(
+    project: &str,
+    targets: &[(String, bool)],
+    prefix: &str,
+) -> Result<Vec<Value>, RenderError> {
+    if targets.is_empty() {
+        return Err(RenderError::Custom(
+            "a pipeline writes through at least one output".to_owned(),
+        ));
+    }
+    let mut processors: Vec<Value> = targets
+        .iter()
+        .enumerate()
+        .map(|(at, (slug, replace))| {
+            let label = write_label(prefix, at);
+            let key = refused_key(&label);
+            serde_json::json!({
+                "label": label,
+                "branch": {
+                    "processors": [{ "http": upsert(project, slug, *replace) }],
+                    "result_map": format!(
+                        "let errors = content().parse_json().catch({{}}).errors.or([])\n\
+                         meta {key} = $errors.map_each(e -> {{ \"id\": e.entityId.or(\"\"), \
+                         \"message\": e.error.detail.or(e.error.title).or(\"\") }}).format_json(no_indent: true)"
+                    ),
+                }
+            })
+        })
+        .collect();
+    processors.push(refusals(prefix));
+    Ok(processors)
+}
+
+/// A batch the gateway answered `400`, `413` or `422` is not retried (the upsert's `drop_on`):
+/// its error is cleared and every record of it is logged `failed` with the gateway's words, the
+/// problem's `detail` or `title` (T-4056). Any other failure stays an error for [`written`].
+pub(super) fn refusals(prefix: &str) -> Value {
+    serde_json::json!({
+        "label": format!("{prefix}write_refused"),
+        "switch": [{
+            "check": r#"errored() && error().re_match("unexpected response code \\((400|413|422)\\)")"#,
+            "processors": [{ "catch": [{ "mutation": format!(
+                "let problem = error().re_replace_all(\"(?s)^.*?Error: \", \"\").parse_json().catch({{}})\n\
+                 meta {} = $problem.detail.or($problem.title).or(error())",
+                crate::pipeline_log::FAILED_KEY
+            ) }] }],
+        }],
+    })
+}
+
+/// The stream's output once its writes ran (T-4056): a message whose write failed is nacked back
+/// to the input, which replays it to every target, each an idempotent upsert (PL-53, T-2983); a
+/// written one goes on to the outcome sink, which the runner's deployer puts after it.
+pub(super) fn written() -> Value {
+    serde_json::json!({ "switch": {
+        "retry_until_success": false,
+        "cases": [
+            { "check": "errored()", "output": { "reject": "${! error() }" } },
+            { "output": { "drop": {} } },
+        ],
+    }})
+}

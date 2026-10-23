@@ -398,6 +398,34 @@ type Declared = (String, String, String, String, RawManifest);
 /// A declared registration that cannot be written: `(project, name, reason)`.
 type Refused = (String, String, String);
 
+/// Each ContextSourceRegistration's status from what its hub's tenant answered (T-0345, PF-48).
+pub(super) fn record(fresh_mirror: &Mirror, outcomes: Vec<(String, String, RegistrationOutcome)>) {
+    for (namespace, name, outcome) in outcomes {
+        let Some(mut envelope) = fresh_mirror.get(&namespace, "ContextSourceRegistration", &name)
+        else {
+            continue;
+        };
+        if let Some(status) = envelope.status.as_mut() {
+            match &outcome {
+                RegistrationOutcome::Written => {
+                    status.phase = crate::resource::Phase::Live;
+                    status.conditions = Vec::new();
+                }
+                RegistrationOutcome::Error(reason) => {
+                    status.phase = crate::resource::Phase::Error;
+                    status.conditions = vec![super::streams::make_condition(
+                        "RegistrationWritten",
+                        "False",
+                        "BrokerRefused",
+                        reason,
+                    )];
+                }
+            }
+        }
+        fresh_mirror.upsert(envelope);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

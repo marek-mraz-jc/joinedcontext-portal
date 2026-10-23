@@ -29,7 +29,8 @@ use serde_json::Value;
 use super::proposal::{self, Proposal};
 use super::state::{States, Stored};
 use crate::git::{GiteaClient, PullRequest};
-use crate::reconciler::daemon::{stage, Scratch, SyncError};
+use crate::reconciler::daemon::SyncError;
+use crate::reconciler::staging::{stage, Scratch};
 
 /// How often the loop looks at the repository.
 ///

@@ -25,7 +25,8 @@ use jcctl::loader::{RawManifest, Repository};
 
 use super::proposal::{self, Proposal};
 use crate::git::{GitError, GiteaClient};
-use crate::reconciler::daemon::{stage, SyncError};
+use crate::reconciler::daemon::SyncError;
+use crate::reconciler::staging::stage;
 
 /// The kinds that carry a peer's schema surface (DM-48).
 const REFERENCE_KINDS: [&str; 2] = ["SharedSpaceReference", "ContextSourceRegistration"];
@@ -226,7 +227,7 @@ async fn mirror_one(
     // `write` is `jcctl`'s, so the manifest on the branch is serialised by the code that reads
     // it back. It writes into a directory of this run's own, never into the staged repository:
     // the loaded tree is what the flags above were computed against.
-    let out = crate::reconciler::daemon::Scratch::new("mirror").map_err(RunError::Repository)?;
+    let out = crate::reconciler::staging::Scratch::new("mirror").map_err(RunError::Repository)?;
     foreign_models::write(out.path(), &plan)?;
 
     let mut files = BTreeMap::new();
