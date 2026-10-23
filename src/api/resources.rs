@@ -93,10 +93,13 @@ pub async fn list(
         ))
     };
     let kind_info = by_plural(&plural).ok_or_else(not_found)?;
-    if !crate::permissions::for_request(&state, &user.0.identity, &project).may_read(kind_info.kind)
-    {
+    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
+    if !effective.may_read_some(kind_info.kind) {
         return Err(not_found());
     }
+    // A grant narrowed to one Organization's own settings reads its own manifests alone
+    // (ADR-N-058 section 2.4).
+    let item_by_item = !effective.may_read(kind_info.kind);
 
     let limit = match query.limit {
         Some(0) => return Err(ApiError::BadRequest("limit must be greater than 0".into())),
@@ -126,7 +129,7 @@ pub async fn list(
         continue_token: query.continue_token,
     };
 
-    let page = match (query.workspace.as_deref(), query.revision.as_deref()) {
+    let mut page = match (query.workspace.as_deref(), query.revision.as_deref()) {
         (Some(_), Some(_)) => return Err(both()),
         (Some(name), None) => {
             crate::ops::workspaces::mirror_of(&state, &user.0.identity, name, &project)
@@ -138,6 +141,12 @@ pub async fn list(
             .list(&project, kind_info.kind, &opts),
         (None, None) => state.mirror.list(&project, kind_info.kind, &opts),
     };
+    if item_by_item {
+        page.items.retain(|env| {
+            serde_json::to_value(env)
+                .is_ok_and(|manifest| effective.may_read_manifest(kind_info.kind, &manifest))
+        });
+    }
 
     let remaining_item_count = if page.continue_token.is_some() {
         Some(page.remaining)
@@ -191,15 +200,15 @@ pub async fn get_resource(
     };
     let kind_info = by_plural(&plural).ok_or_else(not_found)?;
     // An App's default group is read by whoever may read the App (AP-119).
-    if !crate::permissions::for_request(&state, &user.0.identity, &project).may_read(kind_info.kind)
-        && !crate::groups::may_read_as_app_group(
-            &state,
-            &user.0.identity,
-            &project,
-            kind_info.kind,
-            &name,
-        )
-    {
+    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
+    let app_group = crate::groups::may_read_as_app_group(
+        &state,
+        &user.0.identity,
+        &project,
+        kind_info.kind,
+        &name,
+    );
+    if !effective.may_read_some(kind_info.kind) && !app_group {
         return Err(not_found());
     }
     let envelope = match (query.workspace.as_deref(), query.revision.as_deref()) {
@@ -217,6 +226,15 @@ pub async fn get_resource(
         (None, None) => state.mirror.get(&project, kind_info.kind, &name),
     }
     .ok_or_else(not_found)?;
+    // A grant narrowed to one Organization's own settings reads its own manifests alone
+    // (ADR-N-058 section 2.4).
+    if !effective.may_read(kind_info.kind)
+        && !app_group
+        && !serde_json::to_value(&envelope)
+            .is_ok_and(|manifest| effective.may_read_manifest(kind_info.kind, &manifest))
+    {
+        return Err(not_found());
+    }
 
     Ok(Json(envelope))
 }

@@ -47,7 +47,7 @@ import { HealthLog } from "../health/HealthLog";
 import { Brokers } from "./Brokers";
 import { Costs } from "./Costs";
 import { McpServersPage } from "../mcp/McpServersPage";
-import { ORGANIZATION_GROUPS } from "./AdminNav";
+import { ORGANIZATION_GROUPS, OWN_ORGANIZATION_TABS } from "./AdminNav";
 
 /** Only an administrator opens Agents, so its code loads with the tab (bundle budget, T-4849). */
 const Agents = lazy(() => import("./Agents").then((module) => ({ default: module.Agents })));
@@ -308,8 +308,11 @@ function OrganizationKind({ plural, kind }: { plural: string; kind: string }): J
  */
 export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor: string }): JSX.Element {
   const { t } = useTranslation();
-  const { known, administers } = useAdministers();
-  if (!known || !administers) {
+  const { known, administers, own } = useAdministers();
+  // An administrator of one Organization other than the installation's opens its own sections
+  // alone (ADR-N-058 section 2.4); the server answers every other one 404 anyway.
+  const opens = administers || (own !== undefined && OWN_ORGANIZATION_TABS.includes(tab));
+  if (!known || !opens) {
     return (
       <div className="space-y-6">
         {/* The purpose line a person who cannot administer still reads (T-3852). */}

@@ -6325,6 +6325,13 @@ export interface components {
         /** @description One rule in force, with the binding and role it came through, so a refusal can be traced. */
         Grant: {
             binding: string;
+            /**
+             * @description Set when the binding is scoped to an Organization other than the installation's and the
+             *     grant is read at [`ORG_NAMESPACE`]: the rule is narrowed to that Organization's own
+             *     settings, bindings and groups (ADR-N-058 section 2.4), reads only what its constraints
+             *     admit and never makes its holder an administrator of the installation.
+             */
+            organization?: string | null;
             role: string;
             rule: Record<string, never>;
             /**
