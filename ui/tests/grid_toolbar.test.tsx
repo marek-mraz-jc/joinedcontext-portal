@@ -168,6 +168,11 @@ describe("FooterAggregate", () => {
     const { source, asked } = countingSource(() => 1);
     wrap(<Footer source={source} start="none" />);
     expect(asked).toEqual([]);
+    // T-5093: an unset footer is a quiet "Summarize", not a "None" box under every column.
+    const choice = screen.getByRole("combobox", { name: "Footer of Seats" }) as HTMLSelectElement;
+    expect(choice.selectedOptions[0].textContent).toBe(L.aggregate.none);
+    expect(L.aggregate.none).toBe("Summarize");
+    expect(choice.className).not.toContain("border-border");
   });
 
   it("divides only by a whole", () => {

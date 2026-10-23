@@ -42,14 +42,17 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
   );
 });
 
-export type SelectProps = SelectHTMLAttributes<HTMLSelectElement>;
+export type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
+  /** A quiet text button rather than a box, for a choice that sits under data, such as a grid's footer. */
+  quiet?: boolean;
+};
 
 /**
  * A native `<select>`, styled: it is the one control the keyboard, the screen reader and the
  * phone all already know, and a JSON Schema enum is exactly what it holds.
  */
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
-  { className, multiple, children, ...rest },
+  { className, multiple, quiet, children, ...rest },
   ref,
 ) {
   return (
@@ -58,8 +61,10 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         ref={ref}
         multiple={multiple}
         className={clsx(
-          CONTROL,
-          multiple ? "min-h-24 px-3 py-2" : "h-9 appearance-none pl-3 pr-9",
+          quiet
+            ? "focus-ring h-7 cursor-pointer appearance-none rounded-sm bg-transparent pl-1 pr-5 text-caption text-fg-muted transition-colors hover:bg-surface-muted hover:text-fg"
+            : CONTROL,
+          !quiet && (multiple ? "min-h-24 px-3 py-2" : "h-9 appearance-none pl-3 pr-9"),
           className,
         )}
         {...rest}
@@ -74,7 +79,10 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         strokeWidth="1.75"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-fg-subtle"
+        className={clsx(
+          "pointer-events-none absolute top-1/2 -translate-y-1/2 text-fg-subtle",
+          quiet ? "right-1 size-3" : "right-3 size-4",
+        )}
       >
         <path d="m6 8 4 4 4-4" />
       </svg>

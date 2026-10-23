@@ -592,6 +592,32 @@ describe("the space's own data", () => {
     expect(reads.some((url) => url.searchParams.get("limit") === "500")).toBe(true);
   });
 
+  // T-5093: every view keeps one toolbar row; the type's actions sit in its More, not stacked above the view.
+  it("keeps a non-grid view's actions in the one toolbar row", async () => {
+    renderInside({ status: 200, count: 1 }, { status: 200 }, {
+      source: "name: bb-air-quality\nclasses:\n  AirQualityObserved:\n    attributes:\n      no2: { range: float }\n",
+    });
+    await userEvent.click(await screen.findByRole("tab", { name: en.spaces.views.kind.gallery }));
+    await screen.findByTestId("view-gallery");
+    const toolbar = screen.getByTestId("grid-toolbar");
+    const add = screen.getByRole("button", { name: en.spaces.fields.add });
+    expect(toolbar).toContainElement(add);
+    expect(within(toolbar).getByText(en.spaces.toolbar.more)).toBeInTheDocument();
+    // The grid's own tools stay with the grid.
+    expect(within(toolbar).queryByRole("button", { name: en.spaces.toolbar.query })).toBeNull();
+  });
+
+  it("folds the grid's query behind the toolbar's Query toggle (T-5093)", async () => {
+    renderInside({ status: 200, count: 1 });
+    expect(await screen.findByText("12 µg/m³")).toBeInTheDocument();
+    expect(screen.queryByText(en.entityGrid.copyQuery)).toBeNull();
+    const toggle = screen.getByRole("button", { name: en.spaces.toolbar.query });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(await screen.findByText(en.entityGrid.copyQuery)).toBeInTheDocument();
+  });
+
   it("reads a view's rows again when the space says entities of its type changed (T-3105)", async () => {
     const opened: FakeEventSource[] = [];
     class FakeEventSource {
@@ -628,6 +654,17 @@ describe("the space's own data", () => {
     await userEvent.click(screen.getByRole("tab", { name: en.spaces.views.kind.grid }));
     expect(stream?.closed).toBe(true);
     vi.unstubAllGlobals();
+  });
+
+  // T-5093: a 502 behind the gateway is a failure to retry, not a space read only through its endpoints.
+  it("names a failed surface read with its status and a retry", async () => {
+    renderInside({ status: 200, count: 1 }, { status: 502 });
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(en.spaces.inside.dataFailed);
+    expect(alert).toHaveTextContent("HTTP 502");
+    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+    expect(screen.queryByText(en.spaces.inside.dataThroughEndpoints)).toBeNull();
   });
 
   it("points at the endpoints when the surface answers this person nothing", async () => {

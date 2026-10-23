@@ -644,6 +644,17 @@ describe("EntityGrid", () => {
       expect(screen.getByText(DEFAULT_LABELS.editAsTextHint)).toBeVisible();
     });
 
+    // T-5093: a host with its own "Query" toggle keeps the box out from between the rows and the count.
+    it("leaves the query box out when the host opens it from its own toolbar", async () => {
+      const { source } = recordingSource(bikeEntities);
+      const { rerender } = render(<EntityGrid config={config} source={source} queryBox={false} />);
+      await waitFor(() => expect(screen.getByText("Kamppi")).toBeInTheDocument());
+      expect(screen.queryByText(DEFAULT_LABELS.copyQuery)).toBeNull();
+      expect(screen.queryByLabelText(DEFAULT_LABELS.editAsText)).toBeNull();
+      rerender(<EntityGrid config={config} source={source} queryBox />);
+      expect(screen.getByText(DEFAULT_LABELS.copyQuery)).toBeInTheDocument();
+    });
+
     it("asks nothing until the filter is complete, and starts again at the first page", async () => {
       const { asked, source } = recordingSource(bikeEntities);
       render(<EntityGrid config={onePerPage} source={source} />);

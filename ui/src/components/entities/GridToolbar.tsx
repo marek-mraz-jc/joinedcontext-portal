@@ -140,9 +140,12 @@ export function FooterAggregate({
   if (value === "percentEmpty") shown = whole === null || some === null ? null : percent(whole - some, whole);
   return (
     <div className="flex items-center gap-1">
+      {/* Baserow's quiet "Summarize" (T-5093): a text button under the column, its choice the
+          browser's own list, so a keyboard, a phone and a screen reader open it as any select. */}
       <Select
+        quiet
         aria-label={t("spaces.toolbar.aggregateOf", { field: label })}
-        className="h-7 max-w-32 py-0 text-caption"
+        className="max-w-32"
         value={value}
         onChange={(event) => onChange(event.target.value as Aggregation)}
       >

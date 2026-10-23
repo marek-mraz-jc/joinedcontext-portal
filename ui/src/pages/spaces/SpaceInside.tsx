@@ -4,7 +4,7 @@ import { clsx } from "clsx";
 import type { JSX, ReactNode } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
-import { andQ, applyChanges, attributesOf, cellText, endpointSource, matchesQ, MAX_ENTITIES, originTransport, parseGridConfig, queryFromGroup, searchQuery, sourceFor, targetName } from "@joinedcontext/sdk";
+import { andQ, applyChanges, attributesOf, cellText, endpointSource, matchesQ, MAX_ENTITIES, originTransport, parseGridConfig, queryFromGroup, searchQuery, SourceError, sourceFor, targetName } from "@joinedcontext/sdk";
 import type { FilterColumn, FilterGroup, GridState, RichRow } from "@joinedcontext/sdk";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -414,6 +414,8 @@ function SpaceData({
   const [search, setSearch] = useState("");
   const [rowSize, setRowSize] = useState<RowSize>("small");
   const [aggregations, setAggregations] = useState<Record<string, Aggregation>>({});
+  // The query box under the rows, opened from the toolbar's "Query" (T-5093).
+  const [showQuery, setShowQuery] = useState(false);
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [loadedRows, setLoadedRows] = useState<RichRow[]>([]);
   // Live changes (T-5186): a change of the type reads the rows again where they are, and the rows
@@ -648,7 +650,7 @@ function SpaceData({
       </PermissionGuard>
     ) : null;
   const addRow =
-    view === "grid" && typeSlots.length > 0 ? (
+    view !== "form" && typeSlots.length > 0 ? (
       // The same right as Import beside it; the space's Policy decides the write itself.
       <PermissionGuard project={project} kind="ContextSpace" verb="propose">
         <Button size="sm" onClick={() => setCreating(true)} disabled={!!copy} disabledReason={t("spaces.inside.copyLive")}>
@@ -744,7 +746,21 @@ function SpaceData({
       ) : null}
 
       {probe.isPending ? <p role="status">{t("app.loading")}</p> : null}
-      {probe.isError ? (
+      {/* An Endpoint that failed (a 502 behind the gateway) is a failure to retry, not a space
+          this person reads only through its endpoints (T-5093). */}
+      {probe.isError && probe.error instanceof SourceError && probe.error.status >= 500 ? (
+        <Alert
+          tone="danger"
+          title={t("spaces.inside.dataFailed")}
+          actions={
+            <Button size="sm" variant="secondary" onClick={() => void probe.refetch()} loading={probe.isFetching}>
+              {t("app.error.retry")}
+            </Button>
+          }
+        >
+          {t("spaces.inside.dataFailedHint", { status: probe.error.status, detail: probe.error.message })}
+        </Alert>
+      ) : probe.isError ? (
         <div className="text-body text-fg-muted">
           <p>{t("spaces.inside.dataThroughEndpoints")}</p>
           <ul className="mt-1 flex flex-wrap gap-2">
@@ -813,19 +829,6 @@ function SpaceData({
               void queryClient.invalidateQueries({ queryKey: ["space-view-rows", space] });
             }}
           />
-          {view === "grid" ? null : (
-            <div className="flex flex-wrap items-end gap-3">
-              {addField}
-              {importButton}
-              {alertsButton}
-          <ExportLinks
-            endpoints={endpoints}
-            type={type}
-            q={q}
-            attrs={slots.map((slot) => slot.name)}
-          />
-            </div>
-          )}
         </>
       ) : null}
       {probe.isSuccess && !copy ? <SourceRemovalsPanel project={project} space={space} /> : null}
@@ -846,51 +849,55 @@ function SpaceData({
           }}
         />
       ) : null}
-      {probe.isSuccess && config && view !== "api" && view !== "grid" ? (
-        <ViewBar
-          project={project}
-          space={space}
-          type={type}
-          kind={view}
-          selected={saved}
-          onSelect={applyView}
-          current={current}
-        />
-      ) : null}
-      {probe.isSuccess && config && view === "grid" ? (
+      {/* One toolbar row for every view, as Baserow keeps it (T-5093): the grid's own tools first,
+          the row, share and the rest of the type's actions at its end. */}
+      {probe.isSuccess && view !== "api" ? (
         <div className="flex flex-wrap items-center gap-1 border-b border-border pb-2" data-testid="grid-toolbar">
           <span className="mr-2 max-w-48 truncate text-body font-semibold" title={saved?.title}>
             {saved?.title ?? t("spaces.inside.allRows")}
           </span>
-          <ToolbarPopover label={t("spaces.toolbar.filter")} count={conditionCount(filters)} wide>
-            <FilterPanel columns={filterColumns} titleOf={filterTitle} value={filters} onChange={setFilters} />
-          </ToolbarPopover>
-          <ToolbarPopover label={t("spaces.toolbar.hide")} count={extras.hidden?.length}>
-            <ViewOptions part="fields" attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
-          </ToolbarPopover>
-          <ToolbarPopover label={t("spaces.toolbar.group")} count={extras.group ? 1 : 0}>
-            <ViewOptions part="group" attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
-          </ToolbarPopover>
-          <ToolbarPopover label={t("spaces.toolbar.colour")} count={extras.colour?.length} wide>
-            <ViewOptions part="colours" attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
-          </ToolbarPopover>
-          <ToolbarPopover label={t("spaces.toolbar.rowSize")}>
-            <RadioGroup
-              name="grid-row-size"
-              legend={t("spaces.toolbar.rowSize")}
-              value={rowSize}
-              options={ROW_SIZES.map((size) => ({ value: size, label: t(`spaces.toolbar.rowSizes.${size}`) }))}
-              onChange={setRowSize}
+          {view === "grid" ? (
+            <>
+            <ToolbarPopover label={t("spaces.toolbar.filter")} count={conditionCount(filters)} wide>
+              <FilterPanel columns={filterColumns} titleOf={filterTitle} value={filters} onChange={setFilters} />
+            </ToolbarPopover>
+            <ToolbarPopover label={t("spaces.toolbar.hide")} count={extras.hidden?.length}>
+              <ViewOptions part="fields" attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
+            </ToolbarPopover>
+            <ToolbarPopover label={t("spaces.toolbar.group")} count={extras.group ? 1 : 0}>
+              <ViewOptions part="group" attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
+            </ToolbarPopover>
+            <ToolbarPopover label={t("spaces.toolbar.colour")} count={extras.colour?.length} wide>
+              <ViewOptions part="colours" attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
+            </ToolbarPopover>
+            <ToolbarPopover label={t("spaces.toolbar.rowSize")}>
+              <RadioGroup
+                name="grid-row-size"
+                legend={t("spaces.toolbar.rowSize")}
+                value={rowSize}
+                options={ROW_SIZES.map((size) => ({ value: size, label: t(`spaces.toolbar.rowSizes.${size}`) }))}
+                onChange={setRowSize}
+              />
+            </ToolbarPopover>
+            <Input
+              type="search"
+              aria-label={t("spaces.toolbar.search")}
+              placeholder={t("spaces.toolbar.searchPlaceholder")}
+              className="h-8 w-full sm:w-48"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
             />
-          </ToolbarPopover>
-          <Input
-            type="search"
-            aria-label={t("spaces.toolbar.search")}
-            placeholder={t("spaces.toolbar.searchPlaceholder")}
-            className="h-8 w-full sm:w-48"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-          />
+            {/* The query the filters ask, folded until asked for (T-5093): the rows and their count stay together. */}
+            <Button
+              variant={showQuery ? "secondary" : "ghost"}
+              size="sm"
+              aria-pressed={showQuery}
+              onClick={() => setShowQuery((shown) => !shown)}
+            >
+              {t("spaces.toolbar.query")}
+            </Button>
+            </>
+          ) : null}
           <div className="ml-auto flex items-center gap-1">
             {addRow}
             <PermissionGuard project={project} kind="Endpoint" verb="propose">
@@ -908,21 +915,28 @@ function SpaceData({
             </PermissionGuard>
             <ToolbarPopover label={t("spaces.toolbar.more")} wide end>
               <div className="flex flex-col gap-3">
-                <ViewBar
-                  project={project}
-                  space={space}
-                  type={type}
-                  kind={view}
-                  selected={saved}
-                  onSelect={applyView}
-                  current={current}
-                  unsaved={asked.idPattern ? t("spaces.saved.idNotKept") : undefined}
-                />
+                {config ? (
+                  <ViewBar
+                    project={project}
+                    space={space}
+                    type={type}
+                    kind={view}
+                    selected={saved}
+                    onSelect={applyView}
+                    current={current}
+                    unsaved={view === "grid" && asked.idPattern ? t("spaces.saved.idNotKept") : undefined}
+                  />
+                ) : null}
                 <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
                   {addField}
                   {importButton}
                   {alertsButton}
-                  <ExportLinks endpoints={endpoints} type={type} q={andQ(asked.q, gridQuery?.q)} attrs={slots.map((slot) => slot.name)} />
+                  <ExportLinks
+                    endpoints={endpoints}
+                    type={type}
+                    q={view === "grid" ? andQ(asked.q, gridQuery?.q) : q}
+                    attrs={slots.map((slot) => slot.name)}
+                  />
                 </div>
               </div>
             </ToolbarPopover>
@@ -1054,6 +1068,7 @@ function SpaceData({
           reloadKey={reloadKey}
           query={gridQuery}
           filterRow={false}
+          queryBox={showQuery}
           onFilterColumns={onFilterColumns}
           rowNumbers={rowNumberLabels}
           selected={selectedRows}

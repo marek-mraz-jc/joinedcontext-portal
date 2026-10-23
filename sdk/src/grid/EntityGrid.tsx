@@ -110,6 +110,8 @@ export interface EntityGridProps extends UseEntityGridOptions {
    * hands the query in as `query` (T-4883).
    */
   filterRow?: boolean;
+  /** The box under the rows that shows the asked query; `false` for a host that opens it from its own toolbar. */
+  queryBox?: boolean;
   /** Every column the endpoint can be asked about, with its kind, for a host's own filter panel. */
   onFilterColumns?: (columns: FilterColumn[]) => void;
   /**
@@ -200,6 +202,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     onLayout,
     onHide,
     filterRow = true,
+    queryBox = true,
     onFilterColumns,
     rowNumbers,
     selected = EMPTY_IDS,
@@ -1444,7 +1447,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         </section>
       )}
 
-      {filterable.size > 0 && (
+      {queryBox && filterable.size > 0 && (
         <div className="jc-grid-query">
           <label className="jc-grid-query-text">
             <span>{labels.query}</span>

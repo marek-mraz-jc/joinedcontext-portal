@@ -194,7 +194,7 @@ const SLOT_ROLES = new Set<string>(["title", "time", "place", "link", "image"]);
 const PAGE_LENGTHS = new Set([10, 20, 50, 100]);
 
 /** What a class may narrow of a slot it uses (LinkML `slot_usage`); only what it names. */
-export type SlotUsage = Partial<Pick<LinkmlSlot, "range" | "required" | "multivalued" | "description">>;
+export type SlotUsage = Partial<Pick<LinkmlSlot, "range" | "required" | "multivalued" | "description" | "label">>;
 
 export interface LinkmlEnumValue {
   name: string;
@@ -396,6 +396,9 @@ function usageOf(raw: Record<string, unknown>): SlotUsage {
   if (typeof raw.required === "boolean") usage.required = raw.required;
   if (typeof raw.multivalued === "boolean") usage.multivalued = raw.multivalued;
   if (text(raw.description)) usage.description = text(raw.description);
+  // A class names its slots in its own words (DM-100): the seeds put each label in `slot_usage`.
+  const label = labelOf(record(raw.annotations).label);
+  if (label) usage.label = label;
   return usage;
 }
 
@@ -467,7 +470,8 @@ export function parseModel(source: string): LinkmlModel {
           meaning: text(details.meaning),
           description: text(details.description),
           // A plain string title is the model's one language; a map is read per language.
-          title: title ? { en: title } : languageMap(details.title),
+          // The seeds title a value by `annotations.label` (DM-100), as they do a slot.
+          title: title ? { en: title } : (languageMap(details.title) ?? labelOf(record(details.annotations).label)),
         };
       },
     );
