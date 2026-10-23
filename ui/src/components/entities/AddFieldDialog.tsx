@@ -20,6 +20,7 @@ import type { Artifacts } from "../../pages/models/LinkmlPreviewPanel";
 import { Alert, Button, Checkbox, Dialog, Field, Input, Select, Textarea } from "../ui";
 import { EMPTY_DRAFT, FIELD_TYPES, fieldOperations, formulaProblem, formulaSlots, problemsOf, suggestedSlots, withFormula, withOfficialSlot } from "./fieldTypes";
 import { checkFormulas, formulaManifests } from "./formula";
+import { policyRefsOf } from "../endpoints/policyBinding";
 import type { FieldDraft, FieldType } from "./fieldTypes";
 
 export interface AddFieldDialogProps {
@@ -112,12 +113,12 @@ export function AddFieldDialog({ project, modelName, source, type, open, onOpenC
    * A formula field is two Changes (DM-80): the slot with its `equals_expression`, then the class's
    * pipeline and its two Policies, compiled over every formula of the class. Neither is proposed
    * when the project cannot run the pipeline: no `pipelines` ServiceAccount, or no Endpoint of the
-   * space that answers by every Policy of the space (one bound by `policyRef` would ignore its new
+   * space that answers by every Policy of the space (one bound by `policyRefs` would ignore its new
    * Policies).
    */
   async function proposeFormula() {
     setRefusals([]);
-    const through = endpoints.find((endpoint) => !(endpoint.spec as { policyRef?: unknown }).policyRef);
+    const through = endpoints.find((endpoint) => policyRefsOf(endpoint) === undefined);
     if (!space || !orgDomain || !through) {
       setRefusals([t("spaces.fields.formula.noEndpoint")]);
       return;

@@ -29,7 +29,7 @@ import {
   grantWrites,
   groupOf,
 } from "../src/components/endpoints/operationGroups";
-import { bindingOf, parsePolicyUrn, spaceSegment } from "../src/components/endpoints/policyBinding";
+import { bindingOf, parsePolicyUrn, policyRefsOf, spaceSegment } from "../src/components/endpoints/policyBinding";
 import type { Manifest } from "../src/api/manifest";
 
 const PROJECT = "banskabystrica";
@@ -272,6 +272,30 @@ describe("which policies decide an endpoint's calls", () => {
       urn: URN,
     });
     expect(bindingOf(ENDPOINT, PROJECT, "ovzdusie", [], [SPACE])).toEqual({ kind: "unbound", urn: URN });
+  });
+
+  // ADR-N-057 decision 2 (T-5037): `policyRefs` binds each listed policy of the space, as the
+  // gateway's `bound_policies` does; an entry of another space adds nothing.
+  it("binds every policy policyRefs lists, and nothing a reference of another space names", () => {
+    const listed = (policyRefs: string[]) =>
+      manifest("Endpoint", NAME, { contextSpaceRef: "ovzdusie", slug: SLUG, policyRefs });
+    const writers = "urn:ngsi-ld:Policy:banskabystrica.sk:ovzdusie:writers";
+    const elsewhere = "urn:ngsi-ld:Policy:banskabystrica.sk:doprava:readers";
+    expect(policyRefsOf(listed([URN, writers]))).toEqual([URN, writers]);
+    expect(policyRefsOf(ENDPOINT)).toEqual([URN]);
+    expect(policyRefsOf(manifest("Endpoint", NAME, { policyRefs: "not a list" }))).toEqual([]);
+    expect(bindingOf(listed([writers, URN]), PROJECT, "ovzdusie", [READERS, WRITERS], [SPACE])).toEqual({
+      kind: "bound",
+      policies: [READERS, WRITERS],
+    });
+    expect(bindingOf(listed([elsewhere, writers]), PROJECT, "ovzdusie", [READERS, WRITERS], [SPACE])).toEqual({
+      kind: "bound",
+      policies: [WRITERS],
+    });
+    expect(bindingOf(listed([elsewhere]), PROJECT, "ovzdusie", [READERS, WRITERS], [SPACE])).toEqual({
+      kind: "unbound",
+      urn: elsewhere,
+    });
   });
 });
 

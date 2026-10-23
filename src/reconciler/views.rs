@@ -499,18 +499,18 @@ impl Sources {
     }
 
     /// The Policies an Endpoint evaluates, as the gateway binds them (`store.rs`
-    /// `endpoints_with_models`): with `policyRef` that one Policy of its space, else every
-    /// Policy of its space; an App's Endpoint keeps the App's own grants and the prohibitions.
+    /// `endpoints_with_models`): with `policyRefs` (or `policyRef`) the listed Policies of its
+    /// space, else every Policy of its space; an App's Endpoint keeps the App's own grants and the prohibitions.
     fn bound<'s>(&'s self, e: &EndpointSource) -> Vec<(&'s str, &'s PolicySpec)> {
         let space = e.spec.context_space_ref.name();
         let app = self.is_app(e);
         self.policies_of(&e.project, space)
             .iter()
-            .filter(|(name, _)| match &e.spec.policy_ref {
-                Some(reference) => {
+            .filter(|(name, _)| match e.spec.policy_refs() {
+                Some(refs) => refs.iter().any(|reference| {
                     reference.space() == Some(e.tenant.as_str())
                         && PolicySpec::policy_of(name) == reference.local_id()
-                }
+                }),
                 None => true,
             })
             .filter(|(_, policy)| {
@@ -1234,7 +1234,7 @@ fn rule_document(sources: &Sources, project: &str, space: &str) -> Value {
             .and_then(|projection| projection.filter.as_ref())
             .and_then(|filter| filter.temporal_q.as_deref());
         // a view not listed is decided by every Policy, as it was written
-        if e.spec.policy_ref.is_none() && !sources.is_app(e) && window.is_none() {
+        if e.spec.policy_refs().is_none() && !sources.is_app(e) && window.is_none() {
             continue;
         }
         let slug = e.spec.slug.to_string();
@@ -3485,6 +3485,32 @@ mod tests {
         assert_eq!(
             view_of(&s, &app).expect("a view")["selector"],
             json!(["Stop"])
+        );
+    }
+
+    /// ADR-N-057 decision 2 (T-5037): `policyRefs` binds the listed Policies of the space, as
+    /// the gateway does; an entry naming another space adds nothing.
+    #[test]
+    fn policy_refs_bind_the_listed_policies_as_the_gateway_does() {
+        let s = fleet(sources(vec![
+            ("cars", cars()),
+            (
+                "buses",
+                policy(json!({"information": [{"entities": [{"type": "Bus"}]}]})),
+            ),
+            (
+                "stops",
+                policy(json!({"information": [{"entities": [{"type": "Stop"}]}]})),
+            ),
+        ]));
+        let listed = endpoint(json!({"policyRefs": [
+            "urn:ngsi-ld:Policy:city.example:city-air:stops",
+            "urn:ngsi-ld:Policy:city.example:other:cars",
+            "urn:ngsi-ld:Policy:city.example:city-air:buses",
+        ]}));
+        assert_eq!(
+            view_of(&s, &listed).expect("a view")["selector"],
+            json!(["Bus", "Stop"])
         );
     }
 
