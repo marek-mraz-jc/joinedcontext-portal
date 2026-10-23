@@ -1235,3 +1235,44 @@ fn a_project_app_is_granted_to_the_endpoints_caller_role() {
         json!({ "kind": "role", "id": "endpoint:ovzdusie/app-air-quality-today" })
     );
 }
+
+/// T-5208 (EP-159): a calendar is served only for a listed output, so an App that names `ical`
+/// gets the output `events` its subscribe link (`ical/v1/events.ics`) reads, and an App that
+/// does not name `ical` gets none.
+#[test]
+fn an_app_that_names_ical_gets_the_events_calendar() {
+    let with = |representations: Value| {
+        render(
+            &app(json!({
+                "kind": "ui",
+                "source": { "path": "." },
+                "build": { "node": "22" },
+                "dataNeeds": [{
+                    "contextSpaceRef": { "kind": "ContextSpace", "name": "podujatia" },
+                    "types": ["Event"],
+                    "operations": ["queryEntity"],
+                    "representations": representations
+                }]
+            })),
+            None,
+            &generate_slug(),
+            &settings(),
+        )
+        .expect("a ui app")
+    };
+    let rendered = with(json!(["ngsi-ld", "ical"]));
+    let endpoint: EndpointSpec =
+        serde_json::from_value(rendered.endpoint.spec.clone()).expect("an Endpoint");
+    endpoint.validate().expect("a valid Endpoint");
+    let names: Vec<&str> = endpoint
+        .ical_outputs()
+        .iter()
+        .map(|o| o.name.as_str())
+        .collect();
+    assert_eq!(names, ["events"]);
+    assert!(with(json!(["ngsi-ld"]))
+        .endpoint
+        .spec
+        .get("representations")
+        .is_none());
+}
