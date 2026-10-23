@@ -3,11 +3,16 @@
 name: ship
 # Builds, signs and pushes the Portal's two images, the binary and the `portal-ui` bundle it reads
 # its pages from (T-2485), and the build lane's images (AP-82: the builder carries the SDK of the
-# same commit), on every push to main and on tags. A push builds only what its paths need
-# (dev/image-matrix.py); a ui/-only push builds the bundle and, until the cut-over, the binary.
+# same commit), once an hour when main moved and on tags. A run builds only what the paths changed
+# since the last green build need (dev/image-matrix.py); a ui/-only change builds the bundle and,
+# until the cut-over, the binary.
+# Hourly, not per main push (T-4696): one build per merge billed ~1,000 minutes a day, and dev
+# applies hourly anyway. pin-images (deployment) pins the newest commit this lane built.
 on:
+  schedule: [{ cron: "37 * * * *" }]
+  # The daily ci-full's commit gets its images too, so promote.yml can attest the tested digest.
+  workflow_run: { workflows: [ci-full], types: [requested], branches: [main] }
   push:
-    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 # Read-only by default: only a job that publishes may hold the permissions that push an image
@@ -28,21 +33,30 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # actions: read finds the last green build (T-4696).
+    permissions: { contents: read, actions: read }
     outputs: { matrix: "${{ steps.pick.outputs.matrix }}" }
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with: { fetch-depth: 0 }
-      # A tag, a dispatch, the first push of a branch or a rewritten range builds everything.
+      # The hour and ci-full's request build what changed since the newest green run of this lane on
+      # main, nothing when main has not moved since; a tag, a dispatch or a last build git cannot
+      # diff builds everything.
       - id: pick
         env:
-          BEFORE: ${{ github.event.before }}
           EVENT: ${{ github.event_name }}
-          REF: ${{ github.ref }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "$EVENT" = push ] && [ "${REF#refs/tags/}" = "$REF" ] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-            paths=$(git diff --name-only "$BEFORE" "$GITHUB_SHA")
-          else
-            paths=ALL
+          set -eu
+          paths=ALL
+          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_run ]; then
+            built=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/image.yml/runs?branch=main&status=success&per_page=1" \
+              --jq '.workflow_runs[0].head_sha // empty')
+            if [ "$built" = "$GITHUB_SHA" ]; then
+              paths=""
+            elif [ -n "$built" ] && git cat-file -e "${built}^{commit}" 2>/dev/null; then
+              paths=$(git diff --name-only "$built" "$GITHUB_SHA")
+            fi
           fi
           printf '%s\n' "$paths"
           echo "matrix=$(printf '%s\n' "$paths" | python3 dev/image-matrix.py "${{ github.repository }}" "${{ github.repository_owner }}")" >> "$GITHUB_OUTPUT"
