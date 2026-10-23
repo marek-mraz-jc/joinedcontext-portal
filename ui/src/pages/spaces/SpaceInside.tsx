@@ -29,7 +29,7 @@ import { SharedWithBadge } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
 import { accessQuery, deniedAttributes, editableAttributes, mayDelete } from "../../components/entities/AccessPanel";
 import type { GrantDocument } from "../../components/entities/AccessPanel";
-import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
+import { PortalEntityGrid, rememberedSort } from "../../components/entities/PortalEntityGrid";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { enumsOfModel, filterSlotsOf, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import type { FilterSlot } from "../../components/entities/filters";
@@ -40,7 +40,8 @@ import { readLayout, writeLayout } from "../../components/entities/viewLayout";
 import { dataViewsKey, listViews } from "../../api/dataViews";
 import { GroupCounts, groupTerm, ViewOptions } from "../../components/entities/ViewOptions";
 import { conditionCount, EMPTY_GROUP, FilterPanel, readGroup } from "../../components/entities/FilterPanel";
-import { AGGREGATIONS, FooterAggregate, ROW_SIZES, ToolbarPopover } from "../../components/entities/GridToolbar";
+import { AGGREGATIONS, FooterAggregate, GroupCount, GroupPanel, MAX_GROUP_FIELDS, MAX_SORT_KEYS, ROW_SIZES, SortPanel, ToolbarPopover } from "../../components/entities/GridToolbar";
+import type { SortKey } from "../../components/entities/GridToolbar";
 import type { Aggregation, RowSize } from "../../components/entities/GridToolbar";
 import type { ViewExtras } from "../../components/entities/ViewOptions";
 import type { DataView as SavedView, ViewConfig } from "../../api/dataViews";
@@ -414,6 +415,11 @@ function SpaceData({
   const [search, setSearch] = useState("");
   const [rowSize, setRowSize] = useState<RowSize>("small");
   const [aggregations, setAggregations] = useState<Record<string, Aggregation>>({});
+  // The Sort and Group panels (T-5188): the keys after the header's own sort, and the fields the
+  // rows are grouped by. `steered` hands the order to this page once the panel set it.
+  const [thenBy, setThenBy] = useState<SortKey[]>([]);
+  const [groupBy, setGroupBy] = useState<string[]>([]);
+  const [steered, setSteered] = useState(false);
   // The query box under the rows, opened from the toolbar's "Query" (T-5093).
   const [showQuery, setShowQuery] = useState(false);
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
@@ -431,6 +437,9 @@ function SpaceData({
     setFilters(tree ?? EMPTY_GROUP);
     setRowSize((ROW_SIZES as readonly unknown[]).includes(settings?.rowSize) ? (settings?.rowSize as RowSize) : "small");
     setAggregations(readAggregations(settings?.aggregations));
+    setGroupBy(readGroupBy(settings?.groupBy) ?? (next?.config.group ? [next.config.group] : []));
+    setThenBy((next?.config.sort ?? []).slice(1, MAX_SORT_KEYS).map((key) => ({ attr: key.attr, dir: key.desc ? "desc" : "asc" })));
+    setSteered(false);
     setSearchText("");
     setSearch("");
     setSelectedRows([]);
@@ -453,9 +462,19 @@ function SpaceData({
     setGridView({
       // A view saved with the filter panel holds its conditions; its `q` is their translation.
       filterText: tree ? null : (next?.config.q ?? null),
-      sort: first ? { attr: first.attr, dir: first.desc ? "desc" : "asc" } : null,
+      sort: first ? { attr: first.attr, dir: first.desc ? "desc" : "asc" } : next ? null : rememberedSort(project, forType),
     });
   }, [setView, project, space, type]);
+  // The Sort panel's keys: the header's sort first, the rest this page's own.
+  const sortKeys = useMemo(
+    () => (gridView.sort ? [gridView.sort, ...thenBy.filter((key) => key.attr !== gridView.sort?.attr)] : thenBy),
+    [gridView.sort, thenBy],
+  );
+  const onSortKeys = useCallback((next: SortKey[]) => {
+    setSteered(true);
+    setGridView((before) => ({ ...before, sort: next[0] ?? null }));
+    setThenBy(next.slice(1));
+  }, []);
   const onGridState = useCallback((next: GridState) => {
     setGridView((before) =>
       before.filterText === next.filterText && before.sort?.attr === next.sort?.attr && before.sort?.dir === next.sort?.dir
@@ -482,13 +501,15 @@ function SpaceData({
       ...(saved?.config ?? {}),
       ...extras,
       q: view === "grid" ? andQ(asked.q, panelQ) : q,
-      sort: gridView.sort ? [{ attr: gridView.sort.attr, desc: gridView.sort.dir === "desc" }] : [],
+      sort: sortKeys.map((key) => ({ attr: key.attr, desc: key.dir === "desc" })),
+      // The outer group keeps the older `group` (the counts above the grid) where it is an enum.
+      group: groupBy[0] !== undefined && enums[groupBy[0]] ? groupBy[0] : undefined,
       ...(view === "form" ? { settings: formSettings as Record<string, never> } : {}),
       ...(view === "grid"
-        ? { settings: { filters, rowSize, aggregations } as unknown as Record<string, never> }
+        ? { settings: { filters, rowSize, aggregations, ...(groupBy.length > 0 ? { groupBy } : {}) } as unknown as Record<string, never> }
         : {}),
     }),
-    [saved, extras, view, asked.q, panelQ, q, gridView.sort, formSettings, filters, rowSize, aggregations],
+    [saved, extras, view, asked.q, panelQ, q, sortKeys, groupBy, enums, formSettings, filters, rowSize, aggregations],
   );
   // The attributes a view can hide: the model's slots of the type and whatever the rows carry.
   const onRows = useCallback((rows: RichRow[]) => {
@@ -539,9 +560,9 @@ function SpaceData({
   );
   // What the grid asks beyond its own query: the panel, the search and the chosen group (T-4883).
   const gridQuery = useMemo(() => {
-    const asked = andQ(panelQ, searchQ, extras.group && group !== null ? groupTerm(extras.group, group) : undefined);
+    const asked = andQ(panelQ, searchQ, groupBy[0] !== undefined && group !== null ? groupTerm(groupBy[0], group) : undefined);
     return asked ? { q: asked } : undefined;
-  }, [panelQ, searchQ, extras.group, group]);
+  }, [panelQ, searchQ, groupBy, group]);
   const source = useMemo(
     () => sourceFor({ kind: "space", space }, originTransport(), i18n.language),
     [space, i18n.language],
@@ -676,6 +697,11 @@ function SpaceData({
     const title = columnLabel(typeSlots.find((slot) => slot.name === column.attr), column.attr ?? column.key, i18n.language);
     return column.meta ? `${title} · ${t(`entityGrid.${column.meta}`)}` : title;
   };
+  // What the Sort and Group panels offer: the fields the person's own answer carries (DM-102).
+  const panelFields = attributes.map((attr) => ({
+    value: attr,
+    label: columnLabel(typeSlots.find((slot) => slot.name === attr), attr, i18n.language),
+  }));
   const rowNumberLabels = { selectRow: t("spaces.toolbar.selectRow"), selectAll: t("spaces.toolbar.selectAll") };
 
   if (types.length === 0) {
@@ -864,8 +890,18 @@ function SpaceData({
             <ToolbarPopover label={t("spaces.toolbar.hide")} count={extras.hidden?.length}>
               <ViewOptions part="fields" attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
             </ToolbarPopover>
-            <ToolbarPopover label={t("spaces.toolbar.group")} count={extras.group ? 1 : 0}>
-              <ViewOptions part="group" attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
+            <ToolbarPopover label={t("spaces.toolbar.sort")} count={sortKeys.length}>
+              <SortPanel fields={panelFields} value={sortKeys} onChange={onSortKeys} />
+            </ToolbarPopover>
+            <ToolbarPopover label={t("spaces.toolbar.group")} count={groupBy.length}>
+              <GroupPanel
+                fields={panelFields}
+                value={groupBy}
+                onChange={(next) => {
+                  setGroupBy(next.slice(0, MAX_GROUP_FIELDS));
+                  setGroup(null);
+                }}
+              />
             </ToolbarPopover>
             <ToolbarPopover label={t("spaces.toolbar.colour")} count={extras.colour?.length} wide>
               <ViewOptions part="colours" attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
@@ -974,12 +1010,12 @@ function SpaceData({
         />
       ) : null}
       {probe.isSuccess && config && view === "grid" ? <LiveNotice change={live} /> : null}
-      {probe.isSuccess && config && view === "grid" && extras.group && enums[extras.group] ? (
+      {probe.isSuccess && config && view === "grid" && groupBy[0] !== undefined && enums[groupBy[0]] ? (
         <GroupCounts
           source={source}
           type={type}
-          attr={extras.group}
-          options={enums[extras.group]}
+          attr={groupBy[0]}
+          options={enums[groupBy[0]]}
           q={andQ(asked.q, panelQ, searchQ)}
           chosen={group}
           onChoose={setGroup}
@@ -1055,7 +1091,10 @@ function SpaceData({
           relations={relations}
           rules={rules}
           // Without a saved view the grid keeps the person's own remembered order.
-          view={saved ? gridView : undefined}
+          view={saved || steered ? gridView : undefined}
+          thenBy={thenBy}
+          groupBy={groupBy}
+          groupHeader={(each) => <GroupCount source={source} type={type} q={andQ(asked.q, gridQuery?.q)} path={each.path} />}
           onGridState={onGridState}
           onQuery={setAsked}
           onRows={onRows}
@@ -1082,6 +1121,7 @@ function SpaceData({
                 attr={column.attr}
                 label={column.label}
                 q={andQ(asked.q, gridQuery?.q)}
+                kind={filterColumns.find((each) => each.attr === column.attr && !each.meta)?.kind}
                 value={aggregations[column.attr] ?? "none"}
                 onChange={(next) => setAggregations((before) => ({ ...before, [column.attr!]: next }))}
               />
@@ -1094,6 +1134,12 @@ function SpaceData({
       </div>
     </div>
   );
+}
+
+/** The fields a saved view groups by (`settings.groupBy`), `null` where it names none. */
+function readGroupBy(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null;
+  return raw.filter((each): each is string => typeof each === "string").slice(0, MAX_GROUP_FIELDS);
 }
 
 /** The footer's aggregations a saved view holds, only the ones the toolbar knows. */

@@ -125,6 +125,17 @@ export interface EntityGridProps extends UseEntityGridOptions {
   rowSize?: "small" | "medium" | "large";
   /** What a column's footer cell shows, such as the host's aggregation of the whole filtered set. */
   footer?: (column: VisibleColumn) => React.ReactNode;
+  /** What a group's header shows after its name and value (T-5188), such as the group's count. */
+  groupHeader?: (group: GridGroup) => React.ReactNode;
+}
+
+/** One group header of a grid grouped by `groupBy` (T-5188): its level and the values it is in. */
+export interface GridGroup {
+  /** 0 for the outermost group. */
+  level: number;
+  attr: string;
+  /** The values of this group and the groups around it, outermost first; `undefined` for an absent value. */
+  path: { attr: string; value: unknown }[];
 }
 
 /** The glyph a header shows for what its column holds; the kind's name is what a screen reader hears. */
@@ -209,6 +220,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     onSelectedChange,
     rowSize,
     footer,
+    groupHeader,
     ...hookOptions
   } = props;
 
@@ -986,6 +998,20 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const shownRows = virtual ? rows.slice(shownFrom, shownFrom + windowSize) : rows;
   const spacerAbove = virtual ? shownFrom * rowHeight.current : 0;
   const spacerBelow = virtual ? Math.max(0, rows.length - shownFrom - shownRows.length) * rowHeight.current : 0;
+  // A group starts where a row's group value differs from the row before it (T-5188): the rows
+  // come ordered by the group keys, so each group's rows are together.
+  const groupBy = hookOptions.groupBy ?? [];
+  const groupValue = (row: RichRow, attr: string): unknown => {
+    const cell = row.cells[attr];
+    const one = Array.isArray(cell) ? cell[0] : cell;
+    return one?.kind === "relationship" ? one.object : one?.value;
+  };
+  const groupsBefore = (row: RichRow, rowIndex: number): GridGroup[] => {
+    const before = rowIndex > 0 ? rows[rowIndex - 1] : undefined;
+    const path = groupBy.map((attr) => ({ attr, value: groupValue(row, attr) }));
+    const first = before === undefined ? 0 : groupBy.findIndex((attr) => cellText(before.cells[attr]) !== cellText(row.cells[attr]));
+    return first < 0 ? [] : path.slice(first).map((step, at) => ({ level: first + at, attr: step.attr, path: path.slice(0, first + at + 1) }));
+  };
 
   const rootClass = `jc-grid${className ? ` ${className}` : ""}${classNames?.root ? ` ${classNames.root}` : ""}${mapAttr ? ` jc-grid--map-${mapPosition}` : ""}${virtual ? " jc-grid--virtual" : ""}`;
 
@@ -1190,8 +1216,21 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
               const rowIndex = shownFrom + shownIndex;
               const tone = rowTone?.(row);
               return (
+              <React.Fragment key={row.id}>
+              {groupsBefore(row, rowIndex).map((group) => {
+                const column = columns.find((col) => col.attr === group.attr && col.meta === null);
+                const text = cellText(row.cells[group.attr]);
+                return (
+                  <tr key={`group-${group.level}`} className="jc-grid-group" data-level={group.level}>
+                    <th scope="colgroup" colSpan={columns.length + lead} style={{ paddingInlineStart: `${0.75 + group.level * 1.25}rem` }}>
+                      <span className="jc-grid-group-name">{column?.label ?? group.attr}</span>{" "}
+                      <span className="jc-grid-group-value">{text === "" ? labels.groupNoValue : text}</span>
+                      {groupHeader ? <span className="jc-grid-group-extra">{groupHeader(group)}</span> : null}
+                    </th>
+                  </tr>
+                );
+              })}
               <tr
-                key={row.id}
                 className={`jc-grid-tr${tone ? ` jc-grid-tr--${tone.tone}` : ""}${classNames?.row ? ` ${classNames.row}` : ""}`}
                 // A refused update stays visible on its own row, not only in the panel the person
                 // may have closed: the value there is still theirs and still unapplied.
@@ -1254,6 +1293,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                   </td>
                 ))}
               </tr>
+              </React.Fragment>
               );
             })}
             {spacerBelow > 0 && (
