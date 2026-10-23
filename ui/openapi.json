@@ -25464,6 +25464,13 @@
           "binding": {
             "type": "string"
           },
+          "organization": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Set when the binding is scoped to an Organization other than the installation's and the\ngrant is read at [`ORG_NAMESPACE`]: the rule is narrowed to that Organization's own\nsettings, bindings and groups (ADR-N-058 section 2.4), reads only what its constraints\nadmit and never makes its holder an administrator of the installation."
+          },
           "role": {
             "type": "string"
           },

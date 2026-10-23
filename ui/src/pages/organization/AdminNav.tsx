@@ -29,6 +29,13 @@ export type OrganizationTab = (typeof ORGANIZATION_GROUPS)[number]["tabs"][numbe
  */
 export const ORGANIZATION_TABS: readonly OrganizationTab[] = ORGANIZATION_GROUPS.flatMap((group) => group.tabs);
 
+/**
+ * The sections an administrator of one Organization other than the installation's opens
+ * (ADR-N-058 section 2.4, T-5248): who is bound inside it, the groups those bindings name and its
+ * own Organization manifest. The rest is the installation's.
+ */
+export const OWN_ORGANIZATION_TABS: readonly OrganizationTab[] = ["members", "groups", "settings"];
+
 export function isOrganizationTab(value: string): value is OrganizationTab {
   return (ORGANIZATION_TABS as readonly string[]).includes(value);
 }
@@ -51,7 +58,15 @@ export function AdminNav({
   onNavigate: () => void;
 }): JSX.Element {
   const { t } = useTranslation();
-  const { administers } = useAdministers();
+  const { administers, own } = useAdministers();
+  const groups = administers
+    ? ORGANIZATION_GROUPS
+    : own
+      ? ORGANIZATION_GROUPS.map((group) => ({
+          id: group.id,
+          tabs: group.tabs.filter((tab) => OWN_ORGANIZATION_TABS.includes(tab)),
+        })).filter((group) => group.tabs.length > 0)
+      : [];
   return (
     <>
       <Link
@@ -63,8 +78,7 @@ export function AdminNav({
         <Icon name="chevronLeft" className="size-4" />
         <span>{t("organization.nav.back")}</span>
       </Link>
-      {administers
-        ? ORGANIZATION_GROUPS.map((group) => (
+      {groups.map((group) => (
             <div key={group.id} className="flex flex-col gap-1">
               <h2
                 id={`admin-nav-${group.id}`}
@@ -88,8 +102,7 @@ export function AdminNav({
                 ))}
               </ul>
             </div>
-          ))
-        : null}
+          ))}
     </>
   );
 }

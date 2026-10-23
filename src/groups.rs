@@ -151,6 +151,7 @@ pub fn for_proposal(
         binding: format!("the default group of App {app_name} (AP-119)"),
         scope: format!("project:{owner}"),
         space: None,
+        organization: None,
         rule: Rule {
             kinds: vec!["Group".to_owned()],
             verbs: vec![Verb::Propose],

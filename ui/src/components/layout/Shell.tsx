@@ -197,7 +197,8 @@ function UserMenu() {
   const { identity, signOut } = useAuth();
   const firstRun = useFirstRun();
   const navigate = useNavigate();
-  const { administers } = useAdministers();
+  const { administers, own } = useAdministers();
+  const opensAdministration = administers || own !== undefined;
   if (!identity) {
     return null;
   }
@@ -228,7 +229,7 @@ function UserMenu() {
         <MenuSeparator />
         {/* On a phone the header has no room for Administration beside 44 px targets (T-3319):
             it is here instead. */}
-        {administers ? (
+        {opensAdministration ? (
           <MenuItem asChild className="sm:hidden">
             <Link to="/organization/$tab" params={{ tab: "settings" }}>
               <Icon name="access" className="size-4" />
@@ -524,7 +525,9 @@ export function Shell({
   );
 
   const organizationActive = Boolean(matchRoute({ to: "/organization/$tab", fuzzy: true }));
-  const { administers } = useAdministers();
+  const { administers, own } = useAdministers();
+  // An Organization's own administrator opens its own sections of Administration (T-5248).
+  const opensAdministration = administers || own !== undefined;
   const modelsActive = Boolean(matchRoute({ to: "/projects/$project/models", params: { project } }));
   const exploreActive = Boolean(matchRoute({ to: "/projects/$project/explore", params: { project } }));
   const ckanActive = Boolean(matchRoute({ to: "/projects/$project/ckan", params: { project } }));
@@ -627,7 +630,7 @@ export function Shell({
           {/* Administration is one entry, for organization administrators only, and its page
               holds every organization-wide power as tabs, the whole-project export and import
               included (UI-75, UI-87, owner 2026-09-25). */}
-          {administers ? (
+          {opensAdministration ? (
             <Link
               to="/organization/$tab"
               params={{ tab: "settings" }}
@@ -854,7 +857,7 @@ export function Shell({
                       for everyone else; an installation that names none has no such crumb. */}
                   {branding.organisation ? (
                     <li className="flex items-center gap-1">
-                      {administers ? (
+                      {opensAdministration ? (
                         <Link to="/organization/$tab" params={{ tab: "settings" }} className="focus-ring rounded-sm hover:text-fg hover:underline">
                           {branding.organisation}
                         </Link>
