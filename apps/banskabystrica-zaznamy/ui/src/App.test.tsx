@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import axe from "axe-core";
 import { JcProvider } from "@joinedcontext/sdk";
+import type { AccessDocument } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import App from "./App";
 import { answer, CITY, REGION } from "./fixtures/records";
@@ -32,6 +33,20 @@ const problem = (status: number, detail: string) =>
     status,
     headers: { "content-type": "application/problem+json" },
   });
+
+/** What the region's seed grants every member: the rows, read (Policy app-bbsk-zaznamy-1). */
+const MEMBER: AccessDocument = {
+  permissions: [{ resource: { type: "KeyPerformanceIndicator" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }],
+  prohibitions: [],
+};
+/** A steward also holds app-bbsk-zaznamy-2-steward: updateAttrs on the note alone (T-5091). */
+const STEWARD: AccessDocument = {
+  permissions: [
+    ...MEMBER.permissions,
+    { resource: { type: "KeyPerformanceIndicator" }, actions: ["updateAttrs"], attributes: [NOTE] },
+  ],
+  prohibitions: [],
+};
 
 let calls: Array<{ path: string; method: string; body?: unknown; init?: RequestInit }>;
 
@@ -67,10 +82,10 @@ function serving(options: { rows?: () => Response; write?: () => Response; cube?
 
 function show(
   options: Parameters<typeof serving>[0] = {},
-  over: { language?: string; space?: string; slug?: string } = {},
+  over: { language?: string; space?: string; slug?: string; access?: AccessDocument } = {},
 ) {
   vi.stubGlobal("fetch", serving(options));
-  const client = stubClient(undefined, {
+  const client = stubClient({ access: over.access ?? STEWARD }, {
     slug: over.slug ?? CITY_SLUG,
     orgDomain: "banskabystrica.sk",
     space: over.space ?? SPACE_OF.banskabystrica,
@@ -232,6 +247,37 @@ describe("a filter is the endpoint's own query", () => {
     });
     // The query the screen shows is the query it sent.
     expect(screen.getByText(`q=refPeriod=="2023"`)).toBeInTheDocument();
+  });
+});
+
+describe("who may write the note (T-5137)", () => {
+  const noteBoxes = () => screen.queryAllByRole("textbox", { name: `${sk.grid.edit} ${sk.column[NOTE]}` });
+
+  it("shows a member of the region the notes read-only, and says who edits them", async () => {
+    show({ rows: () => json(answer(REGION, SPACE_OF.bbsk, "bbsk.sk")) }, { space: SPACE_OF.bbsk, slug: REGION_SLUG, access: MEMBER });
+    expect(await screen.findByText(sk.noteStewardsOnly.bbsk)).toBeInTheDocument();
+    await waitFor(() => expect(rows()).toHaveLength(REGION.length));
+    expect(noteBoxes()).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: sk.grid.review! })).toBeNull();
+    expect(calls.filter((call) => call.method === "PATCH")).toEqual([]);
+  });
+
+  it("opens the note to a steward and says nothing about stewards", async () => {
+    show({ rows: () => json(answer(REGION, SPACE_OF.bbsk, "bbsk.sk")) }, { space: SPACE_OF.bbsk, slug: REGION_SLUG });
+    await waitFor(() => expect(noteBoxes()).toHaveLength(REGION.length));
+    expect(screen.queryByText(sk.noteStewardsOnly.bbsk)).toBeNull();
+  });
+
+  it("keeps the note closed when a prohibition takes the write away from a steward", async () => {
+    show({}, { access: { ...STEWARD, prohibitions: [{ resource: { type: "KeyPerformanceIndicator" }, actions: ["updateAttrs"], attributes: "*" }] } });
+    expect(await screen.findByText(sk.noteStewardsOnly.banskabystrica)).toBeInTheDocument();
+    await waitFor(() => expect(rows()).toHaveLength(CITY.length));
+    expect(noteBoxes()).toHaveLength(0);
+  });
+
+  it("says it in English too", async () => {
+    show({}, { language: "en", access: MEMBER });
+    expect(await screen.findByText(LOCALES.en.noteStewardsOnly.banskabystrica)).toBeInTheDocument();
   });
 });
 

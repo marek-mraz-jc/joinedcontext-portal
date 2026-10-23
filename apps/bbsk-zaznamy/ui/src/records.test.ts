@@ -89,7 +89,7 @@ describe("the surface the screen holds", () => {
 });
 
 describe("the grid this application is", () => {
-  const config = gridConfig(SLUG, LOCALES.sk.column);
+  const config = gridConfig(SLUG, LOCALES.sk.column, true);
 
   it("reads one type through its own endpoint, by slug and never by URL", () => {
     expect(config.source).toEqual({ kind: "endpoint", slug: SLUG });
@@ -101,6 +101,14 @@ describe("the grid this application is", () => {
     expect(config.editableAttrs).toEqual([NOTE]);
     const editable = config.columns.filter((column) => column.editable);
     expect(editable.map((column) => column.attr)).toEqual([NOTE]);
+  });
+
+  it("opens nothing for a reader whose grant has no updateAttrs on the note (T-5137)", () => {
+    const reader = gridConfig(SLUG, LOCALES.sk.column, false);
+    expect(reader.mode).toBe("view");
+    expect(reader.editableAttrs).toEqual([]);
+    expect(reader.columns.filter((column) => column.editable)).toEqual([]);
+    expect(reader.columns.map((column) => column.attr)).toEqual([...COLUMNS]);
   });
 
   it("shows the columns a person recognises a record by, with the unit on the number", () => {

@@ -32,6 +32,8 @@ export interface Strings {
   readOnlyWhy: string;
   /** What the one open column is for. */
   noteWhy: string;
+  /** Said instead of an editor to a reader whose grant does not write the note (T-5137). */
+  noteStewardsOnly: Record<Body, string>;
   column: Record<string, string>;
   noteFault: {
     tooLong: string;
@@ -72,13 +74,17 @@ const SK: Strings = {
   },
   subtitle: {
     banskabystrica:
-      "Zverejnené štatistické riadky mesta, po stranách, s filtrom v každom stĺpci. Poznámku správcu môžete upraviť priamo v tabuľke.",
-    bbsk: "Zverejnené štatistické riadky kraja, po stranách, s filtrom v každom stĺpci. Poznámku správcu môžete upraviť priamo v tabuľke.",
+      "Zverejnené štatistické riadky mesta, po stranách, s filtrom v každom stĺpci. Správca upravuje poznámku priamo v tabuľke.",
+    bbsk: "Zverejnené štatistické riadky kraja, po stranách, s filtrom v každom stĺpci. Správca upravuje poznámku priamo v tabuľke.",
   },
   readOnlyWhy:
     "Čísla v tabuľke patria vydavateľovi a zapisuje ich kanál: najbližší beh by prepísal čokoľvek, čo by tu niekto prepísal. Preto sa dajú upraviť iba poznámky správcu, nie hodnoty.",
   noteWhy:
     "Poznámka správcu je jediný atribút, ktorý žiadny kanál nezapisuje: sem patrí, čo ste overili a čo vyzerá nesprávne.",
+  noteStewardsOnly: {
+    banskabystrica: "Poznámky upravujú iba správcovia mesta. Potrebujete ju zmeniť? Požiadajte o rolu Správca v aplikácii, napríklad správcu údajov mesta.",
+    bbsk: "Poznámky upravujú iba správcovia kraja. Potrebujete ju zmeniť? Požiadajte o rolu Správca v aplikácii, napríklad správcu údajov kraja.",
+  },
   column: {
     indicator: "Ukazovateľ",
     refArea: "Územie",
@@ -199,13 +205,17 @@ const EN: Strings = {
   },
   subtitle: {
     banskabystrica:
-      "The city's published statistical rows, by the page, with a filter on every column. The steward's note is edited in the table itself.",
-    bbsk: "The region's published statistical rows, by the page, with a filter on every column. The steward's note is edited in the table itself.",
+      "The city's published statistical rows, by the page, with a filter on every column. A steward edits the note in the table itself.",
+    bbsk: "The region's published statistical rows, by the page, with a filter on every column. A steward edits the note in the table itself.",
   },
   readOnlyWhy:
     "The figures belong to the publisher and are written by a pipeline: its next run would overwrite anything typed over them here. So the steward's note is what can be edited, and the numbers cannot.",
   noteWhy:
     "The steward's note is the one attribute no pipeline writes: what you checked and what looks wrong belongs in it.",
+  noteStewardsOnly: {
+    banskabystrica: "Only the city's stewards edit notes. Need one changed? Ask for the app's Steward role, for example from the city's data steward.",
+    bbsk: "Only the region's stewards edit notes. Need one changed? Ask for the app's Steward role, for example from the region's data steward.",
+  },
   column: {
     indicator: "Indicator",
     refArea: "Territory",

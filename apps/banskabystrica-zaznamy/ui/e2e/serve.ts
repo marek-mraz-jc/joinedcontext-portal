@@ -47,6 +47,15 @@ export async function serve(page: Page): Promise<Served> {
       served.outside.push(url.href);
       return route.abort();
     }
+    // The city's grants (Policies app-banskabystrica-zaznamy-1 and -2): every member reads the rows
+    // and writes the note, so the screen opens it to everyone (T-5137).
+    if (url.pathname.includes("/api/endpoint/") && url.pathname.endsWith("/access")) {
+      const permissions = [
+        { resource: { type: "KeyPerformanceIndicator" }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" },
+        { resource: { type: "KeyPerformanceIndicator" }, actions: ["updateAttrs"], attributes: ["stewardNote"] },
+      ];
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ permissions, prohibitions: [] }) });
+    }
     // The entity panel reads one record fresh by its id (SDK-40).
     const one = /\/ngsi-ld\/v1\/entities\/([^/]+)$/.exec(url.pathname);
     if (url.pathname.includes("/api/endpoint/") && one) {
