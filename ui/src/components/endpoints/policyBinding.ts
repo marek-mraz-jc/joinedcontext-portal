@@ -4,14 +4,14 @@
  * The endpoint names its policy as a URN — `urn:ngsi-ld:Policy:{orgDomain}:{spaceSegment}:{name}`
  * — and the page used to show that string and stop there, because nothing in the Portal knew
  * which manifest it stood for. The gateway does know, and its rule is short enough to hold in
- * one function (`context-gateway/src/store.rs`, `bound_policy`):
+ * one function (`context-gateway/src/store.rs`, `bound_policies`):
  *
- * - without `spec.policyRef`, every Policy of the endpoint's space applies — except one assigned
+ * - without `spec.policyRefs` or `spec.policyRef`, every Policy of the endpoint's space applies — except one assigned
  *   to another Endpoint's role (`endpoint:{project}/{name}[/{role}]`): the gateway drops such a
  *   role from every token and gives a caller only the roles of the Endpoint it came through
  *   (`jc_core::kinds::endpoint_role`, AP-96, AP-97), so another App's grant never applies here;
- * - with one, the Policy of that space whose **manifest name** equals the URN's local id, and
- *   only when the URN's space segment is the endpoint's own space segment;
+ * - with references, each Policy of that space whose **manifest name** equals a URN's local id,
+ *   where that URN's space segment is the endpoint's own space segment;
  * - a URN that matches none binds nothing at all — the endpoint grants nothing — which the page
  *   must say rather than falling back to "every policy of the space" and drawing grants the
  *   gateway would never honour.
@@ -83,15 +83,36 @@ export function bindingOf(
       (refName(policy.spec.contextSpaceRef) || undefined) === space &&
       reachable(policy, project, endpoint.metadata.name),
   );
-  const reference = (endpoint.spec as { policyRef?: unknown }).policyRef;
-  if (typeof reference !== "string" || reference === "") {
+  const references = policyRefsOf(endpoint);
+  if (references === undefined) {
     return { kind: "all", policies: ofSpace };
   }
-  const urn = parsePolicyUrn(reference);
   const segment = space === undefined ? undefined : spaceSegment(project, space, spaces);
-  const bound =
-    urn && segment !== undefined && urn.space === segment
-      ? ofSpace.filter((policy) => policy.metadata.name === urn.localId)
+  const named = references
+    .map(parsePolicyUrn)
+    .filter((urn) => urn !== undefined && segment !== undefined && urn.space === segment)
+    .map((urn) => urn?.localId);
+  const bound = ofSpace.filter((policy) => named.includes(policy.metadata.name));
+  return bound.length > 0
+    ? { kind: "bound", policies: bound }
+    : { kind: "unbound", urn: references.join(", ") };
+}
+
+/**
+ * The Policy URNs an endpoint names: `spec.policyRefs`, or `spec.policyRef` as a list of one
+ * (ADR-N-057 decision 2, `EndpointSpec::policy_refs`); nothing when it names none and so answers
+ * by every Policy of its space.
+ */
+export function policyRefsOf(endpoint: Manifest): string[] | undefined {
+  const spec = endpoint.spec as { policyRef?: unknown; policyRefs?: unknown };
+  // A member present in an unreadable shape narrows to nothing rather than to the whole space.
+  if (spec.policyRef !== undefined) {
+    return typeof spec.policyRef === "string" ? [spec.policyRef] : [];
+  }
+  if (spec.policyRefs !== undefined) {
+    return Array.isArray(spec.policyRefs)
+      ? spec.policyRefs.filter((one): one is string => typeof one === "string")
       : [];
-  return bound.length > 0 ? { kind: "bound", policies: bound } : { kind: "unbound", urn: reference };
+  }
+  return undefined;
 }
