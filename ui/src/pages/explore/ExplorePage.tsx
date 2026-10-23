@@ -10,9 +10,9 @@ import { asManifests, localized, refName } from "../../api/manifest";
 import { AccessPanel, deniedAttributes, editableAttributes, useAccess } from "../../components/entities/AccessPanel";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
-import { deleteEntity, enumsOfModel, fetchEntity, filterSlotsOf, qProblem, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
+import { deleteEntity, enumsOfModel, MAX_REASON, reasonProblem, fetchEntity, filterSlotsOf, qProblem, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import type { EntityQuery } from "../../components/entities/filters";
-import { CodeBlock, Alert, Button, Dialog, EmptyState, Field, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
+import { CodeBlock, Alert, Button, Dialog, EmptyState, Field, Input, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
 import { TypeQuality } from "./TypeQuality";
 import { TypeLink } from "../models/ModelLinks";
 import { localId } from "../apps/QueryResultCard";
@@ -92,6 +92,9 @@ export function ExplorePage({
   // The type's entities, or its data-quality report (T-3252).
   const [view, setView] = useState<"entities" | "quality" | "map">("entities");
   const [removing, setRemoving] = useState(false);
+  /** Why the person deletes, sent as `JC-Reason` (DM-113); checked once they try to confirm. */
+  const [reason, setReason] = useState("");
+  const [reasonTried, setReasonTried] = useState(false);
   /** What the grid's filter row asks and its order, for the export of the whole view (T-3253). */
   const [gridAsk, setGridAsk] = useState<{ q?: string; idPattern?: string }>({});
   const [gridSort, setGridSort] = useState<ViewSort | null>(null);
@@ -257,9 +260,11 @@ export function ExplorePage({
   // UI-60: the entity is removed through the same endpoint that shows it, with this person's
   // session. A refusal is the gateway's own sentence, shown as it came.
   const remove = useMutation({
-    mutationFn: () => deleteEntity(slug!, selected!),
+    mutationFn: () => deleteEntity(slug!, selected!, reason),
     onSuccess: () => {
       setRemoving(false);
+      setReason("");
+      setReasonTried(false);
       setSelected(null);
       void queryClient.removeQueries({ queryKey: ["explore-entity", slug] });
       // The grid holds a page that still lists the entity; a new key makes it read the endpoint
@@ -267,6 +272,7 @@ export function ExplorePage({
       setGeneration((each) => each + 1);
     },
   });
+  const reasonError = reasonTried ? reasonProblem(reason) : null;
   const removeFailed =
     remove.error instanceof ApiError ? remove.error.message : remove.error ? t("app.error.generic") : null;
 
@@ -508,6 +514,8 @@ export function ExplorePage({
                 }
                 onClick={() => {
                   remove.reset();
+                  setReason("");
+                  setReasonTried(false);
                   setRemoving(true);
                 }}
               >
@@ -559,7 +567,10 @@ export function ExplorePage({
               variant="danger"
               disabled={remove.isPending}
               disabledReason={t("app.busyReason")}
-              onClick={() => remove.mutate()}
+              onClick={() => {
+                setReasonTried(true);
+                if (reasonProblem(reason) === null) remove.mutate();
+              }}
               data-testid="explore-delete-confirm"
             >
               {t("explore.removeConfirm")}
@@ -569,6 +580,21 @@ export function ExplorePage({
       >
         <div className="flex flex-col gap-3">
           <p className="text-caption text-fg-muted">{t("explore.removeNote")}</p>
+          <Field
+            id="explore-delete-reason"
+            label={t("explore.removeReason")}
+            required
+            help={t("explore.removeReasonHint")}
+            errors={reasonError ? [t(`explore.removeReasonError.${reasonError}`, { max: MAX_REASON })] : undefined}
+          >
+            <Input
+              id="explore-delete-reason"
+              value={reason}
+              maxLength={MAX_REASON}
+              autoComplete="off"
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </Field>
           {removeFailed ? (
             <Alert role="alert" tone="danger">
               {removeFailed}

@@ -60,6 +60,8 @@ describe("the change to entities card", () => {
     expect(init.method).toBe("PATCH");
     expect(init.credentials).toBe("same-origin");
     expect((init.headers as Record<string, string>)["x-csrf-token"]).toBe("csrf-token-value");
+    // DM-113: the applied change names why it was written.
+    expect((init.headers as Record<string, string>)["JC-Reason"]).toBe(encodeURIComponent(en.agentRun.write.reason));
     expect(JSON.parse(init.body as string)).toEqual({ status: { type: "Property", value: "outOfService" } });
     expect(screen.queryByRole("button", { name: en.agentRun.write.apply })).not.toBeInTheDocument();
   });

@@ -868,6 +868,7 @@ function SpaceData({
               method: "POST",
               path: `/cs/${encodeURIComponent(space)}/ngsi-ld/v1/entities`,
               body: entity,
+              reason: t("spaces.inside.restoreReason"),
             });
             if (answer.status < 200 || answer.status >= 300) {
               const detail = (answer.body as { detail?: unknown; title?: unknown } | undefined) ?? {};

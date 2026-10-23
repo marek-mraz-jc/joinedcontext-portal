@@ -580,7 +580,8 @@
       "counting": "Die Entitäten des Raums werden gezählt…",
       "allRows": "Alle Zeilen",
       "savedViews": "Gespeicherte Ansichten",
-      "typeHint": "Welche Art von Entitäten die Zeilen unten zeigen, zum Beispiel Event."
+      "typeHint": "Welche Art von Entitäten die Zeilen unten zeigen, zum Beispiel Event.",
+      "restoreReason": "Aus dem Papierkorb wiederhergestellt"
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -963,6 +964,13 @@
       "lat": "Breitengrad",
       "lon": "Längengrad",
       "submit": "Anlegen",
+      "reason": "Grund",
+      "reasonHint": "Warum Sie sie anlegen, wird mit der Entität festgehalten, zum Beispiel: Prüfung am 22.10.2026.",
+      "reasonDefault": "Über das Formular erfasst",
+      "reasonError": {
+        "required": "Geben Sie an, warum Sie sie anlegen, zum Beispiel: Prüfung am 22.10.2026.",
+        "tooLong": "Verwenden Sie höchstens {max} Zeichen."
+      },
       "fix": "Vor dem Senden müssen Antworten korrigiert werden: {count}.",
       "refused": "Nicht angelegt: {reason}",
       "created": "Angelegt: {id}.",
@@ -5369,6 +5377,12 @@
     "removeLead": "{id} wird über diesen Endpunkt aus dem Raum entfernt.",
     "removeConfirm": "Löschen",
     "removeNote": "Die Policy des Endpunkts entscheidet: Die Löschung läuft mit Ihrer Anmeldung, nicht mit einer Dienstidentität, und lässt sich nicht rückgängig machen.",
+    "removeReason": "Grund",
+    "removeReasonHint": "Warum Sie sie löschen, wird mit der Löschung festgehalten, zum Beispiel: Duplikat von urn:ngsi-ld:Sensor:12.",
+    "removeReasonError": {
+      "required": "Geben Sie an, warum Sie sie löschen, zum Beispiel: Doppelter Eintrag.",
+      "tooLong": "Verwenden Sie höchstens {max} Zeichen."
+    },
     "deleteDenied": "Die Freigabe dieses Endpunkts erlaubt Ihnen nicht, {type} zu löschen",
     "noTypeHint": "Wählen Sie einen Typ, um zu sehen, was dieser Endpoint ausliefert, oder schränken Sie die Filter oben ein.",
     "noSpace": "Wählen Sie einen Kontextraum zum Lesen",
@@ -5721,7 +5735,8 @@
       "refusedEntity": "{entity} wurde nicht geändert: {reason}",
       "refused": "Der Endpoint hat die Änderung abgelehnt ({status}).",
       "unreachable": "Der Endpoint hat nicht geantwortet.",
-      "cancelled": "Nicht angewendet."
+      "cancelled": "Nicht angewendet.",
+      "reason": "Von einem Agentenlauf vorgeschlagene Änderung übernommen"
     },
     "kpiPipeline": {
       "title": "Indikator-Pipeline",

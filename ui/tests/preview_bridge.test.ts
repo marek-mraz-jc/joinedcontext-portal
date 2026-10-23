@@ -5,7 +5,7 @@
  * frame's error reports go to the run.
  */
 import { describe, expect, it, vi } from "vitest";
-import { firstAsk, functionPathOf, grantedOperations, handleBridgeMessage, observationRelay, operationOf, previewErrorOf, previewObservationOf, previewVersionOf, selectedSourceOf } from "../src/pages/apps/previewBridge";
+import { firstAsk, functionPathOf, grantedOperations, handleBridgeMessage, observationRelay, operationOf, PREVIEW_REASON, previewErrorOf, previewObservationOf, previewVersionOf, selectedSourceOf } from "../src/pages/apps/previewBridge";
 import type { PreviewError } from "../src/pages/apps/previewBridge";
 
 const SLUG = "k7m2qz4tv6xh3n5jb2ryd3wcfa";
@@ -118,7 +118,23 @@ describe("handleBridgeMessage", () => {
     expect(init.credentials).toBe("same-origin");
     expect(init.body).toBeUndefined();
     expect((init.headers as Record<string, string>)["x-csrf-token"]).toBeUndefined();
+    expect((init.headers as Record<string, string>)["JC-Reason"]).toBeUndefined();
     expect(source.postMessage).toHaveBeenCalledWith({ kind: "jc-response", id: 7, status: 200, body: rows }, "*");
+  });
+
+  // DM-113: a preview writes with the reviewer's Portal session, so each write names why: the
+  // application's own reason when the gateway would take it, else the preview's, percent-encoded.
+  it("sends the frame's reason with a write, or the preview's when it names none or a bad one", async () => {
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 204 }));
+    const reasonOf = (call: number) => ((fetchImpl.mock.calls[call] as unknown as [string, RequestInit])[1].headers as Record<string, string>)["JC-Reason"];
+    await send(request({ reason: "Dock closed\r\nX-Evil: 1" }), { fetchImpl });
+    expect(reasonOf(0)).toBe(encodeURIComponent("Dock closed\r\nX-Evil: 1"));
+    await send(request(), { fetchImpl });
+    expect(reasonOf(1)).toBe(encodeURIComponent(PREVIEW_REASON));
+    for (const bad of ["  ", "x".repeat(501), 42]) {
+      await send(request({ reason: bad }), { fetchImpl });
+    }
+    expect([2, 3, 4].map(reasonOf)).toEqual(Array(3).fill(encodeURIComponent(PREVIEW_REASON)));
   });
 
   it("performs a granted write with the CSRF header and hands back the endpoint's answer", async () => {

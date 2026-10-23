@@ -580,7 +580,8 @@
       "counting": "Counting the space's entities…",
       "allRows": "All rows",
       "savedViews": "Saved views",
-      "typeHint": "Which kind of entity the rows below show, for example Event."
+      "typeHint": "Which kind of entity the rows below show, for example Event.",
+      "restoreReason": "Restored from the trash"
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -963,6 +964,13 @@
       "lat": "Latitude",
       "lon": "Longitude",
       "submit": "Create",
+      "reason": "Reason",
+      "reasonHint": "Why you add it, recorded with the entity, for example: Inspection on 2026-10-22.",
+      "reasonDefault": "Entered through the form",
+      "reasonError": {
+        "required": "Enter why you add it, for example: Inspection on 2026-10-22.",
+        "tooLong": "Use at most {max} characters."
+      },
       "fix": "{count, plural, one {# answer needs} other {# answers need}} fixing before the form can be sent.",
       "refused": "Not created: {reason}",
       "created": "Created {id}.",
@@ -5369,6 +5377,12 @@
     "removeLead": "{id} is removed from the space through this endpoint.",
     "removeConfirm": "Delete",
     "removeNote": "The endpoint's Policy decides: the deletion runs with your session, not with a service identity, and it cannot be undone.",
+    "removeReason": "Reason",
+    "removeReasonHint": "Why you delete it, recorded with the deletion, for example: Duplicate of urn:ngsi-ld:Sensor:12.",
+    "removeReasonError": {
+      "required": "Enter why you delete it, for example: Duplicate entry.",
+      "tooLong": "Use at most {max} characters."
+    },
     "deleteDenied": "This endpoint's grant does not let you delete a {type}",
     "noTypeHint": "Choose a type to list what this endpoint serves, or narrow the filters above.",
     "noSpace": "Choose a context space to read",
@@ -5721,7 +5735,8 @@
       "refusedEntity": "{entity} was not changed: {reason}",
       "refused": "The endpoint refused the change ({status}).",
       "unreachable": "The endpoint did not answer.",
-      "cancelled": "Not applied."
+      "cancelled": "Not applied.",
+      "reason": "Applied a change an agent run proposed"
     },
     "kpiPipeline": {
       "title": "Indicator pipeline",

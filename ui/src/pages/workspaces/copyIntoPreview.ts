@@ -59,7 +59,8 @@ export async function copyIntoPreview(
       if (bytes > MAX_BYTES) return { ...result, stopped: `the copy stops at ${MAX_BYTES / 1024 / 1024} MiB` };
       const written = await fetcher(`${preview}/entityOperations/upsert`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        // The copy is the person's write through the Portal, so it names why (DM-113).
+        headers: { "Content-Type": "application/json", "JC-Reason": encodeURIComponent(`copied from ${originSlug} into its preview`) },
         body,
       });
       if (!written.ok) return { ...result, stopped: await reason(written) };

@@ -580,7 +580,8 @@
       "counting": "Počítám entity prostoru…",
       "allRows": "Všechny řádky",
       "savedViews": "Uložené pohledy",
-      "typeHint": "Který druh entit ukazují řádky níže, například Event."
+      "typeHint": "Který druh entit ukazují řádky níže, například Event.",
+      "restoreReason": "Obnoveno z koše"
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -963,6 +964,13 @@
       "lat": "Zeměpisná šířka",
       "lon": "Zeměpisná délka",
       "submit": "Vytvořit",
+      "reason": "Důvod",
+      "reasonHint": "Proč ji přidáváte, zaznamená se se záznamem, například: Kontrola 22. 10. 2026.",
+      "reasonDefault": "Zadáno přes formulář",
+      "reasonError": {
+        "required": "Napište, proč ji přidáváte, například: Kontrola 22. 10. 2026.",
+        "tooLong": "Použijte nejvýše {max} znaků."
+      },
       "fix": "Před odesláním je třeba opravit odpovědi: {count}.",
       "refused": "Nevytvořeno: {reason}",
       "created": "Vytvořeno {id}.",
@@ -5369,6 +5377,12 @@
     "removeLead": "{id} se odstraní z prostoru přes tento endpoint.",
     "removeConfirm": "Smazat",
     "removeNote": "Rozhoduje Policy endpointu: smazání běží s vaším přihlášením, ne se servisní identitou, a nelze je vrátit.",
+    "removeReason": "Důvod",
+    "removeReasonHint": "Proč ji mažete, zaznamená se se smazáním, například: Duplikát urn:ngsi-ld:Sensor:12.",
+    "removeReasonError": {
+      "required": "Napište, proč ji mažete, například: Duplicitní záznam.",
+      "tooLong": "Použijte nejvýše {max} znaků."
+    },
     "deleteDenied": "Oprávnění tohoto koncového bodu vám nedovoluje smazat {type}",
     "noTypeHint": "Vyberte typ, aby se vypsalo, co tento endpoint poskytuje, nebo upřesněte filtry výše.",
     "noSpace": "Vyberte kontextový prostor ke čtení",
@@ -5721,7 +5735,8 @@
       "refusedEntity": "{entity} se nezměnila: {reason}",
       "refused": "Endpoint změnu odmítl ({status}).",
       "unreachable": "Endpoint neodpověděl.",
-      "cancelled": "Nepoužito."
+      "cancelled": "Nepoužito.",
+      "reason": "Použitá změna, kterou navrhl běh agenta"
     },
     "kpiPipeline": {
       "title": "Pipeline ukazatele",

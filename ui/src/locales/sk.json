@@ -580,7 +580,8 @@
       "counting": "Počítam entity priestoru…",
       "allRows": "Všetky riadky",
       "savedViews": "Uložené pohľady",
-      "typeHint": "Ktorý druh entít ukazujú riadky nižšie, napríklad Event."
+      "typeHint": "Ktorý druh entít ukazujú riadky nižšie, napríklad Event.",
+      "restoreReason": "Obnovené z koša"
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -963,6 +964,13 @@
       "lat": "Zemepisná šírka",
       "lon": "Zemepisná dĺžka",
       "submit": "Vytvoriť",
+      "reason": "Dôvod",
+      "reasonHint": "Prečo ho pridávate, zaznamená sa so záznamom, napríklad: Kontrola 22. 10. 2026.",
+      "reasonDefault": "Zadané cez formulár",
+      "reasonError": {
+        "required": "Napíšte, prečo ho pridávate, napríklad: Kontrola 22. 10. 2026.",
+        "tooLong": "Použite najviac {max} znakov."
+      },
       "fix": "Pred odoslaním treba opraviť odpovede: {count}.",
       "refused": "Nevytvorené: {reason}",
       "created": "Vytvorené {id}.",
@@ -5369,6 +5377,12 @@
     "removeLead": "{id} sa odstráni z priestoru cez tento endpoint.",
     "removeConfirm": "Zmazať",
     "removeNote": "Rozhoduje Policy endpointu: zmazanie beží s vaším prihlásením, nie so servisnou identitou, a nedá sa vrátiť.",
+    "removeReason": "Dôvod",
+    "removeReasonHint": "Prečo ho mažete, zaznamená sa so zmazaním, napríklad: Duplikát urn:ngsi-ld:Sensor:12.",
+    "removeReasonError": {
+      "required": "Napíšte, prečo ho mažete, napríklad: Duplicitný záznam.",
+      "tooLong": "Použite najviac {max} znakov."
+    },
     "deleteDenied": "Grant tohto endpointu ti nedovoľuje mazať {type}",
     "noTypeHint": "Vyberte typ, aby sa vypísalo, čo tento endpoint poskytuje, alebo spresnite filtre vyššie.",
     "noSpace": "Vyberte kontextový priestor na čítanie",
@@ -5721,7 +5735,8 @@
       "refusedEntity": "{entity} sa nezmenila: {reason}",
       "refused": "Endpoint zmenu odmietol ({status}).",
       "unreachable": "Endpoint neodpovedal.",
-      "cancelled": "Nepoužité."
+      "cancelled": "Nepoužité.",
+      "reason": "Použitá zmena, ktorú navrhol beh agenta"
     },
     "kpiPipeline": {
       "title": "Pipeline ukazovateľa",

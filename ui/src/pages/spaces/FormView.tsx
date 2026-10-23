@@ -19,6 +19,7 @@ import type { Change, ResourceProposal } from "../../api/manifest";
 import { useProposal } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { endpointUrl } from "../../components/endpoints/links";
+import { MAX_REASON, reasonProblem } from "../../components/entities/filters";
 import { EntitySearchPicker } from "../../components/pickers/EntitySearchPicker";
 import { Alert, Button, Checkbox, ExternalLink, Field, Input, Select, Textarea } from "../../components/ui";
 import { DNS1123 } from "../../schemas/kinds";
@@ -175,6 +176,7 @@ function EntityFormBody({
   trap,
   test = false,
   space,
+  reasonDefault,
 }: {
   idPrefix: string;
   type: string;
@@ -182,23 +184,30 @@ function EntityFormBody({
   conditions?: Condition[];
   initial: Answers;
   locale: string;
-  /** Sends the entity; `id` is the one the server minted, when it names one. */
-  send: (entity: Record<string, unknown>) => Promise<{ status: number; body: unknown; id?: string }>;
+  /** Sends the entity and the person's reason; `id` is the one the server minted, when it names one. */
+  send: (entity: Record<string, unknown>, reason: string) => Promise<{ status: number; body: unknown; id?: string }>;
   /** A public form's trap field: hidden from people, sent as an attribute no Policy grants. */
   trap?: string;
   /** A test run (EP-102): `send` writes nothing, and its answer says what a real one would do. */
   test?: boolean;
   /** The signed-in form's space; a public form has none and reads nothing. */
   space?: string;
+  /**
+   * The signed-in form asks why the person writes (DM-113), starting from this sentence; a public
+   * form is anonymous and asks nothing.
+   */
+  reasonDefault?: string;
 }): JSX.Element {
   const { t } = useTranslation();
   const { answers, set, reset } = useAnswers(initial);
   const [trapped, setTrapped] = useState("");
   const [tried, setTried] = useState(false);
   const [sent, setSent] = useState<Sent>({ status: "idle" });
+  const [reason, setReason] = useState(reasonDefault ?? "");
   const shown = visibleFields(fields, conditions, answers);
   const problems = problemsOf(shown, answers);
-  const count = Object.keys(problems).length;
+  const reasonError = reasonDefault === undefined ? null : reasonProblem(reason);
+  const count = Object.keys(problems).length + (reasonError ? 1 : 0);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -208,7 +217,7 @@ function EntityFormBody({
     const entity = entityOf(type, shown, answers, locale);
     if (trap && trapped !== "") entity[trap] = { type: "Property", value: trapped };
     try {
-      const answer = await send(entity);
+      const answer = await send(entity, reason.trim());
       if (answer.status >= 200 && answer.status < 300) {
         setSent({ status: "created", id: answer.id ?? String(entity.id) });
         setTried(false);
@@ -224,6 +233,23 @@ function EntityFormBody({
   return (
     <form className="flex max-w-xl flex-col gap-3" noValidate onSubmit={(event) => void submit(event)}>
       <FormFields idPrefix={idPrefix} fields={shown} answers={answers} problems={tried ? problems : {}} onAnswer={set} space={space} />
+      {reasonDefault !== undefined ? (
+        <Field
+          id={`${idPrefix}-reason`}
+          label={t("spaces.form.reason")}
+          required
+          help={t("spaces.form.reasonHint")}
+          errors={tried && reasonError ? [t(`spaces.form.reasonError.${reasonError}`, { max: MAX_REASON })] : undefined}
+        >
+          <Input
+            id={`${idPrefix}-reason`}
+            value={reason}
+            maxLength={MAX_REASON}
+            autoComplete="off"
+            onChange={(event) => setReason(event.target.value)}
+          />
+        </Field>
+      ) : null}
       {trap ? (
         <div aria-hidden="true" className="absolute -left-[10000px] h-px w-px overflow-hidden">
           <label htmlFor={`${idPrefix}-${trap}`}>{t("spaces.form.trap")}</label>
@@ -288,8 +314,9 @@ export function FormView({
       conditions={settings?.conditions}
       initial={initial}
       locale={i18n.language}
-      send={async (entity) => {
-        const answer = await originTransport()({ method: "POST", path: `/cs/${encodeURIComponent(space)}/ngsi-ld/v1/entities`, body: entity });
+      reasonDefault={t("spaces.form.reasonDefault")}
+      send={async (entity, reason) => {
+        const answer = await originTransport()({ method: "POST", path: `/cs/${encodeURIComponent(space)}/ngsi-ld/v1/entities`, body: entity, reason });
         if (answer.status >= 200 && answer.status < 300) onCreated?.();
         return answer;
       }}
