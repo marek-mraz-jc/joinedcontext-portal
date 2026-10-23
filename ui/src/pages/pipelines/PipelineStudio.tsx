@@ -50,7 +50,7 @@ import {
   toFlow,
 } from "./PipelineFlow";
 import type { FlowNodeId } from "./PipelineFlow";
-import { PipelineTest } from "./PipelineTest";
+import { PipelineTest, sourceBodyOf } from "./PipelineTest";
 import type { Trace } from "./PipelineTest";
 import { testPipeline } from "../../api/pipelineTest";
 import { DebugSidebar, NodeDebug } from "./DebugPanel";
@@ -1305,6 +1305,7 @@ export function PipelineStudio({
               onChange={onChange}
               toManifest={toManifest}
               sampleUrl={sampleUrlOf(draft, dataSources, endpoints)}
+              sourceBody={sourceBodyOf(draft, dataSources)}
               onVerdict={onVerdict}
               onTrace={setFlowTrace}
               onDebug={(entry) => setDebugLog((was) => [...was, entry].slice(-100))}

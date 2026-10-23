@@ -17,7 +17,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use axum::http::{HeaderMap, StatusCode};
 use chrono::Utc;
-use context_gateway::pdp::evaluator::{evaluate, Request, Subject};
+use context_gateway::auth::subject::Subject;
+use context_gateway::pdp::evaluator::{evaluate, Request};
 use context_gateway::resolver::EndpointRoles;
 use jc_core::kinds::{AppSpec, EndpointSpec, Operation, PolicySpec};
 use jcctl::loader::RawManifest;

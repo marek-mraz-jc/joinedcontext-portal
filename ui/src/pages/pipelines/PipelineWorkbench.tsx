@@ -16,7 +16,7 @@ import { entityTypesOf, spaceOf } from "../spaces/spaceFacts";
 import type { PipelineForm } from "./PipelineEditor";
 import { inlineEndpointSample } from "../../api/pipelineTest";
 import { plainValue, sampleUrlOf } from "./PipelineStudio";
-import { MAX_SAMPLE_BYTES, draftFromRecord, draftFromSample, formatOf } from "./PipelineTest";
+import { MAX_SAMPLE_BYTES, draftFromRecord, draftFromSample, formatOf, sourceBodyOf, testFormatOf } from "./PipelineTest";
 import type { SampleFormat } from "./PipelineTest";
 import { SlotUnit } from "./SlotUnit";
 import { OutputMapper } from "./OutputMapper";
@@ -162,15 +162,17 @@ export function sampleFor(
   dataSources: Manifest[],
   endpoints: Manifest[],
 ): Sample | undefined {
+  // The source decides the split, so the sample reaches the steps as the live run sends it (PL-114).
+  const body = sourceBodyOf(draft, dataSources);
   if (file) {
-    return { text: file.text, format: file.format };
+    return { text: file.text, format: testFormatOf(file.format, body) };
   }
   const url = sampleUrlOf(draft, dataSources, endpoints);
   if (!url) {
     return undefined;
   }
   const path = url.split(/[?#]/)[0].toLowerCase();
-  return { url, format: path.endsWith(".csv") ? "csv" : "json" };
+  return { url, format: testFormatOf(path.endsWith(".csv") ? "csv" : "json", body) };
 }
 
 /** What the sample step reads: a DataSource by name, the endpoint's page, or the file. */

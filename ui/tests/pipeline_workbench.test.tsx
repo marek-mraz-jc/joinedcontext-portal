@@ -60,7 +60,7 @@ const LINKML = [
 ].join("\n");
 
 const DATASOURCES = [
-  manifest("DataSource", "shmu-csv", { type: "http", http: { url: "https://feeds.example/air.csv" } }),
+  manifest("DataSource", "shmu-csv", { type: "http", http: { url: "https://feeds.example/air.csv", format: "csv" } }),
   manifest("DataSource", "hsl-hfp", { type: "mqtt", mqtt: { urls: ["tcp://mqtt.hsl.fi:1883"], topics: ["/hfp/v2/journey/ongoing/vp/#"] } }),
 ];
 const ENDPOINTS = [manifest("Endpoint", "air-write", { contextSpaceRef: "ovzdusie", slug: "ep-air" })];

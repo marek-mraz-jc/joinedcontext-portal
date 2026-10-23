@@ -1352,7 +1352,9 @@
       "lead": "Vyřiďte žádost osoby o údaje, které o ní tento prostor má: exportujte vše, co ji uvádí, nebo to vymažte z aktuálních hodnot, historie a všech kopií. Může to udělat jen vlastník prostoru a každá žádost se zaznamená s důvodem. Model prostoru musí určovat, který atribut identifikuje osobu.",
       "hint": {
         "subject": "Hodnota atributu osoby v modelu přesně tak, jak je uložená, například r-42. Posílá se jen v žádosti a nikde se neukládá ani nezobrazuje v záznamu.",
-        "reason": "Proč jednáte, zaznamená se se žádostí, například: žádost podle čl. 17 2026-10-19-07."
+        "reason": "Proč jednáte, zaznamená se se žádostí, například: žádost podle čl. 17 2026-10-19-07.",
+        "approveSubject": "Identifikátor ze žádosti, například r-42. Musí být ten, který uvádí návrh; nikdy se neukládá.",
+        "declineReason": "Proč, zaznamená se s rozhodnutím, například: Osoba žádost stáhla."
       },
       "subject": "Identifikátor osoby",
       "subjectError": {
@@ -1367,10 +1369,10 @@
       },
       "export": "Exportovat údaje osoby",
       "erase": "Vymazat údaje osoby…",
-      "confirmTitle": "Vymazat údaje této osoby z prostoru {space}?",
-      "confirmLead": "Výmaz nelze vrátit. Odstraní hodnoty z aktuálního stavu, ze všech verzí historie a ze všech kopií; zůstane jen záznam bez hodnot.",
-      "confirm": "Vymazat",
-      "nothing": "Prostor o této osobě nic nemá. Výmaz přesto zaznamená žádost.",
+      "confirmTitle": "Navrhnout vymazání údajů této osoby z {space}?",
+      "confirmLead": "Vymazání nejprve schválí další vlastník tohoto prostoru; do té doby se nic nevymaže. Po schválení je nevratné: odstraní hodnoty z aktuálního stavu, ze všech verzí historie a ze všech kopií a zůstane záznam bez hodnot.",
+      "confirm": "Navrhnout vymazání",
+      "nothing": "Prostor teď o této osobě nic neobsahuje. Návrh žádost přesto zaznamená; prostor se prohledá znovu, až ho schválí další vlastník.",
       "wouldErase": {
         "attrs": "{count, plural, one {{type}: osobní atributy ({attrs}) # entity} few {{type}: osobní atributy ({attrs}) # entit} many {{type}: osobní atributy ({attrs}) # entit} other {{type}: osobní atributy ({attrs}) # entit}}",
         "entity": "{count, plural, one {{type}: # celá entita} few {{type}: # celé entity} many {{type}: # celých entit} other {{type}: # celých entit}}"
@@ -1378,7 +1380,10 @@
       "state": {
         "open": "Výmaz {id} probíhá (entity: {count}). Stránka to každých pár sekund ověří znovu.",
         "done": "Výmaz {id} je hotový: každé úložiště hlásí vymazání (entity: {count}).",
-        "failed": "Výmaz {id} selhal v jednom úložišti po hodině pokusů. Přečtěte si chybu níže a požádejte tým platformy o opravu úložiště; výmaz zůstává zaznamenaný."
+        "failed": "Výmaz {id} selhal v jednom úložišti po hodině pokusů. Přečtěte si chybu níže a požádejte tým platformy o opravu úložiště; výmaz zůstává zaznamenaný.",
+        "proposed": "Vymazání {id} je navrženo (nalezených entit: {count}). Nic se nevymaže, dokud ho do {expires} neschválí další vlastník tohoto prostoru.",
+        "declined": "Vymazání {id} bylo zamítnuto. Nic se nevymazalo.",
+        "expired": "Vymazání {id} vypršelo bez schválení. Nic se nevymazalo; pokud žádost stále platí, navrhněte ho znovu."
       },
       "store": "{store}: {state}, odstraněno {count}",
       "stores": {
@@ -1394,7 +1399,21 @@
         "done": "hotovo",
         "failed": "selhalo: přečtěte si chybu a zkuste později"
       },
-      "exported": "{count, plural, one {Exportován # záznam do souboru ve stažených souborech.} few {Exportovány # záznamy do souboru ve stažených souborech.} many {Exportováno # záznamů do souboru ve stažených souborech.} other {Exportováno # záznamů do souboru ve stažených souborech.}}"
+      "exported": "{count, plural, one {Exportován # záznam do souboru ve stažených souborech.} few {Exportovány # záznamy do souboru ve stažených souborech.} many {Exportováno # záznamů do souboru ve stažených souborech.} other {Exportováno # záznamů do souboru ve stažených souborech.}}",
+      "proposals": {
+        "title": "Vymazání čekající na druhého vlastníka",
+        "empty": "Žádné vymazání nečeká na schválení. Když ho vlastník navrhne, objeví se zde a další vlastník prostoru ho schválí nebo zamítne.",
+        "item": "{id}: navrhl(a) {by} {at}, {count, plural, one {# nalezená entita} few {# nalezené entity} other {# nalezených entit}}, platí do {expires}",
+        "approve": "Schválit…",
+        "decline": "Zamítnout…",
+        "own": "Toto vymazání jste navrhli vy: schválí ho jiný vlastník prostoru."
+      },
+      "approveTitle": "Schválit vymazání {id}?",
+      "approveLead": "Zadejte identifikátor osoby ze žádosti. Portál ho porovná s návrhem, znovu prohledá prostor a vymaže, co obsahuje. Nelze to vrátit.",
+      "approveConfirm": "Schválit a vymazat",
+      "declineTitle": "Zamítnout vymazání {id}?",
+      "declineLead": "Nic se nevymaže. Důvod se uloží do auditního záznamu.",
+      "declineConfirm": "Zamítnout vymazání"
     },
     "viewHints": {
       "moveReason": "Uloží se u každého přesunu do historie změn, např. „Přesunuto, protože místo zrušili“.",
@@ -2507,7 +2526,8 @@
       "line": "řádek {line}",
       "ready": "Všech {count} zpráv se mapuje na entity. Navrhněte pipeline níže.",
       "useUrl": "Otestovat na URL zdroje",
-      "urlSample": "{url} · json · stáhne runner",
+      "urlSample": "{url} · {format} · stáhne runner",
+      "wholeBody": "Zdroj posílá soubor CSV jako jednu zprávu, a proto i tento test. Chcete-li mapovat po řádcích, doplňte do bloku http zdroje dat format: csv (spec.http.format: csv).",
       "gate": "Nejprve otestujte mapování: Navrhnout se otevře, když je test pro toto mapování zelený.",
       "replaceDrafted": "Nahradit navrženým mapováním"
     },

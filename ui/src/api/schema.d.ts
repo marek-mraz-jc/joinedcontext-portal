@@ -3444,11 +3444,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List Erasures
+         * @description The space's newest 50 erasures, newest first, proposals waiting for a second owner included (DM-142). For the space's owners.
+         */
+        get: operations["list_erasures"];
         put?: never;
         /**
-         * Erase a Data Subject
-         * @description Erases the data subject from the space: the personal Attributes (or the whole Entity of a personal class) of every Entity naming it, from the broker's current state and every version, the CKAN DataStore copy, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers at once with the erasure, which stays open until every store reports done; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.
+         * Propose a Data Subject's Erasure
+         * @description Proposes erasing the data subject from the space: once another person with `approve` on the ContextSpace approves it (DM-142), the personal Attributes (or the whole Entity of a personal class) of every Entity naming it go from the broker's current state and every version, the CKAN DataStore copy, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers with the proposal, `proposed` and nothing erased, which expires after 7 days; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.
          */
         post: operations["erase_subject"];
         delete?: never;
@@ -3471,6 +3475,46 @@ export interface paths {
         get: operations["get_erasure"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/spaces/{space}/erasures/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve an Erasure
+         * @description A second person with `approve` on the ContextSpace approves an owner's proposal by typing the subject again; its keyed hash must be the proposal's. The space is searched again and the erasure runs, as `open` until every store reports done (DM-126, DM-142). The proposer, a bearer token and an expired or decided proposal are refused.
+         */
+        post: operations["approve_erasure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/spaces/{space}/erasures/{id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decline an Erasure
+         * @description An owner of the space, the proposer included, declines a proposal with a reason; nothing is erased (DM-142). Audited with the reason.
+         */
+        post: operations["decline_erasure"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4796,6 +4840,11 @@ export interface components {
             /** @description Why a change is rejected; written on the merge request beside who rejected it. */
             reason?: string | null;
         };
+        /** @description The approver's second look: the subject typed again, never kept. */
+        ApproveRequest: {
+            /** @description The value of the class's `dataSubjectRef` slot, as the proposal named it. */
+            subject: string;
+        };
         /**
          * @description What one Model Tools run rendered. Every artifact is optional: a version that does not
          *     render one omits it, and a source that does not compile yet answers with `errors` filled in
@@ -5848,6 +5897,10 @@ export interface components {
         };
         /** @description Why an owner declines or revokes. */
         Decision: {
+            reason: string;
+        };
+        /** @description Why the proposal is declined, for the audit record. */
+        DeclineRequest: {
             reason: string;
         };
         /** @description What `scripts/publish-health.py` writes for one check. */
@@ -20159,6 +20212,67 @@ export interface operations {
             };
         };
     };
+    list_erasures: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description `{ "items": [erasure] }` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller reads the space but does not own it */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No database */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     erase_subject: {
         parameters: {
             query?: {
@@ -20195,7 +20309,7 @@ export interface operations {
                     "application/json": Record<string, never>;
                 };
             };
-            /** @description The erasure, its Location and its state per store */
+            /** @description The proposal, `proposed`, and its Location; nothing erased */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -20305,6 +20419,195 @@ export interface operations {
             };
             /** @description No such space or erasure */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No database */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    approve_erasure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+                /** @description The erasure's id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "subject": "r-42"
+                 *     }
+                 */
+                "application/json": components["schemas"]["ApproveRequest"];
+            };
+        };
+        responses: {
+            /** @description The approved erasure and its state per store */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description A subject that cannot be searched for */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller does not own the space, proposed the erasure (`self-approval`) or sent a bearer token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space or erasure */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The erasure is no longer a proposal: approved, declined or expired */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The subject typed is not the one the proposal names (`subject`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No database, space surface or key */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    decline_erasure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+                /** @description The erasure's id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "reason": "the person withdrew the request"
+                 *     }
+                 */
+                "application/json": components["schemas"]["DeclineRequest"];
+            };
+        };
+        responses: {
+            /** @description The declined erasure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description No reason */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller does not own the space or sent a bearer token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space or erasure */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The erasure is no longer a proposal */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

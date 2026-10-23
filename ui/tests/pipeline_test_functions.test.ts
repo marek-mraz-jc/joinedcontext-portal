@@ -9,6 +9,8 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  sourceBodyOf,
+  testFormatOf,
   draftFromRecord,
   draftFromSample,
   errorLines,
@@ -221,5 +223,30 @@ describe("a sample dropped on a pipeline that already has a mapping (T-3971)", (
     expect(literalTypeOf('root.type = this.kind')).toBeUndefined();
     expect(literalTypeOf('root.loc = {"type": "GeoProperty", "value": this.geo}')).toBeUndefined();
     expect(literalTypeOf("")).toBeUndefined();
+  });
+});
+
+describe("the split a test runs follows the source (PL-114, T-5350)", () => {
+  const source = (http: Record<string, unknown>, type = "http") => ({
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "DataSource",
+    metadata: { name: "s", namespace: "p" },
+    spec: { type, http },
+  });
+  const reads = { class: "auto" as const, source: { dataSourceRef: "s" } };
+
+  it("reads the body format of the http DataSource the draft names", () => {
+    expect(sourceBodyOf(reads, [source({ url: "https://x.example/a.csv", format: "csv" })])).toBe("csv");
+    expect(sourceBodyOf(reads, [source({ url: "https://x.example/a.csv" })])).toBe("whole");
+    expect(sourceBodyOf(reads, [source({}, "mqtt")])).toBeUndefined();
+    expect(sourceBodyOf({ class: "auto" }, [source({ format: "csv" })])).toBeUndefined();
+    expect(sourceBodyOf(reads, [])).toBeUndefined();
+  });
+
+  it("keeps a CSV whole for a whole-body source and splits any sample of a csv source", () => {
+    expect(testFormatOf("csv", "whole")).toBe("text");
+    expect(testFormatOf("json", "whole")).toBe("json");
+    expect(testFormatOf("text", "csv")).toBe("csv");
+    expect(testFormatOf("csv", undefined)).toBe("csv");
   });
 });

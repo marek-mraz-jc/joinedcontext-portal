@@ -1352,7 +1352,9 @@
       "lead": "Vybavte žiadosť osoby o údaje, ktoré o nej tento priestor má: exportujte všetko, čo ju uvádza, alebo to vymažte z aktuálnych hodnôt, histórie a všetkých kópií. Môže to urobiť len vlastník priestoru a každá žiadosť sa zaznamená s dôvodom. Model priestoru musí určovať, ktorý atribút identifikuje osobu.",
       "hint": {
         "subject": "Hodnota atribútu osoby v modeli presne tak, ako je uložená, napríklad r-42. Posiela sa len v žiadosti a nikde sa neukladá ani nezobrazuje v zázname.",
-        "reason": "Prečo konáte, zaznamená sa so žiadosťou, napríklad: žiadosť podľa čl. 17 2026-10-19-07."
+        "reason": "Prečo konáte, zaznamená sa so žiadosťou, napríklad: žiadosť podľa čl. 17 2026-10-19-07.",
+        "approveSubject": "Identifikátor zo žiadosti, napríklad r-42. Musí byť ten, ktorý uvádza návrh; nikdy sa neukladá.",
+        "declineReason": "Prečo, zaznamená sa s rozhodnutím, napríklad: Osoba žiadosť stiahla."
       },
       "subject": "Identifikátor osoby",
       "subjectError": {
@@ -1367,10 +1369,10 @@
       },
       "export": "Exportovať údaje osoby",
       "erase": "Vymazať údaje osoby…",
-      "confirmTitle": "Vymazať údaje tejto osoby z priestoru {space}?",
-      "confirmLead": "Výmaz sa nedá vrátiť. Odstráni hodnoty z aktuálneho stavu, zo všetkých verzií histórie a zo všetkých kópií; zostane len záznam bez hodnôt.",
-      "confirm": "Vymazať",
-      "nothing": "Priestor o tejto osobe nič nemá. Výmaz aj tak zaznamená žiadosť.",
+      "confirmTitle": "Navrhnúť vymazanie údajov tejto osoby z {space}?",
+      "confirmLead": "Vymazanie najprv schváli ďalší vlastník tohto priestoru; dovtedy sa nič nevymaže. Po schválení sa nedá vrátiť: odstráni hodnoty z aktuálneho stavu, zo všetkých verzií histórie a zo všetkých kópií a zostane záznam bez hodnôt.",
+      "confirm": "Navrhnúť vymazanie",
+      "nothing": "Priestor teraz o tejto osobe nič neobsahuje. Návrh žiadosť aj tak zaznamená; priestor sa prehľadá znova, keď ho schváli ďalší vlastník.",
       "wouldErase": {
         "attrs": "{count, plural, one {{type}: osobné atribúty ({attrs}) # entity} few {{type}: osobné atribúty ({attrs}) # entít} many {{type}: osobné atribúty ({attrs}) # entít} other {{type}: osobné atribúty ({attrs}) # entít}}",
         "entity": "{count, plural, one {{type}: # celá entita} few {{type}: # celé entity} many {{type}: # celých entít} other {{type}: # celých entít}}"
@@ -1378,7 +1380,10 @@
       "state": {
         "open": "Výmaz {id} prebieha (entity: {count}). Stránka to každých pár sekúnd overí znova.",
         "done": "Výmaz {id} je hotový: každé úložisko hlási vymazanie (entity: {count}).",
-        "failed": "Výmaz {id} zlyhal v jednom úložisku po hodine pokusov. Prečítajte si chybu nižšie a požiadajte tím platformy o opravu úložiska; výmaz zostáva zaznamenaný."
+        "failed": "Výmaz {id} zlyhal v jednom úložisku po hodine pokusov. Prečítajte si chybu nižšie a požiadajte tím platformy o opravu úložiska; výmaz zostáva zaznamenaný.",
+        "proposed": "Vymazanie {id} je navrhnuté (nájdených entít: {count}). Nič sa nevymaže, kým ho do {expires} neschváli ďalší vlastník tohto priestoru.",
+        "declined": "Vymazanie {id} bolo zamietnuté. Nič sa nevymazalo.",
+        "expired": "Vymazanie {id} vypršalo bez schválenia. Nič sa nevymazalo; ak žiadosť stále platí, navrhnite ho znova."
       },
       "store": "{store}: {state}, odstránené {count}",
       "stores": {
@@ -1394,7 +1399,21 @@
         "done": "hotovo",
         "failed": "zlyhalo: prečítajte si chybu a skúste neskôr"
       },
-      "exported": "{count, plural, one {Exportovaný # záznam do súboru v stiahnutých súboroch.} few {Exportované # záznamy do súboru v stiahnutých súboroch.} many {Exportovaných # záznamov do súboru v stiahnutých súboroch.} other {Exportovaných # záznamov do súboru v stiahnutých súboroch.}}"
+      "exported": "{count, plural, one {Exportovaný # záznam do súboru v stiahnutých súboroch.} few {Exportované # záznamy do súboru v stiahnutých súboroch.} many {Exportovaných # záznamov do súboru v stiahnutých súboroch.} other {Exportovaných # záznamov do súboru v stiahnutých súboroch.}}",
+      "proposals": {
+        "title": "Vymazania čakajúce na druhého vlastníka",
+        "empty": "Žiadne vymazanie nečaká na schválenie. Keď ho vlastník navrhne, zobrazí sa tu a ďalší vlastník priestoru ho schváli alebo zamietne.",
+        "item": "{id}: navrhol(a) {by} {at}, {count, plural, one {# nájdená entita} few {# nájdené entity} other {# nájdených entít}}, platí do {expires}",
+        "approve": "Schváliť…",
+        "decline": "Zamietnuť…",
+        "own": "Toto vymazanie ste navrhli vy: schváli ho iný vlastník priestoru."
+      },
+      "approveTitle": "Schváliť vymazanie {id}?",
+      "approveLead": "Zadajte identifikátor osoby zo žiadosti. Portál ho porovná s návrhom, znova prehľadá priestor a vymaže, čo obsahuje. Nedá sa to vrátiť.",
+      "approveConfirm": "Schváliť a vymazať",
+      "declineTitle": "Zamietnuť vymazanie {id}?",
+      "declineLead": "Nič sa nevymaže. Dôvod sa uloží do auditného záznamu.",
+      "declineConfirm": "Zamietnuť vymazanie"
     },
     "viewHints": {
       "moveReason": "Uloží sa pri každom presune do histórie zmien, napr. „Presunuté, lebo miesto zrušili“.",
@@ -2507,7 +2526,8 @@
       "line": "riadok {line}",
       "ready": "Všetkých {count} správ sa mapuje na entity. Navrhnite pipeline nižšie.",
       "useUrl": "Otestovať na URL zdroja",
-      "urlSample": "{url} · json · stiahne runner",
+      "urlSample": "{url} · {format} · stiahne runner",
+      "wholeBody": "Zdroj posiela súbor CSV ako jednu správu, a tak to robí aj tento test. Ak chcete mapovať po riadkoch, doplňte do bloku http zdroja údajov format: csv (spec.http.format: csv).",
       "gate": "Najprv otestujte mapovanie: Navrhnúť sa otvorí, keď je test pre toto mapovanie zelený.",
       "replaceDrafted": "Nahradiť navrhnutým mapovaním"
     },
