@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized } from "../../api/manifest";
 import { operationAreas } from "../../components/AccessWords";
+import { constraintText } from "../../api/access";
+import type { GrantDocument, GrantEntry } from "../../api/access";
 import {
   Badge,
   Field,
@@ -17,26 +19,6 @@ import {
   TableRow,
   Term,
 } from "../../components/ui";
-
-/**
- * The AuthZEN grant document as the Context Gateway serves it today (EP-55, EP-56): one entry
- * per entity type a policy names, with the operations, the attribute projection and the residual
- * the gateway would add to any request. A type no grant names is absent, never listed as denied
- * (EP-59), so an empty matrix means "nothing here for you", not "nothing exists".
- */
-interface GrantEntry {
-  resource?: { type?: string; id?: string; idPatterns?: string[] };
-  actions?: string[];
-  attributes?: string[] | "*";
-  constraints?: { q?: string; scopeQ?: string; geoQ?: string; temporalQ?: string };
-}
-
-interface GrantDocument {
-  subject?: { type?: string; id?: string };
-  resource?: { type?: string; id?: string; space?: string };
-  permissions?: GrantEntry[];
-  prohibitions?: GrantEntry[];
-}
 
 /** CIM 009 operation names that write; everything else on an entry is a read (R8). */
 const WRITE_OPERATIONS = new Set([
@@ -75,7 +57,7 @@ function ConstraintList({ entry }: { entry: GrantEntry }): JSX.Element {
       {residual.map(([name, value]) => (
         <li key={name} className="font-mono text-caption">
           <span className="text-fg-muted">{name}=</span>
-          {value}
+          {constraintText(value)}
         </li>
       ))}
     </ul>

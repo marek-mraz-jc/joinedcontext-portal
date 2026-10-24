@@ -234,8 +234,9 @@ function transportFor(config: JcConfig): Transport // e.g. transportFor(jc().con
 function originTransport(fetchImpl?: typeof fetch, doc?: Document): Transport // a host page's own: same origin, the person's session and CSRF header
 class SourceError extends Error { status: number }
 function historyOf(body: unknown, attr: string): HistoryPoint[]
+function accessOf(body: unknown): AttributeAccess[] // an access/attributes answer; a missing flag is false
 ```
-Where a grid reads: `query`, `get`, and where the source offers them `history`, `patch`, `remove`. The two built-in sources read the normalized representation with `options=sysAttrs` through the person's session; a space's 404 says "no grant on this space" whether or not it exists; an Endpoint's 404 on `history` is an empty series (no instances and no grant look alike, T-2972). The Endpoint's Policy decides every write.
+Where a grid reads: `query`, `get`, and where the source offers them `history`, `patch`, `remove`, `access(type)` (an Endpoint's per-attribute `{name, read, write, delete, reason}`: an editor opens only on `write`; click, `i` or a cell's i button shows them). The two built-in sources read the normalized representation with `options=sysAttrs` through the person's session; a space's 404 says "no grant on this space" whether or not it exists; an Endpoint's 404 on `history` is an empty series (no instances and no grant look alike, T-2972). The Endpoint's Policy decides every write.
 ```ts
 function toRichRow(entity: object, language?: string): RichRow // { id, type, createdAt, modifiedAt, scope, cells, raw }
 function toRichCell(attr: unknown, language: string): RichCell | null // { kind, value, unitCode, observedAt, datasetId, createdAt, modifiedAt, object, geometryType, languageMap, sub }
