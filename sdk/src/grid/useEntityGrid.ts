@@ -132,6 +132,15 @@ export interface GridLabels {
   /** What a paste of a range did (T-3097): cells it set, cells it left, and a range too large. */
   pasted: string;
   skipped: string;
+  /** Pasted cells the person's access does not let them change (T-5530). */
+  notAllowed: string;
+  /** A read-only column's lock and its reasons beyond the inspector's own (T-5530). */
+  locked: string;
+  lockReadOnly: string;
+  lockNotOffered: string;
+  /** The column of an attribute the person may not read, and the header button that removes it. */
+  hiddenNoAccess: string;
+  removeHidden: string;
   pasteTooLarge: string;
   /** A scrolling grid's footer (T-3097): "120 of 10 400 loaded". */
   loaded: string;
@@ -278,6 +287,12 @@ export const DEFAULT_LABELS: GridLabels = {
   close: "Close",
   pasted: "cells pasted",
   skipped: "skipped (not editable, off the page or not a listed value)",
+  notAllowed: "not allowed by your access",
+  locked: "Read-only",
+  lockReadOnly: "Your access lets you read it, not change it.",
+  lockNotOffered: "This table does not offer it for editing.",
+  hiddenNoAccess: "hidden: no access",
+  removeHidden: "Remove this hidden column",
   pasteTooLarge: "The copied range is too large to paste at once; paste a smaller range, or import the rows from a file.",
   loaded: "loaded",
   of: "of",

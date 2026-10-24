@@ -1342,3 +1342,54 @@ a.jc-cell--link:focus-visible {
 @media (hover: none) {
   .jc-grid-info { opacity: 1; }
 }
+
+/* T-5530: a column the person cannot change wears a lock in its header (the reason is its name and
+   tooltip), and its cells a muted ground, so a value without an editor reads as read-only. */
+.jc-grid-lock {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-inline-start: var(--jc-space-1, 4px);
+  vertical-align: -0.0625rem;
+  background: var(--jc-color-muted, #4b5563);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 7V5a4 4 0 1 1 8 0v2h1v8H3V7h1zm2 0h4V5a2 2 0 1 0-4 0v2z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.jc-grid-td--locked {
+  background: var(--jc-color-card, #f6f7f9);
+  color: var(--jc-color-muted, #4b5563);
+}
+
+/* An attribute the person may not read: a narrow grey column that says so and holds no value. */
+.jc-grid-th--no-access,
+.jc-grid-td--no-access {
+  width: 7rem;
+  min-width: 7rem;
+  max-width: 7rem;
+  background: var(--jc-color-card, #f3f4f6);
+  color: var(--jc-color-muted, #4b5563);
+}
+
+.jc-grid-td--no-access {
+  background-image: repeating-linear-gradient(135deg, transparent 0 6px, var(--jc-color-line, #d0d7de) 6px 7px);
+}
+
+.jc-grid-no-access-name,
+.jc-grid-no-access-note {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jc-grid-no-access-note {
+  font-size: var(--jc-font-size-sm, 12px);
+  font-weight: normal;
+  font-style: italic;
+}
+
+.jc-grid-th--no-access .jc-grid-meta-btn {
+  position: absolute;
+  inset-block-start: 0.25rem;
+  inset-inline-end: 0.25rem;
+}
