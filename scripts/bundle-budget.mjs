@@ -34,6 +34,18 @@ export const ROUTE_BUDGETS_KB = {
   FormView: 28,
 };
 
+/**
+ * The web workers the Portal needs: Monaco's editor worker (YAML needs no language service of its
+ * own) and MapLibre's. A TypeScript, CSS, HTML or JSON worker means Monaco is imported whole again
+ * (T-5513: 8.8 MB of the build).
+ */
+export const WORKERS = ["editor.worker", "maplibre-gl-worker"];
+
+/** The worker chunks in `names` that WORKERS does not list. */
+export function strayWorkers(names) {
+  return names.filter((name) => /\.worker-[^/]*\.js$|-worker-[^/]*\.js$/.test(name) && !WORKERS.some((w) => name.startsWith(`${w}-`)));
+}
+
 /** The scripts index.html loads at once: the entry, and the chunks it preloads. */
 export function entryScripts(html) {
   return [...html.matchAll(/<(?:script[^>]*\ssrc|link[^>]*rel="modulepreload"[^>]*\shref)="\/?(assets\/[^"]+\.js)"/g)].map((m) => m[1]);
@@ -83,6 +95,11 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const read = (chunk) => readFileSync(join(dist, chunk), "utf8");
   const entry = new Set(scripts.flatMap((script) => [...closure(script, read)]));
   const chunks = readdirSync(join(dist, "assets"));
+  const stray = strayWorkers(chunks);
+  if (stray.length > 0) {
+    console.error(`workers no editor uses: ${stray.join(", ")}: import only the Monaco parts monaco-setup.ts needs`);
+    over = true;
+  }
   for (const [route, budget] of Object.entries(ROUTE_BUDGETS_KB)) {
     const chunk = chunks.find((name) => name.startsWith(`${route}-`) && name.endsWith(".js"));
     if (!chunk) {
