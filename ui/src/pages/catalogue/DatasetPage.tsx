@@ -23,7 +23,7 @@ import { CodeBlock,
   TableHeaderCell,
   TableRow,
 } from "../../components/ui";
-import { problemOf, useThemeLabel } from "./CataloguePage";
+import { problemOf, useThemeLabel } from "./labels";
 import { snippets } from "./snippets";
 import type { Snippet } from "./snippets";
 import { areaLabel } from "./nuts";

@@ -14,7 +14,9 @@ import {
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { lastProject, preferredProject, useProjects } from "./api/projects";
-import { BrandMark, Shell } from "./components/layout/Shell";
+import { BrandMark } from "./components/layout/BrandMark";
+import { Shell } from "./components/layout/LazyShell";
+import { PublicFrame } from "./components/layout/PublicFrame";
 import { isHiddenSection } from "./components/layout/navigation";
 import { useHiddenSections } from "./branding";
 import { EmptyState, PageFailed, PageLoading } from "./components/ui";
@@ -54,7 +56,6 @@ const EndpointDocs = lazy(() => import("./pages/endpoints/EndpointDocs").then((m
 const PublicViewPage = lazy(() => import("./pages/spaces/PublicView").then((module) => ({ default: module.PublicViewPage })));
 const PublicFormPage = lazy(() => import("./pages/spaces/FormView").then((module) => ({ default: module.PublicFormPage })));
 import { useAuth } from "./auth/AuthProvider";
-import { Button } from "./components/ui";
 const ProjectSettingsPage = lazy(() =>
   import("./pages/projectSettings/ProjectSettingsPage").then((module) => ({ default: module.ProjectSettingsPage })),
 );
@@ -207,7 +208,14 @@ function IndexRedirect(): React.JSX.Element {
 }
 
 const rootRoute = createRootRouteWithContext<RouterContext>()({
-  component: Outlet,
+  // A signed-in page waits here for the shell's chunk (T-5122), drawn as the empty page it becomes.
+  component: function Root() {
+    return (
+      <Suspense fallback={<main aria-busy="true" className="min-h-screen bg-bg" />}>
+        <Outlet />
+      </Suspense>
+    );
+  },
 });
 
 /**
@@ -248,37 +256,6 @@ function SignedInCatalogue({
     <Shell project={first}>{children(first)}</Shell>
   ) : (
     <PublicFrame>{children(null)}</PublicFrame>
-  );
-}
-
-function PublicFrame({ children, anonymous = false }: { children: React.ReactNode; anonymous?: boolean }): React.JSX.Element {
-  const { t } = useTranslation();
-  const { status, signIn } = useAuth();
-  return (
-    <div className="flex min-h-screen flex-col bg-bg font-sans text-fg">
-      <header className="flex h-14 items-center justify-between gap-4 border-b border-border bg-surface px-4">
-        <BrandMark short />
-        {status === "anonymous" && !anonymous ? (
-          <Button size="sm" variant="secondary" onClick={() => signIn(window.location.pathname + window.location.search)}>
-            {t("auth.signIn")}
-          </Button>
-        ) : null}
-      </header>
-      <main id="main" className="mx-auto w-full max-w-7xl flex-1 p-6">
-        <Suspense fallback={<PageLoading label={t("app.loading")} />}>{children}</Suspense>
-      </main>
-      {/* The statement a public body must link from every page (T-5108). */}
-      <footer className="border-t border-border bg-surface px-4 py-3 text-caption">
-        <nav aria-label={t("accessibility.footer")} className="mx-auto flex max-w-7xl flex-wrap gap-x-4 gap-y-1">
-          <a className="text-primary-soft-fg underline hover:no-underline" href="/accessibility">
-            {t("accessibility.link")}
-          </a>
-          <a className="text-primary-soft-fg underline hover:no-underline" href="/glossary">
-            {t("glossary.page.title")}
-          </a>
-        </nav>
-      </footer>
-    </div>
   );
 }
 
