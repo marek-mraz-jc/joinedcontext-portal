@@ -28,7 +28,7 @@ import {
   TableHeaderCell,
   TableRow,
 } from "../../components/ui";
-import { DNS1123 } from "../../schemas/kinds";
+import { DNS1123 } from "../../schemas/dns1123";
 
 /** The rows a published view shows. */
 export const PUBLIC_ROWS = 100;

@@ -12,7 +12,7 @@ import { Combobox } from "../../components/pickers/Combobox";
 import type { PickerOption } from "../../components/pickers/Combobox";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 import { Alert, Button, Checkbox, Dialog, Field, Input, Select, Textarea } from "../../components/ui";
-import { problemOf } from "./CataloguePage";
+import { problemOf } from "./labels";
 import { areaLabel, nutsCode, NUTS_CODES } from "./nuts";
 import { PublicationPreview } from "./PublicationPreview";
 import {

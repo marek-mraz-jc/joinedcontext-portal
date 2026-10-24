@@ -1,7 +1,7 @@
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "../../components/ui";
-import { useThemeLabel } from "./CataloguePage";
+import { useThemeLabel } from "./labels";
 import { areaLabel } from "./nuts";
 import { formOf } from "./publish";
 import type { CatalogBlock } from "./publish";

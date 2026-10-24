@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import type { JSX } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
 import {
   Alert,
@@ -21,24 +20,21 @@ import {
   PageLoading,
   PermissionGuard,
 } from "../../components/ui";
-import { PublishDatasetDialog } from "./PublishDataset";
+import { useThemeLabel } from "./labels";
+
+export { problemOf, useThemeLabel } from "./labels";
+
+// The publish dialog is for a signed-in person in a project; a visitor never downloads it (T-5122).
+const PublishDatasetDialog = lazy(() => import("./PublishDataset").then((module) => ({ default: module.PublishDatasetDialog })));
 import { FACETS, narrowed, toggled } from "./search";
 import type { CatalogueSearch, FacetName } from "./search";
 import { areaLabel } from "./nuts";
+import { catalogueQuery } from "./queries";
 
 type CataloguePageAnswer = components["schemas"]["CataloguePage"];
 type CatalogueDataset = components["schemas"]["CatalogueDataset"];
 type FacetValue = components["schemas"]["CatalogueFacetValue"];
 
-export function catalogueKey(search: CatalogueSearch) {
-  return ["catalogue", search] as const;
-}
-
-/** The name of an EU data theme in the reader's language, the catalogue's English one else. */
-export function useThemeLabel(): (code: string, fallback?: string) => string {
-  const { t } = useTranslation();
-  return (code, fallback) => t(`catalogue.theme.${code}`, { defaultValue: fallback ?? code });
-}
 
 /**
  * Every public dataset of the installation, searched and faceted (EP-81, Architecture/21 §6).
@@ -60,24 +56,7 @@ export function CataloguePage({
   const { t } = useTranslation();
   const [publishing, setPublishing] = useState(false);
   const catalogue = useQuery({
-    queryKey: catalogueKey(search),
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/catalogue", {
-          params: {
-            query: {
-              q: search.q,
-              publisher: search.publisher,
-              theme: search.theme,
-              format: search.format,
-              licence: search.licence,
-              spatial: search.spatial,
-              year: search.year,
-              page: search.page,
-            },
-          },
-        }),
-      ),
+    ...catalogueQuery(search),
     placeholderData: keepPreviousData,
   });
 
@@ -102,7 +81,9 @@ export function CataloguePage({
     <div className="flex flex-col gap-section">
       {header}
       {project ? (
-        <PublishDatasetDialog project={project} open={publishing} onOpenChange={setPublishing} />
+        <Suspense fallback={null}>
+          <PublishDatasetDialog project={project} open={publishing} onOpenChange={setPublishing} />
+        </Suspense>
       ) : null}
       {/* Keyed by the address's text: a back button or a shared link resets the box to it. */}
       <SearchForm key={search.q ?? ""} search={search} onSearch={onSearch} />
@@ -414,7 +395,3 @@ function DatasetCard({ dataset }: { dataset: CatalogueDataset }): JSX.Element {
   );
 }
 
-/** A failed read's words, for the pages that show them inline rather than as a page. */
-export function problemOf(error: unknown, fallback: string): string {
-  return error instanceof ApiError ? (error.problem?.detail ?? error.message) : fallback;
-}

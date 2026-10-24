@@ -7,8 +7,9 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
-import { catalogueKey, keyFormats } from "../src/pages/catalogue/CataloguePage";
-import { datasetKey, notesBlocks, resourceSays } from "../src/pages/catalogue/DatasetPage";
+import { keyFormats } from "../src/pages/catalogue/CataloguePage";
+import { catalogueKey, datasetKey } from "../src/pages/catalogue/queries";
+import { notesBlocks, resourceSays } from "../src/pages/catalogue/DatasetPage";
 import { narrowed, parseCatalogueSearch, toggled } from "../src/pages/catalogue/search";
 import { snippets } from "../src/pages/catalogue/snippets";
 

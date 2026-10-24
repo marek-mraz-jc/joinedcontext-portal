@@ -416,15 +416,7 @@ export async function fetchEntities(
   return { rows: entities(await response.json()), count: parseResultsCount(response.headers) };
 }
 
-/** The longest `JC-Reason` the gateway takes (DM-113): 1 to 500 characters once trimmed. */
-export const MAX_REASON = 500;
-
-/** What is wrong with a reason a person typed, or null when the gateway takes it (DM-113). */
-export function reasonProblem(reason: string): "required" | "tooLong" | null {
-  const trimmed = reason.trim();
-  if (trimmed === "") return "required";
-  return [...trimmed].length > MAX_REASON ? "tooLong" : null;
-}
+export { MAX_REASON, reasonProblem } from "./reason";
 
 /**
  * One entity removed through the endpoint that shows it, with the signed-in person's session

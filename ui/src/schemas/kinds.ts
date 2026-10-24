@@ -5,6 +5,7 @@ import {
 } from "../components/endpoints/operationGroups";
 import { gridConfigSchema } from "@joinedcontext/sdk";
 import type { JsonSchema, UiSchema } from "../components/forms/types";
+import { DNS1123 } from "./dns1123";
 import {
   CATALOG_LICENCES,
   DATA_THEMES,
@@ -36,7 +37,7 @@ export function words(
   return { oneOf: values.map((value) => ({ const: value, title: t(`${prefix}.${value}`) })) };
 }
 
-export const DNS1123 = "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$";
+export { DNS1123 };
 
 /** RFC 4648 base32, lowercase, unpadded; 26 characters carry 130 bits of entropy (EP-02). */
 export const SLUG_PATTERN = "^[a-z2-7]{26,}$";
