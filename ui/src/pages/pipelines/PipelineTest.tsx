@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { testPipeline } from "../../api/pipelineTest";
 import type { SampleFormat, Trace } from "../../api/pipelineTest";
-import { CodeBlock, Alert, Button, Checkbox, FilePicker } from "../../components/ui";
+import { CodeBlock, RecordView, Alert, Button, Checkbox, FilePicker } from "../../components/ui";
 import type { DebugEntry } from "./DebugPanel";
 import { messagesOf } from "./pipelineDebug";
 import type { PipelineForm } from "./PipelineEditor";
@@ -227,10 +227,6 @@ export function spaceOfTarget(target: string | undefined, fallback: string): str
 /** The lines of the mapping an error names, 1-based. */
 export function errorLines(trace: Trace): Set<number> {
   return new Set(trace.errors.flatMap((e) => (typeof e.line === "number" && e.line > 0 ? [e.line] : [])));
-}
-
-function pretty(value: unknown): string {
-  return typeof value === "string" ? value : JSON.stringify(value, null, 2);
 }
 
 function readText(file: File): Promise<string> {
@@ -473,12 +469,12 @@ export function PipelineTest({ project, draft, onChange, toManifest, sampleUrl, 
               <p className="text-caption text-fg-muted">
                 {t("pipelines.test.events", { events: trace.input.events, bytes: trace.input.bytes })}
               </p>
-              {trace.input.sample !== undefined ? <CodeBlock label={t("pipelines.test.input")} className={pre}>{pretty(trace.input.sample)}</CodeBlock> : null}
+              {trace.input.sample !== undefined ? <RecordView value={trace.input.sample} label={t("pipelines.test.input")} className="max-h-48" /> : null}
             </div>
             <div className={panel}>
               <FormHeading sub className="text-caption font-semibold">{t("pipelines.test.mapping")}</FormHeading>
               <p className="text-caption text-fg-muted">{t("pipelines.test.entities", { count: trace.mapping.length })}</p>
-              {trace.mapping.length > 0 ? <CodeBlock label={t("pipelines.test.mapping")} className={pre}>{pretty(trace.mapping[0])}</CodeBlock> : null}
+              {trace.mapping.length > 0 ? <RecordView value={trace.mapping[0]} label={t("pipelines.test.mapping")} className="max-h-48" /> : null}
             </div>
             <div className={panel}>
               <FormHeading sub className="text-caption font-semibold">{t("pipelines.test.validation")}</FormHeading>
