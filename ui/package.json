@@ -37,7 +37,7 @@
     "i18next-browser-languagedetector": "^8.2.1",
     "i18next-icu": "^2.4.4",
     "intl-messageformat": "^10.7.16",
-    "maplibre-gl": "^6.7.0",
+    "maplibre-gl": "6.9.0",
     "monaco-editor": "^0.56.0",
     "openapi-fetch": "^0.17.0",
     "react": "^19.2.8",

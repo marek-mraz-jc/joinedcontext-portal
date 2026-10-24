@@ -211,3 +211,64 @@ test.describe("a grid widget of a dashboard", () => {
     expect(reads.some((read) => read.includes("type=AirQualityObserved"))).toBe(true);
   });
 });
+
+// A page with the map and a grid widget: both draw MapLibre code, from one shared chunk
+// (T-5514: the grid bundled the SDK's maplibre-gl 6.9.0 and the map the UI's 6.7.0, so this
+// page downloaded MapLibre twice).
+const MAP_AND_GRID = {
+  ...DASHBOARD,
+  spec: {
+    ...DASHBOARD.spec,
+    pages: [{ ...DASHBOARD.spec.pages[0], widgets: WITH_GRID.spec.pages[0].widgets }],
+  },
+};
+
+test.describe("a page with the map and a grid", () => {
+  test("loads MapLibre once for both", async ({ page }, testInfo) => {
+    const scripts: string[] = [];
+    page.on("request", (request) => {
+      const path = new URL(request.url()).pathname;
+      if (request.resourceType() === "script" && path.startsWith("/assets/")) scripts.push(path);
+    });
+    await page.route("https://demotiles.maplibre.org/**", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ version: 8, sources: {}, layers: [] }),
+      }),
+    );
+    await page.route("**/api/endpoint/**", (route) => {
+      const geojson = new URL(route.request().url()).pathname.includes("geojson");
+      return route.fulfill({
+        contentType: "application/json",
+        headers: { "NGSILD-Results-Count": "1" },
+        body: JSON.stringify(geojson ? FEATURES : STATIONS),
+      });
+    });
+    await page.route("**/api/v1/**", (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const json = (body: unknown) =>
+        route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+      const list = (items: unknown[]) => ({
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "List",
+        items,
+      });
+      if (path.endsWith("/auth/me")) return json(IDENTITY);
+      if (path.endsWith("/dashboards")) return json(list([MAP_AND_GRID]));
+      if (path.endsWith("/layers")) return json(list([LAYER]));
+      if (path.endsWith("/endpoints")) return json(list([ENDPOINT]));
+      return json(list([]));
+    });
+
+    await page.goto("/projects/banskabystrica/dashboards?lang=en");
+
+    await expect(page.getByRole("grid")).toBeVisible();
+    await expect(page.getByText("42 µg/m³")).toBeVisible();
+    const map = page.getByRole("application", { name: "Air quality" });
+    await expect(map.or(page.getByText("The map needs WebGL")).first()).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("map-and-grid.png"), fullPage: true });
+
+    const maplibre = scripts.filter((path) => /\/maplibre-gl-(?!worker)[^/]*\.js$/.test(path));
+    expect(maplibre).toHaveLength(1);
+  });
+});

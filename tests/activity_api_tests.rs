@@ -276,3 +276,95 @@ async fn a_page_is_the_size_it_asks_for_and_its_cursor_fetches_the_rest() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
+
+/// The DB half (OPS-49): runs when `JC_PORTAL_TEST_DATABASE_URL` points at a PostgreSQL the test
+/// may write to, and says so and returns otherwise, like the other database suites.
+async fn activity_db() -> Option<(sqlx::PgPool, String)> {
+    let url = std::env::var("JC_PORTAL_TEST_DATABASE_URL")
+        .ok()
+        .filter(|url| !url.trim().is_empty());
+    let Some(url) = url else {
+        eprintln!(
+            "JC_PORTAL_TEST_DATABASE_URL unset: the activity trim against PostgreSQL is skipped"
+        );
+        return None;
+    };
+    let pool = joinedcontext_portal::db::connect(&url)
+        .await
+        .expect("the test database answers and migrates");
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    Some((pool, format!("trim-{nanos}")))
+}
+
+async fn rows_of(pool: &sqlx::PgPool, project: &str) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM activity WHERE project = $1")
+        .bind(project)
+        .fetch_one(pool)
+        .await
+        .expect("a count")
+}
+
+#[tokio::test]
+async fn one_trim_tick_drops_what_is_past_retention_and_the_next_within_the_hour_drops_nothing() {
+    use joinedcontext_portal::activity::{ActivityStore, RETENTION_DAYS, TRIM_EVERY_MINUTES};
+    let Some((pool, project)) = activity_db().await else {
+        return;
+    };
+    let now = Utc::now();
+    let store = ActivityStore::new(Some(pool.clone()));
+    let at = |age: chrono::Duration| {
+        let mut e = event("config.applied", "info", "endpoints/public-air");
+        e.project = project.clone();
+        e.time = now - age;
+        e
+    };
+    let old = chrono::Duration::days(RETENTION_DAYS + 1);
+    let new = chrono::Duration::days(1);
+    store
+        .append(&[at(old), at(old), at(old), at(new), at(new)])
+        .await
+        .expect("appended");
+
+    let first = store.trim_if_due(now).await.expect("due").expect("trimmed");
+    assert!(first.rows >= 3, "{first:?}");
+    assert_eq!(rows_of(&pool, &project).await, 2);
+
+    store.append(&[at(old)]).await.expect("appended");
+    let soon = now + chrono::Duration::minutes(TRIM_EVERY_MINUTES - 1);
+    assert!(store.trim_if_due(soon).await.is_none());
+    assert_eq!(rows_of(&pool, &project).await, 3);
+}
+
+#[tokio::test]
+async fn a_backlog_is_trimmed_in_bounded_batches() {
+    use joinedcontext_portal::activity::{ActivityStore, RETENTION_DAYS, TRIM_BATCH};
+    let Some((pool, project)) = activity_db().await else {
+        return;
+    };
+    sqlx::query(
+        "INSERT INTO activity (time, project, kind, source, summary, severity, details) \
+         SELECT now() - make_interval(days => $2::int), $1, 'config.applied', 'reconciler', \
+                'Old.', 'info', '{}'::jsonb FROM generate_series(1, 25000)",
+    )
+    .bind(&project)
+    .bind(i32::try_from(RETENTION_DAYS + 1).expect("days fit"))
+    .execute(&pool)
+    .await
+    .expect("seeded");
+
+    let done = ActivityStore::new(Some(pool.clone()))
+        .trim(Utc::now())
+        .await
+        .expect("trimmed");
+    assert_eq!(rows_of(&pool, &project).await, 0);
+    assert!(done.rows >= 25_000, "{done:?}");
+    // 25,000 of this test's rows alone take 3; other suites' old rows add to both counts alike.
+    assert_eq!(
+        u64::from(done.batches),
+        done.rows.div_ceil(TRIM_BATCH as u64)
+    );
+    assert!(done.batches >= 3, "{done:?}");
+}
