@@ -3,13 +3,13 @@ import type { RichRow, RichCell } from "./model";
 import { cellText } from "./model";
 import type { ColumnLayout, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
 import { MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, useEntityGrid } from "./useEntityGrid";
-import { CellView, columnKind, formatDate } from "./cells";
+import { CellView, columnKind, formatDate, targetName } from "./cells";
 import type { CellLabels, ColumnKind } from "./cells";
 import { ColumnMenu } from "./ColumnMenu";
 import { opsForKind, valuesNeeded } from "./filters";
 import type { ColumnFilter, FilterColumn } from "./filters";
 import { applyChanges, MAX_ENTITIES, MAX_REASON, reasonOk } from "./apply";
-import type { EntityChange, Observed, Refusal } from "./apply";
+import type { AttributeChange, EntityChange, Observed, Refusal } from "./apply";
 import { EntityHistory } from "./EntityHistory";
 import { GridMap } from "./GridMap";
 import { unitTitle } from "../sdk/units";
@@ -1460,23 +1460,32 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
             <table>
               <thead>
                 <tr>
-                  <th>{labels.id}</th>
+                  <th>{labels.entity}</th>
                   <th>{labels.attribute}</th>
                   <th>{labels.before}</th>
                   <th>{labels.after}</th>
                 </tr>
               </thead>
               <tbody>
-                {pendingChanges.flatMap((entity) =>
-                  entity.changes.map((change) => (
+                {/* What a person reads, drawn as the grid draws the cell: the row's name, the column's
+                    label and each value formatted; the URN only behind its copy button (T-5530). */}
+                {pendingChanges.flatMap((entity) => {
+                  const row = rows.find((one) => one.id === entity.id);
+                  const name = row ? rowName(row) : targetName(entity.id).name;
+                  return entity.changes.map((change) => (
                     <tr key={`${entity.id}-${change.attribute}`}>
-                      <td title={entity.id}>{entity.id}</td>
-                      <td>{change.attribute}</td>
-                      <td>{change.before === undefined ? "—" : String(change.before)}</td>
-                      <td>{String(change.after)}</td>
+                      <td>
+                        {name}{" "}
+                        <button type="button" className="jc-grid-copy" aria-label={`${labels.copyId}: ${name}`} title={labels.copyId} onClick={() => void navigator.clipboard?.writeText(entity.id)}>
+                          ⧉
+                        </button>
+                      </td>
+                      <td>{columns.find((col) => col.attr === change.attribute && col.meta === null)?.label ?? change.attribute}</td>
+                      <td>{reviewValue(change, change.before, where, cellLabels)}</td>
+                      <td>{reviewValue(change, change.after, where, cellLabels)}</td>
                     </tr>
-                  )),
-                )}
+                  ));
+                })}
               </tbody>
             </table>
           </div>
@@ -1648,6 +1657,16 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       )}
     </div>
   );
+}
+
+/** One side of a reviewed change as the grid's cell draws it; no value, or a value removed, is a dash. */
+function reviewValue(change: AttributeChange, value: unknown, locale: string, labels: CellLabels): React.ReactNode {
+  if (value === undefined || value === null || value === NGSI_LD_NULL) return "—";
+  const cell: RichCell =
+    change.kind === "relationship"
+      ? { kind: "relationship", value: undefined, object: value as string | string[] }
+      : { kind: change.kind === "geo" ? "geo" : "property", value, unitCode: change.unitCode };
+  return <CellView cell={cell} locale={locale} labels={labels} />;
 }
 
 /** The page buttons a pager shows: 1, the pages beside the current one and the last, `null` for a gap. */

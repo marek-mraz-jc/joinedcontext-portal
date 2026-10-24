@@ -87,7 +87,10 @@ export interface GridLabels {
   review: string;
   apply: string;
   discard: string;
-  /** The review's column headers: which attribute, its stored value and the one about to be sent. */
+  /** The review's column headers: which row, which attribute, its stored value and the one about to be sent. */
+  entity: string;
+  /** The button beside a reviewed row's name that copies its identifier (T-5530). */
+  copyId: string;
   attribute: string;
   before: string;
   after: string;
@@ -244,6 +247,8 @@ export const DEFAULT_LABELS: GridLabels = {
   review: "Review the changes",
   apply: "Apply",
   discard: "Discard the changes",
+  entity: "Entity",
+  copyId: "Copy the identifier",
   attribute: "Attribute",
   before: "Before",
   after: "After",

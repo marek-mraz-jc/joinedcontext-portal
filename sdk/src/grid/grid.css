@@ -675,7 +675,7 @@
   max-height: calc(100dvh - 2rem);
   overflow: auto;
   padding: 1rem;
-  border: 1px solid var(--jc-color-border, #d0d7de);
+  border: 1px solid var(--jc-color-line, #d0d7de);
   border-radius: 0.5rem;
   background: var(--jc-color-surface, #fff);
   color: inherit;
@@ -702,7 +702,7 @@
   flex-wrap: wrap;
   gap: 0.25rem;
   margin-top: 0.75rem;
-  border-bottom: 1px solid var(--jc-color-border, #d0d7de);
+  border-bottom: 1px solid var(--jc-color-line, #d0d7de);
 }
 
 .jc-grid-detail-tabs [role="tab"] {
@@ -1214,4 +1214,17 @@ a.jc-cell--link:focus-visible {
   .jc-grid-pages button { min-width: 2.75rem; min-height: 2.75rem; }
   .jc-grid:not([data-filters="open"]) .jc-grid-filter-row { display: none; }
   .jc-grid :is(th, td).jc-grid-pinned { min-width: min(58vw, 15rem); }
+}
+
+/* T-5530: the review's copy button beside a row's name holds the URN the table no longer prints. */
+.jc-grid-copy {
+  border: 1px solid var(--jc-color-line, #d0d7de);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0.125rem 0.25rem;
+  vertical-align: middle;
 }
