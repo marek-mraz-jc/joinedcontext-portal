@@ -58,7 +58,7 @@ export default defineConfig({
   // React whose hook dispatcher is null — every hook inside the grid throws "invalid hook call"
   // (measured: `Cannot read properties of null (reading 'useMemo')`).
   resolve: {
-    dedupe: ["react", "react-dom", "react/jsx-runtime"],
+    dedupe: ["react", "react-dom", "react/jsx-runtime", "maplibre-gl"],
   },
   build: {
     outDir: "dist",
@@ -68,6 +68,11 @@ export default defineConfig({
       // the public entry carried Radix and floating-ui, about 50 KB gzipped, for a sign-in button).
       // tests/ui_pure.test.ts keeps that folder free of top-level statements.
       treeshake: { moduleSideEffects: (id: string) => !id.includes("/src/components/ui/") },
+      // MapLibre (about 250 KB gzipped) gets a chunk of its own, which the entity grid and the
+      // map view share, so neither carries it and a page with both loads it once (T-5514).
+      output: {
+        codeSplitting: { groups: [{ name: "maplibre-gl", test: /[\\/]node_modules[\\/]\.pnpm[\\/]maplibre-gl@/ }] },
+      },
     },
   },
   // The policy the Rust server sends (src/server.rs), so the e2e journeys run under the same

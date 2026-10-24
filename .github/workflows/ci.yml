@@ -159,7 +159,7 @@ jobs:
       # What every page downloads before it answers stays under its budget (T-3280).
       - if: steps.has.outputs.ui == 'yes'
         name: the weight of every visit
-        run: node --test scripts/bundle-budget.test.mjs && node scripts/bundle-budget.mjs ui/dist
+        run: node --test scripts/bundle-budget.test.mjs scripts/shared-deps.test.mjs && node scripts/bundle-budget.mjs ui/dist
       - if: steps.has.outputs.ui == 'no'
         run: echo "no ui/package.json yet"
   ui:
