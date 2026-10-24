@@ -9427,6 +9427,41 @@
     },
     "capture": {
       "kept": "Keeps the last {count} messages per topic for {window}, for building the mapping."
+    },
+    "topics": {
+      "title": "Topics",
+      "caption": "Which topic of {broker} fills which attribute",
+      "filter": "Topic filter",
+      "via": "Data source and pipeline",
+      "type": "Type",
+      "attributes": "Attributes",
+      "endpoint": "Endpoint",
+      "last": "Last message",
+      "hidden": "A {kind} you may not read",
+      "noPipeline": "No pipeline reads it yet",
+      "byHand": "Mapped in code; open the pipeline to see it",
+      "mapped": "{from} → {to}",
+      "computed": "{to} (computed)",
+      "empty": "No topic is bound yet",
+      "emptyHint": "Add an MQTT data source that picks {broker} as its platform broker, with a topic filter such as devices/+/data, then a pipeline that reads it.",
+      "errorTitle": "The topics could not be read",
+      "error": "Try again in a minute."
+    },
+    "captured": {
+      "title": "Captured messages",
+      "hint": "The newest messages this broker kept, newest first. Only people who may approve MQTT brokers see them.",
+      "off": "{broker} does not keep messages. Set what the broker does to capture to see the newest messages here.",
+      "empty": "No message kept yet",
+      "emptyHint": "Messages a device publishes to {broker} appear here within a few seconds.",
+      "clear": "Delete captured messages",
+      "clearFailed": "The captured messages were not deleted. Try again in a minute.",
+      "confirmTitle": "Delete every captured message of {broker}?",
+      "confirmText": "The kept messages are gone at once and cannot be restored; the deletion is recorded in the activity log. New messages are kept again as they arrive.",
+      "bytes": "{count, plural, one {# byte} other {# bytes}}",
+      "payload": "Payload of {topic}",
+      "truncated": "More messages are kept than shown here.",
+      "errorTitle": "The captured messages could not be read",
+      "error": "Try again in a minute."
     }
   },
   "connect": {
