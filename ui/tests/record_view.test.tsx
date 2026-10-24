@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { RecordView } from "../src/components/ui";
+import { Nested } from "../src/components/ui/RecordView";
 import { cellOf, geometryText } from "../src/components/ui/recordView";
 import { pageFindings } from "./pageChecks";
 import { expectNoAxeViolations } from "./page_contract";
@@ -64,6 +65,18 @@ describe("RecordView", () => {
     expect(screen.queryByText("inner")).toBeNull();
     await userEvent.click(toggles[0]);
     expect(screen.getByText("inner")).toBeVisible();
+  });
+
+  it("starts a nested list folded below the first level", async () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <Nested value={["a", "b"]} depth={2} />
+      </I18nextProvider>,
+    );
+    const toggle = screen.getByRole("button", { name: en.recordView.items.replace("{count}", "2") });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(screen.getByText("a")).toBeVisible();
   });
 
   it("copies the record as JSON", async () => {

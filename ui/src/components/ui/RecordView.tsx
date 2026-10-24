@@ -119,7 +119,7 @@ function Text({ text, href }: { text: string; href?: string }): JSX.Element {
 }
 
 /** A nested object or list: open on the first level, folded below it. */
-function Nested({ value, depth }: { value: Record<string, unknown> | unknown[]; depth: number }): JSX.Element {
+export function Nested({ value, depth }: { value: Record<string, unknown> | unknown[]; depth: number }): JSX.Element {
   const { t } = useTranslation();
   const id = useId();
   const [open, setOpen] = useState(depth < 2);
