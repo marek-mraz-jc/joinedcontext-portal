@@ -3,7 +3,6 @@ import type { JSX } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { api, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
 import {
   Alert,
@@ -30,14 +29,11 @@ const PublishDatasetDialog = lazy(() => import("./PublishDataset").then((module)
 import { FACETS, narrowed, toggled } from "./search";
 import type { CatalogueSearch, FacetName } from "./search";
 import { areaLabel } from "./nuts";
+import { catalogueQuery } from "./queries";
 
 type CataloguePageAnswer = components["schemas"]["CataloguePage"];
 type CatalogueDataset = components["schemas"]["CatalogueDataset"];
 type FacetValue = components["schemas"]["CatalogueFacetValue"];
-
-export function catalogueKey(search: CatalogueSearch) {
-  return ["catalogue", search] as const;
-}
 
 
 /**
@@ -60,24 +56,7 @@ export function CataloguePage({
   const { t } = useTranslation();
   const [publishing, setPublishing] = useState(false);
   const catalogue = useQuery({
-    queryKey: catalogueKey(search),
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/catalogue", {
-          params: {
-            query: {
-              q: search.q,
-              publisher: search.publisher,
-              theme: search.theme,
-              format: search.format,
-              licence: search.licence,
-              spatial: search.spatial,
-              year: search.year,
-              page: search.page,
-            },
-          },
-        }),
-      ),
+    ...catalogueQuery(search),
     placeholderData: keepPreviousData,
   });
 

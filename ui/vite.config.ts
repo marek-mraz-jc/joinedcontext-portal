@@ -33,8 +33,26 @@ function publicLocales(): Plugin {
   };
 }
 
+/**
+ * The Latin face of Inter, asked for by the page itself rather than found in the stylesheet once
+ * the app draws: text drawn in the fallback font and then swapped re-wraps and moves what follows
+ * (T-5165, Lighthouse layout shifts on the catalogue pages). Latin-ext loads as before, when a page
+ * uses it.
+ */
+function preloadLatinFont(): Plugin {
+  return {
+    name: "preload-latin-font",
+    transformIndexHtml(_html, context) {
+      const font = Object.keys(context.bundle ?? {}).find((name) => /\/inter-latin-wght-normal-[^/]+\.woff2$/.test(name));
+      return font
+        ? [{ tag: "link", attrs: { rel: "preload", as: "font", type: "font/woff2", href: `/${font}`, crossorigin: "" }, injectTo: "head" }]
+        : [];
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [publicLocales(), react(), tailwindcss()],
+  plugins: [publicLocales(), preloadLatinFont(), react(), tailwindcss()],
   // `@joinedcontext/sdk` is linked from this repository (T-1439) and carries its own `react` in
   // `sdk/node_modules`. Without deduping, a component from it renders against a second copy of
   // React whose hook dispatcher is null — every hook inside the grid throws "invalid hook call"

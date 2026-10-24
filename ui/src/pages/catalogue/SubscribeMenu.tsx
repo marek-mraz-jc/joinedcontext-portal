@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { components } from "../../api/schema";
 import { webcalUrl } from "../../components/endpoints/links";
 import { Button, Icon, Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger, safeHref } from "../../components/ui";
+import { subscriptionsOf } from "./subscriptions";
 
 type Endpoint = components["schemas"]["CatalogueEndpoint"];
 type Feed = components["schemas"]["CatalogueFeed"];
@@ -12,22 +13,6 @@ type Calendar = components["schemas"]["CatalogueCalendar"];
 /** An output's title in the reader's language, else its first, else its name. */
 export function feedTitle(feed: Pick<Feed, "name" | "title">, language: string): string {
   return feed.title[language] ?? Object.values(feed.title)[0] ?? feed.name;
-}
-
-/** The calendar a dataset serves (EP-125): its https address, `null` when it serves none. */
-export function calendarUrl(endpoint: Endpoint): string | null {
-  return endpoint.representations.includes("ical") ? `${endpoint.url}ical/v1/events.ics` : null;
-}
-
-/**
- * The calendars a dataset serves, one per output (API/11 EP-159); an answer of an older Portal
- * has no `calendars` and stands for the one `events.ics`.
- */
-export function calendarsOf(endpoint: Endpoint): Calendar[] {
-  const listed = (endpoint as Partial<Endpoint>).calendars;
-  if (listed) return listed;
-  const url = calendarUrl(endpoint);
-  return url ? [{ name: "events", title: {}, url }] : [];
 }
 
 /** One calendar's two rows: subscribe in a calendar app (webcal) and download the file. */
@@ -100,9 +85,7 @@ export function useFeedAlternates(feeds: Feed[], language: string, calendars: Ca
 export function SubscribeMenu({ endpoint }: { endpoint: Endpoint }): JSX.Element | null {
   const { t, i18n } = useTranslation();
   const language = i18n.resolvedLanguage ?? i18n.language ?? "sk";
-  // A dataset answer of an older Portal has no `feeds`.
-  const feeds: Feed[] = (endpoint as Partial<Endpoint>).feeds ?? [];
-  const calendars = useMemo(() => calendarsOf(endpoint).filter((calendar) => safeHref(calendar.url)), [endpoint]);
+  const { feeds, calendars } = useMemo(() => subscriptionsOf(endpoint), [endpoint]);
   useFeedAlternates(feeds, language, calendars);
   if (calendars.length === 0 && feeds.length === 0) return null;
   // One calendar keeps the plain labels; several are told apart by their titles.

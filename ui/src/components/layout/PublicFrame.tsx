@@ -22,7 +22,9 @@ export function PublicFrame({ children, anonymous = false }: { children: React.R
           </Button>
         ) : null}
       </header>
-      <main id="main" className="mx-auto w-full max-w-7xl flex-1 p-6">
+      {/* At least a screen tall: the footer starts below the fold, so the page drawing in above it
+          moves nothing a reader sees (T-5165, layout shift). */}
+      <main id="main" className="mx-auto min-h-dvh w-full max-w-7xl flex-1 p-6">
         <Suspense fallback={<PageLoading label={t("app.loading")} />}>{children}</Suspense>
       </main>
       {/* The statement a public body must link from every page (T-5108). */}

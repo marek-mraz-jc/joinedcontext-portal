@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -28,13 +28,14 @@ import { snippets } from "./snippets";
 import type { Snippet } from "./snippets";
 import { areaLabel } from "./nuts";
 import { QualityScore } from "../../components/quality/QualityScore";
-import { SubscribeMenu } from "./SubscribeMenu";
+import { datasetKey, datasetQuery } from "./queries";
+import { subscriptionsOf } from "./subscriptions";
+
+// The menu's dropdown (Radix, about 30 KB gz) loads beside the page, not in its first chunk, and only
+// for a dataset with something to subscribe to (T-5165).
+const SubscribeMenu = lazy(() => import("./SubscribeMenu").then((module) => ({ default: module.SubscribeMenu })));
 
 type DatasetDetail = components["schemas"]["CatalogueDatasetDetail"];
-
-export function datasetKey(name: string) {
-  return ["catalogue", "datasets", name] as const;
-}
 
 /**
  * One public dataset (EP-82, Architecture/21 §6): what the catalogue says of it, its resources,
@@ -43,13 +44,7 @@ export function datasetKey(name: string) {
  */
 export function DatasetPage({ name }: { name: string }): JSX.Element {
   const { t } = useTranslation();
-  const dataset = useQuery({
-    queryKey: datasetKey(name),
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/catalogue/datasets/{name}", { params: { path: { name } } }),
-      ),
-  });
+  const dataset = useQuery(datasetQuery(name));
 
   const back = (
     <Link to="/catalogue" className="focus-ring inline-flex items-center gap-1 rounded-sm text-body text-primary-soft-fg hover:underline">
@@ -159,7 +154,18 @@ function Dataset({ detail, back }: { detail: DatasetDetail; back: JSX.Element })
         description={lead ? <Inline text={lead.text} /> : undefined}
         actions={
           <div className="flex flex-wrap items-center gap-3">
-            {detail.endpoint ? <SubscribeMenu endpoint={detail.endpoint} /> : null}
+            {detail.endpoint && hasSubscriptions(detail.endpoint) ? (
+              <Suspense
+                fallback={
+                  <Button variant="secondary" disabled title={t("app.loading")}>
+                    <Icon name="share" className="size-4" />
+                    {t("catalogue.subscribe.button")}
+                  </Button>
+                }
+              >
+                <SubscribeMenu endpoint={detail.endpoint} />
+              </Suspense>
+            ) : null}
             <ExternalLink href={detail.catalogueUrl}>{t("catalogue.dataset.inCatalogue")}</ExternalLink>
           </div>
         }
@@ -216,6 +222,11 @@ function Dataset({ detail, back }: { detail: DatasetDetail; back: JSX.Element })
       ) : null}
     </div>
   );
+}
+
+function hasSubscriptions(endpoint: NonNullable<DatasetDetail["endpoint"]>): boolean {
+  const { feeds, calendars } = subscriptionsOf(endpoint);
+  return feeds.length > 0 || calendars.length > 0;
 }
 
 /** The slug of a public Endpoint address, the name of its developer page `/d/{slug}` (T-5111). */

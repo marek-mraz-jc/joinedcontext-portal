@@ -1,11 +1,12 @@
-// covers: src/pages/catalogue/SubscribeMenu.tsx, the dataset page's "Odoberať" menu and its feed
+// covers: src/pages/catalogue/SubscribeMenu.tsx, subscriptions.ts, the dataset page's "Odoberať" menu and its feed
 // alternate links (T-5203, EP-125, EP-150, EP-151).
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import i18n from "../src/i18n";
-import { SubscribeMenu, calendarUrl, feedTitle } from "../src/pages/catalogue/SubscribeMenu";
+import { SubscribeMenu, feedTitle } from "../src/pages/catalogue/SubscribeMenu";
+import { calendarUrl } from "../src/pages/catalogue/subscriptions";
 
 const URL = "https://api.dev.joinedcontext.com/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa/";
 const FEED = {

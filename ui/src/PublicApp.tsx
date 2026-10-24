@@ -1,5 +1,6 @@
 import { Suspense, lazy, useMemo } from "react";
 import { RouterProvider } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { BrandingProvider } from "./branding";
 import { loadFullLocales } from "./i18n";
@@ -20,7 +21,8 @@ const FullPortal = lazy(() =>
 
 function PublicRouted(): React.JSX.Element {
   const auth = useAuth();
-  const router = useMemo(() => createPublicRouter(), []);
+  const queryClient = useQueryClient();
+  const router = useMemo(() => createPublicRouter(queryClient), [queryClient]);
   // A visitor's page draws while the session is asked for: no public route has a guard to hold, and
   // the answer is a round trip a phone would otherwise wait before the first word.
   if (auth.status === "authenticated") {

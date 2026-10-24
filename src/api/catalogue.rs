@@ -15,7 +15,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
 use axum::extract::{Path, RawQuery, State};
-use axum::http::header;
+use axum::http::{header, HeaderMap};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use chrono::Datelike;
@@ -931,15 +931,46 @@ fn slim(dataset: &Value) -> Value {
     Value::Object(kept)
 }
 
-fn cached<T: Serialize>(body: T) -> Response {
-    (
-        [(
-            header::CACHE_CONTROL,
-            format!("public, max-age={MAX_AGE_SECONDS}"),
-        )],
-        Json(body),
-    )
-        .into_response()
+/// A catalogue answer anybody may keep for [`MAX_AGE_SECONDS`], gzipped for a client that takes
+/// gzip: the list is about 44 KB of JSON, 0.2 s of a phone's first load on 4G (T-5165). Every
+/// caller gets the same public answer, so no secret sits beside the reflected search text to be
+/// read through the compressed length (BREACH).
+fn cached<T: Serialize>(headers: &HeaderMap, body: T) -> Response {
+    let cache = (
+        header::CACHE_CONTROL,
+        format!("public, max-age={MAX_AGE_SECONDS}"),
+    );
+    let vary = (header::VARY, "accept-encoding".to_owned());
+    if takes_gzip(headers) {
+        if let Some(gz) = gzipped(&body) {
+            let json = (header::CONTENT_TYPE, "application/json".to_owned());
+            let encoding = (header::CONTENT_ENCODING, "gzip".to_owned());
+            return ([cache, vary, json, encoding], gz).into_response();
+        }
+    }
+    ([cache, vary], Json(body)).into_response()
+}
+
+/// Whether `Accept-Encoding` names gzip and does not refuse it (`gzip;q=0`).
+fn takes_gzip(headers: &HeaderMap) -> bool {
+    headers
+        .get_all(header::ACCEPT_ENCODING)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(','))
+        .any(|item| {
+            let mut parts = item.split(';').map(str::trim);
+            let gzip = parts.next().is_some_and(|c| c.eq_ignore_ascii_case("gzip"));
+            gzip && !parts
+                .any(|p| p.strip_prefix("q=").and_then(|q| q.parse::<f32>().ok()) == Some(0.0))
+        })
+}
+
+/// `body` as gzipped JSON; `None` sends it plain.
+fn gzipped<T: Serialize>(body: &T) -> Option<Vec<u8>> {
+    let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    serde_json::to_writer(&mut gz, body).ok()?;
+    gz.finish().ok()
 }
 
 #[utoipa::path(
@@ -965,6 +996,7 @@ fn cached<T: Serialize>(body: T) -> Response {
 )]
 pub async fn get_catalogue(
     State(state): State<AppState>,
+    headers: HeaderMap,
     RawQuery(query): RawQuery,
 ) -> Result<Response, ApiError> {
     let filters = Filters::parse(query.as_deref());
@@ -988,7 +1020,7 @@ pub async fn get_catalogue(
     }
     let mut page = page_of(&datasets, &filters, chrono::Utc::now().year());
     page.unavailable = unavailable;
-    Ok(cached(page))
+    Ok(cached(&headers, page))
 }
 
 /// The public dataset `name` and the catalogue that holds it.
@@ -1255,10 +1287,11 @@ pub async fn detail(state: &AppState, catalogue: &str, dataset: &Value) -> Catal
 )]
 pub async fn get_dataset(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(name): Path<String>,
 ) -> Result<Response, ApiError> {
     let (catalogue, found) = dataset(&state, &name).await?;
-    Ok(cached(detail(&state, &catalogue, &found).await))
+    Ok(cached(&headers, detail(&state, &catalogue, &found).await))
 }
 
 /// A cell of the sample: text as it is, anything else as compact JSON.
@@ -1311,6 +1344,7 @@ pub fn table(entity_type: &str, entities: &[Value]) -> CatalogueSample {
 )]
 pub async fn get_sample(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(name): Path<String>,
 ) -> Result<Response, ApiError> {
     let (catalogue, found) = dataset(&state, &name).await?;
@@ -1363,7 +1397,7 @@ pub async fn get_sample(
         .json()
         .await
         .map_err(|e| unavailable(e.to_string()))?;
-    Ok(cached(table(&entity_type, &entities)))
+    Ok(cached(&headers, table(&entity_type, &entities)))
 }
 
 pub fn router() -> axum::Router<AppState> {
@@ -1383,6 +1417,56 @@ pub fn router() -> axum::Router<AppState> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn accepting(value: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::ACCEPT_ENCODING,
+            value.parse().expect("a header value"),
+        );
+        headers
+    }
+
+    #[test]
+    fn takes_gzip_only_where_the_client_names_it_and_does_not_refuse_it() {
+        assert!(takes_gzip(&accepting("gzip, deflate, br")));
+        assert!(takes_gzip(&accepting("br;q=1.0, GZIP;q=0.5")));
+        assert!(!takes_gzip(&accepting("gzip;q=0")));
+        assert!(!takes_gzip(&accepting("br, gzip; q=0.0")));
+        assert!(!takes_gzip(&accepting("identity")));
+        assert!(!takes_gzip(&accepting("x-gzip-like")));
+        assert!(!takes_gzip(&HeaderMap::new()));
+    }
+
+    #[tokio::test]
+    async fn a_catalogue_answer_is_gzipped_for_a_client_that_takes_it_and_plain_otherwise() {
+        use std::io::Read;
+        let body = json!({"datasets": [{"name": "bbsk-kpi", "title": "Ukazovatele kraja"}]});
+        let zipped = cached(&accepting("gzip, br"), body.clone());
+        assert_eq!(zipped.headers()[header::CONTENT_ENCODING], "gzip");
+        assert_eq!(zipped.headers()[header::CONTENT_TYPE], "application/json");
+        assert_eq!(zipped.headers()[header::VARY], "accept-encoding");
+        assert_eq!(
+            zipped.headers()[header::CACHE_CONTROL],
+            format!("public, max-age={MAX_AGE_SECONDS}")
+        );
+        let bytes = axum::body::to_bytes(zipped.into_body(), usize::MAX)
+            .await
+            .expect("a body");
+        let mut text = String::new();
+        flate2::read::GzDecoder::new(&bytes[..])
+            .read_to_string(&mut text)
+            .expect("gzip");
+        assert_eq!(serde_json::from_str::<Value>(&text).expect("json"), body);
+
+        let plain = cached(&accepting("gzip;q=0"), body.clone());
+        assert!(plain.headers().get(header::CONTENT_ENCODING).is_none());
+        assert_eq!(plain.headers()[header::VARY], "accept-encoding");
+        let bytes = axum::body::to_bytes(plain.into_body(), usize::MAX)
+            .await
+            .expect("a body");
+        assert_eq!(serde_json::from_slice::<Value>(&bytes).expect("json"), body);
+    }
 
     /// A local server answering every request with `head` and then `body` bytes of `x`.
     async fn answering(head: &'static str, body: usize) -> String {

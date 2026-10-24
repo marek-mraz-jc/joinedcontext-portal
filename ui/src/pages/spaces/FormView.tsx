@@ -19,10 +19,10 @@ import type { Change, ResourceProposal } from "../../api/manifest";
 import { useProposal } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { endpointUrl } from "../../components/endpoints/links";
-import { MAX_REASON, reasonProblem } from "../../components/entities/filters";
+import { MAX_REASON, reasonProblem } from "../../components/entities/reason";
 import { EntitySearchPicker } from "../../components/pickers/EntitySearchPicker";
 import { Alert, Button, Checkbox, ExternalLink, Field, Input, Select, Textarea } from "../../components/ui";
-import { DNS1123 } from "../../schemas/kinds";
+import { DNS1123 } from "../../schemas/dns1123";
 import type { LinkmlSlot } from "../models/linkml";
 import {
   askable,

@@ -23,15 +23,15 @@ export const ENTRY_BUDGET_KB = 154;
 
 /**
  * KB gzipped that each public route loads beyond the entry, keyed by its chunk's name: measured on
- * 2026-10-22 (T-5122) plus 5 %, and at least 2 KB so a one-line change does not flap the lane.
+ * 2026-10-22 (T-5122; PublicView and FormView 2026-10-24, T-5165) plus 5 %, and at least 2 KB so a one-line change does not flap the lane.
  */
 export const ROUTE_BUDGETS_KB = {
   CataloguePage: 26,
   DatasetPage: 10,
   AccessibilityPage: 3,
   GlossaryPage: 4,
-  PublicView: 60,
-  FormView: 74,
+  PublicView: 15,
+  FormView: 28,
 };
 
 /** The scripts index.html loads at once: the entry, and the chunks it preloads. */

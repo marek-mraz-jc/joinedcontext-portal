@@ -1,8 +1,11 @@
 import { Suspense, lazy, useEffect } from "react";
-import { Outlet, createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
+import { Outlet, createRootRouteWithContext, createRoute, createRouter } from "@tanstack/react-router";
+import type { RouterHistory } from "@tanstack/react-router";
+import type { QueryClient } from "@tanstack/react-query";
 import { PublicFrame } from "./components/layout/PublicFrame";
 import { ChunkFailed, ErrorPage, errorReference, isChunkLoadError } from "./components/ErrorBoundary";
 import { parseCatalogueSearch } from "./pages/catalogue/search";
+import { catalogueQuery, datasetQuery } from "./pages/catalogue/queries";
 import { NotFoundState } from "./components/NotFoundState";
 
 /**
@@ -48,7 +51,7 @@ function FullPortal(): React.JSX.Element {
   );
 }
 
-const rootRoute = createRootRoute({
+const rootRoute = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   component: function PublicRoot() {
     return (
       <Suspense fallback={<main aria-busy="true" className="min-h-screen bg-bg" />}>
@@ -62,6 +65,11 @@ const catalogueRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/catalogue",
   validateSearch: parseCatalogueSearch,
+  // Started, not awaited: the page's chunk loads beside the read instead of after it (T-5165).
+  loaderDeps: ({ search }) => search,
+  loader: ({ context, deps }) => {
+    void context.queryClient.prefetchQuery(catalogueQuery(deps));
+  },
   component: function PublicCatalogueRoute() {
     const search = catalogueRoute.useSearch();
     const navigate = catalogueRoute.useNavigate();
@@ -76,6 +84,9 @@ const catalogueRoute = createRoute({
 const catalogueDatasetRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/catalogue/$name",
+  loader: ({ context, params }) => {
+    void context.queryClient.prefetchQuery(datasetQuery(params.name));
+  },
   component: function PublicDatasetRoute() {
     const { name } = catalogueDatasetRoute.useParams();
     return (
@@ -158,8 +169,11 @@ const publicFormRoute = createRoute({
   },
 });
 
-export function createPublicRouter() {
+/** `history` defaults to the browser's; a test passes a memory one. */
+export function createPublicRouter(queryClient: QueryClient, history?: RouterHistory) {
   return createRouter({
+    context: { queryClient },
+    history,
     routeTree: rootRoute.addChildren([
       catalogueRoute,
       catalogueDatasetRoute,
