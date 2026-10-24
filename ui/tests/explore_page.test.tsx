@@ -379,7 +379,12 @@ it("shows what a value is measured in, and when it was observed", async () => {
   await openDetail(() => new Response("", { status: 204 }), undefined, MEASURED);
 
   // A count is in "one" (C62), which has no symbol: the number alone, the unit named on hover.
-  expect(screen.getByText("5").closest("td")).toHaveAttribute("title", "one (C62)");
+  const cell = screen.getAllByText("5").find((node) => node.closest("td") !== null);
+  expect(cell?.closest("td")).toHaveAttribute("title", "one (C62)");
+  // T-5516: the entity pane shows the same value as a row, unit and time beside it, no JSON text.
+  const detail = screen.getByTestId("explore-entity");
+  expect(within(detail).getByText("C62 · 2026-09-19T08:00:00Z")).toBeInTheDocument();
+  expect(detail.textContent).not.toContain("{\n");
   await userEvent.click(screen.getByLabelText(`${en.entityGrid.columnMenu}: availableBikeNumber`));
   await userEvent.click(screen.getByLabelText(en.entityGrid.observedAt));
   await waitFor(() =>

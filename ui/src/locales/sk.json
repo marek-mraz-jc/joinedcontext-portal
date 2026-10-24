@@ -9842,6 +9842,18 @@
       "full": "Všetkých {limit} brokerov je použitých: nový bude odmietnutý. Limit môže zvýšiť administrátor organizácie v Administrácia › Projekty."
     }
   },
+  "recordView": {
+    "copy": "Kopírovať ako JSON",
+    "copied": "Skopírované ako JSON.",
+    "copyFailed": "Prehliadač nepovolil kopírovanie; označte záznam a skopírujte ho.",
+    "showAll": "Zobraziť celé",
+    "showLess": "Zobraziť menej",
+    "fields": "Polia: {count}",
+    "items": "Položky: {count}",
+    "item": "Položka {n}",
+    "noFields": "Záznam nemá žiadne polia.",
+    "noItems": "Zoznam neobsahuje žiadne záznamy."
+  },
   "codeBlock": {
     "code": "Kód",
     "sample": "Ukážkový záznam",

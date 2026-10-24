@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
 import { usePermissions } from "../../api/permissions";
-import { CodeBlock,
+import { RecordView,
   Alert,
   Badge,
   Button,
@@ -243,9 +243,7 @@ export function PipelineRejectedDialog({
                         <summary className="cursor-pointer text-caption text-fg-subtle">
                           {t("pipelines.rejected.record")}
                         </summary>
-                        <CodeBlock label={t("pipelines.rejected.record")} className="mt-1 max-h-64 rounded bg-surface-subtle p-2 font-mono text-caption">
-                          {JSON.stringify(item.record, null, 2)}
-                        </CodeBlock>
+                        <RecordView value={item.record} label={t("pipelines.rejected.record")} className="mt-1 max-h-64 rounded bg-surface-subtle p-2" />
                       </details>
                     </TableCell>
                   </TableRow>
