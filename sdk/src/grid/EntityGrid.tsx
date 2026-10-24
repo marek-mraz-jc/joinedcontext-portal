@@ -24,6 +24,9 @@ import type { EnumOption } from "../enums";
 import { objectsOf, pointingAt, searchTargets } from "../relations";
 import type { TargetOption } from "../relations";
 import { NGSI_LD_NULL, RelationPicker } from "./RelationPicker";
+import { CellInspector, DEFAULT_INSPECTOR_LABELS } from "./CellInspector";
+import type { AccessAction, AccessExplanation } from "./CellInspector";
+import type { AttributeAccess } from "./source";
 import { RowDetail } from "./RowDetail";
 import { AttributeMetadata } from "./AttributeMetadata";
 import type { RowDetailTab } from "./RowDetail";
@@ -130,6 +133,16 @@ export interface EntityGridProps extends UseEntityGridOptions {
   footer?: (column: VisibleColumn) => React.ReactNode;
   /** What a group's header shows after its name and value (T-5188), such as the group's count. */
   groupHeader?: (group: GridGroup) => React.ReactNode;
+  /**
+   * The person's decisions per attribute (T-5528), for a host that already read them; `null` when
+   * they could not be read. Without it the grid asks its source's `access`, where it has one. An
+   * attribute opens an editor only where its row says `write`.
+   */
+  access?: AttributeAccess[] | null;
+  /** Names the Policy behind a prohibited attribute in the cell inspector (API/01 §56). */
+  explainAccess?: (attribute: string, action: AccessAction) => Promise<AccessExplanation>;
+  /** Where the inspector sends a person to ask for access. */
+  accessRequestHref?: string;
 }
 
 /** One group header of a grid grouped by `groupBy` (T-5188): its level and the values it is in. */
@@ -224,6 +237,9 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     rowSize,
     footer,
     groupHeader,
+    access: hostAccess,
+    explainAccess,
+    accessRequestHref,
     ...hookOptions
   } = props;
 
@@ -302,13 +318,42 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const editing = hookOptions.config.mode === "edit" && Boolean(hookOptions.source.patch);
   // Which columns open: the config's own list, which `parseGridConfig` requires in edit mode, so a
   // grid never opens a column nobody named.
+  // The person's decisions per attribute: the host's, else the source's own (T-5528). Until they
+  // are read, and when they cannot be, no cell opens an editor whose write could be refused.
+  const accessType = hookOptions.config.type;
+  const askAccess = hookOptions.source.access;
+  const [ownAccess, setOwnAccess] = useState<{ type: string; rows?: AttributeAccess[]; failed?: string } | null>(null);
+  useEffect(() => {
+    if (hostAccess !== undefined || !askAccess) return;
+    let current = true;
+    setOwnAccess(null);
+    askAccess(accessType).then(
+      (rows) => current && setOwnAccess({ type: accessType, rows }),
+      (err: unknown) => current && setOwnAccess({ type: accessType, failed: err instanceof Error ? err.message : String(err) }),
+    );
+    return () => {
+      current = false;
+    };
+  }, [hostAccess, askAccess, accessType]);
+  const accessRows = hostAccess !== undefined ? hostAccess : ownAccess?.type === accessType ? ownAccess.rows : undefined;
+  const accessFailed = hostAccess === null ? labels.error : ownAccess?.type === accessType ? ownAccess.failed : undefined;
+  const asked = hostAccess !== undefined || Boolean(askAccess);
+  const accessOf = useCallback((attr: string) => accessRows?.find((row) => row.name === attr), [accessRows]);
   const editable = useMemo(() => {
     const allowed = hookOptions.config.editableAttrs;
     return (column: VisibleColumn): boolean =>
       // The attribute's own column only: a metadata column shows when the value was observed or
       // what it is measured in, and neither is corrected by typing over it.
-      editing && column.attr !== null && column.meta === null && allowed.includes(column.attr);
-  }, [editing, hookOptions.config.editableAttrs]);
+      editing &&
+      column.attr !== null &&
+      column.meta === null &&
+      allowed.includes(column.attr) &&
+      (!asked || accessOf(column.attr)?.write === true);
+  }, [editing, hookOptions.config.editableAttrs, asked, accessOf]);
+  const [inspected, setInspected] = useState<{ attr: string; label: string } | null>(null);
+  const inspectorLabels = { ...DEFAULT_INSPECTOR_LABELS, ...hookOptions.labels?.inspectorLabels };
+  const inspects = (column: VisibleColumn): column is VisibleColumn & { attr: string } =>
+    asked && column.attr !== null && column.meta === null && column.key !== "id";
   const [open, setOpen] = useState(false);
   const [observed, setObserved] = useState<Observed>("keep");
   const [applying, setApplying] = useState(false);
@@ -933,6 +978,14 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         control.focus();
         return;
       }
+      // `i` on a cell that opens no editor shows what the person may do with it and why (T-5528);
+      // on an editable cell it is typed, as in every spreadsheet, and the cell's "i" button opens it.
+      const here = state.activeCell ? columns[state.activeCell.col] : undefined;
+      if (onGrid && e.key === "i" && here && inspects(here) && !editable(here)) {
+        e.preventDefault();
+        setInspected({ attr: here.attr, label: here.label });
+        return;
+      }
       // Typing on an editable cell starts editing it with that character, as Baserow and every
       // spreadsheet do: the value is replaced, Escape brings it back.
       const typed = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
@@ -947,7 +1000,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       }
       gridProps.onKeyDown(e);
     },
-    [activeCellId, gridProps, setEdit, leaveCell, state.activeCell, cellAt, rows, rules],
+    [activeCellId, gridProps, setEdit, leaveCell, state.activeCell, cellAt, rows, rules, columns, inspects, editable],
   );
 
   /**
@@ -1317,6 +1370,15 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                     key={`${row.id}-${col.key}`}
                     className={`jc-grid-td${col.pinned ? " jc-grid-pinned" : ""}${classNames?.cell ? ` ${classNames.cell}` : ""}`}
                     {...getCellProps(row, rowIndex, col, colIndex)}
+                    onClick={
+                      inspects(col) && !editable(col)
+                        ? (e: React.MouseEvent) => {
+                            // A control of the cell (a chip, a link) keeps its own click.
+                            if ((e.target as HTMLElement).closest("button, a, input, select")) return;
+                            setInspected({ attr: col.attr, label: col.label });
+                          }
+                        : undefined
+                    }
                     data-mark={col.attr && marks?.columns?.[col.attr] ? "column" : undefined}
                     title={
                       (col.attr ? marks?.columns?.[col.attr] : undefined) ??
@@ -1326,6 +1388,21 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                   >
                     {colIndex === 0 && tone ? (
                       <span className={`jc-grid-tone jc-grid-tone--${tone.tone}`} role="img" aria-label={tone.label} title={tone.label} />
+                    ) : null}
+                    {inspects(col) ? (
+                      <button
+                        type="button"
+                        className="jc-grid-info"
+                        tabIndex={-1}
+                        aria-label={`${inspectorLabels.title}: ${col.label}`}
+                        title={`${inspectorLabels.title}: ${col.label}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInspected({ attr: col.attr, label: col.label });
+                        }}
+                      >
+                        i
+                      </button>
                     ) : null}
                     {/* At most three lines at the column's widest (T-5192): a dragged width replaces
                         the cap, the full value stays in the row's detail. */}
@@ -1452,6 +1529,23 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           {pendingBar(true)}
           {detailExtra?.(detailRow)}
         </RowDetail>
+      )}
+
+      {inspected && (
+        <CellInspector
+          attribute={inspected.attr}
+          label={inspected.label}
+          access={accessFailed === undefined ? accessOf(inspected.attr) ?? noRow(inspected.attr, accessRows) : undefined}
+          failed={accessFailed}
+          explain={explainAccess}
+          askAccessHref={accessRequestHref}
+          labels={inspectorLabels}
+          onClose={() => {
+            setInspected(null);
+            // Back to the grid, whose active cell is still the one inspected.
+            tableRef.current?.focus();
+          }}
+        />
       )}
 
       {history && (
@@ -1664,6 +1758,14 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
 }
 
 /** The page buttons a pager shows: 1, the pages beside the current one and the last, `null` for a gap. */
+/**
+ * An attribute the decisions do not list once they are read: nothing is allowed (deny by default).
+ * `undefined` while they are still being read.
+ */
+function noRow(attr: string, rows: AttributeAccess[] | null | undefined): AttributeAccess | undefined {
+  return rows ? { name: attr, read: false, write: false, delete: false, reason: "no_grant" } : undefined;
+}
+
 export function pageNumbers(current: number, total: number): (number | null)[] {
   const kept = [...new Set([1, current - 1, current, current + 1, total])].filter((page) => page >= 1 && page <= total).sort((a, b) => a - b);
   return kept.flatMap((page, at) => (at > 0 && page - (kept[at - 1] ?? page) > 1 ? [null, page] : [page]));

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { attributeTable } from "./attributeAccess";
 import type { Locator, Page } from "@playwright/test";
 import { axeViolations } from "./axe";
 
@@ -122,6 +123,10 @@ async function stubApi(page: Page, seen: Seen, viewer: boolean): Promise<void> {
     if (path.endsWith("/entities")) {
       const rows = Array.from({ length: 12 }, (_, i) => event(i + 1));
       return json(rows, 200, { "NGSILD-Results-Count": String(rows.length) });
+    }
+    if (path.endsWith("/access/attributes")) {
+      const slots = ["name", "eventStatus", "startDate", "endDate", "image"];
+      return json(attributeTable(TYPE, slots, viewer ? [] : slots));
     }
     if (path.endsWith("/access")) {
       const actions = viewer ? ["queryEntity"] : ["queryEntity", "createEntity", "updateAttrs", "deleteEntity"];
