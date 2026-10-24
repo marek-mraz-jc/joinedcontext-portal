@@ -106,7 +106,6 @@ export function HelpMenu({ onFeedback }: { onFeedback?: () => void } = {}): JSX.
                 ))}
               </ol>
             </section>
-            <HelpClip pageKey={page.key} />
             <GuideSection pageKey={page.key} />
             {guide ? (
               <p className="text-body">
@@ -142,33 +141,6 @@ export function HelpMenu({ onFeedback }: { onFeedback?: () => void } = {}): JSX.
         </ol>
       </Dialog>
     </>
-  );
-}
-
-/**
- * The page's main action as its live journey recorded it (T-3308, `ui/public/help/{key}.webm`),
- * muted with controls; the steps above are its text alternative. A page without a published clip
- * shows nothing in its place, and a person who asked for less motion starts it themselves.
- */
-function HelpClip({ pageKey }: { pageKey: string }): JSX.Element | null {
-  const { t } = useTranslation();
-  const [missing, setMissing] = useState(false);
-  if (missing) return null;
-  const still = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  return (
-    <video
-      src={`/help/${pageKey}.webm`}
-      aria-label={t("pageHelp.clip", { page: t(`pageHelp.${pageKey}.title`) })}
-      aria-describedby="page-help-steps"
-      className="aspect-video w-full rounded border border-border bg-surface-subtle"
-      muted
-      loop
-      controls
-      playsInline
-      autoPlay={!still}
-      preload="metadata"
-      onError={() => setMissing(true)}
-    />
   );
 }
 

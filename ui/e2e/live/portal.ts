@@ -2,7 +2,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect } from "@playwright/test";
 import type { APIRequestContext, Browser, BrowserContext, Locator, Page } from "@playwright/test";
-import { clipRecording, recordingSince } from "./guide";
 import { edgeRetryMs } from "../../tests/pageChecks";
 import { answerOtp, submitted } from "./totp";
 
@@ -120,10 +119,9 @@ export async function signIn(
         "(PORTAL_PASSWORD / APPROVER_PASSWORD / VIEWER_PASSWORD / EDITOR_PASSWORD / JANITOR_PASSWORD / PROBE_PASSWORD)",
     );
   }
-  const context = await browser.newContext(clipRecording());
+  const context = await browser.newContext();
   await withLocalUi(context);
   const page = await context.newPage();
-  recordingSince(page);
   await goSignedIn(page, who, path, ready);
   return { context, page };
 }

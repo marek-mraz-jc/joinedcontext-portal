@@ -19,7 +19,6 @@ import { FeedbackButton } from "../src/components/FeedbackButton";
 import { onAskRequest } from "../src/assistant/state";
 import { HELPED, helpFor } from "../src/pageHelp";
 import guideSections from "../src/generated/guideSections.json";
-import { fireEvent } from "@testing-library/react";
 import { expectNoViolations } from "./checks";
 import { OTHER_BRAND, renderPage } from "./page_contract";
 
@@ -84,25 +83,6 @@ describe("help for this page (T-3269)", () => {
     expect(asked).toEqual(["Help me with the Pipelines page: what is it for, and what comes first?"]);
     expect(container.ownerDocument.querySelector('[role="dialog"]')).toBeNull();
     stop();
-  });
-
-  it("plays the page's clip muted with controls, its steps as the text alternative, and shows nothing broken without one (T-3308)", async () => {
-    renderPage(<HelpMenu />, { answer: () => undefined, path: "/projects/helsinki/models" });
-    await userEvent.click(await screen.findByRole("button", { name: /^Help/ }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: en.pageHelp.menu }));
-    const dialog = await screen.findByRole("dialog", { name: en.pageHelp.models.title });
-    const clip = dialog.querySelector("video");
-    expect(clip).not.toBeNull();
-    expect(clip).toHaveAttribute("src", "/help/models.webm");
-    expect(clip).toHaveAccessibleName("A short recording of the Data models page's main action");
-    expect(clip).toHaveAccessibleDescription(new RegExp(en.pageHelp.steps));
-    expect(clip?.muted).toBe(true);
-    expect(clip).toHaveAttribute("controls");
-    // No clip published for the page: the player goes, and nothing says it broke.
-    fireEvent.error(clip as HTMLVideoElement);
-    expect(dialog.querySelector("video")).toBeNull();
-    expect(within(dialog).queryByRole("alert")).toBeNull();
-    expect(within(dialog).getByRole("region", { name: en.pageHelp.steps })).toBeInTheDocument();
   });
 
   it("shows the page's User Guide section from the pinned docs commit, as text in English (T-3308)", async () => {
