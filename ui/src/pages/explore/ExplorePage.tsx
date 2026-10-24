@@ -12,7 +12,7 @@ import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { deleteEntity, enumsOfModel, MAX_REASON, reasonProblem, fetchEntity, filterSlotsOf, qProblem, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import type { EntityQuery } from "../../components/entities/filters";
-import { CodeBlock, Alert, Button, Dialog, EmptyState, Field, Input, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
+import { RecordView, Alert, Button, Dialog, EmptyState, Field, Input, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
 import { TypeQuality } from "./TypeQuality";
 import { TypeLink } from "../models/ModelLinks";
 import { localId } from "../apps/QueryResultCard";
@@ -533,15 +533,13 @@ export function ExplorePage({
           ) : (
             // Opening an entity announced nothing and arriving announced nothing either: a
             // screen-reader user was left waiting on a pane that had already filled (T-1768).
-            <CodeBlock
-              label={t("codeBlock.entity")}
-              className="mt-2 max-h-96 text-caption"
-              data-testid="explore-entity"
-              aria-live="polite"
-              aria-busy={detail.isPending || undefined}
-            >
-              {detail.data ? JSON.stringify(detail.data, null, 2) : t("app.loading")}
-            </CodeBlock>
+            <div className="mt-2" data-testid="explore-entity" aria-live="polite" aria-busy={detail.isPending || undefined}>
+              {detail.data ? (
+                <RecordView value={detail.data} label={t("codeBlock.entity")} className="max-h-96" />
+              ) : (
+                <p className="text-caption text-fg-muted">{t("app.loading")}</p>
+              )}
+            </div>
           )}
         </section>
       ) : null}

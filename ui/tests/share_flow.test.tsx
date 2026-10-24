@@ -132,7 +132,10 @@ describe("the share flow on an Endpoint's page (T-3275)", () => {
     await within(pick).findByRole("option", { name: "bbsk" });
     await userEvent.selectOptions(pick, "bbsk");
     const preview = await screen.findByTestId("share-preview");
-    expect(preview).toHaveTextContent('"pm10": 12');
+    // T-5516: the preview reads as rows, never as JSON text.
+    expect(within(preview).getByText("pm10")).toBeInTheDocument();
+    expect(within(preview).getByText("12")).toBeInTheDocument();
+    expect(preview.textContent).not.toContain("{\n");
     expect(preview).not.toHaveTextContent("maintenance");
     await userEvent.type(screen.getByLabelText(en.endpoints.shareFlow.until), "2026-12-31");
     await userEvent.click(screen.getByRole("button", { name: en.endpoints.shareFlow.propose }));

@@ -9865,6 +9865,18 @@
       "full": "Alle {limit} Broker sind belegt: ein neuer wird abgelehnt. Ein Administrator der Organisation kann das Limit unter Verwaltung › Projekte erhöhen."
     }
   },
+  "recordView": {
+    "copy": "Als JSON kopieren",
+    "copied": "Als JSON kopiert.",
+    "copyFailed": "Der Browser hat das Kopieren nicht erlaubt; markieren Sie den Datensatz und kopieren Sie ihn.",
+    "showAll": "Alles anzeigen",
+    "showLess": "Weniger anzeigen",
+    "fields": "Felder: {count}",
+    "items": "Einträge: {count}",
+    "item": "Eintrag {n}",
+    "noFields": "Dieser Datensatz hat keine Felder.",
+    "noItems": "Diese Liste enthält keine Datensätze."
+  },
   "codeBlock": {
     "code": "Code",
     "sample": "Beispieldatensatz",
