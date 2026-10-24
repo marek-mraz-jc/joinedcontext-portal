@@ -28,6 +28,8 @@ const LINKML = [
   "classes:",
   `  ${TYPE}:`,
   "    slots: [id, name, availableBikeNumber, status, location, refPointOfInterest, operatorNote]",
+  "  PointOfInterest:",
+  "    slots: [id, name]",
   "slots:",
   "  id: {}",
   "  name: { range: string }",
@@ -68,6 +70,22 @@ function station(at: number) {
   };
 }
 
+/** What the endpoint's own page reads for its data section: the published JSON Schema. */
+const JSON_SCHEMA = {
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  $defs: {
+    [TYPE]: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        availableBikeNumber: { type: "integer" },
+        status: { type: "string" },
+        operatorNote: { type: "string" },
+      },
+    },
+  },
+};
+
 interface Stubbed {
   /** Every `attrs` the entity reads asked for, to prove a hidden attribute is never requested. */
   attrs: (string | null)[];
@@ -82,8 +100,17 @@ async function stub(page: Page, persona: Persona, rows: number): Promise<Stubbed
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     if (path.endsWith("/auth/me")) return json({ subject: "s1", username: `${persona}@hel.fi`, name: persona, roles: [] });
     if (path.endsWith(`/api/endpoint/${SLUG}/access/attributes`)) return json({ type: TYPE, attributes: decisions(persona) });
-    if (path.endsWith("/access/check")) return json({ decision: true });
+    if (path.endsWith("/access/check")) return json({ decision: persona === "editor" });
     if (path.endsWith("/access")) return json({ permissions: [{ resource: { type: TYPE }, actions: ["queryEntity"], attributes: "*" }], prohibitions: [] });
+    if (path.endsWith(`/endpoints/helsinki-bikes`)) {
+      return json(manifest("Endpoint", "helsinki-bikes", { contextSpaceRef: "mobility", slug: SLUG, audience: "project-list", enabledRepresentations: ["ngsi-ld", "csv"] }));
+    }
+    if (path.endsWith("/schema/index.json")) return json({ models: [{ name: "helsinki-mobility", version: 1 }] });
+    if (path.endsWith("/json-schema")) return json(JSON_SCHEMA);
+    if (path.endsWith("/entities") && url.searchParams.get("type") === "PointOfInterest") {
+      const poi = (n: string, name: string) => ({ id: `urn:ngsi-ld:PointOfInterest:hel.fi:poi:${n}`, type: "PointOfInterest", name: { type: "Property", value: name } });
+      return json([poi("kallio", "Kallio library"), poi("kamppi", "Kamppi centre")]);
+    }
     if (path.endsWith("/entities")) {
       seen.attrs.push(url.searchParams.get("attrs"));
       const offset = Number(url.searchParams.get("offset") ?? "0");
@@ -107,7 +134,7 @@ test("10 000 rows: the first row and twenty screens of scrolling, timed", async 
   await stub(page, "editor", MANY);
   const started = Date.now();
   await page.goto(EXPLORE);
-  await expect(page.getByRole("gridcell", { name: /Station 00001/ }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /mobility:00001$/ })).toBeVisible();
   const firstRow = Date.now() - started;
   const box = page.locator(".jc-grid-scroll").first();
   const scrollStart = Date.now();
@@ -116,9 +143,101 @@ test("10 000 rows: the first row and twenty screens of scrolling, timed", async 
     await page.waitForTimeout(0);
     await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
   }
-  await expect(page.getByRole("gridcell").filter({ hasText: /Station / }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /mobility:\d{5}$/ }).first()).toBeVisible();
   const scroll = Date.now() - scrollStart;
   const line = `${new Date().toISOString()} ${process.env.TIMING_LABEL ?? "run"} firstRowMs=${firstRow} scroll20Ms=${scroll}\n`;
   await writeFile(`${SHOTS}-timings.txt`, line, { flag: "a" });
   console.log(line.trim());
 });
+
+
+/** Opens the explorer as `persona` on three stations and waits for the first row. */
+async function explore(page: Page, persona: Persona): Promise<Stubbed> {
+  const seen = await stub(page, persona, 3);
+  await page.goto(EXPLORE);
+  await expect(page.getByRole("button", { name: /mobility:00001$/ })).toBeVisible();
+  return seen;
+}
+
+const lock = (page: Page, reason: string) => page.getByRole("img", { name: `Read-only: ${reason}` });
+
+for (const width of [1440, 400]) {
+  test.describe(`the permission-aware grid at ${width} px`, () => {
+    test.use({ viewport: { width, height: width === 400 ? 860 : 900 } });
+
+    test("an editor sees locked and editable columns side by side", async ({ page }) => {
+      await explore(page, "editor");
+      await expect(page.getByRole("textbox", { name: "Edit name" }).first()).toBeVisible();
+      await expect(lock(page, "Not in your access.")).toBeVisible();
+      await expect(lock(page, "Explicitly not allowed by a policy.")).toBeAttached();
+      await page.screenshot({ path: `${SHOTS}/editor-mixed-${width}.png` });
+    });
+
+    test("a viewer sees every column locked and no editor", async ({ page }) => {
+      await explore(page, "viewer");
+      await expect(lock(page, "Not in your access.").first()).toBeVisible();
+      await expect(page.getByRole("textbox", { name: "Edit name" })).toHaveCount(0);
+      await page.screenshot({ path: `${SHOTS}/viewer-locked-${width}.png` });
+    });
+
+    test("an attribute the person may not read is a hidden column, never asked for", async ({ page }) => {
+      const seen = await explore(page, "editor");
+      const header = page.getByRole("columnheader", { name: /operatorNote/ });
+      await header.scrollIntoViewIfNeeded();
+      await expect(header).toContainText("hidden: no access");
+      await expect(page.getByRole("gridcell", { name: "operatorNote: hidden: no access" }).first()).toHaveText("");
+      expect(seen.attrs.length).toBeGreaterThan(0);
+      for (const attrs of seen.attrs) expect(attrs ?? "").not.toContain("operatorNote");
+      await page.screenshot({ path: `${SHOTS}/hidden-column-${width}.png` });
+    });
+
+    test("the review names the row and the column and formats each value", async ({ page }) => {
+      await explore(page, "editor");
+      await page.getByRole("textbox", { name: "Edit name" }).first().fill("Station 00001 north");
+      // A GeoProperty and a Relationship change are reviewed in sdk/e2e/grid_review.spec.ts: no
+      // Portal grid edits a geometry in place.
+      await page.getByRole("button", { name: "Review the changes" }).click();
+      const review = page.getByRole("region", { name: "Review the changes" }).first();
+      await expect(review).toContainText("Station 00001");
+      const text = (await review.textContent()) ?? "";
+      expect(text).not.toContain("urn:");
+      expect(text).not.toContain("[object Object]");
+      await review.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `${SHOTS}/review-${width}.png` });
+    });
+
+    test("a paste over locked cells counts them as not allowed", async ({ page }) => {
+      await explore(page, "editor");
+      const name = page.getByRole("textbox", { name: "Edit name" }).first();
+      await name.focus();
+      await page.keyboard.press("Escape");
+      await page.evaluate(() => {
+        const grid = document.querySelector('[role="grid"]');
+        const data = new DataTransfer();
+        data.setData("text/plain", "Station 1 renamed\t7\tbroken\n");
+        grid?.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+      });
+      await expect(page.getByText(/1 cells pasted, 2 not allowed by your access/)).toBeVisible();
+      await page.screenshot({ path: `${SHOTS}/paste-skipped-${width}.png` });
+    });
+
+    test("delete waits for the endpoint's own decision and says why it is not offered", async ({ page }) => {
+      await explore(page, "viewer");
+      await page.getByRole("button", { name: /mobility:00001$/ }).click();
+      const remove = page.getByTestId("explore-delete");
+      await expect(remove).toHaveAttribute("aria-disabled", "true");
+      await remove.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `${SHOTS}/delete-refused-${width}.png` });
+    });
+
+    test("the CSV download is not offered when a shown column cannot be read", async ({ page }) => {
+      await stub(page, "editor", 3);
+      await page.goto("/projects/helsinki/endpoints/helsinki-bikes?lang=en");
+      const csv = page.getByRole("button", { name: "Download these rows as CSV" });
+      await expect(csv).toHaveAttribute("aria-disabled", "true");
+      await expect(page.getByText(/does not let you read .*operatorNote/i).first()).toBeVisible();
+      await csv.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `${SHOTS}/export-refused-${width}.png` });
+    });
+  });
+}

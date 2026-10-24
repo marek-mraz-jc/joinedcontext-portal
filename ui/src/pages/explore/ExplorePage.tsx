@@ -195,11 +195,9 @@ export function ExplorePage({
     [attributeAccess.data, slots],
   );
   const endpointName = endpoint?.metadata.name;
-  const explainAccess = useCallback(
-    (attribute: string, action: "read" | "write" | "delete") =>
-      explainAttribute(project, endpointName ?? "", query.type ?? "", attribute, action),
-    [project, endpointName, query.type],
-  );
+  // The React Compiler memoizes this; a manual useCallback over `endpoint` could not be preserved.
+  const explainAccess = (attribute: string, action: "read" | "write" | "delete") =>
+    explainAttribute(project, endpointName ?? "", query.type ?? "", attribute, action);
 
   /**
    * What the grid is told to show. The endpoint is a slug and never a URL (EP-55), and the filters
