@@ -17,7 +17,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { guideShot, helpClipStart } from "./guide";
+import { guideShot } from "./guide";
 import { APPROVER, STEWARD, VIEWER, approve, checkManifest, csrf, proposedChange, reject, removeCompletely, signIn, sweepDrafts } from "./portal";
 
 const PROJECT = "helsinki";
@@ -87,7 +87,6 @@ test("a steward builds a model with classes, an enum and a has-many relation, ed
   try {
     await newModel(page);
 
-    const clip = helpClipStart(page, "models");
     await addClass(page, "Station");
     await addClass(page, "Sensor");
     await page.getByLabel("New enum").fill("QualityBand");
@@ -110,7 +109,6 @@ test("a steward builds a model with classes, an enum and a has-many relation, ed
     await relate.getByLabel("Target class", { exact: true }).selectOption("Sensor");
     await relate.getByRole("button", { name: "Add relationship" }).click();
     await expect(page.getByRole("table", { name: "Relationships" })).toContainText(/has many/);
-    await clip.end();
     await guideShot(page, "model-1-classes-and-relationship");
 
     // One line typed into the source, where a person writes what the form has no control for.

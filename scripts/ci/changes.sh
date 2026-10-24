@@ -39,10 +39,7 @@ classify() {
       '*' | .github/workflows/ci.yml) everything ;;
     esac
     case $f in
-      ui/public/help/*) apps=true ;;
-    esac
-    case $f in
-      ui/* | sdk/* | scripts/bundle-budget* | scripts/help-clips* | public-docs/* | tests/fixtures/*) ui=true ;;
+      ui/* | sdk/* | scripts/bundle-budget* | public-docs/* | tests/fixtures/*) ui=true ;;
     esac
     case $f in
       apps/* | sdk/* | builder/* | scripts/*) apps=true ;;
@@ -78,11 +75,9 @@ selftest() {
   check "read by a ci-full test only" 'ui/src/pages/apps/AppGenerator.tsx\n' "rust=false ui=true apps=false "
   check "src only" 'src/main.rs\nmigrations/0001.sql\n' "rust=true ui=false apps=false "
   check "a fixture the UI suite reads" 'tests/fixtures/bus-expires.blobl\n' "rust=true ui=true apps=false "
-  check "the help clips' script" 'scripts/help-clips.mjs\n' "rust=true ui=true apps=true "
   check "lock" 'Cargo.lock\n' "rust=true ui=false apps=false "
   check "apps only" 'apps/air-quality/ui/src/App.tsx\n' "rust=true ui=false apps=true "
   check "sdk" 'sdk/src/sdk/index.ts\n' "rust=true ui=true apps=true "
-  check "help clips" 'ui/public/help/x.mp4\n' "rust=false ui=true apps=true "
   check "docs only" 'docs/analysis/x.md\nREADME.md\n' "rust=false ui=false apps=false "
   check "nested md is not docs" 'src/agents/server_section.md\n' "rust=true ui=false apps=false "
   check "unknown folder runs rust" 'newdir/x.txt\n' "rust=true ui=false apps=false "
