@@ -5389,7 +5389,28 @@
       "filterOther": "Choose a test, e.g. has a value, or empty.",
       "editAsText": "Write the NGSI-LD query yourself"
     },
-    "groupNoValue": "(no value)"
+    "groupNoValue": "(no value)",
+    "inspector": {
+      "title": "Your access",
+      "close": "Close",
+      "read": "Read",
+      "write": "Write",
+      "delete": "Delete",
+      "allowed": "allowed",
+      "notAllowed": "not allowed",
+      "loading": "Checking your access…",
+      "failed": "Your access could not be read ({reason}). Reload the page to try again.",
+      "grant": "Your access allows this.",
+      "notInGrant": "Not in your access.",
+      "noGrant": "Your access does not cover this type.",
+      "formula": "Calculated by a pipeline, so it is not edited here.",
+      "prohibited": "Explicitly not allowed by a policy.",
+      "prohibitedBy": "Explicitly not allowed by policy “{policy}”.",
+      "prohibitedHidden": "Hidden by a policy you cannot read.",
+      "naming": "Looking up the policy…",
+      "namingFailed": "The policy could not be named; try again shortly.",
+      "askAccess": "Ask for access"
+    }
   },
   "explore": {
     "title": "Explore data",

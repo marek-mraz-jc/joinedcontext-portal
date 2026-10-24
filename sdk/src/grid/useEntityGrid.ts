@@ -81,6 +81,8 @@ export interface GridLabels {
   /** The entry that opens one attribute's history, and the panel's own labels (T-1431). */
   history: string;
   historyLabels?: Partial<import("./EntityHistory").HistoryLabels>;
+  /** The cell inspector's words (T-5528): its title also names each cell's "i" button. */
+  inspectorLabels?: Partial<import("./CellInspector").CellInspectorLabels>;
   /** Edit mode: the cell editor, the pending list and what applying them is called (UI-67). */
   edit: string;
   pending: string;
