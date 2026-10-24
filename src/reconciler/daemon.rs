@@ -24,7 +24,7 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OwnedMutexGuard};
 use utoipa::ToSchema;
 
 use super::groups::GroupSync;
@@ -235,6 +235,10 @@ pub struct Syncer {
     teams_left_to_bootstrap: Arc<std::sync::atomic::AtomicBool>,
     /// The pipelines the last run paused for refused access (PL-93), so the feed says it once.
     access_paused: Arc<tokio::sync::Mutex<BTreeMap<(String, String), String>>>,
+    /// The catalogue waves (5f, 5f', 5g) run beside the sync, one at a time (T-5519): locked
+    /// while one runs, holding the publications the last wave read, which is what its
+    /// withdrawals compare against.
+    catalogue: Arc<tokio::sync::Mutex<Option<Mirror>>>,
 }
 
 impl Syncer {
@@ -260,6 +264,7 @@ impl Syncer {
             unscheduled: super::stall::Unscheduled::default(),
             teams_left_to_bootstrap: Arc::default(),
             access_paused: Arc::default(),
+            catalogue: Arc::default(),
             registrations: None,
             views: None,
             drift: None,
@@ -764,19 +769,6 @@ impl Syncer {
         self.record(events).await;
     }
 
-    /// One `catalogue.published` per dataset a run wrote or withdrew, and an `error` for every
-    /// Endpoint whose publication did not happen (OPS-48, EP-62). Each names its Endpoint as
-    /// `details.object`, so the endpoint's page and the catalogue page find it (T-3091).
-    ///
-    /// A publication that changed nothing is not an event: a feed that says "unchanged" once a
-    /// minute per dataset is a feed nobody reads.
-    async fn say_published(&self, reports: &[super::ckan::Report]) {
-        if self.activity.is_none() {
-            return;
-        }
-        self.record(published_events(reports)).await;
-    }
-
     async fn record(&self, events: Vec<ActivityEvent>) {
         let Some(activity) = self.activity.as_ref() else {
             return;
@@ -1076,25 +1068,17 @@ impl Syncer {
         serve_leaders_phases(&fresh_mirror, &self.leaders_phases().await, LEADING);
         mark_refused_pipelines(&fresh_mirror, &refused, &lost);
 
-        // 5f. The open-data catalogue of every project (EP-62…EP-67, T-2405). Before the mirror
-        //     is swapped on purpose: a dataset is withdrawn only when the Endpoint that declared
-        //     it was there a run ago, and `self.mirror` is still that run.
-        if let Some(catalogue) = self.ckan.as_ref() {
-            let reports = catalogue
-                .converge(&repository, &self.mirror, scratch.path())
-                .await;
-            self.say_published(&reports).await;
-            // 5f'. The DataStore rows of the open erasures (DM-126, T-4668), with the same
-            //      catalogue credentials.
-            if let Some(pool) = self.erasures.as_ref() {
-                crate::erasure::ckan_pass(pool, catalogue, (&repository, scratch.path())).await;
-            }
-        }
-        // 5g. The same public Endpoints as NGSI-LD entities an agent searches first (T-4500).
-        self.converge_catalog(&repository).await;
-
+        // 5f, 5f', 5g. The catalogues, taken before the swap: a wave withdraws a dataset whose
+        //     Endpoint the mirror it last published from had, and before its first wave that is
+        //     the mirror this run replaces.
+        let catalogue = self.claim_catalogue_wave();
         transitions.keep_all(&fresh_mirror);
         self.mirror.replace_all(&fresh_mirror);
+        // They run after the swap and beside the rest of the run (T-5519): a catalogue that
+        // answers in minutes held every merged change out of the mirror for as long.
+        if let Some(previous) = catalogue {
+            self.start_catalogue_wave(previous, &repository, &scratch);
+        }
 
         // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47), each with the
         //     validation stage of its space's model at the version the space pins now (PL-60).
@@ -1177,6 +1161,58 @@ impl Syncer {
         self.scan_and_start_background(&scratch).await;
 
         Ok((loaded, revision))
+    }
+
+    /// The last wave's publications when no catalogue wave is running, else `None` and a line that
+    /// says this run's wave was skipped: the running one publishes a revision at most a run
+    /// old, and the next run's wave compares against the publications it read.
+    fn claim_catalogue_wave(&self) -> Option<OwnedMutexGuard<Option<Mirror>>> {
+        if self.ckan.is_none() && self.catalog.is_none() {
+            return None;
+        }
+        let Ok(mut previous) = Arc::clone(&self.catalogue).try_lock_owned() else {
+            tracing::info!(
+                "the catalogue wave of the last run is still running: this run's is skipped"
+            );
+            return None;
+        };
+        if previous.is_none() {
+            *previous = Some(publications_of(&self.mirror));
+        }
+        Some(previous)
+    }
+
+    /// Publishes `repository` to CKAN and the NGSI-LD catalogue in the background, withdrawing
+    /// what `previous` published and it no longer does; the publications it reads are the next
+    /// wave's `previous`.
+    fn start_catalogue_wave(
+        &self,
+        mut previous: OwnedMutexGuard<Option<Mirror>>,
+        repository: &Arc<Repository>,
+        scratch: &Render,
+    ) {
+        let wave = CatalogueWave {
+            ckan: self.ckan.clone(),
+            erasures: self.erasures.clone(),
+            catalog: self.catalog.clone(),
+            activity: self.activity.clone(),
+        };
+        // The next run rebuilds a layout 2 render's directory in place (CC-86) while the wave
+        // still resolves tokens from it, so the wave reads a copy of the secrets files alone.
+        let secrets = match secrets_copy(scratch.path()) {
+            Ok(secrets) => secrets,
+            Err(error) => {
+                tracing::warn!(%error, "the catalogue wave did not start: the secrets files did not copy");
+                return;
+            }
+        };
+        let current = publications_of(&self.mirror);
+        let repository = Arc::clone(repository);
+        tokio::spawn(async move {
+            let base = previous.take().unwrap_or_default();
+            wave.run(&repository, &base, secrets.path()).await;
+            *previous = Some(current);
+        });
     }
 
     async fn stage_and_load(
@@ -1757,22 +1793,6 @@ impl Syncer {
                 "NoRunner",
                 "no pipeline runner is configured (JC_PORTAL_PIPELINE_RUNNER_URL)",
             );
-        }
-    }
-
-    async fn converge_catalog(&self, repository: &Repository) {
-        if let Some(catalog) = self.catalog.as_ref() {
-            match catalog.converge(repository).await {
-                Ok(Some(run)) if run.upserted + run.deleted > 0 => tracing::info!(
-                    upserted = run.upserted,
-                    deleted = run.deleted,
-                    "the NGSI-LD catalogue was brought up to date"
-                ),
-                Ok(_) => {}
-                Err(err) => {
-                    tracing::warn!(error = %err, "the NGSI-LD catalogue was not brought up to date")
-                }
-            }
         }
     }
 
@@ -2870,6 +2890,111 @@ fn pipeline_references(
     references
 }
 
+/// What the background catalogue wave needs of the syncer (T-5519).
+struct CatalogueWave {
+    ckan: Option<Arc<super::ckan::CkanSync>>,
+    erasures: Option<sqlx::PgPool>,
+    catalog: Option<Arc<super::catalog::CatalogSync>>,
+    activity: Option<ActivityStore>,
+}
+
+impl CatalogueWave {
+    async fn run(&self, repository: &Repository, previous: &Mirror, scratch: &Path) {
+        // 5f. The open-data catalogue of every project (EP-62…EP-67, T-2405). A dataset is
+        //     withdrawn only when the Endpoint that declared it was in `previous`.
+        if let Some(catalogue) = self.ckan.as_ref() {
+            let started = std::time::Instant::now();
+            let reports = catalogue.converge(repository, previous, scratch).await;
+            tracing::info!(
+                reports = reports.len(),
+                elapsed_ms = started.elapsed().as_millis() as u64,
+                "the CKAN wave finished"
+            );
+            self.say_published(&reports).await;
+            // 5f'. The DataStore rows of the open erasures (DM-126, T-4668), with the same
+            //      catalogue credentials.
+            if let Some(pool) = self.erasures.as_ref() {
+                let started = std::time::Instant::now();
+                crate::erasure::ckan_pass(pool, catalogue, (repository, scratch)).await;
+                tracing::info!(
+                    elapsed_ms = started.elapsed().as_millis() as u64,
+                    "the CKAN erasure wave finished"
+                );
+            }
+        }
+        // 5g. The same public Endpoints as NGSI-LD entities an agent searches first (T-4500).
+        if let Some(catalog) = self.catalog.as_ref() {
+            let started = std::time::Instant::now();
+            match catalog.converge(repository).await {
+                Ok(Some(run)) if run.upserted + run.deleted > 0 => tracing::info!(
+                    upserted = run.upserted,
+                    deleted = run.deleted,
+                    "the NGSI-LD catalogue was brought up to date"
+                ),
+                Ok(_) => {}
+                Err(err) => {
+                    tracing::warn!(error = %err, "the NGSI-LD catalogue was not brought up to date")
+                }
+            }
+            tracing::info!(
+                elapsed_ms = started.elapsed().as_millis() as u64,
+                "the NGSI-LD catalogue wave finished"
+            );
+        }
+    }
+
+    /// One `catalogue.published` per dataset a run wrote or withdrew, and an `error` for every
+    /// Endpoint whose publication did not happen (OPS-48, EP-62). Each names its Endpoint as
+    /// `details.object`, so the endpoint's page and the catalogue page find it (T-3091).
+    ///
+    /// A publication that changed nothing is not an event: a feed that says "unchanged" once a
+    /// minute per dataset is a feed nobody reads.
+    async fn say_published(&self, reports: &[super::ckan::Report]) {
+        let Some(activity) = self.activity.as_ref() else {
+            return;
+        };
+        let events = published_events(reports);
+        if events.is_empty() {
+            return;
+        }
+        if let Err(err) = activity.append(&events).await {
+            tracing::warn!(error = %err, "the catalogue wave is not in the activity feed");
+        }
+    }
+}
+
+/// Every encrypted secrets file under `root`, copied into a directory of its own at the same
+/// relative path: all a CKAN token resolution reads of the repository (EP-67).
+fn secrets_copy(root: &Path) -> Result<Scratch, String> {
+    let root = root
+        .canonicalize()
+        .map_err(|err| format!("{}: {err}", root.display()))?;
+    let copy = Scratch::new("catalogue").map_err(|err| err.to_string())?;
+    for entry in jcctl::loader::walk_files(&root).map_err(|err| err.to_string())? {
+        let Some(relative) = entry.path().strip_prefix(&root).ok().and_then(Path::to_str) else {
+            continue;
+        };
+        if !super::staging::is_encrypted_secrets_file(relative) {
+            continue;
+        }
+        let text = std::fs::read_to_string(entry.path())
+            .map_err(|err| format!("{}: {err}", entry.path().display()))?;
+        copy.write(relative, &text).map_err(|err| err.to_string())?;
+    }
+    Ok(copy)
+}
+
+/// The Endpoints and CKAN instances `mirror` holds, which is all a catalogue wave's withdrawal
+/// reads ([`super::ckan::withdrawn`]), kept without the rest of the mirror.
+fn publications_of(mirror: &Mirror) -> Mirror {
+    let publications = Mirror::new();
+    for envelope in mirror.matching(|env| matches!(env.kind.as_str(), "Endpoint" | "CkanInstance"))
+    {
+        publications.upsert(envelope);
+    }
+    publications
+}
+
 /// The activity a CKAN run is worth (OPS-48, EP-62): one `catalogue.published` per dataset it
 /// wrote or withdrew and an `error` per Endpoint it could not publish, each naming its Endpoint
 /// as `details.object` so the endpoint's page and the catalogue page find it (T-3091). A
@@ -3512,6 +3637,339 @@ output_error{stream="kpi"} 6
         assert!(
             res.is_err(),
             "the waiting run reached the forge (unreachable here) instead of skipping"
+        );
+    }
+
+    /// A forge whose files a test changes between runs; each change is the next revision.
+    type Files = Arc<std::sync::Mutex<(u32, Vec<(String, String)>)>>;
+
+    async fn changing_forge(files: &[(&str, String)]) -> (MockServer, GiteaClient, Files) {
+        let server = MockServer::start().await;
+        let shared: Files = Arc::new(std::sync::Mutex::new((
+            1,
+            files
+                .iter()
+                .map(|(p, t)| ((*p).to_owned(), t.clone()))
+                .collect(),
+        )));
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/test-owner/test-repo"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"default_branch": "main"})),
+            )
+            .mount(&server)
+            .await;
+        let head = Arc::clone(&shared);
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/test-owner/test-repo/branches/main"))
+            .respond_with(move |_: &wiremock::Request| {
+                let rev = head.lock().expect("files").0;
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"name": "main", "commit": {"id": format!("rev-{rev}")}}))
+            })
+            .mount(&server)
+            .await;
+        let listed = Arc::clone(&shared);
+        Mock::given(method("GET"))
+            .and(path_regex("^/api/v1/repos/test-owner/test-repo/git/trees/"))
+            .respond_with(move |_: &wiremock::Request| {
+                let tree: Vec<serde_json::Value> = listed
+                    .lock()
+                    .expect("files")
+                    .1
+                    .iter()
+                    .map(|(p, _)| json!({"path": p, "type": "blob"}))
+                    .collect();
+                ResponseTemplate::new(200).set_body_json(json!({"truncated": false, "tree": tree}))
+            })
+            .mount(&server)
+            .await;
+        let served = Arc::clone(&shared);
+        Mock::given(method("GET"))
+            .and(path_regex("^/api/v1/repos/test-owner/test-repo/contents/"))
+            .respond_with(move |request: &wiremock::Request| {
+                let wanted = request
+                    .url
+                    .path()
+                    .trim_start_matches("/api/v1/repos/test-owner/test-repo/contents/");
+                let files = served.lock().expect("files");
+                match files.1.iter().find(|(p, _)| p == wanted) {
+                    Some((_, text)) => ResponseTemplate::new(200).set_body_json(json!({
+                        "sha": "blob-sha",
+                        "content": base64::engine::general_purpose::STANDARD.encode(text),
+                    })),
+                    None => ResponseTemplate::new(404),
+                }
+            })
+            .mount(&server)
+            .await;
+        let gitea = GiteaClient::new(
+            server.uri().parse().expect("forge url"),
+            "test-owner",
+            "test-repo",
+            "token",
+        )
+        .expect("client");
+        (server, gitea, shared)
+    }
+
+    fn manifest(kind: &str, name: &str, spec: serde_json::Value) -> String {
+        // JSON is YAML, and the loader reads either.
+        serde_json::to_string(&json!({
+            "apiVersion": "joinedcontext.com/v1alpha1",
+            "kind": kind,
+            "metadata": {"name": name, "namespace": "city"},
+            "spec": spec,
+        }))
+        .expect("JSON")
+    }
+
+    /// The city's catalogue Endpoint, which turns the NGSI-LD catalogue wave on (T-4500).
+    fn catalogue_files() -> Vec<(&'static str, String)> {
+        vec![
+            (
+                "projects/city/spaces/catalog/space.yaml",
+                manifest("ContextSpace", "catalog", json!({})),
+            ),
+            (
+                "projects/city/endpoints/catalog.yaml",
+                manifest(
+                    "Endpoint",
+                    "catalog",
+                    json!({
+                        "contextSpaceRef": {"kind": "ContextSpace", "name": "catalog"},
+                        "slug": "cccccccccccccccccccccccccc",
+                        "audience": "public",
+                        "enabledRepresentations": ["ngsi-ld", "mcp"],
+                    }),
+                ),
+            ),
+        ]
+    }
+
+    /// A gateway whose DCAT-AP feed answers after `delay`: the catalogue wave runs that long.
+    async fn slow_catalogue(delay: Duration) -> (MockServer, super::super::catalog::CatalogSync) {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/realms/city/protocol/openid-connect/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"access_token": "t"})))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/catalog.jsonld"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"@included": []}))
+                    .set_delay(delay),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path_regex("/ngsi-ld/v1/entities$"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path_regex("/ngsi-ld/v1/entityOperations/"))
+            .respond_with(ResponseTemplate::new(204))
+            .mount(&server)
+            .await;
+        let watch = super::super::drift::Watch::new(
+            server.uri(),
+            &format!("{}/realms/city", server.uri()),
+            "portal".to_owned(),
+            crate::config::ClientAuth::Secret("s".into()),
+        );
+        let sync = super::super::catalog::CatalogSync::new(Arc::new(watch), reqwest::Client::new());
+        (server, sync)
+    }
+
+    async fn feeds_read(gateway: &MockServer) -> usize {
+        gateway
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .iter()
+            .filter(|r| r.url.path() == "/catalog.jsonld")
+            .count()
+    }
+
+    /// Until the wave has asked the gateway: it starts in the background.
+    async fn until_the_feed_is_asked(gateway: &MockServer, times: usize) {
+        for _ in 0..200 {
+            if feeds_read(gateway).await >= times {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("the catalogue wave never asked the gateway");
+    }
+
+    /// T-5519: a catalogue that answers after seconds no longer holds the mirror swap. On dev one
+    /// CKAN wave held a merged change out of the mirror for 10.6 minutes.
+    #[tokio::test]
+    async fn a_slow_catalogue_does_not_hold_the_mirror_swap() {
+        let (_forge, gitea, _files) = changing_forge(&catalogue_files()).await;
+        let (gateway, catalog) = slow_catalogue(Duration::from_secs(5)).await;
+        let mirror = Arc::new(Mirror::new());
+        let syncer =
+            Syncer::new(Arc::new(gitea), Arc::clone(&mirror)).with_catalog(Arc::new(catalog));
+
+        tokio::time::timeout(Duration::from_secs(3), syncer.sync_once())
+            .await
+            .expect("the run ends before the catalogue answers")
+            .expect("the run loads");
+        assert!(
+            mirror.get("city", "Endpoint", "catalog").is_some(),
+            "the mirror serves the revision"
+        );
+        until_the_feed_is_asked(&gateway, 1).await;
+        assert!(
+            syncer.catalogue.try_lock().is_err(),
+            "the catalogue wave is still running"
+        );
+    }
+
+    /// T-5519: a run during a busy catalogue wave skips its own wave rather than queueing it.
+    #[tokio::test]
+    async fn a_run_during_a_busy_catalogue_wave_skips_its_own() {
+        let (_forge, gitea, _files) = changing_forge(&catalogue_files()).await;
+        let (gateway, catalog) = slow_catalogue(Duration::from_secs(2)).await;
+        let syncer =
+            Syncer::new(Arc::new(gitea), Arc::new(Mirror::new())).with_catalog(Arc::new(catalog));
+
+        syncer.sync_once().await.expect("the first run loads");
+        until_the_feed_is_asked(&gateway, 1).await;
+        syncer.sync_once().await.expect("the second run loads");
+        drop(syncer.catalogue.lock().await);
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(
+            feeds_read(&gateway).await,
+            1,
+            "the second run's wave was queued"
+        );
+        assert!(
+            syncer.catalogue.try_lock().is_ok(),
+            "no wave runs after the first"
+        );
+    }
+
+    /// T-5519, CC-19: an Endpoint removed while a wave was busy is withdrawn by the next wave
+    /// that runs: it compares against what the last wave read, not the mirror of the run before.
+    #[tokio::test]
+    async fn an_endpoint_removed_during_a_busy_wave_is_withdrawn_by_the_next() {
+        let bikes = (
+            "projects/city/endpoints/bikes.yaml",
+            manifest(
+                "Endpoint",
+                "bikes",
+                json!({
+                    "contextSpaceRef": {"kind": "ContextSpace", "name": "bikes"},
+                    "slug": "bbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    "audience": "public",
+                    "enabledRepresentations": ["ngsi-ld", "csv"],
+                    "publish": {"ckan": {"instanceRef": {"kind": "CkanInstance", "name": "hel-fi"}}},
+                }),
+            ),
+        );
+        let mut files = catalogue_files();
+        files.push((
+            "projects/city/spaces/bikes/space.yaml",
+            manifest("ContextSpace", "bikes", json!({})),
+        ));
+        // No way to read the token: each publication and withdrawal is a refusal naming its
+        // Endpoint, without a socket opened towards the catalogue.
+        files.push((
+            "projects/city/ckan/hel-fi.yaml",
+            manifest(
+                "CkanInstance",
+                "hel-fi",
+                json!({
+                    "url": "https://data.example.fi",
+                    "apiTokenRef": {"name": "ckan-api-token", "key": "token"},
+                }),
+            ),
+        ));
+        let without_bikes = files.clone();
+        files.push(bikes);
+        let (_forge, gitea, shared) = changing_forge(&files).await;
+        let (gateway, catalog) = slow_catalogue(Duration::from_secs(4)).await;
+        let activity = crate::activity::ActivityStore::new(None);
+        let syncer = Syncer::new(Arc::new(gitea), Arc::new(Mirror::new()))
+            .with_catalog(Arc::new(catalog))
+            .with_ckan(Arc::new(super::super::ckan::CkanSync::new(
+                "portal.example.fi",
+            )))
+            .with_activity(activity.clone());
+        let about_bikes = || async {
+            let filter = crate::activity::ActivityFilter {
+                limit: 50,
+                ..Default::default()
+            };
+            let page = activity.list("city", &filter).await.expect("list");
+            page.items
+                .into_iter()
+                .filter(|e| e.details["object"] == json!("endpoints/bikes"))
+                .count()
+        };
+
+        syncer.sync_once().await.expect("run 1 loads");
+        until_the_feed_is_asked(&gateway, 1).await;
+        let published = about_bikes().await;
+        assert!(published >= 1, "run 1 tried to publish the bikes");
+
+        *shared.lock().expect("files") = (
+            2,
+            without_bikes
+                .iter()
+                .map(|(p, t)| ((*p).to_owned(), t.clone()))
+                .collect(),
+        );
+        syncer
+            .sync_once()
+            .await
+            .expect("run 2 loads; its wave is skipped");
+        drop(syncer.catalogue.lock().await);
+        assert_eq!(feeds_read(&gateway).await, 1, "run 2's wave was skipped");
+        assert_eq!(
+            about_bikes().await,
+            published,
+            "nothing withdrew the bikes yet"
+        );
+
+        syncer.sync_once().await.expect("run 3 loads");
+        drop(syncer.catalogue.lock().await);
+        assert_eq!(
+            about_bikes().await,
+            published + 1,
+            "run 3's wave withdrew the bikes"
+        );
+    }
+
+    /// T-5519: the background wave resolves tokens from a copy of the secrets files, which the
+    /// next run's rebuild of a layout 2 render cannot move away under it.
+    #[test]
+    fn the_catalogue_wave_reads_a_copy_of_the_secrets_files_alone() {
+        let dir = Scratch::new("t5519").expect("a scratch directory");
+        write_tree(
+            dir.path(),
+            &[
+                (
+                    "projects/hel/secrets/ckan.enc.yaml",
+                    "ckan-api-token: ENC[x]\n",
+                ),
+                ("projects/hel/endpoints/bikes.yaml", "kind: Endpoint\n"),
+            ],
+        );
+        let copy = secrets_copy(dir.path()).expect("the secrets copy");
+        assert_eq!(
+            std::fs::read_to_string(copy.path().join("projects/hel/secrets/ckan.enc.yaml"))
+                .expect("the copied file"),
+            "ckan-api-token: ENC[x]\n"
+        );
+        assert!(
+            !copy.path().join("projects/hel/endpoints").exists(),
+            "a manifest was copied"
         );
     }
 
@@ -4534,7 +4992,10 @@ output_error{stream="kpi"} 6
         let repository = Repository::load(dir.path()).expect("the repository loads");
         syncer.converge_views(&fresh, &repository).await;
         syncer.converge_apps(&repository).await;
-        syncer.converge_catalog(&repository).await;
+        assert!(
+            syncer.claim_catalogue_wave().is_none(),
+            "no catalogue, no wave"
+        );
         assert_eq!(
             serde_json::to_value(fresh.matching(|_| true)).expect("JSON"),
             before
