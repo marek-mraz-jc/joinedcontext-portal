@@ -90,6 +90,14 @@ for (const width of [1440, 400]) {
       await expect(editor(page)).toBeVisible();
       await expect(editor(page)).toContainText("apiVersion");
       await expect(editor(page)).not.toContainText("status");
+      // T-5513: Monaco carries only the YAML grammar now; keys and values still get their own
+      // colours, and a mapping still folds.
+      const key = editor(page).locator(".view-line span span", { hasText: "apiVersion" }).first();
+      const value = editor(page).locator(".view-line span span", { hasText: "RoleBinding" }).first();
+      await expect
+        .poll(async () => (await key.getAttribute("class")) !== (await value.getAttribute("class")))
+        .toBe(true);
+      await expect(editor(page).locator(".codicon-folding-expanded").first()).toBeAttached();
       await editor(page).click();
       await page.keyboard.type("x");
       await expect(editor(page)).not.toContainText("xapiVersion");

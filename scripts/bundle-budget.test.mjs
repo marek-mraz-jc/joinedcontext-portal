@@ -1,7 +1,7 @@
 // node --test scripts/bundle-budget.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { closure, entryScripts, staticImports, weightKb } from "./bundle-budget.mjs";
+import { closure, entryScripts, staticImports, strayWorkers, weightKb } from "./bundle-budget.mjs";
 
 test("the entry and its preloads are what every page loads, a lazy chunk is not", () => {
   const html = `<script type="module" crossorigin src="/assets/index-abc.js"></script>
@@ -27,4 +27,16 @@ test("a route's chunks are its static imports, followed through; a lazy import i
     [...closure("assets/Page-a.js", (chunk) => files[chunk])].sort(),
     ["assets/Page-a.js", "assets/jsx-e.js", "assets/side-c.js", "assets/ui-b.js"],
   );
+});
+
+test("only the editor and map workers ship; a language service worker is stray", () => {
+  const assets = [
+    "editor.worker-DKXjC3Lf.js",
+    "maplibre-gl-worker-AbPoOmO0.js",
+    "ts.worker-Dj4vg72D.js",
+    "json.worker-izi4BK3w.js",
+    "workers-BgUmImN5.js",
+    "MonacoSourceView-Cil9iIqt.js",
+  ];
+  assert.deepEqual(strayWorkers(assets), ["ts.worker-Dj4vg72D.js", "json.worker-izi4BK3w.js"]);
 });
