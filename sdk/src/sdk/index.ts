@@ -57,14 +57,15 @@ export { areaQuery, decimate, MAX_COORDINATES_CHARS, ringOf, ringOfBounds } from
 export type { GeoArea, GeoQuery } from "../grid/geoarea";
 export { EntityCompare, DEFAULT_COMPARE_LABELS, pageSource } from "../grid/EntityCompare";
 export type { CompareLabels, EntityCompareProps } from "../grid/EntityCompare";
-export { endpointSource, fixtureSource, historyOf, idChunks, SourceError, sourceFor, spaceSource } from "../grid/source";
+export { accessOf, endpointSource, fixtureSource, historyOf, idChunks, SourceError, sourceFor, spaceSource } from "../grid/source";
+export type { AccessAction, AccessExplanation, CellInspectorLabels } from "../grid/CellInspector";
 export { GeoView, boundsOf, featuresOf, positionsOf } from "../geo/GeoView";
 export type { GeoFeature } from "../geo/GeoView";
 export { DEFAULT_GEO_LABELS, DRAW_MODES, GeoEditor, MAX_GEOJSON_BYTES, modesFor, rowLabel, rowsOf, terraDrawEngine, withPosition, withoutPosition } from "../geo/GeoEditor";
 export type { CoordinateRow, DrawEngine, DrawMode, GeoLabels } from "../geo/GeoEditor";
 export { GEOMETRY_TYPES, MAX_VERTICES, checkGeometry, geometryOf } from "../geo/validate";
 export type { GeoCheck, GeoFinding, Geometry, GeometryType, Position } from "../geo/validate";
-export type { EntitySource, GridPage, GridQuery, HistoryPoint, HistoryWindow } from "../grid/source";
+export type { AccessReason, AttributeAccess, EntitySource, GridPage, GridQuery, HistoryPoint, HistoryWindow } from "../grid/source";
 export { attributesOf, cellText, projectRow, toRichCell, toRichRow } from "../grid/model";
 export type { CellKind, RichCell, RichRow } from "../grid/model";
 export { andQ, opsForKind, queryFromFilters, queryFromGroup, searchQuery } from "../grid/filters";

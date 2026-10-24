@@ -6,7 +6,8 @@ import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized, refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useBranding } from "../../branding";
-import { AccessPanel, deniedAttributes, useAccess } from "../../components/entities/AccessPanel";
+import { AccessPanel, useAccess } from "../../components/entities/AccessPanel";
+import { deniedOf, useAttributeAccess } from "../../api/access";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { fetchEntities, filterSlotsOf, useModelSource } from "../../components/entities/filters";
 import type { Entity, EntityQuery, FilterSlot } from "../../components/entities/filters";
@@ -616,7 +617,8 @@ export function PipelineStudio({
   };
   const slug = typeof endpoint?.spec.slug === "string" ? (endpoint.spec.slug as string) : undefined;
   const access = useAccess(slug);
-  const denied = deniedAttributes(access.data, type, slots, t);
+  const attributeAccess = useAttributeAccess(slug, type);
+  const denied = deniedOf(attributeAccess.data, t);
   const ids = (draft?.source?.query?.ids as string[] | undefined) ?? [];
 
   function update(patch: (form: PipelineForm) => PipelineForm) {

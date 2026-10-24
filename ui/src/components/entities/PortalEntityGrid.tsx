@@ -13,7 +13,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { EntityGrid, DEFAULT_LABELS, originTransport, sourceFor } from "@joinedcontext/sdk";
-import type { ColumnLayout, EntityGridProps, GeoLabels, GridLabels, GridMapLabels, GridSource, GridState, ResolvedGridConfig } from "@joinedcontext/sdk";
+import type { CellInspectorLabels, ColumnLayout, EntityGridProps, GeoLabels, GridLabels, GridMapLabels, GridSource, GridState, ResolvedGridConfig } from "@joinedcontext/sdk";
 
 /** Where the layout a person set is kept, per project and per type. */
 function layoutKey(project: string, type: string): string {
@@ -83,7 +83,13 @@ function writeLayout(project: string, type: string, layout: Layout): void {
 }
 
 /** Every string the grid shows, from the Portal's own catalogue (`entityGrid.*`). */
-export function gridLabels(t: (key: string) => string): GridLabels {
+/** The cell inspector's words (T-5528), each under `entityGrid.inspector`. */
+const INSPECTOR_KEYS = [
+  "title", "close", "read", "write", "delete", "allowed", "notAllowed", "loading", "failed", "grant", "notInGrant",
+  "noGrant", "formula", "prohibited", "prohibitedBy", "prohibitedHidden", "naming", "namingFailed", "askAccess",
+] as const satisfies readonly (keyof CellInspectorLabels)[];
+
+export function gridLabels(t: (key: string, values?: Record<string, string>) => string): GridLabels {
   const ops = DEFAULT_LABELS.ops;
   return {
     id: t("entityGrid.id"),
@@ -163,6 +169,10 @@ export function gridLabels(t: (key: string) => string): GridLabels {
       changedBy: t("entityGrid.historyChangedBy"),
       reason: t("entityGrid.historyReason"),
     },
+    // The placeholders go through as they are: the inspector fills them with the policy or the reason.
+    inspectorLabels: Object.fromEntries(
+      INSPECTOR_KEYS.map((key) => [key, t(`entityGrid.inspector.${key}`, { policy: "{policy}", reason: "{reason}" })]),
+    ) as Record<(typeof INSPECTOR_KEYS)[number], string>,
     edit: t("entityGrid.edit"),
     pending: t("entityGrid.pending"),
     review: t("entityGrid.review"),

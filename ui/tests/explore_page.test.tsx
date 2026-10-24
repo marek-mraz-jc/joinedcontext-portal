@@ -413,6 +413,25 @@ describe("correcting a value from the explorer", () => {
             }),
           );
         }
+        // The gateway's own decisions per attribute (T-5528), as the grant says them.
+        if (url.includes("/access/attributes")) {
+          const write = actions.includes("updateAttrs");
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                type: "BikeHireDockingStation",
+                attributes: ["availableBikeNumber", "name"].map((name) => ({
+                  name,
+                  read: true,
+                  write,
+                  delete: false,
+                  reason: write ? "grant" : "not_in_grant",
+                })),
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        }
         if (url.includes("/access")) {
           return Promise.resolve(
             new Response(

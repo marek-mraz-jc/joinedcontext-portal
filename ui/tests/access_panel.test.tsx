@@ -10,7 +10,10 @@ import sk from "../src/locales/sk.json";
 import cs from "../src/locales/cs.json";
 import de from "../src/locales/de.json";
 import { App } from "../src/App";
-import { CHECKED_ACTIONS, deniedAttributes } from "../src/components/entities/AccessPanel";
+import * as AccessPanelModule from "../src/components/entities/AccessPanel";
+import { deniedOf, writableOf } from "../src/api/access";
+
+const { CHECKED_ACTIONS } = AccessPanelModule;
 
 const IDENTITY = { subject: "b7c1e0f4", username: "demo.viewer", name: "Demo Viewer", roles: [] };
 const list = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
@@ -63,6 +66,13 @@ const GRANTS = {
   prohibitions: [{ resource: { type: "BikeHireDockingStation" }, actions: ["queryEntity"], attributes: ["location"], constraints: {} }],
 };
 
+/** The gateway's own decisions per attribute for the same grant (T-5528). */
+const ATTRIBUTES = [
+  { name: "availableBikeNumber", read: true, write: false, delete: false, reason: "grant" },
+  { name: "name", read: true, write: false, delete: false, reason: "grant" },
+  { name: "location", read: false, write: false, delete: false, reason: "prohibited" },
+];
+
 function renderExplore() {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const request = input as Request;
@@ -76,6 +86,7 @@ function renderExplore() {
         .json()
         .then((body: { action: { name: string } }) => json({ decision: body.action.name === "queryEntity" }));
     }
+    if (url.pathname.endsWith("/access/attributes")) return json({ type: url.searchParams.get("type"), attributes: ATTRIBUTES });
     if (url.pathname.endsWith("/access")) return json(GRANTS);
     if (url.pathname.includes("/ngsi-ld/v1/entities")) return json([]);
     if (url.pathname.endsWith("/spaces")) return json(SPACES);
@@ -137,89 +148,25 @@ describe("your access in the explorer", () => {
     await waitFor(() => expect(screen.getByRole("checkbox", { name: "availableBikeNumber" })).toBeEnabled());
   });
 
-  /// T-1142, EP-55: a document covers several types at once, and a prohibition takes back what
-  /// a permission gave. What the panel greys out is per type, never the union of everything.
-  it("reads one type's denials without the other type's grant leaking into them", () => {
+  /// T-5528: the grid's editors and the filters' hidden marks come from the gateway's own
+  /// per-attribute answer; the browser computes no grant of its own any more.
+  it("takes the hidden attributes and the writable ones from the gateway's answer", () => {
     const t = (key: string) => key;
-    const slots = [
-      { name: "speed", kind: "Property" as const },
-      { name: "plate", kind: "Property" as const },
+    const rows = [
+      { name: "speed", read: true, write: true, delete: false, reason: "grant" as const },
+      { name: "location", read: false, write: false, delete: false, reason: "prohibited" as const },
+      { name: "owner", read: false, write: false, delete: false, reason: "not_in_grant" as const },
+      { name: "total", read: true, write: true, delete: false, reason: "formula" as const },
     ];
-    const document = {
-      permissions: [
-        { resource: { type: "Vehicle" }, attributes: ["speed"] },
-        { resource: { type: "AirQualityObserved" }, attributes: ["pm10", "pm25"] },
-      ],
-    };
-
-    expect(deniedAttributes(document, "Vehicle", slots, t)).toEqual({
-      plate: "access.panel.attrDenied",
-    });
-    // The other type's grant names neither slot, so both are outside it.
-    expect(deniedAttributes(document, "AirQualityObserved", slots, t)).toEqual({
-      speed: "access.panel.attrDenied",
-      plate: "access.panel.attrDenied",
-    });
+    expect(deniedOf(rows, t)).toEqual({ location: "access.panel.attrProhibited", owner: "access.panel.attrDenied" });
+    expect(writableOf(rows)).toEqual(["speed"]);
+    expect(deniedOf(undefined, t)).toEqual({});
+    expect(writableOf(undefined)).toEqual([]);
   });
 
-  it("names a prohibited attribute as prohibited, even where a permission granted it", () => {
-    const t = (key: string) => key;
-    const slots = [
-      { name: "pm10", kind: "Property" as const },
-      { name: "pm25", kind: "Property" as const },
-    ];
-    const document = {
-      permissions: [{ resource: { type: "AirQualityObserved" }, attributes: ["pm10", "pm25"] }],
-      prohibitions: [{ resource: { type: "AirQualityObserved" }, attributes: ["pm25"] }],
-    };
-
-    expect(deniedAttributes(document, "AirQualityObserved", slots, t)).toEqual({
-      pm25: "access.panel.attrProhibited",
-    });
-  });
-
-  it("takes a grant over every type as covering this one, and a prohibition over every type too", () => {
-    const t = (key: string) => key;
-    const slots = [{ name: "speed", kind: "Property" as const }];
-    expect(
-      deniedAttributes({ permissions: [{ resource: { type: "*" }, attributes: ["speed"] }] }, "Vehicle", slots, t),
-    ).toEqual({});
-    expect(
-      deniedAttributes(
-        {
-          permissions: [{ resource: { type: "*" }, attributes: "*" }],
-          prohibitions: [{ resource: { type: "*" }, attributes: ["speed"] }],
-        },
-        "Vehicle",
-        slots,
-        t,
-      ),
-    ).toEqual({ speed: "access.panel.attrProhibited" });
-  });
-
-  /// A document that grants nothing for this type greys nothing out, because the panel says
-  /// which attribute a grant leaves out and there is no grant to be outside of: the read
-  /// itself answers empty, and the access document above the table is what says why (EP-55).
-  it("greys nothing out when no permission covers the type at all", () => {
-    const t = (key: string) => key;
-    const slots = [{ name: "speed", kind: "Property" as const }];
-    expect(deniedAttributes({ permissions: [] }, "Vehicle", slots, t)).toEqual({});
-    expect(deniedAttributes({}, "Vehicle", slots, t)).toEqual({});
-    expect(deniedAttributes({ permissions: [{ resource: { type: "Other" } }] }, "Vehicle", slots, t)).toEqual({});
-  });
-
-  it("denies what is outside the grant's attribute list and nothing under a wildcard grant", () => {
-    const t = (key: string) => key;
-    const slots = [
-      { name: "a", kind: "Property" as const },
-      { name: "b", kind: "Property" as const },
-    ];
-    expect(deniedAttributes({ permissions: [{ resource: { type: "T" }, attributes: ["a"] }] }, "T", slots, t)).toEqual({
-      b: "access.panel.attrDenied",
-    });
-    expect(deniedAttributes({ permissions: [{ resource: { type: "T" }, attributes: "*" }] }, "T", slots, t)).toEqual({});
-    expect(deniedAttributes({ permissions: [{ resource: { type: "Other" }, attributes: ["a"] }] }, "T", slots, t)).toEqual({});
-    expect(deniedAttributes(undefined, "T", slots, t)).toEqual({});
+  it("leaves no grant computation in the browser", () => {
+    expect(Object.keys(AccessPanelModule)).not.toContain("deniedAttributes");
+    expect(Object.keys(AccessPanelModule)).not.toContain("editableAttributes");
   });
 });
 
