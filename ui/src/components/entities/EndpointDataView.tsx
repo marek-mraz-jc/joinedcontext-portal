@@ -19,6 +19,7 @@ import { Button, Checkbox, Field, InlineError, Select, safeHref } from "../ui";
 import { columnLabel, displayOrder } from "./displayOrder";
 import { gridLabels, PortalEntityGrid } from "./PortalEntityGrid";
 import { filtersFromQ } from "./presetFilters";
+import { unreadableOf, useAttributeAccess } from "../../api/access";
 
 interface SchemaIndex {
   models?: { name?: string; version?: number }[];
@@ -367,6 +368,7 @@ function DataActions({
   full,
   onFull,
   csv,
+  csvRefused,
 }: {
   space?: string;
   comparing: boolean;
@@ -374,6 +376,8 @@ function DataActions({
   full: boolean;
   onFull: () => void;
   csv?: string;
+  /** Why the CSV is not offered (T-5530): the person's decisions do not let them read what it holds. */
+  csvRefused?: string;
 }): JSX.Element {
   const { t } = useTranslation();
   return (
@@ -387,13 +391,17 @@ function DataActions({
         <Button size="sm" variant="secondary" aria-pressed={full} onClick={onFull}>
           {full ? t("endpoints.data.fullLeave") : t("endpoints.data.full")}
         </Button>
-        {csv ? (
+        {csvRefused ? (
+          <Button size="sm" variant="secondary" disabled disabledReason={csvRefused}>
+            {t("endpoints.data.csv")}
+          </Button>
+        ) : csv ? (
           <a className="focus-ring rounded-sm text-caption text-primary-soft-fg underline hover:no-underline" href={safeHref(csv)} download>
             {t("endpoints.data.csv")}
           </a>
         ) : null}
       </div>
-      {csv ? <p className="text-caption text-fg-muted">{t("endpoints.data.csvHelp")}</p> : null}
+      {csv && !csvRefused ? <p className="text-caption text-fg-muted">{t("endpoints.data.csvHelp")}</p> : null}
     </>
   );
 }
@@ -671,6 +679,20 @@ export function EndpointDataView({
   const [picked, setPicked] = useState<string[] | null>(null);
   const { types, type, columns, klass, view: classView, slots, shape, shownColumns, defs, enums, relations, links, kinds, gridColumns } =
     useTypeColumns(schema.data, model.data, chosen, hidden, picked, i18n.language, widget.data);
+  // The CSV holds every shown column, so it is offered only when the endpoint says the person reads
+  // each of them (T-5530). Another origin is read anonymously and has no decisions to ask.
+  const decisions = useAttributeAccess(csv && !origin ? slug : undefined, type?.name);
+  const unreadable = useMemo(() => unreadableOf(decisions.data, shownColumns), [decisions.data, shownColumns]);
+  const csvRefused =
+    !csv || origin
+      ? undefined
+      : decisions.isPending
+        ? t("entityGrid.inspector.loading")
+        : decisions.isError
+          ? t("endpoints.data.csvUnchecked")
+          : unreadable.length > 0
+            ? t("endpoints.data.csvRefused", { attributes: unreadable.map((name) => shape.labels[name] ?? name).join(", ") })
+            : undefined;
   // The order, the column inputs and the typed query the grid opens with; the grid holds them from then on.
   const [view, setView] = useState<OpenedView | null>(null);
   const [pageLength, setPageLength] = useState<number | null>(null);
@@ -791,6 +813,7 @@ export function EndpointDataView({
         full={full}
         onFull={() => setFull((each) => !each)}
         csv={csv ? csvHref(origin, slug, type.name, asked, sortText) : undefined}
+        csvRefused={csv ? csvRefused : undefined}
       />
       <div className="flex flex-wrap items-center gap-2 empty:hidden">
         <DefaultFilter

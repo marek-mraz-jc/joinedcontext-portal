@@ -134,7 +134,8 @@ describe("your access in the explorer", () => {
     const checks = fetchMock.mock.calls
       .map((call) => call[0] as Request)
       .filter((request) => request instanceof Request && request.url.endsWith("/access/check"));
-    expect(checks).toHaveLength(2);
+    // The panel's two, and the explorer's own deleteEntity decision behind its Delete button (T-5530).
+    expect(checks).toHaveLength(3);
     expect(checks[0].credentials).toBe("same-origin");
 
     // The prohibited attribute cannot be asked for, and the reason travels with it. Since
