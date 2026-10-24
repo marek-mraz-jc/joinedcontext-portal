@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
-import { CodeBlock, Button } from "../../components/ui";
+import { RecordView, Button } from "../../components/ui";
 import type { RunEvent } from "./useAgentRun";
 import { viewOf } from "./QueryResultCard";
 
@@ -180,9 +180,7 @@ export function ActionStep({
           value === undefined || value === null || value === "" ? null : (
             <div key={label}>
               <p className="font-medium text-fg-muted">{label}</p>
-              <CodeBlock label={label} className="mt-0.5 max-h-64 whitespace-pre-wrap break-words rounded bg-surface p-2 font-mono">
-                {typeof value === "string" ? value : JSON.stringify(value, null, 2)}
-              </CodeBlock>
+              <RecordView value={value} label={label} className="mt-0.5 max-h-64 rounded bg-surface p-2" />
             </div>
           ),
         )}

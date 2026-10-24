@@ -9863,6 +9863,18 @@
       "full": "All {limit} brokers are in use: a new one is refused. An organization administrator can raise the limit in Administration › Projects."
     }
   },
+  "recordView": {
+    "copy": "Copy as JSON",
+    "copied": "Copied as JSON.",
+    "copyFailed": "The browser did not allow copying; select the record and copy it.",
+    "showAll": "Show all",
+    "showLess": "Show less",
+    "fields": "Fields: {count}",
+    "items": "Items: {count}",
+    "item": "Item {n}",
+    "noFields": "No fields in this record.",
+    "noItems": "No records in this list."
+  },
   "codeBlock": {
     "code": "Code",
     "sample": "Sample record",

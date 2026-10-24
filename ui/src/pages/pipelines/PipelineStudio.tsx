@@ -11,7 +11,7 @@ import { deniedOf, useAttributeAccess } from "../../api/access";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { fetchEntities, filterSlotsOf, useModelSource } from "../../components/entities/filters";
 import type { Entity, EntityQuery, FilterSlot } from "../../components/entities/filters";
-import { CodeBlock,
+import { RecordView,
   Alert,
   Button,
   Checkbox,
@@ -1239,39 +1239,41 @@ export function PipelineStudio({
                       <span className="text-caption font-semibold text-fg">
                         {t("pipelines.flow.samplesIn", { defaultValue: "Input sample" })}
                       </span>
-                      <CodeBlock
-                        label={t("pipelines.flow.samplesIn", { defaultValue: "Input sample" })}
-                        data-testid="flow-sample-in"
-                        className="max-h-36 font-mono text-caption whitespace-pre-wrap break-words"
-                      >
-                        {(() => {
-                          const sampleIn = samplesOf(flowTrace, toFlow(draft).nodes, selectedNode).in;
-                          return sampleIn !== undefined
-                            ? typeof sampleIn === "string"
-                              ? sampleIn
-                              : JSON.stringify(sampleIn, null, 2)
-                            : t("pipelines.flow.noSample", { defaultValue: "No sample" });
-                        })()}
-                      </CodeBlock>
+                      {(() => {
+                        const sampleIn = samplesOf(flowTrace, toFlow(draft).nodes, selectedNode).in;
+                        return sampleIn !== undefined ? (
+                          <RecordView
+                            value={sampleIn}
+                            label={t("pipelines.flow.samplesIn", { defaultValue: "Input sample" })}
+                            data-testid="flow-sample-in"
+                            className="max-h-36"
+                          />
+                        ) : (
+                          <p data-testid="flow-sample-in" className="text-caption text-fg-muted">
+                            {t("pipelines.flow.noSample", { defaultValue: "No sample" })}
+                          </p>
+                        );
+                      })()}
                     </div>
                     <div className="flex flex-col gap-1 rounded-md border border-border bg-surface p-2">
                       <span className="text-caption font-semibold text-fg">
                         {t("pipelines.flow.samplesOut", { defaultValue: "Output sample" })}
                       </span>
-                      <CodeBlock
-                        label={t("pipelines.flow.samplesOut", { defaultValue: "Output sample" })}
-                        data-testid="flow-sample-out"
-                        className="max-h-36 font-mono text-caption whitespace-pre-wrap break-words"
-                      >
-                        {(() => {
-                          const sampleOut = samplesOf(flowTrace, toFlow(draft).nodes, selectedNode).out;
-                          return sampleOut !== undefined
-                            ? typeof sampleOut === "string"
-                              ? sampleOut
-                              : JSON.stringify(sampleOut, null, 2)
-                            : t("pipelines.flow.noSample", { defaultValue: "No sample" });
-                        })()}
-                      </CodeBlock>
+                      {(() => {
+                        const sampleOut = samplesOf(flowTrace, toFlow(draft).nodes, selectedNode).out;
+                        return sampleOut !== undefined ? (
+                          <RecordView
+                            value={sampleOut}
+                            label={t("pipelines.flow.samplesOut", { defaultValue: "Output sample" })}
+                            data-testid="flow-sample-out"
+                            className="max-h-36"
+                          />
+                        ) : (
+                          <p data-testid="flow-sample-out" className="text-caption text-fg-muted">
+                            {t("pipelines.flow.noSample", { defaultValue: "No sample" })}
+                          </p>
+                        );
+                      })()}
                     </div>
                   </div>
                 ) : null}

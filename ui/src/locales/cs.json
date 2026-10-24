@@ -9863,6 +9863,18 @@
       "full": "Všech {limit} brokerů je použito: nový bude odmítnut. Limit může zvýšit administrátor organizace v Administrace › Projekty."
     }
   },
+  "recordView": {
+    "copy": "Kopírovat jako JSON",
+    "copied": "Zkopírováno jako JSON.",
+    "copyFailed": "Prohlížeč nepovolil kopírování; označte záznam a zkopírujte ho.",
+    "showAll": "Zobrazit celé",
+    "showLess": "Zobrazit méně",
+    "fields": "Pole: {count}",
+    "items": "Položky: {count}",
+    "item": "Položka {n}",
+    "noFields": "Záznam nemá žádná pole.",
+    "noItems": "Seznam neobsahuje žádné záznamy."
+  },
   "codeBlock": {
     "code": "Kód",
     "sample": "Ukázkový záznam",

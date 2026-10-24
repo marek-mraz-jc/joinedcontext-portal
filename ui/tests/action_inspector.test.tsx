@@ -82,8 +82,10 @@ describe("the action inspector", () => {
 
     await userEvent.click(within(steps[0]).getByText(en.agentRun.step.label.search_catalog));
     expect(within(steps[0]).getByText(en.agentRun.step.input)).toBeInTheDocument();
-    expect(within(steps[0]).getByText(/"q": "air quality"/)).toBeInTheDocument();
-    expect(within(steps[0]).getByText(/"name": "helsinki-air"/)).toBeInTheDocument();
+    // T-5516: input and output read as rows, never as JSON text.
+    expect(within(steps[0]).getByText("air quality")).toBeInTheDocument();
+    expect(within(steps[0]).getByText("helsinki-air")).toBeInTheDocument();
+    expect(steps[0].textContent).not.toContain("{\n");
   });
 
   it("sends a failed step back into the run with the error, only while the run is live", async () => {
