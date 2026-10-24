@@ -21,6 +21,7 @@ import {
   CardHeader,
   Checkbox,
   CodeBlock,
+  RecordView,
   ConfirmDialog,
   Dialog,
   DialogClose,
@@ -460,6 +461,26 @@ export function Gallery(): JSX.Element {
           <CodeBlock label="Request as curl" className="max-w-xs rounded bg-surface-subtle p-2 font-mono text-caption">
             {`curl -H "Accept: application/ld+json" "https://api.example.sk/ngsi-ld/v1/entities?type=AirQualityObserved&limit=100"`}
           </CodeBlock>
+        </State>
+      </Specimen>
+
+      <Specimen name="RecordView">
+        <State is="an NGSI-LD entity, attributes unwrapped">
+          <RecordView
+            label="Sample record"
+            className="max-w-md rounded bg-surface-subtle p-2"
+            value={{
+              id: "urn:ngsi-ld:AirQualityObserved:ba-01",
+              type: "AirQualityObserved",
+              pm10: { type: "Property", value: 12, unitCode: "GQ", observedAt: "2026-10-24T08:00:00Z" },
+              refDevice: { type: "Relationship", object: "urn:ngsi-ld:Device:ba-01" },
+              location: { type: "GeoProperty", value: { type: "Point", coordinates: [17.1077, 48.1486] } },
+              address: { type: "Property", value: { streetAddress: "Hlavná 1", addressLocality: "Bratislava" } },
+            }}
+          />
+        </State>
+        <State is="empty">
+          <RecordView label="Empty record" className="max-w-md rounded bg-surface-subtle p-2" value={{}} />
         </State>
       </Specimen>
 
