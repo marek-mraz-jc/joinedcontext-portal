@@ -2114,6 +2114,19 @@ impl Syncer {
         if let Some(evaluator) = self.alerts.as_ref() {
             evaluator.start();
         }
+        // 11. Activity retention (OPS-49): once an hour, in the background; a failed trim is a
+        //     warning and the sync goes on.
+        if let Some(activity) = self.activity.clone() {
+            tokio::spawn(async move {
+                match activity.trim_if_due(chrono::Utc::now()).await {
+                    Some(Ok(done)) => {
+                        tracing::info!(rows = done.rows, batches = done.batches, "activity trimmed")
+                    }
+                    Some(Err(err)) => tracing::warn!(error = %err, "the activity trim failed"),
+                    None => {}
+                }
+            });
+        }
     }
 
     /// `lost` with the pipelines whose last [`REFUSED_RUNS`] runs the gateway refused for an ended
