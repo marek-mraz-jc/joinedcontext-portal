@@ -156,6 +156,8 @@ async function explore(page: Page, persona: Persona): Promise<Stubbed> {
   const seen = await stub(page, persona, 3);
   await page.goto(EXPLORE);
   await expect(page.getByRole("button", { name: /mobility:00001$/ })).toBeVisible();
+  // The shots are of the table, not of the filters above it.
+  await page.getByRole("grid").evaluate((grid) => grid.scrollIntoView({ block: "start" }));
   return seen;
 }
 

@@ -402,6 +402,12 @@ function DataActions({
         ) : null}
       </div>
       {csv && !csvRefused ? <p className="text-caption text-fg-muted">{t("endpoints.data.csvHelp")}</p> : null}
+      {/* Seen as well as heard: the button already carries the reason as its description. */}
+      {csvRefused ? (
+        <p className="text-caption text-fg-muted" aria-hidden="true">
+          {csvRefused}
+        </p>
+      ) : null}
     </>
   );
 }

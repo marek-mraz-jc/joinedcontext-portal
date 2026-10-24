@@ -371,6 +371,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   // (T-5530), so a value without an editor is never a puzzle.
   const lockOf = (column: VisibleColumn): string | undefined =>
     accessRows && inspects(column) && !editable(column) ? lockReason(accessOf(column.attr), labels, inspectorLabels) : undefined;
+  // Once per column per render, not per cell: ten thousand rows scroll through the same few reasons.
+  const locks = new Map(columns.map((column) => [column.key, lockOf(column)]));
   const [dropped, setDropped] = useState<string[]>([]);
   const noAccess = unreadable.filter((name) => !dropped.includes(name));
   const [open, setOpen] = useState(false);
@@ -1223,8 +1225,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                     {col.label}
                     {state.sort?.attr === (col.attr ?? col.key) ? (state.sort.dir === "asc" ? " ↑" : " ↓") : ""}
                   </button>
-                  {lockOf(col) !== undefined ? (
-                    <span className="jc-grid-lock" role="img" aria-label={`${labels.locked}: ${lockOf(col)}`} title={lockOf(col)} />
+                  {locks.get(col.key) !== undefined ? (
+                    <span className="jc-grid-lock" role="img" aria-label={`${labels.locked}: ${locks.get(col.key)}`} title={locks.get(col.key)} />
                   ) : null}
                   {own !== null && (
                     <button
@@ -1411,7 +1413,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                 {columns.map((col, colIndex) => (
                   <td
                     key={`${row.id}-${col.key}`}
-                    className={`jc-grid-td${col.pinned ? " jc-grid-pinned" : ""}${lockOf(col) !== undefined ? " jc-grid-td--locked" : ""}${classNames?.cell ? ` ${classNames.cell}` : ""}`}
+                    className={`jc-grid-td${col.pinned ? " jc-grid-pinned" : ""}${locks.get(col.key) !== undefined ? " jc-grid-td--locked" : ""}${classNames?.cell ? ` ${classNames.cell}` : ""}`}
                     {...getCellProps(row, rowIndex, col, colIndex)}
                     onClick={
                       inspects(col) && !editable(col)

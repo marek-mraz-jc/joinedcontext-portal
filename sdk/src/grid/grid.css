@@ -1375,15 +1375,21 @@ a.jc-cell--link:focus-visible {
   background-image: repeating-linear-gradient(135deg, transparent 0 6px, var(--jc-color-line, #d0d7de) 6px 7px);
 }
 
-.jc-grid-no-access-name,
-.jc-grid-no-access-note {
+.jc-grid-th--no-access {
+  padding-inline-end: 1.75rem;
+}
+
+.jc-grid-no-access-name {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* The note wraps rather than cut: "hidden: no access" is the whole message of the column. */
 .jc-grid-no-access-note {
+  display: block;
+  white-space: normal;
   font-size: var(--jc-font-size-sm, 12px);
   font-weight: normal;
   font-style: italic;
