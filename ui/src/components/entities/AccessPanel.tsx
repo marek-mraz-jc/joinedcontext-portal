@@ -26,9 +26,18 @@ export const CHECKED_ACTIONS = ["queryEntity", "updateAttrs"] as const;
 const covers = (entry: GrantEntry, type: string) =>
   entry.resource?.type === type || entry.resource?.type === "*";
 
+/** Whether an entry speaks about reads: it names a read, `*`, or no action at all. */
+const aboutReads = (entry: GrantEntry) =>
+  entry.actions === undefined || entry.actions.includes("*") || readsOf(entry.actions).length > 0;
+
+/** Whether an entry speaks about writes: it names a write, `*`, or no action at all. */
+const aboutWrites = (entry: GrantEntry) =>
+  entry.actions === undefined || entry.actions.includes("*") || writesOf(entry.actions).length > 0;
+
 /**
  * The attributes of `slots` the caller may not read for `type`, each with the reason: named
- * by a prohibition, or outside every grant's attribute list. A grant with `*` denies nothing.
+ * by a prohibition of a read, or outside every read grant's attribute list. A grant with `*`
+ * denies nothing; a grant or prohibition that names only writes says nothing about reading.
  */
 export function deniedAttributes(
   doc: GrantDocument | undefined,
@@ -40,7 +49,7 @@ export function deniedAttributes(
     return {};
   }
   const denied: Record<string, string> = {};
-  const grants = (doc.permissions ?? []).filter((entry) => covers(entry, type));
+  const grants = (doc.permissions ?? []).filter((entry) => covers(entry, type) && aboutReads(entry));
   const unlimited = grants.some((entry) => entry.attributes === "*" || entry.attributes === undefined);
   const granted = new Set(grants.flatMap((entry) => (Array.isArray(entry.attributes) ? entry.attributes : [])));
   if (grants.length > 0 && !unlimited) {
@@ -50,7 +59,7 @@ export function deniedAttributes(
       }
     }
   }
-  for (const entry of (doc.prohibitions ?? []).filter((e) => covers(e, type))) {
+  for (const entry of (doc.prohibitions ?? []).filter((e) => covers(e, type) && aboutReads(e))) {
     for (const attribute of Array.isArray(entry.attributes) ? entry.attributes : []) {
       denied[attribute] = t("access.panel.attrProhibited");
     }
@@ -119,7 +128,12 @@ export function editableAttributes(
       (entry.resource?.type === undefined || entry.resource.type === type || entry.resource.type === "*") &&
       writesOf(entry.actions ?? []).length > 0,
   );
-  if (!type || grants.length === 0) {
+  // The gateway refuses every write an applicable prohibition covers by type, whatever
+  // attributes it names (pdp/evaluator.rs covers_request, T-5586): no cell is offered then.
+  const prohibited = (doc?.prohibitions ?? []).some(
+    (entry) => (entry.resource?.type === undefined || (type !== undefined && covers(entry, type))) && aboutWrites(entry),
+  );
+  if (!type || grants.length === 0 || prohibited) {
     return [];
   }
   const named = new Set(grants.flatMap((entry) => (Array.isArray(entry.attributes) ? entry.attributes : [])));
