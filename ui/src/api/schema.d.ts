@@ -2933,6 +2933,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/mqttbrokers/{name}/test-publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test an MQTT Publish
+         * @description Dry-runs one message of a ServiceAccount on a topic: the broker's ACL, size and rate limits, the DataSource and Pipeline bound to the topic, the mapping on the project's runner and the Endpoint's record check (API/01 §44a, T-5534). Nothing is published or written. Whoever may read the project's MqttBrokers; the mapping step needs propose on Pipeline.
+         */
+        post: operations["test_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/mqttbrokers/{name}/watch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Watch an MQTT Broker's Refusals
+         * @description The CONNECTs the gateway refused for this broker since a time, with their reason, and the account's connected clients now (API/01 §44a, T-5534). The record holds no token, client id or address. Whoever may read the project's MqttBrokers.
+         */
+        get: operations["watch_mqtt_broker"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ops": {
         parameters: {
             query?: never;
@@ -5993,6 +6033,14 @@ export interface components {
         DropDraftResponse: {
             dropped: boolean;
         };
+        /** @description The answer of the dry run. */
+        DryRun: {
+            /** @description The client id and username the device connects with: its Keycloak client. */
+            clientId: string;
+            /** @description Always `false`: the test publishes nothing. */
+            published: boolean;
+            steps: components["schemas"]["Step"][];
+        };
         /** @description Reviewer-facing validation and diff result returned on `?dryRun=All` (MF-13, R17). */
         DryRunResult: {
             /**
@@ -7061,6 +7109,11 @@ export interface components {
             name: string;
             title?: components["schemas"]["Text"];
         };
+        /**
+         * @description How one step judged the message.
+         * @enum {string}
+         */
+        Outcome: "ok" | "refused" | "unchecked";
         /** @description An open merge request in the forge that the Portal does not offer for approval (T-3433). */
         OutsideMergeRequest: {
             /** @description The forge account that opened it. */
@@ -7837,6 +7890,17 @@ export interface components {
             /** @description [`digest_of`] the Pipeline's `spec` the records came from. */
             specDigest: string;
         };
+        /** @description One CONNECT the gateway refused, as its record keeps it. */
+        Refusal: {
+            account?: string | null;
+            /** Format: date-time */
+            at: string;
+            /**
+             * @description `no_token`, `expired`, `wrong_audience`, `invalid_token`, `wrong_client`,
+             *     `unknown_account`, `other_project`, `no_role`, `no_subscription` or `no_realm`.
+             */
+            reason: string;
+        };
         /** @description What a registration's card shows (UI-27, PF-48). */
         RegistrationCard: {
             /** @description Whether the source is on this platform or outside it. */
@@ -8419,6 +8483,14 @@ export interface components {
              */
             sourceUrl?: string | null;
         };
+        /** @description One step of the dry run. */
+        Step: {
+            outcome: components["schemas"]["Outcome"];
+            /** @description In words, never a value of the payload or a token. */
+            reason: string;
+            /** @description `acl`, `size`, `rate`, `binding`, `mapping` or `endpoint`. */
+            step: string;
+        };
         /** @enum {string} */
         StepVerdict: "ok" | "refused";
         /** @description A request about one data subject. */
@@ -8582,6 +8654,15 @@ export interface components {
             entities: number;
             sha256: string;
         };
+        /** @description One message a ServiceAccount would publish (API/01 §44a). */
+        TestPublish: {
+            /** @description A ServiceAccount the broker's roles name, e.g. `cam-west`. */
+            account: string;
+            /** @description The message as the device sends it, text or JSON. */
+            payload: string;
+            /** @description The topic the device publishes on, no wildcard, e.g. `cameras/helsinki-cam-west/frame`. */
+            topic: string;
+        };
         /** @description The request of API/01 §7a. */
         TestRequest: {
             /** @description The candidate Pipeline manifest, unsaved. */
@@ -8722,6 +8803,26 @@ export interface components {
         ViewList: {
             /** @description The views of the space this caller sees, oldest first. */
             items: components["schemas"]["DataView"][];
+        };
+        /** @description What the watch answers. */
+        Watched: {
+            /**
+             * Format: int32
+             * @description The account's connected clients now; `null` when the broker is not measured.
+             */
+            connected?: number | null;
+            /**
+             * Format: double
+             * @description The broker's messages per second now; `null` when not measured.
+             */
+            messagesPerSecond?: number | null;
+            /** Format: date-time */
+            observedAt: string;
+            /** @description Why refusals or measurements are missing, in words. */
+            reason?: string | null;
+            /** @description Newest first; empty when `refusalsRead` is false. */
+            refusals: components["schemas"]["Refusal"][];
+            refusalsRead: boolean;
         };
         /**
          * @description Who is tried: one person, a member of a group or of a realm role with no person of their own,
@@ -18262,6 +18363,135 @@ export interface operations {
             };
             /** @description No such broker, or not readable by the caller */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    test_publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description MqttBroker name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "account": "cam-west",
+                 *       "payload": "{\"temperature\": 21.5}",
+                 *       "topic": "cameras/helsinki-cam-west/frame"
+                 *     }
+                 */
+                "application/json": components["schemas"]["TestPublish"];
+            };
+        };
+        responses: {
+            /** @description Each step's outcome */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DryRun"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such broker, or not readable by the caller */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description An account the broker's roles do not name, a topic with a wildcard, or a payload above 1 MiB */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    watch_mqtt_broker: {
+        parameters: {
+            query?: {
+                /** @description Only this ServiceAccount's refusals and connections, e.g. `cam-west`. */
+                account?: string | null;
+                /** @description Only refusals after this time (RFC 3339), e.g. `2026-10-24T10:00:00Z`. */
+                since?: string | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description MqttBroker name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Refusals and the account's connections */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Watched"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such broker, or not readable by the caller */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description An account the broker's roles do not name */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

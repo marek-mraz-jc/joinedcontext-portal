@@ -2139,6 +2139,25 @@
       "tests": [
         "representation_outputs_field.test.tsx"
       ]
+    },
+    "src/pages/mqttbrokers/MqttBrokersPage.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "mqtt_allowance_ui.test.tsx",
+        "mqtt_brokers_page.test.tsx",
+        "mqtt_test_publish.test.tsx"
+      ]
+    },
+    "src/pages/mqttbrokers/TestPublish.tsx": {
+      "controls": {
+        "Button": 1,
+        "Switch": 1
+      },
+      "tests": [
+        "mqtt_test_publish.test.tsx"
+      ]
     }
   }
 }

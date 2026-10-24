@@ -2062,6 +2062,34 @@
         "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-workspaces-dialog-work-on-a-copy-steward-en-1440.png"
       ]
     },
-    "src/pages/access/AccountAccess.tsx": null
+    "src/pages/access/AccountAccess.tsx": null,
+    "src/pages/mqttbrokers/MqttBrokersPage.tsx": {
+      "walkedBy": "worker-t5534",
+      "date": "2026-10-24",
+      "screenshots": [
+        "evidence/worker-t5534/T-5534/test-form-1440.png",
+        "evidence/worker-t5534/T-5534/test-form-400.png",
+        "evidence/worker-t5534/T-5534/test-green-1440.png",
+        "evidence/worker-t5534/T-5534/test-green-400.png",
+        "evidence/worker-t5534/T-5534/test-refused-1440.png",
+        "evidence/worker-t5534/T-5534/test-refused-400.png",
+        "evidence/worker-t5534/T-5534/test-watch-1440.png",
+        "evidence/worker-t5534/T-5534/test-watch-400.png"
+      ]
+    },
+    "src/pages/mqttbrokers/TestPublish.tsx": {
+      "walkedBy": "worker-t5534",
+      "date": "2026-10-24",
+      "screenshots": [
+        "evidence/worker-t5534/T-5534/test-form-1440.png",
+        "evidence/worker-t5534/T-5534/test-form-400.png",
+        "evidence/worker-t5534/T-5534/test-green-1440.png",
+        "evidence/worker-t5534/T-5534/test-green-400.png",
+        "evidence/worker-t5534/T-5534/test-refused-1440.png",
+        "evidence/worker-t5534/T-5534/test-refused-400.png",
+        "evidence/worker-t5534/T-5534/test-watch-1440.png",
+        "evidence/worker-t5534/T-5534/test-watch-400.png"
+      ]
+    }
   }
 }

@@ -892,6 +892,14 @@ routes:
     rule: "project-verb:read:MqttBroker"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
     note: "what the broker measures, read by the Portal from the broker's own HTTP API; the browser never reaches a broker (API/01 §44, T-4043)"
+  - route: POST /projects/{project}/mqttbrokers/{name}/test-publish
+    rule: "project-verb:read:MqttBroker"
+    expect: [403, 422, 422, 422, 422, 422, 422, 422]
+    note: "a dry run that publishes and writes nothing; the matrix sends an empty body, which the JSON reader refuses with 422 before anyone is asked, and it names no broker; a caller who may not read the project gets 404 with a whole body (tests/mqtt_test_publish_tests.rs, API/01 §44a, T-5534)"
+  - route: GET /projects/{project}/mqttbrokers/{name}/watch
+    rule: "project-verb:read:MqttBroker"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "the gateway's kept refusals of a broker and what it measures now; the fixture names no gateway, so the answer says why it read none (API/01 §44a, T-5534)"
   - route: GET /projects/{project}/mqttbrokers/{name}/captured
     rule: "project-verb:approve:MqttBroker (PL-87)"
     expect: [401, 404, 404, allow, allow, allow, 404, 404]

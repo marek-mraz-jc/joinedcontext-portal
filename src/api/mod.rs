@@ -58,6 +58,7 @@ pub mod live;
 pub mod mqtt_allowance;
 pub mod mqtt_captured;
 pub mod mqtt_measured;
+pub mod mqtt_test_publish;
 pub mod mutate;
 pub mod ops;
 pub mod organization_limits;
@@ -167,6 +168,7 @@ pub fn router() -> Router<AppState> {
         .merge(space_move::router())
         .merge(mqtt_captured::router())
         .merge(mqtt_measured::router())
+        .merge(mqtt_test_publish::router())
         .merge(mqtt_allowance::router())
         .merge(workspaces::router())
         .merge(crate::tools::model_tools::router())
