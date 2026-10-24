@@ -92,6 +92,9 @@ describe("a pipeline's rejected records", () => {
     expect(within(table).getAllByRole("row")).toHaveLength(3);
     expect(within(table).getByText("sh:datatype")).toBeInTheDocument();
     expect(within(table).getByText("In step 2")).toBeInTheDocument();
+    // T-5516: the record reads as rows, never as JSON text.
+    expect(within(table).getByText("urn:ngsi-ld:BikeStation:hel.fi:helsinki:s-9")).toBeInTheDocument();
+    expect(table.textContent).not.toContain("{\n");
 
     await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.rejected.older }));
     expect(await within(dialog).findByText("sh:closed")).toBeInTheDocument();

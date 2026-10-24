@@ -276,7 +276,8 @@ describe("data explorer (UI-33)", () => {
     // One entity in full, read by id.
     await userEvent.click(await screen.findByRole("button", { name: ROWS[1].id }));
     const detail = await screen.findByTestId("explore-entity");
-    await within(detail).findByText(/observedAt/);
+    await within(detail).findByText("2026-09-07T10:00:00Z");
+    expect(detail.textContent).not.toContain("{\n");
     // The entity was read by its id through the same endpoint; the grid's own list read may be the
     // last call of all, so what matters is that this one happened at all.
     expect(

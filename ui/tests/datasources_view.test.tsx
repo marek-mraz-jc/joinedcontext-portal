@@ -362,7 +362,9 @@ describe("data sources view", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: en.datasources.check }));
     const probe = await within(dialog).findByTestId("datasource-probe");
     expect(probe).toHaveTextContent("1 records, 512 bytes");
-    expect(probe).toHaveTextContent(/"bikes": \[\]/);
+    // T-5516: the sample reads as rows, never as JSON text.
+    expect(within(probe).getByText("bikes")).toBeInTheDocument();
+    expect(probe.textContent).not.toContain("{\n");
     // A change to the form is a new manifest: the probe belongs to the old one.
     await userEvent.type(within(dialog).getByLabelText(/Timeout/), "15s");
     expect(within(dialog).queryByTestId("datasource-probe")).toBeNull();
