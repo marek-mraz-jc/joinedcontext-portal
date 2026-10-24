@@ -10,7 +10,7 @@ import sk from "../src/locales/sk.json";
 import cs from "../src/locales/cs.json";
 import de from "../src/locales/de.json";
 import { App } from "../src/App";
-import { CHECKED_ACTIONS, deniedAttributes } from "../src/components/entities/AccessPanel";
+import { CHECKED_ACTIONS, deniedAttributes, editableAttributes } from "../src/components/entities/AccessPanel";
 
 const IDENTITY = { subject: "b7c1e0f4", username: "demo.viewer", name: "Demo Viewer", roles: [] };
 const list = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
@@ -160,6 +160,55 @@ describe("your access in the explorer", () => {
       speed: "access.panel.attrDenied",
       plate: "access.panel.attrDenied",
     });
+  });
+
+  /// T-5585 (critic T-5522): a prohibition of a write leaves the read alone, and the cells
+  /// offered for editing are the ones the gateway accepts: none while a write prohibition covers
+  /// the type, because pdp/evaluator.rs refuses every write such a prohibition covers.
+  it("keeps a write-only prohibition out of the reads and offers no edit the gateway refuses", () => {
+    const t = (key: string) => key;
+    const slots = ["name", "level", "status", "ownerEmail", "note"].map((name) => ({
+      name,
+      kind: "Property" as const,
+    }));
+    const reads = ["queryEntity", "retrieveEntity"];
+    const editor = {
+      permissions: [
+        { resource: { type: "Sensor" }, actions: reads, attributes: ["name", "level", "status", "note"] },
+        { resource: { type: "Sensor" }, actions: ["updateAttrs"], attributes: ["level", "note"] },
+      ],
+      prohibitions: [{ resource: { type: "Sensor" }, actions: ["updateAttrs"], attributes: ["status"] }],
+    };
+    const editorDenied = deniedAttributes(editor, "Sensor", slots, t);
+    expect(editorDenied).toEqual({ ownerEmail: "access.panel.attrDenied" });
+    expect(editableAttributes(editor, "Sensor", slots, editorDenied)).toEqual([]);
+
+    // Without the prohibition the write grant's own list decides, and the read list does not widen it.
+    const unprohibited = { permissions: editor.permissions };
+    expect(editableAttributes(unprohibited, "Sensor", slots, editorDenied)).toEqual(["level", "note"]);
+
+    // A write-only grant reads nothing: `note` stays hidden from a person granted only to set it.
+    const writer = {
+      permissions: [
+        { resource: { type: "Sensor" }, actions: reads, attributes: ["name"] },
+        { resource: { type: "Sensor" }, actions: ["updateAttrs"], attributes: ["note"] },
+      ],
+    };
+    expect(Object.keys(deniedAttributes(writer, "Sensor", slots, t))).toEqual(["level", "status", "ownerEmail", "note"]);
+
+    // A read prohibition still hides, and a prohibition naming no action covers every action.
+    const hidden = {
+      permissions: [{ resource: { type: "Sensor" }, actions: reads }],
+      prohibitions: [{ resource: { type: "Sensor" }, actions: ["queryEntity"], attributes: ["ownerEmail"] }],
+    };
+    expect(deniedAttributes(hidden, "Sensor", slots, t)).toEqual({ ownerEmail: "access.panel.attrProhibited" });
+    const everything = { ...unprohibited, prohibitions: [{ resource: { type: "Sensor" }, attributes: ["status"] }] };
+    expect(deniedAttributes(everything, "Sensor", slots, t).status).toBe("access.panel.attrProhibited");
+    expect(editableAttributes(everything, "Sensor", slots, {})).toEqual([]);
+
+    // A person of another organization holds no grant: nothing is greyed and nothing is editable.
+    expect(deniedAttributes({}, "Sensor", slots, t)).toEqual({});
+    expect(editableAttributes({}, "Sensor", slots, {})).toEqual([]);
   });
 
   it("names a prohibited attribute as prohibited, even where a permission granted it", () => {
