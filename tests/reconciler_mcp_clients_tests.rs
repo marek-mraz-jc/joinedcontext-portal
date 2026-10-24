@@ -248,6 +248,33 @@ async fn a_changed_client_is_written_back_and_a_stray_mapper_removed() {
     assert_eq!(put["redirectUris"], json!(CALLBACKS));
 }
 
+/// Keycloak answers the callbacks in its own order: the same set is no drift and writes nothing.
+#[tokio::test]
+async fn reordered_callbacks_are_no_drift_and_no_put() {
+    let keycloak = realm(json!([])).await;
+    let mut reordered = held("uuid-m", "helsinki", "mobility");
+    let mut callbacks: Vec<&str> = CALLBACKS.to_vec();
+    callbacks.reverse();
+    reordered["redirectUris"] = json!(callbacks);
+    lookup(&keycloak, "mcp-helsinki-mobility", json!([reordered])).await;
+    let mut own = audience_mapper("mcp-helsinki-mobility");
+    own["id"] = json!("mapper-own");
+    let mut groups = groups_mapper();
+    groups["id"] = json!("mapper-groups");
+    mappers(&keycloak, "uuid-m", json!([own, groups])).await;
+
+    let outcomes = sync(&keycloak)
+        .converge(&mirror_with(vec![server("helsinki", "mobility")]))
+        .await;
+    assert!(
+        outcomes
+            .iter()
+            .all(|o| o.error.is_none() && o.drift.is_empty()),
+        "{outcomes:?}"
+    );
+    assert_eq!(wrote(&keycloak).await, Vec::<String>::new());
+}
+
 /// A client of that id the platform did not create is left alone, and the server is reported.
 #[tokio::test]
 async fn a_foreign_client_of_that_id_is_never_touched() {
