@@ -102,7 +102,7 @@ async function open(page: Page, attr: string): Promise<void> {
 const CASES: { name: string; persona: Persona; attr: string; access?: "ok" | "slow" | "502"; says: RegExp }[] = [
   { name: "granted", persona: "steward", attr: "name", says: /Your access allows this/ },
   { name: "read-only", persona: "steward", attr: "availableBikeNumber", says: /Not in your access/ },
-  { name: "prohibited-named", persona: "steward", attr: "status", says: /policy Status is set by the operator/ },
+  { name: "prohibited-named", persona: "steward", attr: "status", says: /policy “Status is set by the operator”/ },
   { name: "prohibited-hidden", persona: "editor", attr: "status", says: /Hidden by a policy you cannot read/ },
   { name: "formula", persona: "steward", attr: "totalSlotNumber", says: /Calculated by a pipeline/ },
   { name: "no-access", persona: "outsider", attr: "name", says: /does not cover this type/ },

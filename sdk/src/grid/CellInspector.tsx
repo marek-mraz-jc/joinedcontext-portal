@@ -51,7 +51,7 @@ export const DEFAULT_INSPECTOR_LABELS: CellInspectorLabels = {
   noGrant: "Your access does not cover this type.",
   formula: "Calculated by a pipeline, so it is not edited here.",
   prohibited: "Explicitly not allowed by a policy.",
-  prohibitedBy: "Explicitly not allowed by policy {policy}.",
+  prohibitedBy: "Explicitly not allowed by policy “{policy}”.",
   prohibitedHidden: "Hidden by a policy you cannot read.",
   naming: "Looking up the policy…",
   namingFailed: "The policy could not be named; try again shortly.",

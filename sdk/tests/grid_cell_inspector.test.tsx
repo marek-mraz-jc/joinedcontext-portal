@@ -75,7 +75,7 @@ describe("CellInspector", () => {
     const explain = vi.fn().mockResolvedValue({ policy: "no2-frozen", policyTitle: "Lab only", policyHidden: false });
     const access: AttributeAccess = { name: "no2", read: true, write: false, delete: false, reason: "prohibited" };
     const { unmount } = render(<CellInspector attribute="no2" label="NO2" access={access} explain={explain} onClose={() => undefined} />);
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Explicitly not allowed by policy Lab only."));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Explicitly not allowed by policy “Lab only”."));
     expect(explain).toHaveBeenCalledWith("no2", "write");
     unmount();
     const hidden = vi.fn().mockResolvedValue({ policy: null, policyHidden: true });

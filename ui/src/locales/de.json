@@ -5405,7 +5405,7 @@
       "noGrant": "Ihr Zugriff umfasst diesen Typ nicht.",
       "formula": "Von einer Pipeline berechnet, daher hier nicht bearbeitet.",
       "prohibited": "Ausdrücklich durch eine Richtlinie untersagt.",
-      "prohibitedBy": "Ausdrücklich durch die Richtlinie {policy} untersagt.",
+      "prohibitedBy": "Ausdrücklich durch die Richtlinie „{policy}“ untersagt.",
       "prohibitedHidden": "Durch eine Richtlinie verborgen, die Sie nicht lesen dürfen.",
       "naming": "Richtlinie wird gesucht…",
       "namingFailed": "Die Richtlinie konnte nicht benannt werden; bitte gleich erneut versuchen.",

@@ -5405,7 +5405,7 @@
       "noGrant": "Váš přístup nepokrývá tento typ.",
       "formula": "Počítá ho pipeline, proto se zde neupravuje.",
       "prohibited": "Výslovně zakázáno politikou.",
-      "prohibitedBy": "Výslovně zakázáno politikou {policy}.",
+      "prohibitedBy": "Výslovně zakázáno politikou „{policy}“.",
       "prohibitedHidden": "Skryto politikou, kterou nemůžete číst.",
       "naming": "Hledá se politika…",
       "namingFailed": "Politiku se nepodařilo pojmenovat; zkuste to za chvíli.",
