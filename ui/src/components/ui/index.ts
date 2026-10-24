@@ -25,6 +25,8 @@ export { Icon } from "./icons";
 export type { IconName, IconProps } from "./icons";
 export { CodeBlock } from "./CodeBlock";
 export type { CodeBlockProps } from "./CodeBlock";
+export { RecordView } from "./RecordView";
+export type { RecordViewProps } from "./RecordView";
 export { Checkbox } from "./Checkbox";
 export type { CheckboxProps } from "./Checkbox";
 export { ConfirmDialog } from "./ConfirmDialog";

@@ -9,16 +9,13 @@ import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { testPipeline } from "../../api/pipelineTest";
 import type { Trace } from "../../api/pipelineTest";
-import { CodeBlock, Alert, Button, Field, Select } from "../../components/ui";
+import { RecordView, Alert, Button, Field, Select } from "../../components/ui";
 import type { PipelineForm } from "./PipelineEditor";
 import { paintOf, samplesOf } from "./PipelineFlow";
 import type { FlowEdge, FlowNode, FlowNodeId } from "./PipelineFlow";
 import { diffOf, onlyStep, wireKey } from "./pipelineDebug";
 
-const shown = (value: unknown): string =>
-  value === undefined ? "" : typeof value === "string" ? value : JSON.stringify(value, null, 2);
-
-const pre = "max-h-36 overflow-auto whitespace-pre-wrap break-words font-mono text-caption";
+const box = "max-h-36";
 
 export interface NodeDebugProps {
   project: string;
@@ -68,9 +65,11 @@ export function NodeDebug({ project, form, trace, nodes, id, toManifest }: NodeD
         <Alert tone="danger" title={t("pipelines.debug.failedHere")}>
           <p>{error}</p>
           <p className="mt-1 text-caption">{t("pipelines.debug.brokeIt")}</p>
-          <CodeBlock label={t("codeBlock.sample")} className={pre} data-testid="flow-breaking-input">
-            {samples.in === undefined ? t("pipelines.flow.noSample") : shown(samples.in)}
-          </CodeBlock>
+          {samples.in === undefined ? (
+            <p data-testid="flow-breaking-input">{t("pipelines.flow.noSample")}</p>
+          ) : (
+            <RecordView value={samples.in} label={t("codeBlock.sample")} className={box} data-testid="flow-breaking-input" />
+          )}
         </Alert>
       ) : null}
       {samples.in !== undefined && samples.out !== undefined ? (
@@ -116,7 +115,7 @@ export function NodeDebug({ project, form, trace, nodes, id, toManifest }: NodeD
                 </Alert>
               ) : (
                 <Alert tone="success" title={t("pipelines.debug.rerunOk")}>
-                  <CodeBlock label={t("codeBlock.sample")} className={pre}>{shown(rerun.trace.stages?.[0]?.sample ?? rerun.trace.mapping[0])}</CodeBlock>
+                  <RecordView value={rerun.trace.stages?.[0]?.sample ?? rerun.trace.mapping[0]} label={t("codeBlock.sample")} className={box} />
                 </Alert>
               )
             ) : null}
@@ -190,7 +189,11 @@ export function DebugSidebar({ log, nodes, edges, taps, nameOf, onClear }: Debug
                         : t("pipelines.debug.message", { number: entry.message + 1 })}{" "}
                       · {t("pipelines.debug.wire", { from: nameOf(edge.from), to: nameOf(edge.to) })}
                     </span>
-                    <CodeBlock label={t("codeBlock.sample")} className={pre}>{sample === undefined ? t("pipelines.debug.notReached") : shown(sample)}</CodeBlock>
+                    {sample === undefined ? (
+                      <p className="text-caption text-fg-muted">{t("pipelines.debug.notReached")}</p>
+                    ) : (
+                      <RecordView value={sample} label={t("codeBlock.sample")} className={box} />
+                    )}
                   </li>
                 );
               })}

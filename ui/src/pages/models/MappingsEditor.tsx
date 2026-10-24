@@ -18,7 +18,7 @@ import {
 import type { Alignment, Derivation } from "./mapping";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { DNS1123 } from "../../schemas/kinds";
-import { CodeBlock,
+import { RecordView,
   Alert,
   Badge,
   Button,
@@ -426,9 +426,7 @@ export function MappingsEditor({
           </Alert>
         ) : (
           <output aria-label={t("mappings.output")} className="block">
-            <CodeBlock label={t("codeBlock.json")} className="overflow-x-auto rounded border border-border bg-surface-subtle p-2 font-mono text-xs text-fg">
-              {JSON.stringify(result?.output ?? {}, null, 2)}
-            </CodeBlock>
+            <RecordView value={result?.output ?? {}} label={t("codeBlock.json")} className="rounded border border-border bg-surface-subtle p-2" />
           </output>
         )}
         {result && result.unchecked.length > 0 ? (

@@ -181,7 +181,9 @@ describe("the sample test in the studio (PL-43)", () => {
     expect(body.pipeline.spec.compute?.bloblang).toContain("this.station_id");
 
     const inspector = await screen.findByTestId("stage-inspector");
-    expect(within(inspector).getByText(/"station_id": "01"/)).toBeInTheDocument();
+    // T-5516: the input sample reads as rows, never as JSON text.
+    expect(within(inspector).getAllByText("station_id").length).toBeGreaterThan(0);
+    expect(inspector.textContent).not.toContain("{\n");
     expect(within(inspector).getByText(/urn:ngsi-ld:AirQuality:hel.fi:helsinki:01/)).toBeInTheDocument();
     expect(within(inspector).getByText(`#1 ${en.pipelines.test.ok}`)).toBeInTheDocument();
     expect(within(inspector).getByText(/line 3/)).toBeInTheDocument();
