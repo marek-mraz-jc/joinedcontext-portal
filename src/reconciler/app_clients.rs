@@ -337,7 +337,7 @@ pub fn drift(want: &Value, held: &Value) -> Vec<String> {
             continue;
         }
         let current = held.get(field);
-        if current != Some(value) {
+        if !same(current, value) {
             found.push(format!(
                 "{field} was {}, the App says {value}",
                 current.map_or("unset".to_owned(), Value::to_string)
@@ -345,6 +345,18 @@ pub fn drift(want: &Value, held: &Value) -> Vec<String> {
         }
     }
     found
+}
+
+/// Keycloak keeps a list of strings (`redirectUris`, `webOrigins`, the client scopes) as a set
+/// and answers it in its own order, so such a list is compared as a set; any other value as is.
+fn same(held: Option<&Value>, want: &Value) -> bool {
+    fn strings(value: &Value) -> Option<BTreeSet<&str>> {
+        value.as_array()?.iter().map(Value::as_str).collect()
+    }
+    match (held.and_then(strings), strings(want)) {
+        (Some(held), Some(want)) => held == want,
+        _ => held == Some(want),
+    }
 }
 
 pub(crate) fn managed(client: &Value) -> bool {
@@ -1277,6 +1289,39 @@ mod tests {
         assert!(found
             .iter()
             .any(|d| d.contains("pkce.code.challenge.method")));
+    }
+
+    #[test]
+    fn drift_ignores_the_order_of_a_set_valued_field() {
+        let mut want = desired("helsinki", "bikes", "Bikes", "city.example", &[]);
+        want["redirectUris"] = json!([
+            "https://a.example/cb",
+            "https://b.example/cb",
+            "https://c.example/cb"
+        ]);
+        want["webOrigins"] = json!(["https://a.example", "https://b.example"]);
+        let mut held = want.clone();
+        held["redirectUris"] = json!([
+            "https://c.example/cb",
+            "https://a.example/cb",
+            "https://b.example/cb"
+        ]);
+        held["webOrigins"] = json!(["https://b.example", "https://a.example"]);
+        assert_eq!(drift(&want, &held), Vec::<String>::new());
+    }
+
+    #[test]
+    fn drift_names_a_missing_redirect_uri() {
+        let mut want = desired("helsinki", "bikes", "Bikes", "city.example", &[]);
+        want["redirectUris"] = json!(["https://a.example/cb", "https://b.example/cb"]);
+        let mut held = want.clone();
+        held["redirectUris"] = json!(["https://b.example/cb"]);
+        let found = drift(&want, &held);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(found[0].starts_with("redirectUris"), "{found:?}");
+
+        held["redirectUris"] = json!(["https://b.example/cb", "https://a.example/cb", "*"]);
+        assert_eq!(drift(&want, &held).len(), 1, "an added wildcard is a drift");
     }
 
     #[test]
