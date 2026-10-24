@@ -125,7 +125,7 @@ async function stubApi(page: Page, asked: string[], deleted: string[], extra?: {
       return json(rows, 200, { "NGSILD-Results-Count": String(total) });
     }
     if (path.endsWith("/access/attributes")) {
-      const slots = ["name", "address", "description", "startDate", "audience"];
+      const slots = ["name", "address", "description", "startDate", "audience", "status"];
       return json(attributeTable(TYPE, slots, slots));
     }
     if (path.endsWith("/access")) {
