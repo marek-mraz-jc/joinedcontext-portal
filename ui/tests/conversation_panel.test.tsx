@@ -523,7 +523,9 @@ describe("a build run reads as a build (T-0703)", () => {
 
   it("folds the catalog cards of a search the person never asked for", () => {
     panel(SEARCH, true, true);
-    expect(screen.queryByText("City bikes")).toBeNull();
+    // The step's own trace, folded in its <details>, still holds the raw output (T-5516).
+    const cards = screen.queryAllByText("City bikes").filter((node) => node.closest("details:not([open])") === null);
+    expect(cards).toEqual([]);
   });
 
   it("still shows them when the search is the answer to a question", () => {

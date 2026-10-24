@@ -99,7 +99,8 @@ describe("context sources and the connection test (T-4819)", () => {
     expect(await within(section).findByRole("link", { name: "Air quality ingest" })).toBeInTheDocument();
     await userEvent.click(within(section).getByRole("button", { name: "Test connection" }));
     expect(await within(section).findByText(/Connected: 3 records read/)).toBeInTheDocument();
-    expect(within(section).getByText(/"station": "Kallio"/)).toBeInTheDocument();
+    // T-5516: the first record reads as rows, never as JSON text.
+    expect(within(section).getByText("Kallio")).toBeInTheDocument();
     const posted = fetchMock.mock.calls.map((call) => call[0] as Request).filter((r) => r.url.endsWith("/test"));
     expect(posted.map((r) => r.method)).toEqual(["POST"]);
   });
