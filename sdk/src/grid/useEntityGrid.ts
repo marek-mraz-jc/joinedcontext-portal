@@ -81,6 +81,9 @@ export interface GridLabels {
   /** The entry that opens one attribute's history, and the panel's own labels (T-1431). */
   history: string;
   historyLabels?: Partial<import("./EntityHistory").HistoryLabels>;
+  /** The row detail's Metadata tab: created, changed, by whom and through what (T-5529). */
+  metadata: string;
+  metadataLabels?: Partial<import("./AttributeMetadata").MetadataLabels>;
   /** Edit mode: the cell editor, the pending list and what applying them is called (UI-67). */
   edit: string;
   pending: string;
@@ -239,6 +242,7 @@ export const DEFAULT_LABELS: GridLabels = {
   matching: "matching",
   noTotal: "the endpoint gives no total for this answer",
   history: "History",
+  metadata: "Metadata",
   edit: "Edit",
   pending: "not applied yet",
   review: "Review the changes",

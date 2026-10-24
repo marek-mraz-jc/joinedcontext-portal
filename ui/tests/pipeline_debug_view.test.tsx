@@ -124,7 +124,9 @@ describe("debugging on the pipeline graph", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent(debug.wholeSample);
     expect(rows[1]).toHaveTextContent("Message 1");
-    expect(rows[1]).toHaveTextContent('"pm10": "many"');
+    // T-5516: what crossed the wire reads as rows, never as JSON text.
+    expect(within(rows[1]).getByText("many")).toBeInTheDocument();
+    expect(rows[1].textContent).not.toContain("{\n");
 
     await user.selectOptions(within(sidebar).getByLabelText(debug.filter), "output");
     expect(within(sidebar).getByText(debug.nothingYet)).toBeInTheDocument();
@@ -143,7 +145,7 @@ describe("debugging on the pipeline graph", () => {
     show(<NodeDebug project="helsinki" form={FORM} trace={BROKEN} nodes={toFlow(FORM).nodes} id="compute" toManifest={toManifest} />);
 
     expect(screen.getByText("expected number, got string")).toBeInTheDocument();
-    expect(screen.getByTestId("flow-breaking-input")).toHaveTextContent('"pm10": "many"');
+    expect(within(screen.getByTestId("flow-breaking-input")).getByText("many")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: debug.rerun }));
     // Only the compute step, on the pinned input as one JSON message.
     expect(toManifest).toHaveBeenCalledWith(expect.objectContaining({ processors: [], compute: FORM.compute }));

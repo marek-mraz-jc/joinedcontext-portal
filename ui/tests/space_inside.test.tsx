@@ -688,7 +688,7 @@ describe("the space's own data", () => {
   });
 
   // T-4828: a row opens as a dialog named in the address, with its comments as a tab.
-  it("opens the row a link names as a dialog with Fields, History and Comments, and closing drops it from the address", async () => {
+  it("opens the row a link names as a dialog with Fields, History, Metadata and Comments, and closing drops it from the address", async () => {
     const urn = SPACE_ROWS[0].id;
     window.history.pushState({}, "", `/projects/banskabystrica/spaces/ovzdusie?row=${encodeURIComponent(urn)}`);
     renderInside({ status: 200, count: 1 });
@@ -696,6 +696,7 @@ describe("the space's own data", () => {
     expect(within(dialog).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       en.entityGrid.rowFields,
       en.entityGrid.history,
+      en.entityGrid.metadata,
       en.spaces.comments.title,
     ]);
     await userEvent.click(within(dialog).getByRole("button", { name: en.entityGrid.close }));

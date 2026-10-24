@@ -59,7 +59,7 @@ describe("row dialog (T-4828)", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Open: Recycling rate" }));
     const dialog = screen.getByRole("dialog", { name: "Details: Recycling rate" });
     const tabs = within(dialog).getAllByRole("tab");
-    expect(tabs.map((tab) => tab.textContent)).toEqual(["Fields", "History", "Comments"]);
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["Fields", "History", "Metadata", "Comments"]);
     expect(tabs[0]).toHaveAttribute("aria-selected", "true");
     // Fields edit with the grid's own editor and join its pending list, shown inside the dialog.
     fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "42" } });
@@ -80,7 +80,7 @@ describe("row dialog (T-4828)", () => {
     render(<EntityGrid config={configOf("edit")} source={sourceWith()} />);
     fireEvent.click(await screen.findByRole("button", { name: "Open: Recycling rate" }));
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Fields"]);
+    expect(within(dialog).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Fields", "Metadata"]);
   });
 
   it("shows values without editors to a person the grant gives no write", async () => {
@@ -156,7 +156,7 @@ describe("row dialog (T-4828)", () => {
 });
 
 describe("versions in a temporal answer (DM-114)", () => {
-  it("keeps supersededAt and the text fields of provenance, nothing else", () => {
+  it("keeps supersededAt and the text fields of provenance, organization and actorKind included, nothing else", () => {
     const body = {
       kpiValue: [
         {
@@ -164,7 +164,7 @@ describe("versions in a temporal answer (DM-114)", () => {
           value: 40,
           observedAt: "2026-10-20T10:00:00Z",
           supersededAt: "2026-10-20T11:00:00Z",
-          provenance: { channel: "ui", actor: "a1", operation: "correct", reason: "typo", requestId: "9a07", writtenAt: "2026-10-20T11:00:00Z", extra: { nested: 1 } },
+          provenance: { channel: "ui", actor: "a1", operation: "correct", reason: "typo", requestId: "9a07", writtenAt: "2026-10-20T11:00:00Z", organization: "helsinki", actorKind: "person", extra: { nested: 1 } },
         },
         { type: "Property", value: 41, observedAt: "2026-10-20T10:00:00Z" },
       ],
@@ -174,7 +174,7 @@ describe("versions in a temporal answer (DM-114)", () => {
         at: "2026-10-20T10:00:00Z",
         value: 40,
         supersededAt: "2026-10-20T11:00:00Z",
-        provenance: { channel: "ui", actor: "a1", operation: "correct", reason: "typo", writtenAt: "2026-10-20T11:00:00Z" },
+        provenance: { channel: "ui", actor: "a1", operation: "correct", reason: "typo", writtenAt: "2026-10-20T11:00:00Z", organization: "helsinki", actorKind: "person" },
       },
       { at: "2026-10-20T10:00:00Z", value: 41 },
     ]);

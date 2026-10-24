@@ -58,6 +58,19 @@ pub const SOURCES: &[&str] = &[
 /// and are not this table.
 pub const RETENTION_DAYS: i64 = 7;
 
+/// How often the leader trims (OPS-49): the table holds at most an hour past retention.
+pub const TRIM_EVERY_MINUTES: i64 = 60;
+
+/// Rows one DELETE removes, so a first trim over a month of backlog never holds one long lock.
+pub const TRIM_BATCH: i64 = 10_000;
+
+/// What one trim removed, and in how many DELETE statements.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Trimmed {
+    pub rows: u64,
+    pub batches: u32,
+}
+
 /// The largest page a caller may ask for, and the page they get without asking.
 pub const MAX_LIMIT: i64 = 200;
 pub const DEFAULT_LIMIT: i64 = 50;
@@ -274,6 +287,8 @@ enum Inner {
 pub struct ActivityStore {
     inner: Arc<Inner>,
     hub: Option<ActivityHub>,
+    /// When this process last started a trim; `None` until its first.
+    trimmed_at: Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
 }
 
 impl ActivityStore {
@@ -284,16 +299,13 @@ impl ActivityStore {
                 None => Inner::Memory(RwLock::new(Vec::new())),
             }),
             hub: None,
+            trimmed_at: Arc::default(),
         }
     }
 
     pub fn with_hub(mut self, hub: ActivityHub) -> Self {
         self.hub = Some(hub);
         self
-    }
-
-    pub fn is_durable(&self) -> bool {
-        matches!(&*self.inner, Inner::Db(_))
     }
 
     /// Records events that have already been validated, and hands each to the live tail. One
@@ -487,23 +499,65 @@ impl ActivityStore {
     }
 
     /// Drops what is past the retention window (OPS-49). The Portal trims its own table on a
-    /// timer; there is no CronJob.
-    pub async fn trim(&self, now: DateTime<Utc>) -> Result<u64, ActivityError> {
+    /// timer ([`Self::trim_if_due`], from the leader's sync); there is no CronJob.
+    pub async fn trim(&self, now: DateTime<Utc>) -> Result<Trimmed, ActivityError> {
         let floor = now - Duration::days(RETENTION_DAYS);
         match &*self.inner {
             Inner::Memory(rows) => {
                 let mut w = rows.write().await;
                 let before = w.len();
                 w.retain(|(_, event)| event.time >= floor);
-                Ok((before - w.len()) as u64)
+                let rows = (before - w.len()) as u64;
+                Ok(Trimmed {
+                    rows,
+                    batches: u32::from(rows > 0),
+                })
             }
-            Inner::Db(pool) => sqlx::query("DELETE FROM activity WHERE time < $1")
-                .bind(chrono_to_odt(floor))
-                .execute(pool)
-                .await
-                .map(|done| done.rows_affected())
-                .map_err(|err| ActivityError::Db(err.to_string())),
+            Inner::Db(pool) => {
+                let mut done = Trimmed {
+                    rows: 0,
+                    batches: 0,
+                };
+                loop {
+                    let deleted = sqlx::query(
+                        "DELETE FROM activity WHERE ctid IN \
+                         (SELECT ctid FROM activity WHERE time < $1 LIMIT $2)",
+                    )
+                    .bind(chrono_to_odt(floor))
+                    .bind(TRIM_BATCH)
+                    .execute(pool)
+                    .await
+                    .map_err(|err| ActivityError::Db(err.to_string()))?
+                    .rows_affected();
+                    if deleted > 0 {
+                        done.rows += deleted;
+                        done.batches += 1;
+                    }
+                    if deleted < TRIM_BATCH as u64 {
+                        return Ok(done);
+                    }
+                }
+            }
         }
+    }
+
+    /// Claims the hourly trim: true at most once per [`TRIM_EVERY_MINUTES`] for this store.
+    fn trim_due(&self, now: DateTime<Utc>) -> bool {
+        let mut last = self.trimmed_at.lock().unwrap_or_else(|p| p.into_inner());
+        if last.is_some_and(|at| now - at < Duration::minutes(TRIM_EVERY_MINUTES)) {
+            return false;
+        }
+        *last = Some(now);
+        true
+    }
+
+    /// The trim when an hour has passed since this process's last one, else `None`. A failed
+    /// trim is retried at the next due hour, not at the next sync.
+    pub async fn trim_if_due(&self, now: DateTime<Utc>) -> Option<Result<Trimmed, ActivityError>> {
+        if !self.trim_due(now) {
+            return None;
+        }
+        Some(self.trim(now).await)
     }
 }
 
@@ -659,7 +713,7 @@ mod tests {
         fresh.time = now;
         let store = store_with(vec![old, fresh]).await;
 
-        assert_eq!(store.trim(now).await.expect("trimmed"), 1);
+        assert_eq!(store.trim(now).await.expect("trimmed").rows, 1);
         let page = store
             .list(
                 "helsinki",
@@ -671,6 +725,27 @@ mod tests {
             .await
             .expect("a page");
         assert_eq!(page.items.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn the_trim_runs_once_an_hour() {
+        let now = Utc::now();
+        let mut old = event("config.applied", "info", 0);
+        old.time = now - Duration::days(RETENTION_DAYS + 1);
+        let store = store_with(vec![old.clone()]).await;
+
+        let first = store.trim_if_due(now).await.expect("due").expect("trimmed");
+        assert_eq!(first.rows, 1);
+        store.append(&[old]).await.expect("appended");
+        let soon = now + Duration::minutes(TRIM_EVERY_MINUTES - 1);
+        assert!(store.trim_if_due(soon).await.is_none());
+        let later = now + Duration::minutes(TRIM_EVERY_MINUTES);
+        let second = store
+            .trim_if_due(later)
+            .await
+            .expect("due")
+            .expect("trimmed");
+        assert_eq!(second.rows, 1);
     }
 
     #[test]

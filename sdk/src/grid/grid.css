@@ -1215,3 +1215,19 @@ a.jc-cell--link:focus-visible {
   .jc-grid:not([data-filters="open"]) .jc-grid-filter-row { display: none; }
   .jc-grid :is(th, td).jc-grid-pinned { min-width: min(58vw, 15rem); }
 }
+
+/* The Metadata tab (T-5529): a hidden field reads as withheld, never as an empty value. */
+.jc-grid-meta-hidden {
+  color: var(--jc-color-muted, #57606a);
+  font-style: italic;
+}
+
+.jc-grid-meta-absolute {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--jc-color-muted, #57606a);
+}
+
+.jc-grid-meta-error {
+  color: var(--jc-color-danger, #cf222e);
+}

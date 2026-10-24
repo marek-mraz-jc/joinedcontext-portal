@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -54,7 +54,10 @@ describe("the last messages through a step", () => {
     open("step-0");
     const items = await screen.findAllByRole("listitem");
     expect(items).toHaveLength(2);
-    expect(items[0]).toHaveTextContent('"n": 2');
+    // T-5516: a record reads as rows, never as JSON text.
+    expect(within(items[0]).getByText("n")).toBeInTheDocument();
+    expect(within(items[0]).getByText("2")).toBeInTheDocument();
+    expect(items[0].textContent).not.toContain("{\n");
     expect(screen.queryByText(/from/)).toBeNull();
   });
 
