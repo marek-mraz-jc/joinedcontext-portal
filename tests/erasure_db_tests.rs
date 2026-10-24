@@ -4,7 +4,7 @@
 //! PostgreSQL the test may write to; otherwise it says so and returns.
 
 use joinedcontext_portal::config::Config;
-use joinedcontext_portal::erasure::{self, Group, Store, StoreState, CKAN};
+use joinedcontext_portal::erasure::{self, Group, Store, StoreState};
 use joinedcontext_portal::state::AppState;
 use serde_json::json;
 
@@ -109,10 +109,9 @@ async fn a_store_that_does_not_answer_keeps_the_erasure_open_until_it_does() {
         }
     );
     assert_eq!(now.stores["conversations"].state, StoreState::Done);
-    assert_eq!(
-        now.stores[CKAN].state,
-        StoreState::Pending,
-        "the reconciler asks the catalogue"
+    assert!(
+        !now.stores.contains_key("ckanDatastore"),
+        "CKAN holds no rows (T-5060)"
     );
     // Only the erased Entity's copies went.
     assert_eq!(
@@ -151,7 +150,7 @@ async fn a_store_that_does_not_answer_keeps_the_erasure_open_until_it_does() {
     assert_eq!(again.stores["broker"].attempts, 2);
     assert_eq!(again.stores["portal"].attempts, 1);
 
-    for name in ["broker", CKAN] {
+    for name in ["broker"] {
         erasure::save(
             &pool,
             &begun.id,

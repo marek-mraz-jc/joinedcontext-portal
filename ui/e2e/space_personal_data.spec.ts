@@ -34,11 +34,10 @@ const ERASURE = {
   requestedAt: "2026-10-21T08:00:00Z",
   completedAt: "2026-10-21T08:00:04Z",
   entities: 3,
-  counts: { broker: 3, versions: 17, portal: 1, ckanDatastore: 0, conversations: 0, exports: 0, caches: 0 },
+  counts: { broker: 3, versions: 17, portal: 1, conversations: 0, exports: 0, caches: 0 },
   stores: {
     broker: { state: "done", count: 3, versions: 17 },
     portal: { state: "done", count: 1 },
-    ckanDatastore: { state: "done", count: 0 },
     conversations: { state: "done", count: 0 },
     exports: { state: "done", count: 0 },
     caches: { state: "done", count: 0 },

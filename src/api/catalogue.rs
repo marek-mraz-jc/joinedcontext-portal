@@ -260,9 +260,6 @@ pub struct CatalogueResource {
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    /// The DataStore preview, on a resource with an active sheet (EP-65).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub preview_url: Option<String>,
 }
 
 /// The Endpoint a dataset describes, on this installation's own host.
@@ -1157,15 +1154,10 @@ pub async fn detail(state: &AppState, catalogue: &str, dataset: &Value) -> Catal
         .flatten()
         .filter_map(|r| {
             let url = text(r, "url")?;
-            let id = text(r, "id");
             Some(CatalogueResource {
                 name: text(r, "name").unwrap_or_else(|| url.clone()),
                 format: text(r, "format").unwrap_or_default(),
                 description: text(r, "description"),
-                preview_url: (r.get("datastore_active").and_then(Value::as_bool) == Some(true))
-                    .then_some(id)
-                    .flatten()
-                    .map(|id| format!("{catalogue}/dataset/{name}/resource/{id}")),
                 url,
             })
         })

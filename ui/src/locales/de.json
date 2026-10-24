@@ -1471,9 +1471,6 @@
       "catalogue": "Katalogeintrag",
       "publish": "Veröffentlichung",
       "openData": "Offene Daten",
-      "datastore": "Datentabelle",
-      "sheetFrom": "Tabelle gelesen aus",
-      "sheetRefresh": "Aktualisierung der Tabelle",
       "catalog": {
         "title": "Katalogbeschreibung",
         "publisher": "Herausgeber",
@@ -1622,10 +1619,6 @@
       "project-list": "Ausgewählte Projekte: nur die Projekte, die Sie ankreuzen",
       "organization": "Organisation: jedes Projekt der Organisation",
       "public": "Öffentlich: jede Person mit der Adresse"
-    },
-    "refreshOption": {
-      "onChange": "Wenn sich eine Entität ändert",
-      "onReconcile": "Bei jeder Reconcile-Runde"
     },
     "representationOption": {
       "ngsi-ld": "NGSI-LD-Schnittstelle",
@@ -4973,14 +4966,9 @@
     "publications": {
       "title": "Veröffentlichte Endpunkte",
       "empty": "Kein Endpunkt dieses Projekts veröffentlicht in einen Katalog.",
-      "datastore": "DataStore-Spiegel aus {representation}, {refresh}.",
       "publishedTo": "veröffentlicht in {instance}",
       "missingInstance": "Katalog {instance} fehlt",
       "emptyHint": "Drücken Sie „Datensatz veröffentlichen“, wählen Sie einen Endpunkt, prüfen Sie seine Beschreibung und schlagen Sie ihn vor. Der Datensatz erscheint hier und in CKAN nach der Freigabe.",
-      "refreshed": {
-        "onChange": "aktualisiert, wenn sich eine Entität ändert",
-        "onReconcile": "aktualisiert, sooft die Konfiguration angewendet wird"
-      },
       "lastChange": "Letzte Änderung {time}: {summary}",
       "lastFailed": "Letzter Lauf fehlgeschlagen {time}: {summary}. Beheben Sie die Ursache und veröffentlichen Sie erneut.",
       "needsCatalogue": "Fügen Sie zuerst oben einen Katalog hinzu: ein Datensatz braucht ein CKAN-Portal.",
@@ -7718,9 +7706,6 @@
       "de": "Deutsch",
       "cs": "Čeština"
     },
-    "datastoreRepresentation": {
-      "csv": "CSV-Tabelle"
-    },
     "gtfsFeed": {
       "vehiclePositions": "Fahrzeugpositionen",
       "tripUpdates": "Fahrtaktualisierungen",
@@ -8052,7 +8037,6 @@
       "resource": "Ressource",
       "links": "Links",
       "download": "Herunterladen",
-      "preview": "Vorschau",
       "model": "Datenmodell {name}",
       "modelDocs": "Modelldokumentation",
       "noDescription": "Das Modell nennt keine Beschreibung.",
@@ -8183,9 +8167,6 @@
         "personal": "Im Modell personenbezogene Daten: Ein öffentlicher Datensatz enthält sie nie.",
         "hidden": "Der Endpoint blendet es bereits aus. Ändern Sie die ausgeblendeten Attribute des Endpoints, um es zu zeigen."
       },
-      "datastore": "Zeilen in eine CKAN-Tabelle übernehmen",
-      "datastoreHelp": "CKAN zeigt sie als Tabelle, die man filtern und per SQL abfragen kann.",
-      "datastoreUnavailable": "Der Endpoint liefert kein CSV, aus dem die CKAN-Tabelle gefüllt wird. Aktivieren Sie zuerst die CSV-Darstellung am Endpoint.",
       "confirmLabel": "Zur Bestätigung den Namen des Endpoints eingeben",
       "confirmHelp": "Die Veröffentlichung macht {name} für alle lesbar. Geben Sie zur Bestätigung {name} ein.",
       "confirmFirst": "Bestätigen Sie zuerst oben mit {name}.",
@@ -8193,7 +8174,6 @@
       "resources": "Daten und Ressourcen",
       "columns": "Spalten",
       "resource": {
-        "datastore": "Tabelle in CKAN (Filter, SQL)",
         "map": "Karte der Einträge mit Ort",
         "api": "NGSI-LD-API und die weiteren Formate des Endpoints",
         "dcat": "DCAT-AP-Eintrag (JSON-LD)"

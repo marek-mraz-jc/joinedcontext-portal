@@ -324,7 +324,7 @@ pub(crate) async fn export_subject(
     post,
     path = "/api/v1/projects/{project}/spaces/{space}/erasures",
     summary = "Propose a Data Subject's Erasure",
-    description = "Proposes erasing the data subject from the space: once another person with `approve` on the ContextSpace approves it (DM-142), the personal Attributes (or the whole Entity of a personal class) of every Entity naming it go from the broker's current state and every version, the CKAN DataStore copy, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers with the proposal, `proposed` and nothing erased, which expires after 7 days; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.",
+    description = "Proposes erasing the data subject from the space: once another person with `approve` on the ContextSpace approves it (DM-142), the personal Attributes (or the whole Entity of a personal class) of every Entity naming it go from the broker's current state and every version, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers with the proposal, `proposed` and nothing erased, which expires after 7 days; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.",
     tag = "spaces",
     params(
         ("project" = String, Path, description = "Project name"),

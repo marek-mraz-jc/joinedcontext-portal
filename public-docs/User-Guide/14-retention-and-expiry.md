@@ -15,10 +15,10 @@ A space you create keeps:
 | Part | Kept | Until you change it with |
 |---|---|---|
 | Current values | for ever: nothing removes an entity on its own | a pipeline's **Lifetime**, an end time on the entity (`expiresAt`), a space rule **Current values**, or pipeline expiry |
-| History | 28 days, the platform default | a space rule **History**, the **All other types** row, or an entity's own `historyRetention` |
+| History | none: a type no rule names keeps its current values only | a space rule **History**, the **All other types** row, or an entity's own `historyRetention` |
 | Pipeline expiry | off | **Remove entities the source no longer sends** on the pipeline |
 
-The Helsinki sample project also carries an older settings file that says history is kept 90 days. Nothing reads that value: the 28 days above are what the platform applies, and the stale value is being removed.
+The Helsinki sample project also carries an older settings file that says history is kept 90 days. Nothing reads that value: a type no rule names keeps no history, as the table says, and the stale value is being removed.
 
 ## 2. Every Way Data Is Removed
 
@@ -46,7 +46,7 @@ For history, the most specific setting wins, in this order:
 2. the entity's own `historyRetention`;
 3. the space rule of the entity's type (**Keep forever** there holds back every level below);
 4. the space's **All other types** row;
-5. the platform default of 28 days.
+5. without any of these the type keeps no history: history is opt-in.
 
 Personal data adds a limit of its own. A data model that marks an attribute as personal must state its maximum retention, and the Portal refuses the model without it. The platform does not yet delete personal values when that maximum passes: until it does, give a type that holds personal data a space rule for **History** no longer than its stated maximum, and use erasure for a person's request.
 
@@ -68,7 +68,7 @@ Two settings that look alike behave differently. A space rule **Current values**
 
 1. Open the space at `/projects/helsinki/spaces/air-quality`.
 2. In the **Retention** section, click **Change retention**.
-3. For each type, set **Current values** and **History** as a number and a unit, or pick **Off: no history** or **Keep forever**. The **All other types** row sets history for every type without a rule of its own.
+3. For each type, set **Current values** and **History** as a number and a unit, or pick **Off: no history** or **Keep forever**. The **All other types** row sets history for every type without a rule of its own. For a type that keeps history, **Rows of history** says which rows the broker writes: **Newer observations** (the default) writes a row only when `observedAt` is newer than the last row, **Every observation** writes one for each new `observedAt`, as a count per 15 minutes, and **Only changes** writes one when a value changes and at least once per chosen interval, as the free bikes of a station.
 4. Click **Propose**. When the new rules would delete data at once, the dialog **Delete data of air-quality for good?** lists how many current values and history records go; confirm with **Propose and delete**.
 5. An approver merges the proposal in Approvals; the rules apply from then on.
 

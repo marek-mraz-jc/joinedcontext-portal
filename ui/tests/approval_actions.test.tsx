@@ -157,7 +157,6 @@ describe("approval actions", () => {
           { path: "spec.catalog.license", to: "CC0" },
           { path: "spec.catalog.keywords.en[0]", to: "pm10" },
           { path: "spec.publish.ckan.instanceRef", to: "bbsk" },
-          { path: "spec.publish.ckan.datastore.representation", to: "csv" },
         ],
       },
     ];
@@ -175,7 +174,7 @@ describe("approval actions", () => {
     expect(within(preview).getByText("Creative Commons Zero 1.0")).toBeInTheDocument();
     expect(within(preview).getByText("Environment")).toBeInTheDocument();
     expect(within(preview).getByText("pm10")).toBeInTheDocument();
-    expect(within(preview).getByText(/Table in CKAN/)).toBeInTheDocument();
+    expect(within(preview).queryByText(/Table in CKAN/)).toBeNull();
     expect(screen.getByText(en.approvals.publicationPublic)).toBeInTheDocument();
 
     // Red lane: approve stays shut until the name is typed back, and nothing is posted.

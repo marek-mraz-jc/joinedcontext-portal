@@ -34,7 +34,7 @@ const DRAFT = {
     contactPoint: { name: "Open data desk", email: "opendata@example.org" },
     attribution: { sk: "Zdroj: BBSK" },
   },
-  publish: { ckan: { instanceRef: { kind: "CkanInstance", name: "bbsk" }, datastore: { representation: "csv" } } },
+  publish: { ckan: { instanceRef: { kind: "CkanInstance", name: "bbsk" } } },
   missing: ["spatial", "temporal", "frequency"],
   attributes: [
     { type: "KeyPerformanceIndicator", name: "kpiValue" },
@@ -43,7 +43,6 @@ const DRAFT = {
     { type: "KeyPerformanceIndicator", name: "reporter", withheld: "personal" },
     { type: "KeyPerformanceIndicator", name: "internalNote", withheld: "hidden" },
   ],
-  datastoreAvailable: true,
 };
 
 const CHANGE = {
@@ -175,7 +174,8 @@ describe("publish a dataset in one step (EP-83)", () => {
     expect(within(dialog).getByRole("checkbox", { name: /internalNote/ })).toBeDisabled();
     expect(within(dialog).getByRole("checkbox", { name: /kpiValue/ })).toBeChecked();
     await user.click(within(dialog).getByRole("checkbox", { name: /comment/ }));
-    expect(within(dialog).getByRole("checkbox", { name: /Put the rows into a CKAN table/ })).toBeChecked();
+    // CKAN holds no rows (T-5060): the form offers no table to fill.
+    expect(within(dialog).queryByRole("checkbox", { name: /CKAN table/ })).toBeNull();
     fireEvent.change(within(dialog).getByLabelText("Covers data from"), { target: { value: "2020-01-01" } });
     await user.click(within(dialog).getByRole("button", { name: "Preview the entry" }));
 
@@ -185,7 +185,7 @@ describe("publish a dataset in one step (EP-83)", () => {
     expect(within(preview).getByRole("heading", { name: "Ukazovatele kraja 2026" })).toBeInTheDocument();
     expect(within(preview).getByText("Banskobystrický kraj")).toBeInTheDocument();
     const resources = within(preview).getByRole("list", { name: "Data and resources" });
-    expect(within(resources).getByText(/Table in CKAN/)).toBeInTheDocument();
+    expect(within(resources).queryByText(/Table in CKAN/)).toBeNull();
     expect(within(resources).getByText(/Map of the records/)).toBeInTheDocument();
     expect(within(resources).getByText(/DCAT-AP record/)).toBeInTheDocument();
     const columns = within(preview).getByRole("list", { name: "Columns" });
@@ -302,11 +302,11 @@ describe("the publication's attributes and the approval's preview", () => {
     expect(textsWith(undefined, "de", "X")).toEqual({ de: "X" });
   });
 
-  it("previews a dataset without a table or known columns: the map stays, no column list", async () => {
+  it("previews a dataset without known columns: the map stays, no column list", async () => {
     await i18n.changeLanguage("en");
     render(
       <I18nextProvider i18n={i18n}>
-        <PublicationPreview label="Preview" title="Dopravné nehody" description="" catalog={{ license: "CC0" }} datastore={false} />
+        <PublicationPreview label="Preview" title="Dopravné nehody" description="" catalog={{ license: "CC0" }} />
       </I18nextProvider>,
     );
     const preview = screen.getByRole("region", { name: "Preview" });
@@ -322,13 +322,13 @@ describe("the publication's attributes and the approval's preview", () => {
       { path: "metadata.title.sk", to: "New" },
       { path: "spec.catalog.themes[1]" },
       { path: "spec.catalog.keywords.sk[0]", to: "kpi" },
-      { path: "spec.publish.ckan.datastore.representation", to: "csv" },
+      { path: "spec.publish.ckan.name", to: "kpi" },
     ]);
     expect(head).toEqual({
       metadata: { name: "e", title: { sk: "New" } },
       spec: {
         catalog: { themes: ["ECON"], keywords: { sk: ["kpi"] } },
-        publish: { ckan: { datastore: { representation: "csv" } } },
+        publish: { ckan: { name: "kpi" } },
       },
     });
     expect(live.spec.catalog.themes).toEqual(["ECON", "ENVI"]);

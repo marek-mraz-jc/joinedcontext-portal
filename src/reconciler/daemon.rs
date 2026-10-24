@@ -141,8 +141,6 @@ pub struct Syncer {
     /// The realm's people and the database of their pending removals (PF-93). `None` leaves a
     /// removal pending until a Portal with both runs.
     people: Option<(Arc<crate::people::People>, sqlx::PgPool)>,
-    /// The erasure log, whose CKAN DataStore parts the catalogue step erases (T-4668).
-    erasures: Option<sqlx::PgPool>,
     /// The Keycloak client of every published App (ADR-N-030, AP-111). `None` without an admin
     /// client or an apps host: the Apps are served, and nobody's client is written.
     app_clients: Option<Arc<super::app_clients::AppClientSync>>,
@@ -268,7 +266,6 @@ impl Syncer {
             subscriptions: None,
             groups: None,
             people: None,
-            erasures: None,
             app_clients: None,
             app_client_secrets: Arc::default(),
             workload_clients: None,
@@ -416,12 +413,6 @@ impl Syncer {
     /// Makes each run delete the people whose removal Change has been merged (PF-93).
     pub fn with_people(mut self, people: Arc<crate::people::People>, pool: sqlx::PgPool) -> Self {
         self.people = Some((people, pool));
-        self
-    }
-
-    /// Makes each run erase the CKAN DataStore rows of the open erasures (DM-126, T-4668).
-    pub fn with_erasures(mut self, pool: sqlx::PgPool) -> Self {
-        self.erasures = Some(pool);
         self
     }
 
@@ -1084,11 +1075,6 @@ impl Syncer {
                 .converge(&repository, &self.mirror, scratch.path())
                 .await;
             self.say_published(&reports).await;
-            // 5f'. The DataStore rows of the open erasures (DM-126, T-4668), with the same
-            //      catalogue credentials.
-            if let Some(pool) = self.erasures.as_ref() {
-                crate::erasure::ckan_pass(pool, catalogue, (&repository, scratch.path())).await;
-            }
         }
         // 5g. The same public Endpoints as NGSI-LD entities an agent searches first (T-4500).
         self.converge_catalog(&repository).await;
@@ -2870,7 +2856,6 @@ fn published_events(reports: &[super::ckan::Report]) -> Vec<ActivityEvent> {
                 Publication::Published {
                     dataset,
                     outcome,
-                    rows,
                     no_linkml,
                 } => {
                     if matches!(
@@ -2880,10 +2865,6 @@ fn published_events(reports: &[super::ckan::Report]) -> Vec<ActivityEvent> {
                     ) {
                         return None;
                     }
-                    let rows = match rows {
-                        Some(count) => format!(", sheet of {count} rows"),
-                        None => String::new(),
-                    };
                     // EP-68: a model without its LinkML still publishes, linked to the schema
                     // index; the event says so, so the author can add the artifact.
                     let linkml = if *no_linkml {
@@ -2892,9 +2873,9 @@ fn published_events(reports: &[super::ckan::Report]) -> Vec<ActivityEvent> {
                         ""
                     };
                     (
-                        format!("Endpoint {} is dataset {dataset}{rows}.{linkml}", report.endpoint),
+                        format!("Endpoint {} is dataset {dataset}.{linkml}", report.endpoint),
                         "info",
-                        serde_json::json!({ "dataset": dataset, "rows": rows, "noLinkml": no_linkml, "object": format!("endpoints/{}", report.endpoint) }),
+                        serde_json::json!({ "dataset": dataset, "noLinkml": no_linkml, "object": format!("endpoints/{}", report.endpoint) }),
                     )
                 }
                 Publication::Withdrawn { dataset } => (
@@ -3081,7 +3062,6 @@ mod tests {
                 Publication::Published {
                     dataset: "air".into(),
                     outcome: jcctl::publish::ckan::Outcome::Created,
-                    rows: Some(3),
                     no_linkml: true,
                 },
             ),
@@ -3090,7 +3070,6 @@ mod tests {
                 Publication::Published {
                     dataset: "same".into(),
                     outcome: jcctl::publish::ckan::Outcome::Unchanged,
-                    rows: None,
                     no_linkml: false,
                 },
             ),

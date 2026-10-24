@@ -76,9 +76,6 @@ pub struct PublicationStatus {
     pub dataset_url: Option<String>,
     /// One resource per enabled representation, plus the schema index (EP-64).
     pub resources: Vec<ResourceLink>,
-    /// The row mirror, when the endpoint asks for one (EP-65).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub datastore: Option<DataStoreStatus>,
 }
 
 /// One CKAN resource of a dataset.
@@ -91,16 +88,6 @@ pub struct ResourceLink {
     pub url: String,
     /// The CKAN format string.
     pub format: String,
-}
-
-/// The declared row mirror.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct DataStoreStatus {
-    /// The tabular representation the rows are read through.
-    pub representation: String,
-    /// How the mirror is kept current.
-    pub refresh: String,
 }
 
 #[utoipa::path(
@@ -207,7 +194,6 @@ fn publication(
                 .to_owned(),
             dataset_url: None,
             resources: Vec::new(),
-            datastore: datastore(&declared),
         });
     };
 
@@ -241,7 +227,6 @@ fn publication(
             .as_array()
             .map(|items| items.iter().map(link).collect())
             .unwrap_or_default(),
-        datastore: datastore(&declared),
     })
 }
 
@@ -251,18 +236,6 @@ fn link(resource: &Value) -> ResourceLink {
         url: text(resource, "url"),
         format: text(resource, "format"),
     }
-}
-
-fn datastore(declared: &Value) -> Option<DataStoreStatus> {
-    let datastore = declared.get("datastore")?;
-    Some(DataStoreStatus {
-        representation: text(datastore, "representation"),
-        refresh: datastore
-            .get("refresh")
-            .and_then(Value::as_str)
-            .unwrap_or("onChange")
-            .to_owned(),
-    })
 }
 
 /// A `Ref` is either a bare name or `{ kind, name }` (MF-09).

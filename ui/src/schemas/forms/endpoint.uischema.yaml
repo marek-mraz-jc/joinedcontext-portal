@@ -196,18 +196,6 @@ spec:
         sk: Názov datasetu v katalógu, ktorý sa zobrazí v jeho adrese; ak je prázdny, názov rozhrania.
         cs: Název datasetu v katalogu, který se zobrazí v jeho adrese; je-li prázdný, název rozhraní.
         de: Der Name des Datensatzes im Katalog, den seine Adresse zeigt; leer heißt der Endpunktname.
-    publish.ckan.datastore.representation:
-      help:
-        en: The tabular representation the sheet's rows are read through; it has to be enabled above.
-        sk: Tabuľková reprezentácia, cez ktorú sa čítajú riadky tabuľky; musí byť zapnutá vyššie.
-        cs: Tabulková reprezentace, přes kterou se čtou řádky tabulky; musí být zapnutá výše.
-        de: Die tabellarische Repräsentation für die Zeilen; sie muss oben aktiviert sein.
-    publish.ckan.datastore.refresh:
-      help:
-        en: When the sheet is brought back to the endpoint's answer; a deleted entity loses its row either way.
-        sk: Kedy sa tabuľka zarovná s odpoveďou rozhrania; zmazaná entita stráca riadok v oboch prípadoch.
-        cs: Kdy se tabulka srovná s odpovědí rozhraní; smazaná entita ztrácí řádek v obou případech.
-        de: Wann die Tabelle der Antwort des Endpunkts folgt; eine gelöschte Entität verliert ihre Zeile so oder so.
     catalog.publisher.name:
       help:
         en: "The organization that publishes this data, as a catalogue names it."

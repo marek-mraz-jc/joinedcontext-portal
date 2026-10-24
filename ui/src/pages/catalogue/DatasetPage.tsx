@@ -262,11 +262,6 @@ function Resources({ detail }: { detail: DatasetDetail }): JSX.Element {
                     <li>
                       <ExternalLink href={resource.url}>{t("catalogue.dataset.download")}</ExternalLink>
                     </li>
-                    {resource.previewUrl ? (
-                      <li>
-                        <ExternalLink href={resource.previewUrl}>{t("catalogue.dataset.preview")}</ExternalLink>
-                      </li>
-                    ) : null}
                   </ul>
                 </TableCell>
               </TableRow>

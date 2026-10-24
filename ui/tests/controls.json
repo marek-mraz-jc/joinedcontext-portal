@@ -1057,7 +1057,7 @@
     "src/pages/catalogue/PublishDataset.tsx": {
       "controls": {
         "Button": 6,
-        "Checkbox": 3
+        "Checkbox": 2
       },
       "tests": [
         "catalogue_publish.test.tsx"

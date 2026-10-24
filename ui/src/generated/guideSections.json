@@ -1,5 +1,5 @@
 {
- "docsCommit": "217cbda06aa8b91e35978667326e21fbc346109b",
+ "docsCommit": "0ff8f6ff783d5595a361af7d159e615ca539a483",
  "sections": {
   "home": {
    "source": "User-Guide/01-getting-started.md",
@@ -18,17 +18,25 @@
     [
      "p",
      "If a page says you may not see something, that is your role talking, not a fault. Access shows what your roles let you do here."
+    ],
+    [
+     "p",
+     "Signing in starts at the Sign in button: it sends you to your organization's sign-in and back to the page you asked for. Home greets you with what matters for your role: the Getting started checklist in a new project, and under Next for you the changes that wait for your approval, failing pipelines, drafts you left and dashboards you can read. An old link to /playground opens your home page."
     ]
    ]
   },
   "organization": {
    "source": "User-Guide/12-managing-organization-and-projects.md",
    "number": 1,
-   "heading": "The Organization page",
+   "heading": "Administration",
    "blocks": [
     [
      "p",
-     "Open Organization in the top bar. You see it whatever project you are in, because nothing on it belongs to a project."
+     "Administration is for organization administrators; anyone else reads \"This page is for organization administrators\" and asks one of them. Its side navigation has four groups:"
+    ],
+    [
+     "p",
+     "An old link to /endpoints opens All endpoints. Deleting a project asks you to type its name, and the dialog lists everything the deletion removes."
     ]
    ]
   },
@@ -288,8 +296,8 @@
       "In Context Space, select helsinki.",
       "Click Generate slug to mint a random address.",
       "Under Audience, select Public: anyone with the address (or Organization).",
-      "Under Representations, check the needed formats: NGSI-LD API, GeoJSON, CSV, Excel (xlsx), and MCP for AI assistants.",
-      "Leave Traffic and caching empty for an endpoint without a rate limit, the default. Set Requests per minute only to protect a public endpoint from one heavy caller.",
+      "Under Representations, check the needed formats: NGSI-LD API, CSV, OGC API Features, and MCP for AI assistants.",
+      "Leave Traffic and limits empty for an endpoint without a rate limit, the default. Set Requests per minute only to protect a public endpoint from one heavy caller.",
       "Under Model projection, tick the classes (e.g. BikeHireDockingStation) and slots to expose. Identity slots id and type remain locked.",
       "Click Check. You should see the verdict chip display Checked.",
       "Click Propose change.",
@@ -429,7 +437,7 @@
     ],
     [
      "p",
-     "You should see the dataset listed under Published endpoints with direct links to DCAT-AP records and DataStore mirrors."
+     "You should see the dataset listed under Published endpoints with direct links to its DCAT-AP record and the Endpoint's own APIs."
     ],
     [
      "h",
@@ -749,6 +757,10 @@
    "heading": "Working on Project Copies",
    "blocks": [
     [
+     "p",
+     "A copy is the project on the side: change several resources, try them, and bring them back as one change a person approves. Copies lists yours under My copies and everyone else's, read only, under Other people's copies. Try it (/projects/{project}/workspaces/{copy}/try-it) runs a preview of the copy under addresses of its own; only the person who started the copy starts and stops it, and Copy data in fills it with real entities read with your own rights. A copy is deleted when the time under Keep it for is up; the project is never touched."
+    ],
+    [
      "h",
      "Make Changes in a Copy"
     ],
@@ -788,6 +800,10 @@
     [
      "p",
      "The live journey copy-agent.spec.ts replays these steps."
+    ],
+    [
+     "p",
+     "An old link to /projects/{project}/federation opens Context Spaces: a space that answers with another source's data is set up under Context sources (Endpoints, Data Sharing & Integration)."
     ]
    ]
   },
@@ -857,7 +873,7 @@
    "blocks": [
     [
      "p",
-     "Open a project and choose Settings, the last item of its menu."
+     "Open a project and choose Settings, the last item of its menu. Find a setting searches every tab, for example for quota or delete."
     ],
     [
      "p",

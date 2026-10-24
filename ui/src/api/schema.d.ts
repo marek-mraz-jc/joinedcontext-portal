@@ -3452,7 +3452,7 @@ export interface paths {
         put?: never;
         /**
          * Propose a Data Subject's Erasure
-         * @description Proposes erasing the data subject from the space: once another person with `approve` on the ContextSpace approves it (DM-142), the personal Attributes (or the whole Entity of a personal class) of every Entity naming it go from the broker's current state and every version, the CKAN DataStore copy, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers with the proposal, `proposed` and nothing erased, which expires after 7 days; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.
+         * @description Proposes erasing the data subject from the space: once another person with `approve` on the ContextSpace approves it (DM-142), the personal Attributes (or the whole Entity of a personal class) of every Entity naming it go from the broker's current state and every version, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers with the proposal, `proposed` and nothing erased, which expires after 7 days; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.
          */
         post: operations["erase_subject"];
         delete?: never;
@@ -5251,8 +5251,6 @@ export interface components {
             attributes: components["schemas"]["DraftAttribute"][];
             /** @description The drafted `spec.catalog` (EP-78), or the one the Endpoint already declares. */
             catalog: Record<string, never>;
-            /** @description The Endpoint serves `csv`, so its rows can be mirrored into the CKAN DataStore (EP-65). */
-            datastoreAvailable: boolean;
             endpoint: string;
             /** @description The Endpoint's audience is not `public`: the proposal makes it public, in the red lane. */
             makesPublic: boolean;
@@ -5359,8 +5357,6 @@ export interface components {
             description?: string | null;
             format: string;
             name: string;
-            /** @description The DataStore preview, on a resource with an active sheet (EP-65). */
-            previewUrl?: string | null;
             url: string;
         };
         /** @description Up to ten entities of a dataset, read through its Endpoint (EP-82). */
@@ -5816,13 +5812,6 @@ export interface components {
          */
         CreatedRun: components["schemas"]["AgentRun"] & {
             ticket?: string | null;
-        };
-        /** @description The declared row mirror. */
-        DataStoreStatus: {
-            /** @description How the mirror is kept current. */
-            refresh: string;
-            /** @description The tabular representation the rows are read through. */
-            representation: string;
         };
         /** @description A saved view as the API answers it. */
         DataView: {
@@ -7762,7 +7751,6 @@ export interface components {
             dataset: string;
             /** @description Where the dataset is in the catalogue, once it is published. */
             datasetUrl?: string | null;
-            datastore?: null | components["schemas"]["DataStoreStatus"];
             /** @description The endpoint that declares the publication. */
             endpoint: string;
             /** @description The `CkanInstance` it publishes to. */

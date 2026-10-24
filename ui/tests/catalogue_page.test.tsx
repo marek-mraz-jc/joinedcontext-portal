@@ -72,7 +72,6 @@ const DETAIL = {
       name: "CSV",
       format: "CSV",
       url: `${ENDPOINT}file.csv`,
-      previewUrl: "https://opendata.dev.joinedcontext.com/dataset/bbsk-kpi/resource/r1",
       description: "CSV, generated on each download.\n\n    curl -o file.csv 'https://x/file.csv'",
     },
     { name: "Hostile", format: "HTML", url: "javascript:alert(1)" },
@@ -263,10 +262,8 @@ describe("the catalogue (EP-81, EP-82)", () => {
     );
 
     const resources = screen.getByRole("table", { name: "Resources" });
-    expect(within(resources).getByRole("link", { name: /Preview/ })).toHaveAttribute(
-      "href",
-      "https://opendata.dev.joinedcontext.com/dataset/bbsk-kpi/resource/r1",
-    );
+    // CKAN holds no rows (T-5060): a resource is a download, never a preview of a copy.
+    expect(within(resources).queryByRole("link", { name: /Preview/ })).toBeNull();
     // A resource URL the catalogue holds is checked before it becomes a link.
     // T-4160 #16: a sentence in the page's language; the publisher's commands behind a disclosure.
     expect(within(resources).getByText("A CSV table to download.")).toBeInTheDocument();

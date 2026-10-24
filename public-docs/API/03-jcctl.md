@@ -28,6 +28,8 @@ jcctl [COMMAND] [OPTIONS]
 | **`model diff`** | `--repo-dir <path> [--org-dir <organization checkout>]` | The same render, compared with what is committed; exit 2 and the stale paths on any difference (DM-02) |
 | **`model validate`** | `--repo-dir <path>` | Compiles every DataModel and reports what does not compile; writes nothing (DM-17) |
 | **`model import`** | `<dataModel.Subject/Model> --out <file>` | Imports one Smart Data Models model and writes the LinkML source it becomes (DM-07…DM-11) |
+| **`policy export`** | `<policy.yaml>` | Prints the Policy as an ODRL 2.2 `Set` in the `ngsi-ld:` profile (§7, R52, ADR-N-057) |
+| **`policy import`** | `<set.jsonld>`, `[--project <slug>]`, `[--space <name>]`, `[--name <name>]`, `[--out <file.yaml>]` | Writes the Policy manifest an ODRL `Set` in the profile says, or refuses it naming the member the profile does not map (§7, ADR-N-057 decision 4) |
 | **`workspace render`** | `--repo-dir <path>`, `--prefix <ws-name->`, `[--out-dir <dir>]` | The workspace preview render of the checkout: `prefix` in front of every project namespace, space segment and id of this organization; one file per manifest under `<dir>`, else one YAML stream on stdout. Refused when a name would stay unprefixed (CC-78, PF-83) |
 | **`workspace diff`** | `--base-dir <checkout of the base>`, `--repo-dir <checkout of the workspace>`, `[--json]` | What the workspace creates, changes (field by field) and removes against its base, as the Portal's compare lists it; exit 2 when it changes something (CC-79) |
 | **`model infer`** | `--file <sample.csv\|xlsx\|json\|pdf>`, `[--url <url>]` | Reads one sample file and proposes the LinkML model it fits (DM-07) |
@@ -249,6 +251,16 @@ repository that no longer validates, and the half that landed is the half nobody
 `--conflict` says what happens when the destination already declares a resource: `fail` (the
 default, because the other three each discard something), `skip`, `replace`, or `rename`, which
 writes it beside the existing one under the next free name.
+
+## 7. `policy export` and `policy import`
+
+The two verbs translate between a Policy manifest and an ODRL 2.2 `Set` in the `ngsi-ld:` profile, the dialect the broker's access document speaks ([API/02 §7b](02-endpoint-representations.md), R52). The Portal's Policy form reads the same mapping; the YAML file stays the only source, so `import` writes a manifest for review and changes nothing live ([ADR-N-057](../Decisions/adr-n-057-policy-rules-policy-refs-authzen.md) decision 4).
+
+`export` writes one ODRL rule per entity selector, as the broker does: the CIM 009 operations and the platform actions (`readVersions`, `personalData`) as `ngsi-ld:` actions, the assignee as a typed party (`{"@type": "ngsi-ld:Role", "uid": "public"}`; `ngsi-ld:User`, `Group`, `ServiceAccount`, `Did`), the Entity type as the target with `ngsi-ld:id`, `ngsi-ld:idPattern` and the attribute names as refinements (`ngsi-ld:attrs` when the property and relationship names are one list), and `q`, `scopeQ`, `geoQ`, `temporalQ` verbatim as constraints. The Policy's `validity` is `ngsi-ld:validity` (`gteq` from, `lt` to), because the profile's `dateTime` already stands for `temporalQ`. The `Set`'s `uid` is `urn:joinedcontext:policy:{project}:{space}:{name}`, and `conflict` is `prohibit`.
+
+`import` reads that, and the broker's own documents: a DID assignee on the `Set`, `geoQ` as a geometry under `ngsi-ld:within` (or `contains`, `intersects`, `disjoint`, `equals`, `overlaps`), and `temporalQ` as `dateTime` bounds. Consecutive rules with the same assignee, actions and constraints become one rule, consecutive selectors with the same names (and `partOf`, when export named the `information` entry) one entry, so every seeded Policy exported and imported is the same manifest; one rule writes the single-rule shape, several write `rules[]`. A `Set` written elsewhere names no manifest: give `--project`, `--space` and `--name`, which also override the `uid`. `--out` never overwrites a file.
+
+Nothing that does not map is dropped, because a dropped duty or constraint would grant more than the document says. The refusal names the member, for example `permission[0].duty`: a duty, obligation, remedy or consequence; a `conflict` other than `prohibit`; an `Offer` or `Agreement` (import the `Set` it grants); an `@context` other than ODRL's and `https://joinedcontext.com/odrl/ngsi-ld/v1/context.jsonld`; an action that is not a CIM 009 operation, group or platform action; an unknown `leftOperand` or an operator it does not take; a plain-string assignee other than a DID; a rule `assigner` other than the `Set`'s; rules with different validity; and any member the profile does not list. The result is then validated like any manifest. The profile's context and closed SHACL shapes are `schemas/odrl/ngsi-ld-v1/` in the platform repository; CI checks that the shapes accept every exported `Set` and refuse the same documents `import` refuses.
 
 ## Related
 

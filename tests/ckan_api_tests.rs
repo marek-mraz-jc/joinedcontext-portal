@@ -119,7 +119,6 @@ fn seeded() -> Arc<Mirror> {
                 "instanceRef": { "kind": "CkanInstance", "name": "open-data" },
                 "organization": "mesto-banska-bystrica",
                 "name": "kvalita-ovzdusia",
-                "datastore": { "representation": "csv", "refresh": "onChange" },
             }
         })),
     ));
@@ -191,8 +190,8 @@ async fn the_status_names_the_catalogue_and_every_published_resource() {
         json!("https://data.banskabystrica.sk/dataset/kvalita-ovzdusia")
     );
     assert_eq!(publication["instanceMissing"], json!(false));
-    assert_eq!(publication["datastore"]["representation"], json!("csv"));
-    assert_eq!(publication["datastore"]["refresh"], json!("onChange"));
+    // CKAN holds no rows (T-5060): the publication names no row mirror.
+    assert!(publication.get("datastore").is_none(), "{publication}");
 
     let urls: Vec<&str> = publication["resources"]
         .as_array()

@@ -12,7 +12,6 @@ use axum::routing::post;
 use axum::{Json, Router};
 use jc_core::kinds::catalog::Catalog;
 use jc_core::kinds::Verb;
-use jc_core::kinds::{EndpointSpec, Representation};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use utoipa::ToSchema;
@@ -64,8 +63,6 @@ pub struct CatalogueDraft {
     pub missing: Vec<String>,
     /// The model's attributes per type, and whether the public dataset can carry each one.
     pub attributes: Vec<DraftAttribute>,
-    /// The Endpoint serves `csv`, so its rows can be mirrored into the CKAN DataStore (EP-65).
-    pub datastore_available: bool,
 }
 
 /// Why an attribute stays out of a public dataset.
@@ -110,8 +107,6 @@ pub struct Known {
     pub contact: Option<(String, String)>,
     /// The `CkanInstance` the project publishes to.
     pub instance: Option<String>,
-    /// The Endpoint serves `csv` (EP-44), the one representation a DataStore mirror reads.
-    pub serves_csv: bool,
 }
 
 /// Smart Data Models domains whose EU data theme is plain; any other domain names none.
@@ -268,14 +263,16 @@ pub fn draft(name: &str, known: &Known) -> CatalogueDraft {
         _ => drafted_catalog(known),
     };
     let publish = match known.endpoint.get("publish") {
-        Some(existing) if existing.get("ckan").is_some() => existing.clone(),
+        Some(existing) if existing.get("ckan").is_some() => {
+            let mut existing = existing.clone();
+            // The one member dropped from a declared block: jc-core refuses the removed row
+            // mirror (T-5060), so the draft a steward submits must not carry it back.
+            if let Some(ckan) = existing.get_mut("ckan").and_then(Value::as_object_mut) {
+                ckan.remove("datastore");
+            }
+            existing
+        }
         _ => match &known.instance {
-            // The rows go into the DataStore whenever the Endpoint can serve them as a table:
-            // the owner's ask is every published dataset in the DataStore and on the map.
-            Some(instance) if known.serves_csv => json!({ "ckan": {
-                "instanceRef": { "kind": "CkanInstance", "name": instance },
-                "datastore": { "representation": "csv" },
-            } }),
             Some(instance) => {
                 json!({ "ckan": { "instanceRef": { "kind": "CkanInstance", "name": instance } } })
             }
@@ -309,7 +306,6 @@ pub fn draft(name: &str, known: &Known) -> CatalogueDraft {
             .as_deref()
             .map(|linkml| attributes(linkml, &known.classes, &hidden))
             .unwrap_or_default(),
-        datastore_available: known.serves_csv,
     }
 }
 
@@ -442,8 +438,6 @@ async fn known(state: &AppState, project: &str, endpoint: &Value) -> Known {
         publisher,
         contact,
         instance: instances.into_iter().next().map(|(_, name)| name),
-        serves_csv: serde_json::from_value::<EndpointSpec>(endpoint.clone())
-            .is_ok_and(|spec| spec.served_representations().contains(&Representation::Csv)),
     }
 }
 
@@ -552,7 +546,6 @@ slots:
             publisher: BTreeMap::from([("sk".into(), "Banskobystrický samosprávny kraj".into())]),
             contact: Some(("Open data desk".into(), "opendata@example.org".into())),
             instance: Some("bbsk".into()),
-            serves_csv: false,
         }
     }
 
@@ -592,16 +585,14 @@ slots:
     }
 
     #[test]
-    fn a_csv_endpoint_is_drafted_with_its_datastore_mirror_and_its_attributes() {
+    fn the_draft_offers_the_public_attributes_and_drops_a_removed_mirror() {
         let mut known = known();
-        known.serves_csv = true;
         known.endpoint["projection"] = json!({ "hiddenAttributes": ["calculationMethod"] });
         let draft = draft("bbsk-kpi", &known);
         assert_eq!(
-            draft.publish["ckan"]["datastore"],
-            json!({ "representation": "csv" })
+            draft.publish["ckan"],
+            json!({ "instanceRef": { "kind": "CkanInstance", "name": "bbsk" } })
         );
-        assert!(draft.datastore_available);
         let offered: Vec<&str> = draft
             .attributes
             .iter()
@@ -609,13 +600,14 @@ slots:
             .map(|a| a.name.as_str())
             .collect();
         assert_eq!(offered, vec!["kpiValue", "observedAt", "dataProvider"]);
-        // What the Endpoint already declares is never rewritten, the mirror included.
-        known.endpoint["publish"] = json!({ "ckan": { "instanceRef": "bbsk" } });
-        assert!(draft_has_no_datastore(&super::draft("bbsk-kpi", &known)));
-    }
-
-    fn draft_has_no_datastore(draft: &CatalogueDraft) -> bool {
-        draft.publish["ckan"].get("datastore").is_none()
+        // What the Endpoint already declares is kept, but the removed row mirror (T-5060).
+        known.endpoint["publish"] = json!({ "ckan": {
+            "instanceRef": "bbsk", "name": "kpi", "datastore": { "representation": "csv" }
+        } });
+        assert_eq!(
+            super::draft("bbsk-kpi", &known).publish,
+            json!({ "ckan": { "instanceRef": "bbsk", "name": "kpi" } })
+        );
     }
 
     #[test]

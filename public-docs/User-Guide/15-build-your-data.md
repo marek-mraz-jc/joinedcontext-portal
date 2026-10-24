@@ -46,7 +46,7 @@ What the platform fills in when you set nothing:
 |---|---|---|
 | Data model | an empty model named after the space | created with the space; step 2 gives it its types |
 | Current values | kept until something removes them | a station the feed stops listing stays in the space |
-| History | 28 days, the platform default | every change of every attribute is kept four weeks, then deleted |
+| History | none until a rule names the type | the space keeps current values only; set **History** on the space's **Retention** tab to keep a type's past |
 | Data quality | no rules | only the model's own constraints are checked |
 | Entity ids | `urn:ngsi-ld:{Type}:{id}` | the id the pipeline writes is the entity's identity in this space |
 

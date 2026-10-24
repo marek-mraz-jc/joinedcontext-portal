@@ -10,8 +10,8 @@
  *  3. A dry run counts what an erasure would take and erases nothing; the erasure answers `202`
  *     `proposed` with the address of its state, which answers per store, and is declined again.
  *
- * The space holds no Entity of the subject: what an erasure takes out of the broker, the CKAN
- * DataStore and the conversations is T-4668's own evidence on dev. Names are `t4668-…-HHMM`;
+ * The space holds no Entity of the subject: what an erasure takes out of the broker and the
+ * conversations is T-4668's own evidence on dev. Names are `t4668-…-HHMM`;
  * `afterAll` removes the space and the model again.
  */
 import { expect, test } from "@playwright/test";

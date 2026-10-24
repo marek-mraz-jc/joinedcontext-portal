@@ -49,7 +49,6 @@ const STATUS = {
           format: "CSV",
         },
       ],
-      datastore: { representation: "csv", refresh: "onChange" },
     },
     {
       endpoint: "hluk-public",
@@ -88,7 +87,7 @@ const ACTIVITY = {
       kind: "catalogue.published",
       source: "ckan",
       severity: "info",
-      summary: "Endpoint ovzdusie-public is dataset kvalita-ovzdusia, sheet of 12 rows.",
+      summary: "Endpoint ovzdusie-public is dataset kvalita-ovzdusia.",
       details: { dataset: "kvalita-ovzdusia", object: "endpoints/ovzdusie-public" },
     },
     {
@@ -190,7 +189,8 @@ describe("ckan publishing manager", () => {
       "href",
       `https://bb.example.com/api/endpoint/${SLUG}/file.csv`,
     );
-    expect(within(entry).getByText(/DataStore mirror from CSV/)).toBeInTheDocument();
+    // CKAN holds no rows (T-5060): the entry names no sheet.
+    expect(within(entry).queryByText(/DataStore|sheet/i)).not.toBeInTheDocument();
     expect(within(entry).getByText("published to open-data")).toBeInTheDocument();
   });
 
@@ -201,22 +201,12 @@ describe("ckan publishing manager", () => {
     expect(within(entry).getByText(/^Live$/i)).toBeInTheDocument();
     // The newest event of that endpoint, not the older failure before it.
     expect(await within(entry).findByTestId("ckan-last-run")).toHaveTextContent(
-      /^Last change .*: Endpoint ovzdusie-public is dataset kvalita-ovzdusia, sheet of 12 rows\.$/,
+      /^Last change .*: Endpoint ovzdusie-public is dataset kvalita-ovzdusia\.$/,
     );
     const missing = (await screen.findByText("hluk-public")).closest("li") as HTMLElement;
     const failed = await within(missing).findByTestId("ckan-last-run");
     expect(failed).toHaveTextContent(/^Last run failed .*no CkanInstance 'gone' in this project\. Fix the cause, then publish again\.$/);
     expect(failed).toHaveClass("text-danger");
-  });
-
-  it("says how the DataStore mirror is kept in words, not the manifest's values (T-2756)", async () => {
-    renderCkan();
-    const sentence = i18n.t("ckan.publications.datastore", {
-      representation: en.endpoints.representationOption.csv,
-      refresh: en.ckan.publications.refreshed.onChange,
-    });
-    expect(await screen.findByText(sentence)).toBeInTheDocument();
-    expect(screen.queryByText(/onChange|onReconcile/)).not.toBeInTheDocument();
   });
 
   it("says which endpoint points at a catalogue that is not there", async () => {

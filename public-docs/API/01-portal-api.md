@@ -889,9 +889,10 @@ One item per pipeline the caller approves, by name:
 ] }
 ```
 
-- A run fails when it sent nothing and its log holds failed or rejected lines. `state` is `failing` when the newest run failed, `drift` when it sent 20 % or less of the median of the runs in the 7 days before it, `empty` when it sent nothing and reported nothing, `never` with no run kept, and `ok` otherwise.
+- A run fails when it sent nothing and its log holds failed or rejected lines. `state` is `failing` when the newest run failed or the error ratio is above 5 %, `drift` when it sent 20 % or less of the median of the runs in the 7 days before it, `empty` when it sent nothing and reported nothing, `never` with no run kept, and `ok` otherwise.
 - `lastError` is the newest failed or rejected line of the log, masked as the log is (§7c) and with the query and fragment cut from every URL in it.
-- `alert` is `true` after 3 failed runs in a row, or on a drop. The Portal's alert check reads the same health once an hour: 3 failed runs open a `failure` incident and a drop a `zero` incident (§37), so a person who follows the pipeline, its space or its type is told once.
+- `errors` (T-5291) counts the runs that ended within 1 h of the newest one and sent at least one record: `errors` failed and rejected records, `records` every record they took (sent, failed and rejected), `percent` the share with one decimal, e.g. `{ "errors": 13, "records": 120, "percent": 10.8 }`. It is absent when those runs took no record. A run that sent nothing counts toward the failed-run streak, not here.
+- `alert` is `true` after 3 failed runs in a row, on a drop, or when `errors` is above 5 % of `records`. The Portal's alert check reads the same health once an hour: 3 failed runs or an error ratio above 5 % open a `failure` incident and a drop a `zero` incident (§37), so a person who follows the pipeline, its space or its type is told once. The same read sets the Portal metric `jc_pipeline_error_ratio{project,pipeline}` (0 to 1), which the monitoring alert `PipelineErrorRatio` reads.
 - `links` is the newest weekly link check (T-5133), absent before the first: `checked` links asked, `answered` with 2xx or 3xx, `skipped` not asked, `deadCount` links that failed 2 checks in a row and `dead` the first 5 of them (`url` with `status`, or `error` when the host did not answer), and `checkedAt`. The share `answered / checked` is the T-5081 measure (95 % or more).
 - The link check runs on the leader once every 7 days. It reads the `url` and `organizer.url` of each pipeline's entities through a public Endpoint of the space it writes, anonymously, so it holds no right a visitor lacks; a space without a public Endpoint is not checked. An entity belongs to the pipeline whose DataSource host is the host of its `source` (else of its `url`). A link is asked only on an inventoried host, the host of a DataSource of the project; an IP address or a cluster-internal name is never asked. Per host: robots.txt first (RFC 9309; a 5xx or no answer skips the site for that run), then 1 request a second, HEAD first and a GET of the first byte when HEAD answers 405 or 501, 10 s per request, up to 5 redirects on an inventoried host; a redirect elsewhere counts as an answer and is not followed. A 4xx, a 5xx or no answer counts as one failure.
 - A caller who approves no pipeline of the project gets `403`; one who may not read the project gets `404`. The Portal's pipelines page shows the answer on its Source health tab, to stewards only, with the dead links and the fix hint "The source moved these pages: update the address in its data source, or ask its publisher."
@@ -1955,8 +1956,7 @@ GET /api/v1/projects/{project}/ckan/status    catalogues, and what each endpoint
       "resources": [
         { "name": "NGSI-LD API", "url": "https://api.{domain}/api/endpoint/{endpointSlug}/ngsi-ld/v1/", "format": "NGSI-LD" },
         { "name": "CSV", "url": "https://api.{domain}/api/endpoint/{endpointSlug}/file.csv", "format": "CSV" }
-      ],
-      "datastore": { "representation": "csv", "refresh": "onChange" }
+      ]
     }
   ]
 }
@@ -2054,7 +2054,6 @@ alternatives, filters combine with AND) and `page` (from 1, twenty datasets a pa
 }
 ```
 
-- `previewUrl` is set on a resource with an active DataStore sheet (§3 of Architecture/21).
 - `endpoint` and `model` are set only when the dataset's `endpoint` extra names an Endpoint of this
   installation whose audience is `public`: the Portal parses the slug out of the extra, finds the
   Endpoint in its mirror and builds the URL on its own host. `docsUrl` is the dataset's Markdown
@@ -2129,20 +2128,19 @@ proposes; it writes nothing. The caller needs `propose` on `Endpoint` in the pro
     "publisher": { "name": { "sk": "Banskobystrický samosprávny kraj" } },
     "contactPoint": { "name": "Open data desk", "email": "opendata@example.org" }
   },
-  "publish": { "ckan": { "instanceRef": { "kind": "CkanInstance", "name": "bbsk" },
-                         "datastore": { "representation": "csv" } } },
+  "publish": { "ckan": { "instanceRef": { "kind": "CkanInstance", "name": "bbsk" } } },
   "missing": ["spatial", "frequency"],
   "attributes": [
     { "type": "KeyPerformanceIndicator", "name": "kpiValue" },
     { "type": "KeyPerformanceIndicator", "name": "reporterEmail", "withheld": "personal" }
-  ],
-  "datastoreAvailable": true
+  ]
 }
 ```
 
 - `catalog` is the drafted `spec.catalog` (EP-78) and `publish` the drafted `spec.publish`
   (EP-62); a block the Endpoint already declares is returned as it is, so re-running the flow
-  never overwrites what a steward wrote. `missing` names the catalogue fields nothing could fill;
+  never overwrites what a steward wrote, less a `datastore` member, which jc-core refuses since
+  T-5060 (EP-65). `missing` names the catalogue fields nothing could fill;
   `spatial`, `temporal` and `frequency` are never drafted.
 - `makesPublic` is `true` when the Endpoint's audience is not `public`: the UI then says so before
   the proposal, and the Change the UI proposes with `spec.audience: public` takes the red lane
@@ -2155,8 +2153,6 @@ proposes; it writes nothing. The caller needs `propose` on `Endpoint` in the pro
   already. The UI never offers a withheld slot, adds every personal one and each slot the person
   leaves out to `projection.hiddenAttributes`, and asks for the Endpoint's name typed back before
   it proposes a public publication (EP-142).
-- `datastoreAvailable` is `true` when the Endpoint serves `csv`, the one representation a DataStore
-  mirror reads (EP-65); a drafted `publish.ckan` then carries `datastore`.
 - `404` for an unknown Endpoint; `409` naming `CkanInstance` when the project has none to publish to.
 
 ## 17. Federation registrations and the graph (MF-36, UI-27, UI-28, EP-71, PF-48)
@@ -3253,10 +3249,21 @@ DELETE /api/v1/projects/{project}/spaces/{space}/views/{id}     delete it → 20
   against a newer view is `409` with the current version, never an overwrite of another window's
   change. Duplicating a view is a `POST` of its settings under a new title; renaming is a `PUT`.
 - A person keeps at most 200 views per space; the 201st is `409` with the limit in the problem.
-- `sort` orders the rows the grid has loaded, and the grid says so; it is not sent to the broker.
-  `group` names an enum attribute: each
-  group's count is the gateway's own `count=true` answer for `q` plus that value, read with the
-  person's session, so the counts narrow as their grants do and are never the page's tally.
+- A grid's `settings` (T-4883, T-5188): `filters`, the filter panel's condition tree; `rowSize`;
+  `aggregations`, the footer's choice per attribute; `groupBy`, at most 3 different attribute
+  names, outermost first (anything else is `422` naming `config.settings.groupBy`).
+- `sort` holds up to 3 keys, sent to the space surface as one `orderBy` (`a;desc,b`, CIM 009 4.23)
+  after the `groupBy` attributes, so the broker orders the whole filtered set and a hidden
+  attribute orders as an absent one. Each group of `groupBy` gets a header in the grid with its
+  count; `group`, kept as the first `groupBy` attribute where that is an enum, adds a row of
+  value buttons above the grid. Every count, a group header's included, is the gateway's own
+  `count=true` answer for `q` plus the group's values, read with the person's session, so the
+  counts narrow as their grants do and are never the page's tally.
+- The footer's minimum, maximum and median of a number and earliest and latest of a date are the
+  rows the space surface returns first for `orderBy=attr` (or `attr;desc`) under `q` plus `attr`,
+  the median at the middle offset (the mean of the two middle values for an even count). A sum,
+  an average and a count of distinct values need an aggregate of current values the broker does
+  not have, and the footer does not offer them.
 
 ## 31. Trash of a space's entities (ADR-N-042 §3.3, T-3107)
 
@@ -3579,6 +3586,16 @@ POST   /api/v1/alerts/notices/{id}/read     mark one read → 204
   daily quality run found its newest entity older than the freshness target, DM-74). One
   subscription per caller and target: a second `PUT` changes it. An unknown key is `422`, an
   unknown scope or event `400`.
+- `scope` `agent` (T-5301) names an agent profile (`target` its name) and is told of its runs in
+  `project`, with the signals of §51 as `events`: `refusalSpike`, `spendShare` and
+  `offHoursWrite`; an agent event under another scope, or a pipeline event under `agent`, is `400`
+  naming `events`. An incident holds while its signal held within the last hour (a run counted
+  while it is live or finished within the hour) and recovers after an hour without it; the notice's
+  `pipeline` member carries the profile's name and its `detail` the count and the run's title.
+  Subscribing needs approve in the project, since the signals count every person's runs (AG-93):
+  `403` naming `project` otherwise, `404` naming `target` for a profile that does not exist. The
+  Activity tab offers the projects from §51 `choices.alertProjects`; the notices list drops an
+  agent notice once the caller no longer approves there.
 - `delivery` is `portal` (a notice when the incident opens and one when it closes) or `digest` (one
   notice a day, after 07:00 UTC, naming the incidents opened in the last day). `email` is refused
   with `400` and its reason while the Portal has no mail relay (T-3261).
@@ -3937,16 +3954,21 @@ GET  /api/v1/projects/{project}/spaces/{space}/move                → 200
   the Portal's and name the administrator who started it. No address or token is part of an
   answer.
 
-## 46. Personal data of a space (DM-124…DM-127)
+## 46. Personal data of a space (DM-124…DM-127, DM-142)
 
-For a space whose model names its data subject ([Architecture/11 §9](../Architecture/11-data-models.md#9-personal-data-in-a-model): a class with the annotation `dataSubjectRef`, the slot that holds the person), an owner of the space (`approve` on its ContextSpace) runs the data subject's rights. The subject's value, the one the class's `dataSubjectRef` slot holds, travels in the request body and never in a URL an access log keeps; the Portal keeps only its keyed hash, an HMAC-SHA256 per project and space. A subject slot ingested as `keyedHash` (DM-121) holds the value's HMAC under the space's `spec.personalData.keyRef`, a key the Portal does not hold yet: until the reconciler mounts it, an export or an erasure on such a space answers `409` and names the slot, never an erasure `done` with no Entities.
+For a space whose model names its data subject ([Architecture/11 §9](../Architecture/11-data-models.md#9-personal-data-in-a-model): a class with the annotation `dataSubjectRef`, the slot that holds the person), an owner of the space (`approve` on its ContextSpace) runs the data subject's rights. The subject's value, the one the class's `dataSubjectRef` slot holds, travels in the request body and never in a URL an access log keeps; the Portal keeps only its keyed hash, an HMAC-SHA256 per project and space. A subject slot ingested as `keyedHash` (DM-121) holds the value's HMAC under the space's `spec.personalData.keyRef`: the Portal searches such a slot for the subject's HMAC-SHA-256 under the same key, the subject's UTF-8 bytes in lowercase hex, which is what the gateway stored. While the Portal holds no key for the space (no `keyRef`, or one that did not resolve to at least 32 bytes at the last sync), an export or an erasure on such a space answers `409` and names the slot, never an erasure `done` with no Entities.
 
 ```text
 POST   /api/v1/projects/{project}/spaces/{space}/subjects/export           { "subject", "reason" } → 200, Cache-Control: no-store
-POST   /api/v1/projects/{project}/spaces/{space}/erasures                  { "subject", "reason" } → 202, Location of the erasure
+GET    /api/v1/projects/{project}/spaces/{space}/erasures                  the space's newest 50 erasures, proposals included → 200 { "items" }
+POST   /api/v1/projects/{project}/spaces/{space}/erasures                  { "subject", "reason" } → 202 `proposed`, Location of the erasure; nothing erased
 POST   /api/v1/projects/{project}/spaces/{space}/erasures?dryRun=All       the same body → 200 { "dryRun": true, "entities", "groups": [{ "class", "entities", "attrs" }] }, nothing erased or logged
 GET    /api/v1/projects/{project}/spaces/{space}/erasures/{id}             its state and counts per store → 200
+POST   /api/v1/projects/{project}/spaces/{space}/erasures/{id}/approve     { "subject" } → 200 `open`, the erasure runs (DM-142)
+POST   /api/v1/projects/{project}/spaces/{space}/erasures/{id}/decline     { "reason" } → 200 `declined`
 ```
+
+An erasure takes four eyes (DM-142). The first owner proposes it with the subject and the reason, and nothing is erased yet: the erasure is `proposed`, with `proposedBy` and the Entities the search found then. Another person with `approve` on the ContextSpace approves it: an owner of the space, or an `org-admin`, so a space with a single owner is never stuck. The proposer approving answers `403 self-approval`, and a bearer token approving or declining answers `403` (AG-133). The approver types the subject again; the Portal compares its keyed hash with the proposal's and answers `422` naming `subject` when they differ, so the log never holds the value and the second person checks the request instead of confirming a click. At approval the Portal searches the space again and erases what it holds then; the erasure becomes `open` with `approvedBy` and `decidedAt`. Either owner, the proposer included, declines a proposal with a reason (`declined`, `400 reason-required` without one). A proposal nobody decided within 7 days reads `expired` and is approved by nobody; the owner proposes it again. Approving or declining an erasure that is no longer `proposed` answers `409` with its state.
 
 Rectification (Art. 16) has no route of its own yet: the corrected value is written through the space's Endpoint like any other write, and its superseded version keeps the old value until a rectification route redacts it.
 
@@ -3959,24 +3981,28 @@ An erasure finds the Entities naming the subject in each such class and erases, 
 | Store | What goes |
 | --- | --- |
 | `broker` | the Attributes from the current state, every version and the dead letters; the broker keeps a content-free record and applies it again when it starts (Antares `POST /q/erasures/{tenant}`) |
-| `ckanDatastore` | the Entities' rows of the DataStore tables the space's published Endpoints mirror, by `entity_id`; the next mirror run writes back what an Entity still holds |
 | `portal` | the Portal's trash and comments of the Entities |
 | `conversations` | every stored assistant conversation that mentions an Entity's URN or, on the first attempt, the subject's own words |
 | `exports`, `caches` | nothing: the platform keeps no export file (`file.csv` is streamed) and no entity cache (every answer is `private`), so both are `done` at once |
+
+The open-data catalogue is no store: CKAN holds no rows since T-5060 (EP-65). An erasure logged before then still lists a `ckanDatastore` part; a pending one is `done` with a count of 0 on its next attempt, because the next publication drops the old table resources and CKAN drops their tables with them.
 
 ```json
 {
   "id": "er-20261019-0a1b2c3d4e5f",
   "state": "open",
   "requestedAt": "2026-10-19T10:00:00Z",
+  "proposedBy": "user:steward",
+  "approvedBy": "user:owner2",
+  "decidedAt": "2026-10-19T11:20:00Z",
   "completedAt": null,
   "entities": 14,
-  "counts": { "broker": 14, "versions": 52, "ckanDatastore": 14, "portal": 2, "conversations": 1, "exports": 0, "caches": 0 },
-  "stores": { "broker": { "state": "done", "count": 14, "versions": 52, "attempts": 1 }, "ckanDatastore": { "state": "pending", "count": 0, "attempts": 1, "error": "CKAN unavailable: …" } }
+  "counts": { "broker": 14, "versions": 52, "portal": 2, "conversations": 1, "exports": 0, "caches": 0 },
+  "stores": { "broker": { "state": "done", "count": 14, "versions": 52, "attempts": 1 }, "conversations": { "state": "pending", "count": 0, "attempts": 1, "error": "the assistant answered 503" } }
 }
 ```
 
-The erasure answers at once and stays `open` until every store reports `done`: a store that does not answer is asked again each minute, the CKAN DataStore at each reconciler run, and after an hour of refusals it is `failed`, which leaves the erasure for a person to read why. The erasure log keeps the subject's keyed hash, the Entities and the counts, never a value, outside the broker's database; when the Portal starts and every hour after, it sends again every erasure whose record a broker no longer holds, after that broker's database was restored from an older backup ([Deployment/07 §5](../Deployment/07-backup-restore.md#5-backups-and-erasure)). Every call is audited with its `reason`; a call without one answers `400` naming `reason-required`.
+An approved erasure answers at once and stays `open` until every store reports `done`: a store that does not answer is asked again each minute, and after an hour of refusals it is `failed`, which leaves the erasure for a person to read why. The erasure log keeps the subject's keyed hash, the Entities and the counts, never a value, outside the broker's database; when the Portal starts and every hour after, it sends again every erasure whose record a broker no longer holds, after that broker's database was restored from an older backup ([Deployment/07 §5](../Deployment/07-backup-restore.md#5-backups-and-erasure)). Every call is audited with its `reason`; a call without one answers `400` naming `reason-required`.
 
 ## 47. MQTT allowance and capture (PF-117…PF-120, MF-62, PL-87, ADR-N-048 §2.9–2.10)
 
@@ -4218,7 +4244,8 @@ GET /api/v1/organization/agents/activity?profile=builder&verdict=refused&limit=2
   parameter, or a malformed value, is `400`.
 - `choices` lists the starters and the Context Spaces of the runs the caller sees for this
   agent or run, whatever the other filters; the Activity tab offers `person` and `space` only
-  from it. A `person` or `space` outside it is `403` naming the field.
+  from it. A `person` or `space` outside it is `403` naming the field. `alertProjects` lists the
+  projects the caller approves in, where they may subscribe to the agent's alerts (§37).
 - Who sees what: the runs of every project the caller reads, their own, or every person's where
   they approve (AG-93); a caller who reads no project gets `403`. The answer reads the 500 newest
   of those runs.
@@ -4356,6 +4383,44 @@ GET  /api/v1/projects/{project}/usage/endpoints/export?month=2026-10 → 200 tex
   project the caller cannot read, or an Endpoint they cannot read, is `404`.
 - Nothing personal is kept: the gateway sends no address, token, person, query or entity id, and
   `endpoint_usage_daily` has no column for one.
+
+## 55. Checking a KPI over several sources (PL-102…PL-105, T-4935)
+
+The KPI editor sends its `joinedcontext.com/v1alpha2` Pipeline draft each time typing rests. The
+answer names every field jc-core refuses, with the units the sources' space models give, and
+says of each source whether the pipeline's account may read it. `preview: true` also computes
+the indicator on each source Endpoint's current page. Nothing is stored or written.
+
+```text
+POST /api/v1/projects/{project}/kpis/check   {pipeline, preview?}   → 200 KpiChecked
+```
+
+```json
+{"problems": [],
+ "sources": [{"name": "parking", "endpoint": "helsinki-parking", "readable": false},
+             {"name": "stops", "endpoint": "helsinki-transit", "readable": true}],
+ "preview": {"values": [{"key": "kallio", "name": "parking-per-stop-kallio", "value": 7.5}],
+             "rows": {"parking": 100, "stops": 40}}}
+```
+
+- `problems` holds `{field, reason}` per refusal: the manifest rules of every Pipeline, then the
+  `kpi` step's (PL-102, PL-103) with each attribute's `unitCode` from the model of the source
+  Endpoint's space. A draft with problems is still `200`; the editor shows each reason beside
+  its field. `preview` is computed only for a draft without problems.
+- A source must name an Endpoint of the same project in a Context Space the caller may read;
+  any other is refused as `no Endpoint '<name>' in project '<project>' that you may read`, the
+  same words as one that does not exist, and is never read.
+- `readable` is true when a Policy grants the account `{project}/pl-{name}` `retrieveOps` on the
+  source's type, or the Endpoint is public. A source it cannot read is asked for with the
+  pipeline access request (§48, PL-90) once the pipeline exists; the run would fail with the
+  source's `403` until then (PL-104).
+- The preview reads at most 100 rows per source through the Endpoint's compiled view, as the
+  person (the anonymous caller on a public Endpoint), the filter preview's way (§40, EP-85):
+  the query is the source's type, `q`, its `attrs` and the join key. `rows` counts what each
+  page held; `problem` says in words why nothing was computed (a division by zero, an average
+  over nothing, a source that did not answer, PL-104).
+- Who may call: a person with `propose` on `Pipeline` in the project; anyone else gets `403`,
+  and so does a workload token, whose reading is its ServiceAccount's grants.
 
 ## Related
 

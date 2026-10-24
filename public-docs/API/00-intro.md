@@ -137,6 +137,16 @@ The platform hosts standard well-known endpoints for automated client and agent 
 - `https://api.{domain}/.well-known/oauth-authorization-server`: RFC 8414 metadata of the gateway's stateless authorization server for anonymous data ([ADR-N-052](../Decisions/adr-n-052-anonymous-oauth-public-mcp.md)).
 - `/api/endpoint/{endpointSlug}/schema/index.json`: the model an endpoint serves — its classes, their slots and the generated JSON Schema. There is no platform-wide `/schema/context.jsonld`; a `@context` belongs to a space's model and is served under its endpoint.
 
+## 6. Server Timing
+
+Every answer of the gateway carries a `Server-Timing` header (W3C Server Timing) with three durations in milliseconds: `pdp`, the gateway's own policy decisions; `broker`, the broker round trips; and `total`, the whole answer inside the gateway. A read through an Endpoint's view is decided by the broker, so its `pdp` is `0` and its decision is inside `broker` (ADR-N-057 sections 4 and 5, T-5042):
+
+```http
+Server-Timing: pdp;dur=0.000, broker;dur=11.420, total;dur=12.910
+```
+
+Anonymous answers carry the header too. It tells a caller how long the gateway and the broker took, which the caller already measures from outside within a few milliseconds; it names no Policy and no rule.
+
 ## Related
 
 - [R5](../Requirements/access-control.md) — referenced above.

@@ -496,7 +496,7 @@ function PublicationOnApproval({ project, file }: { project: string; file: Chang
   const base = live.data ? { metadata: live.data.metadata, spec: live.data.spec } : {};
   const head = applyFields(base as Record<string, unknown>, file.fields ?? []) as {
     metadata?: { name?: string; title?: Texts; description?: Texts };
-    spec?: { catalog?: Record<string, unknown>; publish?: { ckan?: { datastore?: unknown } }; audience?: string };
+    spec?: { catalog?: Record<string, unknown>; audience?: string };
   };
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   return (
@@ -512,7 +512,6 @@ function PublicationOnApproval({ project, file }: { project: string; file: Chang
         title={localized(head.metadata?.title, locale, head.metadata?.name ?? name)}
         description={localized(head.metadata?.description, locale, "")}
         catalog={head.spec?.catalog ?? {}}
-        datastore={head.spec?.publish?.ckan?.datastore !== undefined}
       />
     </div>
   );

@@ -1494,9 +1494,6 @@
       "catalogue": "Catalogue entry",
       "publish": "Publication",
       "openData": "Open data",
-      "datastore": "Data sheet",
-      "sheetFrom": "Sheet built from",
-      "sheetRefresh": "Sheet refresh",
       "catalog": {
         "title": "Catalogue description",
         "publisher": "Publisher",
@@ -1622,10 +1619,6 @@
       "project-list": "Selected projects: only the projects you tick",
       "organization": "Organization: every project of the organization",
       "public": "Public: anyone with the address"
-    },
-    "refreshOption": {
-      "onChange": "When an entity changes",
-      "onReconcile": "On every reconcile"
     },
     "representationOption": {
       "ngsi-ld": "NGSI-LD API",
@@ -4973,14 +4966,9 @@
     "publications": {
       "title": "Published endpoints",
       "empty": "No endpoint in this project publishes to a catalogue.",
-      "datastore": "DataStore mirror from {representation}, {refresh}.",
       "publishedTo": "published to {instance}",
       "missingInstance": "catalogue {instance} is missing",
       "emptyHint": "Press \"Publish a dataset\", pick an endpoint, check its description and propose it. The dataset appears here and in CKAN after the approval.",
-      "refreshed": {
-        "onChange": "refreshed when an entity changes",
-        "onReconcile": "refreshed each time the configuration is applied"
-      },
       "lastChange": "Last change {time}: {summary}",
       "lastFailed": "Last run failed {time}: {summary}. Fix the cause, then publish again.",
       "needsCatalogue": "Add a catalogue above first: a dataset needs a CKAN portal to land in.",
@@ -7718,9 +7706,6 @@
       "de": "Deutsch",
       "cs": "Čeština"
     },
-    "datastoreRepresentation": {
-      "csv": "CSV table"
-    },
     "gtfsFeed": {
       "vehiclePositions": "Vehicle positions",
       "tripUpdates": "Trip updates",
@@ -8052,7 +8037,6 @@
       "resource": "Resource",
       "links": "Links",
       "download": "Download",
-      "preview": "Preview",
       "model": "Data model {name}",
       "modelDocs": "Model documentation",
       "noDescription": "No description in the model.",
@@ -8183,9 +8167,6 @@
         "personal": "Personal data in the model: a public dataset never carries it.",
         "hidden": "The endpoint hides it already. Change the endpoint's hidden attributes to show it."
       },
-      "datastore": "Put the rows into a CKAN table",
-      "datastoreHelp": "CKAN shows them as a table people can filter and query with SQL.",
-      "datastoreUnavailable": "The endpoint does not serve CSV, which the CKAN table is filled from. Enable the CSV representation on the endpoint first.",
       "confirmLabel": "Type the endpoint's name to confirm",
       "confirmHelp": "Publishing makes {name} readable by anyone. Type {name} to confirm.",
       "confirmFirst": "Type {name} above to confirm first.",
@@ -8193,7 +8174,6 @@
       "resources": "Data and resources",
       "columns": "Columns",
       "resource": {
-        "datastore": "Table in CKAN (filter, SQL)",
         "map": "Map of the records with a location",
         "api": "NGSI-LD API and the endpoint's other formats",
         "dcat": "DCAT-AP record (JSON-LD)"

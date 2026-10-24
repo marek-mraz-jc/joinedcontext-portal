@@ -523,19 +523,6 @@ function Publications({
                   </p>
                 );
               })()}
-              {publication.datastore ? (
-                <p className="mt-1 text-sm">
-                  {/* In words: "refreshed onReconcile" was the manifest's value (T-2756). */}
-                  {t("ckan.publications.datastore", {
-                    representation: t(`endpoints.representationOption.${publication.datastore.representation}`, {
-                      defaultValue: publication.datastore.representation,
-                    }),
-                    refresh: t(`ckan.publications.refreshed.${publication.datastore.refresh}`, {
-                      defaultValue: publication.datastore.refresh,
-                    }),
-                  })}
-                </p>
-              ) : null}
               <ul className="mt-2 flex flex-wrap gap-2">
                 {publication.resources.map((resource) => (
                   <li key={resource.url}>
@@ -550,8 +537,8 @@ function Publications({
                     </ExternalLink>
                   </li>
                 ))}
-                {/* The theme draws the map and the DataStore table on the dataset page itself
-                    (T-4639, EP-65), so that page is where both open. */}
+                {/* The theme draws the map and the explorer on the dataset page itself
+                    (T-4639, T-5059), so that page is where both open. */}
                 {publication.datasetUrl ? (
                   <li>
                     <ExternalLink

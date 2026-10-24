@@ -30,7 +30,7 @@ const DRAFT = {
     publisher: { name: { en: "City of Helsinki" } },
     contactPoint: { name: "Open data desk", email: "opendata@hel.fi" },
   },
-  publish: { ckan: { instanceRef: { kind: "CkanInstance", name: "hel-fi" }, datastore: { representation: "csv" } } },
+  publish: { ckan: { instanceRef: { kind: "CkanInstance", name: "hel-fi" } } },
   missing: ["spatial", "temporal", "frequency"],
   attributes: [
     { type: "KeyPerformanceIndicator", name: "kpiValue" },
@@ -38,14 +38,13 @@ const DRAFT = {
     { type: "KeyPerformanceIndicator", name: "calculationMethod" },
     { type: "KeyPerformanceIndicator", name: "reporterEmail", withheld: "personal" },
   ],
-  datastoreAvailable: true,
 };
 
 const CHANGE = {
   apiVersion: V,
   kind: "ChangeProposal",
   metadata: { name: "chg-ckan-1", namespace: "helsinki" },
-  summary: { key: "change.summary.update", params: { kind: "Endpoint", name: "helsinki-kpi", fields: 6 } },
+  summary: { key: "change.summary.update", params: { kind: "Endpoint", name: "helsinki-kpi", fields: 5 } },
   author: { name: "Eva Steward", email: "eva@hel.fi" },
   createdAt: "2026-10-21T08:00:00Z",
   status: { lane: "red", phase: "PendingApproval", plan: { update: 1 } },
@@ -62,7 +61,6 @@ const CHANGE = {
         { path: "spec.catalog.themes[0]", to: "ECON" },
         { path: "spec.catalog.keywords.en[0]", to: "indicator" },
         { path: "spec.publish.ckan.instanceRef.name", to: "hel-fi" },
-        { path: "spec.publish.ckan.datastore.representation", to: "csv" },
         { path: "spec.projection.hiddenAttributes[0]", to: "reporterEmail" },
       ],
     },
@@ -81,7 +79,6 @@ const STATUS = {
       instanceMissing: false,
       dataset: "helsinki-kpi",
       datasetUrl: "https://opendata.dev.joinedcontext.com/dataset/helsinki-kpi",
-      datastore: { representation: "csv", refresh: "onChange" },
       resources: [
         { name: "Table", format: "CSV", url: "https://api.dev.joinedcontext.com/api/endpoint/k7m2/file.csv" },
         { name: "DCAT-AP record", format: "JSON-LD", url: "https://api.dev.joinedcontext.com/api/endpoint/k7m2/" },
@@ -173,7 +170,8 @@ for (const width of [1440, 400]) {
     await page.goto("/projects/helsinki/approvals/chg-ckan-1?lang=en");
     const onApproval = page.getByRole("region", { name: "The CKAN page of helsinki-kpi after the approval" });
     await expect(onApproval.getByRole("heading", { name: "Helsinki city indicators" })).toBeVisible();
-    await expect(onApproval.getByText(/Table in CKAN/)).toBeVisible();
+    await expect(onApproval.getByText(/DCAT-AP record/)).toBeVisible();
+    await expect(onApproval.getByText(/Table in CKAN/)).toHaveCount(0);
     await shoot(page, info, `${width}-3-approval`);
     expect(await axeViolations(page)).toEqual([]);
 

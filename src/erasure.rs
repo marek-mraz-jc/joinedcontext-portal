@@ -14,7 +14,6 @@
 //!
 //! The stores: the broker (current state, every version, dead letters; it keeps its own record
 //! and applies it again after a restore), the Portal's own copies (the trash, the comments), the
-//! CKAN DataStore tables (asked by the reconciler, which holds the catalogue credentials), the
 //! assistant's stored conversations, and the export files and entity caches, which this platform
 //! does not keep: the gateway streams `file.csv` and answers every read `private`.
 
@@ -29,16 +28,12 @@ use sqlx::PgPool;
 use crate::state::AppState;
 
 /// Every store an erasure reaches, in the order a person reads them.
-pub const STORES: [&str; 6] = [
-    "broker",
-    "portal",
-    "ckanDatastore",
-    "conversations",
-    "exports",
-    "caches",
-];
-/// The store the reconciler asks, with the catalogue credentials only it resolves.
-pub const CKAN: &str = "ckanDatastore";
+///
+/// The catalogue keeps no copy since T-5060: CKAN holds no rows, its datasets point at the
+/// Endpoint. An erasure logged before then still lists its catalogue part; a pending one is
+/// done with nothing to erase on the next attempt, since the next publication drops the old
+/// table resources and CKAN drops their tables with them.
+pub const STORES: [&str; 5] = ["broker", "portal", "conversations", "exports", "caches"];
 /// How often a store is asked before it is `failed`: an hour of the minute loop.
 pub const MAX_ATTEMPTS: u32 = 60;
 /// The longest subject value or reason a request carries.
@@ -657,7 +652,7 @@ pub async fn open(pool: &PgPool) -> Result<Vec<Erasure>, sqlx::Error> {
 }
 
 /// Writes one store's part, and the completion once every store is done. One store per
-/// statement, so the reconciler's CKAN pass and the minute loop never overwrite each other.
+/// statement, so two attempts of one erasure never overwrite each other.
 pub async fn save(pool: &PgPool, id: &str, name: &str, store: &Store) -> Result<(), sqlx::Error> {
     sqlx::query(
         "UPDATE erasures SET stores = jsonb_set(stores, ARRAY[$2], $3), \
@@ -676,7 +671,7 @@ pub async fn save(pool: &PgPool, id: &str, name: &str, store: &Store) -> Result<
 
 // --- the stores ----------------------------------------------------------------------------
 
-/// Asks every pending store but the CKAN DataStore once and saves each outcome. `words` is the
+/// Asks every pending store once and saves each outcome. `words` is the
 /// subject's own value, which the log never keeps: given on the first attempt only, so the
 /// stored conversations are searched for it then and for the Entities' URNs on a retry.
 pub async fn attempt(state: &AppState, pool: &PgPool, erasure: &Erasure, words: Option<&str>) {
@@ -685,7 +680,7 @@ pub async fn attempt(state: &AppState, pool: &PgPool, erasure: &Erasure, words: 
         return;
     }
     for (name, store) in &erasure.stores {
-        if store.state != StoreState::Pending || name == CKAN {
+        if store.state != StoreState::Pending {
             continue;
         }
         let outcome = match name.as_str() {
@@ -786,54 +781,6 @@ async fn conversations(
         }
     }
     Ok(gone)
-}
-
-/// The CKAN DataStore part of every open erasure, with the reconciler's catalogue: the rows of
-/// the space's mirrored tables whose `entity_id` is one of the erasure's Entities. The next
-/// mirror run writes back what an Entity still holds after the broker erased its personal
-/// Attributes, so a whole row going is the erasure, not a loss.
-pub(crate) async fn ckan_pass(
-    pool: &PgPool,
-    catalogue: &crate::reconciler::ckan::CkanSync,
-    (repo, repository): (&jcctl::loader::Repository, &std::path::Path),
-) {
-    let open = match open(pool).await {
-        Ok(open) => open,
-        Err(err) => {
-            tracing::warn!(error = %err, "the open erasures could not be read");
-            return;
-        }
-    };
-    for erasure in open {
-        let Some(store) = erasure
-            .stores
-            .get(CKAN)
-            .filter(|s| s.state == StoreState::Pending)
-        else {
-            continue;
-        };
-        let urns = erasure.urns();
-        let outcome = if urns.is_empty() {
-            Ok(0)
-        } else {
-            catalogue
-                .erase_rows(repo, repository, (&erasure.project, &erasure.space), &urns)
-                .await
-        };
-        if let Err(reason) = &outcome {
-            tracing::warn!(erasure = %erasure.id, %reason, "the CKAN DataStore rows were not erased; asked again next run");
-        }
-        if let Err(err) = save(
-            pool,
-            &erasure.id,
-            CKAN,
-            &store.after(outcome.map(|n| (n, None))),
-        )
-        .await
-        {
-            tracing::warn!(erasure = %erasure.id, error = %err, "an erasure's outcome was not saved");
-        }
-    }
 }
 
 /// Whether the broker's `records` hold the erasure of `group` for `subject`: one record of the
@@ -972,6 +919,9 @@ mod tests {
         assert!(is_id(&erasure.id), "{}", erasure.id);
         assert_eq!(erasure.reason, "Art. 17");
         assert_eq!(erasure.stores["exports"].state, StoreState::Done);
+        // T-5060: the catalogue holds no rows, so a new erasure has no catalogue part.
+        assert_eq!(erasure.stores.len(), STORES.len());
+        assert!(!erasure.stores.keys().any(|k| k.starts_with("ckan")));
         assert_eq!(
             erasure.state(),
             "proposed",

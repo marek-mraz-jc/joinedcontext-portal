@@ -24,7 +24,7 @@ use crate::api::changes::{
     ChangeAuthor, ChangeDecision, ChangeList, ChangeProposal, ChangeSummary, OutsideMergeRequest,
 };
 use crate::api::ckan::{
-    CkanStatus, DataStoreStatus, InstanceSummary, PublicationStatus, ResourceLink,
+    CkanStatus, InstanceSummary, PublicationStatus, ResourceLink,
 };
 use crate::api::datamodels::{
     CatalogueEntry, ModelChange as DatamodelChange, OrganizationModel, OrganizationModels,
@@ -524,7 +524,6 @@ use crate::tools::model_tools::{
         InstanceSummary,
         PublicationStatus,
         ResourceLink,
-        DataStoreStatus,
         FederationGraph,
         Node,
         NodeHealth,

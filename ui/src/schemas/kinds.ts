@@ -263,29 +263,6 @@ export function endpointSchema(
                 pattern: DNS1123,
                 maxLength: 63,
               },
-              datastore: {
-                type: "object",
-                title: t("endpoints.field.datastore"),
-                properties: {
-                  // No default: a sheet is a full copy of the rows inside the catalogue, so it
-                  // exists when a person chose the representation it is read through and not
-                  // because a default filled itself in (EP-65).
-                  representation: {
-                    type: "string",
-                    title: t("endpoints.field.sheetFrom"),
-                    ...words(t, "choice.datastoreRepresentation", DATASTORE_REPRESENTATIONS),
-                  },
-                  refresh: {
-                    type: "string",
-                    title: t("endpoints.field.sheetRefresh"),
-                    oneOf: DATASTORE_REFRESH.map((refresh) => ({
-                      const: refresh,
-                      title: t(`endpoints.refreshOption.${refresh}`),
-                    })),
-                    default: "onChange",
-                  },
-                },
-              },
             },
           },
         },
@@ -371,20 +348,6 @@ function catalogSchema(t: (key: string) => string, pipelines: string[] = []): Js
     },
   };
 }
-
-/**
- * The representations a DataStore sheet can be filled from (EP-65).
- *
- * `csv` alone: the publisher reads the tabular file and refuses `xlsx` and `file` with the fix
- * named, because a spreadsheet is a binary the gateway builds and the JSON file is not a tabular
- * projection (`crates/jcctl/src/commands/publish_ckan.rs`). The manifest validator admits all
- * three, so offering the two that fail would be a form that writes a manifest the publisher stops
- * on.
- */
-export const DATASTORE_REPRESENTATIONS = ["csv"] as const;
-
-/** How the sheet is kept current (EP-65): by the endpoint's subscription, or on every tick. */
-export const DATASTORE_REFRESH = ["onChange", "onReconcile"] as const;
 
 /** A CKAN organization slug: lowercase letters, digits and hyphens, as CKAN itself accepts. */
 export const CKAN_ORGANIZATION = "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$";

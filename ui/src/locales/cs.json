@@ -1494,9 +1494,6 @@
       "catalogue": "Záznam v katalogu",
       "publish": "Publikování",
       "openData": "Otevřená data",
-      "datastore": "Tabulka dat",
-      "sheetFrom": "Tabulka se čte z",
-      "sheetRefresh": "Obnova tabulky",
       "catalog": {
         "title": "Popis v katalogu",
         "publisher": "Vydavatel",
@@ -1622,10 +1619,6 @@
       "project-list": "Vybrané projekty: pouze projekty, které označíte",
       "organization": "Organizace: každý projekt organizace",
       "public": "Veřejné: kdokoli s adresou"
-    },
-    "refreshOption": {
-      "onChange": "Když se entita změní",
-      "onReconcile": "Při každé rekonciliaci"
     },
     "representationOption": {
       "ngsi-ld": "NGSI-LD rozhraní",
@@ -4973,14 +4966,9 @@
     "publications": {
       "title": "Publikované endpointy",
       "empty": "Žádný endpoint tohoto projektu nepublikuje do katalogu.",
-      "datastore": "Kopie řádků v DataStore z {representation}, {refresh}.",
       "publishedTo": "publikováno do {instance}",
       "missingInstance": "katalog {instance} chybí",
       "emptyHint": "Stiskněte „Zveřejnit datovou sadu“, vyberte endpoint, zkontrolujte jeho popis a navrhněte ho. Dataset se zde a v CKAN objeví po schválení.",
-      "refreshed": {
-        "onChange": "obnovovaná při změně entity",
-        "onReconcile": "obnovovaná při každém použití konfigurace"
-      },
       "lastChange": "Poslední změna {time}: {summary}",
       "lastFailed": "Poslední běh selhal {time}: {summary}. Odstraňte příčinu a zveřejněte znovu.",
       "needsCatalogue": "Nejprve výše přidejte katalog: dataset potřebuje portál CKAN, kam se zveřejní.",
@@ -7718,9 +7706,6 @@
       "de": "Deutsch",
       "cs": "Čeština"
     },
-    "datastoreRepresentation": {
-      "csv": "Tabulka CSV"
-    },
     "gtfsFeed": {
       "vehiclePositions": "Polohy vozidel",
       "tripUpdates": "Změny spojů",
@@ -8052,7 +8037,6 @@
       "resource": "Zdroj",
       "links": "Odkazy",
       "download": "Stáhnout",
-      "preview": "Náhled",
       "model": "Datový model {name}",
       "modelDocs": "Dokumentace modelu",
       "noDescription": "Model neuvádí popis.",
@@ -8183,9 +8167,6 @@
         "personal": "V modelu jde o osobní údaje: veřejná datová sada je nikdy nenese.",
         "hidden": "Endpoint ho už skrývá. Chcete-li ho ukázat, změňte skryté atributy endpointu."
       },
-      "datastore": "Vložit řádky do tabulky v CKAN",
-      "datastoreHelp": "CKAN je ukáže jako tabulku, kterou lze filtrovat a dotazovat přes SQL.",
-      "datastoreUnavailable": "Endpoint neposkytuje CSV, ze kterého se tabulka v CKAN plní. Nejprve na endpointu zapněte reprezentaci CSV.",
       "confirmLabel": "Pro potvrzení napište název endpointu",
       "confirmHelp": "Zveřejnění zpřístupní {name} komukoli. Pro potvrzení napište {name}.",
       "confirmFirst": "Nejprve potvrďte napsáním {name} výše.",
@@ -8193,7 +8174,6 @@
       "resources": "Data a zdroje",
       "columns": "Sloupce",
       "resource": {
-        "datastore": "Tabulka v CKAN (filtr, SQL)",
         "map": "Mapa záznamů s polohou",
         "api": "NGSI-LD API a další formáty endpointu",
         "dcat": "Záznam DCAT-AP (JSON-LD)"

@@ -12,13 +12,13 @@ use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use jcctl::commands::publish_ckan::{Rows, Target};
+use jcctl::commands::publish_ckan::{Models, Target};
 use jcctl::loader::{RawManifest, RawMetadata, ResourceId};
 use jcctl::publish::ckan::{InMemoryCkan, Outcome, Settings};
 use joinedcontext_portal::reconciler::ckan::{
-    fingerprint, publish_with, publish_without_rows, sweep_with, withdrawn, CkanSync,
+    fingerprint, publish_with, publish_without_models, sweep_with, withdrawn, CkanSync,
     Organizations, Paced, Pacing, Publication, Report, CALL_GAP, MOST_BACKOFF, RECORD_READS,
-    REFRESH, ROWS_READS,
+    MODELS_READS, REFRESH,
 };
 use joinedcontext_portal::resource::ResourceEnvelope;
 use joinedcontext_portal::store::Mirror;
@@ -67,11 +67,11 @@ fn endpoint(name: &str, audience: &str, publish: Option<Value>) -> Value {
     spec
 }
 
-/// The `publish.ckan` block of an Endpoint that also mirrors its rows.
-fn with_sheet() -> Value {
+/// The `publish.ckan` block of an Endpoint that also names its licence.
+fn licensed() -> Value {
     json!({
         "instanceRef": { "kind": "CkanInstance", "name": "hel-fi" },
-        "datastore": { "representation": "csv", "refresh": "onReconcile" },
+        "license": "cc-by",
     })
 }
 
@@ -124,42 +124,35 @@ fn record() -> Value {
 }
 
 /// A tabular answer of two stations, as the CSV representation serves it.
-const ROWS: &str = "id,type,name,available\nurn:ngsi-ld:BikeStation:hel.fi:bikes:1,BikeStation,Rautatientori,12\nurn:ngsi-ld:BikeStation:hel.fi:bikes:2,BikeStation,Kamppi,4\n";
-
-/// The gateway's answer for a sheet: `csv`, and no model schema or LinkML (T-3012, T-4672).
-fn answer(csv: &str) -> Rows {
-    Rows {
-        csv: csv.to_owned(),
-        schema: None,
+/// The models the gateway answers: a schema without classes and no LinkML (T-4672).
+fn models() -> Models {
+    Models {
+        schema: json!({}),
         linkml: None,
     }
 }
 
 #[test]
-fn an_endpoint_becomes_a_dataset_with_the_sheet_it_declares() {
+fn an_endpoint_becomes_a_dataset() {
     let mut api = InMemoryCkan::new().with_token(TOKEN);
-    let target = target("helsinki-bikes", "public", with_sheet());
+    let target = target("helsinki-bikes", "public", licensed());
 
     let published = publish_with(
         &mut api,
         &target,
         &record(),
-        Some(&answer(ROWS)),
+        Some(&models()),
         &settings(),
     )
     .expect("the endpoint publishes");
     let Publication::Published {
-        dataset,
-        outcome,
-        rows,
-        ..
+        dataset, outcome, ..
     } = published
     else {
         panic!("a publication, got {published:?}");
     };
     assert_eq!(dataset, "helsinki-bikes");
     assert_eq!(outcome, Outcome::Created);
-    assert_eq!(rows, Some(2));
 
     let package = api.package("helsinki-bikes").expect("the dataset");
     assert_eq!(package["title"], "Helsinki city bike stations");
@@ -203,7 +196,6 @@ fn a_second_run_over_an_unchanged_endpoint_writes_nothing() {
         Publication::Published {
             dataset: "helsinki-bikes".to_owned(),
             outcome: Outcome::Unchanged,
-            rows: None,
             no_linkml: false,
         }
     );
@@ -211,51 +203,15 @@ fn a_second_run_over_an_unchanged_endpoint_writes_nothing() {
 }
 
 #[test]
-fn the_sheet_follows_the_endpoints_answer_when_an_entity_is_gone() {
-    // EP-65: the rows are the endpoint's answer, so an entity the endpoint no longer answers for
-    // loses its row. This is what makes a deletion propagate into the catalogue instead of leaving
-    // a public copy behind.
-    let mut api = InMemoryCkan::new()
-        .with_organization("hel-fi")
-        .with_token(TOKEN);
-    let target = target("helsinki-bikes", "public", with_sheet());
-    publish_with(
-        &mut api,
-        &target,
-        &record(),
-        Some(&answer(ROWS)),
-        &settings(),
-    )
-    .expect("the first run");
-
-    let fewer =
-        "id,type,name,available\nurn:ngsi-ld:BikeStation:hel.fi:bikes:2,BikeStation,Kamppi,4\n";
-    let second = publish_with(
-        &mut api,
-        &target,
-        &record(),
-        Some(&answer(fewer)),
-        &settings(),
-    )
-    .expect("the second run");
-    let Publication::Published { rows, .. } = second else {
-        panic!("a publication");
-    };
-    // Two rows became one: the deletion arrives in the catalogue rather than leaving a stale
-    // public copy of the station that is gone.
-    assert_eq!(rows, Some(1));
-}
-
-#[test]
 fn the_token_is_in_nothing_a_run_writes_or_reports() {
     // EP-67: the token travels in the Authorization header of the transport and nowhere else.
     let mut api = InMemoryCkan::new().with_token(TOKEN);
-    let target = target("helsinki-bikes", "public", with_sheet());
+    let target = target("helsinki-bikes", "public", licensed());
     let published = publish_with(
         &mut api,
         &target,
         &record(),
-        Some(&answer(ROWS)),
+        Some(&models()),
         &settings(),
     )
     .expect("it publishes");
@@ -293,7 +249,7 @@ fn a_withdrawn_publication_and_a_deleted_endpoint_both_lose_their_dataset() {
     previous.upsert(envelope(
         "Endpoint",
         "block-withdrawn",
-        endpoint("block-withdrawn", "public", Some(with_sheet())),
+        endpoint("block-withdrawn", "public", Some(licensed())),
     ));
     previous.upsert(envelope(
         "Endpoint",
@@ -345,19 +301,17 @@ fn an_endpoint_whose_catalogue_is_also_gone_is_left_alone() {
 
 #[test]
 fn withdrawing_removes_the_dataset_and_can_be_repeated() {
-    // CC-19 through the publisher's explicit-deletion path. Dropping the sheet first needs the
-    // resource id CKAN assigns to it, which the in-memory catalogue does not hand back; that half
-    // is `jcctl`'s own `ckan_datastore` test. What matters here is that the wave's withdrawal
-    // removes the record and that a repeat after a partial failure is not an error.
+    // CC-19 through the publisher's explicit-deletion path: the wave's withdrawal removes the
+    // record, and a repeat after a partial failure is not an error.
     let mut api = InMemoryCkan::new()
         .with_organization("hel-fi")
         .with_token(TOKEN);
-    let target = target("helsinki-bikes", "public", with_sheet());
+    let target = target("helsinki-bikes", "public", licensed());
     publish_with(
         &mut api,
         &target,
         &record(),
-        Some(&answer(ROWS)),
+        Some(&models()),
         &settings(),
     )
     .expect("it publishes");
@@ -617,52 +571,29 @@ fn an_endpoint_gaining_websocket_updates_its_dataset_with_the_ws_resource() {
     );
 }
 
-/// T-4065: rows that do not read (the gateway timing out on a whole Endpoint's CSV) no longer
-/// keep the dataset at its old resources: it is updated, the sheet keeps what it holds, and the
-/// run fails naming the reason and never the token.
+/// T-4065: models that do not read (the gateway timing out) never keep the dataset at its old
+/// resources: it is updated, and the run fails naming the reason and never the token.
 #[test]
-fn rows_that_do_not_read_still_bring_the_dataset_to_its_record() {
+fn models_that_do_not_read_still_bring_the_dataset_to_its_record() {
     let mut api = InMemoryCkan::new()
         .with_organization("hel-fi")
         .with_token(TOKEN);
-    let mut target = target("helsinki-transport", "public", with_sheet());
-    publish_with(
-        &mut api,
-        &target,
-        &record(),
-        Some(&answer(ROWS)),
-        &settings(),
-    )
-    .expect("first run");
-    let sheet = api.package("helsinki-transport").expect("the dataset")["resources"]
-        .as_array()
-        .expect("resources")
-        .iter()
-        .filter(|resource| resource["url_type"] == "datastore")
-        .count();
-    assert!(sheet > 0, "the first run made a sheet");
+    let mut target = target("helsinki-transport", "public", licensed());
+    publish_with(&mut api, &target, &record(), Some(&models()), &settings()).expect("first run");
 
     target.manifest.spec["enabledRepresentations"] = json!(["ngsi-ld", "csv", "websocket"]);
-    let unread = "the gateway did not answer file.csv: operation timed out";
-    let failed = publish_without_rows(&mut api, &target, &record(), unread, &settings())
-        .expect_err("the sheet was not refreshed");
+    let unread = "the gateway did not answer model.schema.json: operation timed out";
+    let failed = publish_without_models(&mut api, &target, &record(), unread, &settings())
+        .expect_err("the charts were not refreshed");
     assert_eq!(
         failed,
-        format!("the dataset is updated, its sheet was not refreshed: {unread}")
+        format!("the dataset is updated, its charts were not refreshed: {unread}")
     );
     let package = api.package("helsinki-transport").expect("the dataset");
     let resources = package["resources"].as_array().expect("resources");
     assert!(resources
         .iter()
         .any(|r| r["url"].as_str().is_some_and(|url| url.ends_with("/ws"))));
-    assert_eq!(
-        resources
-            .iter()
-            .filter(|r| r["url_type"] == "datastore")
-            .count(),
-        sheet,
-        "the sheet is kept"
-    );
     assert!(!failed.contains(TOKEN));
 }
 
@@ -680,7 +611,6 @@ fn the_log_says_an_outcome_once_per_change_and_every_write() {
         report(Publication::Published {
             dataset: "helsinki-transport".to_owned(),
             outcome,
-            rows: None,
             no_linkml: false,
         })
     };
@@ -871,7 +801,6 @@ fn published_now() -> Publication {
     Publication::Published {
         dataset: "air".to_owned(),
         outcome: Outcome::Unchanged,
-        rows: None,
         no_linkml: false,
     }
 }
@@ -891,7 +820,7 @@ fn an_unchanged_endpoint_is_published_again_only_after_the_refresh() {
 #[test]
 fn a_changed_endpoint_is_due_at_once() {
     let before = fingerprint(&target("air", "public", dataset_only()), &settings());
-    let after = fingerprint(&target("air", "public", with_sheet()), &settings());
+    let after = fingerprint(&target("air", "public", licensed()), &settings());
     assert_ne!(before, after);
     assert_eq!(
         before,
@@ -982,8 +911,8 @@ fn calls_to_the_catalogue_keep_the_gap_across_every_client_of_one_portal() {
 
 #[test]
 fn the_gateway_reads_of_each_publication_keep_the_catalogues_pace() {
-    // T-4717: prod's edge saw the publisher at 25 requests a second, all from the record, `/ws`,
-    // file.csv and schema reads, which went out beside the paced catalogue calls.
+    // T-4717: prod's edge saw the publisher at 25 requests a second, all from the record, `/ws`
+    // and schema reads, which went out beside the paced catalogue calls.
     use jcctl::publish::ckan::CkanApi;
     let gap = Duration::from_millis(30);
     let calls = Arc::new(Mutex::new(Vec::new()));
@@ -993,7 +922,7 @@ fn the_gateway_reads_of_each_publication_keep_the_catalogues_pace() {
     let endpoints = 3;
     for _ in 0..endpoints {
         api.reads(RECORD_READS, read);
-        api.reads(ROWS_READS, read);
+        api.reads(MODELS_READS, read);
     }
     // The next Endpoint's catalogue call, on a client of its own, waits for every read before it.
     Paced::new(Clocked(calls.clone()), last, gap)
@@ -1001,19 +930,19 @@ fn the_gateway_reads_of_each_publication_keep_the_catalogues_pace() {
         .expect("show");
     let at = calls.lock().expect("calls").clone();
     assert_eq!(at.len(), 2 * endpoints + 1);
-    let held = gap * (RECORD_READS + ROWS_READS) * endpoints as u32;
+    let held = gap * (RECORD_READS + MODELS_READS) * endpoints as u32;
     assert!(
         at[at.len() - 1] - at[0] >= held,
         "{:?} < {held:?}",
         at[at.len() - 1] - at[0]
     );
     assert_eq!(
-        (RECORD_READS, ROWS_READS),
-        (2, 3),
-        "/, /ws; file.csv and two schemas"
+        (RECORD_READS, MODELS_READS),
+        (2, 2),
+        "/, /ws; the two schemas"
     );
 
-    // An Endpoint without a sheet reads no rows: nothing to wait for.
+    // A read of nothing waits for nothing.
     let before = Instant::now();
     api.reads(0, || ());
     assert!(before.elapsed() < gap);

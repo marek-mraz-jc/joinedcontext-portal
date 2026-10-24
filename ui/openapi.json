@@ -15407,7 +15407,7 @@
           "spaces"
         ],
         "summary": "Propose a Data Subject's Erasure",
-        "description": "Proposes erasing the data subject from the space: once another person with `approve` on the ContextSpace approves it (DM-142), the personal Attributes (or the whole Entity of a personal class) of every Entity naming it go from the broker's current state and every version, the CKAN DataStore copy, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers with the proposal, `proposed` and nothing erased, which expires after 7 days; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.",
+        "description": "Proposes erasing the data subject from the space: once another person with `approve` on the ContextSpace approves it (DM-142), the personal Attributes (or the whole Entity of a personal class) of every Entity naming it go from the broker's current state and every version, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers with the proposal, `proposed` and nothing erased, which expires after 7 days; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.",
         "operationId": "erase_subject",
         "parameters": [
           {
@@ -22512,8 +22512,7 @@
           "catalog",
           "publish",
           "missing",
-          "attributes",
-          "datastoreAvailable"
+          "attributes"
         ],
         "properties": {
           "attributes": {
@@ -22526,10 +22525,6 @@
           "catalog": {
             "type": "object",
             "description": "The drafted `spec.catalog` (EP-78), or the one the Endpoint already declares."
-          },
-          "datastoreAvailable": {
-            "type": "boolean",
-            "description": "The Endpoint serves `csv`, so its rows can be mirrored into the CKAN DataStore (EP-65)."
           },
           "endpoint": {
             "type": "string"
@@ -22894,13 +22889,6 @@
           },
           "name": {
             "type": "string"
-          },
-          "previewUrl": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The DataStore preview, on a resource with an active sheet (EP-65)."
           },
           "url": {
             "type": "string"
@@ -24121,24 +24109,6 @@
           }
         ],
         "description": "The ticket, handed to the workspace and to nobody else. It is in the create answer because\nthe caller is the Portal's own UI in the one deployment that has no cluster to schedule in;\nin a cluster the Job env is the only carrier and this field is absent."
-      },
-      "DataStoreStatus": {
-        "type": "object",
-        "description": "The declared row mirror.",
-        "required": [
-          "representation",
-          "refresh"
-        ],
-        "properties": {
-          "refresh": {
-            "type": "string",
-            "description": "How the mirror is kept current."
-          },
-          "representation": {
-            "type": "string",
-            "description": "The tabular representation the rows are read through."
-          }
-        }
       },
       "DataView": {
         "type": "object",
@@ -29569,17 +29539,6 @@
               "null"
             ],
             "description": "Where the dataset is in the catalogue, once it is published."
-          },
-          "datastore": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/DataStoreStatus",
-                "description": "The row mirror, when the endpoint asks for one (EP-65)."
-              }
-            ]
           },
           "endpoint": {
             "type": "string",
