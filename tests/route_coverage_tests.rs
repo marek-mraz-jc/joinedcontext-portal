@@ -82,6 +82,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/organization/costs", "a summary for the Costs page: the operator's price table split by the space bytes and assistant spend the Portal already reads; it writes nothing (T-5126)"),
 ("GET", "/organization/costs/export", "the Costs page's month as a CSV download; it writes nothing (T-5126)"),
 ("GET", "/organization/brokers", "a summary for the Brokers page: each broker's health and the counts of the spaces jc_resource_get already reaches; it writes nothing (T-3990, API/01 §43)"),
+("GET", "/projects/{project}/mqttbrokers/{name}/bindings", "a join for the broker card of the DataSource, Pipeline and Endpoint manifests jc_resource_get already reaches, each hop as the caller may read it; it writes nothing (T-5533, API/01 §47)"),
 ("GET", "/projects/{project}/mqtt/allowance", "a sum for the MQTT page of the Organization and Project manifests and the MqttBrokers jc_resource_get already reaches; it writes nothing (T-4859, API/01 §47)"),
 ("GET", "/projects/{project}/mqttbrokers/{name}/devices", "the Add device form's role and topic options for the brokers page; it writes nothing and an agent reads the broker with jc_resource_get (T-5532)"),
 ("POST", "/projects/{project}/mqttbrokers/{name}/devices", "a person adds a device whose key pair the browser made; an agent proposes the ServiceAccount and the MqttBroker with jc_resource_propose (T-5532)"),

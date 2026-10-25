@@ -9501,6 +9501,41 @@
         "kidTwice": "Dva klíče mají stejný kid: dejte každému vlastní.",
         "notGenerated": "Pár klíčů zatím není. Nejprve zvolte Vytvořit pár klíčů."
       }
+    },
+    "topics": {
+      "title": "Témata",
+      "caption": "Které téma brokeru {broker} plní který atribut",
+      "filter": "Filtr tématu",
+      "via": "Zdroj dat a pipeline",
+      "type": "Typ",
+      "attributes": "Atributy",
+      "endpoint": "Endpoint",
+      "last": "Poslední zpráva",
+      "hidden": "{kind}, který nemůžete číst",
+      "noPipeline": "Zatím jej nečte žádná pipeline",
+      "byHand": "Mapováno v kódu; otevřete pipeline",
+      "mapped": "{from} → {to}",
+      "computed": "{to} (vypočteno)",
+      "empty": "Zatím není navázáno žádné téma",
+      "emptyHint": "Přidejte MQTT zdroj dat, který má jako broker platformy {broker}, s filtrem tématu například devices/+/data, a potom pipeline, která jej čte.",
+      "errorTitle": "Témata se nepodařilo načíst",
+      "error": "Zkuste to znovu za minutu."
+    },
+    "captured": {
+      "title": "Zachycené zprávy",
+      "hint": "Nejnovější zprávy, které tento broker uchoval, od nejnovější. Vidí je jen lidé, kteří smějí schvalovat MQTT brokery.",
+      "off": "{broker} zprávy neuchovává. Nastavte, co broker dělá, na zachytávání a nejnovější zprávy uvidíte zde.",
+      "empty": "Zatím není uchována žádná zpráva",
+      "emptyHint": "Zprávy, které zařízení publikuje do {broker}, se zde objeví během několika sekund.",
+      "clear": "Smazat zachycené zprávy",
+      "clearFailed": "Zachycené zprávy se nesmazaly. Zkuste to znovu za minutu.",
+      "confirmTitle": "Smazat všechny zachycené zprávy brokeru {broker}?",
+      "confirmText": "Uchované zprávy zmizí hned a nelze je obnovit; smazání se zapíše do protokolu aktivit. Nové zprávy se budou uchovávat, jak přijdou.",
+      "bytes": "{count, plural, one {# bajt} few {# bajty} other {# bajtů}}",
+      "payload": "Obsah zprávy {topic}",
+      "truncated": "Uchováno je více zpráv, než je zde zobrazeno.",
+      "errorTitle": "Zachycené zprávy se nepodařilo načíst",
+      "error": "Zkuste to znovu za minutu."
     }
   },
   "connect": {

@@ -9501,6 +9501,41 @@
         "kidTwice": "Dva kľúče majú rovnaký kid: dajte každému vlastný.",
         "notGenerated": "Pár kľúčov zatiaľ nie je. Najprv zvoľte Vytvoriť pár kľúčov."
       }
+    },
+    "topics": {
+      "title": "Témy",
+      "caption": "Ktorá téma brokera {broker} plní ktorý atribút",
+      "filter": "Filter témy",
+      "via": "Zdroj údajov a pipeline",
+      "type": "Typ",
+      "attributes": "Atribúty",
+      "endpoint": "Endpoint",
+      "last": "Posledná správa",
+      "hidden": "{kind}, ktorý nemôžete čítať",
+      "noPipeline": "Zatiaľ ho nečíta žiadna pipeline",
+      "byHand": "Mapované v kóde; otvorte pipeline",
+      "mapped": "{from} → {to}",
+      "computed": "{to} (vypočítané)",
+      "empty": "Zatiaľ nie je naviazaná žiadna téma",
+      "emptyHint": "Pridajte MQTT zdroj údajov, ktorý má ako brokera platformy {broker}, s filtrom témy napríklad devices/+/data, a potom pipeline, ktorá ho číta.",
+      "errorTitle": "Témy sa nepodarilo načítať",
+      "error": "Skúste to znova o minútu."
+    },
+    "captured": {
+      "title": "Zachytené správy",
+      "hint": "Najnovšie správy, ktoré tento broker uchoval, od najnovšej. Vidia ich len ľudia, ktorí môžu schvaľovať MQTT brokery.",
+      "off": "{broker} správy neuchováva. Nastavte, čo broker robí, na zachytávanie a najnovšie správy uvidíte tu.",
+      "empty": "Zatiaľ nie je uchovaná žiadna správa",
+      "emptyHint": "Správy, ktoré zariadenie publikuje do {broker}, sa tu objavia do niekoľkých sekúnd.",
+      "clear": "Vymazať zachytené správy",
+      "clearFailed": "Zachytené správy sa nevymazali. Skúste to znova o minútu.",
+      "confirmTitle": "Vymazať všetky zachytené správy brokera {broker}?",
+      "confirmText": "Uchované správy zmiznú hneď a nedajú sa obnoviť; vymazanie sa zapíše do denníka aktivít. Nové správy sa budú uchovávať, ako prídu.",
+      "bytes": "{count, plural, one {# bajt} few {# bajty} other {# bajtov}}",
+      "payload": "Obsah správy {topic}",
+      "truncated": "Uchovaných je viac správ, než je tu zobrazených.",
+      "errorTitle": "Zachytené správy sa nepodarilo načítať",
+      "error": "Skúste to znova o minútu."
     }
   },
   "connect": {

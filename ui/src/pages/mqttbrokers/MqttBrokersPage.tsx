@@ -26,6 +26,7 @@ import { KindList } from "../../routes/ResourceListPage";
 import { durationWords } from "../../schemas/mqttbroker";
 import { AddDevice } from "./AddDevice";
 import { useMqttAllowance } from "./allowance";
+import { BrokerTopics } from "./BrokerTopics";
 import { connectionsOf } from "./connections";
 import type { Edge } from "./connections";
 
@@ -193,6 +194,7 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
           broker={name}
           example={(client, topic) => (address ? publishExample(address, client, topic) : undefined)}
         />
+        <BrokerTopics project={project} broker={name} mode={mode} />
       </section>
     </Card>
   );

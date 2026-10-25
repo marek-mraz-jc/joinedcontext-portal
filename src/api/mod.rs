@@ -56,6 +56,7 @@ pub mod knowledge_usage;
 pub mod kpi_check;
 pub mod live;
 pub mod mqtt_allowance;
+pub mod mqtt_bindings;
 pub mod mqtt_captured;
 pub mod mqtt_devices;
 pub mod mqtt_measured;
@@ -166,6 +167,7 @@ pub fn router() -> Router<AppState> {
         .merge(agent_registry::router())
         .merge(agent_activity::router())
         .merge(space_move::router())
+        .merge(mqtt_bindings::router())
         .merge(mqtt_captured::router())
         .merge(mqtt_devices::router())
         .merge(mqtt_measured::router())
