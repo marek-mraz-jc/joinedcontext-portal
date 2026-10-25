@@ -2774,6 +2774,15 @@ output:
         assert_eq!(p[4]["rate_limit"]["resource"], "hfp_vehicles");
         assert_eq!(p[5]["mapping"], "root.cache = \"gtfs\"");
         assert_eq!(cache_label("helsinki", "gtfs"), "helsinki__gtfs");
+        // The reconciler owns a stream twice (reporting, then before the send): still one prefix.
+        own_credential(&mut stream, "banska-bystrica");
+        let p = &stream["pipeline"]["processors"];
+        assert_eq!(p[0]["cache"]["resource"], "banska_bystrica__gtfs");
+        assert_eq!(p[2]["dedupe"]["cache"], "banska_bystrica__seen");
+        assert_eq!(
+            p[3]["cache"]["resource"],
+            "banska_bystrica__pipeline_changes"
+        );
     }
 
     /// PL-06: a `bento.yaml` cannot turn a pipeline into a request/response service: an input
