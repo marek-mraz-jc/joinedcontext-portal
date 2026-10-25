@@ -877,6 +877,22 @@ pub struct RunEnd {
     pub run: String,
     /// The runner finished it; a timeout, a lost run or a refused start is `false`.
     pub finished: bool,
+    /// The runner's own count of the run's outcome reports it could not deliver (F-POR3-006).
+    pub reports: ReportCount,
+}
+
+/// What the runner counted of a run's outcome reports that never reached the Portal: the
+/// stream's `outcome_drop` counter at the run's end less the same counter at its start. The
+/// runner counts it beside the report path, so a lost report cannot hide itself (F-POR3-006).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReportCount {
+    /// Every report arrived.
+    Complete,
+    /// The runner dropped this many reports.
+    Lost(u64),
+    /// No count, and why: the runner did not answer, does not export the counter, restarted,
+    /// or this Portal did not see the run start.
+    Unknown(&'static str),
 }
 
 /// Feeds the ledger from one outcome report of a snapshot or events pipeline: what was written and
@@ -914,6 +930,7 @@ pub async fn run_ended(state: &AppState, end: RunEnd) {
         pipeline,
         run,
         finished,
+        reports,
     } = end;
     let Some(spec) = state
         .mirror
@@ -929,7 +946,9 @@ pub async fn run_ended(state: &AppState, end: RunEnd) {
     let Some(rule) = snapshot_rule(&spec) else {
         return;
     };
-    if let Err(error) = judge_and_delete(state, &project, &pipeline, &run, finished, &rule).await {
+    if let Err(error) =
+        judge_and_delete(state, &project, &pipeline, &run, finished, &reports, &rule).await
+    {
         tracing::warn!(%project, %pipeline, %run, %error, "the run's source deletes were not judged");
     }
 }
@@ -940,6 +959,7 @@ async fn judge_and_delete(
     pipeline: &str,
     run: &str,
     finished: bool,
+    reports: &ReportCount,
     rule: &SourceDeletes,
 ) -> Result<(), sqlx::Error> {
     let ledger = &state.source_ledger;
@@ -950,8 +970,20 @@ async fn judge_and_delete(
         .await?
         .into_iter()
         .find(|logged| logged.run == run);
+    // A run whose reports the runner could not all deliver, or could not count, left ids it read
+    // out of the ledger: it is judged as incomplete and never deletes on a partial count.
+    let unreported = *reports != ReportCount::Complete;
+    if unreported {
+        tracing::warn!(
+            project,
+            pipeline,
+            run,
+            ?reports,
+            "the run's outcome reports are not all in; its source deletes are held"
+        );
+    }
     // A run that did not finish or failed on a record read part of its source at best.
-    if !finished || logged.as_ref().is_some_and(|logged| logged.failed > 0) {
+    if !finished || unreported || logged.as_ref().is_some_and(|logged| logged.failed > 0) {
         let hold = Hold {
             run: run.to_owned(),
             reason: HoldReason::Incomplete,
@@ -2089,6 +2121,7 @@ mod tests {
                 pipeline: "pushed".to_owned(),
                 run: "r1".to_owned(),
                 finished: false,
+                reports: ReportCount::Complete,
             },
         )
         .await;

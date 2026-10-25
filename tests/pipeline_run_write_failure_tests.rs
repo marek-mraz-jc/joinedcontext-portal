@@ -23,11 +23,14 @@ fn runner_url() -> Option<String> {
 }
 
 type Reports = Arc<Mutex<Vec<Value>>>;
+type HeaderBytes = Arc<Mutex<Vec<usize>>>;
 
 /// The source (one record), the target (`/refuses` answers 503, `/takes` 204) and the outcome
-/// route; the count of writes the target saw.
-async fn mocks() -> (String, Reports, Arc<Mutex<u32>>) {
+/// route; the count of writes the target saw and the header bytes of each outcome post.
+async fn mocks() -> (String, Reports, Arc<Mutex<u32>>, HeaderBytes) {
     let reports: Reports = Arc::default();
+    let header_bytes: HeaderBytes = Arc::default();
+    let measured = Arc::clone(&header_bytes);
     let writes: Arc<Mutex<u32>> = Arc::default();
     let kept = Arc::clone(&reports);
     let (refused, taken) = (Arc::clone(&writes), Arc::clone(&writes));
@@ -61,15 +64,23 @@ async fn mocks() -> (String, Reports, Arc<Mutex<u32>>) {
         )
         .route(
             "/outcomes",
-            post(move |body: axum::body::Bytes| {
-                let kept = Arc::clone(&kept);
-                async move {
-                    if let Ok(report) = serde_json::from_slice(&body) {
-                        kept.lock().expect("the reports").push(report);
+            post(
+                move |headers: axum::http::HeaderMap, body: axum::body::Bytes| {
+                    let kept = Arc::clone(&kept);
+                    let measured = Arc::clone(&measured);
+                    async move {
+                        let bytes = headers
+                            .iter()
+                            .map(|(name, value)| name.as_str().len() + value.len())
+                            .sum();
+                        measured.lock().expect("the header sizes").push(bytes);
+                        if let Ok(report) = serde_json::from_slice(&body) {
+                            kept.lock().expect("the reports").push(report);
+                        }
+                        axum::http::StatusCode::NO_CONTENT
                     }
-                    axum::http::StatusCode::NO_CONTENT
-                }
-            }),
+                },
+            ),
         );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
@@ -78,7 +89,7 @@ async fn mocks() -> (String, Reports, Arc<Mutex<u32>>) {
     tokio::spawn(async move {
         let _ = axum::serve(listener, app).await;
     });
-    (format!("http://{address}"), reports, writes)
+    (format!("http://{address}"), reports, writes, header_bytes)
 }
 
 /// The test runner holds no token: the report goes out without one, everything else as rendered.
@@ -99,12 +110,14 @@ struct Ran {
     reports: Vec<Value>,
     writes: u32,
     ended: bool,
+    header_bytes: Vec<usize>,
 }
 
 /// One run of a stream that writes its record to `target`, shaped as the Portal renders a
-/// pipeline: the write in the pipeline, an output that rejects an errored message.
-async fn run(runner: &str, target: &str) -> Ran {
-    let (base, reports, writes) = mocks().await;
+/// pipeline: the write in the pipeline, an output that rejects an errored message. `metadata`
+/// is the size of a metadata value the message carries into its write.
+async fn run(runner: &str, target: &str, metadata: usize) -> Ran {
+    let (base, reports, writes, header_bytes) = mocks().await;
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
         .build()
@@ -112,7 +125,9 @@ async fn run(runner: &str, target: &str) -> Ran {
     let outcomes = format!("{base}/outcomes");
     let rendered = json!({
         "input": { "label": "input", "http_client": { "url": format!("{base}/events"), "verb": "GET" } },
-        "pipeline": { "processors": [{ "label": "write_0", "branch": {
+        "pipeline": { "processors": [
+            { "label": "meta_0", "mutation": format!("meta jc_refused_big = \"{}\"", "x".repeat(metadata)) },
+            { "label": "write_0", "branch": {
             "processors": [{ "http": {
                 "url": format!("{base}{target}"),
                 "verb": "POST",
@@ -171,10 +186,12 @@ async fn run(runner: &str, target: &str) -> Ran {
         .await;
     let seen = reports.lock().expect("the reports").clone();
     let writes = *writes.lock().expect("the count");
+    let header_bytes = header_bytes.lock().expect("the header sizes").clone();
     Ran {
         reports: seen,
         writes,
         ended,
+        header_bytes,
     }
 }
 
@@ -191,7 +208,7 @@ async fn a_write_the_target_keeps_refusing_ends_the_run_failed_with_its_words() 
         eprintln!("skipped: JC_PORTAL_TEST_BENTO_URL is not set");
         return;
     };
-    let ran = run(&runner, "/refuses").await;
+    let ran = run(&runner, "/refuses", 0).await;
     assert!(ran.ended, "the run ends: {:?}", ran.reports);
     assert_eq!(ran.writes, 2, "the write and its one retry, never replayed");
     let failed = lines(&ran.reports, "failed");
@@ -208,7 +225,7 @@ async fn a_write_the_target_takes_ends_the_run_sent() {
         eprintln!("skipped: JC_PORTAL_TEST_BENTO_URL is not set");
         return;
     };
-    let ran = run(&runner, "/takes").await;
+    let ran = run(&runner, "/takes", 0).await;
     assert!(ran.ended, "the run ends: {:?}", ran.reports);
     assert_eq!(ran.writes, 1);
     assert_eq!(lines(&ran.reports, "sent").len(), 1, "{:?}", ran.reports);
@@ -216,5 +233,27 @@ async fn a_write_the_target_takes_ends_the_run_sent() {
         lines(&ran.reports, "failed").is_empty(),
         "{:?}",
         ran.reports
+    );
+}
+
+/// T-5648: a refused write whose message carries 64 KB of metadata still reports; the sink sends
+/// the refusal in its body and none of the metadata as a header (the Portal's mesh hop answers
+/// 431 above its header limit, so a header copy of it would lose the outcome).
+#[tokio::test]
+async fn a_refusal_carrying_oversized_metadata_still_reports_in_the_body() {
+    let Some(runner) = runner_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_BENTO_URL is not set");
+        return;
+    };
+    let ran = run(&runner, "/refuses", 64 * 1024).await;
+    assert!(ran.ended, "the run ends: {:?}", ran.reports);
+    let failed = lines(&ran.reports, "failed");
+    assert_eq!(failed.len(), 1, "one failed line: {:?}", ran.reports);
+    assert_eq!(failed[0]["id"], "urn:ngsi-ld:Event:bbsk:1");
+    assert!(!ran.header_bytes.is_empty(), "the sink posted");
+    assert!(
+        ran.header_bytes.iter().all(|bytes| *bytes < 1024),
+        "outcome headers stay small: {:?}",
+        ran.header_bytes
     );
 }

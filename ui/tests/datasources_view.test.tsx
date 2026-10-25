@@ -7,9 +7,10 @@ import i18n from "../src/i18n";
 import { expectOpen } from "./checks";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
-import { endpointOf, endpointView, knownSecretNames, toEnvelope } from "../src/pages/datasources/DataSourcesPage";
+import { endpointOf, endpointView, toEnvelope } from "../src/pages/datasources/DataSourcesPage";
 import { rememberPrefill } from "../src/assistant/state";
 import type { Manifest } from "../src/api/manifest";
+import { knownSecretNames } from "../src/api/manifest";
 import { digestOf } from "../src/api/digest";
 import { findFormPage } from "./formPage";
 

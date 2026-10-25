@@ -93,7 +93,7 @@ export function useAttributeAccess(slug: string | undefined, type: string | unde
  * The endpoint's own decision on one action over `type` (AuthZEN check, API/02 §7b), for a control
  * that is offered only when the server says yes (T-5530). Anything but a yes refuses.
  */
-export function useDecision(slug: string | undefined, type: string | undefined, action: string) {
+export function useAccessCheck(slug: string | undefined, type: string | undefined, action: string) {
   return useQuery({
     queryKey: ["access-decision", slug, type, action],
     enabled: Boolean(slug && type),
@@ -105,7 +105,6 @@ export function useDecision(slug: string | undefined, type: string | undefined, 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: { name: action }, resource: { type } }),
       });
-      if (!response.ok) throw new Error(`access check answered ${response.status}`);
       const body = (await response.json()) as { decision?: unknown };
       return body.decision === true;
     },

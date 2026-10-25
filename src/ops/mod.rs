@@ -161,6 +161,15 @@ pub struct OperationAnnotations {
 
 pub type Annotations = OperationAnnotations;
 
+/// An operation's hints, in the order MCP names them.
+pub(crate) fn annotations(read_only: bool, destructive: bool, idempotent: bool) -> Annotations {
+    Annotations {
+        read_only_hint: read_only,
+        destructive_hint: destructive,
+        idempotent_hint: idempotent,
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OperationSummary {
