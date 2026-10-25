@@ -527,6 +527,48 @@ function matches(endpoint: Manifest, needle: string, locale: string): boolean {
   );
 }
 
+/** A ticked writable class of the projection picker, with its own narrowing. */
+interface WritableClass {
+  name: string;
+  idPattern?: string;
+  scope?: string;
+  writeQ?: string;
+}
+
+/**
+ * The `{endpoint}-write` Policy of a projected Endpoint. Each class keeps its own scope and write
+ * filter: classes that share them are one rule, as before; classes that differ get one rule each
+ * in `rules[]` (ADR-N-057), so no class is narrowed by another's (F-UI3-003).
+ */
+export function writePolicyOf(
+  project: string,
+  form: { name: string; contextSpaceRef: string },
+  classes: WritableClass[],
+): Manifest {
+  const ruleOf = (group: WritableClass[]) => ({
+    assignee: { kind: "role", id: `${project}-writers` },
+    operations: ["updateOps"],
+    information: group.map((c) => ({ entities: [{ type: c.name, ...(c.idPattern ? { idPattern: c.idPattern } : {}) }] })),
+    ...(group[0]?.scope ? { scopeQ: group[0].scope } : {}),
+    ...(group[0]?.writeQ ? { q: group[0].writeQ } : {}),
+  });
+  const shared = classes.every((c) => (c.scope ?? "") === (classes[0]?.scope ?? "") && (c.writeQ ?? "") === (classes[0]?.writeQ ?? ""));
+  return {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "Policy",
+    metadata: {
+      name: `${form.name}-write`,
+      namespace: project,
+      labels: { [SPACE_LABEL]: form.contextSpaceRef },
+    },
+    spec: {
+      contextSpaceRef: { kind: "ContextSpace", name: form.contextSpaceRef },
+      assigner: "did:web:{orgDomain}",
+      ...(shared ? ruleOf(classes) : { rules: classes.map((c) => ruleOf([c])) }),
+    },
+  } as Manifest;
+}
+
 export function EndpointsPage({ project, edit }: { project: string; edit?: string }): JSX.Element {
   const { t, i18n } = useTranslation();
   const { domain } = useBranding();
@@ -883,32 +925,13 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
     const manifests = [modelProjection, endpointEnvelope, readPolicy];
 
     if (writableClassNames.length > 0) {
-      const writeInfo = writableClassNames.map((cName) => {
-        const cfg = pickerState.classes[cName];
-        return {
-          entities: [{ type: cName, ...(cfg.idPattern ? { idPattern: cfg.idPattern } : {}) }],
-        };
-      });
-      const firstCfg = pickerState.classes[writableClassNames[0]];
-      const writePolicy = {
-        apiVersion: "joinedcontext.com/v1alpha1",
-        kind: "Policy",
-        metadata: {
-          name: `${form.name}-write`,
-          namespace: project,
-          labels: { [SPACE_LABEL]: form.contextSpaceRef },
-        },
-        spec: {
-          contextSpaceRef: { kind: "ContextSpace", name: form.contextSpaceRef },
-          assigner: "did:web:{orgDomain}",
-          assignee: { kind: "role", id: `${project}-writers` },
-          operations: ["updateOps"],
-          information: writeInfo,
-          ...(firstCfg?.scope ? { scopeQ: firstCfg.scope } : {}),
-          ...(firstCfg?.writeQ ? { q: firstCfg.writeQ } : {}),
-        },
-      };
-      manifests.push(writePolicy);
+      manifests.push(
+        writePolicyOf(
+          project,
+          form,
+          writableClassNames.map((name) => ({ name, ...pickerState.classes[name] })),
+        ),
+      );
     }
 
     return manifests;
