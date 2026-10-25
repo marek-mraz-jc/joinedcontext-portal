@@ -89,7 +89,7 @@ pub fn no_secret(spec: &ServiceAccountSpec) -> Option<(&'static str, &'static st
         (status = 503, description = "Keycloak cannot be reached, or the Portal manages no client", body = crate::error::ProblemDetails),
     )
 )]
-pub async fn issue_secret(
+pub(crate) async fn issue_secret(
     user: CurrentUser,
     State(state): State<AppState>,
     Path((project, name)): Path<(String, String)>,
@@ -280,7 +280,8 @@ mod tests {
             "managed-by": "joinedcontext", "joinedcontext.serviceaccount": "p/vendor" } });
         assert_eq!(owned_by(&ours, "p/vendor"), Some("u1"));
         assert_eq!(owned_by(&ours, "p/other"), None);
-        let platform = json!({ "id": "u2", "attributes": { "joinedcontext.serviceaccount": "p/vendor" } });
+        let platform =
+            json!({ "id": "u2", "attributes": { "joinedcontext.serviceaccount": "p/vendor" } });
         assert_eq!(owned_by(&platform, "p/vendor"), None);
     }
 

@@ -96,7 +96,7 @@ fn as_value(env: &ResourceEnvelope) -> Result<Value, ApiError> {
         (status = 404, description = "No such ServiceAccount", body = crate::error::ProblemDetails),
     )
 )]
-pub async fn account_access(
+pub(crate) async fn account_access(
     user: CurrentUser,
     State(state): State<AppState>,
     Path((project, name)): Path<(String, String)>,
