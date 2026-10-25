@@ -182,7 +182,7 @@ function Via({ project, row }: { project: string; row: Binding }): JSX.Element {
   );
 }
 
-function Attributes({ row }: { row: Binding }): JSX.Element {
+export function Attributes({ row }: { row: Binding }): JSX.Element {
   const { t } = useTranslation();
   if (!row.attributes) {
     return row.pipeline?.name && row.endpoint?.name ? (
@@ -241,7 +241,7 @@ function CapturedPanel({ project, broker, mode, captured }: { project: string; b
   return <CapturedList project={project} broker={broker} captured={captured.data} heading={heading} />;
 }
 
-function CapturedList({ project, broker, captured, heading }: { project: string; broker: string; captured: Captured; heading: JSX.Element }): JSX.Element {
+export function CapturedList({ project, broker, captured, heading }: { project: string; broker: string; captured: Captured; heading: JSX.Element }): JSX.Element {
   const { t } = useTranslation();
   const time = useTime();
   const [asking, setAsking] = useState(false);

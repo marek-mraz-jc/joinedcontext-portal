@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { MqttBrokersPage } from "../src/pages/mqttbrokers/MqttBrokersPage";
-import { readablePayload, topicMatches } from "../src/pages/mqttbrokers/BrokerTopics";
+import { Attributes, CapturedList, readablePayload, topicMatches } from "../src/pages/mqttbrokers/BrokerTopics";
 import { json, list, problem, renderPage } from "./page_contract";
 
 const PROJECT = "helsinki";
@@ -153,5 +153,32 @@ describe("a broker's topics and captured messages", () => {
   it("says why when the capture cannot be read", async () => {
     show({ permissions: approver, captured: () => problem(503, "the capture store did not answer; try again in a minute") });
     expect(await screen.findByText(en.mqttbrokers.captured.errorTitle, {}, { timeout: 5000 })).toBeInTheDocument();
+  });
+});
+
+describe("the topic and capture parts alone", () => {
+  it("names each attribute a topic fills, and says when the pipeline maps in code", async () => {
+    renderPage(<Attributes row={BOUND.bindings[0]} />, { answer: () => undefined });
+    const list = await screen.findByRole("list", { name: en.mqttbrokers.topics.attributes });
+    expect(within(list).getByText("temp → temperature")).toBeInTheDocument();
+    expect(within(list).getByText("source (computed)")).toBeInTheDocument();
+    cleanup();
+    renderPage(<Attributes row={{ ...BOUND.bindings[0], attributes: undefined }} />, { answer: () => undefined });
+    expect(await screen.findByText(en.mqttbrokers.topics.byHand)).toBeInTheDocument();
+  });
+
+  it("lists kept messages and asks before it deletes them", async () => {
+    const calls: string[] = [];
+    renderPage(<CapturedList project={PROJECT} broker="sensors" captured={CAPTURED} heading={<h3>kept</h3>} />, {
+      answer: (url, request) => {
+        calls.push(`${request.method} ${url.pathname}`);
+        return request.method === "DELETE" ? new Response(null, { status: 204 }) : undefined;
+      },
+    });
+    expect((await screen.findByRole("list", { name: en.mqttbrokers.captured.title })).children).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: en.mqttbrokers.captured.clear }));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: en.mqttbrokers.captured.clear }));
+    await waitFor(() => expect(calls).toContain(`DELETE /api/v1/projects/${PROJECT}/mqttbrokers/sensors/captured`));
   });
 });
