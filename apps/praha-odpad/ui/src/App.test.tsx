@@ -67,6 +67,10 @@ describe("the waste desk", () => {
     expect(within(first).getByText(new RegExp(s.fullest))).toBeInTheDocument();
     // The isles were read by the ids the containers name, never the whole type.
     expect(asked.filter((url) => url.searchParams.get("type") === "WasteContainerIsle").every((url) => url.searchParams.get("id"))).toBe(true);
+    // Only the containers a sensor reads: the others carry neither a fill level nor a reading time.
+    const containers = asked.filter((url) => url.searchParams.get("type") === "WasteContainer");
+    expect(containers.length).toBeGreaterThan(0);
+    expect(containers.every((url) => url.searchParams.get("q") === "fillingLevel|dateModified")).toBe(true);
   });
 
   it("says when an isle cannot be named and when a reading is missing", async () => {

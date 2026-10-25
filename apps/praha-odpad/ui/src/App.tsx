@@ -82,7 +82,8 @@ function Desk({ now, most, s }: { now?: Date; most: number; s: Strings }) {
       const containers: Container[] = [];
       let truncated = true;
       for (let offset = 0; offset < most; offset += PAGE) {
-        const page = await source.query({ type: "WasteContainer" }, { offset, limit: PAGE });
+        // The sensor containers: waste-containers writes the others with no reading at all (T-5427).
+        const page = await source.query({ type: "WasteContainer", q: "fillingLevel|dateModified" }, { offset, limit: PAGE });
         containers.push(...page.rows.map((row) => containerOf(row, new Date(at))));
         if (page.rows.length < PAGE) {
           truncated = false;
