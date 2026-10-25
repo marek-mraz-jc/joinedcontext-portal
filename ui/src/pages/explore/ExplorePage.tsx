@@ -203,7 +203,6 @@ export function ExplorePage({
     () => writableOf(attributeAccess.data).filter((attr) => slots.some((slot) => slot.name === attr && !slot.formula)),
     [attributeAccess.data, slots],
   );
-  const endpointName = endpoint?.metadata.name;
   // The React Compiler memoizes this; a manual useCallback over `endpoint` could not be preserved.
   const explainAccess = (attribute: string, action: "read" | "write" | "delete") =>
     explainAttribute(project, endpointName ?? "", query.type ?? "", attribute, action);
