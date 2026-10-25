@@ -55,6 +55,9 @@ describe("the login page", () => {
     expect(redirectTarget("?redirect_to=//evil.example/steal")).toBe("/");
     expect(redirectTarget("?redirect_to=javascript:alert(1)")).toBe("/");
     expect(redirectTarget("")).toBe("/");
+    // A backslash or a tab after the slash makes the browser read another host (F-UI3-007).
+    expect(redirectTarget("?redirect_to=/%5Cevil.example")).toBe("/");
+    expect(redirectTarget("?redirect_to=/%09/evil.example")).toBe("/");
   });
 
   it("sends_a_person_who_is_already_signed_in_on_to_where_they_were_going", async () => {

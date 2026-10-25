@@ -43,6 +43,16 @@ describe("safeHref", () => {
     expect(safeHref(null)).toBeUndefined();
   });
 
+  it("a_relative_path_a_browser_reads_as_another_host_is_not_a_link", () => {
+    // `/\host` and `/<tab>/host` resolve to `//host`: off-site behind a link that looks local (F-UI1-001).
+    for (const bad of ["/\\evil.example", "/\t/evil.example", "/\n/evil.example", "\\\\evil.example"]) {
+      expect(safeHref(bad), JSON.stringify(bad)).toBeUndefined();
+    }
+    expect(safeHref("/projects/p/spaces")).toBe("/projects/p/spaces");
+    expect(safeHref("./x?y=1#z")).toBe("./x?y=1#z");
+    expect(safeHref("#top")).toBe("#top");
+  });
+
   it("a_link_that_can_navigate_passes_through_unchanged", () => {
     for (const good of [
       "https://example.org/a?b=c#d",
