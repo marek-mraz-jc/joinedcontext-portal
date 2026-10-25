@@ -87,6 +87,8 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/projects/{project}/mqttbrokers/{name}/captured", "a capture broker's kept messages for the stewards' mapping design; payloads may hold personal data, so no agent tool reads them (ADR-N-048 §2.10, T-4880)"),
 ("DELETE", "/projects/{project}/mqttbrokers/{name}/captured", "a steward deletes a capture at once; no agent tool deletes what a person may need to see first (T-4880)"),
 ("GET", "/projects/{project}/mqttbrokers/{name}/measured", "what an MQTT broker measures, read from its own HTTP API for the brokers page; it writes nothing and an agent reads the broker with jc_resource_get (T-4043, API/01 §44)"),
+("POST", "/projects/{project}/mqttbrokers/{name}/test-publish", "a dry run of one device message for the broker card's Test drawer: it publishes and writes nothing, and an agent tests a mapping with jc_pipeline_try_mapping (T-5534, API/01 §44a)"),
+("GET", "/projects/{project}/mqttbrokers/{name}/watch", "the gateway's refusals of a broker and its measured connections for the Test drawer's watch; it writes nothing (T-5534, API/01 §44a)"),
 ("GET", "/organization/limits", "a summary for the settings page: the catalog and the operator's bounds beside the values the Organization and Project manifests hold, which jc_resource_get reaches; it writes nothing (T-2715, API/01 §28)"),
 ("GET", "/organization/setup", "a summary for the setup page, read from manifests the operations registry already reaches and from the deployment; it writes nothing (T-2748, API/01 §25)"),
 ("GET", "/projects/{project}/endpoints/{name}/quality", "the dataset's quality score, a reading about the data the Endpoint page shows and not a manifest (T-5112)"),

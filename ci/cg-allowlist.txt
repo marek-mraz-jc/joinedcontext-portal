@@ -107,6 +107,7 @@ outbound-http | src/sync/remote.rs | a SyncSource's URL: https only, literal add
 outbound-http | src/sync/schema_api.rs | a peer's schema surface: sync::guard address rule (DM-49, T-1705)
 outbound-http | src/tools/model_tools.rs | Model Tools, URL from config
 outbound-http | src/api/mqtt_measured.rs | the project's own MQTT broker's API inside the cluster: host from the project and the MqttBroker's DNS-1123 name under JC_PORTAL_MQTT_NAMESPACE, no redirect, after may_read("MqttBroker")
+outbound-http | src/api/mqtt_test_publish.rs | the gateway's own internal listener (JC_PORTAL_GATEWAY_URL host on port 8082) for a broker's refusal record, path from the DNS-1123 release name, no redirect, after may_read("MqttBroker")
 outbound-http | src/quality_checks.rs | the gateway's counters at the configured JC_PORTAL_GATEWAY_URL, with a timeout
 outbound-http | src/space_move.rs | the brokers' /q export and import and the gateway's /metrics, with the brokers' admin token: addresses from JC_PORTAL_BROKER_URL or its template with a declared broker's DNS-1123 name, so no request value names a host; organization administrators only (require_organization_admin); reqwest drops the bearer on a redirect to another host
 
