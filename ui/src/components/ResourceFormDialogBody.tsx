@@ -194,7 +194,8 @@ function titleAt(schema: JsonSchema, path: string[]): string {
  * `spec.contextSpaceRef` as `contextSpaceRef` (T-2731, UI-45).
  */
 function fieldPath(path: string, schema: JsonSchema): string[] {
-  const segments = path.replace(/^metadata\./, "").split(".");
+  // An element is `roles[0]` in the server's path and `roles.0` in rjsf's errors (T-5590).
+  const segments = path.replace(/^metadata\./, "").replace(/\[(\d+)\]/g, ".$1").split(".");
   const flat = segments[0] === "spec" && !(schema.properties && "spec" in schema.properties);
   return flat ? segments.slice(1) : segments;
 }

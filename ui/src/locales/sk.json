@@ -9659,7 +9659,8 @@
         "no_subscription": "Tento odberateľ nemá čo čítať.",
         "no_realm": "Brána nemá realm na overenie tokenov."
       }
-    }
+    },
+    "noAccounts": "V projekte nie je servisný účet, ktorý môžete čítať. Pridajte zariadenie na stránke brokera alebo vytvorte účet v Nastavenia projektu, Servisné účty."
   },
   "connect": {
     "title": "Pripojte AI asistenta",

@@ -9659,7 +9659,8 @@
         "no_subscription": "Dieser Abonnent darf nichts lesen.",
         "no_realm": "Das Gateway hat keinen Realm zur Tokenprüfung."
       }
-    }
+    },
+    "noAccounts": "Kein Dienstkonto dieses Projekts, das Sie lesen dürfen. Fügen Sie auf der Seite des Brokers ein Gerät hinzu oder legen Sie eines unter Projekteinstellungen, Dienstkonten an."
   },
   "connect": {
     "title": "KI-Assistenten verbinden",

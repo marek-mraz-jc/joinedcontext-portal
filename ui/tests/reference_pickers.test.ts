@@ -9,6 +9,7 @@ import * as kinds from "../src/schemas/kinds";
 import { mappingSchema } from "../src/schemas/mapping";
 import { dataModelSchema } from "../src/schemas/datamodel";
 import { assistantDeploymentSchema, knowledgeSourceSchema } from "../src/schemas/knowledge";
+import { mqttBrokerSchema } from "../src/schemas/mqttbroker";
 import { REFERENCE_PICKERS, UNPICKED, withPickers } from "../src/schemas/pickers";
 import type { JsonSchema } from "../src/components/forms/types";
 
@@ -36,10 +37,12 @@ const FORMS: Record<string, JsonSchema[]> = {
   // T-3057: a catalogue, the project's sources and its Endpoints are pickers.
   KnowledgeSource: [knowledgeSourceSchema(t)],
   AssistantDeployment: [assistantDeploymentSchema(t)],
+  // T-5590: a role's devices are ServiceAccounts of the project.
+  MqttBroker: [mqttBrokerSchema(t)],
 };
 
 /** A field name that names something that exists: a reference, a type, a person, a role, a group. */
-const REFERENCE = /(Ref|^type|^types|^entityType|^kinds|^user|^role|^group|^project)$/;
+const REFERENCE = /(Ref|^type|^types|^entityType|^kinds|^user|^role|^group|^project|^serviceAccounts)$/;
 
 type Node = { properties?: Record<string, Node>; items?: Node; type?: unknown; enum?: unknown; oneOf?: unknown };
 

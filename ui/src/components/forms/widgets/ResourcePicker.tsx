@@ -67,12 +67,15 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
         ? t("form.noResults")
         : t("form.choose");
 
+  // What an empty list asks the person to do next (T-5590), where the page names it.
+  const nothing = typeof options?.empty === "string" && !query.isLoading && !failed && choices.length === 0;
+
   const select = (
     <Select
       id={id}
       required={required}
       disabled={disabled || readonly}
-      aria-describedby={ariaDescribedByIds(id)}
+      aria-describedby={nothing ? `${ariaDescribedByIds(id)} ${id}-empty` : ariaDescribedByIds(id)}
       aria-invalid={errors && errors.length > 0 ? "true" : undefined}
       value={typeof value === "string" ? value : ""}
       onChange={(event: ChangeEvent<HTMLSelectElement>) =>
@@ -90,6 +93,16 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
     </Select>
   );
 
+  if (nothing) {
+    return (
+      <div className="flex flex-col gap-1">
+        {select}
+        <p id={`${id}-empty`} className="text-caption text-fg-muted">
+          {t(options.empty as string)}
+        </p>
+      </div>
+    );
+  }
   if (!failed) {
     return select;
   }
