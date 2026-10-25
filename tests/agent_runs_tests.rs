@@ -958,15 +958,29 @@ async fn the_stream_replays_what_a_reconnecting_browser_missed() {
     );
 }
 
+/// The workspace asks the person a question through the proxy, as a live run does.
+async fn ask(internal: &axum::Router, id: &str, question_id: &str) {
+    let (status, receipt) = internal_call(
+        internal,
+        Some(proxy_bearer()),
+        Method::POST,
+        "/internal/agent-runs/events",
+        Some(json!({ "runId": id, "kind": "question", "payload": { "questionId": question_id, "question": "Which centre?" } })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{receipt}");
+}
+
 #[tokio::test]
 async fn an_answer_lands_on_the_runs_log() {
     let config = config();
-    let app = router(mirror(Some(builder_profile_spec())), &config);
+    let (app, internal) = both(mirror(Some(builder_profile_spec())), &config);
     let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
     let id = create_run(&app, &cookie).await["id"]
         .as_str()
         .expect("an id")
         .to_owned();
+    ask(&internal, &id, "q-center").await;
 
     let (status, _) = call(
         &app,
@@ -982,7 +996,7 @@ async fn an_answer_lands_on_the_runs_log() {
         &app,
         &cookie,
         &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}/events"),
-        Some(1),
+        Some(2),
         1,
     )
     .await;
@@ -999,12 +1013,13 @@ async fn an_answer_lands_on_the_runs_log() {
 #[tokio::test]
 async fn an_answer_is_on_the_project_s_activity_without_the_words() {
     let config = config();
-    let app = router(mirror(Some(builder_profile_spec())), &config);
+    let (app, internal) = both(mirror(Some(builder_profile_spec())), &config);
     let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
     let id = create_run(&app, &cookie).await["id"]
         .as_str()
         .expect("an id")
         .to_owned();
+    ask(&internal, &id, "q-center").await;
 
     let (status, _) = call(
         &app,
@@ -1043,6 +1058,38 @@ async fn an_answer_is_on_the_project_s_activity_without_the_words() {
     assert!(
         !list.to_string().contains("hunter2"),
         "what the person typed never reaches the activity feed: {list}"
+    );
+}
+
+/// An answer to a question the run never asked is refused before anything is published: it
+/// would skip every bound the question sets on files, addresses and options (T-5701).
+#[tokio::test]
+async fn an_answer_to_a_question_never_asked_is_refused_and_logs_nothing() {
+    let config = config();
+    let (state, app, _) = with_state(mirror(Some(builder_profile_spec())), &config);
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+    let id = create_run(&app, &cookie).await["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+
+    let (status, problem) = call(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/agent-runs/{id}/answers"),
+        Some(json!({ "questionId": "q-never", "answers": { "file": { "name": "a.csv", "format": "csv", "text": "x".repeat(200_000) } } })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{problem}");
+    assert!(
+        problem.to_string().contains("q-never"),
+        "the refusal names the question id: {problem}"
+    );
+    let events = state.agents.events_since(&id, 0).await.expect("the log");
+    assert!(
+        !events.iter().any(|event| event.kind == "answer"),
+        "nothing reaches the run's log"
     );
 }
 

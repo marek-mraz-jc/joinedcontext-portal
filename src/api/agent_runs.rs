@@ -964,7 +964,7 @@ pub async fn stream_events(
     responses(
         (status = 204, description = "The answer is on the run's log"),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
-        (status = 404, description = "No such run in this project", body = ProblemDetails),
+        (status = 404, description = "No such run in this project, or the run asked no question with that id", body = ProblemDetails),
         (status = 409, description = "The run is over", body = ProblemDetails),
         (status = 400, description = "The answer is not one of what the question offered", body = ProblemDetails)
     )
@@ -994,9 +994,15 @@ pub async fn answer_question(
                 && event.payload.get("questionId").and_then(|q| q.as_str())
                     == Some(request.question_id.as_str())
         });
-    if let Some(asked) = &asked {
-        offered_answer(&asked.payload, &request.answers).map_err(ApiError::BadRequest)?;
-    }
+    // An answer only ever answers a question the run asked: an unknown id would carry files, URLs
+    // and JSON of any shape past offered_answer's bounds into the log and the model (T-5701).
+    let asked = asked.ok_or_else(|| {
+        ApiError::NotFound(format!(
+            "run '{id}' asked no question '{}'",
+            request.question_id
+        ))
+    })?;
+    offered_answer(&asked.payload, &request.answers).map_err(ApiError::BadRequest)?;
     publish_event(
         &state,
         &id,

@@ -13195,7 +13195,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description No such run in this project */
+            /** @description No such run in this project, or the run asked no question with that id */
             404: {
                 headers: {
                     [name: string]: unknown;
