@@ -641,6 +641,14 @@ async fn put_creates_change_and_writes_manifest_source_and_four_artifacts() {
         .await;
 
     Mock::given(method("POST"))
+        .and(path("/api/v1/repos/owner/repo/contents"))
+        .respond_with(
+            ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "c1" } })),
+        )
+        .mount(&forge)
+        .await;
+
+    Mock::given(method("POST"))
         .and(path("/api/v1/repos/owner/repo/pulls"))
         .respond_with(ResponseTemplate::new(201).set_body_json(json!({
             "number": 88,
@@ -726,12 +734,17 @@ slots:
     let put_paths: Vec<String> = requests
         .iter()
         .filter(|r| {
-            r.method.as_str() == "PUT"
-                && r.url
-                    .path()
-                    .starts_with("/api/v1/repos/owner/repo/contents/")
+            r.method.as_str() == "POST" && r.url.path() == "/api/v1/repos/owner/repo/contents"
         })
-        .map(|r| r.url.path().to_string())
+        .flat_map(|r| {
+            let body: serde_json::Value = serde_json::from_slice(&r.body).unwrap_or_default();
+            body["files"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|f| f["path"].as_str().map(|p| format!("/{p}")))
+                .collect::<Vec<_>>()
+        })
         .collect();
 
     assert!(put_paths
@@ -814,6 +827,14 @@ async fn put_for_a_name_the_project_does_not_hold_creates_the_model_in_its_space
         .mount(&forge)
         .await;
     Mock::given(method("POST"))
+        .and(path("/api/v1/repos/owner/repo/contents"))
+        .respond_with(
+            ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "c1" } })),
+        )
+        .mount(&forge)
+        .await;
+
+    Mock::given(method("POST"))
         .and(path("/api/v1/repos/owner/repo/pulls"))
         .respond_with(ResponseTemplate::new(201).set_body_json(json!({
             "number": 91,
@@ -868,12 +889,17 @@ async fn put_for_a_name_the_project_does_not_hold_creates_the_model_in_its_space
     let put_paths: Vec<String> = requests
         .iter()
         .filter(|r| {
-            r.method.as_str() == "PUT"
-                && r.url
-                    .path()
-                    .starts_with("/api/v1/repos/owner/repo/contents/")
+            r.method.as_str() == "POST" && r.url.path() == "/api/v1/repos/owner/repo/contents"
         })
-        .map(|r| r.url.path().to_string())
+        .flat_map(|r| {
+            let body: serde_json::Value = serde_json::from_slice(&r.body).unwrap_or_default();
+            body["files"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|f| f["path"].as_str().map(|p| format!("/{p}")))
+                .collect::<Vec<_>>()
+        })
         .collect();
 
     // The Change carries the manifest as well as the source, which is what makes the model exist.
@@ -1307,4 +1333,67 @@ async fn deleting_an_imported_organization_model_is_refused_naming_its_importers
             .any(|r| r.method.as_str() == "POST"),
         "a refused delete opened a change"
     );
+}
+
+/// A Role that proposes DataModels, bound to `who@hel.fi` in context space `space` only.
+fn grant_propose_in_space(state: &AppState, who: &str, space: &str) {
+    use joinedcontext_portal::permissions::ORG_NAMESPACE;
+    state.mirror.upsert(common::envelope(
+        "Role",
+        "modeller",
+        ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["DataModel"], "verbs": ["read", "propose"] }] }),
+    ));
+    state.mirror.upsert(common::envelope(
+        "RoleBinding",
+        &format!("modeller-{who}"),
+        ORG_NAMESPACE,
+        json!({
+            "subjects": [{ "user": format!("{who}@hel.fi") }],
+            "role": "modeller",
+            "scope": { "contextSpace": space },
+        }),
+    ));
+}
+
+/// F-POR1-002: the propose check judges the whole manifest, so a grant bound to the model's own
+/// space admits the save and a grant bound to another space refuses it.
+#[tokio::test]
+async fn put_source_is_judged_by_the_space_the_model_lives_in() {
+    let forge = MockServer::start().await;
+    let state = common::state_on(&forge);
+    seed_space(&state, "ovzdusie", "mobility");
+    seed_space(&state, "ovzdusie", "parking");
+    seed_datamodel(
+        &state,
+        "ovzdusie",
+        "air-quality",
+        "./air-quality.linkml.yaml",
+        "1.0.0",
+    );
+    grant_propose_in_space(&state, "mobility-steward", "mobility");
+    grant_propose_in_space(&state, "parking-steward", "parking");
+    let uri = "/api/v1/projects/ovzdusie/datamodels/air-quality/source?dryRun=All";
+
+    let outsider = common::send_body(
+        &state,
+        common::person("parking-steward"),
+        "PUT",
+        uri,
+        "application/yaml",
+        axum::body::Body::from(NEW_MODEL),
+    )
+    .await;
+    assert_eq!(outsider.status, StatusCode::FORBIDDEN, "{}", outsider.text);
+
+    let steward = common::send_body(
+        &state,
+        common::person("mobility-steward"),
+        "PUT",
+        uri,
+        "application/yaml",
+        axum::body::Body::from(NEW_MODEL),
+    )
+    .await;
+    assert_ne!(steward.status, StatusCode::FORBIDDEN, "{}", steward.text);
 }

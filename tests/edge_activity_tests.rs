@@ -1067,3 +1067,76 @@ async fn a_reader_bound_to_one_space_follows_only_that_spaces_activity() {
         "another space's event: {tail}"
     );
 }
+
+/// F-POR1-009: once a person's last binding in the project is gone, the open tail delivers no
+/// further event, the project's own included, and ends.
+#[tokio::test]
+async fn a_removed_binding_ends_the_live_tail() {
+    use joinedcontext_portal::permissions::ORG_NAMESPACE;
+    use joinedcontext_portal::resource::ResourceKey;
+    let config = Config::for_tests();
+    let mirror = mirror();
+    let envelope = |kind: &str, name: &str, spec: Value| ResourceEnvelope {
+        api_version: API_VERSION.into(),
+        kind: kind.into(),
+        metadata: ObjectMeta {
+            name: name.into(),
+            namespace: Some(ORG_NAMESPACE.into()),
+            ..Default::default()
+        },
+        spec,
+        status: None,
+    };
+    mirror.upsert(envelope(
+        "Role",
+        "project-reader",
+        json!({ "rules": [{ "kinds": ["Project"], "verbs": ["read"] }] }),
+    ));
+    mirror.upsert(envelope(
+        "RoleBinding",
+        "lena-reader",
+        json!({ "subjects": [{ "user": "lena" }], "role": "project-reader",
+                "scope": { "project": PROJECT } }),
+    ));
+    let state = AppState::new(config.clone(), None).with_mirror(mirror);
+    let response = server::app(state.clone())
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/v1/projects/{PROJECT}/activity/stream"))
+                .header(header::COOKIE, cookie(&config, "lena", vec![]))
+                .body(Body::empty())
+                .expect("a request"),
+        )
+        .await
+        .expect("a response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let mut body = response.into_body();
+    state.mirror.remove(&ResourceKey {
+        namespace: ORG_NAMESPACE.into(),
+        kind: "RoleBinding".into(),
+        name: "lena-reader".into(),
+    });
+    state
+        .activity
+        .append(&[event_at(
+            PROJECT,
+            "project.changed",
+            "info",
+            "endpoints/x",
+            Utc::now(),
+        )])
+        .await
+        .expect("appended");
+    let mut tail = String::new();
+    while let Ok(Some(Ok(frame))) =
+        tokio::time::timeout(std::time::Duration::from_millis(300), body.frame()).await
+    {
+        if let Ok(data) = frame.into_data() {
+            tail.push_str(&String::from_utf8_lossy(&data));
+        }
+    }
+    assert!(
+        !tail.contains("project.changed"),
+        "an event after the binding went: {tail}"
+    );
+}

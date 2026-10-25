@@ -1087,8 +1087,9 @@ routes:
     live: true
   - route: PATCH /projects/{project}/{plural}/{name}
     rule: "project-verb:propose:<kind of plural>"
-    expect: [403, 403, allow, allow, 403, allow, 403, 403]
+    expect: [403, 403, allow, allow, 403, allow, 404, 403]
     live: true
+    note: "a member of another project cannot read the manifest, so the patch answers as for an absent one (F-POR2-006)"
   - route: DELETE /projects/{project}/{plural}/{name}
     rule: "project-verb:delete:<kind of plural>"
     expect: [403, 403, 403, 403, 403, 404, 404, 403]

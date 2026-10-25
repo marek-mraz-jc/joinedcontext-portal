@@ -1234,7 +1234,9 @@ impl Evaluator {
         let (pipelines, mut signals) = read_pipelines(&self.mirror, &self.quality);
         self.add_holds(&mut signals).await?;
         self.add_health(&pipelines, &mut signals, now).await?;
-        if let Some((log, probes)) = &self.log {
+        // A mirror not loaded yet judged nothing: the rows and their `since` stay as the last
+        // real run left them (F-POR4-017). A loaded mirror with no findings clears them.
+        if let Some((log, probes)) = self.log.as_ref().filter(|_| !self.mirror.is_empty()) {
             let mut findings = crate::health_log::derive(&self.mirror, &self.quality, &signals);
             findings.extend(probes.findings(&self.mirror, now).await);
             if let Err(error) = log.record_due(now, findings).await {
@@ -1922,5 +1924,37 @@ mod tests {
             store.notices(&["jana".into()]).await.unwrap().is_empty(),
             "notices go with their subscription"
         );
+    }
+
+    /// F-POR4-017: a run before the mirror loaded judged nothing, so the health log keeps its
+    /// rows and their `since`.
+    #[tokio::test]
+    async fn a_run_over_an_unloaded_mirror_keeps_the_health_log() {
+        let log = Arc::new(crate::health_log::HealthStore::new(None));
+        let t0 = at("2026-10-21T08:00:00Z");
+        let row = crate::health_log::Finding {
+            project: "bbsk".into(),
+            kind: crate::health_log::Kind::Pipeline,
+            name: "air".into(),
+            check: "source".into(),
+            status: crate::health_log::Status::Error,
+            detail: crate::health_log::Text::default(),
+            fix: crate::health_log::Text::default(),
+            evidence_url: String::new(),
+        };
+        log.record(t0, vec![row]).await.expect("record");
+        let evaluator = Evaluator::new(
+            Arc::new(Mirror::new()),
+            Arc::new(crate::quality::Store::default()),
+            Arc::new(AlertStore::new(None)),
+        )
+        .with_health_log(
+            Arc::clone(&log),
+            Arc::new(crate::health_probe::Probes::new(None, None)),
+        );
+        let later = t0 + crate::health_log::EVERY;
+        evaluator.run(later).await.expect("run");
+        let kept = log.list(Some("bbsk"), later).await.expect("list");
+        assert_eq!(kept.len(), 1, "the unloaded run dropped the row");
     }
 }
