@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
+import { settingsSearch } from "../src/router";
 
 const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", roles: ["portal-viewer"] };
 const EMPTY_LIST = { apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] };
@@ -111,5 +112,12 @@ describe("the addresses of Project settings (T-2606)", () => {
   it("answers a tab address with something that is no form with the not-found page", async () => {
     renderAt("/projects/helsinki/settings/members/whatever/else");
     expect(await screen.findByText(en.app.notFound.title)).toBeInTheDocument();
+  });
+
+  it("keeps ?endpoint= only as a resource name (T-5593)", () => {
+    expect(settingsSearch({ endpoint: "air-quality" })).toEqual({ endpoint: "air-quality" });
+    for (const bad of ["Air", "../x", "a/b", "", 7, ["air"], "x".repeat(64)]) {
+      expect(settingsSearch({ endpoint: bad })).toEqual({ endpoint: undefined });
+    }
   });
 });

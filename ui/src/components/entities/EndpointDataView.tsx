@@ -455,7 +455,7 @@ function windowProps(full: boolean, label: string): JSX.IntrinsicElements["div"]
 }
 
 /** The endpoint's published schema: its index, the JSON Schema of the newest version and its model. */
-function useEndpointSchema(base: string, slug: string) {
+export function useEndpointSchema(base: string, slug: string) {
   const index = useQuery({
     queryKey: ["endpoint-schema-index", slug],
     retry: false,

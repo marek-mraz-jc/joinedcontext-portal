@@ -3739,7 +3739,11 @@
       "unconstrained": "no constraint",
       "prohibitions": "Explicitly denied",
       "forbidden": "This endpoint does not answer you; sign in with an account that has a grant.",
-      "unavailable": "The access document could not be read. Try again in a moment."
+      "unavailable": "The access document could not be read. Try again in a moment.",
+      "source": "From",
+      "grants": "{count, plural, one {# grant} other {# grants}}",
+      "noSource": "a grant of this space",
+      "noSourceHint": "No Policy you can read matches this grant."
     },
     "panel": {
       "title": "Your access",
@@ -3991,6 +3995,19 @@
       "nothing": "Nothing granted yet",
       "endpointRole": "Every caller of endpoint {endpoint}",
       "endpointTier": "App role {tier} on endpoint {endpoint}"
+    },
+    "constraint": {
+      "back": "history up to {duration} back",
+      "older": "history older than {duration}",
+      "since": "history since {at}",
+      "until": "history before {at}",
+      "between": "history from {from} to {to}",
+      "scopeBelow": "within the scope {scope} and everything under it",
+      "point": "the point {lat}, {lon}",
+      "area": "a drawn area",
+      "near": "within {distance} of {where}",
+      "within": "inside {where}",
+      "intersects": "touching {where}"
     }
   },
   "flows": {
@@ -7685,7 +7702,8 @@
       "allows": "Allows",
       "from": "From",
       "none": "No binding gives you anything here.",
-      "binding": "binding {binding}, {scope}"
+      "binding": "binding {binding}, {scope}",
+      "approveOthers": "You approve changes other people propose; your own changes wait for another approver, because you do not also hold delete on these kinds."
     },
     "danger": {
       "title": "Delete project",

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
-import { readsOf, writesOf } from "../src/pages/access/EffectivePermissions";
+import { readsOf, sourcesOf, writesOf } from "../src/pages/access/EffectivePermissions";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -49,6 +49,12 @@ const GRANTS = {
       },
     },
     {
+      resource: { type: "AirQualityObserved" },
+      actions: ["queryTemporal"],
+      attributes: "*",
+      constraints: { q: "pm10>=40;stationName==\"Centrum\"" },
+    },
+    {
       resource: { type: "District", idPatterns: ["urn:ngsi-ld:District:bb:.*"] },
       actions: ["retrieveEntity"],
       attributes: "*",
@@ -61,6 +67,27 @@ const GRANTS = {
       actions: ["retrieveEntity"],
       attributes: "*",
       constraints: {},
+    },
+  ],
+};
+
+/** The caller's own Policy list: one matches the temporal grant, none the `q` one. */
+const POLICIES = {
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "List",
+  items: [
+    {
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "Policy",
+      metadata: { name: "air-last-day", namespace: "banskabystrica" },
+      spec: {
+        contextSpaceRef: "ovzdusie",
+        assignee: { kind: "role", id: "viewer" },
+        operations: ["retrieveEntity", "queryEntity", "updateAttrs"],
+        information: [{ entities: [{ type: "AirQualityObserved" }], propertyNames: ["pm10", "pm25", "location"] }],
+        geoQ: "georel=within;geometry=Polygon;coordinates=[[1,2]]",
+        temporalQ: "timerel=after;timeAt=P-1D",
+      },
     },
   ],
 };
@@ -86,6 +113,9 @@ function renderMatrix(document: unknown = GRANTS, accessStatus = 200) {
     }
     if (path.endsWith("/endpoints")) {
       return json(ENDPOINTS);
+    }
+    if (path.endsWith("/policies")) {
+      return json(POLICIES);
     }
     return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
   });
@@ -136,7 +166,7 @@ describe("effective permissions", () => {
     expect(writesOf(["queryTemporal"])).toEqual([]);
   });
 
-  it("renders one row per entity type with its operations, attributes and residual", async () => {
+  it("renders one row group per entity type with its operations, attributes and filters in words", async () => {
     renderMatrix();
 
     const air = await rowOf("AirQualityObserved");
@@ -144,9 +174,21 @@ describe("effective permissions", () => {
     expect(within(air).getByText(en.access.words.area.change)).toBeInTheDocument();
     expect(within(air).getByText("(retrieveEntity, queryEntity)")).toBeInTheDocument();
     expect(within(air).getByText("(updateAttrs)")).toBeInTheDocument();
-    expect(within(air).getByText("pm10")).toBeInTheDocument();
-    expect(within(air).getByText(/georel=within/)).toBeInTheDocument();
-    expect(within(air).getByText(/timerel=after/)).toBeInTheDocument();
+    // An attribute as a chip, its name on hover (T-5593).
+    expect(within(air).getByTitle("pm10")).toBeInTheDocument();
+    // T-5593: the filters a person reads, the NGSI-LD text only on hover and to a screen reader.
+    expect(within(air).getByText("inside a drawn area")).toBeInTheDocument();
+    expect(within(air).getByText("history up to 1 day back")).toBeInTheDocument();
+    expect(within(air).getByTitle("temporalQ=timerel=after;timeAt=P-1D")).toBeInTheDocument();
+    // Two grants on one type say so, and each names the Policy it comes from.
+    expect(within(air).getByText("2 grants")).toBeInTheDocument();
+    expect(await within(air).findByRole("link", { name: "air-last-day" })).toHaveAttribute(
+      "href",
+      "/projects/banskabystrica/policies/air-last-day/edit",
+    );
+    const second = air.nextElementSibling as HTMLElement;
+    expect(within(second).getByText('where pm10 ≥ 40, stationName = "Centrum"')).toBeInTheDocument();
+    expect(within(second).getByText(en.access.matrix.noSource)).toBeInTheDocument();
 
     const district = await rowOf("District");
     expect(within(district).getByText(en.access.matrix.allAttributes)).toBeInTheDocument();
@@ -166,6 +208,44 @@ describe("effective permissions", () => {
     expect(asked).toBe("/api/endpoint/mluyob4nz52lok3ssk7pgn5vwt/access");
   });
 
+  it("opens on the Endpoint ?endpoint= names, and only one the caller's list holds (T-5593)", async () => {
+    window.history.pushState({}, "", "/projects/banskabystrica/settings/access?endpoint=parking-internal");
+    const fetchMock = renderMatrix();
+    expect(await screen.findByLabelText(en.access.matrix.endpoint)).toHaveValue("zt4qm7ge2xdv6ksb3ncf5arw2y");
+    await vi.waitFor(() => {
+      const paths = fetchMock.mock.calls.map((call) => pathOf(call[0]));
+      expect(paths).toContain("/api/endpoint/zt4qm7ge2xdv6ksb3ncf5arw2y/access");
+      expect(paths).not.toContain("/api/endpoint/mluyob4nz52lok3ssk7pgn5vwt/access");
+    });
+  });
+
+  it("falls back to the first Endpoint for a name the list does not hold", async () => {
+    window.history.pushState({}, "", "/projects/banskabystrica/settings/access?endpoint=someone-elses");
+    renderMatrix();
+    expect(await screen.findByLabelText(en.access.matrix.endpoint)).toHaveValue("mluyob4nz52lok3ssk7pgn5vwt");
+  });
+
+  it("matches a grant to its Policy by space, effect, type, attributes and filters", () => {
+    const entry = { resource: { type: "AirQualityObserved" }, attributes: "*" as const, constraints: { q: "pm10>1" } };
+    const policy = (name: string, spec: Record<string, unknown>) => ({ name, spec: { contextSpaceRef: "ovzdusie", ...spec } });
+    const air = { information: [{ entities: [{ type: "AirQualityObserved" }] }] };
+    expect(
+      sourcesOf(
+        entry,
+        [
+          policy("same", { ...air, q: "pm10>1" }),
+          policy("other-filter", { ...air, q: "pm10>2" }),
+          policy("other-space", { ...air, q: "pm10>1", contextSpaceRef: "doprava" }),
+          policy("denies", { ...air, q: "pm10>1", effect: "prohibition" }),
+          policy("by-rule", { rules: [{ ...air, q: "pm10>1" }] }),
+          policy("named-attributes", { information: [{ entities: [{ type: "AirQualityObserved" }], propertyNames: ["pm10"] }], q: "pm10>1" }),
+        ],
+        "ovzdusie",
+        "permission",
+      ),
+    ).toEqual(["same", "by-rule"]);
+  });
+
   it("asks the endpoint the reader picks", async () => {
     const fetchMock = renderMatrix();
     await screen.findByRole("rowheader", { name: /AirQualityObserved/ });
@@ -179,6 +259,8 @@ describe("effective permissions", () => {
       const paths = fetchMock.mock.calls.map((call) => pathOf(call[0]));
       expect(paths).toContain("/api/endpoint/zt4qm7ge2xdv6ksb3ncf5arw2y/access");
     });
+    // The address keeps the choice, so a reload or a shared link opens the same table (T-5593).
+    expect(window.location.search).toBe("?endpoint=parking-internal");
   });
 
   it("shows denials the document names and nothing about types it does not (EP-59)", async () => {

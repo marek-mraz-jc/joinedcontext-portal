@@ -570,6 +570,14 @@ describe("the endpoint's own settings page", () => {
     expect(screen.getByText(en.endpoints.page.everyTypeOfTheSpace)).toBeInTheDocument();
   });
 
+  it("links Your access here to the Data access table opened on this endpoint (T-5593)", async () => {
+    renderPage();
+    expect(await screen.findByRole("link", { name: en.projectSettings.access.title })).toHaveAttribute(
+      "href",
+      `/projects/${PROJECT}/settings/access?endpoint=${NAME}`,
+    );
+  });
+
   it("opens the kind's own editor on this endpoint at its edit address", async () => {
     renderPage();
     const user = userEvent.setup();
