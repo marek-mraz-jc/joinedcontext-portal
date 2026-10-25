@@ -527,6 +527,24 @@ mod tests {
     }
 
     #[test]
+    fn the_gateways_rate_limited_row_is_an_event_of_its_kind() {
+        let mut row = record(vec![
+            attribute("space", "walk"),
+            attribute("endpoint", "walk-read"),
+            json!({ "key": "count", "value": { "intValue": "12" } }),
+        ]);
+        row["attributes"][1] = attribute("kind", "endpoint.rate-limited");
+        row["attributes"][4] = attribute(
+            "summary",
+            "serviceAccount:walk-caller was refused 12 times on walk-read: its rate limit was spent",
+        );
+        let event = event_of(&row).expect("the gateway's T-5624 kind is in the vocabulary");
+        assert_eq!(event.kind, "endpoint.rate-limited");
+        assert_eq!(event.details["count"], json!(12));
+        assert!(event.summary.starts_with("serviceAccount:walk-caller"));
+    }
+
+    #[test]
     fn the_body_is_the_summary_when_no_attribute_carries_one() {
         let mut spoken = record(vec![]);
         spoken["attributes"] = json!(spoken["attributes"]

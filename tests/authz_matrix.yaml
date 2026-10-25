@@ -318,6 +318,9 @@ routes:
   - route: DELETE /organization/people/{id}
     rule: "people-admin"
     expect: [403, 403, 403, 403, 403, allow, 403, 403]
+  - route: POST /organization/people/remove
+    rule: "people-admin"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
   - route: POST /organization/people/{id}/disable
     rule: "people-admin"
     expect: [403, 403, 403, 403, 403, allow, 403, 403]
