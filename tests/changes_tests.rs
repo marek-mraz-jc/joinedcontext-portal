@@ -42,6 +42,7 @@ fn make_session_cookie(
             name: name.map(str::to_string),
             roles: roles.into_iter().map(str::to_string).collect(),
             groups: Vec::new(),
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,
@@ -1682,6 +1683,7 @@ async fn an_operation_never_approves_its_callers_own_change_even_for_an_administ
         name: Some("Jana Kováčová".into()),
         roles: Vec::new(),
         groups: Vec::new(),
+        second_factor: false,
     };
 
     let refused = joinedcontext_portal::api::changes::approve_change_for(
@@ -2551,6 +2553,7 @@ async fn the_operation_refuses_a_public_endpoint_in_the_same_words() {
         name: Some("Jana Approver".into()),
         roles: Vec::new(),
         groups: Vec::new(),
+        second_factor: false,
     };
 
     let refused = joinedcontext_portal::api::changes::approve_change_for(
@@ -2596,6 +2599,7 @@ fn person(client: Option<&str>) -> Identity {
         name: Some("Jana Approver".into()),
         roles: Vec::new(),
         groups: Vec::new(),
+        second_factor: false,
     }
 }
 

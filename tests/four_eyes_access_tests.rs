@@ -40,6 +40,7 @@ fn person(email: &str) -> Identity {
         name: Some(user),
         roles: Vec::new(),
         groups: Vec::new(),
+        second_factor: false,
     }
 }
 

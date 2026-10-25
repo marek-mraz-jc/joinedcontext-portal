@@ -51,6 +51,16 @@
       "close": "Not now",
       "notYet": "You are not signed in yet. Finish signing in in the other tab, then continue."
     },
+    "stepUp": {
+      "title": "Confirm with your one-time code",
+      "body": "Approving, rejecting, revoking and administering people need a second factor in this session. You signed in with your password only.",
+      "how": "Sign in again in a new tab with your password and the code from your authenticator app. If you have no authenticator yet, the sign-in page sets one up. This page and what you typed stay here.",
+      "afterSignIn": "When you have entered the code in the new tab, come back here, continue, and press the decision again.",
+      "signIn": "Sign in with the code in a new tab",
+      "continue": "Continue here",
+      "close": "Not now",
+      "notYet": "The code has not arrived yet. Finish signing in in the other tab, then continue."
+    },
     "listHidden": "This list is not open to you in {project}. Whoever manages the project can grant it.",
     "busyReason": "Wait for the action in progress to finish.",
     "firstPage": "This is the first page.",
@@ -8941,7 +8951,8 @@
     "unprocessable": "Correct each finding the answer lists; a dry run shows the same findings before you send.",
     "recipient-refused": "Send only to people of the organization whose e-mail address is verified.",
     "no-model-key": "Ask an administrator of the organization to add or renew the model key, then try again.",
-    "no-json": "Ask again; the model's answer did not match the requested schema."
+    "no-json": "Ask again; the model's answer did not match the requested schema.",
+    "second-factor-required": "Sign in again with your one-time code, then repeat the decision."
   },
   "jobs": {
     "title": "What you started",

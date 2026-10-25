@@ -383,6 +383,7 @@ mod tests {
                     name: None,
                     roles: vec!["platform-admin".into()],
                     groups: vec!["helsinki-operations".into()],
+                    second_factor: false,
                 },
                 roles.iter().map(|role| (*role).to_owned()).collect(),
             ),

@@ -320,6 +320,7 @@ mod tests {
             name: Some("Demo Developer".into()),
             roles: vec![],
             groups: vec!["portal-approver".into()],
+            second_factor: false,
         };
         let payload = serde_json::json!({
             "apiVersion": crate::resource::API_VERSION,

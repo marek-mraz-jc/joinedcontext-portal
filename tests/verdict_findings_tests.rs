@@ -38,6 +38,7 @@ fn session_cookie(config: &Config) -> String {
             // `Config::for_tests` makes `portal-approver` the bootstrap group, which is how every
             // other test of a proposal gets past the permission check.
             groups: Vec::new(),
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,

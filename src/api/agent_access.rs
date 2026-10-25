@@ -180,6 +180,7 @@ pub async fn revoke_grant(
             effective.check(KIND, verb, None)?;
         }
     }
+    crate::auth::session::require_second_factor(identity, &state.config)?;
     let Json(request) = body.map_err(|e| ApiError::BadRequest(e.body_text()))?;
     let (env, spec) = account(&state, &project, &name)?;
     let target = as_value(&env)?;
@@ -337,6 +338,7 @@ pub async fn reap_expired_grants(
         roles: Vec::new(),
         groups: vec![state.config.bootstrap_admins.clone()],
         client: None,
+        second_factor: false,
     };
     for project in state.mirror.namespaces() {
         let accounts = state
@@ -525,6 +527,7 @@ mod tests {
                 name: None,
                 roles: Vec::new(),
                 groups,
+                second_factor: false,
             },
             expires_at: 9_999_999_999,
             issued_at: 1000,

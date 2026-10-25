@@ -53,6 +53,7 @@ fn cookies_for(config: &Config, username: &str, groups: &[&str]) -> String {
             name: None,
             roles: Vec::new(),
             groups: groups.iter().map(|g| (*g).to_owned()).collect(),
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,
