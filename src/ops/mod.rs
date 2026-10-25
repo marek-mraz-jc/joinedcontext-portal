@@ -930,6 +930,7 @@ mod tests {
                     name: None,
                     roles: vec![],
                     groups: vec![group.into()],
+                    second_factor: true,
                 },
                 Via::Session,
             )
