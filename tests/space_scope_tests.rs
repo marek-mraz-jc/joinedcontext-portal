@@ -140,10 +140,11 @@ async fn the_rest_list_and_get_answer_the_bound_space_alone() {
         &state,
         ana(),
         "GET",
-        &format!("/api/v1/projects/{PROJECT}/contextspaces"),
+        &format!("/api/v1/projects/{PROJECT}/spaces"),
         None,
     )
     .await;
+    assert_eq!(spaces.status, StatusCode::OK, "{}", spaces.text());
     assert_eq!(names(&spaces.body["items"], "/metadata/name"), ["air"]);
     for (name, status) in [
         ("air-api", StatusCode::OK),

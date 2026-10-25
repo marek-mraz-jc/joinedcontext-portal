@@ -8996,7 +8996,7 @@
           "drift"
         ],
         "summary": "Adopt Drift",
-        "description": "Proposes the live entity as the seed file's content, as a change a person approves. Needs `propose` on Entity; refused when the entity is no longer in the space.",
+        "description": "Proposes the live entity as the seed file's content, as a change a person approves. Needs `propose` on Entity; the live entity is read with the caller's own access token, so it holds what their Policy shows; refused when the entity is no longer in the space.",
         "operationId": "adopt_drift",
         "parameters": [
           {
@@ -9052,7 +9052,7 @@
             }
           },
           "404": {
-            "description": "No such project, or the last scan reported no such drift",
+            "description": "No such project, the last scan reported no such drift, or no live entity the caller may read (also when the session carries no access token of the person)",
             "content": {
               "application/json": {
                 "schema": {
