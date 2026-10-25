@@ -642,6 +642,7 @@ async fn a_bearer_token_never_deletes_a_person_or_removes_their_second_factor() 
         ("DELETE", person.to_owned()),
         ("POST", format!("{person}/remove-second-factor")),
         ("DELETE", format!("{person}/consents/jc-hub")),
+        ("POST", "/api/v1/organization/people/remove".to_owned()),
     ];
     for (who, token) in tokens() {
         for (http, uri) in &doors {
@@ -709,6 +710,12 @@ fn decision_doors() -> Vec<(&'static str, String, Option<Value>, Identity)> {
             "DELETE",
             "/api/v1/organization/people/u-1".into(),
             None,
+            admin.clone(),
+        ),
+        (
+            "POST",
+            "/api/v1/organization/people/remove".into(),
+            Some(json!({ "ids": ["u-1", "u-2"] })),
             admin,
         ),
     ]

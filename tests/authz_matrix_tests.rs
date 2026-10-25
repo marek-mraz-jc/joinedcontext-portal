@@ -658,6 +658,7 @@ async fn a_decision_without_a_second_factor_is_refused_at_every_door() {
         "DELETE /organization/people/{id}/consents/{client}",
         "PATCH /organization/people/{id}",
         "POST /organization/people",
+        "POST /organization/people/remove",
         "POST /organization/people/{id}/disable",
         "POST /organization/people/{id}/enable",
         "POST /organization/people/{id}/remove-second-factor",

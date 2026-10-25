@@ -7109,6 +7109,26 @@
           "title": "Revoke the invitation of {email}?",
           "body": "The account is deleted and the link stops working. When a binding already names the person, a change takes them out of it first."
         }
+      },
+      "bulk": {
+        "hint": "Tick people to disable or delete several at once, e.g. everyone of a department that leaves.",
+        "selectAll": "Select everyone on this page",
+        "select": "Select {name}",
+        "selected": "{count} selected",
+        "disable": "Disable",
+        "delete": "Delete",
+        "clear": "Clear selection",
+        "confirmDisable": {
+          "title": "Disable {count} people?",
+          "body": "Each of them is signed out at once and cannot sign in until an administrator enables them again."
+        },
+        "confirmDelete": {
+          "title": "Delete {count} people?",
+          "body": "They are disabled at once. One change takes all of them out of every group and role binding; their accounts are deleted once it is approved. People nothing names are deleted at once."
+        },
+        "disabled": "{count} people disabled.",
+        "deleted": "{count} people deleted.",
+        "partly": "{done} of {count} disabled. Not disabled: {failed}."
       }
     },
     "setup": {
