@@ -69,6 +69,16 @@ describe("the secret reference widget", () => {
     expect(JSON.stringify(reference)).not.toContain("hunter2");
   });
 
+  it("announces the reference once per keystroke, not twice", async () => {
+    const announced = vi.fn();
+    renderWidget({ onSecretRef: announced });
+
+    const [name] = screen.getAllByRole("textbox");
+    await userEvent.type(name, "abc");
+
+    expect(announced).toHaveBeenCalledTimes(3);
+  });
+
   it("writes an interpolation into the form and never a secret", async () => {
     const submitted: unknown[] = [];
     render(

@@ -997,6 +997,21 @@ mod tests {
         }
     }
 
+    /// T-5648: the outcome sink sends what a run refused in its body; message metadata (the
+    /// `jc_refused_*` items, a source's response headers) never becomes a request header, so
+    /// an outcome carrying a long refusal still fits the Portal hop's header limit.
+    #[test]
+    fn the_outcome_sink_sends_no_message_metadata_as_headers() {
+        let rendered = with_outcomes(serde_json::json!({ "drop": {} }), "http://portal/outcomes");
+        let client = &rendered["broker"]["outputs"][1]["fallback"][0]["http_client"];
+        assert_eq!(client["url"], "http://portal/outcomes");
+        assert_eq!(
+            client["headers"],
+            serde_json::json!({ "Content-Type": "application/json" })
+        );
+        assert_eq!(client.get("metadata"), None);
+    }
+
     /// T-5687: a refusal by the model, a policy, the gateway or the broker may clear by itself; a
     /// source that refused, a malformed record or a step that threw does not.
     #[test]

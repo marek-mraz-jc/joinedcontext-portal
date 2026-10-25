@@ -10,10 +10,10 @@ import { AccessRequestInbox } from "../pipelines/AccessRequests";
 import { EndpointDocs } from "./EndpointDocs";
 import { ConnectAssistant } from "../../components/endpoints/ConnectAssistant";
 import { QueryCard } from "../../components/endpoints/QueryCard";
-import { ApiError, api, queryKeys, readCsrfToken, unwrap, whilePending } from "../../api/client";
+import { ApiError, api, queryKeys, unwrap, whilePending } from "../../api/client";
 import { asManifests, isChange, localized, refName } from "../../api/manifest";
 import type { Change, ResourceProposal } from "../../api/manifest";
-import { proposeChecked } from "../../api/proposal";
+import { proposeBundle, proposeChecked } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import type { Manifest } from "../../api/manifest";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
@@ -1065,30 +1065,6 @@ export function projectionFromModel(
       })),
     },
   } as Manifest;
-}
-
-/** Proposes manifests as one checked import, the way the endpoint form proposes a projection (PF-57). */
-async function proposeBundle(project: string, manifests: unknown[]): Promise<unknown> {
-  const send = async (dryRun: boolean) => {
-    const response = await globalThis.fetch(
-      new Request(
-        `${window.location.origin}/api/v1/projects/${encodeURIComponent(project)}/import${dryRun ? "?dryRun=All" : ""}`,
-        {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/json", "x-csrf-token": readCsrfToken() ?? "" },
-          body: JSON.stringify({ manifests, conflictPolicy: "replace" }),
-        },
-      ),
-    );
-    if (!response.ok) {
-      const problem = (await response.json().catch(() => null)) as { detail?: string } | null;
-      throw new ApiError(response.status, problem?.detail || `HTTP ${response.status}`);
-    }
-    return response.json() as Promise<unknown>;
-  };
-  await send(true);
-  return send(false);
 }
 
 /** The permissible values of every enum attribute of these classes, by attribute name. */

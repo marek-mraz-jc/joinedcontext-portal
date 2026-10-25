@@ -28,12 +28,10 @@ import {
   Term,
 } from "../components/ui";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
+import { SPACE_LABEL } from "../schemas/modelprojection";
 
 const KIND = "ContextSourceRegistration";
 const PLURAL = "csrs";
-/** The space a registration's manifest is filed under, the way the Portal labels every space-scoped kind. */
-const SPACE_LABEL = "joinedcontext.com/space";
-
 export interface RegistrationForm {
   name: string;
   contextSpaceRef: string;

@@ -3,6 +3,7 @@ import type { JSX } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
+import { projectsQuery } from "../../api/projects";
 import { asManifests, localized } from "../../api/manifest";
 import { Combobox } from "./Combobox";
 import type { PickerOption } from "./Combobox";
@@ -58,8 +59,7 @@ export function ResourceNamePicker({
   const inProject = lists.length > 0 ? lists : undefined;
   // The projects are asked for only by a picker of projects: the key is `useProjects`' own.
   const projects = useQuery({
-    queryKey: queryKeys.projects(),
-    queryFn: async () => unwrap(await api.GET("/api/v1/projects")),
+    ...projectsQuery,
     select: (list) => list.items.map((item) => item.name),
     enabled: !inProject,
   });
