@@ -91,41 +91,51 @@ impl Lane {
 pub enum Clock {
     /// Neither `period` nor `schedule`: once after apply.
     Once,
-    /// A `period`, counted from 1970-01-01T00:00Z so a Portal restart does not move it.
-    Every(Duration),
+    /// A `period`, counted from 1970-01-01T00:00Z so a Portal restart does not move it, plus the
+    /// phase its `schedule` names: `24h` with `55 21 * * *` runs at 21:55 UTC, without one at 00:00.
+    Every(Duration, Duration),
     /// A `schedule` of five cron fields, read in UTC.
     Cron(Cron),
 }
 
 impl Clock {
-    /// The clock of a pipeline: its `period` when it has one, else its `schedule`.
+    /// The clock of a pipeline: its `period` when it has one, started at the time its `schedule`
+    /// names, else its `schedule`. Every period counted from 00:00 alone made all 380 daily
+    /// pipelines of dev due at 00:00Z, and the queue drained them into the night's busiest hours
+    /// (T-5719).
     pub fn of(period: Option<&str>, schedule: Option<&str>) -> Result<Clock, String> {
         fn given(v: Option<&str>) -> Option<&str> {
             v.map(str::trim).filter(|v| !v.is_empty())
         }
-        if let Some(period) = given(period) {
-            return match super::streams::duration_of(period) {
-                Some(every) if every >= Duration::from_secs(1) => Ok(Clock::Every(every)),
-                _ => Err(format!(
-                    "period `{period}` is not a duration of at least 1s (`30s`, `5m`, `24h`)"
-                )),
-            };
-        }
-        match given(schedule) {
-            Some(schedule) => Cron::parse(schedule).map(Clock::Cron).ok_or_else(|| {
-                format!("schedule `{schedule}` is not five cron fields (`0 5 * * *`)")
-            }),
-            None => Ok(Clock::Once),
-        }
+        let cron = given(schedule)
+            .map(|schedule| {
+                Cron::parse(schedule).ok_or_else(|| {
+                    format!("schedule `{schedule}` is not five cron fields (`0 5 * * *`)")
+                })
+            })
+            .transpose()?;
+        let Some(period) = given(period) else {
+            return Ok(cron.map_or(Clock::Once, Clock::Cron));
+        };
+        let every = super::streams::duration_of(period)
+            .filter(|every| *every >= Duration::from_secs(1))
+            .ok_or_else(|| {
+                format!("period `{period}` is not a duration of at least 1s (`30s`, `5m`, `24h`)")
+            })?;
+        Ok(Clock::Every(
+            every,
+            cron.map_or(Duration::ZERO, |cron| cron.phase(every)),
+        ))
     }
 
     /// The first run strictly after `t`; none for [`Clock::Once`].
     pub fn next_after(&self, t: DateTime<Utc>) -> Option<DateTime<Utc>> {
         match self {
             Clock::Once => None,
-            Clock::Every(every) => {
+            Clock::Every(every, phase) => {
                 let every = every.as_millis() as i64;
-                let at = (t.timestamp_millis().div_euclid(every) + 1) * every;
+                let phase = phase.as_millis() as i64;
+                let at = ((t.timestamp_millis() - phase).div_euclid(every) + 1) * every + phase;
                 DateTime::from_timestamp_millis(at)
             }
             Clock::Cron(cron) => cron.next_after(t),
@@ -195,6 +205,17 @@ impl Cron {
             && has(self.hours, t.hour())
             && has(self.months, t.month())
             && day_ok
+    }
+
+    /// How far into each `every` from 1970-01-01T00:00Z this cron first fires; zero when it never
+    /// does within the year [`Cron::next_after`] scans.
+    fn phase(&self, every: Duration) -> Duration {
+        let epoch = DateTime::<Utc>::UNIX_EPOCH;
+        let since = self
+            .next_after(epoch - Span::minutes(1))
+            .and_then(|first| (first - epoch).to_std().ok())
+            .unwrap_or_default();
+        Duration::from_millis((since.as_millis() % every.as_millis().max(1)) as u64)
     }
 
     /// ponytail: a minute-by-minute scan over at most a year (half a million cheap checks for a
@@ -294,7 +315,7 @@ impl Entry {
     /// long before a batch run's cap (T-5370).
     fn cap(&self, timeout: Duration) -> Duration {
         match self.clock {
-            Clock::Every(every) if every < SHORT_BELOW => {
+            Clock::Every(every, _) if every < SHORT_BELOW => {
                 timeout.min((every * 3).max(Duration::from_secs(120)))
             }
             _ => timeout,
@@ -1071,7 +1092,7 @@ mod tests {
     }
 
     fn weekly() -> Clock {
-        Clock::Every(Duration::from_secs(168 * 3600))
+        Clock::Every(Duration::from_secs(168 * 3600), Duration::ZERO)
     }
 
     const DM61: &str =
@@ -1315,12 +1336,40 @@ mod tests {
     }
 
     #[test]
+    fn a_period_starts_at_the_time_its_schedule_names() {
+        let now = at("2026-10-16T13:47:30Z");
+        let next = |period: &str, schedule: &str| {
+            Clock::of(Some(period), Some(schedule))
+                .unwrap()
+                .next_after(now)
+        };
+        // The podujatia seeds of T-5719: before, every one of them ran at 00:00Z.
+        assert_eq!(next("24h", "55 21 * * *"), Some(at("2026-10-16T21:55:00Z")));
+        assert_eq!(next("24h", "10 2 * * *"), Some(at("2026-10-17T02:10:00Z")));
+        assert_eq!(
+            next("3h", "7 1-23/3 * * *"),
+            Some(at("2026-10-16T16:07:00Z"))
+        );
+        assert_eq!(
+            next("168h", "3 5 * * 1"),
+            Some(at("2026-10-19T05:03:00Z")),
+            "Monday"
+        );
+        // The period keeps how often; a schedule that disagrees moves only the start.
+        assert_eq!(next("1h", "20 3 * * *"), Some(at("2026-10-16T14:20:00Z")));
+        assert_eq!(
+            Clock::of(Some("24h"), Some("61 * * * *")),
+            Err("schedule `61 * * * *` is not five cron fields (`0 5 * * *`)".to_owned())
+        );
+    }
+
+    #[test]
     fn a_clock_is_the_period_else_the_schedule_else_once() {
         assert_eq!(Clock::of(None, None), Ok(Clock::Once));
         assert_eq!(Clock::of(Some(" "), Some("")), Ok(Clock::Once));
         assert_eq!(
             Clock::of(Some("5m"), Some("0 5 * * *")),
-            Ok(Clock::Every(Duration::from_secs(300)))
+            Ok(Clock::Every(Duration::from_secs(300), Duration::ZERO))
         );
         assert!(Clock::of(Some("0s"), None).is_err());
         assert!(Clock::of(Some("daily"), None).is_err());
@@ -1340,7 +1389,7 @@ mod tests {
             Some(at("2026-10-17T05:00:00Z"))
         );
         assert_eq!(
-            Clock::Every(Duration::from_secs(86_400)).next_after(now),
+            Clock::Every(Duration::from_secs(86_400), Duration::ZERO).next_after(now),
             Some(at("2026-10-17T00:00:00Z"))
         );
         let cron = |s: &str| Clock::of(None, Some(s)).unwrap().next_after(now);
@@ -1361,12 +1410,18 @@ mod tests {
             "day or weekday"
         );
         assert_eq!(cron("0 0 30 2 *"), None, "30 February never comes");
-        assert_eq!(Clock::Every(Duration::from_secs(30)).lane(now), Lane::Short);
+        assert_eq!(
+            Clock::Every(Duration::from_secs(30), Duration::ZERO).lane(now),
+            Lane::Short
+        );
         assert_eq!(
             Clock::of(None, Some("* * * * *")).unwrap().lane(now),
             Lane::Short
         );
-        assert_eq!(Clock::Every(SHORT_BELOW).lane(now), Lane::Batch);
+        assert_eq!(
+            Clock::Every(SHORT_BELOW, Duration::ZERO).lane(now),
+            Lane::Batch
+        );
         assert_eq!(daily_at_5().lane(now), Lane::Batch);
         assert_eq!(Clock::Once.lane(now), Lane::Batch);
     }
@@ -1521,7 +1576,7 @@ mod tests {
         let queue = Mutex::new(RunQueue::new(2, 1));
         let fake = Fake::default();
         let now = at("2026-10-17T05:00:00Z");
-        let hourly = || planned(Clock::Every(Duration::from_secs(3600)));
+        let hourly = || planned(Clock::Every(Duration::from_secs(3600), Duration::ZERO));
         let wanted = || {
             ["loop", "ok"]
                 .map(|n| (key(n), hourly()))
@@ -1581,7 +1636,7 @@ mod tests {
         let now = at("2026-10-17T05:00:00Z");
         let hourly = |count: u64| Planned {
             stream: serde_json::json!({"input": {"generate": {"count": count}}}),
-            clock: Clock::Every(Duration::from_secs(3600)),
+            clock: Clock::Every(Duration::from_secs(3600), Duration::ZERO),
         };
         let wanted = |count| [(key("loop"), hourly(count))].into_iter().collect();
         queue.lock().unwrap().plan(wanted(1), now);
@@ -1628,10 +1683,22 @@ mod tests {
             retried: Vec::new(),
         };
         let cap = |clock| entry(clock).cap(RUN_TIMEOUT).as_secs();
-        assert_eq!(cap(Clock::Every(Duration::from_secs(30))), 120);
-        assert_eq!(cap(Clock::Every(Duration::from_secs(60))), 180);
-        assert_eq!(cap(Clock::Every(Duration::from_secs(240))), 720);
-        assert_eq!(cap(Clock::Every(Duration::from_secs(300))), 900);
+        assert_eq!(
+            cap(Clock::Every(Duration::from_secs(30), Duration::ZERO)),
+            120
+        );
+        assert_eq!(
+            cap(Clock::Every(Duration::from_secs(60), Duration::ZERO)),
+            180
+        );
+        assert_eq!(
+            cap(Clock::Every(Duration::from_secs(240), Duration::ZERO)),
+            720
+        );
+        assert_eq!(
+            cap(Clock::Every(Duration::from_secs(300), Duration::ZERO)),
+            900
+        );
         assert_eq!(cap(Clock::Once), 900);
     }
 
@@ -1683,7 +1750,7 @@ mod tests {
             (key("harvest-c"), planned(daily_at_5())),
             (
                 key("vehicles"),
-                planned(Clock::Every(Duration::from_secs(30))),
+                planned(Clock::Every(Duration::from_secs(30), Duration::ZERO)),
             ),
         ];
         queue
