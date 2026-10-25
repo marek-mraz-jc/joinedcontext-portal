@@ -9,7 +9,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { PublicViewPage, SharePanel, publicName, publishRequest } from "../src/pages/spaces/PublicView";
+import { ApiError } from "../src/api/client";
+import { PublicViewPage, SharePanel, publicName, publishRequest, retryAfterSeconds, retryPublic } from "../src/pages/spaces/PublicView";
 import { expectNoViolations } from "./checks";
 import { renderPage } from "./page_contract";
 
@@ -109,34 +110,97 @@ describe("the public link", () => {
     vi.unstubAllGlobals();
   });
 
-  it("reads the Endpoint anonymously and shows its type's entities read-only", async () => {
+  /** The Endpoint `abc` answering with its catalogue entry, one type and two rows; `fail` answers every read. */
+  const publicEndpoint = (reads: Request[], fail?: () => Response | Promise<Response>) => ({
+    path: "/v/abc",
+    answer: async (url: URL, request: Request) => {
+      if (!url.pathname.startsWith("/api/endpoint/abc/")) return undefined;
+      reads.push(request);
+      if (fail) return fail();
+      if (url.pathname === "/api/endpoint/abc/") {
+        return json({ "dct:title": [{ "@language": "ca", "@value": "Estacions" }, { "@language": "en", "@value": "Bike stations" }] });
+      }
+      if (url.pathname.endsWith("/types")) return json({ typeList: ["BikeHireDockingStation"] });
+      return json([
+        { id: "urn:ngsi-ld:BikeHireDockingStation:hsl:1", type: "BikeHireDockingStation", name: "Kamppi", availableBikeNumber: 4 },
+        { id: "urn:ngsi-ld:BikeHireDockingStation:hsl:2", type: "BikeHireDockingStation", name: "Töölö" },
+      ]);
+    },
+  });
+
+  it("reads the Endpoint anonymously and shows its entities under the catalogue's title and labelled heads", async () => {
     const reads: Request[] = [];
-    renderPage(<PublicViewPage slug="abc" />, {
-      path: "/v/abc",
-      answer: async (url, request) => {
-        if (!url.pathname.startsWith("/api/endpoint/abc/")) return undefined;
-        reads.push(request);
-        if (url.pathname.endsWith("/types")) return json({ typeList: ["Station"] });
-        return json([
-          { id: "urn:ngsi-ld:Station:1", type: "Station", name: "Kamppi", free: 4 },
-          { id: "urn:ngsi-ld:Station:2", type: "Station", name: "Töölö" },
-        ]);
-      },
-    });
-    const table = await screen.findByRole("table", { name: "Station" });
-    expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([en.entityGrid.id, "name", "free"]);
+    renderPage(<PublicViewPage slug="abc" />, publicEndpoint(reads));
+    const table = await screen.findByRole("table", { name: "Bike hire docking station" });
+    expect(await screen.findByRole("heading", { level: 1, name: "Bike stations" })).toBeInTheDocument();
+    expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([en.entityGrid.id, "Name", "Available bike number"]);
     expect(within(table).getByText("Kamppi")).toBeInTheDocument();
+    expect(within(table).getByText("1")).toHaveAttribute("title", "urn:ngsi-ld:BikeHireDockingStation:hsl:1");
+    expect(table.textContent).not.toContain("urn:");
+    expect(screen.getByTestId("public-view").textContent).not.toContain("abc");
     expect(screen.getByText("2 entities.")).toBeInTheDocument();
     expect(reads.every((request) => request.credentials === "omit")).toBe(true);
-    expect(new URL(reads[1].url).searchParams.get("options")).toBe("keyValues");
+    const entities = reads.find((request) => new URL(request.url).pathname.endsWith("/entities"));
+    expect(new URL(entities?.url ?? "http://x").searchParams.get("options")).toBe("keyValues");
     await expectNoViolations(screen.getByTestId("public-view"));
   });
 
-  it("says the view is not published when the Endpoint is gone", async () => {
-    renderPage(<PublicViewPage slug="gone" />, {
-      path: "/v/gone",
-      answer: async (url) => (url.pathname.startsWith("/api/endpoint/gone/") ? json({ title: "Not Found" }, 404) : undefined),
-    });
+  const statuses: Array<[string, () => Response, string, number]> = [
+    ["404 says the view is not published", () => json({ title: "Not Found" }, 404), en.spaces.share.notPublished, 1],
+    ["401 says the view is not open to the public", () => json({ title: "Unauthorized" }, 401), en.spaces.share.closed, 1],
+    ["403 says the view is not open to the public", () => json({ title: "Forbidden" }, 403), en.spaces.share.closed, 1],
+    [
+      "429 says how long to wait",
+      () => new Response("{}", { status: 429, headers: { "Retry-After": "30", "Content-Type": "application/problem+json" } }),
+      "Too many visits just now. Try again in 30 s.",
+      1,
+    ],
+    ["503 says the service did not answer, after two retries", () => json({ title: "Service Unavailable" }, 503), en.spaces.share.down, 3],
+  ];
+
+  it.each(statuses)("%s", async (_name, answer, message, tries) => {
+    const reads: Request[] = [];
+    renderPage(<PublicViewPage slug="abc" />, publicEndpoint(reads, answer));
+    expect(await screen.findByText(message, undefined, { timeout: 4000 })).toBeInTheDocument();
+    const typeReads = reads.filter((request) => new URL(request.url).pathname.endsWith("/types"));
+    expect(typeReads).toHaveLength(tries);
+    expect(screen.getByRole("heading", { level: 1, name: en.spaces.share.heading })).toBeInTheDocument();
+    expect(screen.getByTestId("public-view").textContent).not.toContain("abc");
+    // A refusal is final; only a failure (5xx, network) or a wait (429) offers to ask again.
+    expect(screen.queryByRole("button", { name: en.app.error.retry }) !== null).toBe(tries > 1 || message.startsWith("Too many"));
+    await expectNoViolations(screen.getByTestId("public-view"));
+  });
+
+  it("says the service did not answer when the network fails, and reads again on Retry", async () => {
+    const reads: Request[] = [];
+    let down = true;
+    renderPage(
+      <PublicViewPage slug="abc" />,
+      publicEndpoint(reads, () => {
+        if (down) throw new TypeError("Failed to fetch");
+        return json({ typeList: [] });
+      }),
+    );
+    expect(await screen.findByText(en.spaces.share.down, undefined, { timeout: 4000 })).toBeInTheDocument();
+    expect(reads.filter((request) => new URL(request.url).pathname.endsWith("/types"))).toHaveLength(3);
+    down = false;
+    await userEvent.click(screen.getByRole("button", { name: en.app.error.retry }));
     expect(await screen.findByText(en.spaces.share.notPublished)).toBeInTheDocument();
+  });
+});
+
+describe("reading a failure", () => {
+  it("retries a 5xx and a network failure twice, never a refusal", () => {
+    expect(retryPublic(0, new ApiError(503, "x"))).toBe(true);
+    expect(retryPublic(1, new TypeError("Failed to fetch"))).toBe(true);
+    expect(retryPublic(2, new ApiError(500, "x"))).toBe(false);
+    for (const status of [401, 403, 404, 429]) expect(retryPublic(0, new ApiError(status, "x"))).toBe(false);
+  });
+
+  it("reads Retry-After as seconds or as a date", () => {
+    expect(retryAfterSeconds("12")).toBe(12);
+    expect(retryAfterSeconds("Wed, 21 Oct 2026 07:28:30 GMT", Date.parse("Wed, 21 Oct 2026 07:28:00 GMT"))).toBe(30);
+    expect(retryAfterSeconds("soon")).toBeUndefined();
+    expect(retryAfterSeconds(null)).toBeUndefined();
   });
 });
