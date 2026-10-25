@@ -1,4 +1,5 @@
 pub mod access_explore;
+pub mod access_matrix;
 pub mod access_requests;
 pub mod access_simulate;
 pub mod activity;
@@ -131,6 +132,7 @@ pub fn router() -> Router<AppState> {
         .merge(people::router())
         .merge(access_simulate::router())
         .merge(access_explore::router())
+        .merge(access_matrix::router())
         .merge(agent_access::router())
         .merge(endpoint_preview::router())
         .merge(kpi_check::router())

@@ -8979,6 +8979,120 @@
         }
       }
     },
+    "/api/v1/projects/{project}/endpoints/{name}/access/matrix": {
+      "get": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Who May Do What On An Endpoint",
+        "description": "Every principal a Policy of the Endpoint's space names, the project's ServiceAccounts and the public, against each type and read, write, delete and history, from the gateway's own grant document per principal (API/01 §56, EP-103). Organization administrators and whoever reads Policies in the Endpoint's space; recorded as an `access.simulated` activity event. Changes no data.",
+        "operationId": "access_matrix",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Endpoint name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "Only principals of this kind: `person`, `group`, `role`, `serviceAccount` or `public`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The matrix and its graph",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Matrix"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`kind` is not a principal kind",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Neither an organization administrator nor a reader of Policies in the Endpoint's space",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such Endpoint, or the gateway does not serve it yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "More than 50 principals: narrow with `kind`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No gateway, or it did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/endpoints/{name}/access/simulate": {
       "post": {
         "tags": [
@@ -26656,6 +26770,150 @@
           "endSessionUrl": {
             "type": "string",
             "description": "Absolute URL: Keycloak's `end_session_endpoint`, or the portal itself when no realm is\nconfigured."
+          }
+        }
+      },
+      "Matrix": {
+        "type": "object",
+        "required": [
+          "endpoint",
+          "space",
+          "principals",
+          "types",
+          "cells",
+          "edges"
+        ],
+        "properties": {
+          "cells": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatrixCell"
+            }
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatrixEdge"
+            }
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "principals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatrixPrincipal"
+            }
+          },
+          "space": {
+            "type": "string"
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "MatrixCell": {
+        "type": "object",
+        "description": "What one principal may do on one type for one action.",
+        "required": [
+          "principal",
+          "type",
+          "action",
+          "effect",
+          "attributes"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "`read`, `write`, `delete` or `history`."
+          },
+          "attributes": {
+            "description": "`\"*\"` for every attribute, else the attribute names."
+          },
+          "constraint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The constraints the grant narrows the rows by (`q`, `scopeQ`, `geoQ`, `temporalQ`)."
+          },
+          "decidedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Policy that grants or prohibits this, when one Policy in force covers the type."
+          },
+          "effect": {
+            "type": "string",
+            "description": "`permit`, or `prohibit` where a prohibition takes it away."
+          },
+          "principal": {
+            "type": "string",
+            "description": "`{kind}:{name}` of the principal."
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "MatrixEdge": {
+        "type": "object",
+        "description": "One edge of the graph principal → Policy → Endpoint → type; node ids are\n`principal:{kind}:{name}`, `policy:{name}`, `endpoint:{name}` and `type:{name}`.",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        }
+      },
+      "MatrixPrincipal": {
+        "type": "object",
+        "required": [
+          "kind",
+          "name",
+          "via"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "`person`, `group`, `role`, `serviceAccount` or `public`."
+          },
+          "name": {
+            "type": "string"
+          },
+          "via": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatrixVia"
+            }
+          }
+        }
+      },
+      "MatrixVia": {
+        "type": "object",
+        "description": "How a principal reaches the Endpoint: a Policy that names it, or the project's\nServiceAccount manifest it is.",
+        "required": [
+          "kind",
+          "name"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "`policy` or `serviceAccount`."
+          },
+          "name": {
+            "type": "string"
           }
         }
       },

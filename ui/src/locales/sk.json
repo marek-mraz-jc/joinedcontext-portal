@@ -2198,6 +2198,58 @@
           "full": "Najviac {max} stĺpcov; ak chcete iný, jeden odškrtnite."
         }
       }
+    },
+    "accessMatrix": {
+      "title": "Kto smie čo robiť",
+      "lead": "Každá osoba, skupina, rola, servisný účet a verejnosť, ktoré menujú politiky tohto Endpointu, a čo im brána dovolí. Vyberte bunku a uvidíte atribúty, podmienku a politiku za ňou.",
+      "kind": "Zobraziť",
+      "kindHint": "Zúžte zoznam na jeden druh, napríklad Skupiny.",
+      "everyKind": "Všetkých",
+      "views": "Pohľad",
+      "matrix": "Matica",
+      "graph": "Graf",
+      "who": "Kto",
+      "caption": "Kto smie čo robiť na {name}",
+      "everyType": "Každý typ",
+      "cellLabel": "{who}, {action} {type}: {state}",
+      "pickHint": "Vyberte bunku a uvidíte, ktoré atribúty pokrýva a ktorá politika rozhoduje.",
+      "detailTitle": "{who}: {action} {type}",
+      "noGrant": "Žiadna politika to nepovoľuje; brána to odmietne.",
+      "permits": "Povolené",
+      "prohibits": "Odobraté zákazom",
+      "everyAttribute": "Všetky atribúty",
+      "attributes": "Iba tieto atribúty: {names}",
+      "constraint": "Iba riadky, ktoré spĺňajú",
+      "decidedBy": "Rozhoduje politika",
+      "empty": "Žiadna politika zatiaľ na tomto Endpointe nikoho nemenuje",
+      "emptyHint": "Dostane sa k nemu len brána sama. Napíšte politiku pre priestor tohto Endpointu na stránke Politiky a dajte prístup skupine alebo verejnosti.",
+      "graphLabel": "Ako sa ku {name} dostane každý",
+      "graphList": "Kto, politiky, Endpoint a jeho typy",
+      "reaches": "dostane sa k {names}",
+      "kinds": {
+        "person": "Osoba",
+        "group": "Skupina",
+        "role": "Rola",
+        "serviceAccount": "Servisný účet",
+        "public": "Verejnosť"
+      },
+      "action": {
+        "read": "Čítať",
+        "write": "Zapisovať",
+        "delete": "Mazať",
+        "history": "História"
+      },
+      "state": {
+        "allow": "Povolené",
+        "partial": "Čiastočne",
+        "deny": "Odmietnuté"
+      },
+      "step": {
+        "principal": "Kto",
+        "policy": "Politika",
+        "endpoint": "Endpoint",
+        "type": "Typ"
+      }
     }
   },
   "datasources": {

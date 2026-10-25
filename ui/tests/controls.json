@@ -251,6 +251,14 @@
         "drift_modal.test.tsx"
       ]
     },
+    "src/components/endpoints/AccessMatrix.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "access_matrix.test.tsx"
+      ]
+    },
     "src/components/endpoints/QueryCard.tsx": {
       "controls": {
         "Button": 1
