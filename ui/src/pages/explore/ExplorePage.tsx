@@ -7,7 +7,8 @@ import { parseGridConfig } from "@joinedcontext/sdk";
 import type { GridState, ResolvedGridConfig, RichRow } from "@joinedcontext/sdk";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized, refName } from "../../api/manifest";
-import { AccessPanel, deniedAttributes, editableAttributes, useAccess } from "../../components/entities/AccessPanel";
+import { AccessPanel, useAccess } from "../../components/entities/AccessPanel";
+import { deniedOf, explainAttribute, useAttributeAccess, writableOf } from "../../api/access";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { enumsOfModel, fetchEntity, filterSlotsOf, qProblem, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
@@ -189,10 +190,10 @@ export function ExplorePage({
     }
     return [...new Set(grants.map((entry) => entry.resource?.type).filter((type): type is string => Boolean(type)))];
   }, [access.data]);
-  const denied = useMemo(
-    () => deniedAttributes(access.data, query.type, slots, t),
-    [access.data, query.type, slots, t],
-  );
+  // What the person may do with each attribute, as the endpoint decides it (T-5528): the grid's
+  // editors, the filters' hidden marks and the cell inspector all render this one answer.
+  const attributeAccess = useAttributeAccess(slug, query.type);
+  const denied = useMemo(() => deniedOf(attributeAccess.data, t), [attributeAccess.data, t]);
   // UI-44, EP-55: a control the grant denies stays visible and says why, rather than working
   // until the gateway refuses it. The grant is the endpoint's own `/access` document, already
   // read above for the attributes it hides (T-1021).
@@ -204,10 +205,13 @@ export function ExplorePage({
         (entry.actions ?? []).some((action) => action === "deleteEntity" || action === "deleteBatch"),
     );
   // The attributes this person may correct in place, by the endpoint's own grant (UI-67).
+  // A formula field is its pipeline's to write (DM-80): shown, never edited in place.
   const editableAttrs = useMemo(
-    () => editableAttributes(access.data, query.type, slots, denied),
-    [access.data, query.type, slots, denied],
+    () => writableOf(attributeAccess.data).filter((attr) => slots.some((slot) => slot.name === attr && !slot.formula)),
+    [attributeAccess.data, slots],
   );
+  const explainAccess = (attribute: string, action: "read" | "write" | "delete") =>
+    explainAttribute(project, endpointName ?? "", query.type ?? "", attribute, action);
 
   /**
    * What the grid is told to show. The endpoint is a slug and never a URL (EP-55), and the filters
@@ -424,6 +428,9 @@ export function ExplorePage({
             openRow={selected}
             onOpenRow={setSelected}
             detailExtra={detailExtra}
+            access={attributeAccess.isError ? null : attributeAccess.data}
+            explainAccess={endpointName ? explainAccess : undefined}
+            accessRequestHref={`/projects/${encodeURIComponent(project)}/access`}
             toolbar={
               slug ? (
                 <div className="flex flex-wrap items-center gap-2">

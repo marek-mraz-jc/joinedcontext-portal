@@ -62,6 +62,35 @@ export interface HistoryWindow {
   versions?: boolean;
 }
 
+/** Why an attribute's decisions are what they are, as the Endpoint's `access/attributes` says (API/02 §7b). */
+export type AccessReason = "grant" | "not_in_grant" | "prohibited" | "no_grant" | "formula";
+
+/** The caller's own decisions on one attribute: the gateway's, never computed in the browser. */
+export interface AttributeAccess {
+  name: string;
+  read: boolean;
+  write: boolean;
+  delete: boolean;
+  reason: AccessReason;
+}
+
+const REASONS: readonly AccessReason[] = ["grant", "not_in_grant", "prohibited", "no_grant", "formula"];
+
+/**
+ * The rows of an `access/attributes` answer the grid can trust: a row without a name is dropped,
+ * a flag that is not `true` is a refusal and an unknown reason reads as no grant (deny by default).
+ */
+export function accessOf(body: unknown): AttributeAccess[] {
+  const rows = (body as { attributes?: unknown } | null)?.attributes;
+  if (!Array.isArray(rows)) throw new SourceError(502, "the access answer is not a list of attributes");
+  return rows.flatMap((raw) => {
+    const row = (raw ?? {}) as Record<string, unknown>;
+    if (typeof row.name !== "string" || row.name === "") return [];
+    const reason = REASONS.find((known) => known === row.reason) ?? "no_grant";
+    return [{ name: row.name, read: row.read === true, write: row.write === true, delete: row.delete === true, reason }];
+  });
+}
+
 /** What a grid can do follows what its source offers: an absent capability switches its feature off. */
 export interface EntitySource {
   /** The source orders the whole answer by `GridQuery.orderBy`; without it the grid sorts a page. */
@@ -74,6 +103,8 @@ export interface EntitySource {
   /** `reason` is why the person writes, sent as `JC-Reason` (DM-113). */
   patch?(id: string, attrs: Record<string, unknown>, reason?: string): Promise<void>;
   remove?(id: string): Promise<void>;
+  /** The caller's decisions per attribute of `type`, where the source can ask (an Endpoint). */
+  access?(type: string): Promise<AttributeAccess[]>;
 }
 
 export class SourceError extends Error {
@@ -286,7 +317,15 @@ function ngsiSource(base: string, transport: Transport, language: string, hidden
 /** What one Endpoint answers, by its slug (EP-55). */
 export function endpointSource(slug: string, transport: Transport, language = "en"): EntitySource {
   const endpoint = `/api/endpoint/${encodeURIComponent(slug)}`;
-  return ngsiSource(`${endpoint}/ngsi-ld/v1`, transport, language, undefined, endpoint);
+  return {
+    ...ngsiSource(`${endpoint}/ngsi-ld/v1`, transport, language, undefined, endpoint),
+    // Asked with the person's own session, so each answer is the decision their request gets.
+    async access(type) {
+      const { status, body } = await transport({ method: "GET", path: `${endpoint}/access/attributes?type=${encodeURIComponent(type)}` });
+      if (status < 200 || status >= 300) throw new SourceError(status, detailOf(body, "the access was not read"));
+      return accessOf(body);
+    },
+  };
 }
 
 /** A whole Context Space surface, by its segment (SP-06); a 404 never says whether the space exists. */
