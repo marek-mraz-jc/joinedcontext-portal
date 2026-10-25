@@ -6351,6 +6351,7 @@
         "source-delete": "Gelöscht, weil die Quelle sie entfernte"
       },
       "endpoint": {
+        "rate-limited": "Ratenlimit erreicht",
         "traffic": "Endpunkt-Verkehr"
       },
       "access": {
