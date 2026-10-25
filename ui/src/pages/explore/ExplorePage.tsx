@@ -102,24 +102,6 @@ export function ExplorePage({
   const [generation, setGeneration] = useState(0);
   const queryClient = useQueryClient();
 
-  // What is chosen stands in the address as it changes (UI-89, T-3239): a reload or a link sent
-  // to a colleague opens the same space, endpoint, type, search and entity. `space` and
-  // `endpoint` are also the assistant's hand-off; written as the page's own, they mount nothing
-  // afresh. Replaced, not pushed: each pick is not a step back needs to retrace.
-  useEffect(() => {
-    const address = new URLSearchParams(window.location.search);
-    const put = (key: string, value: string | null | undefined) => {
-      if (value) address.set(key, value);
-      else address.delete(key);
-    };
-    if (chosenSpace !== null) put("space", chosenSpace);
-    if (endpointChoice !== "") put("endpoint", endpointChoice);
-    put("type", query.type);
-    put("q", query.q);
-    put("entityId", selected);
-    replaceOwnSearch(address);
-  }, [chosenSpace, endpointChoice, query.type, query.q, selected]);
-
   /**
    * The `entities` hand-off names the endpoint and not its space (UI-59), and the page reads an
    * endpoint only inside a space: without this the grid would open on nothing. The endpoint's own
@@ -130,9 +112,36 @@ export function ExplorePage({
   );
   const space = chosenSpace ?? (handedSpace ? spaceOf(handedSpace) : "");
   const spaceEndpoints = (endpoints.data ?? []).filter((e) => spaceOf(e) === space);
+  const chosenEndpoint = spaceEndpoints.find((e) => e.metadata.name === endpointChoice);
+  // A link that names an Endpoint this person is not shown in the space reads through nothing
+  // and says so, rather than through another Endpoint with another Policy (T-5604).
+  const unshownEndpoint =
+    endpointChoice !== "" && endpoints.data !== undefined && chosenEndpoint === undefined ? endpointChoice : undefined;
   const endpoint =
-    spaceEndpoints.find((e) => e.metadata.name === endpointChoice) ??
-    pickReadEndpoint(spaceEndpoints, identity ? (identity.groups ?? []) : null, project);
+    unshownEndpoint !== undefined
+      ? undefined
+      : (chosenEndpoint ?? pickReadEndpoint(spaceEndpoints, identity ? (identity.groups ?? []) : null, project));
+  const endpointName = endpoint?.metadata.name;
+
+  // What is chosen stands in the address as it changes (UI-89, T-3239): a reload or a link sent
+  // to a colleague opens the same space, endpoint, type, search and entity. `space` and
+  // `endpoint` are also the assistant's hand-off; written as the page's own, they mount nothing
+  // afresh. Replaced, not pushed: each pick is not a step back needs to retrace. The endpoint
+  // written is the one read, picked by hand or for the person, so a colleague opening the link
+  // reads through the same one or is told why not (T-5604).
+  useEffect(() => {
+    const address = new URLSearchParams(window.location.search);
+    const put = (key: string, value: string | null | undefined) => {
+      if (value) address.set(key, value);
+      else address.delete(key);
+    };
+    if (chosenSpace !== null) put("space", chosenSpace);
+    put("endpoint", endpointChoice || endpointName);
+    put("type", query.type);
+    put("q", query.q);
+    put("entityId", selected);
+    replaceOwnSearch(address);
+  }, [chosenSpace, endpointChoice, endpointName, query.type, query.q, selected]);
   const slug = typeof endpoint?.spec.slug === "string" ? String(endpoint.spec.slug) : undefined;
   const spaceManifest = (spaces.data ?? []).find((s) => s.metadata.name === space);
   const model = (models.data ?? []).find(
@@ -320,7 +329,7 @@ export function ExplorePage({
           description={
             space && spaceEndpoints.length === 0 && !endpoints.isError
               ? t("explore.noEndpoint")
-              : undefined
+              : t("explore.endpointHint")
           }
         >
           <Select
@@ -356,6 +365,11 @@ export function ExplorePage({
           ) : null}
         </Field>
       </div>
+      {unshownEndpoint !== undefined ? (
+        <Alert tone="warning" title={t("explore.endpointUnshown", { name: unshownEndpoint })}>
+          {t("explore.endpointUnshownPick", { name: unshownEndpoint })}
+        </Alert>
+      ) : null}
 
       {space ? (
         <EntityFilters
@@ -372,6 +386,12 @@ export function ExplorePage({
       {space && query.type ? (
         <p className="text-caption text-fg-muted">
           {t("explore.typeInModel")} <TypeLink project={project} type={query.type} space={space} className="font-mono" />
+          {endpointName ? (
+            <>
+              {" · "}
+              {t("explore.readThrough")} <span className="font-mono">{endpointName}</span>
+            </>
+          ) : null}
         </p>
       ) : null}
       {space ? <AccessPanel slug={slug} type={query.type} access={access} /> : null}
@@ -457,7 +477,8 @@ export function ExplorePage({
           reason={reasonOf(models.error, t("explore.loadFailed"))}
           onRetry={() => void models.refetch()}
         />
-      ) : space ? (
+      ) : unshownEndpoint !== undefined ? null : space ? (
+        // A linked Endpoint this person is not shown has its own warning above.
         <EmptyState
           title={t("explore.noType")}
           description={t("explore.noTypeHint")}

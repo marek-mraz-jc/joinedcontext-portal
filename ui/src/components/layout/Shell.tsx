@@ -15,7 +15,7 @@ import { CommandPalette } from "../../navigation/CommandPalette";
 import { PageTools } from "../../navigation/PageTools";
 import { useAuth } from "../../auth/AuthProvider";
 import { localized } from "../../api/manifest";
-import { rememberProject, useOrganizations, useProjects, useProjectTitles, useSampleProjects } from "../../api/projects";
+import { lastAddress, rememberAddress, rememberProject, useOrganizations, useProjects, useProjectTitles, useSampleProjects } from "../../api/projects";
 import { useAdministers } from "../../api/permissions";
 import { useBranding, useHiddenSections } from "../../branding";
 import {
@@ -57,6 +57,15 @@ function ProjectSelector({ active }: { active: string }) {
   // The page in hand, so the switch keeps it: a person comparing two projects' endpoints stays
   // in Endpoints instead of walking back from Spaces every time (T-2425, UI-05).
   const here = useRouterState({ select: (state) => sameSection(state.location.pathname) });
+  // A project left earlier reopens on the page the person left there, its space and type
+  // included (T-5603); one never visited in this browser keeps the section.
+  // A built `href` stands in for `to`, `params` and `search` when there is one.
+  const switchTo = (project: string) => ({
+    to: "/projects/$project/$plural" as const,
+    params: { project, plural: here.plural },
+    search: withoutCopy({}),
+    href: project === active ? undefined : lastAddress(project),
+  });
   return (
     <Menu>
       <MenuTrigger asChild>
@@ -89,9 +98,7 @@ function ProjectSelector({ active }: { active: string }) {
         {projects.map((project) => (
           <MenuItem key={project} asChild>
             <Link
-              to="/projects/$project/$plural"
-              params={{ project, plural: here.plural }}
-              search={withoutCopy({})}
+              {...switchTo(project)}
               aria-current={project === active ? "true" : undefined}
             >
               {project === active ? <Icon name="check" className="size-4" /> : <span className="size-4" />}
@@ -438,6 +445,11 @@ export function Shell({
   useEffect(() => {
     rememberProject(project);
   }, [project]);
+  // The page in hand, so switching away and back reopens it (T-5603).
+  const href = useRouterState({ select: (state) => state.location.href });
+  useEffect(() => {
+    rememberAddress(project, href);
+  }, [project, href]);
   // Which page is in hand, so a panel left by a page that threw is cleared by walking away
   // from it (T-2426).
   const pathname = useRouterState({ select: (state) => state.location.pathname });

@@ -213,9 +213,20 @@ mod keys {
     /// separates it from the ID token that travels in the open as `id_token_hint`: the realm
     /// signs both with the same key, so only the claims tell them apart (AP-29).
     pub fn logout_token(issuer: &str, username: &str, event: bool, nonce: bool) -> String {
+        logout_token_for(issuer, username, "joinedcontext-portal", event, nonce)
+    }
+
+    /// [`logout_token`] addressed to the client `aud`.
+    pub fn logout_token_for(
+        issuer: &str,
+        username: &str,
+        aud: &str,
+        event: bool,
+        nonce: bool,
+    ) -> String {
         let mut claims = json!({
             "iss": issuer,
-            "aud": "joinedcontext-portal",
+            "aud": aud,
             "sub": format!("f:1:{username}"),
             "iat": now(),
             "exp": now() + 300,
@@ -1059,6 +1070,36 @@ async fn a_logout_from_the_provider_ends_the_sessions_it_names() {
         StatusCode::UNAUTHORIZED,
         "the session the logout named is still answered: {me}"
     );
+}
+
+/// T-5568: a person signed in at the edge has the edge client's session, so Keycloak addresses
+/// the logout token to `edge`. Behind the edge it ends their session here; without one, a token
+/// for another client verifies nothing.
+#[tokio::test]
+async fn a_logout_addressed_to_the_edge_client_ends_the_session_behind_the_edge() {
+    let realm = realm().await;
+    let issuer = issuer_of(&realm);
+
+    let alone = app_with_realm(&realm).await;
+    let token = keys::logout_token_for(&issuer, "demo.steward", "edge", true, false);
+    let (status, body) = back_channel_logout(alone, &token).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+
+    let app = app_behind(&realm, true).await;
+    let other = keys::logout_token_for(&issuer, "demo.steward", "grafana", true, false);
+    let (status, body) = back_channel_logout(app.clone(), &other).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    let (status, me) = me_with(app.clone(), &[("cookie", session_cookies(300))]).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "another client's token ended nothing: {me}"
+    );
+
+    let (status, body) = back_channel_logout(app.clone(), &token).await;
+    assert_eq!(status, StatusCode::NO_CONTENT, "{body}");
+    let (status, me) = me_with(app, &[("cookie", session_cookies(300))]).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "{me}");
 }
 
 #[tokio::test]

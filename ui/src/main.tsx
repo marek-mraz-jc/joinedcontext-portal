@@ -6,6 +6,7 @@ import "./index.css";
 import { ErrorBoundary, mayReloadForChunk } from "./components/ErrorBoundary";
 import { PublicApp } from "./PublicApp";
 import { isPublicPath } from "./publicRouter";
+import { preloadSpacePage } from "./pages/spaces/preload";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,6 +22,9 @@ const queryClient = new QueryClient({
 const portal = isPublicPath(window.location.pathname)
   ? Promise.resolve(PublicApp)
   : Promise.all([import("./App"), i18nReady.then(loadFullLocales)]).then(([module]) => module.App);
+
+// A space's grid starts its first reads beside the session check (T-5598).
+if (!isPublicPath(window.location.pathname)) preloadSpacePage(queryClient, window.location.pathname);
 
 // The chosen language loads before the first paint, so nobody sees the page flip from English.
 void Promise.all([portal, i18nReady]).then(([Portal]) =>

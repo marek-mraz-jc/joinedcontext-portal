@@ -3,7 +3,7 @@ import type { RichRow, RichCell } from "./model";
 import { cellText } from "./model";
 import type { ColumnLayout, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
 import { MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, useEntityGrid } from "./useEntityGrid";
-import { CellView, columnKind, formatDate } from "./cells";
+import { CellView, cellDisplayText, columnKind, formatDate } from "./cells";
 import type { CellLabels, ColumnKind } from "./cells";
 import { ColumnMenu } from "./ColumnMenu";
 import { opsForKind, valuesNeeded } from "./filters";
@@ -707,6 +707,21 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
 
     return readValue(row, column);
   }, [readValue, where, cellLabels, cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, isPrimary, rowName, openDetail, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell, ruleProblems, rules, labels.yes, labels.no]);
+
+  // One attribute in the row's detail (T-5599): an editor where the row is on the page and the
+  // grant writes it, else the value as a reader sees it, an enum by its label, and an attribute
+  // with no value says "not set" instead of nothing. An edit is written against the row as the page
+  // loaded it, so a row read on its own shows its values without editors.
+  const detailValue = useCallback(
+    (row: RichRow, column: VisibleColumn): React.ReactNode => {
+      const listed = rows.some((one) => one.id === row.id);
+      if (listed && editable(column)) return renderCellContent(row, column);
+      const cell = column.attr ? row.cells[column.attr] : undefined;
+      if (cellDisplayText(cell, where, cellLabels).trim() === "") return <span className="jc-grid-detail-empty">{labels.rowNotSet}</span>;
+      return listed ? renderCellContent(row, column) : readValue(row, column);
+    },
+    [rows, editable, renderCellContent, readValue, where, cellLabels, labels.rowNotSet],
+  );
 
   // Metadata menu toggle
   const toggleMenu = useCallback((attr: string) => {
@@ -1417,9 +1432,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           row={detailRow}
           name={rowName(detailRow)}
           columns={columns}
-          // An edit is written against the row as the page loaded it, so a row read on its own shows
-          // its values without editors.
-          renderValue={listedRow ? renderCellContent : readValue}
+          renderValue={detailValue}
           labels={{
             rowDetail: labels.rowDetail,
             close: labels.close,
@@ -1427,6 +1440,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
             rowHistory: labels.history,
             historyAttr: labels.attribute,
             rowMetadata: labels.metadata,
+            copyId: labels.rowCopyId,
+            copied: labels.copied,
           }}
           history={
             historyOn

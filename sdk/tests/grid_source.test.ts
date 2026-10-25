@@ -256,10 +256,17 @@ describe("history", () => {
     });
   });
 
-  it("a space's history hides a missing grant like its query", async () => {
-    const transport = async (): Promise<JcResponse> => ({ status: 404, body: { title: "Not Found" } });
-    await expect(spaceSource("s", transport).history!("urn:x", "a", { lastN: 5 })).rejects.toMatchObject({
-      status: 404,
+  it("a space's 404 on a history read is nothing recorded, never a missing grant (T-5597)", async () => {
+    const answering = (status: number) => async (): Promise<JcResponse> => ({ status, body: { title: "x" } });
+    await expect(spaceSource("s", answering(404)).history!("urn:x", "name", { lastN: 5 })).resolves.toEqual([]);
+    await expect(spaceSource("s", answering(403)).history!("urn:x", "a", { lastN: 5 })).rejects.toMatchObject({
+      status: 403,
+    });
+    await expect(spaceSource("s", answering(503)).history!("urn:x", "a", { lastN: 5 })).rejects.toMatchObject({
+      status: 503,
+    });
+    // the query keeps hiding whether the space exists
+    await expect(spaceSource("s", answering(404)).query({ type: "T" }, { offset: 0, limit: 5 })).rejects.toMatchObject({
       message: "no grant on this space",
     });
   });

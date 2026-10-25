@@ -138,7 +138,7 @@ const SPACE_ROWS = [
 
 function renderInside(
   gateway: { status: number; count?: number },
-  surface: { status: number; rows?: unknown[]; answer?: (url: URL) => unknown[] } = { status: 200 },
+  surface: { status: number; rows?: unknown[]; answer?: (url: URL) => unknown[]; holdProbe?: boolean } = { status: 200 },
   seed: {
     space?: unknown;
     models?: unknown;
@@ -180,6 +180,9 @@ function renderInside(
     }
     // The space's own surface: the whole space, by the caller's grants (T-1434).
     if (path.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities")) {
+      if (surface.holdProbe && url.searchParams.get("limit") === "1") {
+        return new Promise<Response>(() => undefined);
+      }
       if (surface.status !== 200) {
         return json({ title: "Not Found" }, surface.status);
       }
@@ -273,6 +276,18 @@ describe("space helpers", () => {
     expect(pickReadEndpoint([])).toBeUndefined();
   });
 
+  it("reads through the space's own endpoint before an App's (T-5604)", () => {
+    const app = {
+      ...manifest("Endpoint", "app-air-quality", { audience: "project-list", callerRole: true }),
+      metadata: { name: "app-air-quality", namespace: "banskabystrica", annotations: { "joinedcontext.com/generated-by": "portal/app-reconciler" } },
+    } as Manifest;
+    const own = manifest("Endpoint", "air-quality", { audience: "public", policyRef: "urn:x" });
+    expect(pickReadEndpoint([app, own], ["banskabystrica"], "banskabystrica")?.metadata.name).toBe("air-quality");
+    expect(pickReadEndpoint([app, own])?.metadata.name).toBe("air-quality");
+    // An App's endpoint is still read when the space offers the person nothing else.
+    expect(pickReadEndpoint([app], ["banskabystrica"], "banskabystrica")?.metadata.name).toBe("app-air-quality");
+  });
+
   it("names the space from a string ref, an object ref or the space label", () => {
     expect(spaceOf(manifest("Policy", "p", { contextSpaceRef: "ovzdusie" }))).toBe("ovzdusie");
     expect(
@@ -332,6 +347,17 @@ describe("space inside view", () => {
     expect(gatewayCalls.some((url) => url.searchParams.get("count") === "true" && url.searchParams.get("limit") === "1")).toBe(true);
     expect(gatewayCalls.some((url) => url.searchParams.get("options") === "keyValues" && url.searchParams.get("limit") === "3")).toBe(true);
     expect(gatewayCalls.every((url) => url.origin === window.location.origin)).toBe(true);
+  });
+
+  // T-5598: the probe of the space surface no longer stands in front of the grid's own read, one
+  // round trip on a phone's network; a refusal still replaces the grid (the tests below).
+  it("reads and draws the rows while the probe of the space surface is still on its way", async () => {
+    const fetchMock = renderInside({ status: 200, count: 42 }, { status: 200, holdProbe: true });
+    expect(await screen.findByRole("button", { name: /^Open: / })).toBeInTheDocument();
+    const surfaceReads = fetchMock.mock.calls
+      .map((call) => urlOf(call[0]))
+      .filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities"));
+    expect(surfaceReads.map((url) => url.searchParams.get("limit"))).toEqual(expect.arrayContaining(["1", "100"]));
   });
 
   // T-2889: the whole space's count, the broker's, under the per-type breakdown on the model tab (T-4885).
@@ -691,7 +717,7 @@ describe("the space's own data", () => {
     const urn = SPACE_ROWS[0].id;
     window.history.pushState({}, "", `/projects/banskabystrica/spaces/ovzdusie?row=${encodeURIComponent(urn)}`);
     renderInside({ status: 200, count: 1 });
-    const dialog = await screen.findByRole("dialog", { name: `${en.entityGrid.rowDetail}: ${urn}` });
+    const dialog = await screen.findByRole("dialog", { name: `${en.entityGrid.rowDetail}: ${urn.split(":").at(-1)}` });
     expect(within(dialog).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       en.entityGrid.rowFields,
       en.entityGrid.history,
@@ -708,7 +734,7 @@ describe("the space's own data", () => {
     renderInside({ status: 200, count: 1 });
     const urn = SPACE_ROWS[0].id;
     await userEvent.click(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: ${urn}` }));
-    expect(await screen.findByRole("dialog", { name: `${en.entityGrid.rowDetail}: ${urn}` })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: `${en.entityGrid.rowDetail}: ${urn.split(":").at(-1)}` })).toBeInTheDocument();
     expect(new URLSearchParams(window.location.search).get("row")).toBe(urn);
   });
 
@@ -962,7 +988,8 @@ describe("the space's own data", () => {
 
     it("offers an editor for the attributes the grant lets the steward write, and sends the reason", async () => {
       const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200, rows }, { source, access: steward });
-      const cell = await screen.findByRole("spinbutton", { name: /pm10/ });
+      // The grid names the column "PM10 (µg/m³)" once the rows are in (T-5598: it no longer waits for the probe).
+      const cell = await screen.findByRole("spinbutton", { name: /pm10/i });
       // The grant names pm10 only: the name stays text, with no editor.
       expect(screen.queryByDisplayValue("Námestie SNP")).toBeNull();
       await userEvent.clear(cell);

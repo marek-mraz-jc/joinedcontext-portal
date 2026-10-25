@@ -5,18 +5,20 @@
  * working in helsinki who opened the Organization page found the header switched to banskabystrica
  * (the first one alphabetically) and every link from there led into the wrong project.
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
-import { preferredProject, rememberProject } from "../src/api/projects";
+import { lastAddress, preferredProject, rememberAddress, rememberProject } from "../src/api/projects";
 
 const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", roles: ["portal-viewer"] };
 const LIST = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
-const PROJECTS = LIST([{ name: "banskabystrica" }, { name: "helsinki" }]);
+// banskabystrica is the sample every newcomer may read, listed first by name (T-5603).
+const PROJECTS = LIST([{ name: "banskabystrica", sample: true }, { name: "helsinki", sample: false }]);
 
 function renderAt(path: string) {
   window.history.pushState({}, "", path);
@@ -108,5 +110,73 @@ describe("the project a page outside any project opens on (T-2753)", () => {
     expect(preferredProject(["banskabystrica", "helsinki"])).toBe("banskabystrica");
     get.mockRestore();
     set.mockRestore();
+  });
+
+  it("sends a first sign-in to the person's own project before a sample (T-5603)", async () => {
+    renderAt("/");
+    await waitFor(() => expect(window.location.pathname).toBe("/projects/helsinki/home"));
+  });
+
+  it("prefers the own project, and keeps the one last worked in, sample or not (T-5603)", () => {
+    expect(preferredProject(["banskabystrica", "helsinki"], ["banskabystrica"])).toBe("helsinki");
+    // Only samples to read: the first of them.
+    expect(preferredProject(["banskabystrica"], ["banskabystrica"])).toBe("banskabystrica");
+    rememberProject("banskabystrica");
+    expect(preferredProject(["banskabystrica", "helsinki"], ["banskabystrica"])).toBe("banskabystrica");
+  });
+});
+
+describe("the page a project switch reopens (T-5603)", () => {
+  const ROWS = "/projects/banskabystrica/spaces/bb-ovzdusie?type=AirQualityObserved";
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    window.localStorage.clear();
+    window.history.pushState({}, "", "/");
+  });
+
+  it("remembers the last page per project, and only a page of that project", () => {
+    rememberAddress("banskabystrica", ROWS);
+    rememberAddress("helsinki", "/projects/helsinki/endpoints");
+    expect(lastAddress("banskabystrica")).toBe(ROWS);
+    expect(lastAddress("helsinki")).toBe("/projects/helsinki/endpoints");
+    // Another project's page, another origin or a protocol-relative path is never kept.
+    rememberAddress("helsinki", "/projects/banskabystrica/spaces");
+    rememberAddress("helsinki", "https://evil.example/projects/helsinki/");
+    rememberAddress("helsinki", "/projects/helsinki//evil.example");
+    expect(lastAddress("helsinki")).toBe("/projects/helsinki/endpoints");
+    expect(lastAddress("praha")).toBeUndefined();
+  });
+
+  it("reads a tampered or blocked store as nothing remembered", () => {
+    window.localStorage.setItem("jc.lastAddress", JSON.stringify({ helsinki: "//evil.example/x" }));
+    expect(lastAddress("helsinki")).toBeUndefined();
+    window.localStorage.setItem("jc.lastAddress", "not json");
+    expect(lastAddress("helsinki")).toBeUndefined();
+    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    expect(lastAddress("helsinki")).toBeUndefined();
+    get.mockRestore();
+  });
+
+  it("reopens the space and type left in a project, and keeps the section in one never visited", async () => {
+    rememberAddress("banskabystrica", ROWS);
+    renderAt("/projects/helsinki/endpoints");
+    await waitFor(() => expect(lastAddress("helsinki")).toBe("/projects/helsinki/endpoints"));
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: en.nav.projects }));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: /banskabystrica/ })).toHaveAttribute("href", ROWS);
+    expect(within(menu).getByRole("menuitem", { name: /helsinki/ })).toHaveAttribute(
+      "href",
+      "/projects/helsinki/endpoints",
+    );
+    window.localStorage.removeItem("jc.lastAddress");
   });
 });

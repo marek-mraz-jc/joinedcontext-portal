@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from "react";
+import { targetName } from "./cells";
 import type { RichRow } from "./model";
 import type { VisibleColumn } from "./useEntityGrid";
 
@@ -13,6 +14,9 @@ export interface RowDetailLabels {
   historyAttr: string;
   /** The tab with who changed one attribute, when and through what (T-5529): "Metadata". */
   rowMetadata?: string;
+  /** The button that copies the row's identifier, and what it says for a moment after (T-5599). */
+  copyId?: string;
+  copied?: string;
 }
 
 /** A tab the host adds after Fields and History, such as the row's comments (T-4828). */
@@ -56,6 +60,13 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
   const heading = useRef<HTMLHeadingElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const [tab, setTab] = useState("fields");
+  // "Copied" for two seconds after the identifier reached the clipboard.
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
   useEffect(() => {
     const element = dialog.current;
     if (element && !element.open) element.showModal();
@@ -67,7 +78,8 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
 
   // Unpinned copies: in the dialog the primary attribute is a value or an editor like the rest, not
   // the button that opened it.
-  // The id is the line under the heading; a model's `id` slot is not a field to read twice.
+  // The id is behind the Copy identifier button, never text on screen (T-5599); a model's `id`
+  // slot is not a field to read either.
   const shown = columns
     .filter((column) => column.attr !== null && column.attr !== "id" && column.meta === null)
     .map((column) => ({ ...column, pinned: false }));
@@ -114,13 +126,26 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
     >
       <div className="jc-grid-detail-head">
         <h3 id={headingId} ref={heading} tabIndex={-1}>
-          {`${labels.rowDetail}: ${name}`}
+          {/* A row named by nothing but its id reads as the id's last part, as its chips do. */}
+          {`${labels.rowDetail}: ${name === row.id ? targetName(row.id).name : name}`}
         </h3>
-        <button type="button" onClick={onClose}>
-          {labels.close}
-        </button>
+        <span className="jc-grid-detail-actions">
+          <button
+            type="button"
+            onClick={() => {
+              void navigator.clipboard?.writeText(row.id).then(() => setCopied(true), () => setCopied(false));
+            }}
+          >
+            {copied ? (labels.copied ?? "Copied") : (labels.copyId ?? "Copy identifier")}
+          </button>
+          <button type="button" onClick={onClose}>
+            {labels.close}
+          </button>
+        </span>
+        <span className="jc-grid-sr-only" role="status">
+          {copied ? (labels.copied ?? "Copied") : ""}
+        </span>
       </div>
-      {name !== row.id ? <p className="jc-grid-detail-id">{row.id}</p> : null}
       <div role="tablist" aria-labelledby={headingId} className="jc-grid-detail-tabs">
         {list.map((one, index) => (
           <button
