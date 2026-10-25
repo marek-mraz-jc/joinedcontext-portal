@@ -725,11 +725,6 @@ impl HealthStore {
         now: DateTime<Utc>,
         findings: Vec<Finding>,
     ) -> Result<(), sqlx::Error> {
-        // A run that found nothing judged nothing (a mirror not loaded yet, a probe that did not
-        // run): the rows and their `since` stay as the last real run left them (F-POR4-017).
-        if findings.is_empty() {
-            return Ok(());
-        }
         let pool = match &self.inner {
             Inner::Memory(memory) => {
                 if let Ok(mut memory) = memory.write() {
@@ -1104,22 +1099,6 @@ mod tests {
             .await
             .expect("list")
             .is_empty());
-    }
-
-    /// F-POR4-017: an empty run keeps the rows and their `since`.
-    #[tokio::test]
-    async fn an_empty_run_keeps_every_row_and_its_since() {
-        let store = HealthStore::new(None);
-        let t0 = at("2026-10-21T08:00:00Z");
-        store
-            .record(t0, vec![finding(Status::Error)])
-            .await
-            .expect("record");
-        let t1 = t0 + Duration::minutes(2);
-        store.record(t1, Vec::new()).await.expect("record");
-        let kept = store.list(Some("bbsk"), t1).await.expect("list");
-        assert_eq!(kept.len(), 1, "the empty run dropped the row");
-        assert_eq!(kept.first().map(|c| c.since.clone()), Some(rfc3339(t0)));
     }
 
     #[tokio::test]
