@@ -710,6 +710,18 @@ mod tests {
         text.parse().unwrap()
     }
 
+    /// F-POR4-018: a state built `with_db` keeps its quality reports in that database, as the
+    /// served state does; the two store wirings used to differ by this store.
+    #[tokio::test]
+    async fn a_state_with_a_database_keeps_its_quality_reports_there() {
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .connect_lazy("postgres://portal@localhost/never-reached")
+            .expect("a lazy pool");
+        let state =
+            crate::state::AppState::new(crate::config::Config::for_tests(), None).with_db(pool);
+        assert!(state.quality.db.is_some());
+    }
+
     fn problem(rule: &str, path: &str) -> Problem {
         Problem {
             rule: rule.into(),

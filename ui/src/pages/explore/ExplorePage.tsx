@@ -9,7 +9,7 @@ import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized, refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { AccessPanel, useAccess } from "../../components/entities/AccessPanel";
-import { deniedOf, explainAttribute, useAttributeAccess, useDecision, writableOf } from "../../api/access";
+import { deniedOf, explainAttribute, useAccessCheck, useAttributeAccess, writableOf } from "../../api/access";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { enumsOfModel, fetchEntity, filterSlotsOf, qProblem, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
@@ -206,7 +206,7 @@ export function ExplorePage({
   // until the gateway refuses it. The grant is the endpoint's own `/access` document, already
   // read above for the attributes it hides (T-1021).
   // Delete is offered on the endpoint's own decision (T-5530), never on a grant read in the browser.
-  const deleteDecision = useDecision(slug, query.type, "deleteEntity");
+  const deleteDecision = useAccessCheck(slug, query.type, "deleteEntity");
   const mayDelete = deleteDecision.data === true;
   const deleteRefusal = deleteDecision.isPending
     ? t("entityGrid.inspector.loading")

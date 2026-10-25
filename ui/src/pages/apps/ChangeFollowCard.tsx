@@ -9,7 +9,7 @@ import { Button, Card, InlineError } from "../../components/ui";
 import { Icon } from "../../components/ui/icons";
 import { PortalLink } from "./Prose";
 import type { OpenLink } from "./Prose";
-import { QueryAnswer, viewOf } from "./QueryResultCard";
+import { isRecord, QueryAnswer, viewOf } from "./QueryResultCard";
 
 /**
  * A Change the assistant proposed, followed in the conversation to a result that works (T-2774,
@@ -21,10 +21,6 @@ export interface FollowedChange {
   changeId: string;
   kind: string;
   name: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** The Change a successful step proposed, or none: only an id the Portal mints is followed. */

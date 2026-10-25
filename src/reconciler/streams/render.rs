@@ -197,6 +197,63 @@ pub(super) fn with_source_events(stream: &mut Value, url: &str) {
     processors.insert(at + 1, post);
 }
 
+/// Reports a source read that failed to the run's log (T-5721, T-4428): each read drops its
+/// errored page ([`DROP_ERRORED`]), so a source that timed out or refused the request left a run
+/// of sent 0, failed 0, the same as a source with nothing in it. A read in the stream's own
+/// processors gets the report in place of its drop. Reads inside the input (a merged source or a
+/// broker of several) lose their drop and one report at the head of the stream's processors,
+/// ahead of the pass report's `catch`, serves them all: Bento's labels are unique per stream. The run
+/// queue's `one_run` reports an `http_client` input's failure itself, so a stream with one keeps
+/// its inputs' drops.
+pub(super) fn with_source_failures(stream: &mut Value, url: &str) {
+    let drops = |p: &Value| p.get("mutation").and_then(Value::as_str) == Some(DROP_ERRORED);
+    let Some(processors) = stream
+        .pointer_mut("/pipeline/processors")
+        .and_then(Value::as_array_mut)
+    else {
+        return;
+    };
+    if let Some(at) = processors.iter().position(drops) {
+        let mut report = crate::pipeline_log::source_failure(url);
+        if let Some(slot) = processors.get_mut(at) {
+            if let Some(label) = slot.get("label").cloned() {
+                report["label"] = label;
+            }
+            *slot = report;
+        }
+        processors.retain(|p| !drops(p));
+        return;
+    }
+    let mut dropped = false;
+    if let Some(input) = stream.get_mut("input") {
+        if input.to_string().contains("\"http_client\"") {
+            return;
+        }
+        let mut inputs = vec![input];
+        while let Some(input) = inputs.pop() {
+            if let Some(own) = input.get_mut("processors").and_then(Value::as_array_mut) {
+                let before = own.len();
+                own.retain(|p| !drops(p));
+                dropped |= own.len() != before;
+            }
+            if let Some(broker) = input
+                .pointer_mut("/broker/inputs")
+                .and_then(Value::as_array_mut)
+            {
+                inputs.extend(broker.iter_mut());
+            }
+        }
+    }
+    if dropped {
+        if let Some(processors) = stream
+            .pointer_mut("/pipeline/processors")
+            .and_then(Value::as_array_mut)
+        {
+            processors.insert(0, crate::pipeline_log::source_failure(url));
+        }
+    }
+}
+
 /// `spec.history` as its one Bento step (PL-107, T-4845): the planned `observedAt` of each
 /// attribute, after the author's steps and before the lifetime step, whose `from: observedAt`
 /// then reads the same time.
