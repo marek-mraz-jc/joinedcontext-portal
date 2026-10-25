@@ -1577,6 +1577,14 @@
         "sdm_import.test.tsx"
       ]
     },
+    "src/pages/mqttbrokers/BrokerTopics.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "mqtt_broker_topics.test.tsx"
+      ]
+    },
     "src/pages/organization/AgentActivity.tsx": {
       "controls": {
         "Button": 5

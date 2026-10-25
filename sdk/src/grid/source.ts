@@ -48,6 +48,10 @@ export interface Provenance {
   operation?: string;
   reason?: string;
   writtenAt?: string;
+  /** The writer's organization, as the gateway stamps it from the verified token (T-5362). */
+  organization?: string;
+  /** What wrote it: `person`, `pipeline`, `serviceAccount` or `agent` (T-5362). */
+  actorKind?: string;
 }
 
 export interface HistoryWindow {
@@ -181,7 +185,7 @@ function historyQuery(attr: string, window: HistoryWindow): string {
 function provenanceOf(raw: unknown): Provenance | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
   const kept: Provenance = {};
-  for (const key of ["channel", "actor", "operation", "reason", "writtenAt"] as const) {
+  for (const key of ["channel", "actor", "operation", "reason", "writtenAt", "organization", "actorKind"] as const) {
     const value = (raw as Record<string, unknown>)[key];
     if (typeof value === "string") kept[key] = value;
   }

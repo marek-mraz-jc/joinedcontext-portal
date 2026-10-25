@@ -12600,6 +12600,68 @@
         }
       }
     },
+    "/api/v1/projects/{project}/mqttbrokers/{name}/bindings": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Read An MQTT Broker's Topic Bindings",
+        "description": "Which topic filter of the broker reaches which type and attributes: each DataSource naming the broker, the pipelines of the project that read it and the Endpoints they write through, read from the manifests (API/01 §47). Each hop is checked against the caller's rights; one they may not read is `hidden` without its name and ends the row.",
+        "operationId": "get_bindings",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "MqttBroker name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bindings; empty when no DataSource names the broker",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bindings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such broker, or not readable by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/mqttbrokers/{name}/captured": {
       "get": {
         "tags": [
@@ -21846,6 +21908,24 @@
           }
         }
       },
+      "AttributeBinding": {
+        "type": "object",
+        "description": "One mapped attribute: `from` the record field (two for a point), absent for an expression or\na fixed value.",
+        "required": [
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to": {
+            "type": "string"
+          }
+        }
+      },
       "AttributeQuality": {
         "type": "object",
         "description": "One attribute of one type: how many entities carry it and, for numbers, their range and the\nvalues far outside the rest.",
@@ -21920,6 +22000,78 @@
           "logout_token": {
             "type": "string",
             "description": "The JWT the provider signed, carrying the `logout_events` claim."
+          }
+        }
+      },
+      "Binding": {
+        "type": "object",
+        "description": "One topic filter's way to an attribute; it ends at the first hop the caller may not read.",
+        "required": [
+          "dataSource"
+        ],
+        "properties": {
+          "attributes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AttributeBinding"
+            },
+            "description": "The output mapper's map; absent for a step written by hand."
+          },
+          "dataSource": {
+            "$ref": "#/components/schemas/Hop"
+          },
+          "endpoint": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Hop"
+              }
+            ]
+          },
+          "pipeline": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Hop"
+              }
+            ]
+          },
+          "topicFilter": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Bindings": {
+        "type": "object",
+        "required": [
+          "broker",
+          "bindings"
+        ],
+        "properties": {
+          "bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Binding"
+            }
+          },
+          "broker": {
+            "type": "string"
           }
         }
       },
@@ -26168,6 +26320,35 @@
           "empty",
           "incomplete"
         ]
+      },
+      "Hop": {
+        "type": "object",
+        "description": "One hop of a binding: a manifest by name, or `hidden` when the caller may not read it.",
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "hidden": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`DataSource`, `Pipeline` or `Endpoint`."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "space": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Context Space an Endpoint writes into."
+          }
+        }
       },
       "Identity": {
         "type": "object",

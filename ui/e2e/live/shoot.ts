@@ -16,7 +16,7 @@ export interface Shot {
   area: string;
   route: string;
   state: string;
-  who: "steward" | "viewer" | "anonymous";
+  who: "steward" | "viewer" | "anonymous" | "author" | "neighbour";
   lang: string;
   width: number;
 }

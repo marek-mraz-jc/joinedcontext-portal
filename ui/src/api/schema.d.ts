@@ -2909,6 +2909,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/mqttbrokers/{name}/bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read An MQTT Broker's Topic Bindings
+         * @description Which topic filter of the broker reaches which type and attributes: each DataSource naming the broker, the pipelines of the project that read it and the Endpoints they write through, read from the manifests (API/01 §47). Each hop is checked against the caller's rights; one they may not read is `hidden` without its name and ends the row.
+         */
+        get: operations["get_bindings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/mqttbrokers/{name}/captured": {
         parameters: {
             query?: never;
@@ -4959,6 +4979,14 @@ export interface components {
             values?: string[] | null;
         };
         /**
+         * @description One mapped attribute: `from` the record field (two for a point), absent for an expression or
+         *     a fixed value.
+         */
+        AttributeBinding: {
+            from?: string | null;
+            to: string;
+        };
+        /**
          * @description One attribute of one type: how many entities carry it and, for numbers, their range and the
          *     values far outside the rest.
          */
@@ -4990,6 +5018,20 @@ export interface components {
         BackChannelLogoutForm: {
             /** @description The JWT the provider signed, carrying the `logout_events` claim. */
             logout_token: string;
+        };
+        /** @description One topic filter's way to an attribute; it ends at the first hop the caller may not read. */
+        Binding: {
+            /** @description The output mapper's map; absent for a step written by hand. */
+            attributes?: components["schemas"]["AttributeBinding"][] | null;
+            dataSource: components["schemas"]["Hop"];
+            endpoint?: null | components["schemas"]["Hop"];
+            pipeline?: null | components["schemas"]["Hop"];
+            topicFilter?: string | null;
+            type?: string | null;
+        };
+        Bindings: {
+            bindings: components["schemas"]["Binding"][];
+            broker: string;
         };
         /** @description Everything the Portal shows that names or themes an installation. */
         Branding: {
@@ -6501,6 +6543,15 @@ export interface components {
          * @enum {string}
          */
         HoldReason: "share-exceeded" | "empty" | "incomplete";
+        /** @description One hop of a binding: a manifest by name, or `hidden` when the caller may not read it. */
+        Hop: {
+            hidden?: boolean;
+            /** @description `DataSource`, `Pipeline` or `Endpoint`. */
+            kind: string;
+            name?: string | null;
+            /** @description The Context Space an Endpoint writes into. */
+            space?: string | null;
+        };
         /** @description Who is signed in. Returned by `GET /api/v1/auth/me` and used by every protected route. */
         Identity: {
             email?: string | null;
@@ -18242,6 +18293,49 @@ export interface operations {
                 };
             };
             /** @description No such project, or not readable by the caller */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_bindings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description MqttBroker name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The bindings; empty when no DataSource names the broker */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bindings"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such broker, or not readable by the caller */
             404: {
                 headers: {
                     [name: string]: unknown;

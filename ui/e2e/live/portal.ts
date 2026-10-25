@@ -101,6 +101,14 @@ export async function serviceAccountToken(baseURL: string): Promise<string> {
  * nothing else, so what it sees is what an App's own people see.
  */
 export const PROBE = { user: "demo.probe@hel.fi", password: process.env.PROBE_PASSWORD ?? "" };
+/**
+ * The App sharing matrix's people (deployment seed/sharing, T-4911): the author holds `app-editor`
+ * in project `sharing` and nothing else, the member reads `sharing`, the neighbour reads only
+ * `sharing-other`. None holds a realm role, so none signs in with a TOTP code.
+ */
+export const AUTHOR = { user: "demo.author@hel.fi", password: process.env.AUTHOR_PASSWORD ?? "" };
+export const MEMBER = { user: "demo.member@hel.fi", password: process.env.MEMBER_PASSWORD ?? "" };
+export const NEIGHBOUR = { user: "demo.neighbour@hel.fi", password: process.env.NEIGHBOUR_PASSWORD ?? "" };
 
 /**
  * Signs one browser context in through the edge: the Portal's /login button, Keycloak's form
@@ -116,7 +124,7 @@ export async function signIn(
   if (!who.password) {
     throw new Error(
       `no password in the environment for ${who.user} ` +
-        "(PORTAL_PASSWORD / APPROVER_PASSWORD / VIEWER_PASSWORD / EDITOR_PASSWORD / JANITOR_PASSWORD / PROBE_PASSWORD)",
+        "(PORTAL_PASSWORD / APPROVER_PASSWORD / VIEWER_PASSWORD / EDITOR_PASSWORD / JANITOR_PASSWORD / PROBE_PASSWORD / AUTHOR_PASSWORD / MEMBER_PASSWORD / NEIGHBOUR_PASSWORD)",
     );
   }
   const context = await browser.newContext();
