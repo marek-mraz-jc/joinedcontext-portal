@@ -15,11 +15,12 @@ use axum::{Json, Router};
 use chrono::{DateTime, Utc};
 use jc_core::kinds::data_source::DataSourceSpec;
 use jc_core::kinds::mqtt_broker::{release_name, MAX_MESSAGE_BYTES};
-use jc_core::kinds::MqttBrokerSpec;
+use jc_core::kinds::{MqttBrokerSpec, PipelineSpec, Verb};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::{IntoParams, ToSchema};
 
+use crate::api::mqtt_bindings::pipeline_visible;
 use crate::api::pipeline_test;
 use crate::auth::session::{CurrentUser, Identity};
 use crate::error::{ApiError, ProblemDetails};
@@ -248,19 +249,23 @@ pub fn bound(
 }
 
 fn reads(pipeline: &ResourceEnvelope, source: &str) -> bool {
-    serde_json::from_value::<jc_core::kinds::PipelineSpec>(pipeline.spec.clone()).is_ok_and(
-        |spec| {
-            spec.sources().iter().any(|input| {
-                input
-                    .data_source_ref
-                    .as_ref()
-                    .is_some_and(|reference| reference.name() == source)
-            })
-        },
-    )
+    serde_json::from_value::<PipelineSpec>(pipeline.spec.clone()).is_ok_and(|spec| {
+        spec.sources().iter().any(|input| {
+            input
+                .data_source_ref
+                .as_ref()
+                .is_some_and(|reference| reference.name() == source)
+        })
+    })
 }
 
-fn binding_step(bound: &[(String, Vec<ResourceEnvelope>)]) -> (Step, Option<&ResourceEnvelope>) {
+/// The binding step, naming only the DataSource and Pipeline the caller may read (PF-59, as
+/// the bindings route does); the mapping runs only on a Pipeline the caller may read.
+fn binding_step<'a>(
+    bound: &'a [(String, Vec<ResourceEnvelope>)],
+    may_read_sources: bool,
+    may_read: &dyn Fn(&ResourceEnvelope) -> bool,
+) -> (Step, Option<&'a ResourceEnvelope>) {
     let Some((source, pipelines)) = bound.first() else {
         return (
             Step::new(
@@ -271,7 +276,17 @@ fn binding_step(bound: &[(String, Vec<ResourceEnvelope>)]) -> (Step, Option<&Res
             None,
         );
     };
-    let Some(pipeline) = pipelines.first() else {
+    if !may_read_sources {
+        return (
+            Step::new(
+                "binding",
+                Outcome::Ok,
+                "a DataSource you may not read takes this topic; ask a steward of the project for its mapping",
+            ),
+            None,
+        );
+    }
+    if pipelines.is_empty() {
         return (
             Step::new(
                 "binding",
@@ -280,10 +295,23 @@ fn binding_step(bound: &[(String, Vec<ResourceEnvelope>)]) -> (Step, Option<&Res
             ),
             None,
         );
+    }
+    let Some(pipeline) = pipelines.iter().find(|pipeline| may_read(pipeline)) else {
+        return (
+            Step::new(
+                "binding",
+                Outcome::Ok,
+                format!("DataSource '{source}' reads it, a Pipeline you may not read takes it"),
+            ),
+            None,
+        );
     };
     let more = bound.iter().map(|(_, p)| p.len()).sum::<usize>() - 1;
     let others = if more > 0 {
-        format!("; {more} more Pipeline(s) also take it, tested here: the first")
+        format!(
+            "; {more} more Pipeline(s) also take it, tested here: '{}'",
+            pipeline.metadata.name
+        )
     } else {
         String::new()
     };
@@ -481,13 +509,19 @@ pub async fn test_publish(
         rate_step(&spec),
     ];
     let bound = bound(&state.mirror, &project, &name, &body.topic);
-    let (binding, pipeline) = binding_step(&bound);
+    let effective = crate::permissions::for_request(&state, identity, &project);
+    let may = |kind: &str, space: Option<&str>| effective.may_in(kind, Verb::Read, space);
+    let may_read = |pipeline: &ResourceEnvelope| {
+        serde_json::from_value::<PipelineSpec>(pipeline.spec.clone())
+            .is_ok_and(|spec| pipeline_visible(&state.mirror, &project, &spec, &may))
+    };
+    let (binding, pipeline) = binding_step(&bound, may("DataSource", None), &may_read);
     steps.push(binding);
     match pipeline {
         Some(pipeline) => {
             steps.extend(mapping_steps(identity, &state, &project, pipeline, &body.payload).await)
         }
-        None => steps.extend(unchecked_both("no Pipeline takes this topic")),
+        None => steps.extend(unchecked_both("no Pipeline you may read takes this topic")),
     }
     Ok(Json(DryRun {
         client_id,

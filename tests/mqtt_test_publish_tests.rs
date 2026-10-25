@@ -116,9 +116,8 @@ async fn another_clients_topic_and_an_oversized_message_are_refused_steps() {
     assert!(text.contains("maxMessageBytes"), "{text}");
 }
 
-#[tokio::test]
-async fn a_bound_topic_names_its_source_and_pipeline() {
-    let state = state();
+/// DataSource `frames` reads `cameras/+/frame` of the broker, Pipeline `frames-in` takes it.
+fn bind_frames(state: &AppState) {
     state.mirror.upsert(envelope(
         "DataSource",
         "frames",
@@ -136,13 +135,73 @@ async fn a_bound_topic_names_its_source_and_pipeline() {
             "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:cams:frames"
         }),
     ));
+}
+
+/// Jana may also read the project's DataSources and, when `pipelines`, its Pipelines.
+fn may_read_flow(state: &AppState, pipelines: bool) {
+    let kinds = if pipelines {
+        json!(["DataSource", "Pipeline"])
+    } else {
+        json!(["DataSource"])
+    };
+    state.mirror.upsert(envelope(
+        "Role",
+        "flow-reader",
+        ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": kinds, "verbs": ["read"] }] }),
+    ));
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "jana-flow",
+        ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": "jana@hel.fi" }], "role": "flow-reader", "scope": { "project": "helsinki" } }),
+    ));
+}
+
+async fn frame(state: &AppState) -> Value {
     let (status, body) = test(
-        &state,
+        state,
         "jana",
         json!({"account": "cam-west", "topic": "cameras/helsinki-cam-west/frame", "payload": "{}"}),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
+    body
+}
+
+#[tokio::test]
+async fn a_broker_reader_learns_no_source_or_pipeline_name_they_may_not_read() {
+    let state = state();
+    bind_frames(&state);
+    let body = frame(&state).await;
+    let text = body.to_string();
+    assert!(
+        !text.contains("frames") && !text.contains("frames-in"),
+        "{text}"
+    );
+    assert_eq!(body["steps"][3]["outcome"], "ok", "{body}");
+    assert!(body["steps"][3]["reason"]
+        .as_str()
+        .is_some_and(|r| r.contains("a DataSource you may not read")));
+    assert_eq!(body["steps"][4]["outcome"], "unchecked", "{body}");
+
+    // DataSource read without Pipeline read names the source and hides the pipeline.
+    may_read_flow(&state, false);
+    let body = frame(&state).await;
+    let text = body.to_string();
+    assert!(!text.contains("frames-in"), "{text}");
+    assert!(body["steps"][3]["reason"]
+        .as_str()
+        .is_some_and(|r| r.contains("'frames'") && r.contains("a Pipeline you may not read")));
+    assert_eq!(body["steps"][4]["outcome"], "unchecked", "{body}");
+}
+
+#[tokio::test]
+async fn a_bound_topic_names_its_source_and_pipeline() {
+    let state = state();
+    bind_frames(&state);
+    may_read_flow(&state, true);
+    let body = frame(&state).await;
     let binding = &body["steps"][3];
     assert_eq!(binding["outcome"], "ok", "{body}");
     let reason = binding["reason"].as_str().unwrap_or_default();
