@@ -274,6 +274,18 @@ describe("space helpers", () => {
     expect(pickReadEndpoint([])).toBeUndefined();
   });
 
+  it("reads through the space's own endpoint before an App's (T-5604)", () => {
+    const app = {
+      ...manifest("Endpoint", "app-air-quality", { audience: "project-list", callerRole: true }),
+      metadata: { name: "app-air-quality", namespace: "banskabystrica", annotations: { "joinedcontext.com/generated-by": "portal/app-reconciler" } },
+    } as Manifest;
+    const own = manifest("Endpoint", "air-quality", { audience: "public", policyRef: "urn:x" });
+    expect(pickReadEndpoint([app, own], ["banskabystrica"], "banskabystrica")?.metadata.name).toBe("air-quality");
+    expect(pickReadEndpoint([app, own])?.metadata.name).toBe("air-quality");
+    // An App's endpoint is still read when the space offers the person nothing else.
+    expect(pickReadEndpoint([app], ["banskabystrica"], "banskabystrica")?.metadata.name).toBe("app-air-quality");
+  });
+
   it("names the space from a string ref, an object ref or the space label", () => {
     expect(spaceOf(manifest("Policy", "p", { contextSpaceRef: "ovzdusie" }))).toBe("ovzdusie");
     expect(

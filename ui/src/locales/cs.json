@@ -5492,6 +5492,10 @@
     "noSpace": "Vyberte kontextový prostor ke čtení",
     "noSpaceHint": "Jeho entity se otevřou zde, čtené přes jeden z jeho endpointů. Začněte jedním z prostorů tohoto projektu:",
     "typeInModel": "Tento typ v jeho datovém modelu:",
+    "readThrough": "Čte se přes",
+    "endpointHint": "Endpoint, jehož politika určuje, co uvidíte. Odkaz, který pošlete, ho uvádí, takže kolega čte přes tentýž.",
+    "endpointUnshown": "Odkaz uvádí Endpoint {name}, který vám tento prostor neukazuje",
+    "endpointUnshownPick": "Místo něj se nečte přes jiný Endpoint. Vyberte výše jeden z Endpointů, které můžete číst, nebo požádejte správce prostoru o přístup k {name}.",
     "views": "Co zobrazit",
     "entities": "Entity",
     "quality": {

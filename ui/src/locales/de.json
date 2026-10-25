@@ -5492,6 +5492,10 @@
     "noSpace": "Wählen Sie einen Kontextraum zum Lesen",
     "noSpaceHint": "Seine Entitäten öffnen sich hier, gelesen über einen seiner Endpunkte. Beginnen Sie mit einem der Räume dieses Projekts:",
     "typeInModel": "Dieser Typ in seinem Datenmodell:",
+    "readThrough": "Gelesen über",
+    "endpointHint": "Der Endpoint, dessen Policy bestimmt, was Sie sehen. Ein geteilter Link nennt ihn, damit eine Kollegin oder ein Kollege über denselben liest.",
+    "endpointUnshown": "Der Link nennt den Endpoint {name}, den dieser Raum Ihnen nicht zeigt",
+    "endpointUnshownPick": "An seiner Stelle wird über keinen anderen Endpoint gelesen. Wählen Sie oben einen der Endpoints, die Sie lesen dürfen, oder bitten Sie die Verantwortlichen des Raums um Zugriff auf {name}.",
     "views": "Was zeigen",
     "entities": "Entitäten",
     "quality": {
