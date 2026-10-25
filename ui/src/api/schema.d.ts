@@ -3601,6 +3601,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/serviceaccounts/{name}/secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue A New Client Secret
+         * @description Has Keycloak generate a new secret for the ServiceAccount's client `{project}-{name}` and answers it once (PF-37, API/01 §52): the Portal keeps no copy and no route reads it again. The previous secret is refused at once, the tokens the account holds are refused at the gateway's next revocation poll, and an `access.revoked` activity event records it. Only a person in a Portal session with `approve` on ServiceAccount; a token of a service account or an agent is refused. The account needs an `oauth-client` credential without `jwks` and no `workload`, and its client must be the one the Portal manages.
+         */
+        post: operations["issue_secret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/spaces/{space}/comments": {
         parameters: {
             query?: never;
@@ -4594,6 +4614,8 @@ export interface components {
              */
             delegates: boolean;
             grants: components["schemas"]["AccountGrant"][];
+            /** @description Whether the caller may issue a new secret: a Portal session with `approve` (T-5626). */
+            mayIssueSecret: boolean;
             /**
              * @description Whether the caller may propose a change of this account (a widening waits for a second
              *     person, PF-58).
@@ -4601,6 +4623,11 @@ export interface components {
             mayPropose: boolean;
             /** @description Whether the caller may revoke a grant at once (AG-132). */
             mayRevoke: boolean;
+            /**
+             * @description Why the account has no client secret the Portal can issue, `workload`, `key-pair` or
+             *     `no-credential`, or `None` when it has one (PF-37, T-5626).
+             */
+            noSecret?: string | null;
             project: string;
         };
         /**
@@ -6922,6 +6949,15 @@ export interface components {
             organizationDefault?: string | null;
             /** @description Base URL of the catalogue. */
             url: string;
+        };
+        /** @description A new client secret, in this answer and nowhere else. */
+        IssuedSecret: {
+            /** @description The Keycloak client the external system signs in as, `{project}-{name}`. */
+            clientId: string;
+            /** @description The secret, shown once: the Portal keeps no copy. */
+            clientSecret: string;
+            /** @description Where the external system posts `grant_type=client_credentials`. */
+            tokenUrl: string;
         };
         /** @description One job's last run, in `status.jobs[]` (AP-154, AP-155): never a body or a credential. */
         JobRun: {
@@ -21306,6 +21342,76 @@ export interface operations {
             };
             /** @description The grant moved, or it is the account's last one */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    issue_secret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description ServiceAccount name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The new secret, shown once */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssuedSecret"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A bearer token, or no `approve` on ServiceAccount here */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such ServiceAccount */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The account has no secret (a workload, a key pair, no credential), or its client is not the Portal's (not created yet, or the platform's own) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Keycloak cannot be reached, or the Portal manages no client */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

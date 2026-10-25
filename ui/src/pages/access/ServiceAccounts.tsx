@@ -23,6 +23,7 @@ import {
 import { Button, Card, EmptyState, Icon, Skeleton } from "../../components/ui";
 import { OPERATION_PRESETS } from "../../components/forms/widgets/accessPresets";
 import { AccountAccess } from "./AccountAccess";
+import { AccountSecret } from "./AccountSecret";
 import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 
 interface Credential {
@@ -181,8 +182,9 @@ function AccessDisclosure({ project, account }: { project: string; account: stri
     <details className="mt-3" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="cursor-pointer text-body font-medium text-fg">{t("access.agent.open")}</summary>
       {open ? (
-        <div className="mt-2">
+        <div className="mt-2 space-y-4">
           <AccountAccess project={project} account={account} />
+          <AccountSecret project={project} account={account} />
         </div>
       ) : null}
     </details>

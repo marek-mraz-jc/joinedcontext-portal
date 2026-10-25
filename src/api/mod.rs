@@ -3,6 +3,7 @@ pub mod access_explore;
 pub mod access_matrix;
 pub mod access_requests;
 pub mod access_simulate;
+pub mod account_secret;
 pub mod activity;
 pub mod agent_access;
 pub mod agent_activity;
@@ -141,6 +142,7 @@ pub fn router() -> Router<AppState> {
         .merge(access_explore::router())
         .merge(access_matrix::router())
         .merge(agent_access::router())
+        .merge(account_secret::router())
         .merge(endpoint_preview::router())
         .merge(kpi_check::router())
         .merge(setup::router())

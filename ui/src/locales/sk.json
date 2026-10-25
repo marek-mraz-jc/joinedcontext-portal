@@ -4078,6 +4078,29 @@
       "near": "do {distance} od {where}",
       "within": "vnútri {where}",
       "intersects": "dotýkajúce sa {where}"
+    },
+    "secret": {
+      "title": "Prihlasovacie tajomstvo",
+      "hint": "Externý systém sa prihlasuje ako klient {clientId} s týmto tajomstvom cez OAuth client_credentials (napríklad: curl -u {clientId}:<tajomstvo> -d grant_type=client_credentials <URL tokenu>). Portál ukáže nové tajomstvo raz a neuchováva jeho kópiu.",
+      "issue": "Vydať nové tajomstvo",
+      "confirmTitle": "Vydať nové tajomstvo pre {account}?",
+      "confirmHelp": "Súčasné tajomstvo okamžite prestane platiť a tokeny, ktoré ním boli získané, budú odmietnuté. Odovzdajte nové tajomstvo systému, ktorý sa prihlasuje ako tento účet, a staré tam odstráňte.",
+      "onceTitle": "Skopírujte tajomstvo teraz",
+      "once": "Zobrazí sa iba tento raz. Portál neuchováva kópiu; ak ho stratíte, vydajte nové.",
+      "clientId": "ID klienta",
+      "secret": "Tajomstvo klienta",
+      "tokenUrl": "URL tokenu",
+      "copy": "Kopírovať",
+      "copied": "Skopírované",
+      "copyNamed": "Kopírovať {what}",
+      "done": "Skryť tajomstvo",
+      "failed": "Tajomstvo nebolo vydané. Skúste to znova o minútu.",
+      "whoIssues": "Tajomstvo vydáva osoba, ktorá smie schvaľovať servisné účty.",
+      "none": {
+        "workload": "Jeho úloha v klastri sa prihlasuje vlastným tokenom podu, preto nemá tajomstvo na vydanie.",
+        "key-pair": "Prihlasuje sa vlastným párom kľúčov, preto nemá tajomstvo. Kľúč vymeníte zmenou verejného kľúča v jeho prihlasovacom údaji.",
+        "no-credential": "Zatiaľ nemá prihlasovací údaj oauth-client. Upravte účet a pridajte ho, napríklad s menom main; potom tu môžete vydať jeho tajomstvo."
+      }
     }
   },
   "flows": {

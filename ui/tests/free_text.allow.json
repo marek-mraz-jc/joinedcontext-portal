@@ -220,6 +220,10 @@
     "src/pages/apps/UseTemplate.tsx :: App name": {
       "class": "FREE",
       "reason": "the name of the new App being created, checked by the server (DNS-1123, not taken)"
+    },
+    "src/pages/access/AccountSecret.tsx :: (no label)": {
+      "class": "FREE",
+      "reason": "a read-only value the Portal issued (client id, the secret shown once, the token URL), shown for copying; nobody types into it"
     }
   }
 }
