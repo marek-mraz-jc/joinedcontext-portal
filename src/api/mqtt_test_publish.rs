@@ -206,7 +206,7 @@ fn rate_step(spec: &MqttBrokerSpec) -> Step {
 
 /// The project's DataSources that read `topic` from broker `name`, each with the Pipelines that
 /// take it as their source, in name order.
-pub fn bound(
+fn bound(
     mirror: &crate::store::Mirror,
     project: &str,
     name: &str,
@@ -499,8 +499,20 @@ pub async fn test_publish(
     Path((project, name)): Path<(String, String)>,
     Json(body): Json<TestPublish>,
 ) -> Result<Json<DryRun>, ApiError> {
-    let identity = &user.0.identity;
-    let spec = readable_broker(&state, identity, &project, &name)?;
+    dry_run(&state, &user.0.identity, &project, &name, body)
+        .await
+        .map(Json)
+}
+
+/// The dry run of `body` on broker `name`, once the caller may read the broker.
+async fn dry_run(
+    state: &AppState,
+    identity: &Identity,
+    project: &str,
+    name: &str,
+    body: TestPublish,
+) -> Result<DryRun, ApiError> {
+    let spec = readable_broker(state, identity, project, name)?;
     validate(&spec, &body)?;
     let client_id = format!("{project}-{}", body.account);
     let mut steps = vec![
@@ -508,26 +520,26 @@ pub async fn test_publish(
         size_step(&spec, body.payload.len()),
         rate_step(&spec),
     ];
-    let bound = bound(&state.mirror, &project, &name, &body.topic);
-    let effective = crate::permissions::for_request(&state, identity, &project);
+    let bound = bound(&state.mirror, project, name, &body.topic);
+    let effective = crate::permissions::for_request(state, identity, project);
     let may = |kind: &str, space: Option<&str>| effective.may_in(kind, Verb::Read, space);
     let may_read = |pipeline: &ResourceEnvelope| {
         serde_json::from_value::<PipelineSpec>(pipeline.spec.clone())
-            .is_ok_and(|spec| pipeline_visible(&state.mirror, &project, &spec, &may))
+            .is_ok_and(|spec| pipeline_visible(&state.mirror, project, &spec, &may))
     };
     let (binding, pipeline) = binding_step(&bound, may("DataSource", None), &may_read);
     steps.push(binding);
     match pipeline {
         Some(pipeline) => {
-            steps.extend(mapping_steps(identity, &state, &project, pipeline, &body.payload).await)
+            steps.extend(mapping_steps(identity, state, project, pipeline, &body.payload).await)
         }
         None => steps.extend(unchecked_both("no Pipeline you may read takes this topic")),
     }
-    Ok(Json(DryRun {
+    Ok(DryRun {
         client_id,
         published: false,
         steps,
-    }))
+    })
 }
 
 /// What the watch asks for.
@@ -640,7 +652,20 @@ pub async fn watch(
     Path((project, name)): Path<(String, String)>,
     Query(query): Query<WatchQuery>,
 ) -> Result<Json<Watched>, ApiError> {
-    let spec = readable_broker(&state, &user.0.identity, &project, &name)?;
+    watched(&state, &user.0.identity, &project, &name, query)
+        .await
+        .map(Json)
+}
+
+/// The broker's kept refusals and the account's connections, once the caller may read it.
+async fn watched(
+    state: &AppState,
+    identity: &Identity,
+    project: &str,
+    name: &str,
+    query: WatchQuery,
+) -> Result<Watched, ApiError> {
+    let spec = readable_broker(state, identity, project, name)?;
     let account = query.account.as_deref();
     if let Some(account) = account {
         if !accounts(&spec).contains(&account) {
@@ -653,7 +678,7 @@ pub async fn watch(
             });
         }
     }
-    let release = release_name(&project, &name);
+    let release = release_name(project, name);
     let mut reasons = Vec::new();
     let refused = match state.config.gateway_url.as_deref() {
         Some(gateway) => match internal_url(gateway) {
@@ -667,7 +692,7 @@ pub async fn watch(
         reasons.push(reason);
         Vec::new()
     });
-    let measured = crate::api::mqtt_measured::measured_now(&state, &project, &spec, &release).await;
+    let measured = crate::api::mqtt_measured::measured_now(state, project, &spec, &release).await;
     if let Some(reason) = &measured.reason {
         reasons.push(reason.clone());
     }
@@ -679,14 +704,14 @@ pub async fn watch(
             .map(|seen| seen.connected)
             .sum()
     });
-    Ok(Json(Watched {
+    Ok(Watched {
         observed_at: Utc::now(),
         refusals: filtered(refused, query.since, account),
         refusals_read,
         connected,
         messages_per_second: measured.messages_per_second,
         reason: (!reasons.is_empty()).then(|| reasons.join("; ")),
-    }))
+    })
 }
 
 pub fn router() -> Router<AppState> {

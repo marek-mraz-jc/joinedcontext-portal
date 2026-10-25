@@ -7,7 +7,7 @@ import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../src/locales/en.json";
 import { MqttBrokersPage } from "../src/pages/mqttbrokers/MqttBrokersPage";
-import { publishers, sampleTopic } from "../src/pages/mqttbrokers/TestPublish";
+import { publishers, sampleTopic, Watching } from "../src/pages/mqttbrokers/TestPublish";
 import { json, list, problem, renderPage } from "./page_contract";
 
 const PROJECT = "espoo";
@@ -125,5 +125,26 @@ describe("the Test a message dialog", () => {
     expect(await within(dialog).findByText(en.mqttbrokers.test.refusal.expired)).toBeInTheDocument();
     const watched = sent.find((request) => request.url.includes("/watch"));
     expect(watched?.url).toMatch(/account=cam-1&since=\d{4}-\d\d-\d\dT/);
+  });
+});
+
+describe("what the watch shows", () => {
+  it("lists each refusal with its reason, says when none came, and when the record could not be read", async () => {
+    const at = "2026-10-25T02:00:00Z";
+    renderPage(
+      <Watching watched={{ observedAt: at, refusals: [{ at, reason: "expired", account: "cam-1" }], refusalsRead: true, connected: 2 }} />,
+      { answer: () => undefined },
+    );
+    expect(await screen.findByText(en.mqttbrokers.test.refusal.expired)).toBeInTheDocument();
+    expect(document.querySelector("[data-connected='2']")).not.toBeNull();
+    cleanup();
+    renderPage(<Watching watched={{ observedAt: at, refusals: [], refusalsRead: true }} />, { answer: () => undefined });
+    expect(await screen.findByText(en.mqttbrokers.test.noRefusal)).toBeInTheDocument();
+    cleanup();
+    renderPage(<Watching watched={{ observedAt: at, refusals: [], refusalsRead: false, reason: "the gateway did not answer" }} />, {
+      answer: () => undefined,
+    });
+    expect(await screen.findByText(en.mqttbrokers.test.refusalsUnread)).toBeInTheDocument();
+    expect(screen.getByText("the gateway did not answer")).toBeInTheDocument();
   });
 });

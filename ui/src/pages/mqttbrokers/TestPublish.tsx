@@ -169,7 +169,7 @@ function Watch({ project, broker, account }: { project: string; broker: string; 
   );
 }
 
-function Watching({ watched }: { watched: Watched }): JSX.Element {
+export function Watching({ watched }: { watched: Watched }): JSX.Element {
   const { t } = useTranslation();
   const time = new Intl.DateTimeFormat(undefined, { timeStyle: "medium" });
   return (
