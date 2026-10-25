@@ -892,6 +892,11 @@ pub async fn post_run(
             crate::reconciler::run_queue::RunNow::Running(run) => ApiError::Conflict(format!(
                 "pipeline '{name}' is running ({run}); start another once it ended"
             )),
+            crate::reconciler::run_queue::RunNow::Held => ApiError::Conflict(format!(
+                "pipeline '{name}' is held: its last run ran past its cap and the runner could \
+                 not stop it; change the looping step and push again, it runs once its steps \
+                 change"
+            )),
             crate::reconciler::run_queue::RunNow::NotQueued => ApiError::Conflict(format!(
             "pipeline '{name}' does not run from the queue: it waits for pushes and always runs, \
              or it is not deployed (its status says why)"
