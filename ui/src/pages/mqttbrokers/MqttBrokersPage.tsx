@@ -41,16 +41,31 @@ import type { Edge } from "./connections";
 export function MqttBrokersPage({ project }: { project: string }): JSX.Element {
   const brokers = useReadableList(project, "mqttbrokers", "MqttBroker");
   const items = asManifests(brokers.data?.items ?? []);
+  const refused = useCreateRefused(project);
   return (
     <div className="flex flex-col gap-section">
       <AllowancePanel project={project} />
-      <KindList project={project} plural="mqttbrokers" />
+      <KindList project={project} plural="mqttbrokers" createRefused={refused} />
       {items.map((broker) => (
         <BrokerCard key={broker.metadata.name} project={project} broker={broker} />
       ))}
       {items.length > 0 ? <Connections project={project} brokers={items} /> : null}
     </div>
   );
+}
+
+/**
+ * Why New MQTT broker would be refused, in the allowance panel's own words (T-5589): MQTT off for
+ * the project, or every allowed broker in use. Unknown while the allowance loads or failed: the
+ * API's 403 stays the gate either way.
+ */
+function useCreateRefused(project: string): string | undefined {
+  const { t } = useTranslation();
+  const data = useMqttAllowance(project).data;
+  if (data === undefined) return undefined;
+  if (!data.enabled) return `${t("mqttAllowance.project.offTitle")}. ${t("mqttAllowance.project.off", { project })}`;
+  if (data.brokers.left === 0) return t("mqttAllowance.project.full", { limit: data.brokers.limit });
+  return undefined;
 }
 
 type Measured = components["schemas"]["Measured"];

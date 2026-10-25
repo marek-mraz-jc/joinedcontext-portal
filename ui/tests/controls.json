@@ -287,6 +287,14 @@
         "part_endpoint_links.test.tsx"
       ]
     },
+    "src/components/endpoints/PolicyGrants.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "endpoint_grants_words.test.tsx"
+      ]
+    },
     "src/components/entities/AddFieldDialog.tsx": {
       "controls": {
         "Button": 3,
@@ -1185,7 +1193,7 @@
     },
     "src/pages/endpoints/EndpointPage.tsx": {
       "controls": {
-        "Button": 7,
+        "Button": 6,
         "Checkbox": 2
       },
       "tests": [

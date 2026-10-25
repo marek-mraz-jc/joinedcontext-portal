@@ -388,7 +388,7 @@ function DataActions({
           {full ? t("endpoints.data.fullLeave") : t("endpoints.data.full")}
         </Button>
         {csv ? (
-          <a className="focus-ring rounded-sm text-caption text-primary-soft-fg underline hover:no-underline" href={safeHref(csv)} download>
+          <a className="focus-ring touch-target rounded-sm text-caption text-primary-soft-fg underline hover:no-underline" href={safeHref(csv)} download>
             {t("endpoints.data.csv")}
           </a>
         ) : null}

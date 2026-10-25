@@ -21,7 +21,7 @@ import { WorkOnCopyAction } from "../../components/WorkOnCopyDialog";
 import { ExportButton } from "../../components/export/ExportButton";
 import { EndpointQuality } from "./EndpointQuality";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
-import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { MayNotCreate, PermissionGuard } from "../../components/ui/PermissionGuard";
 import { RowActions } from "../../components/ui/RowActions";
 import type { RowAction } from "../../components/ui/RowActions";
 import { usePermissions } from "../../api/permissions";
@@ -40,8 +40,7 @@ import { QrCode } from "../../components/endpoints/QrCode";
 import { useBranding } from "../../branding";
 import { spaceOf } from "../../components/endpoints/sharing";
 import { bindingOf, spaceSegment } from "../../components/endpoints/policyBinding";
-import type { Binding } from "../../components/endpoints/policyBinding";
-import { grantWrites, groupOf } from "../../components/endpoints/operationGroups";
+import { PolicyGrants } from "../../components/endpoints/PolicyGrants";
 import { CatalogSection } from "./CatalogSection";
 import { VisualizationsSection } from "./VisualizationsSection";
 import { EndpointUsageSection } from "../../components/endpoints/UsageSection";
@@ -70,7 +69,7 @@ import {
   SourceLink,
   Term,
 } from "../../components/ui";
-import { ResourcePageFailed, PageFailed } from "../../components/ui/PageState";
+import { ResourcePageFailed } from "../../components/ui/PageState";
 import { andQ, areaQuery, queryFromFilters, ringOfBounds } from "@joinedcontext/sdk";
 import type { FilterOp } from "@joinedcontext/sdk";
 import { outputsOf } from "../../components/forms/widgets/representationOutputs";
@@ -347,6 +346,8 @@ export function EndpointPage({
           onOpenChange={(next) => setOpenAction(next ? "delete" : null)}
         />
       </div>
+      {/* The reason the two buttons above are greyed, where a viewer sees it and not only on hover (T-5592). */}
+      <MayNotCreate project={project} kinds={["Endpoint"]} message="endpoints.page.mayNotChange" />
 
       <Section title={t("endpoints.page.whatItIs")}>
         <Facts>
@@ -1568,171 +1569,16 @@ function Section({
 }
 
 /** The facts of one section: two columns on a screen, stacked under 400 px. */
-/**
- * Who may call this endpoint, in the grants the gateway will actually evaluate (T-2282, EP-51).
- *
- * The section used to print `spec.policyRef` — a URN — and a link to the policy list, which told
- * a person nothing about what the endpoint grants. Each applying policy is named here with who it
- * is granted to and what it permits: a CIM 009 operation group by its own name, with the
- * operations it covers readable beside it, because a group is exactly its members and a name
- * nobody can expand is a name nobody can check (GW34).
- */
-function PolicyGrants({
-  project,
-  binding,
-  pending,
-  failure,
-}: {
-  project: string;
-  binding: Binding;
-  pending: boolean;
-  /** The policies or the spaces could not be read, and how to ask again. */
-  failure?: { error: unknown; retry: () => void };
-}): JSX.Element {
-  const { t, i18n } = useTranslation();
-  const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
-  const [showAll, setShowAll] = useState(false);
-
-  if (pending) {
-    return (
-      <p role="status" className="text-body text-fg-muted">
-        {t("app.loading")}
-      </p>
-    );
-  }
-  // A list that failed is not a space with no policies: saying "the grants of the space decide"
-  // when the grants could not be read would be the Portal guessing on a security page.
-  if (failure) {
-    return <PageFailed error={failure.error} onRetry={failure.retry} />;
-  }
-  if (binding.kind === "unbound") {
-    // A state of the page rather than something that just happened, so it is a `status` like the
-    // page's other standing messages; `alert` here would interrupt a form somebody is filling in
-    // further down and would be a second alert beside the one that form renders.
-    return <Alert tone="warning">{t("endpoints.page.policyUnbound", { urn: binding.urn })}</Alert>;
-  }
-  if (binding.policies.length === 0) {
-    return <p className="text-body text-fg-muted">{t("endpoints.page.noPolicy")}</p>;
-  }
-
-  // A space with dozens of policies made this list 9,500 px tall (T-5015): the first few show,
-  // the rest one press away.
-  const shown = showAll ? binding.policies : binding.policies.slice(0, POLICY_FOLD);
-  return (
-    <div className="flex flex-col gap-3">
-      <ul className="flex flex-col gap-3">
-        {shown.map((policy) => {
-          const spec = policy.spec as {
-            assignee?: { kind?: string; id?: string };
-            operations?: string[];
-            effect?: string;
-          };
-          const operations = spec.operations ?? [];
-          const writes = grantWrites(operations);
-          return (
-            <li key={policy.metadata.name} className="rounded-md border border-border p-3">
-              <div className="flex flex-wrap items-baseline gap-2">
-                <Link
-                  to="/projects/$project/$plural"
-                  params={{ project, plural: "policies" }}
-                  className="focus-ring rounded-sm font-medium text-fg hover:underline"
-                >
-                  {localized(policy.metadata.title, locale, policy.metadata.name)}
-                </Link>
-                <Badge tone={writes ? "warning" : "success"}>
-                  {t(writes ? "endpoints.page.policyWrites" : "endpoints.page.policyReads")}
-                </Badge>
-                {spec.assignee?.id ? (
-                  <span className="text-caption text-fg-muted">
-                    {t("endpoints.page.policyAssignee")}:{" "}
-                    <span className="font-mono">
-                      {spec.assignee.kind ? `${spec.assignee.kind}:` : ""}
-                      {spec.assignee.id}
-                    </span>
-                  </span>
-                ) : null}
-              </div>
-              {operations.length === 0 ? (
-                <p className="mt-2 text-caption text-fg-muted">{t("endpoints.page.policyEmpty")}</p>
-              ) : (
-                <dl className="mt-2 flex flex-col gap-2">
-                  {operations.filter((name) => groupOf(name)).map((name) => (
-                    <Grant key={name} name={name} />
-                  ))}
-                  <SingleOperations names={operations.filter((name) => !groupOf(name))} />
-                </dl>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-      {binding.policies.length > POLICY_FOLD ? (
-        <Button type="button" variant="secondary" size="sm" className="w-fit" aria-expanded={showAll} onClick={() => setShowAll(!showAll)}>
-          {showAll ? t("endpoints.page.policiesFewer") : t("endpoints.page.policiesAll", { count: binding.policies.length })}
-        </Button>
-      ) : null}
-    </div>
-  );
-}
-
-/** How many policies "Who may call it" shows before "Show all" (T-5015). */
-const POLICY_FOLD = 5;
-
-/** A policy's single operations as one wrapping row of chips; one line each made a long grant a page tall (T-5015). */
-function SingleOperations({ names }: { names: string[] }): JSX.Element | null {
-  const { t } = useTranslation();
-  if (names.length === 0) return null;
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="flex flex-wrap items-center gap-1">
-        {names.map((name) => (
-          <Badge key={name} mono tone="info">
-            {name}
-          </Badge>
-        ))}
-      </dt>
-      <dd className="text-caption text-fg-muted">
-        {/* A single operation is its own chip; naming it again beside it said it twice (T-2751). */}
-        {names.length === 1 ? t("endpoints.page.operationSingle") : t("endpoints.page.operationsSingle", { count: names.length })}
-      </dd>
-    </div>
-  );
-}
-
-/** One operation group of a policy's `operations`, with its members. */
-function Grant({ name }: { name: string }): JSX.Element | null {
-  const { t } = useTranslation();
-  const group = groupOf(name);
-  if (!group) return null;
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="flex flex-wrap items-center gap-2">
-        <Badge mono tone={group.writes ? "warning" : "info"}>
-          {name}
-        </Badge>
-        <span className="text-caption text-fg-muted">
-          {t("endpoints.page.groupMembers", { count: group.operations.length })}
-        </span>
-      </dt>
-      <dd className="text-caption text-fg-muted">
-        {t(`endpoints.page.group.${group.name}`)}{" "}
-        {/* The members in full: a group is exactly this list, and a reader who has to trust
-            the name without it cannot tell a narrow grant from a wide one (GW34). */}
-        <span className="font-mono text-fg">{group.operations.join(", ")}</span>
-      </dd>
-    </div>
-  );
-}
-
 function Facts({ children }: { children: ReactNode }): JSX.Element {
   return <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">{children}</dl>;
 }
 
 function Fact({ label, children }: { label: ReactNode; children: ReactNode }): JSX.Element {
   return (
-    <div className="rounded-md border border-border p-3">
+    // min-w-0 and anywhere: a code-list IRI in a fact made the page 409 px wide at 400 (T-5592).
+    <div className="min-w-0 rounded-md border border-border p-3">
       <dt className="text-caption font-medium text-fg-muted">{label}</dt>
-      <dd className="mt-1 text-sm text-fg">{children}</dd>
+      <dd className="mt-1 text-sm text-fg [overflow-wrap:anywhere]">{children}</dd>
     </div>
   );
 }

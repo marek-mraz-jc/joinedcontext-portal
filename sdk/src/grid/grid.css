@@ -1033,6 +1033,34 @@ a.jc-cell--link:focus-visible {
   vertical-align: middle;
 }
 
+/* A row's checkbox sits in its label: no box of its own under a mouse, the finger's 44 px target on a
+   touch screen (T-5596). The expand button shows only on hover, which a finger has not: there the
+   row's name opens the row, and the column keeps room for the target. */
+.jc-grid-check {
+  display: contents;
+}
+
+@media (pointer: coarse) {
+  .jc-grid-check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    vertical-align: middle;
+    cursor: pointer;
+  }
+
+  .jc-grid-expand {
+    display: none;
+  }
+
+  /* The target fills the column: the cell's padding would push the frozen name column over it. */
+  .jc-grid .jc-grid-rownum {
+    padding-inline: 0;
+  }
+}
+
 .jc-grid-expand {
   background: none;
   border: none;

@@ -1,6 +1,6 @@
 /** The edit dialog itself, loaded when it opens (T-3316): see EditResourceDialog.tsx. */
 import { Suspense, lazy, useMemo, useState } from "react";
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
@@ -17,7 +17,7 @@ import { shippedForms } from "../schemas/forms";
 import { useBranding } from "../branding";
 import type { UiSchema } from "./forms/types";
 import type { ResourceTarget } from "./DeleteResourceDialog";
-import { Alert, Button, PageFailed, PageLoading } from "./ui";
+import { Alert, Badge, Button, PageFailed, PageLoading } from "./ui";
 import { FormFrame, useFormRoute } from "./forms/FormRoute";
 import type { EditableForm } from "./EditResourceDialog";
 import { describe as describeField, marksOf, parseErrorsOf } from "./yamlManifest";
@@ -36,6 +36,27 @@ function writable(manifest: Record<string, unknown>): string {
     ...Object.entries(rest).filter(([key]) => !SECTIONS.includes(key)),
   ]);
   return stringifyYaml(ordered, { indentSeq: true, lineWidth: 0 });
+}
+
+/** The fields under a native disclosure when a summary reads them first; as they are otherwise. */
+function Disclosure({
+  folded,
+  open,
+  label,
+  children,
+}: {
+  folded: boolean;
+  open: boolean;
+  label: string;
+  children: ReactNode;
+}): JSX.Element {
+  if (!folded) return <>{children}</>;
+  return (
+    <details open={open} className="rounded-md border border-border">
+      <summary className="focus-ring cursor-pointer px-3 py-2 text-body font-medium text-fg">{label}</summary>
+      <div className="border-t border-border p-3">{children}</div>
+    </details>
+  );
 }
 
 /**
@@ -222,8 +243,19 @@ export function EditResourceDialogBody({
       open={open}
       onOpenChange={close}
       size="lg"
-      title={t(readOnly ? "resourceEdit.viewTitle" : "resourceEdit.title", { name: target.label ?? name })}
-      description={readOnly ? t("resourceEdit.readOnly", { kind: target.kind }) : t("resourceEdit.lead")}
+      // A reader's heading is the record's own name, the reason it is closed beside it (T-5591):
+      // "View …" glued to a title read as part of it.
+      title={readOnly ? (target.label ?? name) : t("resourceEdit.title", { name: target.label ?? name })}
+      description={
+        readOnly ? (
+          <>
+            <Badge tone="neutral">{t("resourceEdit.readOnlyBadge")}</Badge>{" "}
+            {t("resourceEdit.readOnly", { kind: target.kind })}
+          </>
+        ) : (
+          t("resourceEdit.lead")
+        )
+      }
       closeLabel={t("resourceDelete.close")}
       footer={
         change || readOnly ? (
@@ -278,6 +310,9 @@ export function EditResourceDialogBody({
             <PageFailed error={current.error} onRetry={() => void current.refetch()} />
           ) : form ? (
             current.data ? (
+              <>
+              {form.summary?.(current.data)}
+              <Disclosure folded={form.summary !== undefined} open={!readOnly} label={t("resourceEdit.showFields")}>
               <Suspense fallback={<PageLoading label={t("app.loading")} lines={2} />}>
               <SchemaForm<Record<string, unknown>>
                 schema={form.schema}
@@ -306,6 +341,8 @@ export function EditResourceDialogBody({
                 )}
               />
               </Suspense>
+              </Disclosure>
+              </>
             ) : null
           ) : (
             yamlView(readOnly)

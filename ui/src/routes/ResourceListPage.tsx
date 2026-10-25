@@ -248,10 +248,17 @@ export function KindList({
   project,
   plural,
   embedded = false,
+  createRefused,
 }: {
   project: string;
   plural: string;
   embedded?: boolean;
+  /**
+   * Why a new one would be refused before the form is filled, such as an allowance used up
+   * (T-5589): New stays visible, closed, with this as its description, and the empty list says it.
+   * The API's own refusal stays the gate.
+   */
+  createRefused?: string;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
@@ -313,6 +320,8 @@ export function KindList({
           variant="primary"
           data-shortcut="new"
           icon={<Icon name="plus" className="size-4" />}
+          disabled={createRefused !== undefined}
+          disabledReason={createRefused}
           onClick={() => {
             setFormError(null);
             setValues(undefined);
@@ -353,11 +362,13 @@ export function KindList({
             title={t("resourceList.empty")}
             // A page with no create action names none in its hint (T-2488).
             description={
-              newButton && createKind
+              createRefused ??
+              (newButton && createKind
                 ? t(`resourceList.emptyHintCreate${holder}`, { new: kindNew(createKind, t) })
-                : t(`resourceList.emptyHintFor.${plural}`, { defaultValue: t(`resourceList.emptyHint${holder}`) })
+                : t(`resourceList.emptyHintFor.${plural}`, { defaultValue: t(`resourceList.emptyHint${holder}`) }))
             }
             action={
+              createRefused !== undefined ? undefined :
               newButton ??
               // The hint sends a person to the assistant; the button takes them there. A kind
               // whose hint says it is changed elsewhere offers nothing here (T-3246).
