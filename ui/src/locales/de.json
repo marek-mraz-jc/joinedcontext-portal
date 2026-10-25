@@ -3326,7 +3326,7 @@
       "noEnd": "Kein Enddatum",
       "decided": "{who}: {reason}",
       "inbox": "Zugriffsanfragen",
-      "inboxLead": "Personen und Pipelines anderer Bereiche, die diesen Bereich lesen oder schreiben möchten. Eine Genehmigung schlägt die Berechtigung als Änderung dieses Projekts vor; eine andere Person genehmigt diese Änderung.",
+      "inboxLead": "Personen, die einen Endpunkt dieses Bereichs lesen möchten, und Pipelines anderer Bereiche, die ihn lesen oder schreiben möchten. Eine Genehmigung schlägt die Berechtigung als Änderung dieses Projekts vor; eine andere Person genehmigt diese Änderung.",
       "inboxEmpty": "Noch niemand hat Zugriff auf diesen Bereich angefragt.",
       "on": "auf {endpoint}, angefragt von {who}",
       "decisionReason": "Begründung für den Anfragenden",

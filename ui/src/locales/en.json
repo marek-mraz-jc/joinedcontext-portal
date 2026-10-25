@@ -3326,7 +3326,7 @@
       "noEnd": "No end date",
       "decided": "{who}: {reason}",
       "inbox": "Access requests",
-      "inboxLead": "People and pipelines of other spaces asking to read or write this space. Approving proposes the grant as a change of this project; another person approves that change.",
+      "inboxLead": "People asking to read an Endpoint of this space, and pipelines of other spaces asking to read or write it. Approving proposes the grant as a change of this project; another person approves that change.",
       "inboxEmpty": "Nobody has asked for access to this space.",
       "on": "on {endpoint}, asked by {who}",
       "decisionReason": "Reason for the requester",

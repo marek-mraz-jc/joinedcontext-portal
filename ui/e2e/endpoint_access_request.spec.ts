@@ -232,6 +232,7 @@ for (const [width, height] of [
       await page.goto(PAGE);
       const section = page.getByTestId("endpoint-access-request");
       await fill(page, "AirQualityObserved", "Air report");
+      await section.getByLabel(/^Until/).fill("2020-01-31");
       await section.getByRole("button", { name: "Send request" }).click();
       await expect(
         section.getByText("until has passed; choose a later end or none"),

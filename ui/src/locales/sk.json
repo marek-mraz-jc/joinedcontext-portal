@@ -3326,7 +3326,7 @@
       "noEnd": "Bez dátumu konca",
       "decided": "{who}: {reason}",
       "inbox": "Žiadosti o prístup",
-      "inboxLead": "Ľudia a pipeline iných priestorov, ktorí žiadajú čítať alebo zapisovať tento priestor. Schválenie navrhne oprávnenie ako zmenu tohto projektu; túto zmenu schváli iná osoba.",
+      "inboxLead": "Ľudia, ktorí žiadajú čítať endpoint tohto priestoru, a pipeline iných priestorov, ktoré žiadajú čítať alebo zapisovať tento priestor. Schválenie navrhne oprávnenie ako zmenu tohto projektu; túto zmenu schváli iná osoba.",
       "inboxEmpty": "O prístup k tomuto priestoru zatiaľ nikto nepožiadal.",
       "on": "na {endpoint}, žiada {who}",
       "decisionReason": "Dôvod pre žiadateľa",

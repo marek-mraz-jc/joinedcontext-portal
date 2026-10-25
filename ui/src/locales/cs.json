@@ -3326,7 +3326,7 @@
       "noEnd": "Bez data konce",
       "decided": "{who}: {reason}",
       "inbox": "Žádosti o přístup",
-      "inboxLead": "Lidé a pipeline jiných prostorů, kteří žádají o čtení nebo zápis tohoto prostoru. Schválení navrhne oprávnění jako změnu tohoto projektu; tuto změnu schválí jiná osoba.",
+      "inboxLead": "Lidé, kteří žádají o čtení endpointu tohoto prostoru, a pipeline jiných prostorů, které žádají o jeho čtení nebo zápis. Schválení navrhne oprávnění jako změnu tohoto projektu; tuto změnu schválí jiná osoba.",
       "inboxEmpty": "O přístup k tomuto prostoru zatím nikdo nepožádal.",
       "on": "na {endpoint}, žádá {who}",
       "decisionReason": "Důvod pro žadatele",
