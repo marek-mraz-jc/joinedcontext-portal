@@ -1185,6 +1185,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_admin_base_is_the_realm_url_with_admin_in_front_of_realms() {
+        let auth = || ClientAuth::Secret("s".into());
+        for issuer in [
+            "https://id.example.sk/realms/bb",
+            "https://id.example.sk/realms/bb/",
+        ] {
+            let admin = Admin::new(issuer, "c".into(), auth()).expect("a realm URL");
+            assert_eq!(admin.admin, "https://id.example.sk/admin/realms/bb");
+        }
+        assert!(Admin::new("https://id.example.sk/", "c".into(), auth()).is_none());
+    }
+
+    #[test]
     fn a_kc_token_debug_never_shows_the_admin_token() {
         let token = KcToken {
             access_token: "s3cr3t-test".into(),

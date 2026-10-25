@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { forPeople } from "../../api/client";
 import { Badge } from "../../components/ui/Badge";
-import { QueryAnswer, viewOf } from "./QueryResultCard";
+import { isRecord, QueryAnswer, viewOf } from "./QueryResultCard";
 
 /**
  * What a changed pipeline's or data source's test ran on and saw before its form opened (AG-77,
@@ -18,10 +18,6 @@ export interface ChangeTest {
   records?: number;
   /** A data source's first record, or the entities a pipeline mapped. */
   sample?: unknown;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 const words = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);

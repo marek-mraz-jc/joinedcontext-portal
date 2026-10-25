@@ -23,6 +23,7 @@
 //! Only a registration this reconciler declared in a previous run is ever deleted, so a
 //! registration somebody wrote straight into the broker is left alone.
 
+use crate::capped::refusal;
 use crate::store::Mirror;
 use jc_core::kinds::ContextSourceRegistrationSpec;
 use jcctl::csr::{registration, registration_id, MemberSource};
@@ -246,7 +247,7 @@ impl RegistrationSync {
             return Ok(());
         }
         if created.status() != reqwest::StatusCode::CONFLICT {
-            return Err(refusal("the broker refused the registration", created).await);
+            return Err(refusal("the broker refused the registration", created, None).await);
         }
         // Already there: the manifest is still the truth. The id is not sent again — a PATCH
         // that renames the resource is not what this is.
@@ -267,7 +268,7 @@ impl RegistrationSync {
             .map_err(|err| err.to_string())?;
         match updated.status().is_success() {
             true => Ok(()),
-            false => Err(refusal("the broker refused the update", updated).await),
+            false => Err(refusal("the broker refused the update", updated, None).await),
         }
     }
 
@@ -284,28 +285,8 @@ impl RegistrationSync {
         match response.status().is_success() || response.status() == reqwest::StatusCode::NOT_FOUND
         {
             true => Ok(()),
-            false => Err(refusal("the broker refused the delete", response).await),
+            false => Err(refusal("the broker refused the delete", response, None).await),
         }
-    }
-}
-
-/// A `Ref` as its name, whether it is written as a string or as `{kind, name}`.
-/// `what: status body`, with the body cut short — a problem document is a sentence, an HTML
-/// error page is not, and neither belongs in a status field whole.
-async fn refusal(what: &str, response: reqwest::Response) -> String {
-    let status = response.status();
-    let body = response.text().await.unwrap_or_default();
-    let mut said = body.trim().replace('\n', " ");
-    if said.len() > 300 {
-        let mut end = 300;
-        while !said.is_char_boundary(end) {
-            end -= 1;
-        }
-        said.truncate(end);
-    }
-    match said.is_empty() {
-        true => format!("{what}: {status}"),
-        false => format!("{what}: {status}: {said}"),
     }
 }
 
