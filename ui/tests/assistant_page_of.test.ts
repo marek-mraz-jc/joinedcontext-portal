@@ -14,6 +14,10 @@ describe("the page the assistant opened", () => {
     await i18n.changeLanguage("en");
   });
 
+  it("names a route whose escape is malformed by its raw segment, never throwing (T-5699)", () => {
+    expect(pageOf("/projects/p/spaces/%E0%A4%A", t)).toContain("%E0%A4%A");
+  });
+
   it("names a section and the resource the route hands over", () => {
     expect(pageOf("/projects/helsinki/endpoints", t)).toBe("Endpoints");
     expect(pageOf("/projects/helsinki/pipelines?edit=hel-news&draft=hel-news", t)).toBe("Pipelines: hel-news");

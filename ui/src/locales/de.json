@@ -10507,5 +10507,22 @@
       "window": "Die Tage bis heute (UTC), z. B. die letzten 30 Tage.",
       "month": "Ein Monat als JJJJ-MM, z. B. 2026-10."
     }
+  },
+  "mcpElicitation": {
+    "title": "Über den Aufruf eines KI-Clients entscheiden",
+    "lead": "Ihr KI-Client möchte einen Aufruf ausführen, der das Projekt ändert. Er läuft nur, wenn Sie ihn hier annehmen.",
+    "operation": "Operation",
+    "expires": "Offen bis",
+    "look": "Ansehen, was dieser Aufruf ändert",
+    "hint": "Annehmen lässt diesen einen Aufruf einmal laufen, wenn Ihr Client ihn erneut sendet; Ablehnen stoppt ihn. Bis dahin können Sie Ihre Antwort ändern.",
+    "accept": "Aufruf annehmen",
+    "decline": "Aufruf ablehnen",
+    "accepted": "Sie haben diesen Aufruf angenommen",
+    "declined": "Sie haben diesen Aufruf abgelehnt",
+    "backToClient": "Kehren Sie zu Ihrem KI-Client zurück: Wenn er den Aufruf erneut sendet, läuft er oder erfährt, dass Sie abgelehnt haben.",
+    "failed": "Ihre Antwort wurde nicht gespeichert",
+    "gone": "Diese Frage ist nicht mehr offen",
+    "goneHint": "Sie wurde beantwortet, ist nach zehn Minuten abgelaufen oder wurde vom Client einer anderen Person gestellt. Bitten Sie Ihren KI-Client, den Aufruf erneut zu senden.",
+    "home": "Zurück zum Projekt"
   }
 }

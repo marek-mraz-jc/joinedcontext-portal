@@ -2,10 +2,14 @@
 //!
 //! An agent may propose and may ask to remove, but it may not decide alone: a call whose
 //! operation takes the Yellow or the Red lane, or carries `destructiveHint`, answers an
-//! elicitation first. The host shows it to the person, the person opens the Portal and decides,
-//! and the client repeats the call carrying the answer. Only then does the operation run, and
-//! the answer is written to the project's activity, so what a person allowed is on the record
-//! (AG-56).
+//! elicitation first. The host shows it to the person, the person opens the Portal page the
+//! question names and decides there with their own session, and the client repeats the call
+//! naming the question. Only then does the operation run, and the answer is written to the
+//! project's activity, so what a person allowed is on the record (AG-56).
+//!
+//! The decision is the Portal's record, never the client's word (T-5699): a client holding the
+//! person's token could otherwise accept its own question without anyone seeing it. The second
+//! call's `action` can only decline; it never accepts.
 //!
 //! The route is one stateless POST, so the elicitation cannot be a server→client request on an
 //! open stream: it is the answer to the first call and an argument of the second. What that
@@ -22,6 +26,16 @@ use crate::auth::session::now_unix;
 /// How long a person has to answer before the id is no longer accepted.
 pub const EXPIRES_IN_SECONDS: i64 = 600;
 
+/// What the person decided on the Portal page.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, utoipa::ToSchema,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum ElicitationDecision {
+    Accept,
+    Decline,
+}
+
 /// One question waiting for its answer.
 struct Pending {
     /// The subject of the token that asked: nobody else may answer it.
@@ -30,16 +44,41 @@ struct Pending {
     project: String,
     /// The arguments the question was asked about: a different call needs a new answer.
     digest: String,
+    /// The words the client was handed, shown again on the page.
+    message: String,
+    /// The Portal page of what the call would change, a path under the Portal.
+    resource: String,
     asked_at: i64,
+    /// The person's decision, once they made it on the page.
+    decision: Option<ElicitationDecision>,
+}
+
+/// One open question as its page shows it to the person who asked.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Question {
+    pub id: String,
+    /// The operation the call runs, `jc_resource_delete`.
+    pub operation: String,
+    pub message: String,
+    /// The Portal path of what the call would change, `/projects/helsinki/endpoints/air`.
+    pub resource: String,
+    /// Unix seconds after which the question is no longer answered.
+    pub expires_at: i64,
+    /// `None` until the person decided.
+    pub decision: Option<ElicitationDecision>,
 }
 
 /// What the caller sent back with the second call.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Answer {
-    /// The person allowed it: the operation runs.
+    /// The person allowed it on the Portal page: the operation runs.
     Accepted,
-    /// The person refused, or the host could not ask: nothing runs.
+    /// The person refused, or the client declined: nothing runs.
     Declined,
+    /// The question is open and the person has not decided yet. Nothing runs; the same call may
+    /// be sent again once they have.
+    Waiting,
     /// No such question for this caller, or it was answered, expired, or asked about something
     /// else. Nothing runs, and the caller asks again.
     Unknown,
@@ -47,8 +86,9 @@ pub enum Answer {
 
 /// Every question this replica is waiting on.
 ///
-/// ponytail: per-replica map, like the Portal's other in-process state; a question lives ten
-/// minutes, so a restart costs one repeated ask, never a lost decision.
+/// ponytail: per-replica map, like the Portal's other in-process state (one Portal replica,
+/// owner 2026-10-23); a question lives ten minutes, so a restart costs one repeated ask, never a
+/// lost decision.
 #[derive(Clone, Default)]
 pub struct McpElicitations {
     pending: Arc<Mutex<HashMap<String, Pending>>>,
@@ -65,13 +105,19 @@ impl McpElicitations {
         Self::default()
     }
 
-    /// Opens a question and returns its id.
-    pub fn ask(&self, owner: &str, operation: &str, project: &str, digest: &str) -> String {
+    /// Opens a question and returns its id: random, so it names nothing of the call.
+    pub fn ask(
+        &self,
+        owner: &str,
+        operation: &str,
+        project: &str,
+        digest: &str,
+        message: &str,
+        resource: &str,
+    ) -> String {
+        use argon2::password_hash::rand_core::{OsRng, RngCore};
         self.forget_expired();
-        let id = format!(
-            "eli-{}",
-            digest_short(&format!("{owner}{operation}{}", now_nanos()))
-        );
+        let id = format!("eli-{:016x}", OsRng.next_u64());
         if let Ok(mut map) = self.pending.lock() {
             map.insert(
                 id.clone(),
@@ -80,14 +126,48 @@ impl McpElicitations {
                     operation: operation.to_owned(),
                     project: project.to_owned(),
                     digest: digest.to_owned(),
+                    message: message.to_owned(),
+                    resource: resource.to_owned(),
                     asked_at: now_unix(),
+                    decision: None,
                 },
             );
         }
         id
     }
 
-    /// Reads the answer the client sent, and spends the question: an id answers once.
+    /// The open question `id` of `owner` in `project`, for its page; `None` for anyone else's,
+    /// an answered one or an expired one.
+    pub fn question(&self, owner: &str, project: &str, id: &str) -> Option<Question> {
+        let map = self.pending.lock().ok()?;
+        let pending = map
+            .get(id)
+            .filter(|pending| open_for(pending, owner, project))?;
+        Some(question_of(id, pending))
+    }
+
+    /// Records the person's decision on the page. `None` when the question is not theirs, was
+    /// spent or expired. A second decision before the client's call replaces the first.
+    pub fn decide(
+        &self,
+        owner: &str,
+        project: &str,
+        id: &str,
+        decision: ElicitationDecision,
+    ) -> Option<Question> {
+        let mut map = self.pending.lock().ok()?;
+        let pending = map
+            .get_mut(id)
+            .filter(|pending| open_for(pending, owner, project))?;
+        pending.decision = Some(decision);
+        Some(question_of(id, pending))
+    }
+
+    /// Reads the answer to the client's second call, and spends the question once it is decided:
+    /// an id answers once. Only the decision the person recorded accepts; a client's `action`
+    /// may decline and nothing more. `workload` is a ServiceAccount's own token: no person stands
+    /// behind it to ask, so its own `accept` is its answer, and the Change it opens is still a
+    /// person's to approve in its lane.
     pub fn answer(
         &self,
         owner: &str,
@@ -95,6 +175,7 @@ impl McpElicitations {
         project: &str,
         digest: &str,
         sent: &Value,
+        workload: bool,
     ) -> Answer {
         let Some(id) = sent
             .get("elicitationId")
@@ -110,25 +191,31 @@ impl McpElicitations {
             return Answer::Unknown;
         };
         // The question, the caller and the call all have to be the one that was asked about.
-        if pending.owner != owner
+        if !open_for(pending, owner, project)
             || pending.operation != operation
-            || pending.project != project
             || pending.digest != digest
-            || now_unix() - pending.asked_at > EXPIRES_IN_SECONDS
         {
             return Answer::Unknown;
         }
-        // The person's decision is the one field that may not be inferred (AG-63, T-2293). An
-        // answer that carries no `action` is no answer: the question stays open, and the client is
-        // told to send it again. An action nobody recognises is a refusal — the client did answer,
-        // and a call nobody clearly allowed does not run.
-        let Some(action) = sent.get("action").and_then(Value::as_str) else {
-            return Answer::Unknown;
+        let action = sent.get("action").and_then(Value::as_str);
+        let client_declined = matches!(
+            action,
+            Some("decline" | "declined" | "cancel" | "cancelled")
+        );
+        let decision = match (pending.decision, action) {
+            (None, Some("accept" | "accepted")) if workload => Some(ElicitationDecision::Accept),
+            (decision, _) => decision,
         };
-        map.remove(id);
-        match action {
-            "accept" | "accepted" => Answer::Accepted,
-            _ => Answer::Declined,
+        match (decision, client_declined) {
+            (Some(ElicitationDecision::Accept), false) => {
+                map.remove(id);
+                Answer::Accepted
+            }
+            (Some(ElicitationDecision::Decline), _) | (_, true) => {
+                map.remove(id);
+                Answer::Declined
+            }
+            (None, false) => Answer::Waiting,
         }
     }
 
@@ -137,6 +224,24 @@ impl McpElicitations {
         if let Ok(mut map) = self.pending.lock() {
             map.retain(|_, pending| now - pending.asked_at <= EXPIRES_IN_SECONDS);
         }
+    }
+}
+
+/// Whether `pending` is still open and asked by `owner` in `project`.
+fn open_for(pending: &Pending, owner: &str, project: &str) -> bool {
+    pending.owner == owner
+        && pending.project == project
+        && now_unix() - pending.asked_at <= EXPIRES_IN_SECONDS
+}
+
+fn question_of(id: &str, pending: &Pending) -> Question {
+    Question {
+        id: id.to_owned(),
+        operation: pending.operation.clone(),
+        message: pending.message.clone(),
+        resource: pending.resource.clone(),
+        expires_at: pending.asked_at + EXPIRES_IN_SECONDS,
+        decision: pending.decision,
     }
 }
 
@@ -192,13 +297,6 @@ fn digest_short(text: &str) -> String {
     format!("{:x}", Sha256::digest(text.as_bytes()))[..16].to_owned()
 }
 
-fn now_nanos() -> u128 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or_default()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -207,24 +305,106 @@ mod tests {
         json!({ "kind": "Endpoint", "name": "helsinki-bikes-ops", "confirm": "helsinki-bikes-ops" })
     }
 
+    fn ask(asks: &McpElicitations, digest: &str) -> String {
+        asks.ask(
+            "sub-1",
+            "jc_resource_delete",
+            "helsinki",
+            digest,
+            "Delete in project 'helsinki' (red lane).",
+            "/projects/helsinki/endpoints/helsinki-bikes-ops",
+        )
+    }
+
+    /// T-5699, F-POR4-001: the client's own `accept` runs nothing; only the decision the person
+    /// recorded on the Portal page does, and it is spent once.
+    #[test]
+    fn a_client_accept_runs_nothing_and_the_recorded_decision_does() {
+        let asks = McpElicitations::new();
+        let digest = digest_of(&arguments());
+        let id = ask(&asks, &digest);
+        let sent = json!({ "elicitationId": id, "action": "accept" });
+        let answer = |sent: &Value| {
+            asks.answer(
+                "sub-1",
+                "jc_resource_delete",
+                "helsinki",
+                &digest,
+                sent,
+                false,
+            )
+        };
+
+        assert_eq!(answer(&sent), Answer::Waiting);
+        assert_eq!(answer(&sent), Answer::Waiting, "a wait spends nothing");
+        let decided = asks.decide("sub-1", "helsinki", &id, ElicitationDecision::Accept);
+        assert_eq!(
+            decided.map(|q| q.decision),
+            Some(Some(ElicitationDecision::Accept))
+        );
+        assert_eq!(answer(&json!({ "elicitationId": id })), Answer::Accepted);
+        assert_eq!(answer(&sent), Answer::Unknown, "an answer is spent once");
+    }
+
     #[test]
     fn the_answer_belongs_to_the_caller_the_operation_and_the_arguments_asked_about() {
         let asks = McpElicitations::new();
         let digest = digest_of(&arguments());
-        let id = asks.ask("sub-1", "jc_resource_delete", "helsinki", &digest);
-        let sent = json!({ "elicitationId": id, "action": "accept" });
+        let id = ask(&asks, &digest);
+        // Another subject or project neither reads nor decides the question.
+        assert!(asks.question("sub-2", "helsinki", &id).is_none());
+        assert!(asks.question("sub-1", "espoo", &id).is_none());
+        assert!(asks
+            .decide("sub-2", "helsinki", &id, ElicitationDecision::Accept)
+            .is_none());
+        assert!(asks
+            .decide("sub-1", "helsinki", &id, ElicitationDecision::Accept)
+            .is_some());
+        let sent = json!({ "elicitationId": id });
 
-        // Another subject, another operation, another project, other arguments: no answer.
         assert_eq!(
-            asks.answer("sub-2", "jc_resource_delete", "helsinki", &digest, &sent),
+            asks.answer(
+                "sub-2",
+                "jc_resource_delete",
+                "helsinki",
+                &digest,
+                &sent,
+                false
+            ),
             Answer::Unknown
         );
         assert_eq!(
-            asks.answer("sub-1", "jc_resource_propose", "helsinki", &digest, &sent),
+            asks.answer(
+                "sub-1",
+                "jc_resource_propose",
+                "helsinki",
+                &digest,
+                &sent,
+                false
+            ),
             Answer::Unknown
         );
         assert_eq!(
-            asks.answer("sub-1", "jc_resource_delete", "espoo", &digest, &sent),
+            asks.answer(
+                "sub-1",
+                "jc_resource_delete",
+                "espoo",
+                &digest,
+                &sent,
+                false
+            ),
+            Answer::Unknown
+        );
+        let other = digest_of(&json!({ "kind": "Endpoint", "name": "something-else" }));
+        assert_eq!(
+            asks.answer(
+                "sub-1",
+                "jc_resource_delete",
+                "helsinki",
+                &other,
+                &sent,
+                false
+            ),
             Answer::Unknown
         );
         assert_eq!(
@@ -232,222 +412,127 @@ mod tests {
                 "sub-1",
                 "jc_resource_delete",
                 "helsinki",
-                &digest_of(&json!({ "kind": "Endpoint", "name": "something-else" })),
-                &sent
+                &digest,
+                &sent,
+                false
             ),
-            Answer::Unknown
-        );
-
-        // The one it was asked of answers once, and the id is spent.
-        assert_eq!(
-            asks.answer("sub-1", "jc_resource_delete", "helsinki", &digest, &sent),
             Answer::Accepted
-        );
-        assert_eq!(
-            asks.answer("sub-1", "jc_resource_delete", "helsinki", &digest, &sent),
-            Answer::Unknown
         );
     }
 
     #[test]
-    fn a_refusal_is_a_refusal_and_a_missing_id_answers_nothing() {
+    fn a_decline_on_the_page_or_from_the_client_runs_nothing() {
         let asks = McpElicitations::new();
         let digest = digest_of(&arguments());
-        let id = asks.ask("sub-1", "jc_change_approve", "helsinki", &digest);
-        assert_eq!(
+        let declined = ask(&asks, &digest);
+        assert!(asks
+            .decide("sub-1", "helsinki", &declined, ElicitationDecision::Decline)
+            .is_some());
+        let answer = |sent: Value| {
             asks.answer(
                 "sub-1",
-                "jc_change_approve",
+                "jc_resource_delete",
                 "helsinki",
                 &digest,
-                &json!({ "elicitationId": id, "action": "decline" })
-            ),
+                &sent,
+                false,
+            )
+        };
+        assert_eq!(
+            answer(json!({ "elicitationId": declined, "action": "accept" })),
             Answer::Declined
         );
+
+        // The client may refuse what the person accepted; a refusal wins.
+        let accepted = ask(&asks, &digest);
+        assert!(asks
+            .decide("sub-1", "helsinki", &accepted, ElicitationDecision::Accept)
+            .is_some());
         assert_eq!(
+            answer(json!({ "elicitationId": accepted, "action": "decline" })),
+            Answer::Declined
+        );
+
+        let undecided = ask(&asks, &digest);
+        assert_eq!(
+            answer(json!({ "elicitationId": undecided, "action": "cancel" })),
+            Answer::Declined
+        );
+        assert_eq!(answer(json!({ "action": "accept" })), Answer::Unknown);
+        assert_eq!(answer(json!({ "elicitationId": 7 })), Answer::Unknown);
+    }
+
+    #[test]
+    fn the_page_reads_what_was_asked_and_what_was_decided() {
+        let asks = McpElicitations::new();
+        let id = ask(&asks, &digest_of(&arguments()));
+        let open = asks.question("sub-1", "helsinki", &id);
+        assert_eq!(
+            open.as_ref()
+                .map(|q| (q.operation.as_str(), q.resource.as_str(), q.decision)),
+            Some((
+                "jc_resource_delete",
+                "/projects/helsinki/endpoints/helsinki-bikes-ops",
+                None
+            ))
+        );
+        assert!(open.is_some_and(|q| q.message.contains("red lane") && q.expires_at > now_unix()));
+        // A decision may be changed until the client's call spends it.
+        assert!(asks
+            .decide("sub-1", "helsinki", &id, ElicitationDecision::Accept)
+            .is_some());
+        let changed = asks.decide("sub-1", "helsinki", &id, ElicitationDecision::Decline);
+        assert_eq!(
+            changed.and_then(|q| q.decision),
+            Some(ElicitationDecision::Decline)
+        );
+        assert!(asks
+            .question("sub-1", "helsinki", "eli-0000000000000000")
+            .is_none());
+    }
+
+    /// A ServiceAccount's own token has no person to ask: its `accept` answers, a person's does
+    /// not.
+    #[test]
+    fn a_workloads_own_accept_answers_and_a_persons_never_does() {
+        let asks = McpElicitations::new();
+        let digest = digest_of(&arguments());
+        let id = ask(&asks, &digest);
+        let sent = json!({ "elicitationId": id, "action": "accept" });
+        let answer = |workload| {
             asks.answer(
                 "sub-1",
-                "jc_change_approve",
+                "jc_resource_delete",
                 "helsinki",
                 &digest,
-                &json!({ "action": "accept" })
-            ),
-            Answer::Unknown
-        );
+                &sent,
+                workload,
+            )
+        };
+        assert_eq!(answer(false), Answer::Waiting);
+        assert_eq!(answer(true), Answer::Accepted);
     }
 
     #[test]
     fn the_same_arguments_digest_the_same_however_they_were_written() {
-        assert_eq!(
-            digest_of(&json!({ "a": 1, "b": { "c": 2, "d": 3 } })),
-            digest_of(&json!({ "b": { "d": 3, "c": 2 }, "a": 1 }))
-        );
-    }
-
-    // ---------------------------------------------------------------------------------------------
-    // T-2110 the rest of `answer`, and T-2293 the consent it used to infer.
-    //
-    // The contract: an answer is the person's, for this call, once. Owner, operation, project and
-    // the digest of the arguments are all checked above; what is pinned here is the shape of the
-    // answer itself — which key carries the id, which words consent, and what happens to a question
-    // when the answer says nothing.
-    // ---------------------------------------------------------------------------------------------
-
-    #[test]
-    fn an_answer_that_says_nothing_consents_to_nothing_and_leaves_the_question_open() {
-        // T-2293: `action` used to default to `accept`, so a client that repeated the call with the
-        // id alone ran a destructive operation and had `accepted` written into the activity with
-        // nobody having said yes. Silence is not an answer, and the question is not spent by one.
-        let asks = McpElicitations::new();
-        let digest = digest_of(&arguments());
-        let id = asks.ask("sub-1", "jc_resource_delete", "helsinki", &digest);
-
-        for silent in [
-            json!({ "elicitationId": id }),
-            json!({ "elicitationId": id, "action": null }),
-            json!({ "elicitationId": id, "action": 1 }),
-            json!({ "elicitationId": id, "action": ["accept"] }),
-            json!({ "elicitationId": id, "content": { "confirm": "yes" } }),
-        ] {
-            assert_eq!(
-                asks.answer("sub-1", "jc_resource_delete", "helsinki", &digest, &silent),
-                Answer::Unknown,
-                "{silent} was read as an answer",
-            );
-        }
-        // None of those spent the question: the person can still answer it.
-        assert_eq!(
-            asks.answer(
-                "sub-1",
-                "jc_resource_delete",
-                "helsinki",
-                &digest,
-                &json!({ "elicitationId": id, "action": "accept" })
-            ),
-            Answer::Accepted,
-        );
-    }
-
-    #[test]
-    fn the_only_words_that_consent_are_accept_and_accepted() {
-        let asks = McpElicitations::new();
-        let digest = digest_of(&arguments());
-        for word in ["accept", "accepted"] {
-            let id = asks.ask("sub-1", "jc_resource_delete", "helsinki", &digest);
-            assert_eq!(
-                asks.answer(
-                    "sub-1",
-                    "jc_resource_delete",
-                    "helsinki",
-                    &digest,
-                    &json!({ "elicitationId": id, "action": word })
-                ),
-                Answer::Accepted,
-                "{word}",
-            );
-        }
-        // Everything else is a refusal, and it spends the question: the client did answer.
-        for word in [
-            "decline",
-            "declined",
-            "cancel",
-            "cancelled",
-            "reject",
-            "Accept",
-            "ACCEPT",
-            " accept",
-            "accept ",
-            "accept\n",
-            "acceptable",
-            "yes",
-            "true",
-            "",
-        ] {
-            let id = asks.ask("sub-1", "jc_resource_delete", "helsinki", &digest);
-            let sent = json!({ "elicitationId": id, "action": word });
-            assert_eq!(
-                asks.answer("sub-1", "jc_resource_delete", "helsinki", &digest, &sent),
-                Answer::Declined,
-                "{word:?} was read as consent",
-            );
-            assert_eq!(
-                asks.answer("sub-1", "jc_resource_delete", "helsinki", &digest, &sent),
-                Answer::Unknown,
-                "{word:?} left the question open",
-            );
-        }
-    }
-
-    #[test]
-    fn the_id_is_read_from_either_key_and_nothing_else_is_an_id() {
-        let asks = McpElicitations::new();
-        let digest = digest_of(&arguments());
-        // A client that writes the MCP field name, and one that writes the short one.
-        for key in ["elicitationId", "id"] {
-            let id = asks.ask("sub-1", "jc_resource_delete", "helsinki", &digest);
-            assert_eq!(
-                asks.answer(
-                    "sub-1",
-                    "jc_resource_delete",
-                    "helsinki",
-                    &digest,
-                    &json!({ key: id, "action": "accept" })
-                ),
-                Answer::Accepted,
-                "{key}",
-            );
-        }
-        // An id of the wrong type, of another shape, or one nobody asked: no question, no panic.
-        let open = asks.ask("sub-1", "jc_resource_delete", "helsinki", &digest);
-        for forged in [
-            json!(1),
-            json!(true),
-            Value::Null,
-            json!([open.clone()]),
-            json!({ "id": open.clone() }),
-            json!(""),
-            json!("eli-0000000000000000"),
-            json!("../../eli"),
-            json!("eli-\u{0}"),
-            json!(format!("{open} ")),
-            json!(format!(" {open}")),
-            json!(open.to_uppercase()),
-            json!("x".repeat(10_000)),
-        ] {
-            assert_eq!(
-                asks.answer(
-                    "sub-1",
-                    "jc_resource_delete",
-                    "helsinki",
-                    &digest,
-                    &json!({ "elicitationId": forged, "action": "accept" })
-                ),
-                Answer::Unknown,
-                "{forged} was read as an open question",
-            );
-        }
-        // And the real one still answers, so none of the above spent it.
-        assert_eq!(
-            asks.answer(
-                "sub-1",
-                "jc_resource_delete",
-                "helsinki",
-                &digest,
-                &json!({ "elicitationId": open, "action": "accept" })
-            ),
-            Answer::Accepted,
-        );
+        let a = json!({ "b": [1, { "y": 2, "x": 1 }], "a": "z" });
+        let b = json!({ "a": "z", "b": [1, { "x": 1, "y": 2 }] });
+        assert_eq!(digest_of(&a), digest_of(&b));
+        assert_ne!(digest_of(&a), digest_of(&json!({ "a": "z" })));
     }
 
     #[test]
     fn the_id_a_client_is_handed_carries_nothing_of_the_call_it_is_about() {
-        // The id travels to the client and back through whatever logs it. It is a digest of the
-        // subject, the operation and the moment, so it cannot be read back — but the shape is worth
-        // pinning: nothing of the person, the project or the arguments is written into it in the
-        // clear, and it is a URL-safe token a person can quote.
         let asks = McpElicitations::new();
         let digest = digest_of(&arguments());
-        let id = asks.ask("sub-secret", "jc_resource_delete", "tajny-projekt", &digest);
+        let id = asks.ask(
+            "sub-secret",
+            "jc_resource_delete",
+            "tajny-projekt",
+            &digest,
+            "m",
+            "/",
+        );
         assert!(id.starts_with("eli-"), "{id}");
         let body = id.trim_start_matches("eli-");
         assert_eq!(body.len(), 16, "{id}");
@@ -460,12 +545,16 @@ mod tests {
         ] {
             assert!(!id.contains(leaked), "the id carried {leaked:?}: {id}");
         }
+        assert_ne!(
+            id,
+            asks.ask(
+                "sub-secret",
+                "jc_resource_delete",
+                "tajny-projekt",
+                &digest,
+                "m",
+                "/"
+            )
+        );
     }
-
-    // Struck as impossible to drive from here: the ten-minute expiry
-    // (`EXPIRES_IN_SECONDS`, checked at line 115 against `now_unix()`) has no clock seam, and
-    // `Pending::asked_at` is private, so a test cannot age a question without sleeping for ten
-    // minutes. The two halves that are reachable are covered: a question is forgotten by
-    // `forget_expired` on the next `ask`, and an answer is spent once
-    // (`the_answer_belongs_to_the_caller_the_operation_and_the_arguments_asked_about`).
 }
