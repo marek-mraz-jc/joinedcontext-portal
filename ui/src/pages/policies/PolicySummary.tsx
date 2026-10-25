@@ -53,6 +53,8 @@ export function PolicySummary({ project, policy }: { project: string; policy: Po
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
   const from = day(policy.validity?.from, locale);
   const to = day(policy.validity?.to, locale);
+  const rules = (policy as { rules?: unknown }).rules;
+  const ruleCount = Array.isArray(rules) ? rules.length : 0;
   const facts: [string, JSX.Element | string][] = [
     [t("policies.summary.assigner"), policy.assigner?.trim() ? policy.assigner : t("policies.summary.notRecorded")],
     [t("policies.summary.validFrom"), from ?? t("policies.summary.always")],
@@ -67,6 +69,12 @@ export function PolicySummary({ project, policy }: { project: string; policy: Po
       <p className="max-w-prose text-body text-fg" data-testid="policy-summary-sentence">
         {policySentence(policy, t, locale)}
       </p>
+      {ruleCount > 0 ? (
+        // The form has fields for one rule; a rules[] Policy's grants are edited as YAML (F-UI3-015).
+        <p className="max-w-prose rounded-md border border-border bg-surface-subtle p-3 text-body text-fg" data-testid="policy-summary-rules">
+          {t("policies.summary.rules", { n: ruleCount })}
+        </p>
+      ) : null}
       <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-caption sm:grid-cols-2">
         {facts.map(([term, value]) => (
           <div key={term} className="flex min-w-0 flex-col">

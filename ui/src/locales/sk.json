@@ -6804,7 +6804,8 @@
       "lastChange": "Posledná zmena",
       "notRecorded": "Nezaznamenané",
       "changed": "{at}, navrhol(a) {author}",
-      "changedApproved": "{at}, navrhol(a) {author}, schválil(a) {approver}"
+      "changedApproved": "{at}, navrhol(a) {author}, schválil(a) {approver}",
+      "rules": "Táto politika udeľuje práva {n, plural, one {# pravidlom} few {# pravidlami} other {# pravidlami}}, každé má vyššie svoju vetu. Polia nižšie držia to, čo majú pravidlá spoločné; komu pravidlo udeľuje práva, aké operácie a entity, zmeníte v zobrazení YAML."
     },
     "sentence": {
       "title": "Slovami",
