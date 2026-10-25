@@ -13,7 +13,7 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { lastProject, preferredProject, useProjects } from "./api/projects";
+import { lastProject, usePreferredProject, useProjects } from "./api/projects";
 import { BrandMark } from "./components/layout/BrandMark";
 import { Shell } from "./components/layout/LazyShell";
 import { PublicFrame } from "./components/layout/PublicFrame";
@@ -200,7 +200,7 @@ function NotFound(): React.JSX.Element {
 /** `/` goes to the spaces of the project last worked in, else the first visible one (T-2753). */
 function IndexRedirect(): React.JSX.Element {
   const projects = useProjects();
-  const first = preferredProject(projects.data);
+  const first = usePreferredProject();
   if (!first) {
     return <NoProject projects={projects} />;
   }
@@ -247,7 +247,7 @@ function SignedInCatalogue({
   children: (project: string | null) => React.ReactNode;
 }): React.JSX.Element {
   const projects = useProjects();
-  const first = preferredProject(projects.data);
+  const first = usePreferredProject();
   if (projects.isPending) {
     return <main aria-busy="true" className="min-h-screen bg-bg" />;
   }
@@ -672,10 +672,10 @@ const ORGANIZATION_FORMS: Partial<Record<OrganizationTab, string>> = {
 
 function OrganizationView({ tab, form }: { tab: string; form: FormTarget | null }): React.JSX.Element {
   const projects = useProjects();
+  const first = usePreferredProject();
   if (!isOrganizationTab(tab)) {
     return <NotFound />;
   }
-  const first = preferredProject(projects.data);
   if (!first) {
     return <NoProject projects={projects} />;
   }
@@ -736,7 +736,7 @@ function groupOfRest(rest: string): string | null {
 /** A group's page in the Organization's shell (PF-95, T-2685). */
 function OrganizationGroupView({ name }: { name: string }): React.JSX.Element {
   const projects = useProjects();
-  const first = preferredProject(projects.data);
+  const first = usePreferredProject();
   if (!first) {
     return <NoProject projects={projects} />;
   }
@@ -750,7 +750,7 @@ function OrganizationGroupView({ name }: { name: string }): React.JSX.Element {
 /** An agent's page in the Organization's shell (AG-128, T-4849): `agents/{project}/{kind}/{name}`. */
 function OrganizationAgentView({ path }: { path: string }): React.JSX.Element {
   const projects = useProjects();
-  const first = preferredProject(projects.data);
+  const first = usePreferredProject();
   if (!first) {
     return <NoProject projects={projects} />;
   }
@@ -764,7 +764,7 @@ function OrganizationAgentView({ path }: { path: string }): React.JSX.Element {
 /** A person's page in the Organization's shell (PF-93, T-2684); `new` stays the new-person form. */
 function OrganizationPersonView({ id }: { id: string }): React.JSX.Element {
   const projects = useProjects();
-  const first = preferredProject(projects.data);
+  const first = usePreferredProject();
   if (!first) {
     return <NoProject projects={projects} />;
   }
@@ -948,7 +948,7 @@ const connectorsRoute = createRoute({
   path: "/connectors",
   component: function ConnectorsRoute() {
     const projects = useProjects();
-    const first = preferredProject(projects.data);
+    const first = usePreferredProject();
     if (!first) {
       return <NoProject projects={projects} />;
     }

@@ -31,6 +31,7 @@ fn session_cookie(config: &Config, roles: &[&str]) -> String {
             name: Some("Demo Steward".into()),
             roles: roles.iter().map(|r| (*r).to_string()).collect(),
             groups: Vec::new(),
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,

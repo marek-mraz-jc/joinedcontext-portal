@@ -68,6 +68,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/internal/pipeline-tests/{id}", "the runner's own callback, authenticated as a workload"),
 ("GET", "/internal/domain-verifications", "the gateway's read of each Organization's domain state, authenticated as a workload"),
 ("GET", "/internal/previews", "the gateway's read of the running previews, authenticated as a workload"),
+("GET", "/internal/revocations", "the gateway's read of the revoked subjects, authenticated as a workload"),
 ("GET", "/internal/connectors/{sub}", "the gateway's read of one person's MCP connectors, authenticated as a workload (EP-123)"),
 ("POST", "/internal/usage", "the gateway replicas post their call counts per Endpoint and surface, authenticated as a workload (T-5118)"),
 ("GET", "/mcp", "the MCP door itself, which dispatches this registry"),

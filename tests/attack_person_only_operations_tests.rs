@@ -111,6 +111,7 @@ fn steward() -> Identity {
         name: Some("Jana".into()),
         roles: vec!["portal-approver".into()],
         groups: vec!["city-stewards".into()],
+        second_factor: false,
     }
 }
 
@@ -649,4 +650,139 @@ async fn a_bearer_token_never_deletes_a_person_or_removes_their_second_factor() 
             assert!(text.contains("AG-133"), "{who} {http} {uri}: {text}");
         }
     }
+}
+
+// --- a session without a second factor at the decision doors (T-5567; AUT-2, PF-128) ---------
+
+/// Every decision door of the Portal, as (method, path, body, who knocks): approving or rejecting
+/// a change, revoking a grant, deciding an erasure and administering a person (T-5567). Each
+/// caller holds the right the door asks: the steward through a RoleBinding alone, the people
+/// administrator through the bootstrap group.
+fn decision_doors() -> Vec<(&'static str, String, Option<Value>, Identity)> {
+    use common::doors::steward;
+    let project = common::doors::PROJECT;
+    let admin = common::doors::member("admin", "portal-approver");
+    vec![
+        (
+            "POST",
+            format!("/api/v1/projects/{project}/changes/c-1/approve"),
+            None,
+            steward(),
+        ),
+        (
+            "POST",
+            format!("/api/v1/projects/{project}/changes/c-1/reject"),
+            Some(json!({ "reason": "not now" })),
+            steward(),
+        ),
+        (
+            "POST",
+            format!("/api/v1/projects/{project}/serviceaccounts/robot/revoke"),
+            Some(json!({ "index": 0, "role": "reader" })),
+            steward(),
+        ),
+        (
+            "POST",
+            format!("/api/v1/projects/{project}/spaces/air/erasures/e-1/approve"),
+            Some(json!({ "subject": "someone" })),
+            steward(),
+        ),
+        (
+            "POST",
+            format!("/api/v1/projects/{project}/spaces/air/erasures/e-1/decline"),
+            Some(json!({ "reason": "not this subject" })),
+            steward(),
+        ),
+        (
+            "POST",
+            "/api/v1/organization/people/u-1/disable".into(),
+            None,
+            admin.clone(),
+        ),
+        (
+            "POST",
+            "/api/v1/organization/people/u-1/reset-password".into(),
+            None,
+            admin.clone(),
+        ),
+        (
+            "DELETE",
+            "/api/v1/organization/people/u-1".into(),
+            None,
+            admin,
+        ),
+    ]
+}
+
+/// A state that asks every decision for a second factor, as a deployed Portal does.
+fn deciding_state() -> AppState {
+    let mut config = Config::for_tests();
+    config.decisions_need_second_factor = true;
+    let state = common::doors::state_with(AppState::new(config, None));
+    state.mirror.upsert(common::envelope(
+        "ContextSpace",
+        "air",
+        common::doors::PROJECT,
+        json!({ "broker": "antares" }),
+    ));
+    state
+}
+
+/// T-5567, AUT-2, PF-58: the right to decide came through a RoleBinding (or the bootstrap group),
+/// not the realm role the login's OTP rule reads, so the password alone signed this person in.
+/// Every decision door refuses them with the reason and the way out, before it reads anything.
+#[tokio::test]
+async fn a_decision_without_a_second_factor_is_refused() {
+    let state = deciding_state();
+    for (http, uri, body, who) in decision_doors() {
+        let answer = common::send(&state, who, http, &uri, body).await;
+        assert_eq!(
+            answer.status,
+            StatusCode::FORBIDDEN,
+            "{http} {uri}: {}",
+            answer.text
+        );
+        let problem: Value = serde_json::from_str(&answer.text).expect("problem json");
+        assert_eq!(
+            problem["type"], "https://joinedcontext.com/errors/second-factor-required",
+            "{http} {uri}: {problem}"
+        );
+        assert!(
+            problem["detail"]
+                .as_str()
+                .is_some_and(|d| d.contains("one-time code")),
+            "{http} {uri}: {problem}"
+        );
+    }
+}
+
+/// T-5567: the same person after a step-up login passes the second-factor gate of every door
+/// (what answers next is the door's own business: no forge, no realm, no such change here).
+#[tokio::test]
+async fn a_decision_after_step_up_passes() {
+    let state = deciding_state();
+    for (http, uri, body, mut who) in decision_doors() {
+        who.second_factor = true;
+        let answer = common::send(&state, who, http, &uri, body).await;
+        assert!(
+            !answer.text.contains("second-factor-required"),
+            "{http} {uri}: {} {}",
+            answer.status,
+            answer.text
+        );
+    }
+    // The gate never opens a door the right does not: a viewer stays refused for the right.
+    let mut viewer = common::doors::viewer();
+    viewer.second_factor = true;
+    let path = format!(
+        "/api/v1/projects/{}/changes/c-1/approve",
+        common::doors::PROJECT
+    );
+    let answer = common::send(&state, viewer, "POST", &path, None).await;
+    assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text);
+    assert!(
+        !answer.text.contains("second-factor-required"),
+        "{}",
+        answer.text
+    );
 }

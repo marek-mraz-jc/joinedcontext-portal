@@ -734,6 +734,16 @@ impl AppState {
                         Some(namespace) => clients.with_app_jobs(namespace),
                         None => clients,
                     };
+                    // A removed account's tokens end with it (T-5568).
+                    let state = self.clone();
+                    let clients = clients.with_revoke(Arc::new(move |subject: String| {
+                        let state = state.clone();
+                        Box::pin(async move {
+                            state
+                                .revoke_subject(&subject, crate::auth::session::now_unix())
+                                .await
+                        })
+                    }));
                     syncer = syncer.with_workload_clients(Arc::new(clients))
                 }
                 None => tracing::warn!(
@@ -1204,6 +1214,24 @@ impl AppState {
         true
     }
 
+    /// The marks a token issued before them could still be valid against at `now`, by subject:
+    /// what the gateway refuses on its own doors (T-5568).
+    pub fn revocations(&self, now: i64) -> Vec<(String, i64)> {
+        let mut marks: Vec<(String, i64)> = self
+            .revocations
+            .read()
+            .map(|marks| {
+                marks
+                    .iter()
+                    .filter(|(_, at)| at.saturating_add(REVOCATION_TTL_SECS) >= now)
+                    .map(|(subject, at)| (subject.clone(), *at))
+                    .collect()
+            })
+            .unwrap_or_default();
+        marks.sort();
+        marks
+    }
+
     pub fn is_revoked(&self, session: &Session) -> bool {
         self.revocations
             .read()
@@ -1239,6 +1267,7 @@ mod tests {
                 name: None,
                 roles: Vec::new(),
                 groups: Vec::new(),
+                second_factor: false,
             },
             expires_at: issued_at + 600,
             issued_at,

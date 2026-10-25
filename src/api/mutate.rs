@@ -3085,6 +3085,7 @@ mod tests {
                 name: Some("Demo Developer".into()),
                 roles: vec![],
                 groups: vec!["portal-approver".into()],
+                second_factor: false,
             },
             expires_at: 9_999_999_999,
             issued_at: 1000,

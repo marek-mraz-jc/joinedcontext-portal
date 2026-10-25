@@ -216,8 +216,7 @@ export function historyOf(body: unknown, attr: string): HistoryPoint[] {
 }
 
 /**
- * One NGSI-LD API under `base`. `hidden` is what a 404 becomes on a query, a history read or a
- * write: a Context Space surface says the same whether the space is missing or not granted.
+ * One NGSI-LD API under `base`. `hidden` is what a 404 becomes on a query or a write: a Context Space surface says the same whether the space is missing or not granted.
  */
 function ngsiSource(base: string, transport: Transport, language: string, hidden?: string, tilesAt?: string): EntitySource {
   const refuse = (status: number, body: unknown, fallback: string): never => {
@@ -253,10 +252,11 @@ function ngsiSource(base: string, transport: Transport, language: string, hidden
         method: "GET",
         path: `${base}/temporal/entities/${encodeURIComponent(id)}?${historyQuery(attr, window)}`,
       });
-      // An Endpoint answers 404 both for an entity with no instances and for one its grants do not
-      // reach, and both are "nothing recorded here" (EP-07, T-2972); a space's 404 still says it
-      // grants nothing, as its query does.
-      if (status === 404 && !hidden) return [];
+      // A 404 here is "nothing recorded here": an Endpoint answers it both for an entity with no
+      // instances and for one its grants do not reach (EP-07, T-2972), and a space answers it for
+      // an attribute with no instance in the window of a row the person already read (T-5597).
+      // Neither reveals a value; a refusal the server names (403) stays a refusal.
+      if (status === 404) return [];
       if (!ok(status)) refuse(status, body, "the history was refused");
       return historyOf(body, attr);
     },

@@ -142,12 +142,71 @@ export function lastProject(): string | undefined {
 
 /**
  * The project a page that belongs to none opens on: the one last worked in while the person may
- * still read it, else the first they may read (T-2753).
+ * still read it (T-2753), else the first they may read that is not a sample, else the first
+ * (T-5603). The list is the server's, so only a project the person reads is a candidate; a sample
+ * is readable to newcomers too, so a first sign-in lands in the person's own project.
  */
-export function preferredProject(projects: readonly string[] | undefined): string | undefined {
+export function preferredProject(
+  projects: readonly string[] | undefined,
+  samples: readonly string[] = [],
+): string | undefined {
   if (!projects || projects.length === 0) {
     return undefined;
   }
   const last = lastProject();
-  return last !== undefined && projects.includes(last) ? last : projects[0];
+  if (last !== undefined && projects.includes(last)) {
+    return last;
+  }
+  return projects.find((project) => !samples.includes(project)) ?? projects[0];
+}
+
+/** [`preferredProject`] over the server's list of projects and its samples (T-5603). */
+export function usePreferredProject(): string | undefined {
+  const projects = useProjects().data;
+  const samples = useSampleProjects().data;
+  return preferredProject(projects, samples);
+}
+
+/** Where the last address in each project is remembered, in this browser only (T-5603). */
+const LAST_ADDRESS = "jc.lastAddress";
+
+function addresses(): Record<string, string> {
+  try {
+    const stored: unknown = JSON.parse(window.localStorage.getItem(LAST_ADDRESS) ?? "{}");
+    return stored !== null && typeof stored === "object" && !Array.isArray(stored)
+      ? (stored as Record<string, string>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Whether `href` is a page of `project`: a path of this Portal, never another origin. */
+function isPageOf(project: string, href: unknown): href is string {
+  return typeof href === "string" && href.startsWith(`/projects/${encodeURIComponent(project)}/`) && !href.includes("//");
+}
+
+/**
+ * Remember the page in hand as the last one in its project, so the project switcher reopens the
+ * space and type a person left there (T-5603). Storage that is blocked or full costs the
+ * preference, never the page.
+ */
+export function rememberAddress(project: string, href: string): void {
+  if (!isPageOf(project, href)) {
+    return;
+  }
+  try {
+    window.localStorage.setItem(LAST_ADDRESS, JSON.stringify({ ...addresses(), [project]: href }));
+  } catch {
+    // A private window or a blocked store: the switch keeps the section only.
+  }
+}
+
+/**
+ * The last page a person had open in `project`, when one is remembered. The page it opens checks
+ * the person's rights as any address does; a project they no longer read is not in the switcher.
+ */
+export function lastAddress(project: string): string | undefined {
+  const href = addresses()[project];
+  return isPageOf(project, href) ? href : undefined;
 }

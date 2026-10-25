@@ -28,6 +28,7 @@ fn steward() -> Identity {
         name: Some("Demo Steward".into()),
         roles: Vec::new(),
         groups: vec!["portal-approver".into()],
+        second_factor: false,
     }
 }
 

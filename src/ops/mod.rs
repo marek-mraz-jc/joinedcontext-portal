@@ -771,6 +771,7 @@ mod tests {
             name: None,
             roles: vec!["portal-viewer".into()],
             groups: vec![],
+            second_factor: false,
         };
         let viewer_caller = Caller::new(viewer_id, Via::Session);
 
@@ -819,6 +820,7 @@ mod tests {
             name: None,
             roles: vec![],
             groups: vec!["devs".into()],
+            second_factor: false,
         };
         let dev_caller = Caller::new(dev_id, Via::Session);
 
