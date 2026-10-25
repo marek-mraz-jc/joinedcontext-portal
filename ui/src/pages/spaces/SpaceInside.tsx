@@ -1813,7 +1813,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
           <Link
             to="/projects/$project/$plural"
             params={{ project, plural: "spaces" }}
-            className="focus-ring text-body text-primary-soft-fg underline hover:no-underline"
+            className="focus-ring touch-target text-body text-primary-soft-fg underline hover:no-underline"
           >
             {t("spaces.inside.back")}
           </Link>
@@ -1849,7 +1849,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
           <Link
             to="/projects/$project/$plural"
             params={{ project, plural: "spaces" }}
-            className="focus-ring text-body text-primary-soft-fg underline hover:no-underline"
+            className="focus-ring touch-target text-body text-primary-soft-fg underline hover:no-underline"
           >
             {t("spaces.inside.back")}
           </Link>

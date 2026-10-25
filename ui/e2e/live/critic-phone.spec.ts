@@ -15,6 +15,8 @@ import { expect, test } from "@playwright/test";
 import type { Browser, Page } from "@playwright/test";
 import { EDITOR, VIEWER, goSignedIn, openToJudge } from "./portal";
 import { secretMasks } from "./shoot";
+import { smallTouchTargets, touchTargets } from "../touch";
+import type { TouchTarget } from "../touch";
 
 test.setTimeout(900_000);
 
@@ -39,66 +41,36 @@ interface PhoneRow {
   dialog: string[];
 }
 
-/** Measures the page as it stands; runs in the browser. */
+/** Measures the page as it stands. */
 async function measure(page: Page, screen: string): Promise<PhoneRow> {
-  return page.evaluate(
-    ({ screen, finger }) => {
-      const viewport = innerWidth;
-      const scroller = document.scrollingElement ?? document.documentElement;
-      const scope: ParentNode = document.querySelector("dialog[open]") ?? document;
-      const inline = (element: Element) => {
-        if (element.tagName !== "A") return false;
-        const parent = element.parentElement;
-        // A link in a sentence: its block holds text beside it (WCAG 2.5.8 inline exception).
-        return parent !== null && ["P", "LI", "SPAN", "DD", "TD", "SMALL"].includes(parent.tagName) && (parent.textContent ?? "").trim().length > (element.textContent ?? "").trim().length + 3;
-      };
-      const seen = (element: Element) => {
-        const box = element.getBoundingClientRect();
-        const style = getComputedStyle(element);
-        // Visually hidden helpers (sr-only, clip 1 px) are no target.
-        return box.width > 2 && box.height > 2 && style.visibility !== "hidden" && style.display !== "none" && Number(style.opacity) > 0;
-      };
-      const label = (element: Element) =>
-        `${element.tagName.toLowerCase()} "${(element.getAttribute("aria-label") ?? element.getAttribute("title") ?? element.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 40)}"`;
-      const targets = [
-        ...scope.querySelectorAll(
-          "button, a[href], select, textarea, summary, input:not([type=hidden]), [role=button], [role=tab], [role=checkbox], [role=switch], [role=menuitem], [role=option]",
-        ),
-      ].filter((element) => seen(element) && !inline(element) && !element.closest("[inert]"));
-      let smallest: { size: string; what: string; edge: number } | null = null;
-      const small: string[] = [];
-      for (const element of targets) {
-        // An input inside its label takes the label's box: the label is what the finger hits.
-        const hit = element.tagName === "INPUT" && element.closest("label") ? (element.closest("label") as Element) : element;
-        const box = hit.getBoundingClientRect();
-        const edge = Math.min(box.width, box.height);
-        const size = `${Math.round(box.width)}x${Math.round(box.height)}`;
-        if (smallest === null || edge < smallest.edge) smallest = { size, what: label(element), edge };
-        if (edge < finger - 0.5) small.push(`${size} ${label(element)}`);
-      }
-      const dialog: string[] = [];
-      // A screen the Portal could not draw is a finding, never a pass with nothing measured.
-      if (/Part of the Portal did not load/.test(document.querySelector("main")?.textContent ?? "")) dialog.push("the page did not load");
-      const open = document.querySelector("dialog[open]");
-      if (open) {
-        const box = open.getBoundingClientRect();
-        if (box.width > viewport + 0.5) dialog.push(`dialog ${Math.round(box.width)} px wide in ${viewport}`);
-        if (box.left < -0.5) dialog.push(`dialog starts ${Math.round(box.left)} px off screen`);
-        const close = [...open.querySelectorAll("button")].find((button) => /close|zavrie/i.test(`${button.getAttribute("aria-label") ?? ""} ${button.textContent ?? ""}`));
-        const closeBox = close?.getBoundingClientRect();
-        if (!close || !closeBox || closeBox.right > viewport + 0.5 || closeBox.bottom < 0 || closeBox.top > innerHeight) dialog.push("no visible close button");
-      }
-      return {
-        screen,
-        scrollWidth: scroller.scrollWidth,
-        viewport,
-        smallest: smallest ? { size: smallest.size, what: smallest.what } : null,
-        small: [...new Set(small)].slice(0, 25),
-        dialog,
-      };
-    },
-    { screen, finger: FINGER },
-  );
+  const targets = await touchTargets(page);
+  const smallest = targets.reduce<TouchTarget | null>((least, target) => (least === null || target.edge < least.edge ? target : least), null);
+  const small = await smallTouchTargets(page, FINGER);
+  const rest = await page.evaluate(() => {
+    const viewport = innerWidth;
+    const scroller = document.scrollingElement ?? document.documentElement;
+    const dialog: string[] = [];
+    // A screen the Portal could not draw is a finding, never a pass with nothing measured.
+    if (/Part of the Portal did not load/.test(document.querySelector("main")?.textContent ?? "")) dialog.push("the page did not load");
+    const open = document.querySelector("dialog[open]");
+    if (open) {
+      const box = open.getBoundingClientRect();
+      if (box.width > viewport + 0.5) dialog.push(`dialog ${Math.round(box.width)} px wide in ${viewport}`);
+      if (box.left < -0.5) dialog.push(`dialog starts ${Math.round(box.left)} px off screen`);
+      const close = [...open.querySelectorAll("button")].find((button) => /close|zavrie/i.test(`${button.getAttribute("aria-label") ?? ""} ${button.textContent ?? ""}`));
+      const closeBox = close?.getBoundingClientRect();
+      if (!close || !closeBox || closeBox.right > viewport + 0.5 || closeBox.bottom < 0 || closeBox.top > innerHeight) dialog.push("no visible close button");
+    }
+    return { scrollWidth: scroller.scrollWidth, viewport, dialog };
+  });
+  return {
+    screen,
+    scrollWidth: rest.scrollWidth,
+    viewport: rest.viewport,
+    smallest: smallest ? { size: smallest.size, what: smallest.what } : null,
+    small: small.slice(0, 25),
+    dialog: rest.dialog,
+  };
 }
 
 async function firstName(page: Page, plural: string): Promise<string | undefined> {

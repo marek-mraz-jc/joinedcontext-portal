@@ -5,7 +5,7 @@ import { useFormRoute } from "./forms/FormRoute";
 import { safeHref } from "./ui";
 
 /** How a record link looks; a card whose link goes elsewhere (an App opens itself) wears the same. */
-export const RECORD_LINK_STYLE = "focus-ring text-primary-soft-fg underline-offset-2 hover:underline";
+export const RECORD_LINK_STYLE = "focus-ring touch-target text-primary-soft-fg underline-offset-2 hover:underline";
 
 /** Kinds with a page of their own (the router's DETAIL_PAGES); every other kind opens on its edit form. */
 const DETAIL = new Set(["spaces", "endpoints", "apps", "csrs", "pipelines"]);

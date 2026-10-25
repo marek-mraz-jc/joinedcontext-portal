@@ -225,7 +225,7 @@ export function NotificationsMenu({ project, waiting = 0 }: { project: string; w
       }}
     >
       <MenuTrigger asChild>
-        <Button variant="ghost" className="relative px-1.5" aria-label={t("notifications.label", { count: unread })}>
+        <Button variant="ghost" className="relative pointer-coarse:max-sm:px-1.5" aria-label={t("notifications.label", { count: unread })}>
           <Icon name="inbox" className="size-5" />
           {unread > 0 ? (
             <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-danger px-1 text-center text-caption font-bold text-danger-fg">

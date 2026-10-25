@@ -24,9 +24,10 @@ export function LanguageSwitcher(): React.JSX.Element {
           <Icon name="globe" className="size-4 text-fg-muted" />
           {/* The globe says what the button is at phone width; the language's name is what a
               wider header has room for, and `aria-label` says it to a screen reader either
-              way (UI-27). */}
+              way (UI-27). On a touch phone the globe stands alone, without the chevron, so the header's
+              controls and the 44 px brand link fit a 360 px phone (T-5596). */}
           <span className="hidden sm:inline">{t(`lang.${currentLang}`)}</span>
-          <Icon name="chevronDown" className="size-3.5 text-fg-subtle" />
+          <Icon name="chevronDown" className="size-3.5 text-fg-subtle pointer-coarse:max-sm:hidden" />
         </Button>
       </MenuTrigger>
       <MenuContent align="end" className="min-w-36">
