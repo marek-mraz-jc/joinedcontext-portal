@@ -73,6 +73,22 @@ pub struct Finding {
     pub field: String,
     /// What is wrong, in words; never a value of the record.
     pub reason: String,
+    /// The access request that would cure it, when the finding is a grant the pipeline lacks on
+    /// an Endpoint of another Context Space (PL-90): the editor opens the request form with it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access: Option<Access>,
+}
+
+/// What an access request for a missing grant names (PL-90): the Endpoint, the operation and
+/// the entity type, when the pipeline names one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct Access {
+    pub project: String,
+    pub name: String,
+    /// `read` for a source, `write` for an output.
+    pub operations: String,
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub entity_type: Option<String>,
 }
 
 /// The `expiresAt` a record would be written with.
@@ -163,6 +179,9 @@ impl Finding {
 struct Target {
     endpoint: String,
     space: Option<String>,
+    /// The pipeline's project when the Endpoint serves another Context Space than the
+    /// pipeline's own, so a missing grant there is one an access request can ask for (PL-90).
+    requestable: Option<String>,
     /// `None` when this Portal writes no views (no broker configured); `Some(None)` when it does
     /// but has not read the Endpoint yet.
     write: Option<Option<WriteView>>,
@@ -193,6 +212,7 @@ pub fn check_records(
         .and_then(Value::as_str)
         .unwrap_or_default();
     let history = SpaceHistory::of(state, project, name, &spec, &targets);
+    let unreadable = judge_sources(state, project, &spec);
 
     let checks: Vec<RecordCheck> = records
         .iter()
@@ -225,6 +245,7 @@ pub fn check_records(
                 }
                 judge_lifetime(&spec, entity_type, record, now, &mut findings);
             }
+            findings.extend(unreadable.iter().cloned());
             RecordCheck {
                 index,
                 ok: findings.is_empty(),
@@ -307,6 +328,7 @@ impl SpaceHistory {
                     rule: rule.to_owned(),
                     field: plan.attribute.clone(),
                     reason,
+                    access: None,
                 });
             }
         }
@@ -332,12 +354,16 @@ fn writer(state: &AppState, project: &str, pipeline: &Value) -> Result<Writer, A
     let (account, derived) = identity(state, project, name, &spec);
     let outputs = spec.outputs();
     let types = outputs.iter().map(|o| o.entity_type.clone()).collect();
+    let own_space = crate::permissions::space_ref(pipeline);
     let targets: Vec<Target> = outputs
         .iter()
         .map(|output| {
             let endpoint = output.target_endpoint.local_id().to_owned();
+            let space =
+                crate::pipeline_expiry::space_of_endpoint(&state.mirror, project, &endpoint);
             Target {
-                space: crate::pipeline_expiry::space_of_endpoint(&state.mirror, project, &endpoint),
+                requestable: (space.is_some() && space != own_space).then(|| project.to_owned()),
+                space,
                 write: state.views.as_ref().map(|views| {
                     views.write_view(project, &endpoint, &account, derived.as_deref())
                 }),
@@ -475,6 +501,7 @@ fn model(rule: &str, field: &str, reason: &str) -> Finding {
         rule: rule.into(),
         field: field.into(),
         reason: reason.into(),
+        access: None,
     }
 }
 
@@ -484,6 +511,7 @@ fn endpoint_finding(rule: &str, field: &str, reason: String) -> Finding {
         rule: rule.into(),
         field: field.into(),
         reason,
+        access: None,
     }
 }
 
@@ -493,7 +521,39 @@ fn lifetime(rule: &str, field: &str, reason: String) -> Finding {
         rule: rule.into(),
         field: field.into(),
         reason,
+        access: None,
     }
+}
+
+/// Each source whose typed `endpointRef` names another project's Endpoint that does not admit
+/// this project (PL-90, PL-92), as the reconciler refuses it. A missing Endpoint reads the same,
+/// so the finding never tells whether another project holds that name.
+fn judge_sources(state: &AppState, project: &str, spec: &PipelineSpec) -> Vec<Finding> {
+    spec.sources()
+        .iter()
+        .filter_map(|source| {
+            let reference = source.endpoint_ref.as_ref()?;
+            let owner = reference.namespace().filter(|owner| *owner != project)?;
+            crate::reconciler::streams::source_endpoint(&state.mirror, project, reference).err()?;
+            let name = reference.name();
+            Some(Finding {
+                access: Some(Access {
+                    project: owner.to_owned(),
+                    name: name.to_owned(),
+                    operations: "read".into(),
+                    entity_type: source.query.as_ref().and_then(|q| q.entity_type.clone()),
+                }),
+                ..endpoint_finding(
+                    "sourceEndpoint",
+                    "",
+                    format!(
+                        "this project holds no access to source Endpoint {owner}/{name}: ask its \
+                         owner for a read (PL-90)"
+                    ),
+                )
+            })
+        })
+        .collect()
 }
 
 /// The space's model, when it names one: a space without one checks nothing on write either.
@@ -580,14 +640,22 @@ fn judge_write(
         &write.policies,
         now,
     ) {
-        Decision::Deny => findings.push(endpoint_finding(
-            "policy",
-            "",
-            format!(
-                "no Policy bound to Endpoint {endpoint} grants this pipeline a batch upsert of \
-                 {entity_type}"
-            ),
-        )),
+        Decision::Deny => findings.push(Finding {
+            access: target.requestable.as_ref().map(|project| Access {
+                project: project.clone(),
+                name: endpoint.clone(),
+                operations: "write".into(),
+                entity_type: Some(entity_type.to_owned()).filter(|t| !t.is_empty()),
+            }),
+            ..endpoint_finding(
+                "policy",
+                "",
+                format!(
+                    "no Policy bound to Endpoint {endpoint} grants this pipeline a batch upsert \
+                     of {entity_type}"
+                ),
+            )
+        }),
         Decision::Rewrite(constraints) => {
             if let Err(refusal) = guard(record, &constraints) {
                 findings.push(endpoint_finding(
@@ -963,6 +1031,7 @@ mod tests {
         Target {
             endpoint: "helsinki-all".into(),
             space: Some("vehicles".into()),
+            requestable: None,
             write: Some(Some(WriteView {
                 space: "vehicles".into(),
                 tenant: "helsinki-vehicles".into(),
@@ -1127,6 +1196,107 @@ mod tests {
         assert!(endpoint_findings(&unread, &record)[0]
             .reason
             .contains("has not read it"));
+    }
+
+    /// A write no Policy grants on an Endpoint of another space names the access request that
+    /// would cure it (PL-90, T-5369); one of the pipeline's own space names none, since a
+    /// request there is refused.
+    #[test]
+    fn a_missing_grant_in_another_space_names_the_access_request() {
+        let record = bus(json!(41));
+        let other = Target {
+            requestable: Some("helsinki".into()),
+            ..target(json!([]), Ok(view()))
+        };
+        let findings = endpoint_findings(&other, &record);
+        assert_eq!(findings[0].rule, "policy");
+        assert_eq!(
+            findings[0].access,
+            Some(Access {
+                project: "helsinki".into(),
+                name: "helsinki-all".into(),
+                operations: "write".into(),
+                entity_type: Some("Bus".into()),
+            })
+        );
+        let own = endpoint_findings(&target(json!([]), Ok(view())), &record);
+        assert_eq!(own[0].rule, "policy");
+        assert_eq!(own[0].access, None);
+        // A grant writes: no finding, no request.
+        let granted = Target {
+            requestable: Some("helsinki".into()),
+            ..target(json!([grant(json!({}))]), Ok(view()))
+        };
+        assert!(endpoint_findings(&granted, &record).is_empty());
+    }
+
+    /// An output Endpoint the project holds is one the request door takes (PL-90), by the rule
+    /// it applies: any space but the pipeline's own; one the project does not hold offers none.
+    #[test]
+    fn only_an_output_endpoint_the_project_holds_is_requestable() {
+        let state = world();
+        let held = writer(&state, "helsinki", &pipeline(json!([]))).expect("writer");
+        assert_eq!(held.targets[0].requestable.as_deref(), Some("helsinki"));
+        let mut absent = pipeline(json!([]));
+        absent["spec"]["outputs"][0]["targetEndpoint"] =
+            json!("urn:ngsi-ld:Endpoint:hel.fi:vehicles:gone");
+        let absent = writer(&state, "helsinki", &absent).expect("writer");
+        assert_eq!(absent.targets[0].requestable, None);
+    }
+
+    /// A source of another project that does not admit this one reads as a missing read with
+    /// the request that asks for it, and an absent Endpoint reads the same (PL-90, T-5369).
+    #[test]
+    fn a_source_another_project_does_not_admit_names_the_read_request() {
+        let state = world();
+        for (name, audience) in [
+            ("roads", json!(["helsinki"])),
+            ("closed", json!(["vantaa"])),
+        ] {
+            state.mirror.upsert(ResourceEnvelope {
+                api_version: API_VERSION.to_owned(),
+                kind: "Endpoint".to_owned(),
+                metadata: ObjectMeta::new(name, "espoo"),
+                spec: json!({ "contextSpaceRef": "roads", "slug": name, "audience": "project-list",
+                              "allowedProjects": audience }),
+                status: None,
+            });
+        }
+        let reading = |name: &str| {
+            let mut manifest = pipeline(json!([]));
+            manifest["spec"]["sources"] = json!([{
+                "endpointRef": { "kind": "Endpoint", "name": name, "namespace": "espoo" },
+                "query": { "type": "RoadSegment" }
+            }]);
+            let spec: PipelineSpec =
+                serde_json::from_value(manifest["spec"].clone()).expect("spec");
+            judge_sources(&state, "helsinki", &spec)
+        };
+        assert!(reading("roads").is_empty(), "an admitted source reads");
+        let closed = reading("closed");
+        assert_eq!(closed.len(), 1);
+        assert_eq!(closed[0].rule, "sourceEndpoint");
+        assert_eq!(
+            closed[0].access,
+            Some(Access {
+                project: "espoo".into(),
+                name: "closed".into(),
+                operations: "read".into(),
+                entity_type: Some("RoadSegment".into()),
+            })
+        );
+        let gone = reading("gone");
+        assert_eq!(gone[0].reason, closed[0].reason.replace("closed", "gone"));
+
+        // Every record of the check carries it.
+        let mut manifest = pipeline(json!([]));
+        manifest["spec"]["sources"] = json!([{ "endpointRef": { "kind": "Endpoint", "name": "closed", "namespace": "espoo" } }]);
+        let checked = check(&state, &manifest, &[bus(json!(41))]);
+        assert!(!checked.ok);
+        assert!(checked.records[0]
+            .findings
+            .iter()
+            .any(|f| f.rule == "sourceEndpoint"));
     }
 
     #[test]

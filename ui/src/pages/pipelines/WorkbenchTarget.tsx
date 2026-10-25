@@ -9,7 +9,7 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { callOperation } from "../../api/operations";
-import { Alert, Badge, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import { Alert, Badge, Button, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
 import { RECORD_LINK_STYLE } from "../../components/RecordLink";
 import { attributesOf } from "./OutputMapper";
 import type { Attribute } from "./outputMapper";
@@ -289,6 +289,27 @@ export interface CheckFinding {
   rule: string;
   field: string;
   reason: string;
+  /** The access request that would cure a missing grant on another space's Endpoint (PL-90). */
+  access?: FindingAccess;
+}
+
+/** The Endpoint, operation and type a missing grant names (T-5369). */
+export interface FindingAccess {
+  project: string;
+  name: string;
+  operations: "read" | "write";
+  type?: string;
+}
+
+/**
+ * What a finding's "Request access" does: `where` names the space the server offers the Endpoint
+ * under (else `project/name`), `open` opens the prefilled form, `disabledReason` says why it cannot
+ * open yet.
+ */
+export interface AccessAsk {
+  where: (access: FindingAccess) => string;
+  open: (access: FindingAccess) => void;
+  disabledReason?: string;
 }
 
 /** An attribute's value in a few words: the value and unit, a point, the object, the languages. */
@@ -311,11 +332,29 @@ export function valueText(member: unknown): string {
 }
 
 /** One finding: where it comes from, its rule, the field when it names one, and why. */
-function FindingLine({ finding, named = true }: { finding: CheckFinding; named?: boolean }): JSX.Element {
+function FindingLine({ finding, named = true, ask }: { finding: CheckFinding; named?: boolean; ask?: AccessAsk }): JSX.Element {
   const { t } = useTranslation();
+  const access = ask ? finding.access : undefined;
   return (
     <li className="text-caption">
-      <Badge tone="danger">{t(`pipelines.workbench.validation.source.${finding.source}`)}</Badge> <span className="font-mono text-fg-subtle">{finding.rule}</span>{" "}
+      <Badge tone="danger">{t(`pipelines.workbench.validation.source.${finding.source}`)}</Badge>{" "}
+      {access && ask ? (
+        <>
+          <span className="font-medium text-fg">{t("pipelines.access.noAccess", { where: ask.where(access) })}</span>{" "}
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={ask.disabledReason !== undefined}
+            disabledReason={ask.disabledReason}
+            aria-label={t("pipelines.access.requestFor", { endpoint: `${access.project}/${access.name}` })}
+            onClick={() => ask.open(access)}
+          >
+            {t("pipelines.access.request")}
+          </Button>{" "}
+        </>
+      ) : (
+        <span className="font-mono text-fg-subtle">{finding.rule}</span>
+      )}{" "}
       {named && finding.field ? <span className="font-mono">{finding.field}</span> : null} <span className="text-fg-muted">{finding.reason}</span>
     </li>
   );
@@ -325,10 +364,12 @@ export interface RecordTableProps {
   index: number;
   record: Record<string, unknown>;
   verdict?: { ok: boolean; findings: CheckFinding[]; expires?: { entity?: string; attributes: Record<string, string> } };
+  /** Turns a missing grant into "No access to <space>: Request access" (T-5369). */
+  ask?: AccessAsk;
 }
 
 /** Step 5: one record as it would be written, attribute by attribute, each with its verdict and end. */
-export function RecordTable({ index, record, verdict }: RecordTableProps): JSX.Element {
+export function RecordTable({ index, record, verdict, ask }: RecordTableProps): JSX.Element {
   const { t } = useTranslation();
   const names = Object.keys(record).filter((name) => !["id", "type", "@context"].includes(name));
   const of = (name: string) => (verdict?.findings ?? []).filter((f) => f.field === name || f.field.startsWith(`${name}.`) || f.field.startsWith(`${name}/`) || f.field.startsWith(`/${name}`));
@@ -349,7 +390,7 @@ export function RecordTable({ index, record, verdict }: RecordTableProps): JSX.E
       {loose.length > 0 ? (
         <ul className="flex flex-col gap-0.5">
           {loose.map((finding, at) => (
-            <FindingLine key={at} finding={finding} />
+            <FindingLine key={at} finding={finding} ask={ask} />
           ))}
         </ul>
       ) : null}
@@ -380,7 +421,7 @@ export function RecordTable({ index, record, verdict }: RecordTableProps): JSX.E
                   ) : (
                     <ul className="flex flex-col gap-0.5">
                       {found.map((finding, at) => (
-                        <FindingLine key={at} finding={finding} named={false} />
+                        <FindingLine key={at} finding={finding} named={false} ask={ask} />
                       ))}
                     </ul>
                   )}

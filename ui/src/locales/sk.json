@@ -3363,7 +3363,11 @@
       "endpointFirst": "Najprv vyberte endpoint.",
       "noAttrs": "Model nedeklaruje žiadny atribút typu {type}.",
       "typeFirst": "Najprv vyberte typ entity.",
-      "allAttrs": "všetky atribúty"
+      "allAttrs": "všetky atribúty",
+      "noAccess": "Bez prístupu k {where}:",
+      "requestFor": "Požiadať o prístup k {endpoint}",
+      "proposeFirst": "Najprv pipeline navrhnite: žiadosť o prístup žiada pre účet navrhnutej pipeline.",
+      "prefilled": "Vyplnené z kontroly záznamov. Vyberte každý atribút, ktorý pipeline potrebuje, a napíšte prečo; nič sa neudelí, kým to vlastníci priestoru neschvália."
     },
     "map": {
       "views": "Zobrazenia pipeline",

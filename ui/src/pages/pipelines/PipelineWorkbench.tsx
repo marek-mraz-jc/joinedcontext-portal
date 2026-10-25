@@ -24,6 +24,8 @@ import { LifetimeChoice } from "./LifetimeChoice";
 import { timeSlotsOf } from "./history";
 import { withEntry } from "./lifetime";
 import { RecordTable, TargetCard, grantedNames, useTargetType } from "./WorkbenchTarget";
+import type { FindingAccess } from "./WorkbenchTarget";
+import { useAccessAsk } from "./AccessRequests";
 import { HEADER } from "./outputMapper";
 
 /** How long the mapping rests before the workbench tries it again: one pause in typing. */
@@ -87,6 +89,8 @@ interface Finding {
   rule: string;
   field: string;
   reason: string;
+  /** The access request that would cure a missing grant (PL-90, T-5369). */
+  access?: FindingAccess;
 }
 
 interface RecordVerdict {
@@ -284,6 +288,14 @@ export function readValidation(output: unknown): ValidationAnswer {
   };
 }
 
+/** A finding's access request, when the server names one whole (T-5369). */
+function accessOf(access: unknown): { access?: FindingAccess } {
+  if (!isObject(access) || typeof access.project !== "string" || typeof access.name !== "string") return {};
+  if (access.operations !== "read" && access.operations !== "write") return {};
+  const type = typeof access.type === "string" && access.type ? { type: access.type } : {};
+  return { access: { project: access.project, name: access.name, operations: access.operations, ...type } };
+}
+
 /** A verdict's record check (T-4840), when the answer carries one. */
 function readCheck(verdict: Record<string, unknown>): Pick<RecordVerdict, "findings" | "expires"> {
   const out: Pick<RecordVerdict, "findings" | "expires"> = {};
@@ -293,6 +305,7 @@ function readCheck(verdict: Record<string, unknown>): Pick<RecordVerdict, "findi
       rule: textOf(finding.rule),
       field: textOf(finding.field),
       reason: textOf(finding.reason),
+      ...accessOf(finding.access),
     }));
   }
   if (isObject(verdict.expires)) {
@@ -475,6 +488,8 @@ export interface PipelineWorkbenchProps {
    * proposal needs that verdict green for the spec it proposes (T-4840, PF-57).
    */
   draftName?: string;
+  /** The proposed pipeline the dialog edits, whose account an access request asks for (T-5369). */
+  pipeline?: string;
 }
 
 /** The `bento.yaml` beside an edited pipeline, as the editor loaded it (T-4818). */
@@ -509,6 +524,7 @@ export function PipelineWorkbench({
   children,
   mappingFile,
   draftName,
+  pipeline,
 }: PipelineWorkbenchProps): JSX.Element {
   const { t } = useTranslation();
   const [file, setFile] = useState<{ name: string; text: string; format: SampleFormat } | null>(null);
@@ -680,6 +696,7 @@ export function PipelineWorkbench({
       ),
   });
   const verdictOf = (index: number) => validated.data?.verdicts.find((verdict) => verdict.index === index);
+  const access = useAccessAsk(project, pipeline, validated.data?.verdicts.some((verdict) => verdict.findings?.some((f) => f.access)) ?? false);
 
   const noModel = validated.isError && unmodelled(validated.error);
   const settled = tried.isSuccess && (validated.isSuccess || noModel) && quiet === bloblang;
@@ -1133,6 +1150,7 @@ export function PipelineWorkbench({
                       key={index}
                       index={index}
                       record={record}
+                      ask={access.ask}
                       verdict={
                         verdict
                           ? {
@@ -1149,6 +1167,7 @@ export function PipelineWorkbench({
                 })}
               </div>
             ) : null}
+            {access.form}
           </>
         )}
       </Step>

@@ -12,7 +12,9 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { AccessRequestInbox, PipelineAccessRequests, requestBody } from "../src/pages/pipelines/AccessRequests";
+import { AccessRequestInbox, PipelineAccessRequests, requestBody, useAccessAsk } from "../src/pages/pipelines/AccessRequests";
+import { RecordTable } from "../src/pages/pipelines/WorkbenchTarget";
+import type { CheckFinding } from "../src/pages/pipelines/WorkbenchTarget";
 import type { AccessRequestView } from "../src/pages/pipelines/AccessRequests";
 import { InRouter } from "./pageHarness";
 
@@ -129,6 +131,79 @@ describe("access requests on the pages (PL-90, PL-91, PL-93)", () => {
       reason: "air index",
     });
     expect(await screen.findByText(L.sent)).toBeInTheDocument();
+  });
+
+  it("opens prefilled from a missing grant and sends what the person completes (T-5369)", async () => {
+    serve([]);
+    wrap(
+      <PipelineAccessRequests
+        project="city-kpis"
+        name="air-index"
+        prefill={{ endpoint: "helsinki/air-quality", operations: "write", type: "AirQualityObserved" }}
+      />,
+    );
+    expect(await screen.findByText(L.prefilled)).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: L.operations.write })).toBeChecked();
+    // The offered Endpoint's model gives the attributes; the person picks them and says why.
+    await userEvent.click(screen.getByRole("combobox", { name: L.attrs }));
+    await userEvent.click(await screen.findByRole("option", { name: /no2/ }));
+    await userEvent.type(screen.getByLabelText(new RegExp(L.reason)), "write the air index");
+    await userEvent.click(screen.getByRole("button", { name: L.send }));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].body).toEqual({
+      endpoint: { project: "helsinki", name: "air-quality" },
+      operations: "write",
+      types: [{ type: "AirQualityObserved", attrs: ["no2"] }],
+      reason: "write the air index",
+    });
+  });
+
+  function Checked({ pipeline, findings }: { pipeline?: string; findings: CheckFinding[] }): JSX.Element {
+    const access = useAccessAsk("city-kpis", pipeline, true);
+    return (
+      <>
+        <RecordTable index={0} record={{ id: "urn:ngsi-ld:AirQualityObserved:1", type: "AirQualityObserved" }} verdict={{ ok: false, findings }} ask={access.ask} />
+        {access.form}
+      </>
+    );
+  }
+  const missing = (project: string, name: string, operations: "read" | "write"): CheckFinding => ({
+    source: "endpoint",
+    rule: operations === "write" ? "policy" : "sourceEndpoint",
+    field: "",
+    reason: `no grant on ${name}`,
+    access: { project, name, operations, type: "AirQualityObserved" },
+  });
+
+  it("names a missing grant by the space the server offers and opens the form with it (T-5369)", async () => {
+    serve([]);
+    wrap(<Checked pipeline="air-index" findings={[missing("helsinki", "air-quality", "write"), missing("parks", "trees", "read")]} />);
+    // The space only from the server's list for this person; an Endpoint it does not offer by name.
+    expect(await screen.findByText(L.noAccess.replace("{where}", "air"))).toBeInTheDocument();
+    expect(screen.getByText(L.noAccess.replace("{where}", "parks/trees"))).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: L.requestFor.replace("{endpoint}", "parks/trees") }));
+    const form = await screen.findByTestId("workbench-access");
+    expect(within(form).getByRole("radio", { name: L.operations.read })).toBeChecked();
+    expect(within(form).getByText(L.typedTypeHelp)).toBeInTheDocument();
+    await userEvent.type(within(form).getByRole("combobox", { name: L.attrs }), "height{Enter}");
+    await userEvent.type(within(form).getByLabelText(new RegExp(L.reason)), "tree index");
+    await userEvent.click(within(form).getByRole("button", { name: L.send }));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].body).toEqual({
+      endpoint: { project: "parks", name: "trees" },
+      operations: "read",
+      types: [{ type: "AirQualityObserved", attrs: ["height"] }],
+      reason: "tree index",
+    });
+  });
+
+  it("asks to propose a pipeline first when it has no account yet (T-5369)", async () => {
+    serve([]);
+    wrap(<Checked findings={[missing("helsinki", "air-quality", "write")]} />);
+    const button = await screen.findByRole("button", { name: L.requestFor.replace("{endpoint}", "helsinki/air-quality") });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText(L.noAccess.replace("{where}", "helsinki/air-quality"))).toBeInTheDocument();
+    expect(screen.queryByTestId("workbench-access")).toBeNull();
   });
 
   it("asks for an Endpoint the list does not offer by its typed name, with typed types the owners check", async () => {
