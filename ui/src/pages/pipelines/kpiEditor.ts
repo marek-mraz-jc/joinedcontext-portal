@@ -158,11 +158,13 @@ export function missingOf(draft: KpiDraft): string | undefined {
 
 /** The `-kpi` Endpoints of the project, as targets, by URN. */
 export function kpiTargets(endpoints: Manifest[], spaceOf: (m: Manifest) => string | undefined, orgDomain?: string) {
+  // A target URN names the organization's domain: none is offered before it is known.
+  if (!orgDomain) return [];
   return endpoints
     .map((endpoint) => ({ endpoint, space: spaceOf(endpoint) }))
     .filter((one): one is { endpoint: Manifest; space: string } => !!one.space?.endsWith("-kpi"))
     .map(({ endpoint, space }) => ({
       name: endpoint.metadata.name,
-      urn: `urn:ngsi-ld:Endpoint:${orgDomain || "local"}:${space}:${endpoint.metadata.name}`,
+      urn: `urn:ngsi-ld:Endpoint:${orgDomain}:${space}:${endpoint.metadata.name}`,
     }));
 }

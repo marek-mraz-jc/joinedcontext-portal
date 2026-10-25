@@ -37,7 +37,7 @@ import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { asUser } from "../apps/members";
 import { proposeChecked } from "../../api/proposal";
 import type { ResourceProposal } from "../../api/manifest";
-import { useOrgDomain, useProjects } from "../../api/projects";
+import { useProjects } from "../../api/projects";
 import { RadioGroup } from "../../components/ui/RadioGroup";
 import { INVITE_ROLES, inviteBinding, invitationState } from "./invite";
 import type { InviteRole } from "./invite";
@@ -256,7 +256,6 @@ function NewPersonForm({
   const projectField = useId();
   const queryClient = useQueryClient();
   const projects = useProjects();
-  const orgDomain = useOrgDomain(ORG_NAMESPACE);
   const [form, setForm] = useState<PersonForm>(EMPTY);
   const [project, setProject] = useState("");
   const [role, setRole] = useState<InviteRole>("viewer");
@@ -283,7 +282,7 @@ function NewPersonForm({
         const change = (await proposeChecked(
           ORG_NAMESPACE,
           "rolebindings",
-          inviteBinding(created.person.email, role, project, orgDomain) as ResourceProposal,
+          inviteBinding(created.person.email, role, project) as ResourceProposal,
           true,
         )) as Change;
         return { created, project, role, change };

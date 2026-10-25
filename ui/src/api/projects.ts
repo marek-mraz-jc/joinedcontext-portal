@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import { api, queryKeys, unwrap } from "./client";
-import { asManifests, localized } from "./manifest";
+import { asManifests, localized, ORG_NAMESPACE } from "./manifest";
+import type { Manifest } from "./manifest";
 import { useTranslation } from "react-i18next";
 import { offeredLocales, useBranding } from "../branding";
 
@@ -71,43 +72,70 @@ export function useProjectTitles(): (project: string) => string {
 }
 
 /**
- * The organization's domain, in the order the API itself resolves it (`api::assistant::org_domain`):
- * the `Organization` manifest of the repository, then the installation's branding, then the
- * project name. A model minted under a fabricated `<project>.sk` names IRIs nobody owns (T-0794).
+ * The name of the Organization `project` belongs to (ADR-N-058): its `organizationRef`, as the
+ * project list answers it; for the organization's own pages the one chosen in the switcher; and
+ * the only Organization of an installation that has one. `undefined` while that is not known.
  */
-export function useOrgDomain(project: string): string {
-  const branding = useBranding();
+export function organizationNameOf(
+  list: { organizations: { name: string }[]; ownerOf: Map<string, string | undefined> } | undefined,
+  project: string,
+  chosen?: string,
+): string | undefined {
+  if (!list) return undefined;
+  const owner = list.ownerOf.get(project);
+  if (owner) return owner;
+  if (chosen) return chosen;
+  return list.organizations.length === 1 ? list.organizations[0]?.name : undefined;
+}
+
+/** The name of the Organization `project` belongs to; see [`organizationNameOf`]. */
+export function useOrganizationName(project: string): string | undefined {
+  const list = useOrganizations().data;
+  const chosen = useChosenOrganizationName();
+  return organizationNameOf(list, project, chosen);
+}
+
+/**
+ * The `Organization` manifest `project` belongs to (ADR-N-058), never merely the first of the
+ * list: with several Organizations the first is another body's (F-UI1-011, F-UI1-012).
+ * `settled` once both the list and the owner are known, found or not.
+ */
+export function useProjectOrganization(project: string): { organization: Manifest | undefined; settled: boolean } {
+  const owners = useOrganizations();
+  const name = organizationNameOf(owners.data, project);
+  // Organizations live in the organization's own namespace.
   const organizations = useQuery({
-    queryKey: queryKeys.list(project, "organizations"),
+    queryKey: queryKeys.list(ORG_NAMESPACE, "organizations"),
     queryFn: async () =>
       unwrap(
         await api.GET("/api/v1/projects/{project}/{plural}", {
-          params: { path: { project, plural: "organizations" } },
+          params: { path: { project: ORG_NAMESPACE, plural: "organizations" } },
         }),
       ),
   });
-  const first = asManifests(organizations.data?.items ?? [])[0];
-  const domain = (first?.spec as { domain?: string } | undefined)?.domain;
+  const items = asManifests(organizations.data?.items ?? []);
+  const organization = name !== undefined ? items.find((item) => item.metadata.name === name) : items.length === 1 ? items[0] : undefined;
+  return { organization, settled: !owners.isPending && !organizations.isPending };
+}
+
+/**
+ * The organization's domain, in the order the API itself resolves it (`api::assistant::org_domain`):
+ * the project's `Organization` manifest, then the installation's branding, then the project name.
+ * A model minted under a fabricated `<project>.sk` names IRIs nobody owns (T-0794).
+ */
+export function useOrgDomain(project: string): string {
+  const branding = useBranding();
+  const domain = (useProjectOrganization(project).organization?.spec as { domain?: string } | undefined)?.domain;
   return domain || branding.orgDomain || project;
 }
 
 /**
- * The languages a model's titles are written in (T-4829, DM-15): the Organization's `locales`,
- * else what the installation offers. Same query as `useOrgDomain`, so no second request.
+ * The languages a model's titles are written in (T-4829, DM-15): the project's Organization's
+ * `locales`, else what the installation offers.
  */
 export function useOrgLocales(project: string): string[] {
   const branding = useBranding();
-  const organizations = useQuery({
-    queryKey: queryKeys.list(project, "organizations"),
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/{plural}", {
-          params: { path: { project, plural: "organizations" } },
-        }),
-      ),
-  });
-  const first = asManifests(organizations.data?.items ?? [])[0];
-  const locales = (first?.spec as { locales?: unknown } | undefined)?.locales;
+  const locales = (useProjectOrganization(project).organization?.spec as { locales?: unknown } | undefined)?.locales;
   // One string, so the list keeps its identity while the answer stands still.
   const own = Array.isArray(locales)
     ? locales.filter((one): one is string => typeof one === "string" && /^[a-z]{2,3}$/.test(one)).join(",")

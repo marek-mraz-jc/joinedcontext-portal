@@ -185,12 +185,12 @@ describe("the group model", () => {
   });
 
   it("writes the binding for the place chosen", () => {
-    expect(groupBinding("stewards", "viewer", { kind: "organization" }, "hel.fi").spec).toEqual({
+    expect(groupBinding("stewards", "viewer", { kind: "organization" }, "hel").spec).toEqual({
       subjects: [{ group: "stewards" }],
       role: "viewer",
       scope: { organization: "hel" },
     });
-    expect(groupBinding("stewards", "air-editor", { kind: "space", project: "helsinki", space: "air" }, "hel.fi").spec)
+    expect(groupBinding("stewards", "air-editor", { kind: "space", project: "helsinki", space: "air" }, "hel").spec)
       .toMatchObject({ scope: { contextSpace: "air" } });
   });
 

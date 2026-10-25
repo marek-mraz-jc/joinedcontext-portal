@@ -101,6 +101,12 @@ describe("the KPI editor's model", () => {
       { name: "kpi-writer", urn: TARGET },
     ]);
   });
+
+  it("offers no target while the organization's domain is unknown (F-UI3-016)", () => {
+    const space = (m: Manifest) => m.spec.contextSpaceRef as string;
+    expect(kpiTargets([endpoint("kpi-writer", "helsinki-kpi")], space, "")).toEqual([]);
+    expect(kpiTargets([endpoint("kpi-writer", "helsinki-kpi")], space, undefined)).toEqual([]);
+  });
 });
 
 interface Answers {
