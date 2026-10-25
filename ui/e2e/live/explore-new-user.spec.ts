@@ -15,12 +15,12 @@ test("a new user picks a type the endpoint grants and reads its rows", async ({ 
     await page.getByRole("button", { name: "Helsinki city context" }).click();
     const types = page.locator("#explore-type");
     // The endpoint's grant arrives, and the types it does not grant say so.
-    await expect(types.locator("option", { hasText: "not granted through this endpoint" }).first()).toBeAttached({ timeout: 60_000 });
+    await expect(types.locator("optgroup option").first()).toBeAttached({ timeout: 60_000 });
     const granted = await types
       .locator("option")
       .evaluateAll((options) =>
         options
-          .filter((option) => option.getAttribute("value") && !option.textContent?.includes("not granted"))
+          .filter((option) => option.getAttribute("value") && option.parentElement?.tagName !== "OPTGROUP")
           .map((option) => option.getAttribute("value") ?? ""),
       );
     expect(granted.length, "the chosen endpoint grants at least one type").toBeGreaterThan(0);
