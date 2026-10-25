@@ -2077,6 +2077,22 @@
       ]
     },
     "src/pages/access/AccountAccess.tsx": null,
+    "src/pages/mqttbrokers/AddDevice.tsx": {
+      "walkedBy": "worker-t5532",
+      "date": "2026-10-24",
+      "screenshots": [
+        "evidence/T-5532/mqtt-device-form-empty-1440.png",
+        "evidence/T-5532/mqtt-device-form-empty-400.png",
+        "evidence/T-5532/mqtt-device-pasted-private-key-1440.png",
+        "evidence/T-5532/mqtt-device-pasted-private-key-400.png",
+        "evidence/T-5532/mqtt-device-refused-topic-1440.png",
+        "evidence/T-5532/mqtt-device-refused-topic-400.png",
+        "evidence/T-5532/mqtt-device-generated-key-once-1440.png",
+        "evidence/T-5532/mqtt-device-generated-key-once-400.png",
+        "evidence/T-5532/mqtt-device-pending-sign-in-1440.png",
+        "evidence/T-5532/mqtt-device-pending-sign-in-400.png"
+      ]
+    },
     "src/pages/mqttbrokers/MqttBrokersPage.tsx": {
       "walkedBy": "worker-t5534",
       "date": "2026-10-24",

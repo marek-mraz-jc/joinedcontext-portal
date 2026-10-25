@@ -12722,6 +12722,204 @@
         }
       }
     },
+    "/api/v1/projects/{project}/mqttbrokers/{name}/devices": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "What The Add Device Form Of A Broker May Offer",
+        "description": "The broker's roles with their publish filters, listed only for a person who may propose a ServiceAccount and this MqttBroker, and the realm's token endpoint a device asks (T-5532, PF-47). Whoever may read the project's MqttBrokers.",
+        "operationId": "device_options",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "MqttBroker name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The form's options",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceOptions"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such broker, or not readable by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Add A Device To An MQTT Broker",
+        "description": "Proposes one Change, in the caller's name, that writes a ServiceAccount signing in by the public keys given (`spec.credentials[].jwks`, PF-47) and adds it to one role of the broker. A private key member is refused (422 naming it); role and topic must be the broker's own (422 naming the field). The Change always waits for a second person (T-5532).",
+        "operationId": "add_device",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "MqttBroker name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddDevice"
+              },
+              "example": {
+                "jwks": {
+                  "keys": [
+                    {
+                      "crv": "P-256",
+                      "kid": "k1",
+                      "kty": "EC",
+                      "x": "f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU",
+                      "y": "x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"
+                    }
+                  ]
+                },
+                "name": "sensor-001",
+                "role": "camera",
+                "topic": "cameras/${clientid}/#"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The Change that adds the device, waiting for a second person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body does not read, or a manifest does not pass its door",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not propose a ServiceAccount or this MqttBroker, or is not a person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such broker, or not readable by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A ServiceAccount of that name exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A field names what the broker or PF-47 refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No forge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/mqttbrokers/{name}/measured": {
       "get": {
         "tags": [
@@ -20768,6 +20966,36 @@
           }
         }
       },
+      "AddDevice": {
+        "type": "object",
+        "description": "A device to add: its account name, the role and topic picked, and its public keys.",
+        "required": [
+          "name",
+          "role",
+          "jwks"
+        ],
+        "properties": {
+          "jwks": {
+            "description": "A JSON Web Key Set of public keys only (PF-47)."
+          },
+          "name": {
+            "type": "string",
+            "description": "The ServiceAccount's name, a DNS label such as `sensor-001`."
+          },
+          "role": {
+            "type": "string",
+            "description": "One of the broker's roles."
+          },
+          "topic": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One of the role's publish filters; required when the role publishes."
+          }
+        },
+        "additionalProperties": false
+      },
       "Affordance": {
         "type": "object",
         "description": "Something the caller may or may not do that no rule expresses as a kind and a verb, with the\nAPI's own words for the refusal: the control is rendered disabled with the reason, never\nhidden (UI-44).",
@@ -24720,6 +24948,60 @@
           }
         },
         "additionalProperties": false
+      },
+      "DeviceOptions": {
+        "type": "object",
+        "description": "What the Add device form of one broker may offer the caller.",
+        "required": [
+          "mayAdd",
+          "roles"
+        ],
+        "properties": {
+          "issuer": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `aud` of the device's client assertion: the realm issuer."
+          },
+          "mayAdd": {
+            "type": "boolean",
+            "description": "Whether the caller may propose a device here: `ServiceAccount` and this `MqttBroker`."
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeviceRole"
+            },
+            "description": "The broker's roles, empty unless `mayAdd`."
+          },
+          "tokenUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The realm's token endpoint a device asks for its access token, absent without a login."
+          }
+        }
+      },
+      "DeviceRole": {
+        "type": "object",
+        "description": "One role the form may offer, with the topic filters a device of it may publish to.",
+        "required": [
+          "name",
+          "publish"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "publish": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       },
       "Digest": {
         "type": "object",

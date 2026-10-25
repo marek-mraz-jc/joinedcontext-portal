@@ -2933,6 +2933,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/mqttbrokers/{name}/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What The Add Device Form Of A Broker May Offer
+         * @description The broker's roles with their publish filters, listed only for a person who may propose a ServiceAccount and this MqttBroker, and the realm's token endpoint a device asks (T-5532, PF-47). Whoever may read the project's MqttBrokers.
+         */
+        get: operations["device_options"];
+        put?: never;
+        /**
+         * Add A Device To An MQTT Broker
+         * @description Proposes one Change, in the caller's name, that writes a ServiceAccount signing in by the public keys given (`spec.credentials[].jwks`, PF-47) and adds it to one role of the broker. A private key member is refused (422 naming it); role and topic must be the broker's own (422 naming the field). The Change always waits for a second person (T-5532).
+         */
+        post: operations["add_device"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/mqttbrokers/{name}/measured": {
         parameters: {
             query?: never;
@@ -4568,6 +4592,17 @@ export interface components {
             /** @description The call changes something (its operation is not read-only). */
             write: boolean;
         };
+        /** @description A device to add: its account name, the role and topic picked, and its public keys. */
+        AddDevice: {
+            /** @description A JSON Web Key Set of public keys only (PF-47). */
+            jwks: unknown;
+            /** @description The ServiceAccount's name, a DNS label such as `sensor-001`. */
+            name: string;
+            /** @description One of the broker's roles. */
+            role: string;
+            /** @description One of the role's publish filters; required when the role publishes. */
+            topic?: string | null;
+        };
         /**
          * @description Something the caller may or may not do that no rule expresses as a kind and a verb, with the
          *     API's own words for the refusal: the control is rendered disabled with the reason, never
@@ -5984,6 +6019,22 @@ export interface components {
         /** @description Why the proposal is declined, for the audit record. */
         DeclineRequest: {
             reason: string;
+        };
+        /** @description What the Add device form of one broker may offer the caller. */
+        DeviceOptions: {
+            /** @description The `aud` of the device's client assertion: the realm issuer. */
+            issuer?: string | null;
+            /** @description Whether the caller may propose a device here: `ServiceAccount` and this `MqttBroker`. */
+            mayAdd: boolean;
+            /** @description The broker's roles, empty unless `mayAdd`. */
+            roles: components["schemas"]["DeviceRole"][];
+            /** @description The realm's token endpoint a device asks for its access token, absent without a login. */
+            tokenUrl?: string | null;
+        };
+        /** @description One role the form may offer, with the topic filters a device of it may publish to. */
+        DeviceRole: {
+            name: string;
+            publish: string[];
         };
         /** @description What `scripts/publish-health.py` writes for one check. */
         Digest: {
@@ -18413,6 +18464,159 @@ export interface operations {
                 };
             };
             /** @description The capture store did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    device_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description MqttBroker name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The form's options */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceOptions"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such broker, or not readable by the caller */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    add_device: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description MqttBroker name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "jwks": {
+                 *         "keys": [
+                 *           {
+                 *             "crv": "P-256",
+                 *             "kid": "k1",
+                 *             "kty": "EC",
+                 *             "x": "f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU",
+                 *             "y": "x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"
+                 *           }
+                 *         ]
+                 *       },
+                 *       "name": "sensor-001",
+                 *       "role": "camera",
+                 *       "topic": "cameras/${clientid}/#"
+                 *     }
+                 */
+                "application/json": components["schemas"]["AddDevice"];
+            };
+        };
+        responses: {
+            /** @description The Change that adds the device, waiting for a second person */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
+            };
+            /** @description The body does not read, or a manifest does not pass its door */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not propose a ServiceAccount or this MqttBroker, or is not a person */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such broker, or not readable by the caller */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A ServiceAccount of that name exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A field names what the broker or PF-47 refuses */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No forge */
             503: {
                 headers: {
                     [name: string]: unknown;

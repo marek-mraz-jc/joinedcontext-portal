@@ -303,6 +303,24 @@ fn attributes_of(mapper: &Mapper) -> Vec<AttributeBinding> {
         .collect()
 }
 
+/// PF-59: a caller who may not read the project's brokers learns nothing of this one.
+fn readable_broker(
+    state: &AppState,
+    effective: &crate::permissions::Effective,
+    project: &str,
+    name: &str,
+) -> Result<(), ApiError> {
+    if effective.may_read_project()
+        && effective.may_read("MqttBroker")
+        && state.mirror.get(project, "MqttBroker", name).is_some()
+    {
+        return Ok(());
+    }
+    Err(ApiError::NotFound(format!(
+        "MQTT broker '{name}' not found in project '{project}'"
+    )))
+}
+
 #[utoipa::path(
     get,
     path = "/api/v1/projects/{project}/mqttbrokers/{name}/bindings",
@@ -324,16 +342,8 @@ pub async fn get_bindings(
     State(state): State<AppState>,
     Path((project, name)): Path<(String, String)>,
 ) -> Result<Json<Bindings>, ApiError> {
-    // PF-59: a caller who may not read the project's brokers learns nothing of this one.
     let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
-    if !effective.may_read_project()
-        || !effective.may_read("MqttBroker")
-        || state.mirror.get(&project, "MqttBroker", &name).is_none()
-    {
-        return Err(ApiError::NotFound(format!(
-            "MQTT broker '{name}' not found in project '{project}'"
-        )));
-    }
+    readable_broker(&state, &effective, &project, &name)?;
     let may = |kind: &str, space: Option<&str>| effective.may_in(kind, Verb::Read, space);
     let bindings = bindings(&state.mirror, &project, &name, &may);
     Ok(Json(Bindings {
