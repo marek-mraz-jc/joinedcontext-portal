@@ -152,7 +152,9 @@ async fn a_reader_hears_that_the_type_changed_and_nothing_the_portal_account_rea
 
     // The gateway delivers with no session and no CSRF token: the key is the credential.
     // The same space name in another project, watched there; its delivery must not reach here.
-    let _espoo = state.live.watch("espoo", "air", "AirQualityObserved");
+    let _espoo = state
+        .live
+        .watch("espoo", "air", "espoo-air", "AirQualityObserved");
     let theirs = state.live.key("espoo", "air", "AirQualityObserved");
     let deliver = |key: String| {
         Request::builder()

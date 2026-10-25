@@ -100,9 +100,18 @@ fn refusal(request: &Complete) -> Option<String> {
     }
 }
 
-/// The model and the body shape: the profile's, held to the organization's list (AG-53).
-fn model(state: &AppState) -> Option<(String, String)> {
-    let profile = Profile::load(&state.mirror, PROFILE).ok()?;
+/// Why no model answers a call: no profile to take it from, or a profile whose model the
+/// organization does not allow.
+enum NoModel {
+    NoProfile,
+    NotAllowed(String),
+}
+
+/// The model and the body shape: the profile's, held to the organization's list (AG-53). A model
+/// outside the list is refused, never swapped for the list's first one: that model may belong to
+/// another provider than the profile's (F-POR2-014).
+fn model(state: &AppState) -> Result<(String, String), NoModel> {
+    let profile = Profile::load(&state.mirror, PROFILE).map_err(|_| NoModel::NoProfile)?;
     let allowed: Option<Vec<String>> = state
         .mirror
         .list(ORG_NAMESPACE, "Organization", &ListOptions::default())
@@ -111,11 +120,10 @@ fn model(state: &AppState) -> Option<(String, String)> {
         .next()
         .and_then(|org| org.spec.pointer("/policies/agents/models").cloned())
         .and_then(|models| serde_json::from_value(models).ok());
-    let name = match allowed {
-        Some(list) if !list.contains(&profile.model_name) => list.into_iter().next()?,
-        _ => profile.model_name,
-    };
-    Some((name, profile.model_provider))
+    if allowed.is_some_and(|list| !list.contains(&profile.model_name)) {
+        return Err(NoModel::NotAllowed(profile.model_name));
+    }
+    Ok((profile.model_name, profile.model_provider))
 }
 
 /// The provider's body: Anthropic's messages with the system part apart, else chat completions.
@@ -310,8 +318,23 @@ pub(super) async fn complete(
     ) else {
         return unavailable("this installation answers no App's ai calls");
     };
-    let Some((model, provider)) = model(&state) else {
-        return unavailable("this installation has no app-builder profile to take the model from");
+    let (model, provider) = match model(&state) {
+        Ok(model) => model,
+        Err(NoModel::NoProfile) => {
+            return unavailable(
+                "this installation has no app-builder profile to take the model from",
+            )
+        }
+        Err(NoModel::NotAllowed(name)) => {
+            return ApiError::Unprocessable {
+                detail: format!("the app-builder profile's model {name} is not allowed"),
+                errors: vec![format!(
+                    "model: {name} is not in the organization's policies.agents.models; an \
+                     organization administrator adds it there or sets the profile to an allowed model"
+                )],
+            }
+            .into_response()
+        }
     };
 
     let limit = services::quota(&state.mirror, &project, &spec, Quota::AiTokensPerDay);
@@ -387,6 +410,58 @@ pub(super) async fn complete(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// F-POR2-014: a profile model outside the organization's list is refused, never replaced
+    /// by the list's first model.
+    #[test]
+    fn a_model_the_organization_does_not_allow_is_refused() {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let put = |kind: &str, name: &str, spec: Value| {
+            state.mirror.upsert(ResourceEnvelope {
+                api_version: API_VERSION.into(),
+                kind: kind.into(),
+                metadata: ObjectMeta::new(name, ORG_NAMESPACE),
+                spec,
+                status: None,
+            })
+        };
+        put(
+            "AgentProfile",
+            PROFILE,
+            serde_json::json!({
+                "role": "builder",
+                "runtime": { "image": "ghcr.io/x/agent:v1", "digest": format!("sha256:{}", "1".repeat(64)) },
+                "model": { "provider": "openai-compatible", "name": "deepseek/deepseek-v4.1-flash", "maxTokensPerRun": 400000 },
+                "limits": { "stepsPerRun": 120, "wallClock": "PT20M", "concurrentRunsPerOrganization": 2, "requestsPerMinute": 60, "maxResponseBytes": 2097152 },
+                "egress": { "allowedHosts": [] },
+                "tools": ["shell"],
+                "workspace": { "cpu": "1", "memory": "2Gi", "ephemeralStorage": "4Gi" },
+            }),
+        );
+        put(
+            "Organization",
+            "helsinki",
+            serde_json::json!({
+                "domain": "hel.fi", "locales": ["en"], "defaultLocale": "en",
+                "policies": { "agents": { "models": ["claude-sonnet-5-5"] } },
+            }),
+        );
+        assert!(
+            matches!(model(&state), Err(NoModel::NotAllowed(name)) if name == "deepseek/deepseek-v4.1-flash")
+        );
+        put(
+            "Organization",
+            "helsinki",
+            serde_json::json!({
+                "domain": "hel.fi", "locales": ["en"], "defaultLocale": "en",
+                "policies": { "agents": { "models": ["deepseek/deepseek-v4.1-flash"] } },
+            }),
+        );
+        assert!(
+            matches!(model(&state), Ok((name, provider)) if name == "deepseek/deepseek-v4.1-flash" && provider == "openai-compatible")
+        );
+    }
 
     fn request(value: Value) -> Complete {
         serde_json::from_value(value).expect("a request")

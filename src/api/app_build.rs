@@ -115,9 +115,17 @@ fn configuration_url(state: &AppState, user: &CurrentUser, project: &str) -> Opt
     reads.then(|| forge.repository_page_url())
 }
 
-/// Why this person may not rebuild, or `None` when they may.
-fn rebuild_refusal(state: &AppState, user: &CurrentUser, project: &str) -> Option<String> {
-    (!crate::permissions::for_request(state, &user.0.identity, project).may("App", Verb::Propose))
+/// Why this person may not rebuild `app`, or `None` when they may: propose judged on the App
+/// itself, so a grant bound to one App or space reaches no other (F-POR1-005).
+fn rebuild_refusal(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    app: &serde_json::Value,
+) -> Option<String> {
+    crate::permissions::for_request(state, &user.0.identity, project)
+        .check("App", Verb::Propose, Some(app))
+        .is_err()
         .then(|| format!("Rebuild needs propose on App in project {project}"))
 }
 
@@ -189,7 +197,7 @@ pub async fn build(
                 &crate::apps::built::version(commit, digest),
             )
         });
-    let refusal = rebuild_refusal(&state, &user, &project);
+    let refusal = rebuild_refusal(&state, &user, &project, &app);
     Ok(Json(AppBuild {
         // The applications' organization reads every App's repository to every signed-in
         // person (PF-79, T-3030), and a caller who reached this line may read the App.
@@ -229,8 +237,8 @@ pub async fn rebuild(
     State(state): State<AppState>,
     Path((project, name)): Path<(String, String)>,
 ) -> Result<Response, ApiError> {
-    let (_, repo) = app_of(&state, &user, &project, &name)?;
-    if let Some(reason) = rebuild_refusal(&state, &user, &project) {
+    let (app, repo) = app_of(&state, &user, &project, &name)?;
+    if let Some(reason) = rebuild_refusal(&state, &user, &project, &app) {
         return Err(ApiError::Denied(reason));
     }
     let repo = repo.ok_or_else(|| ApiError::Conflict(NOT_ON_FORGE.into()))?;
@@ -357,7 +365,7 @@ pub async fn builds(
         }));
     };
     let builds = successful_builds(&repo, current_commit(&app)).await;
-    let refusal = restore_refusal(&state, &user, &project);
+    let refusal = restore_refusal(&state, &user, &project, &app);
     Ok(Json(AppBuilds {
         builds,
         restore: Rebuild {
@@ -369,8 +377,14 @@ pub async fn builds(
 }
 
 /// Why this person may not restore, or `None` when they may: the right of Rebuild (AP-171).
-fn restore_refusal(state: &AppState, user: &CurrentUser, project: &str) -> Option<String> {
-    rebuild_refusal(state, user, project).map(|reason| reason.replacen("Rebuild", "Restore", 1))
+fn restore_refusal(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    app: &serde_json::Value,
+) -> Option<String> {
+    rebuild_refusal(state, user, project, app)
+        .map(|reason| reason.replacen("Rebuild", "Restore", 1))
 }
 
 #[utoipa::path(
@@ -403,7 +417,7 @@ pub async fn restore(
     Json(request): Json<RestoreRequest>,
 ) -> Result<Response, ApiError> {
     let (app, repo) = app_of(&state, &user, &project, &name)?;
-    if let Some(reason) = restore_refusal(&state, &user, &project) {
+    if let Some(reason) = restore_refusal(&state, &user, &project, &app) {
         return Err(ApiError::Denied(reason));
     }
     let repo = repo.ok_or_else(|| ApiError::Conflict(NOT_ON_FORGE.into()))?;

@@ -169,11 +169,26 @@ impl Moves {
             plan.project, plan.space, plan.to, plan.by
         );
         let to = plan.to.clone();
-        self.edit(plan, &hold, move |manifest| {
-            annotations(manifest).insert(MOVING_TO.into(), to.into());
-        })
-        .await?;
+        let fresh = self
+            .edit(plan, &hold, move |manifest| {
+                annotations(manifest).insert(MOVING_TO.into(), to.into());
+            })
+            .await?;
         self.await_hold(plan).await?;
+        // A target tenant that already holds data is someone's: the copy would mix into it and
+        // a failed move would purge it. A resumed move (the hold was there) finds its own copy
+        // (F-POR4-015).
+        if fresh {
+            let before = self.digest(&plan.target, plan).await?;
+            if before.entities > 0 || before.attr_instances > 0 {
+                return Err(format!(
+                    "broker {} already holds {} entities and {} history records in this space's \
+                     tenant; nothing was copied and that data stays: empty the tenant or move \
+                     the space to another broker",
+                    plan.to, before.entities, before.attr_instances
+                ));
+            }
+        }
 
         self.set(key, |job| job.state = MoveState::Copying);
         self.copy(plan).await?;
@@ -206,6 +221,7 @@ impl Moves {
             spec(manifest).insert("brokerRef".into(), to.into());
         })
         .await
+        .map(|_| ())
     }
 
     /// Releases the hold and purges a target that took the copy; answers `reason` with what
@@ -234,13 +250,13 @@ impl Moves {
     }
 
     /// Edits the space's manifest on the default branch as the Portal; no commit when nothing
-    /// changed, so a resumed move does not commit its hold twice.
+    /// changed, so a resumed move does not commit its hold twice. `true` when it committed.
     async fn edit(
         &self,
         plan: &Plan,
         message: &str,
         change: impl FnOnce(&mut serde_norway::Mapping),
-    ) -> Result<(), String> {
+    ) -> Result<bool, String> {
         let failed =
             |err: crate::git::GitError| format!("the repository refused the commit: {err}");
         let branch = plan.forge.default_branch().await.map_err(failed)?;
@@ -260,7 +276,7 @@ impl Moves {
         let before = manifest.clone();
         change(&mut manifest);
         if manifest == before {
-            return Ok(());
+            return Ok(false);
         }
         let content = serde_norway::to_string(&manifest).map_err(|err| err.to_string())?;
         plan.forge
@@ -276,7 +292,7 @@ impl Moves {
                 },
             })
             .await
-            .map(|_| ())
+            .map(|_| true)
             .map_err(failed)
     }
 

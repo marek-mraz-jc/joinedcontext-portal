@@ -357,6 +357,7 @@ async fn checked(
         token,
         endpoints,
         &needs,
+        &crate::agents::held::portal_reads(state, identity, project),
     )
     .await?;
     Ok((template, needs))

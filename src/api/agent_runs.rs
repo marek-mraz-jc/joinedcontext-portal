@@ -554,6 +554,7 @@ pub async fn create_run(
         caller_token(&state, &headers).as_deref(),
         &run_endpoints,
         &request.data_needs,
+        &crate::agents::held::portal_reads(&state, &user.0.identity, &project),
     )
     .await?;
 

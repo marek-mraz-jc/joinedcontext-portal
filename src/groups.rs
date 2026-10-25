@@ -128,11 +128,16 @@ pub fn for_proposal(
         .pointer("/metadata/annotations")
         .and_then(|annotations| annotations.get(APP_LABEL))
         .and_then(Value::as_str);
-    let annotated = state
-        .mirror
-        .get(ORG_NAMESPACE, "Group", name)
-        .and_then(|held| held.metadata.annotations.get(APP_LABEL).cloned());
+    let Some(held) = state.mirror.get(ORG_NAMESPACE, "Group", name) else {
+        return effective;
+    };
+    let annotated = held.metadata.annotations.get(APP_LABEL).cloned();
     if kept.is_none() || kept.map(str::to_owned) != annotated {
+        return effective;
+    }
+    // The members are what the App's steward keeps; any other change is the organization's
+    // (F-POR4-010).
+    if !only_members_differ(&held, manifest) {
         return effective;
     }
     // The App's own check, constraints and the build lane's status-only rule included.
@@ -159,6 +164,26 @@ pub fn for_proposal(
         },
     });
     effective
+}
+
+/// Whether `manifest` equals the stored Group except in `spec.members` (and `status`).
+fn only_members_differ(held: &crate::resource::ResourceEnvelope, manifest: &Value) -> bool {
+    let without_members = |value: Value| {
+        let mut value = value;
+        if let Some(object) = value.as_object_mut() {
+            object.remove("status");
+        }
+        if let Some(spec) = value.get_mut("spec").and_then(Value::as_object_mut) {
+            spec.remove("members");
+        }
+        value
+    };
+    let proposed = serde_json::from_value::<crate::resource::ResourceEnvelope>(manifest.clone())
+        .and_then(serde_json::to_value);
+    match (serde_json::to_value(held), proposed) {
+        (Ok(held), Ok(proposed)) => without_members(held) == without_members(proposed),
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -407,6 +432,10 @@ mod tests {
             true,
             &group_write("fresh-viewer", Some("doprava/board"))
         ));
+        // Anything beside the members stays the organization's (F-POR4-010).
+        let mut described = group_write("board-viewer", Some("doprava/board"));
+        described["spec"]["description"] = json!("now also the operators' group");
+        assert!(!may_propose(&steward, true, &described));
         // The grant reaches only the organization's namespace, where Groups live.
         assert!(!for_proposal(
             &steward,

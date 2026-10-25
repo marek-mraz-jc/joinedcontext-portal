@@ -347,23 +347,27 @@ pub async fn list_agent_runs_in_status(
 pub async fn update_agent_run_status(
     pool: &PgPool,
     id: &str,
+    from: &str,
     status: &str,
     error: Option<&str>,
     finished: bool,
-) -> Result<(), sqlx::Error> {
+) -> Result<bool, sqlx::Error> {
+    // Only from the status the caller judged the transition on: two racing transitions, one
+    // row changed (F-POR1-019).
     sqlx::query(
         "UPDATE agent_runs SET status = $2, error = COALESCE($3, error), \
          started_at = CASE WHEN started_at IS NULL AND $2 <> 'queued' THEN now() ELSE started_at END, \
          finished_at = CASE WHEN $4 AND finished_at IS NULL THEN now() ELSE finished_at END \
-         WHERE id = $1",
+         WHERE id = $1 AND status = $5",
     )
     .bind(id)
     .bind(status)
     .bind(error)
     .bind(finished)
+    .bind(from)
     .execute(pool)
     .await
-    .map(|_| ())
+    .map(|done| done.rows_affected() == 1)
 }
 
 /// Moves a run's lease: a run waiting for its change's approval is given the approval's lease

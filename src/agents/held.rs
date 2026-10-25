@@ -159,6 +159,23 @@ async fn access_document(
     }
 }
 
+/// The Portal's own read check of a run Endpoint for `identity`: the judge of a session that
+/// carries no token for the gateway.
+pub fn portal_reads<'a>(
+    state: &'a crate::state::AppState,
+    identity: &'a crate::auth::Identity,
+    project: &'a str,
+) -> impl Fn(&RunEndpoint) -> bool + Sync + 'a {
+    let effective = crate::permissions::for_request(state, identity, project);
+    move |endpoint| {
+        state
+            .mirror
+            .get(project, "Endpoint", &endpoint.name)
+            .and_then(|manifest| serde_json::to_value(manifest).ok())
+            .is_some_and(|manifest| effective.may_read_manifest("Endpoint", &manifest))
+    }
+}
+
 /// One client for every `/access` read, without redirects: the gateway's address is configuration.
 pub fn client() -> &'static reqwest::Client {
     static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
@@ -174,13 +191,15 @@ pub fn client() -> &'static reqwest::Client {
 /// AP-132: the run's needs checked against what the caller holds. `gateway` is the context
 /// gateway's address; an installation without one serves no data, so nothing the run could ask
 /// for is reachable and there is nothing to compare against. A session without a token (the
-/// Portal's own cookie) cannot be checked, so it may not ask for a write.
+/// Portal's own cookie) cannot be checked at the gateway, so it may not ask for a write, and its
+/// reads are judged by `may_read`, the Portal's own grants on each run Endpoint (F-POR1-004).
 pub async fn check(
     http: &reqwest::Client,
     gateway: Option<&str>,
     token: Option<&str>,
     run_endpoints: &[RunEndpoint],
     needs: &[Value],
+    may_read: &(dyn Fn(&RunEndpoint) -> bool + Sync),
 ) -> Result<(), ApiError> {
     let Some(gateway) = gateway else {
         return Ok(());
@@ -195,6 +214,22 @@ pub async fn check(
                      and sign in there (AP-132)"
                         .to_owned(),
                 ],
+            });
+        }
+        let unreadable: Vec<String> = run_endpoints
+            .iter()
+            .filter(|endpoint| !may_read(endpoint))
+            .map(|endpoint| {
+                format!(
+                    "endpoint '{}': you may not read it, so the app may not either (AP-132, PF-70)",
+                    endpoint.name
+                )
+            })
+            .collect();
+        if !unreadable.is_empty() {
+            return Err(ApiError::Invalid {
+                detail: "declared dataNeeds exceed what the caller holds (AP-44)".to_owned(),
+                errors: unreadable,
             });
         }
         return Ok(());
@@ -346,16 +381,61 @@ mod tests {
         let http = reqwest::Client::new();
         let write = [need("traffic", &["Alert"], &["updateAttrs"])];
         let read = [need("traffic", &["Alert"], &["queryEntity"])];
-        let refused = check(&http, Some("http://gw"), None, &endpoints(), &write).await;
+        let reads_all = |_: &RunEndpoint| true;
+        let refused = check(
+            &http,
+            Some("http://gw"),
+            None,
+            &endpoints(),
+            &write,
+            &reads_all,
+        )
+        .await;
         assert!(
             matches!(refused, Err(ApiError::Invalid { .. })),
             "{refused:?}"
         );
-        assert!(check(&http, Some("http://gw"), None, &endpoints(), &read)
-            .await
-            .is_ok());
-        assert!(check(&http, None, Some("t"), &endpoints(), &write)
-            .await
-            .is_ok());
+        assert!(check(
+            &http,
+            Some("http://gw"),
+            None,
+            &endpoints(),
+            &read,
+            &reads_all
+        )
+        .await
+        .is_ok());
+        assert!(
+            check(&http, None, Some("t"), &endpoints(), &write, &reads_all)
+                .await
+                .is_ok()
+        );
+    }
+
+    /// F-POR1-004: a session without a token reads only the Endpoints the Portal lets it read.
+    #[tokio::test]
+    async fn a_session_without_a_token_reads_only_endpoints_its_grants_reach() {
+        let http = reqwest::Client::new();
+        let read = [need("traffic", &["Alert"], &["queryEntity"])];
+        let only_alerts = |endpoint: &RunEndpoint| endpoint.name == "alerts";
+        let refused = check(
+            &http,
+            Some("http://gw"),
+            None,
+            &endpoints(),
+            &read,
+            &only_alerts,
+        )
+        .await;
+        match refused {
+            Err(ApiError::Invalid { errors, .. }) => {
+                assert_eq!(errors.len(), 1, "{errors:?}");
+                assert!(
+                    errors.first().is_some_and(|e| e.contains("'stations'")),
+                    "{errors:?}"
+                );
+            }
+            other => panic!("a read of an unreadable endpoint passed: {other:?}"),
+        }
     }
 }

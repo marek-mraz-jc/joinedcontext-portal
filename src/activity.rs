@@ -322,6 +322,10 @@ impl ActivityStore {
                 }
             }
             Inner::Db(pool) => {
+                // One transaction: a batch is stored whole or not at all, and the live tail
+                // hears only what was stored (F-POR1-022).
+                let db = |err: sqlx::Error| ActivityError::Db(err.to_string());
+                let mut tx = pool.begin().await.map_err(db)?;
                 for event in events {
                     sqlx::query(
                         "INSERT INTO activity (time, project, space, kind, source, summary, severity, correlation_id, details) \
@@ -336,10 +340,11 @@ impl ActivityStore {
                     .bind(&event.severity)
                     .bind(&event.correlation_id)
                     .bind(&event.details)
-                    .execute(pool)
+                    .execute(&mut *tx)
                     .await
-                    .map_err(|err| ActivityError::Db(err.to_string()))?;
+                    .map_err(db)?;
                 }
+                tx.commit().await.map_err(db)?;
             }
         }
         if let Some(hub) = &self.hub {

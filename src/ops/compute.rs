@@ -211,7 +211,10 @@ pub(super) async fn candidate(
     draft: Option<&DraftRef>,
 ) -> Result<(Value, Option<DraftRef>), OpError> {
     match (pipeline, draft) {
-        (Some(p), Some(d)) => Ok((p, Some(d.clone()))),
+        (Some(p), Some(d)) => {
+            super::proposals::same_draft(&p, d)?;
+            Ok((p, Some(d.clone())))
+        }
         (None, Some(d)) => {
             let saved = draft_store(state)
                 .get(project, &d.kind, &d.name)

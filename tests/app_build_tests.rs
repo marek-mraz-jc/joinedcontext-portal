@@ -793,3 +793,59 @@ async fn restore_refuses_a_binary_change_and_a_build_equal_to_the_default_branch
     assert!(same.text.contains("already holds"), "{}", same.text);
     assert!(dispatches(&gitea).await.is_empty());
 }
+
+/// F-POR1-005: Rebuild is judged on the App itself. A grant that proposes only the App `trams`
+/// reads `bikes` but does not rebuild or restore it.
+#[tokio::test]
+async fn a_grant_for_another_app_neither_rebuilds_nor_restores_this_one() {
+    let gitea = forge_with_a_run().await;
+    let state = state_with(&gitea, true);
+    state.mirror.upsert(envelope(
+        "Role",
+        "trams-editor",
+        ORG_NAMESPACE,
+        json!({ "rules": [
+            { "kinds": ["App"], "verbs": ["read"] },
+            { "kinds": ["App"], "verbs": ["propose"],
+              "constraints": [{ "field": "metadata.name", "in": ["trams"] }] },
+        ] }),
+    ));
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "olga-trams-editor",
+        ORG_NAMESPACE,
+        json!({
+            "subjects": [{ "user": "olga@hel.fi" }],
+            "role": "trams-editor",
+            "scope": { "project": "helsinki" },
+        }),
+    ));
+
+    let rebuild = send(
+        &state,
+        person("olga"),
+        "POST",
+        "/api/v1/projects/helsinki/apps/bikes/rebuild",
+        None,
+    )
+    .await;
+    assert_eq!(rebuild.status, StatusCode::FORBIDDEN, "{}", rebuild.text);
+    assert!(
+        dispatches(&gitea).await.is_empty(),
+        "a build of bikes was dispatched"
+    );
+    let page = send(
+        &state,
+        person("olga"),
+        "GET",
+        "/api/v1/projects/helsinki/apps/bikes/build",
+        None,
+    )
+    .await;
+    assert_eq!(page.status, StatusCode::OK, "{}", page.text);
+    assert!(
+        page.text.contains("propose on App"),
+        "Rebuild is offered: {}",
+        page.text
+    );
+}

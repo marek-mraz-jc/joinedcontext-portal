@@ -69,7 +69,10 @@ pub async fn watch(
             "type must be an NGSI-LD type name".into(),
         ));
     }
-    let receiver = state.live.watch(&project, &space, &query.entity_type);
+    let segment = crate::spaces::segment(&state.mirror, &project, &space);
+    let receiver = state
+        .live
+        .watch(&project, &space, &segment, &query.entity_type);
     // A window that fell behind misses changes rather than the stream: its next event reads again.
     let stream = BroadcastStream::new(receiver).filter_map(|item| {
         let changed = item.ok()?;

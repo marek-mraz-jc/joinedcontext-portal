@@ -275,6 +275,7 @@ async fn resolve_manifest_input(
 ) -> Result<(Value, Option<DraftRef>), OpError> {
     if let Some(d) = &input.draft {
         if let Some(m) = &input.manifest {
+            same_draft(m, d)?;
             return Ok((m.clone(), Some(d.clone())));
         }
         let draft = draft_store(state)
@@ -419,6 +420,27 @@ pub fn check_for_kind(kind: &str) -> &'static str {
 }
 
 /// The draft a manifest proposed without one is checked under: its own kind and name.
+/// Refuses an inline manifest sent with a draft of another kind or name: its check would land on
+/// that draft and replace the verdict of what the draft holds (F-POR3-020).
+pub(crate) fn same_draft(manifest: &Value, draft: &DraftRef) -> Result<(), OpError> {
+    let differs = |written: Option<&str>, named: &str| written.is_some_and(|w| w != named);
+    if differs(manifest.get("kind").and_then(Value::as_str), &draft.kind)
+        || differs(
+            manifest.pointer("/metadata/name").and_then(Value::as_str),
+            &draft.name,
+        )
+    {
+        return Err(OpError::InvalidInput {
+            path: "/draft".into(),
+            message: format!(
+                "the manifest is not the draft '{}/{}'; send the manifest alone, or the draft alone",
+                draft.kind, draft.name
+            ),
+        });
+    }
+    Ok(())
+}
+
 pub(crate) fn own_draft(manifest: &Value) -> Option<DraftRef> {
     Some(DraftRef {
         kind: manifest.get("kind")?.as_str()?.to_owned(),
@@ -1068,6 +1090,23 @@ pub(crate) fn datasource_verdict(out: &Value, manifest: &Value) -> Verdict {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// F-POR3-020: a check of manifest M is never recorded on draft D of another kind or name.
+    #[test]
+    fn an_inline_manifest_pairs_only_with_its_own_draft() {
+        let draft = DraftRef {
+            kind: "Endpoint".into(),
+            name: "air".into(),
+        };
+        let own = json!({ "kind": "Endpoint", "metadata": { "name": "air" } });
+        let other_name = json!({ "kind": "Endpoint", "metadata": { "name": "bikes" } });
+        let other_kind = json!({ "kind": "Pipeline", "metadata": { "name": "air" } });
+        assert!(same_draft(&own, &draft).is_ok());
+        assert!(
+            matches!(same_draft(&other_name, &draft), Err(OpError::InvalidInput { path, .. }) if path == "/draft")
+        );
+        assert!(same_draft(&other_kind, &draft).is_err());
+    }
 
     // ---------------------------------------------------------------------------------------------
     // T-2120 `datasource_verdict` (AG-62, PF-57, MF-39)
