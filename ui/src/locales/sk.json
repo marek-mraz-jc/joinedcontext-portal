@@ -9609,6 +9609,55 @@
       "truncated": "Uchovaných je viac správ, než je tu zobrazených.",
       "errorTitle": "Zachytené správy sa nepodarilo načítať",
       "error": "Skúste to znova o minútu."
+    },
+    "test": {
+      "open": "Otestovať správu",
+      "openHint": "Overte, čo sa stane so správou zariadenia skôr, ako ju pošle.",
+      "title": "Test správy na {broker}",
+      "description": "Skúška nanečisto: nič sa nepublikuje ani nezapíše.",
+      "noPublisher": "Žiadna rola tohto brokera nesmie publikovať. Doplňte filter publikovania do roly v manifeste brokera a otestujte znova.",
+      "account": "Účet zariadenia",
+      "topic": "Téma",
+      "payload": "Správa",
+      "hints": {
+        "account": "Účet, ktorým sa zariadenie prihlasuje, napr. cam-west; ponúkajú sa len účty rolí, ktoré smú publikovať.",
+        "topic": "Presná téma, na ktorú zariadenie publikuje, bez + a #, napr. cameras/helsinki-cam-west/frame.",
+        "payload": "Správa tak, ako ju zariadenie pošle, napr. objekt JSON s jedným meraním.",
+        "watch": "Zapnite a na zariadení spustite riadok mosquitto_pub vyššie: počas jednej minúty sa tu do pár sekúnd ukáže každé odmietnutie prihlásenia."
+      },
+      "run": "Spustiť test",
+      "failed": "Test sa nespustil; skúste to o minútu.",
+      "result": "Výsledok testu",
+      "nothingSent": "Nič sa nepublikovalo. Zariadenie sa pripája ako {client}.",
+      "outcome": {
+        "ok": "Prejde",
+        "refused": "Odmietnuté",
+        "unchecked": "Neoverené"
+      },
+      "step": {
+        "acl": "Povolená téma",
+        "size": "Veľkosť",
+        "rate": "Frekvencia",
+        "binding": "Spracuje",
+        "mapping": "Mapovanie",
+        "endpoint": "Endpoint"
+      },
+      "watch": "Sledovať skutočnú správu",
+      "connected": "{count, plural, one {Pripojené # zariadenie tohto účtu} few {Pripojené # zariadenia tohto účtu} other {Pripojených # zariadení tohto účtu}}",
+      "noRefusal": "Od zapnutia sledovania žiadne odmietnutie.",
+      "refusalsUnread": "Odmietnutia brány sa nepodarilo prečítať; dôvod je nižšie.",
+      "refusal": {
+        "no_token": "Bez tokenu: zariadenie neposlalo heslo.",
+        "expired": "Token vypršal: získajte nový.",
+        "wrong_audience": "Token bol vydaný pre iný broker.",
+        "invalid_token": "Token nepochádza z tejto platformy.",
+        "wrong_client": "Client id alebo meno nie je klient tokenu.",
+        "unknown_account": "Klient tokenu nie je účet zariadenia.",
+        "other_project": "Účet patrí inému projektu.",
+        "no_role": "Účet nemá žiadnu rolu tohto brokera.",
+        "no_subscription": "Tento odberateľ nemá čo čítať.",
+        "no_realm": "Brána nemá realm na overenie tokenov."
+      }
     }
   },
   "connect": {

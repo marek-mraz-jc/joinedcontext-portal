@@ -396,13 +396,15 @@ async fn reject(
 /// Deciding a change is a person's, and an MCP client is refused with an agent run (AG-11,
 /// owner decision T-1005): the client is a tool a model drives even when it carries the
 /// person's token, so leaving `Via::Mcp` open would let an agent approve by choosing another
-/// transport. Approving and rejecting stay in the Portal and on the REST route. The run
-/// operations keep `super::runs::refuse_agent`: they are not a change's decision.
+/// transport. A bearer token is refused too (AG-133): a ServiceAccount's or a CLI's token on
+/// `POST …/ops/jc_change_approve` is the REST route's refusal by another door. Approving and
+/// rejecting stay in a person's Portal session. The run operations keep
+/// `super::runs::refuse_agent`: they are not a change's decision.
 pub fn refuse_agent_decision(caller: &Caller) -> Result<(), OpError> {
-    if matches!(caller.via, Via::Agent | Via::Mcp) {
+    if matches!(caller.via, Via::Agent | Via::Mcp | Via::Bearer) {
         return Err(OpError::Api(ApiError::Denied(
-            "an agent never approves or rejects a change; a person does, in the Portal or over \
-             the REST route (AG-11)"
+            "an agent never approves or rejects a change, and neither does a bearer token; a \
+             person does, in the Portal (AG-11, AG-133)"
                 .into(),
         )));
     }

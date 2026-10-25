@@ -20,6 +20,16 @@
         "routes": [
           "POST /api/v1/projects/{project}/mqttbrokers/{name}/devices"
         ]
+      },
+      "test-publish": {
+        "live": {
+          "spec": "mqtt-test-publish.spec.ts",
+          "test": "a steward dry-runs a device message and reads the watch"
+        },
+        "personOnly": "the dry run serves the person holding the device while they run mosquitto_pub on it and watch the refusals arrive; an agent holds no device to test",
+        "routes": [
+          "POST /api/v1/projects/{project}/mqttbrokers/{name}/test-publish"
+        ]
       }
     },
     "session": {

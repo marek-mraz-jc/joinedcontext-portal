@@ -9609,6 +9609,55 @@
       "truncated": "More messages are kept than shown here.",
       "errorTitle": "The captured messages could not be read",
       "error": "Try again in a minute."
+    },
+    "test": {
+      "open": "Test a message",
+      "openHint": "Check what happens to a device's message before it sends one.",
+      "title": "Test a message on {broker}",
+      "description": "A dry run: nothing is published and nothing is written.",
+      "noPublisher": "No role of this broker may publish. Add a publish filter to a role in the broker's manifest, then test again.",
+      "account": "Device account",
+      "topic": "Topic",
+      "payload": "Message",
+      "hints": {
+        "account": "The account the device signs in as, e.g. cam-west; only accounts of roles that may publish are listed.",
+        "topic": "The exact topic the device publishes on, no + or #, e.g. cameras/helsinki-cam-west/frame.",
+        "payload": "The message as the device sends it, e.g. a JSON object with one reading.",
+        "watch": "Switch on, then run the mosquitto_pub line above on the device: for one minute every refusal of the broker's sign-in check shows here within seconds."
+      },
+      "run": "Run the test",
+      "failed": "The test did not run; try again in a minute.",
+      "result": "Test result",
+      "nothingSent": "Nothing was published. The device connects as {client}.",
+      "outcome": {
+        "ok": "Passes",
+        "refused": "Refused",
+        "unchecked": "Not checked"
+      },
+      "step": {
+        "acl": "Allowed topic",
+        "size": "Size",
+        "rate": "Rate",
+        "binding": "Taken by",
+        "mapping": "Mapping",
+        "endpoint": "Endpoint"
+      },
+      "watch": "Watch for the real message",
+      "connected": "{count, plural, one {# device of this account is connected} other {# devices of this account are connected}}",
+      "noRefusal": "No refusal since you switched the watch on.",
+      "refusalsUnread": "The gateway's refusals could not be read; the reason is below.",
+      "refusal": {
+        "no_token": "No token: the device sent no password.",
+        "expired": "The token has expired: fetch a new one.",
+        "wrong_audience": "The token was issued for another broker.",
+        "invalid_token": "The token is not one of this platform's.",
+        "wrong_client": "The client id or user name is not the token's client.",
+        "unknown_account": "The token's client is not a device account.",
+        "other_project": "The account belongs to another project.",
+        "no_role": "The account holds no role of this broker.",
+        "no_subscription": "There is nothing this subscriber may read.",
+        "no_realm": "The gateway has no realm to check tokens with."
+      }
     }
   },
   "connect": {
