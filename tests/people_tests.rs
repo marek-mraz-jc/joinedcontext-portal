@@ -26,6 +26,10 @@ use joinedcontext_portal::state::AppState;
 const PEOPLE: &str = "/api/v1/organization/people";
 const ADMIN: &str = "/admin/realms/hel";
 
+/// The tests reading `person_deletions` share one database: one at a time, so a reconciler step
+/// of one never finishes the other's removals.
+static DATABASE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 fn user(id: &str, email: &str) -> Value {
     json!({
         "id": id, "username": email, "email": email, "firstName": "F", "lastName": "L",
@@ -442,6 +446,11 @@ async fn a_caller_without_people_admin_is_refused_on_every_route() {
         ),
         ("POST", format!("{PEOPLE}/jana-id/sign-out"), None),
         ("DELETE", format!("{PEOPLE}/jana-id"), None),
+        (
+            "POST",
+            format!("{PEOPLE}/remove"),
+            Some(json!({ "ids": ["jana-id"] })),
+        ),
     ];
     for (verb, route, body) in routes {
         let refused = send(&state, person("jana"), verb, &route, body).await;
@@ -627,6 +636,7 @@ async fn deleting_a_person_proposes_the_change_and_deletes_them_only_after_the_m
         eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
         return;
     };
+    let _alone = DATABASE.lock().await;
     let pool = joinedcontext_portal::db::connect(&url)
         .await
         .expect("connect + migrate");
@@ -778,6 +788,261 @@ async fn a_person_nothing_names_is_deleted_at_once() {
     .await;
     assert_eq!(answer.status, StatusCode::NO_CONTENT, "{}", answer.text);
     assert_eq!(received(&kc, "DELETE", "/users/eva-id").await.len(), 1);
+}
+
+/// Mounts realm users the shared realm lacks: `eva` a member of `stewards`, two named nowhere.
+async fn colleagues(kc: &MockServer) {
+    for (id, email) in [
+        ("eva-id", "eva@hel.fi"),
+        ("ola-id", "ola@example.org"),
+        ("ivo-id", "ivo@example.org"),
+    ] {
+        Mock::given(method("GET"))
+            .and(path(format!("{ADMIN}/users/{id}")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(user(id, email)))
+            .mount(kc)
+            .await;
+    }
+}
+
+/// The `person.changed` entries a subscriber to the organization's feed has seen so far.
+fn person_changes(
+    feed: &mut tokio::sync::broadcast::Receiver<joinedcontext_portal::activity::ActivityEvent>,
+) -> Vec<Value> {
+    let mut seen = Vec::new();
+    while let Ok(event) = feed.try_recv() {
+        if event.kind == "person.changed" {
+            seen.push(event.details);
+        }
+    }
+    seen
+}
+
+/// T-5606: a bulk removal holds each person to the single route's rules before anything is
+/// written: the bound, the caller in the list, a right the caller lacks, an unknown id.
+#[tokio::test]
+async fn a_bulk_removal_holds_each_person_to_the_single_routes_rules() {
+    let (kc, gitea) = (realm(true).await, forge().await);
+    colleagues(&kc).await;
+    let state = state_with(&kc, &gitea);
+    let remove = |who: &'static str, ids: Value| {
+        let state = state.clone();
+        async move {
+            send(
+                &state,
+                person(who),
+                "POST",
+                &format!("{PEOPLE}/remove"),
+                Some(json!({ "ids": ids })),
+            )
+            .await
+        }
+    };
+
+    let too_many: Vec<String> = (0..201).map(|n| format!("p{n}-id")).collect();
+    for ids in [json!([]), json!(too_many)] {
+        let refused = remove("ada", ids).await;
+        assert_eq!(
+            refused.status,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "{}",
+            refused.text
+        );
+        assert!(refused.text.contains("1 to 200"), "{}", refused.text);
+    }
+    let refused = remove("ada", json!(["ola-id", "ada-id"])).await;
+    assert_eq!(refused.status, StatusCode::CONFLICT, "{}", refused.text);
+    assert!(refused.text.contains("yourself"), "{}", refused.text);
+
+    let refused = remove("pia", json!(["ola-id", "jana-id"])).await;
+    assert_eq!(refused.status, StatusCode::FORBIDDEN, "{}", refused.text);
+    assert!(
+        refused
+            .text
+            .contains("jana@hel.fi holds a right you do not"),
+        "names the person: {}",
+        refused.text
+    );
+
+    let refused = remove("ada", json!(["ola-id", "nobody-id"])).await;
+    assert_eq!(refused.status, StatusCode::NOT_FOUND, "{}", refused.text);
+    assert!(refused.text.contains("nobody-id"), "{}", refused.text);
+
+    let wrote = kc
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .any(|r| r.method.as_str() != "GET" && r.url.path().starts_with(ADMIN));
+    assert!(!wrote, "a refused removal changes nobody");
+}
+
+/// T-5606: people nothing in the repository names are deleted at once, one `person.changed` entry
+/// each naming the actor, and an id sent twice is one person.
+#[tokio::test]
+async fn people_nothing_names_are_removed_at_once_each_on_the_feed() {
+    let (kc, gitea) = (realm(true).await, forge().await);
+    colleagues(&kc).await;
+    let state = state_with(&kc, &gitea);
+    let mut feed = state.activity_events.subscribe(ORG_NAMESPACE).await;
+
+    let answer = send(
+        &state,
+        person("ada"),
+        "POST",
+        &format!("{PEOPLE}/remove"),
+        Some(json!({ "ids": ["ola-id", "ivo-id", "ola-id"] })),
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::NO_CONTENT, "{}", answer.text);
+    assert_eq!(received(&kc, "DELETE", "/users/ola-id").await.len(), 1);
+    assert_eq!(received(&kc, "DELETE", "/users/ivo-id").await.len(), 1);
+    let seen = person_changes(&mut feed);
+    assert_eq!(seen.len(), 2, "{seen:?}");
+    for entry in &seen {
+        assert_eq!(entry["actor"], "ada", "{entry}");
+        assert_eq!(entry["action"], "deleted", "{entry}");
+    }
+}
+
+/// T-5606: a department of people named in the repository leaves in ONE Change listing every
+/// edit, each person disabled at once and on the feed, and the merge deletes all of them. Needs a
+/// PostgreSQL (ci-full); without one it says so and checks nothing.
+#[tokio::test]
+async fn a_department_leaves_in_one_change_and_one_merge() {
+    let Some(url) = std::env::var("JC_PORTAL_TEST_DATABASE_URL")
+        .ok()
+        .filter(|u| !u.trim().is_empty())
+    else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let _alone = DATABASE.lock().await;
+    let pool = joinedcontext_portal::db::connect(&url)
+        .await
+        .expect("connect + migrate");
+    for id in ["jana-id", "eva-id", "ola-id"] {
+        joinedcontext_portal::db::remove_person_deletion(&pool, id)
+            .await
+            .expect("a clean row");
+    }
+    let (kc, gitea) = (realm(true).await, forge().await);
+    colleagues(&kc).await;
+    Mock::given(method("GET"))
+        .and(path_regex(format!("^{REPO}/contents/.+")))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({ "sha": "blob-1", "content": "" })),
+        )
+        .with_priority(5)
+        .mount(&gitea)
+        .await;
+    let state = state_with(&kc, &gitea).with_db(pool.clone());
+    let mut feed = state.activity_events.subscribe(ORG_NAMESPACE).await;
+
+    let answer = send(
+        &state,
+        person("ada"),
+        "POST",
+        &format!("{PEOPLE}/remove"),
+        Some(json!({ "ids": ["jana-id", "eva-id", "ola-id"] })),
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::ACCEPTED, "{}", answer.text);
+
+    let posted = |suffix: &'static str| {
+        let gitea = &gitea;
+        async move {
+            gitea
+                .received_requests()
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|r| {
+                    r.method.as_str() == "POST" && r.url.path() == format!("{REPO}{suffix}")
+                })
+                .filter_map(|r| serde_json::from_slice::<Value>(&r.body).ok())
+                .collect::<Vec<_>>()
+        }
+    };
+    let commits = posted("/contents").await;
+    assert_eq!(commits.len(), 1, "one commit");
+    assert_eq!(posted("/pulls").await.len(), 1, "one Change");
+    let files = commits[0]["files"].as_array().expect("files").clone();
+    let operation = |suffix: &str| {
+        files
+            .iter()
+            .find(|f| f["path"].as_str().is_some_and(|p| p.ends_with(suffix)))
+            .map(|f| f["operation"].clone())
+    };
+    assert_eq!(operation("groups/stewards.yaml"), Some(json!("upload")));
+    assert_eq!(operation("jana-alone.yaml"), Some(json!("delete")));
+    assert_eq!(files.len(), 2, "{files:?}");
+    let pulls = posted("/pulls").await;
+    let text = pulls[0].to_string();
+    assert!(text.contains("3 people"), "{text}");
+    assert!(
+        !text.contains("hel.fi"),
+        "ids only, never the e-mails: {text}"
+    );
+
+    for id in ["jana-id", "eva-id", "ola-id"] {
+        let disabled = received(&kc, "PUT", &format!("/users/{id}")).await;
+        assert_eq!(
+            serde_json::from_slice::<Value>(&disabled[0].body).expect("user")["enabled"],
+            false,
+            "{id}"
+        );
+        assert_eq!(
+            received(&kc, "POST", &format!("/users/{id}/logout"))
+                .await
+                .len(),
+            1
+        );
+        let pending = joinedcontext_portal::db::person_deletion(&pool, id)
+            .await
+            .expect("read")
+            .expect("pending");
+        assert_eq!(pending.pull_request, 9, "{id}");
+    }
+    let seen = person_changes(&mut feed);
+    assert_eq!(seen.len(), 3, "{seen:?}");
+    assert!(seen.iter().all(|e| e["actor"] == "ada"), "{seen:?}");
+
+    // A second removal naming one of them is refused while the Change is open.
+    let again = send(
+        &state,
+        person("ada"),
+        "POST",
+        &format!("{PEOPLE}/remove"),
+        Some(json!({ "ids": ["eva-id"] })),
+    )
+    .await;
+    assert_eq!(again.status, StatusCode::CONFLICT, "{}", again.text);
+    assert!(again.text.contains("eva-id"), "{}", again.text);
+
+    Mock::given(method("GET"))
+        .and(path(format!("{REPO}/pulls/9")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "number": 9, "html_url": "https://gitea.example/pulls/9", "state": "closed", "merged": true })))
+        .mount(&gitea)
+        .await;
+    let people = state.people.clone().expect("people");
+    let forge_client = state.forge_for(ORG_NAMESPACE).expect("forge");
+    joinedcontext_portal::api::people::finish_deletions(&people, &pool, &forge_client).await;
+    for id in ["jana-id", "eva-id", "ola-id"] {
+        assert_eq!(
+            received(&kc, "DELETE", &format!("/users/{id}")).await.len(),
+            1,
+            "{id}"
+        );
+    }
+    let reads = gitea
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == "GET" && r.url.path() == format!("{REPO}/pulls/9"))
+        .count();
+    assert_eq!(reads, 1, "the one Change is read once for all three");
 }
 
 /// One operation of the registry, as the assistant or an MCP client calls it (T-2732).

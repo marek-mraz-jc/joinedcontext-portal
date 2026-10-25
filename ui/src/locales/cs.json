@@ -7100,6 +7100,26 @@
           "title": "Zrušit pozvánku pro {email}?",
           "body": "Účet se smaže a odkaz přestane fungovat. Pokud člověka už jmenuje vazba, nejprve ho z ní vyjme změna."
         }
+      },
+      "bulk": {
+        "hint": "Zaškrtněte lidi, které chcete zakázat nebo odstranit najednou, např. všechny z odcházejícího oddělení.",
+        "selectAll": "Vybrat všechny na této stránce",
+        "select": "Vybrat {name}",
+        "selected": "Vybráno: {count}",
+        "disable": "Zakázat",
+        "delete": "Odstranit",
+        "clear": "Zrušit výběr",
+        "confirmDisable": {
+          "title": "Zakázat {count} lidí?",
+          "body": "Každý z nich je ihned odhlášen a nemůže se přihlásit, dokud ho administrátor znovu nepovolí."
+        },
+        "confirmDelete": {
+          "title": "Odstranit {count} lidí?",
+          "body": "Ihned se zakážou. Jedna změna je vyjme ze všech skupin a vazeb rolí; jejich účty se odstraní po jejím schválení. Lidé, které nic neuvádí, se odstraní ihned."
+        },
+        "disabled": "Zakázaných lidí: {count}.",
+        "deleted": "Odstraněných lidí: {count}.",
+        "partly": "Zakázáno {done} z {count}. Nezakázáni: {failed}."
       }
     },
     "setup": {

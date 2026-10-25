@@ -107,6 +107,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/organization/people/{id}", "jc_person_get"),
 ("PATCH", "/organization/people/{id}", "jc_person_edit"),
 ("DELETE", "/organization/people/{id}", "deleting a person is a Change that takes them out of every Group and RoleBinding, proposed by a person on the page (PF-94)"),
+("POST", "/organization/people/remove", "removing a department is one Change that takes them all out of every Group and RoleBinding, proposed by a person on the page (PF-94, T-5606)"),
 ("POST", "/organization/people/{id}/disable", "jc_person_disable"),
 ("POST", "/organization/people/{id}/enable", "jc_person_enable"),
 ("POST", "/organization/people/{id}/remove-second-factor", "removing a second factor takes away a way in; a person does it at the Portal, never a tool (PF-93, AG-11)"),

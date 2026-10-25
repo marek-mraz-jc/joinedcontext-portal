@@ -673,7 +673,7 @@ test("a municipality admin onboards 100 employees into five departments and offb
     await both(page, tally, "/organization/people/person", "moved", "steward");
   });
 
-  await lap("6 offboard the mayor's office: disable, then delete 20 people", async (tally) => {
+  await lap("6 offboard the mayor's office: disable, then delete 20 people in one Change", async (tally) => {
     const leaving = members["mayor-office"];
     const disableTimes: number[] = [];
     for (const who of leaving) {
@@ -686,20 +686,23 @@ test("a municipality admin onboards 100 employees into five departments and offb
       waitUntil: "load",
     });
     await both(page, tally, "/organization/people", "20-disabled", "steward");
+    // T-5606: the department leaves in ONE removal Change, not one per person.
     const changes: { name: string; namespace: string }[] = [];
     let immediate = 0;
-    for (const who of leaving) {
-      const answer = await page.request.delete(`/api/v1/organization/people/${who.id}`, { headers: await headers(owner) });
-      if (answer.status() === 204) {
-        immediate += 1;
-        continue;
-      }
-      expect(answer.status(), `delete ${who.email}: ${await answer.text()}`).toBe(202);
-      changes.push(changeOf(await answer.json()));
+    const removal = await page.request.post("/api/v1/organization/people/remove", {
+      headers: await headers(owner),
+      data: { ids: leaving.map((who) => who.id) },
+    });
+    if (removal.status() === 204) {
+      immediate = leaving.length;
+    } else {
+      expect(removal.status(), `remove the department: ${await removal.text()}`).toBe(202);
+      changes.push(changeOf(await removal.json()));
     }
+    expect(changes.length, "one Change for the whole department").toBeLessThanOrEqual(1);
     tally.changes += changes.length;
     await page.goto("/projects/org/approvals?lang=en", { waitUntil: "load" });
-    await both(page, tally, "/projects/org/approvals", "20-removals-open", "steward");
+    await both(page, tally, "/projects/org/approvals", "1-removal-open", "steward");
     const refused: string[] = [];
     for (const change of changes) {
       try {
