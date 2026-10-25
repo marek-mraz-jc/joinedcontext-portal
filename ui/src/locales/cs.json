@@ -1058,6 +1058,7 @@
       "tooLarge": "Soubor má {size} MB; import přečte nejvýše {limit} MB. Rozdělte ho na menší soubory nebo odstraňte sloupce, které nepotřebujete, a importujte každou část.",
       "denied": "Nic se nezapsalo: prostor {space} vaší roli nedovoluje vytvářet entity {type} ({reason}). Požádejte vlastníka projektu o Policy na tomto prostoru, která vaší roli povolí dávkové vytváření {type}, a pak soubor importujte znovu.",
       "read": "{name}: {rows, plural, one {# řádek} few {# řádky} other {# řádků}}, {columns, plural, one {# sloupec} few {# sloupce} other {# sloupců}}.",
+      "cut": "Soubor má {total} řádků; načte se jen prvních {max}. Soubor rozdělte, nebo ho přineste jako DataSource a Pipeline.",
       "mapping": "Které pole plní každý sloupec",
       "column": "Sloupec",
       "field": "Pole",

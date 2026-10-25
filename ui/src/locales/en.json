@@ -1058,6 +1058,7 @@
       "tooLarge": "The file is {size} MB; an import reads at most {limit} MB. Split it into smaller files, or remove the columns you do not need, and import each part.",
       "denied": "Nothing was written: the space {space} does not let your role create {type} entities ({reason}). Ask a project owner for a Policy on this space that grants your role batch create on {type}, then import the file again.",
       "read": "{name}: {rows, plural, one {# row} other {# rows}}, {columns, plural, one {# column} other {# columns}}.",
+      "cut": "The file holds {total} rows; only the first {max} are read. Split the file, or bring it in as a DataSource and a Pipeline.",
       "mapping": "Which field each column feeds",
       "column": "Column",
       "field": "Field",

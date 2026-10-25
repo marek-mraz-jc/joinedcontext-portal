@@ -15,6 +15,8 @@ import type { LinkmlClass, NgsiLdKind } from "../models/linkml";
 export interface Table {
   columns: string[];
   rows: Record<string, string>[];
+  /** How many rows the file holds when it holds more than MAX_ROWS, which `rows` stops at (F-UI3-011). */
+  total?: number;
   /** What the reading found and the person is shown (T-3248): absent for a format with no choice. */
   detected?: Detected;
 }
@@ -146,6 +148,14 @@ export function decodeText(bytes: Uint8Array): { text: string; encoding: "utf-8"
   }
 }
 
+/**
+ * Bytes in the encoding the whole file was read in; a slice cut inside a UTF-8 character still
+ * reads as UTF-8 rather than falling back to Windows-1250. No encoding known: as decodeText.
+ */
+export function decodeAs(bytes: Uint8Array, encoding: "utf-8" | "windows-1250" | undefined): string {
+  return encoding ? new TextDecoder(encoding).decode(bytes) : decodeText(bytes).text;
+}
+
 /** The separator of `,`, `;` and tab the header line holds most of. */
 export function separatorOf(text: string): "," | ";" | "\t" {
   const header = text.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0] ?? "";
@@ -157,6 +167,21 @@ export function separatorOf(text: string): "," | ";" | "\t" {
 const DECIMAL_COMMA = /^-?\d{1,3}(?:[ .\u00a0]?\d{3})*,\d+$/;
 const SLOVAK_DATE = /^(\d{1,2})\.\s?(\d{1,2})\.\s?(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}/;
+
+/** A number that can only be read one way: both marks, or a mark not followed by three digits. */
+const POINT_DECIMAL = /^-?(?:\d{1,3}(?:,\d{3})+\.\d+|\d+\.(?:\d{1,2}|\d{4,}))$/;
+const COMMA_DECIMAL = /^-?(?:\d{1,3}(?:\.\d{3})+,\d+|\d+,(?:\d{1,2}|\d{4,}))$/;
+
+/**
+ * The decimal mark the file's numbers show beyond doubt, or `undefined` when they show none or
+ * both. ponytail: one mark per file, not per column; a file mixing them keeps the old reading.
+ */
+export function decimalMarkOf(table: Table): "." | "," | undefined {
+  const cells = table.rows.slice(0, 200).flatMap((row) => Object.values(row).map((cell) => cell.replace(/[\s\u00a0]/g, "")));
+  const point = cells.some((cell) => POINT_DECIMAL.test(cell));
+  const comma = cells.some((cell) => COMMA_DECIMAL.test(cell));
+  return point === comma ? undefined : point ? "." : ",";
+}
 
 /** How the table writes its numbers and dates, read from its first rows. */
 export function detectedOf(table: Table): Detected {
@@ -176,8 +201,12 @@ export function detectedOf(table: Table): Detected {
  * mark a space or a dot) as well as `1,234.5` and `4.5`. When both marks occur, the last one is the
  * decimal mark; a lone comma before digits is one.
  */
-export function numberOf(text: string): number {
+export function numberOf(text: string, mark?: "." | ","): number {
   const bare = text.replace(/[\s\u00a0]/g, "");
+  // The file's own decimal mark, where it showed one beyond doubt: `1,234` in a file that writes
+  // `4.5` is a thousand and more, never 1.234 (F-UI3-012).
+  if (mark === ".") return bare === "" ? Number.NaN : Number(bare.replace(/,/g, ""));
+  if (mark === ",") return bare === "" ? Number.NaN : Number(bare.replace(/\./g, "").replace(",", "."));
   const comma = bare.lastIndexOf(",");
   const dot = bare.lastIndexOf(".");
   const plain =
@@ -239,6 +268,11 @@ export function parseCsv(text: string): Table {
   return fromRecords(records.filter((r) => r.some((cell) => cell.trim() !== "")));
 }
 
+/** The file's row count when the table stops short of it, so the wizard can say so. */
+function cutAt(total: number): { total?: number } {
+  return total > MAX_ROWS ? { total } : {};
+}
+
 /** A header record and the records under it, as a table; a column without a name is `column N`. */
 function fromRecords(records: string[][]): Table {
   const [head, ...rest] = records;
@@ -247,7 +281,7 @@ function fromRecords(records: string[][]): Table {
   const rows = rest.slice(0, MAX_ROWS).map((record) =>
     Object.fromEntries(columns.map((column, at) => [column, (record[at] ?? "").trim()])),
   );
-  return { columns, rows };
+  return { columns, rows, ...cutAt(rest.length) };
 }
 
 /**
@@ -281,7 +315,7 @@ export function parseJson(text: string): Table {
   const rows = objects.slice(0, MAX_ROWS).map((item) =>
     Object.fromEntries(columns.map((column) => [column, textOf(item[column])])),
   );
-  return { columns, rows };
+  return { columns, rows, ...cutAt(objects.length) };
 }
 
 function textOf(value: unknown): string {
@@ -311,6 +345,7 @@ export function parseXml(text: string): Table {
   return {
     columns,
     rows: objects.slice(0, MAX_ROWS).map((item) => Object.fromEntries(columns.map((c) => [c, item[c] ?? ""]))),
+    ...cutAt(objects.length),
   };
 }
 
@@ -490,7 +525,7 @@ const NUMBER = new Set(["float", "double", "decimal", "number"]);
 const DATE = new Set(["date", "datetime", "time"]);
 
 /** One value as its slot's range takes it, or why it cannot be. */
-function valueOf(text: string, slot: ImportSlot): unknown | Error {
+function valueOf(text: string, slot: ImportSlot, mark?: "." | ","): unknown | Error {
   if (slot.kind === "JsonProperty" || slot.kind === "ListProperty") {
     try {
       const value: unknown = JSON.parse(text);
@@ -533,7 +568,7 @@ function valueOf(text: string, slot: ImportSlot): unknown | Error {
     return text;
   }
   if (INTEGER.has(range) || NUMBER.has(range)) {
-    const number = numberOf(text);
+    const number = numberOf(text, mark);
     if (!Number.isFinite(number) || (INTEGER.has(range) && !Number.isInteger(number))) {
       return new Error(`${slot.name}: \`${text}\` is not ${INTEGER.has(range) ? "a whole number" : "a number"}`);
     }
@@ -587,6 +622,7 @@ export function toEntities(
   const idColumn = Object.keys(mapping).find((column) => mapping[column] === ID);
   const bySlot = new Map(slots.map((slot) => [slot.name, slot]));
   const seen = new Set<string>();
+  const mark = decimalMarkOf(table);
   table.rows.forEach((record, at) => {
     const row = at + 2;
     const id = idOf(idColumn ? (record[idColumn] ?? "") : "", target, freshId());
@@ -606,7 +642,7 @@ export function toEntities(
       const slot = bySlot.get(slotName);
       const text = (record[column] ?? "").trim();
       if (!slot || text === "") continue;
-      const value = valueOf(text, slot);
+      const value = valueOf(text, slot, mark);
       if (value instanceof Error) {
         problems.push(value.message);
         refusedSlots.add(slot.name);
@@ -630,8 +666,8 @@ export function toEntities(
     const lonColumn = Object.keys(mapping).find((column) => mapping[column] === LONGITUDE);
     const geoSlot = slots.find((slot) => slot.name === "location" && slot.kind === "GeoProperty") ?? slots.find((slot) => slot.kind === "GeoProperty");
     if (latColumn && lonColumn && geoSlot) {
-      const lat = numberOf((record[latColumn] ?? "").trim());
-      const lon = numberOf((record[lonColumn] ?? "").trim());
+      const lat = numberOf((record[latColumn] ?? "").trim(), mark);
+      const lon = numberOf((record[lonColumn] ?? "").trim(), mark);
       if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
         entity[geoSlot.name] = { type: "GeoProperty", value: { type: "Point", coordinates: [lon, lat] } };
       } else if ((record[latColumn] ?? "").trim() !== "" || (record[lonColumn] ?? "").trim() !== "") {

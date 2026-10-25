@@ -1058,6 +1058,7 @@
       "tooLarge": "Die Datei hat {size} MB; ein Import liest höchstens {limit} MB. Teilen Sie sie in kleinere Dateien auf oder entfernen Sie nicht benötigte Spalten und importieren Sie jeden Teil.",
       "denied": "Nichts wurde geschrieben: Der Raum {space} erlaubt Ihrer Rolle nicht, {type}-Entitäten anzulegen ({reason}). Bitten Sie einen Projektverantwortlichen um eine Policy auf diesem Raum, die Ihrer Rolle das Anlegen von {type} im Stapel erlaubt, und importieren Sie die Datei dann erneut.",
       "read": "{name}: {rows, plural, one {# Zeile} other {# Zeilen}}, {columns, plural, one {# Spalte} other {# Spalten}}.",
+      "cut": "Die Datei hat {total} Zeilen; nur die ersten {max} werden gelesen. Teilen Sie die Datei oder bringen Sie sie als DataSource und Pipeline ein.",
       "mapping": "Welches Feld jede Spalte füllt",
       "column": "Spalte",
       "field": "Feld",
