@@ -84,6 +84,8 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/organization/brokers", "a summary for the Brokers page: each broker's health and the counts of the spaces jc_resource_get already reaches; it writes nothing (T-3990, API/01 §43)"),
 ("GET", "/projects/{project}/mqttbrokers/{name}/bindings", "a join for the broker card of the DataSource, Pipeline and Endpoint manifests jc_resource_get already reaches, each hop as the caller may read it; it writes nothing (T-5533, API/01 §47)"),
 ("GET", "/projects/{project}/mqtt/allowance", "a sum for the MQTT page of the Organization and Project manifests and the MqttBrokers jc_resource_get already reaches; it writes nothing (T-4859, API/01 §47)"),
+("GET", "/projects/{project}/mqttbrokers/{name}/devices", "the Add device form's role and topic options for the brokers page; it writes nothing and an agent reads the broker with jc_resource_get (T-5532)"),
+("POST", "/projects/{project}/mqttbrokers/{name}/devices", "a person adds a device whose key pair the browser made; an agent proposes the ServiceAccount and the MqttBroker with jc_resource_propose (T-5532)"),
 ("GET", "/projects/{project}/mqttbrokers/{name}/captured", "a capture broker's kept messages for the stewards' mapping design; payloads may hold personal data, so no agent tool reads them (ADR-N-048 §2.10, T-4880)"),
 ("DELETE", "/projects/{project}/mqttbrokers/{name}/captured", "a steward deletes a capture at once; no agent tool deletes what a person may need to see first (T-4880)"),
 ("GET", "/projects/{project}/mqttbrokers/{name}/measured", "what an MQTT broker measures, read from its own HTTP API for the brokers page; it writes nothing and an agent reads the broker with jc_resource_get (T-4043, API/01 §44)"),
