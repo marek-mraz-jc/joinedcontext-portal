@@ -351,6 +351,7 @@
         "Button": 2
       },
       "tests": [
+        "count_scope.test.tsx",
         "grid_sort_group.test.tsx",
         "grid_toolbar.test.tsx"
       ]
@@ -361,6 +362,7 @@
         "Checkbox": 1
       },
       "tests": [
+        "count_scope.test.tsx",
         "grid_toolbar.test.tsx",
         "view_options.test.tsx"
       ]
@@ -855,7 +857,8 @@
         "Button": 5
       },
       "tests": [
-        "form_role_bindings.test.tsx"
+        "form_role_bindings.test.tsx",
+        "project_organization.test.tsx"
       ]
     },
     "src/pages/access/Roles.tsx": {
@@ -2056,7 +2059,8 @@
       },
       "tests": [
         "form_errors_after_touch.test.tsx",
-        "page_sync_sources_page.test.tsx"
+        "page_sync_sources_page.test.tsx",
+        "sync_source_round_trip.test.ts"
       ]
     },
     "src/pages/workspaces/BringBackPage.tsx": {
