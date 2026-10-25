@@ -22,7 +22,7 @@ import { expect, test } from "@playwright/test";
 import type { Browser, BrowserContext, Page, Response } from "@playwright/test";
 import { DATA_WAIT_S, WIDTHS, firstViewItems, summaryOf } from "../../scripts/app-probe";
 import type { Layout, Observation } from "../../scripts/app-probe";
-import { PROBE, signIn } from "./portal";
+import { PROBE, journeyMarkerOnPortalOnly, signIn } from "./portal";
 
 const OUT = process.env.APP_PROBE_OUT ?? "test-results/app-probe/summary.json";
 const ROWS = /\/api\/endpoint\/[^/?#]+\/ngsi-ld\/v1\/(temporal\/)?entities(?:[?#]|$)/;
@@ -87,7 +87,8 @@ async function layOut(page: Page): Promise<{ layout: Layout[]; items: number }> 
 }
 
 async function anonymousVisit(browser: Browser, address: string, isPublic: boolean): Promise<Observation["anonymous"]> {
-  const context = await browser.newContext();
+  // A stranger sends no journey marker: the live config's would preflight every cross-origin read.
+  const context = await browser.newContext({ extraHTTPHeaders: {} });
   try {
     const page = await context.newPage();
     let status = 0;
@@ -149,6 +150,9 @@ async function probe(browser: Browser, context: BrowserContext, page: Page, proj
 test("every published App opens, reads data and keeps strangers out (AP-136)", async ({ browser }) => {
   const observations: Observation[] = [];
   const { context, page } = await signIn(browser, PROBE, "/?lang=en");
+  // An App on *.apps.{domain} reads the Portal's basemap style cross-origin; the marker on it forced
+  // a CORS preflight no person's browser sends, and 15 Apps were filed with a blank map (T-5416).
+  await journeyMarkerOnPortalOnly(context, new URL(page.url()).host);
   try {
     const projects = await page.request.get("/api/v1/projects");
     expect(projects.ok(), "the probe lists the projects").toBe(true);
