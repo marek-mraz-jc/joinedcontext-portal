@@ -424,6 +424,7 @@ mod tests {
             name: None,
             roles: Vec::new(),
             groups: Vec::new(),
+            second_factor: false,
         };
         assert!(saved_source(&state, &who("dev@hel.fi"), "oulu", "aq").is_ok());
         assert!(matches!(

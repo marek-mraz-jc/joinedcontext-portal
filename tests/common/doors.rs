@@ -45,6 +45,7 @@ pub fn member(username: &str, group: &str) -> Identity {
         name: Some(username.to_owned()),
         roles: Vec::new(),
         groups: vec![group.to_owned()],
+        second_factor: false,
     }
 }
 

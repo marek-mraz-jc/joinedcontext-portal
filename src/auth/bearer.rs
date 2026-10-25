@@ -20,7 +20,7 @@ use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use serde::Deserialize;
 use url::Url;
 
-use crate::auth::session::{Identity, Session};
+use crate::auth::session::{proves_second_factor, Identity, Session};
 use crate::error::ApiError;
 
 /// The signature algorithms the realm uses: ES256 for every client (TR-03187 AR-11) and RS256
@@ -68,6 +68,10 @@ struct Claims {
     /// Client roles by client id, as Keycloak's `roles` scope writes them.
     #[serde(default)]
     resource_access: HashMap<String, RealmAccess>,
+    /// Authentication context and methods, which say whether a second factor was given (T-5567).
+    acr: Option<String>,
+    #[serde(default)]
+    amr: serde_json::Value,
 }
 
 #[derive(Default, Deserialize)]
@@ -241,9 +245,11 @@ fn session_of(c: Claims) -> (Session, Option<String>) {
         .preferred_username
         .or(c.azp)
         .unwrap_or_else(|| c.sub.clone());
+    let second_factor = proves_second_factor(c.acr.as_deref(), &c.amr);
     let session = Session {
         identity: Identity {
             client: client.clone(),
+            second_factor,
             subject: c.sub,
             username,
             email: c.email,

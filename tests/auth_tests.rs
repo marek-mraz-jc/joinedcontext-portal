@@ -164,6 +164,25 @@ mod keys {
         encode(&header, &claims, key).expect("a signed token")
     }
 
+    /// An RS256 access token of the `edge` login carrying `extra` claims (`acr`, `amr`).
+    pub fn token_with(issuer: &str, username: &str, extra: Value) -> String {
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some("realm-rs256".into());
+        let mut claims = json!({
+            "iss": issuer,
+            "aud": "joinedcontext-portal",
+            "sub": format!("f:1:{username}"),
+            "preferred_username": username,
+            "exp": now() + 300,
+            "iat": now(),
+            "azp": "edge",
+        });
+        for (name, value) in extra.as_object().expect("an object") {
+            claims[name] = value.clone();
+        }
+        encode(&header, &claims, &realm().rs256).expect("a signed token")
+    }
+
     /// The ID token the realm returns from the token endpoint after an authorization code, with
     /// the `nonce` the Portal parked in its flow cookie — the one claim that ties the answer to
     /// the login that was started (T-1681).
@@ -574,6 +593,43 @@ fn session_cookies_issued(access_in: i64, issued_ago: i64) -> String {
         .join("; ")
 }
 
+/// The Portal's own cookie session of `username` after a step-up login (T-5567), as the
+/// `Cookie` header a browser sends.
+fn stepped_up_cookie(username: &str, second_factor: bool) -> String {
+    use axum::response::IntoResponse;
+    use axum_extra::extract::cookie::{Key, PrivateCookieJar};
+    use joinedcontext_portal::auth::session::{now_unix, store, Identity, Session};
+
+    let now = now_unix();
+    let session = Session {
+        identity: Identity {
+            client: None,
+            subject: format!("f:1:{username}"),
+            username: username.into(),
+            email: None,
+            name: None,
+            roles: Vec::new(),
+            groups: Vec::new(),
+            second_factor,
+        },
+        expires_at: now + 3600,
+        issued_at: now - 60,
+        id_token: "opaque-id-token-for-tests".into(),
+        access_expires_at: now + 300,
+        refresh_token: None,
+    };
+    let jar = store(
+        PrivateCookieJar::new(Key::from("k".repeat(64).as_bytes())),
+        &session,
+    )
+    .expect("store");
+    set_cookie_values(&(jar, StatusCode::OK).into_response())
+        .iter()
+        .filter_map(|c| c.split(';').next().map(str::to_string))
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
 /// The `Set-Cookie` lines `session::store` writes for a session, attributes and all.
 fn stored_session(access_in: i64, issued_ago: i64) -> Vec<String> {
     use axum::response::IntoResponse;
@@ -590,6 +646,7 @@ fn stored_session(access_in: i64, issued_ago: i64) -> Vec<String> {
             name: None,
             roles: vec!["portal-viewer".into()],
             groups: Vec::new(),
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now + issued_ago,
@@ -2293,4 +2350,106 @@ async fn a_planted_unprefixed_cookie_neither_is_the_session_nor_passes_csrf() {
     };
     assert_eq!(logout("planted").await, StatusCode::FORBIDDEN);
     assert_eq!(logout("real").await, StatusCode::OK);
+}
+
+/// T-5567: a token proves a second factor by `amr` naming `otp` or by the step-up `acr`; the
+/// password alone proves none, whatever the person's rights.
+#[tokio::test]
+async fn a_token_proves_a_second_factor_only_by_otp_or_the_step_up_level() {
+    let realm = realm().await;
+    let app = app_behind(&realm, true).await;
+    let issuer = issuer_of(&realm);
+    for (extra, proves) in [
+        (json!({}), false),
+        (json!({ "acr": "1", "amr": ["pwd"] }), false),
+        (json!({ "acr": "0" }), false),
+        (json!({ "amr": "otp" }), true),
+        (json!({ "acr": "1", "amr": ["pwd", "otp"] }), true),
+        (json!({ "acr": "mfa" }), true),
+    ] {
+        let token = keys::token_with(&issuer, "demo.steward", extra.clone());
+        for front in ["x-access-token", "authorization"] {
+            let value = if front == "authorization" {
+                format!("Bearer {token}")
+            } else {
+                token.clone()
+            };
+            let (status, me) = me_with(app.clone(), &[(front, value)]).await;
+            assert_eq!(status, StatusCode::OK, "{extra} {front}: {me}");
+            assert_eq!(me["second_factor"], json!(proves), "{extra} {front}: {me}");
+        }
+    }
+}
+
+/// T-5567: the edge logs in with fixed parameters, so the step-up is the Portal's own login; its
+/// cookie proves the factor for the edge session of the same person, never of another one.
+#[tokio::test]
+async fn behind_the_edge_the_portal_s_step_up_session_proves_the_factor_of_the_same_person() {
+    let realm = realm().await;
+    let app = app_behind(&realm, true).await;
+    let token = keys::token_with(
+        &issuer_of(&realm),
+        "demo.steward",
+        json!({ "amr": ["pwd"] }),
+    );
+    for (cookie, proves) in [
+        (stepped_up_cookie("demo.steward", true), true),
+        (stepped_up_cookie("demo.steward", false), false),
+        (stepped_up_cookie("demo.editor", true), false),
+    ] {
+        let (status, me) = me_with(
+            app.clone(),
+            &[("x-access-token", token.clone()), ("cookie", cookie)],
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{me}");
+        assert_eq!(me["username"], "demo.steward", "{me}");
+        assert_eq!(me["second_factor"], json!(proves), "{me}");
+    }
+    // A bearer is a script: a cookie beside it lends it nothing.
+    let (_, me) = me_with(
+        app.clone(),
+        &[
+            ("authorization", format!("Bearer {token}")),
+            ("cookie", stepped_up_cookie("demo.steward", true)),
+        ],
+    )
+    .await;
+    assert_eq!(me["second_factor"], json!(false), "{me}");
+}
+
+/// T-5567: the step-up login asks the realm for the level its OTP subflow sets, and for the code
+/// even while the realm session lives; an ordinary login asks neither.
+#[tokio::test]
+async fn the_step_up_login_asks_the_realm_for_the_second_factor() {
+    let realm = realm().await;
+    let app = app_with_realm(&realm).await;
+    for (query, step_up) in [
+        ("?step_up=true&redirect_to=%2Fchanges", true),
+        ("?redirect_to=%2Fchanges", false),
+        ("?step_up=false", false),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/api/v1/auth/login{query}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::SEE_OTHER, "{query}");
+        let location = response.headers()[header::LOCATION].to_str().unwrap();
+        assert_eq!(
+            location.contains("acr_values=mfa"),
+            step_up,
+            "{query}: {location}"
+        );
+        assert_eq!(
+            location.contains("prompt=login"),
+            step_up,
+            "{query}: {location}"
+        );
+    }
 }

@@ -224,6 +224,14 @@
         "session_ended.test.tsx"
       ]
     },
+    "src/components/StepUpDialog.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "step_up.test.tsx"
+      ]
+    },
     "src/components/WorkOnCopyDialog.tsx": {
       "controls": {
         "Button": 3

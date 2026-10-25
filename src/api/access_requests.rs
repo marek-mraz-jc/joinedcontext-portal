@@ -111,6 +111,7 @@ async fn owned_request(
             request.space
         )));
     }
+    crate::auth::session::require_second_factor(&user.0.identity, &state.config)?;
     Ok(request)
 }
 

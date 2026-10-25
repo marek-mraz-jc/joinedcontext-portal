@@ -30,6 +30,7 @@ fn identity(email: &str, groups: &[&str]) -> Identity {
         name: None,
         roles: Vec::new(),
         groups: groups.iter().map(|g| (*g).to_owned()).collect(),
+        second_factor: false,
     }
 }
 
@@ -971,6 +972,7 @@ fn token_of(client: &str, username: &str) -> Identity {
         name: None,
         roles: Vec::new(),
         groups: Vec::new(),
+        second_factor: false,
     }
 }
 

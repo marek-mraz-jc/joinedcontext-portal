@@ -301,6 +301,7 @@ mod tests {
             name: None,
             roles: vec!["viewer".into()],
             groups: vec!["/helsinki".into(), "ilmanlaatu, ä".into()],
+            second_factor: false,
         };
         assert_eq!(
             subject(&identity, false),
