@@ -5397,6 +5397,8 @@
     "openRow": "Öffnen",
     "rowDetail": "Details",
     "rowFields": "Felder",
+    "rowCopyId": "Kennung kopieren",
+    "rowNotSet": "nicht gesetzt",
     "historyVersions": "Jede Version, mit wer sie geändert hat und warum",
     "historyVersionsRefused": "Ihre Rolle darf in diesem Bereich keine früheren Versionen lesen.",
     "historyRefused": "Ihre Rolle darf aktuelle Werte lesen, nicht deren Verlauf; fragen Sie eine verwaltende Person dieses Bereichs.",

@@ -5397,6 +5397,8 @@
     "openRow": "Otvoriť",
     "rowDetail": "Podrobnosti",
     "rowFields": "Polia",
+    "rowCopyId": "Kopírovať identifikátor",
+    "rowNotSet": "nenastavené",
     "historyVersions": "Každá verzia, kto ju zmenil a prečo",
     "historyVersionsRefused": "Vaša rola v tomto priestore nesmie čítať staršie verzie.",
     "historyRefused": "Vaša rola smie čítať aktuálne hodnoty, nie ich históriu; požiadajte správcu tohto priestoru.",
