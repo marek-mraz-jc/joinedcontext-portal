@@ -6804,7 +6804,8 @@
       "lastChange": "Last change",
       "notRecorded": "Not recorded",
       "changed": "{at}, proposed by {author}",
-      "changedApproved": "{at}, proposed by {author}, approved by {approver}"
+      "changedApproved": "{at}, proposed by {author}, approved by {approver}",
+      "rules": "This Policy grants through {n, plural, one {# rule} other {# rules}}, one sentence each above. The fields below hold what the rules share; change a rule's grantee, operations or entities in the YAML view."
     },
     "sentence": {
       "title": "In words",

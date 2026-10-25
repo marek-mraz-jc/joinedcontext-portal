@@ -87,3 +87,43 @@ for (const persona of ["viewer", "editor"] as const) {
     }
   });
 }
+
+const RULED = {
+  ...POLICY,
+  metadata: { name: "parking-grants", namespace: "helsinki", title: { en: "Who reads and who writes parking" } },
+  spec: {
+    contextSpaceRef: { kind: "ContextSpace", name: "helsinki" },
+    assigner: "did:web:hel.fi",
+    rules: [
+      { assignee: { kind: "role", id: "helsinki-readers" }, operations: ["retrieveOps"], information: [{ entities: [{ type: "OffStreetParking" }] }] },
+      { assignee: { kind: "group", id: "stewards" }, operations: ["updateOps"], information: [{ entities: [{ type: "OffStreetParking" }], propertyNames: ["availableSpotNumber"] }] },
+    ],
+  },
+};
+
+test("an editor reads every rule of a rules[] Policy, in the list and the summary (F-UI3-015)", async ({ page }) => {
+  mkdirSync(DIR, { recursive: true });
+  await stubApi(page, "editor");
+  await page.route(
+    (url) => url.pathname.startsWith("/api/") && (url.pathname.endsWith("/policies") || url.pathname.endsWith("/policies/parking-grants")),
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(route.request().url().endsWith("/policies") ? list([RULED]) : RULED),
+      }),
+  );
+  for (const width of [1440, 400]) {
+    await page.setViewportSize({ width, height: width === 400 ? 860 : 900 });
+    await page.goto("/projects/helsinki/policies?lang=en");
+    const row = page.getByRole("row", { name: /Who reads and who writes parking/ });
+    await expect(row).toContainText("helsinki-readers");
+    await expect(row).toContainText("stewards");
+    await page.screenshot({ path: join(DIR, `rules-policy-list-${width}.png`), fullPage: true });
+    await page.getByRole("link", { name: "Who reads and who writes parking" }).click();
+    await expect(page.getByTestId("policy-summary-rules")).toContainText("This Policy grants through 2 rules");
+    expect((await axeViolations(page)).filter((v) => /\((serious|critical)\)/.test(v))).toEqual([]);
+    await page.screenshot({ path: join(DIR, `rules-policy-summary-${width}.png`), fullPage: true });
+  }
+});
+

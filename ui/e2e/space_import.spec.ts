@@ -113,3 +113,20 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await shot(page, `import-refused-${label}`);
   });
 }
+
+for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
+  test(`import rows: a file past 10 000 rows says how many it leaves out (F-UI3-011, ${label})`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await stubApi(page);
+    await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
+    await page.locator("summary", { hasText: /^More$/ }).click();
+    await page.getByRole("button", { name: "Import rows" }).click();
+    const dialog = page.getByRole("dialog", { name: `Import rows into ${TYPE}` });
+    const csv = "name\n" + Array.from({ length: 10_005 }, (_, i) => `Place ${i}`).join("\n") + "\n";
+    await dialog.locator("input[type=file]").setInputFiles({ name: "places.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await expect(dialog.getByText(/The file holds 10,?005 rows; only the first 10,?000 are read\./)).toBeVisible();
+    expect(await axeViolations(page)).toEqual([]);
+    await shot(page, `import-truncated-${label}`);
+  });
+}
+

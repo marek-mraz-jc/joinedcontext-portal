@@ -411,8 +411,9 @@ function ImportExpiry({
 
 function RefusedList({ rejected }: { rejected: Rejected[] }): JSX.Element {
   const { t } = useTranslation();
+  // Focusable, so a keyboard reaches every refused row of a long list (WCAG 2.1.1).
   return (
-    <ul className="flex max-h-48 flex-col gap-1 overflow-y-auto text-body" aria-label={t("spaces.import.refusedList")}>
+    <ul tabIndex={0} className="focus-ring flex max-h-48 flex-col gap-1 overflow-y-auto rounded-md text-body" aria-label={t("spaces.import.refusedList")}>
       {rejected.slice(0, LISTED).map((item, at) => (
         <li key={`${item.row}-${at}`}>
           <span className="font-medium">{t("spaces.import.row", { row: item.row })}</span> {item.reason}

@@ -6804,7 +6804,8 @@
       "lastChange": "Letzte Änderung",
       "notRecorded": "Nicht erfasst",
       "changed": "{at}, vorgeschlagen von {author}",
-      "changedApproved": "{at}, vorgeschlagen von {author}, genehmigt von {approver}"
+      "changedApproved": "{at}, vorgeschlagen von {author}, genehmigt von {approver}",
+      "rules": "Diese Policy gewährt über {n, plural, one {# Regel} other {# Regeln}}, oben je ein Satz. Die Felder unten halten, was die Regeln teilen; Empfänger, Operationen oder Entitäten einer Regel ändern Sie in der YAML-Ansicht."
     },
     "sentence": {
       "title": "In Worten",

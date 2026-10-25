@@ -6804,7 +6804,8 @@
       "lastChange": "Poslední změna",
       "notRecorded": "Nezaznamenáno",
       "changed": "{at}, navrhl(a) {author}",
-      "changedApproved": "{at}, navrhl(a) {author}, schválil(a) {approver}"
+      "changedApproved": "{at}, navrhl(a) {author}, schválil(a) {approver}",
+      "rules": "Tato politika uděluje práva {n, plural, one {# pravidlem} few {# pravidly} other {# pravidly}}, každé má výše svou větu. Pole níže drží to, co mají pravidla společné; komu pravidlo uděluje práva, jaké operace a entity, změníte v zobrazení YAML."
     },
     "sentence": {
       "title": "Slovy",
