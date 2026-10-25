@@ -5,7 +5,6 @@ use super::bounds;
 use super::changes::change_schema;
 use super::drafts::DraftRef;
 use super::parse_input;
-use super::serde_error_path_and_message;
 use super::verdict_schema;
 use super::Caller;
 use super::OpError;
@@ -779,40 +778,25 @@ pub fn operations() -> Vec<Operation> {
             verb: Some(Verb::Propose),
             lane: Lane::Yellow,
             validate: |val| {
-                serde_json::from_value::<EndpointProposeInput>(val.clone())
-                    .map(|_| ())
-                    .map_err(|e| {
-                        let (path, message) = serde_error_path_and_message(&e);
-                        OpError::InvalidInput { path, message }
-                    })
+                parse_input::<EndpointProposeInput>(val.clone()).map(|_| ())
             },
             run: |caller, state, project, val| {
                 Box::pin(async move {
-                    let input: EndpointProposeInput = serde_json::from_value(val).map_err(|e| {
-                        let (path, message) = serde_error_path_and_message(&e);
-                        OpError::InvalidInput { path, message }
-                    })?;
-                    if let Some(d) = &input.draft {
-                        let draft = draft_store(state)
-                            .get(project, &d.kind, &d.name)
-                            .await
-                            .map_err(|e| OpError::Api(ApiError::Internal(e.to_string())))?
-                            .ok_or_else(|| {
-                                ApiError::NotFound(format!(
-                                    "draft '{}/{}' not found in project '{project}'",
-                                    d.kind, d.name
-                                ))
-                            })?;
-                        let warning = apply_verdict_gate(state, &draft, "jc_manifest_dry_run")?;
-                        let mut out = mutate_manifest(caller, state, project, "endpoints", draft.manifest.clone(), false, false).await?;
-                        let _ = draft_store(state).drop(project, &d.kind, &d.name).await;
-                        if warning {
-                            out["warning"] = json!("proposed without a fresh green verdict");
-                        }
-                        return Ok(out);
-                    }
-                    if let Some(manifest) = input.manifest {
-                        return propose_bare(caller, state, project, "endpoints", manifest).await;
+                    let input: EndpointProposeInput = parse_input(val)?;
+                    if input.draft.is_some() || input.manifest.is_some() {
+                        let manifest = ManifestInput {
+                            manifest: input.manifest,
+                            draft: input.draft,
+                        };
+                        return propose_with_optional_draft(
+                            caller,
+                            state,
+                            project,
+                            "endpoints",
+                            "jc_manifest_dry_run",
+                            manifest,
+                        )
+                        .await;
                     }
                     let params = share::ProposeEndpoint {
                         context_space: input.context_space.unwrap_or_default(),
@@ -855,10 +839,7 @@ pub fn operations() -> Vec<Operation> {
             verb: None,
             lane: Lane::Green,
             validate: |val| {
-                let input: ManifestInput = serde_json::from_value(val.clone()).map_err(|e| {
-                    let (path, message) = serde_error_path_and_message(&e);
-                    OpError::InvalidInput { path, message }
-                })?;
+                let input: ManifestInput = parse_input(val.clone())?;
                 if input.manifest.is_none() && input.draft.is_none() {
                     return Err(OpError::InvalidInput {
                         path: "/manifest".into(),
@@ -869,10 +850,7 @@ pub fn operations() -> Vec<Operation> {
             },
             run: |caller, state, project, val| {
                 Box::pin(async move {
-                    let input: ManifestInput = serde_json::from_value(val).map_err(|e| {
-                        let (path, message) = serde_error_path_and_message(&e);
-                        OpError::InvalidInput { path, message }
-                    })?;
+                    let input: ManifestInput = parse_input(val)?;
                     let (manifest, draft_ref) = resolve_manifest_input(state, project, &input).await?;
                     let answer = dry_run::execute_dry_run(
                         &caller.identity,

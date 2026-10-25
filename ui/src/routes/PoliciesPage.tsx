@@ -35,9 +35,7 @@ import {
 } from "../components/ui";
 import { policyRules } from "../components/endpoints/policyBinding";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
-
-/** The space a policy's manifest is filed under, the way the Portal labels every space-scoped kind. */
-const SPACE_LABEL = "joinedcontext.com/space";
+import { SPACE_LABEL } from "../schemas/modelprojection";
 
 export interface PolicyForm {
   name: string;
