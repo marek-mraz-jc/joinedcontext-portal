@@ -70,6 +70,10 @@ export const REFERENCE_PICKERS: Record<string, Record<string, Entry>> = {
   // The knowledge assistant's kinds (T-3057): a catalogue, the project's own sources and the
   // Endpoints whose MCP surface a connector reads.
   KnowledgeSource: { ckanInstanceRef: project("ckaninstances") },
+  // T-5590: a role's devices are accounts the caller's list holds; the API refuses any other name.
+  MqttBroker: {
+    "roles[].serviceAccounts[]": { "ui:widget": "resourcePicker", "ui:options": { plural: "serviceaccounts", empty: "mqttbrokers.noAccounts" } },
+  },
   AssistantDeployment: { "sources[]": project("knowledgesources"), "connectors[].endpoint": project("endpoints"), "select.types[]": TYPE },
 };
 
