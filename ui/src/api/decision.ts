@@ -64,7 +64,6 @@ export function useDecision(project: string, id: string) {
   return { approve, reject, error, pending: approve.isPending || reject.isPending };
 }
 
-/** The changes of `project` waiting for this person's decision: pending and approvable by them. */
 /** The project's change list, read once for every hook below (one query key). */
 function useChangeList(project: string) {
   return useQuery({
@@ -84,6 +83,7 @@ export function useDecisionsError(project: string): string | null {
   return list.error instanceof ApiError ? (list.error.problem?.detail ?? list.error.message) : list.error.message;
 }
 
+/** The changes of `project` waiting for this person's decision: pending and approvable by them. */
 export function useDecisions(project: string): ChangeProposal[] {
   const { identity } = useAuth();
   const permissions = usePermissions(project);

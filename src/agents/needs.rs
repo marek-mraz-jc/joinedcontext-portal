@@ -1,7 +1,6 @@
 //! Validates application generation dataNeeds against endpoint projection and user grants (AP-44).
 
 use crate::agents::endpoints::{self, RunEndpoint};
-use crate::auth::CurrentUser;
 use crate::error::ApiError;
 use crate::store::Mirror;
 
@@ -38,7 +37,6 @@ pub fn validate_data_needs(
     run_endpoints: &[RunEndpoint],
     visibility: &str,
     data_needs: &[serde_json::Value],
-    _user: &CurrentUser,
 ) -> Result<bool, ApiError> {
     if visibility == "public" {
         return Err(ApiError::BadRequest(
