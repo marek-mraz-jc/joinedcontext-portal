@@ -120,7 +120,7 @@ jobs:
           fail() { echo "SMOKE: $1"; docker logs portal | tail -40; exit 1; }
           for _ in $(seq 30); do curl -sf localhost:8080/healthz >/dev/null && break; sleep 1; done
           curl -sf localhost:8080/healthz >/dev/null || fail "/healthz not 200 after 30 s"
-          curl -sf localhost:8080/ | grep -qi '<html' || fail "/ serves no page"
+          curl -sfL localhost:8080/ | grep -qi '<html' || fail "/ serves no page"
           curl -sf localhost:8080/api/v1/version | jq -e . >/dev/null || fail "/api/v1/version not JSON"
           code=$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/api/v1/projects)
           [ "$code" = 401 ] || fail "/api/v1/projects without a token answered $code, not 401"
