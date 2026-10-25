@@ -83,4 +83,64 @@ test.describe("MQTT brokers", () => {
     await broker.selectOption({ label: "cameras · Live" });
     await expect(broker.locator("option:checked")).toHaveText("cameras · Live");
   });
+
+  // T-5590: a role's devices are picked from the project's ServiceAccounts the API lists for this
+  // person; cam-2, named by the stored broker but not declared, is never offered.
+  test("a steward adds a broker whose role picks its device from the project's accounts", async ({ page }) => {
+    await stubApi(page);
+    // A route added later answers first: this steward may create brokers here.
+    await page.route("**/api/v1/projects/helsinki/permissions/me", (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ project: PROJECT, bootstrap: true, grants: [] }) }),
+    );
+    // The form saves its shared draft as it is typed (AG-61); the draft comes back as written.
+    await page.route("**/api/v1/projects/helsinki/drafts/MqttBroker/*", async (route) => {
+      const manifest = (route.request().postDataJSON() as { manifest?: unknown } | null)?.manifest ?? null;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ project: PROJECT, kind: "MqttBroker", name: "sensors", manifest, verdict: null, touchedBy: "aino.virtanen", touchedKind: "person", version: 1, updatedAt: "2026-10-25T03:00:00Z" }),
+      });
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/projects/${PROJECT}/mqttbrokers/new?lang=en`);
+    await expect(page.getByRole("heading", { level: 1, name: "New MQTT broker" })).toBeVisible();
+    const account = page.locator("#root_roles_0_serviceAccounts_0");
+    await expect(account.locator("option")).toHaveText(["Choose…", "cam-1"]);
+    await page.locator("#root_name").fill("sensors");
+    await page.locator("#root_roles_0_name").fill("sensors");
+    await account.selectOption("cam-1");
+    await expect(account.locator("option:checked")).toHaveText("cam-1");
+    await expect(page.locator("#root_roles_0_serviceAccounts__description")).toContainText("E.g. vent-1.");
+    expect(await axeViolations(page)).toEqual([]);
+    const shots = process.env.T5590_SHOTS;
+    if (shots) {
+      for (const width of [1440, 400]) {
+        await page.setViewportSize({ width, height: width === 400 ? 860 : 900 });
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.screenshot({ path: `${shots}/mqtt-add-broker-picked-${width}.png`, fullPage: true });
+      }
+    }
+  });
+
+  test("a steward who reads no account is told where one comes from", async ({ page }) => {
+    await stubApi(page);
+    await page.route("**/api/v1/projects/helsinki/permissions/me", (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ project: PROJECT, bootstrap: true, grants: [] }) }),
+    );
+    await page.route("**/api/v1/projects/helsinki/serviceaccounts", (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ apiVersion: API, kind: "List", items: [] }) }),
+    );
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/projects/${PROJECT}/mqttbrokers/new?lang=en`);
+    const hint = page.locator("#root_roles_0_serviceAccounts_0-empty");
+    await expect(hint).toContainText("Add a device from the broker's page");
+    expect(await axeViolations(page)).toEqual([]);
+    const shots = process.env.T5590_SHOTS;
+    if (shots) {
+      for (const width of [1440, 400]) {
+        await page.setViewportSize({ width, height: width === 400 ? 860 : 900 });
+        await hint.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `${shots}/mqtt-add-broker-no-accounts-${width}.png` });
+      }
+    }
+  });
 });

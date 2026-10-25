@@ -76,3 +76,18 @@ export function asUser(typed: string): string | null {
   const email = typed.trim().toLowerCase();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
 }
+
+/**
+ * The e-mails of a pasted list, split on commas, semicolons, spaces and line breaks, each checked
+ * as `asUser` does and named once; `invalid` keeps every word that is not an e-mail, as typed.
+ */
+export function emailsIn(text: string): { emails: string[]; invalid: string[] } {
+  const emails: string[] = [];
+  const invalid: string[] = [];
+  for (const word of text.split(/[\s,;]+/).filter(Boolean)) {
+    const email = asUser(word);
+    if (email === null) invalid.push(word);
+    else if (!emails.includes(email)) emails.push(email);
+  }
+  return { emails, invalid };
+}

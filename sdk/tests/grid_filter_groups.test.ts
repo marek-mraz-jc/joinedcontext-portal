@@ -83,12 +83,38 @@ describe("AND, OR and groups", () => {
 });
 
 describe("search", () => {
-  it("asks every named attribute, case-insensitively, with the text escaped", () => {
-    expect(searchQuery("  ", ["name"])).toBeUndefined();
+  const text = (attr: string): FilterColumn => ({ key: attr, attr, kind: "text" });
+  it("asks every text attribute, case-insensitively, with the text escaped", () => {
+    expect(searchQuery("  ", [text("name")])).toBeUndefined();
     expect(searchQuery("x", [])).toBeUndefined();
-    expect(searchQuery("café", ["name"])).toBe('name~="(?i)café"');
-    expect(searchQuery('a.(b"', ["name", "description"])).toBe(
+    expect(searchQuery("café", [text("name")])).toBe('name~="(?i)café"');
+    expect(searchQuery('a.(b"', [text("name"), text("description")])).toBe(
       '(name~="(?i)a\\.\\(b\\""|description~="(?i)a\\.\\(b\\"")',
+    );
+  });
+
+  // T-5600: `name~=` compares the whole language map and matched no row on dev; `name[*]~=` does.
+  it("asks a LanguageProperty in any language", () => {
+    expect(searchQuery("Herttoniemi", [{ key: "name", attr: "name", kind: "text", language: true }, text("source")])).toBe(
+      '(name[*]~="(?i)Herttoniemi"|source~="(?i)Herttoniemi")',
+    );
+  });
+
+  it("leaves out number, date, place, enum, relationship, metadata and id columns", () => {
+    expect(searchQuery("x", [...COLUMNS, { key: "location", attr: "location", kind: "geo" }])).toBe('name~="(?i)x"');
+  });
+
+  it("asks at most eight attributes", () => {
+    const many = Array.from({ length: 10 }, (_, at) => text(`a${at}`));
+    expect(searchQuery("x", many)?.split("|")).toHaveLength(8);
+  });
+});
+
+describe("a language column in the filter panel", () => {
+  it("asks the text in any language", () => {
+    const columns: FilterColumn[] = [{ key: "name", attr: "name", kind: "text", language: true }];
+    expect(queryFromGroup(columns, { join: "and", conditions: [{ key: "name", filter: { op: "contains", value: "Sali" } }] })).toBe(
+      'name[*]~="Sali"',
     );
   });
 });

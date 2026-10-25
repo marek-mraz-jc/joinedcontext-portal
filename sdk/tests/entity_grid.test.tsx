@@ -462,7 +462,7 @@ describe("EntityGrid", () => {
     fireEvent.change(screen.getByLabelText("Value: name"), { target: { value: "zz-no-such-station" } });
     await screen.findByText(DEFAULT_LABELS.empty);
     await new Promise((settle) => setTimeout(settle, 50));
-    expect(asked).toEqual([undefined, 'name~="zz-no-such-station"']);
+    expect(asked).toEqual([undefined, 'name[*]~="zz-no-such-station"']);
     // The filter stays where the person can see and clear it.
     expect(screen.getByLabelText("Value: name")).toHaveValue("zz-no-such-station");
   });
