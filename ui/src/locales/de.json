@@ -4078,6 +4078,29 @@
       "near": "höchstens {distance} von {where}",
       "within": "innerhalb von {where}",
       "intersects": "berührend {where}"
+    },
+    "secret": {
+      "title": "Anmeldegeheimnis",
+      "hint": "Ein externes System meldet sich als Client {clientId} mit diesem Geheimnis über OAuth client_credentials an (zum Beispiel: curl -u {clientId}:<Geheimnis> -d grant_type=client_credentials <Token-URL>). Das Portal zeigt ein neues Geheimnis einmal und behält keine Kopie.",
+      "issue": "Neues Geheimnis ausstellen",
+      "confirmTitle": "Neues Geheimnis für {account} ausstellen?",
+      "confirmHelp": "Das aktuelle Geheimnis wird sofort ungültig, und die damit erhaltenen Tokens werden abgewiesen. Geben Sie das neue Geheimnis dem System, das sich als dieses Konto anmeldet, und entfernen Sie dort das alte.",
+      "onceTitle": "Kopieren Sie das Geheimnis jetzt",
+      "once": "Es wird nur dieses eine Mal angezeigt. Das Portal behält keine Kopie; geht es verloren, stellen Sie ein neues aus.",
+      "clientId": "Client-ID",
+      "secret": "Client-Geheimnis",
+      "tokenUrl": "Token-URL",
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "copyNamed": "{what} kopieren",
+      "done": "Geheimnis ausblenden",
+      "failed": "Es wurde kein Geheimnis ausgestellt. Versuchen Sie es in einer Minute erneut.",
+      "whoIssues": "Eine Person, die ServiceAccounts genehmigen darf, stellt sein Geheimnis aus.",
+      "none": {
+        "workload": "Seine Cluster-Workload meldet sich mit dem eigenen Token des Pods an, daher gibt es kein Geheimnis.",
+        "key-pair": "Es meldet sich mit einem eigenen Schlüsselpaar an und hat daher kein Geheimnis. Zum Wechsel ändern Sie den öffentlichen Schlüssel seiner Anmeldedaten.",
+        "no-credential": "Es hat noch keine oauth-client-Anmeldedaten. Bearbeiten Sie das Konto und fügen Sie welche hinzu, zum Beispiel mit dem Namen main; danach kann sein Geheimnis hier ausgestellt werden."
+      }
     }
   },
   "flows": {

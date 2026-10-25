@@ -43,6 +43,11 @@ pub struct AccountAccess {
     pub may_propose: bool,
     /// Whether the caller may revoke a grant at once (AG-132).
     pub may_revoke: bool,
+    /// Why the account has no client secret the Portal can issue, `workload`, `key-pair` or
+    /// `no-credential`, or `None` when it has one (PF-37, T-5626).
+    pub no_secret: Option<String>,
+    /// Whether the caller may issue a new secret: a Portal session with `approve` (T-5626).
+    pub may_issue_secret: bool,
 }
 
 /// Which grant to revoke: its position in `spec.roles` and its role, so a list that moved since
@@ -105,12 +110,13 @@ pub async fn account_access(
     let (env, spec) = account(&state, &project, &name)?;
     let target = as_value(&env)?;
     let may_propose = effective.check(KIND, Verb::Propose, Some(&target)).is_ok();
+    let may_approve = effective.check(KIND, Verb::Approve, Some(&target)).is_ok();
     Ok(Json(AccountAccess {
         grants: crate::permissions::account_access(&state.mirror, &spec, chrono::Utc::now()),
+        no_secret: crate::api::account_secret::no_secret(&spec).map(|(code, _)| code.to_owned()),
+        may_issue_secret: identity.client.is_none() && may_approve,
         delegates: spec.delegation.is_some(),
-        may_revoke: identity.client.is_none()
-            && may_propose
-            && effective.check(KIND, Verb::Approve, Some(&target)).is_ok(),
+        may_revoke: identity.client.is_none() && may_propose && may_approve,
         may_propose,
         account: name,
         project,
