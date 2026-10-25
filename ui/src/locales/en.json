@@ -6339,7 +6339,8 @@
         "drifted": "Drift from the repository"
       },
       "change": {
-        "merged": "Change merged"
+        "merged": "Change merged",
+        "rejected": "Change rejected"
       },
       "pipeline": {
         "throughput": "Pipeline throughput",

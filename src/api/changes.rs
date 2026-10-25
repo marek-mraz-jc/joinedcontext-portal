@@ -2165,11 +2165,7 @@ async fn say_merged(
     data: &ManifestData,
     approver: &str,
 ) {
-    let operation = match data.operation {
-        Operation::Create => "create",
-        Operation::Update => "update",
-        Operation::Delete => "delete",
-    };
+    let operation = operation_word(data.operation);
     let mut details = serde_json::json!({
         "change": id,
         "resourceKind": data.kind,
@@ -2196,6 +2192,79 @@ async fn say_merged(
     };
     if let Err(err) = state.activity.append(&[event]).await {
         tracing::warn!(change = %id, error = %err, "the merge is not on the activity feed");
+    }
+}
+
+/// How the feed names what a Change does to its resource.
+fn operation_word(operation: Operation) -> &'static str {
+    match operation {
+        Operation::Create => "create",
+        Operation::Update => "update",
+        Operation::Delete => "delete",
+    }
+}
+
+/// The longest rejection reason the activity feed keeps, in characters: the reason is free text
+/// the rejecter typed, and an event is a line on a feed, not a document (OPS-48).
+const REJECTION_REASON_CHARS: usize = 500;
+
+/// The `change.rejected` activity event of a rejection (T-5613): the feed names the change, its
+/// resource, who rejected it and why, as `change.merged` names the approver. Only kind, name and
+/// reason travel; the manifest stays on the forge.
+async fn say_rejected(
+    state: &AppState,
+    project: &str,
+    id: &str,
+    data: &ManifestData,
+    rejecter: &str,
+    reason: Option<&str>,
+) {
+    let operation = operation_word(data.operation);
+    let reason = reason
+        .map(str::trim)
+        .filter(|reason| !reason.is_empty())
+        .map(
+            |reason| match reason.char_indices().nth(REJECTION_REASON_CHARS) {
+                Some((end, _)) => format!("{}…", &reason[..end]),
+                None => reason.to_owned(),
+            },
+        );
+    let mut details = serde_json::json!({
+        "change": id,
+        "resourceKind": data.kind,
+        "name": data.name,
+        "operation": operation,
+        "rejectedBy": rejecter,
+    });
+    if let Some(ref reason) = reason {
+        details["reason"] = Value::String(reason.clone());
+    }
+    if let Some(info) = crate::resource::by_kind(&data.kind) {
+        details["object"] = Value::String(format!("{}/{}", info.plural, data.name));
+    }
+    let summary = match reason {
+        Some(reason) => format!(
+            "Change {id} rejected: {operation} {} {}, by {rejecter}: {reason}",
+            data.kind, data.name
+        ),
+        None => format!(
+            "Change {id} rejected: {operation} {} {}, by {rejecter}.",
+            data.kind, data.name
+        ),
+    };
+    let event = crate::activity::ActivityEvent {
+        time: chrono::Utc::now(),
+        project: project.to_owned(),
+        space: None,
+        kind: "change.rejected".to_owned(),
+        source: "portal".to_owned(),
+        summary,
+        severity: "info".to_owned(),
+        correlation_id: Some(id.to_owned()),
+        details,
+    };
+    if let Err(err) = state.activity.append(&[event]).await {
+        tracing::warn!(change = %id, error = %err, "the rejection is not on the activity feed");
     }
 }
 
@@ -2584,6 +2653,8 @@ pub async fn reject_change_for(
         crate::api::agent_runs::end_rejected_publication(state, project, run_id, pr_number, &why)
             .await;
     }
+
+    say_rejected(state, project, id, &data, rejecter, reason).await;
 
     let plan = plan::diff(data.base_envelope.as_ref(), data.head_envelope.as_ref());
     let lane = if data.operation == Operation::Delete {
@@ -3177,5 +3248,70 @@ mod tests {
         let change: Change = serde_json::from_slice(&body_bytes).unwrap();
         assert_eq!(change.status.phase, ChangePhase::Deploying);
         assert_eq!(change.status.lane, Lane::Red);
+    }
+
+    /// T-5613: a rejection leaves one `change.rejected` event naming the rejecter and the reason,
+    /// the reason capped at REJECTION_REASON_CHARS characters, and the summary ending in it so the
+    /// feed shows it as the reason.
+    #[tokio::test]
+    async fn a_rejection_is_one_change_rejected_event_with_who_and_why() {
+        let state = AppState::new(Config::for_tests(), None);
+        let data = ManifestData {
+            kind: "Endpoint".into(),
+            name: "public-air".into(),
+            operation: Operation::Create,
+            base_envelope: None,
+            head_envelope: None,
+        };
+        let long = "é".repeat(REJECTION_REASON_CHARS + 20);
+        say_rejected(
+            &state,
+            "ovzdusie",
+            "chg-00000004",
+            &data,
+            "eva@bb.sk",
+            Some(&long),
+        )
+        .await;
+        say_rejected(
+            &state,
+            "ovzdusie",
+            "chg-00000005",
+            &data,
+            "eva@bb.sk",
+            Some("  "),
+        )
+        .await;
+
+        let filter = crate::activity::ActivityFilter {
+            kinds: vec!["change.rejected".into()],
+            limit: 10,
+            ..Default::default()
+        };
+        let page = state
+            .activity
+            .list("ovzdusie", &filter)
+            .await
+            .expect("feed");
+        let [blank, capped] = page.items.as_slice() else {
+            panic!("two change.rejected events, got {:?}", page.items);
+        };
+        assert_eq!(capped.correlation_id.as_deref(), Some("chg-00000004"));
+        assert_eq!(capped.details["rejectedBy"], json!("eva@bb.sk"));
+        assert_eq!(capped.details["object"], json!("endpoints/public-air"));
+        let reason = capped.details["reason"].as_str().expect("a reason");
+        assert_eq!(reason.chars().count(), REJECTION_REASON_CHARS + 1);
+        assert!(reason.ends_with('…'));
+        assert_eq!(
+            capped.summary,
+            format!(
+                "Change chg-00000004 rejected: create Endpoint public-air, by eva@bb.sk: {reason}"
+            )
+        );
+        assert_eq!(blank.details.get("reason"), None);
+        assert_eq!(
+            blank.summary,
+            "Change chg-00000005 rejected: create Endpoint public-air, by eva@bb.sk."
+        );
     }
 }
