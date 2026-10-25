@@ -119,6 +119,16 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.setViewportSize({ width: 1440, height: 900 });
 }
 
+/** Every New MQTT broker on the page is closed, with the allowance's words as its description. */
+async function expectNewClosed(page: Page, reason: RegExp): Promise<void> {
+  const buttons = page.getByRole("button", { name: "New MQTT broker" });
+  await expect(buttons.first()).toHaveAttribute("aria-disabled", "true");
+  for (const button of await buttons.all()) {
+    await expect(button).toHaveAttribute("aria-disabled", "true");
+    await expect(button).toHaveAccessibleDescription(reason);
+  }
+}
+
 // The broker's address, its certificate and the device example show only under `portal.<domain>`.
 const PORTAL_HOST = "portal.dev.joinedcontext.com";
 
@@ -129,8 +139,11 @@ test.describe("MQTT allowance", () => {
 
     // Off: the steward reads who can turn it on.
     await page.goto(`/projects/${PROJECT}/mqttbrokers?lang=en`);
-    await expect(page.getByText("MQTT is off for this project")).toBeVisible();
-    await expect(page.getByText(/An organization administrator can turn it on in Administration › Projects › helsinki › MQTT\./)).toBeVisible();
+    await expect(page.getByText("MQTT is off for this project", { exact: true })).toBeVisible();
+    await expect(page.getByText(/An organization administrator can turn it on in Administration › Projects › helsinki › MQTT\./).first()).toBeVisible();
+    // No create action is offered while the allowance refuses it (T-5589).
+    await expectNewClosed(page, /^MQTT is off for this project\. An organization administrator can turn it on/);
+    await expect(page.getByText(/opens the form/)).toHaveCount(0);
     expect(await axeViolations(page)).toEqual([]);
     await shoot(page, "mqtt-off");
 
@@ -181,13 +194,18 @@ test.describe("MQTT allowance", () => {
     // At the limit the page says so, and the API's refusal names it.
     world.brokers = [...world.brokers, broker("gates", {})];
     await page.goto(`/projects/${PROJECT}/mqttbrokers?lang=en`);
-    await expect(page.getByText(/All 2 brokers are in use: a new one is refused\./)).toBeVisible();
-    await page.getByRole("button", { name: "New MQTT broker" }).first().click();
+    await expect(page.locator("[data-allowance='full']")).toContainText(/All 2 brokers are in use: a new one is refused\./);
+    await expectNewClosed(page, /^All 2 brokers are in use: a new one is refused\./);
+    await shoot(page, "mqtt-full");
+    // The form's own address still opens it, and the API's refusal stays the gate.
+    await page.goto(`/projects/${PROJECT}/mqttbrokers/new?lang=en`);
     await page.getByRole("textbox", { name: /^Name/ }).first().fill("vents");
     await page.getByRole("textbox", { name: /^Role/ }).first().fill("vents");
     await page.getByRole("textbox", { name: /Service accounts/ }).first().fill("vent-1");
     await page.getByRole("button", { name: "Check", exact: true }).click();
     await expect(page.getByText(/MQTT allowance: brokers 2 reached/)).toBeVisible();
+    // The verdict's reason is said once, not again beside the submit (T-5589).
+    await expect(page.locator("span:not(.sr-only)", { hasText: /^Run the check first/ })).toHaveCount(1);
     await shoot(page, "mqtt-refused");
   });
 });

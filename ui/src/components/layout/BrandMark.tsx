@@ -17,11 +17,11 @@ export function BrandMark({ short = false }: { short?: boolean }): JSX.Element {
   return (
     <span className="inline-flex min-w-0 items-center gap-2.5">
       {logo ? (
-        <img src={logo} alt="" aria-hidden="true" className="h-7 w-auto max-w-32 object-contain" />
+        <img src={logo} alt="" aria-hidden="true" className="h-7 w-auto max-w-32 shrink-0 object-contain" />
       ) : (
         <span
           aria-hidden="true"
-          className="inline-flex size-7 items-center justify-center rounded-md bg-primary text-caption font-bold text-primary-fg"
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-caption font-bold text-primary-fg"
         >
           {name.trim().charAt(0).toUpperCase()}
         </span>

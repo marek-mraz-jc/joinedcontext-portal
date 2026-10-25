@@ -486,7 +486,8 @@
     "action": "Edit {name}",
     "loading": "Reading {name}…",
     "unreadable": "{name} could not be read.",
-    "viewTitle": "View {name}",
+    "readOnlyBadge": "Read only",
+    "showFields": "Show the manifest fields",
     "readOnly": "Your role does not permit changing {kind} here, so this form is read only. An administrator of the project can grant it.",
     "manifest": "The manifest of {name}"
   },
@@ -1712,11 +1713,20 @@
       "policyUnbound": "Its policy reference names no policy of this space, so this endpoint grants nothing until the reference is fixed: {urn}",
       "policyAssignee": "Granted to",
       "policyGrants": "May",
-      "policyWrites": "can change data",
-      "policyReads": "reads only",
+      "grantChanges": {
+        "data": "changes data",
+        "subscriptions": "manages subscriptions",
+        "nothing": "reads only"
+      },
+      "grantDenies": "takes away",
+      "grantMayNot": "May not",
+      "grantOn": "On",
+      "grantEveryType": "every type in the space, all attributes",
+      "grantAnyType": "any type",
+      "grantOnly": "only {attributes}",
+      "grantAllAttributes": "all attributes",
+      "mayNotChange": "Your role lets you look at this endpoint, not change it or publish it as a dataset. A project steward or an administrator can give you that right.",
       "groupMembers": "Covers {count} operations",
-      "operationSingle": "one operation",
-      "operationsSingle": "{count} single operations",
       "policiesAll": "Show all {count} policies",
       "policiesFewer": "Show fewer policies",
       "policyEmpty": "This policy names no operation, so it grants nothing.",
@@ -6610,6 +6620,18 @@
       "didHint": "Type the decentralised identifier, such as did:web:example.org; there is no list of them to pick from.",
       "peopleHidden": "Only an administrator of the organization sees the list of people; type the person's e-mail as they sign in with it.",
       "noneYet": "Nothing of this kind to pick from yet ({kind}); type the name as the identity provider spells it."
+    },
+    "summary": {
+      "title": "What this Policy allows",
+      "assigner": "Assigner",
+      "validFrom": "Valid from",
+      "validTo": "Valid until",
+      "always": "Always",
+      "noEnd": "No end date",
+      "lastChange": "Last change",
+      "notRecorded": "Not recorded",
+      "changed": "{at}, proposed by {author}",
+      "changedApproved": "{at}, proposed by {author}, approved by {approver}"
     },
     "sentence": {
       "title": "In words",

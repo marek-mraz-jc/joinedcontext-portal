@@ -208,7 +208,7 @@ function UserMenu() {
         <Button
           variant="ghost"
           aria-label={t("auth.signedInAs", { name: display })}
-          className="gap-2 px-1.5"
+          className="gap-2 pointer-coarse:max-sm:px-1.5"
         >
           <span className="inline-flex size-7 items-center justify-center rounded-full bg-primary-soft text-caption font-bold text-primary-soft-fg">
             {initial}
@@ -586,8 +586,9 @@ export function Shell({
           to="/projects/$project/$plural"
           params={{ project, plural: "spaces" }}
           // On a phone the toolbar keeps its controls and the name gives way to them: the name
-          // truncates instead of pushing the menus off the side (UI-15, T-3195).
-          className="focus-ring flex min-w-0 rounded-md text-body text-fg"
+          // truncates instead of pushing the menus off the side (UI-15, T-3195), down to the
+          // finger's 44 px on a touch screen (`touch-target`, T-5596).
+          className="focus-ring touch-target flex min-w-0 pointer-coarse:min-w-11 rounded-md text-body text-fg"
         >
           <BrandMark short />
         </Link>
@@ -825,7 +826,7 @@ export function Shell({
                   {branding.organisation ? (
                     <li className="flex items-center gap-1">
                       {opensAdministration ? (
-                        <Link to="/organization/$tab" params={{ tab: "settings" }} className="focus-ring rounded-sm hover:text-fg hover:underline">
+                        <Link to="/organization/$tab" params={{ tab: "settings" }} className="focus-ring touch-target rounded-sm hover:text-fg hover:underline">
                           {branding.organisation}
                         </Link>
                       ) : (
@@ -846,7 +847,7 @@ export function Shell({
                     <Link
                       to="/projects/$project/$plural"
                       params={{ project, plural: "spaces" }}
-                      className="focus-ring rounded-sm hover:text-fg hover:underline"
+                      className="focus-ring touch-target rounded-sm hover:text-fg hover:underline"
                     >
                       {projectTitle(project)}
                     </Link>
@@ -860,7 +861,7 @@ export function Shell({
                           <Link
                             to={detail.to}
                             params={{ project }}
-                            className="focus-ring rounded-sm hover:text-fg hover:underline"
+                            className="focus-ring touch-target rounded-sm hover:text-fg hover:underline"
                           >
                             {t(activeSection.labelKey)}
                           </Link>
@@ -874,7 +875,7 @@ export function Shell({
                           <Link
                             to="/projects/$project/$plural"
                             params={{ project, plural: activeSection.plural }}
-                            className="focus-ring rounded-sm hover:text-fg hover:underline"
+                            className="focus-ring touch-target rounded-sm hover:text-fg hover:underline"
                           >
                             {t(activeSection.labelKey)}
                           </Link>
@@ -931,7 +932,7 @@ export function Shell({
               {branding.contactEmail ? (
                 <a
                   href={safeHref(`mailto:${branding.contactEmail}`)}
-                  className="focus-ring rounded-sm underline hover:text-fg hover:no-underline"
+                  className="focus-ring touch-target rounded-sm underline hover:text-fg hover:no-underline"
                 >
                   {branding.contactEmail}
                 </a>

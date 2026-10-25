@@ -486,7 +486,8 @@
     "action": "Upraviť {name}",
     "loading": "Načítava sa {name}…",
     "unreadable": "{name} sa nepodarilo načítať.",
-    "viewTitle": "Zobraziť {name}",
+    "readOnlyBadge": "Len na čítanie",
+    "showFields": "Zobraziť polia manifestu",
     "readOnly": "Vaša rola tu nedovoľuje meniť {kind}, preto je tento formulár len na čítanie. Správca projektu vám to môže udeliť.",
     "manifest": "Manifest {name}"
   },
@@ -1712,11 +1713,20 @@
       "policyUnbound": "Odkaz na politiku nepomenúva žiadnu politiku tohto priestoru, takže tento endpoint neudeľuje nič, kým sa odkaz neopraví: {urn}",
       "policyAssignee": "Udelené komu",
       "policyGrants": "Môže",
-      "policyWrites": "môže meniť dáta",
-      "policyReads": "iba číta",
+      "grantChanges": {
+        "data": "mení dáta",
+        "subscriptions": "spravuje odbery",
+        "nothing": "iba číta"
+      },
+      "grantDenies": "odoberá",
+      "grantMayNot": "Nesmie",
+      "grantOn": "Na",
+      "grantEveryType": "každý typ v priestore, všetky atribúty",
+      "grantAnyType": "ľubovoľný typ",
+      "grantOnly": "iba {attributes}",
+      "grantAllAttributes": "všetky atribúty",
+      "mayNotChange": "Vaša rola vám dovoľuje tento endpoint prezerať, nie ho meniť ani zverejniť ako dataset. Toto právo vám môže dať správca projektu alebo administrátor.",
       "groupMembers": "Pokrýva {count} operácií",
-      "operationSingle": "jedna operácia",
-      "operationsSingle": "{count} samostatných operácií",
       "policiesAll": "Zobraziť všetkých {count} politík",
       "policiesFewer": "Zobraziť menej politík",
       "policyEmpty": "Táto politika nepomenúva žiadnu operáciu, takže neudeľuje nič.",
@@ -6610,6 +6620,18 @@
       "didHint": "Napíšte decentralizovaný identifikátor, napríklad did:web:example.org; zoznam na výber neexistuje.",
       "peopleHidden": "Zoznam osôb vidí len správca organizácie; napíšte e-mail, ktorým sa osoba prihlasuje.",
       "noneYet": "Zatiaľ tu nie je nič tohto druhu na výber ({kind}); napíšte názov tak, ako ho píše poskytovateľ identity."
+    },
+    "summary": {
+      "title": "Čo táto politika povoľuje",
+      "assigner": "Zadávateľ",
+      "validFrom": "Platí od",
+      "validTo": "Platí do",
+      "always": "Vždy",
+      "noEnd": "Bez konca platnosti",
+      "lastChange": "Posledná zmena",
+      "notRecorded": "Nezaznamenané",
+      "changed": "{at}, navrhol(a) {author}",
+      "changedApproved": "{at}, navrhol(a) {author}, schválil(a) {approver}"
     },
     "sentence": {
       "title": "Slovami",

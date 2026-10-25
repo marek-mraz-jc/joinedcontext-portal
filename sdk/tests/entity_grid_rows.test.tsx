@@ -4,6 +4,8 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { useState } from "react";
 import { EntityGrid } from "../src/grid/EntityGrid";
 import { parseGridConfig } from "../src/grid/config";
@@ -68,6 +70,33 @@ describe("EntityGrid rows (T-4883)", () => {
     expect(screen.getByText("foot Bikes")).toBeInTheDocument();
     fireEvent.click(container.querySelectorAll<HTMLButtonElement>("tbody .jc-grid-expand")[1]);
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+  });
+
+  it("ticks a row from the label around its box and opens nothing (T-5596)", async () => {
+    const onSelected = vi.fn();
+    const { container } = render(<Host onSelected={onSelected} />);
+    await waitFor(() => expect(screen.getByText("Kallio")).toBeInTheDocument());
+    const box = screen.getByRole("checkbox", { name: "Select row: Kallio" });
+    const label = box.closest("label");
+    expect(label?.className).toBe("jc-grid-check");
+    expect(screen.getByRole("checkbox", { name: "Select all rows" }).closest("label")?.className).toBe("jc-grid-check");
+    // A finger lands on the label beside the box: the box ticks and the row stays closed.
+    fireEvent.click(label!);
+    expect(onSelected).toHaveBeenLastCalledWith(["urn:ngsi-ld:Station:2"]);
+    expect(container.querySelector('tr[aria-selected="true"]')).not.toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("gives the label a finger's 44 px under a coarse pointer and no box under a mouse (T-5596)", () => {
+    const css = readFileSync(join(__dirname, "../src/grid/grid.css"), "utf8");
+    // jsdom applies no media query: the stylesheet is read as the browser would match it.
+    const coarse = [...css.matchAll(/@media \(pointer: coarse\) \{([\s\S]*?)\n\}/g)].map((m) => m[1]).join("\n");
+    const rule = /\.jc-grid-check \{([^}]*)\}/.exec(coarse)?.[1] ?? "";
+    expect(rule).toMatch(/min-width: 44px/);
+    expect(rule).toMatch(/min-height: 44px/);
+    expect(coarse).toMatch(/\.jc-grid-expand \{\s*display: none;/);
+    const fine = css.replace(/@media[^{]*\{[\s\S]*?\n\}/g, "");
+    expect(/\.jc-grid-check \{([^}]*)\}/.exec(fine)?.[1]).toMatch(/display: contents/);
   });
 
   it("hands its filterable columns to the host", async () => {
