@@ -58,6 +58,7 @@ pub mod live;
 pub mod mqtt_allowance;
 pub mod mqtt_bindings;
 pub mod mqtt_captured;
+pub mod mqtt_devices;
 pub mod mqtt_measured;
 pub mod mutate;
 pub mod ops;
@@ -168,6 +169,7 @@ pub fn router() -> Router<AppState> {
         .merge(space_move::router())
         .merge(mqtt_bindings::router())
         .merge(mqtt_captured::router())
+        .merge(mqtt_devices::router())
         .merge(mqtt_measured::router())
         .merge(mqtt_allowance::router())
         .merge(workspaces::router())
