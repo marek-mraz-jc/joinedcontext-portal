@@ -62,6 +62,7 @@ pub fn app(state: AppState) -> Router {
         .merge(openapi::router())
         // The API and User Guide pages, public like the SPA shell; the edge decides who reaches them.
         .merge(crate::public_docs::router())
+        .route("/", axum::routing::get(assets::home))
         .fallback(assets::static_handler)
         // Every portal request, API or page, keeps the cookie session alive against the realm;
         // outermost of the portal's own layers so a rotated cookie reaches every response.

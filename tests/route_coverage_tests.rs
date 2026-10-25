@@ -15,6 +15,7 @@ use routes::{routes_in, routes_in_source};
 /// A route with neither fails the test below, so a new door is a decision rather than
 /// something only a browser ever knew about.
 const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
+("GET", "/", "the front door: a signed-in person gets the Portal shell, anyone else a redirect to the public catalogue; no data (T-5627, EP-81)"),
 ("GET", "/.well-known/oauth-protected-resource", "the OAuth resource metadata an MCP client reads before it authenticates"),
 ("GET", "/.well-known/oauth-protected-resource/api/v1/mcp", "the OAuth resource metadata an MCP client reads before it authenticates"),
 ("POST", "/activity", "the runner's OTLP ingest: a workload writes what happened, nobody calls it"),

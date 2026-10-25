@@ -29,8 +29,8 @@ static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
 });
 
 // ponytail: the token buckets live in one replica's memory, so N replicas allow N times the cap;
-// share them only when the Portal runs more than one pod. The client is the first
-// X-Forwarded-For hop, which the ingress rewrites for untrusted callers.
+// share them only when the Portal runs more than one pod. The client is the last
+// X-Forwarded-For hop, the address the edge appended (see `client_ip`).
 struct TokenBucket {
     tokens: f64,
     last_refill: Instant,
@@ -64,11 +64,14 @@ fn check_rate_limit(client_ip: &str) -> bool {
     }
 }
 
+/// The bucket's key: the LAST `X-Forwarded-For` entry, which APISIX appends from the peer it
+/// saw, as the gateway's `address_key` reads it. A client that sends the header itself only
+/// prepends to that value, so a fresh made-up first entry is never a fresh bucket (T-5566).
 fn client_ip(headers: &HeaderMap) -> String {
     headers
         .get("x-forwarded-for")
         .and_then(|h| h.to_str().ok())
-        .and_then(|s| s.split(',').next())
+        .and_then(|s| s.rsplit(',').next())
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "127.0.0.1".to_string())
@@ -587,4 +590,37 @@ pub fn router() -> Router<AppState> {
             "/projects/{project}/basemap/{style}/{z}/{x}/{tile}",
             get(get_tile),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn forwarded(value: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-forwarded-for",
+            HeaderValue::from_str(value).expect("header"),
+        );
+        headers
+    }
+
+    #[test]
+    fn a_forged_leftmost_forwarded_for_buys_no_new_bucket() {
+        let edge_saw = "198.51.100.77";
+        for _ in 0..600 {
+            assert!(check_rate_limit(&client_ip(&forwarded(edge_saw))));
+        }
+        for forged in ["10.9.9.1", "203.0.113.5, 10.9.9.2", "garbage"] {
+            let ip = client_ip(&forwarded(&format!("{forged}, {edge_saw}")));
+            assert_eq!(ip, edge_saw);
+            assert!(!check_rate_limit(&ip), "{forged} opened a fresh bucket");
+        }
+    }
+
+    #[test]
+    fn a_request_without_the_edge_header_shares_the_in_cluster_bucket() {
+        assert_eq!(client_ip(&HeaderMap::new()), "127.0.0.1");
+        assert_eq!(client_ip(&forwarded(" ")), "127.0.0.1");
+    }
 }

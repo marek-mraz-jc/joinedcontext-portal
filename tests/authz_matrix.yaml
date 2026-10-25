@@ -10,6 +10,10 @@
 # says which.
 roles: [anonymous, viewer, editor, steward, approver, org-admin, other-member, service-account]
 routes:
+  - route: GET /
+    rule: "public"
+    note: "the front door: the Portal shell for a signed-in person, 302 to /catalogue for anyone else, no data (T-5627)"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
   - route: GET /.well-known/oauth-protected-resource
     rule: "public"
     expect: [allow, allow, allow, allow, allow, allow, allow, allow]

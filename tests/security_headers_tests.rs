@@ -20,7 +20,7 @@ async fn page_headers() -> HeaderMap {
     let app = server::app(AppState::new(Config::for_tests(), None));
     app.oneshot(
         Request::builder()
-            .uri("/")
+            .uri("/catalogue")
             .body(Body::empty())
             .expect("request"),
     )
@@ -120,7 +120,7 @@ async fn a_page_frames_only_itself_and_the_apps_origin() {
     let response = app
         .oneshot(
             Request::builder()
-                .uri("/")
+                .uri("/catalogue")
                 .body(Body::empty())
                 .expect("request"),
         )
@@ -155,7 +155,7 @@ async fn a_page_frames_the_realm_an_app_host_signs_in_through() {
         let response = server::app(AppState::new(config, None))
             .oneshot(
                 Request::builder()
-                    .uri("/")
+                    .uri("/catalogue")
                     .body(Body::empty())
                     .expect("request"),
             )

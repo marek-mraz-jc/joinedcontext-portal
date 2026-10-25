@@ -4,6 +4,7 @@ use axum::http::{header, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use rust_embed::RustEmbed;
 
+use crate::auth::session::CurrentUser;
 use crate::error::ApiError;
 use crate::state::AppState;
 
@@ -52,6 +53,32 @@ pub async fn static_handler(State(state): State<AppState>, uri: Uri) -> Response
         None if path == "index.html" => serve_index(),
         None => embedded(path),
     }
+}
+
+/// The front door, `/` (T-5627, EP-81): a signed-in person gets the home page, a visitor without
+/// a session the public catalogue, so a citizen who types the installation's name sees its data
+/// rather than a login. The edge lets `/` through without a session for this (portal-home).
+pub async fn home(
+    user: Result<CurrentUser, ApiError>,
+    State(state): State<AppState>,
+    uri: Uri,
+) -> Response {
+    if user.is_ok() {
+        return static_handler(State(state), uri).await;
+    }
+    let target = match uri.query() {
+        Some(query) => format!("/catalogue?{query}"),
+        None => "/catalogue".to_owned(),
+    };
+    // The answer depends on the session: no cache may hand it to the next person.
+    (
+        StatusCode::FOUND,
+        [
+            (header::LOCATION, target.as_str()),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
+    )
+        .into_response()
 }
 
 fn http() -> &'static reqwest::Client {
