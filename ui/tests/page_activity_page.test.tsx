@@ -73,6 +73,28 @@ afterEach(() => {
 });
 
 describe("the Activity page", () => {
+  // T-5608: a link to `?kind=mcp.tool` opens the feed filtered to that kind; a kind this Portal
+  // does not know leaves the filter on Any rather than asking for a list nobody can read.
+  it.each([
+    ["mcp.tool", "mcp.tool"],
+    ["no.such.kind", ""],
+  ])("opens with the kind of its address, %s", async (kind, shown) => {
+    const asked: URL[] = [];
+    renderPage(<ActivityPage project={PROJECT} kind={kind} />, {
+      path: `/projects/${PROJECT}/activity?kind=${kind}`,
+      answer: (url) => {
+        if (!url.pathname.endsWith("/activity")) return undefined;
+        asked.push(url);
+        return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ActivityList", items: [] });
+      },
+    });
+    expect(await screen.findByLabelText(en.activity.filter.kind)).toHaveValue(shown);
+    await waitFor(() => expect(asked.length).toBeGreaterThan(0));
+    // The hour's summary asks for every kind; the feed asks for the one shown, never the unknown.
+    expect(asked.some((url) => (url.searchParams.get("kind") ?? "") === shown)).toBe(true);
+    expect(asked.some((url) => url.searchParams.get("kind") === "no.such.kind")).toBe(false);
+  });
+
   // UI-15: the page names itself once, to the screen and to the tab.
   it("has one H1 and names the page and the project in the tab", async () => {
     renderActivity();

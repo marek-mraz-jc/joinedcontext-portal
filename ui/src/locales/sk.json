@@ -284,6 +284,10 @@
       "title": "{count, plural, one {# žiadosť o zlúčenie vo forge nie je zmenou} few {# žiadosti o zlúčenie vo forge nie sú zmenami} other {# žiadostí o zlúčenie vo forge nie je zmenami}}",
       "item": "#{number} od {author}"
     },
+    "proposedVia": {
+      "badge": "Navrhnuté cez {client} (MCP)",
+      "hint": "Tento návrh napísal AI klient ({client}) cez MCP a {author} ho potvrdil(a). Prečítajte si, čo mení, ako pri každom inom."
+    },
     "workspace": "Z kópie",
     "fromWorkspace": "Z kópie {name}, ktorú pripravil(a) {author}, vrátené {date}: upravené mimo živého projektu a pred návrhom znova skontrolované.",
     "emptyHint": "Každá zmena tohto projektu tu čaká, kým ju človek prečíta a rozhodne. Teraz nič nečaká; podajte zmenu a objaví sa v tomto zozname.",
@@ -559,6 +563,9 @@
       "addRowTitle": "Nový záznam: {type}",
       "dataFailed": "Údaje priestoru neodpovedali",
       "dataFailedHint": "Endpoint odpovedal HTTP {status}: {detail}. Nič sa nezmenilo; skúste to znova o minútu a ak to zlyháva ďalej, povedzte to správcovi priestoru.",
+      "dataBusy": "Portál je práve zaneprázdnený; nič sa nezmenilo. Skúste to znova o minútu.",
+      "dataBusyWait": "Portál je práve zaneprázdnený; nič sa nezmenilo. Skúste to znova o {count, plural, one {# sekundu} few {# sekundy} other {# sekúnd}}.",
+      "dataBusyWaiting": "Portál požiadal o chvíľu strpenia pred ďalším čítaním.",
       "dataThroughEndpoints": "Tento priestor môžete vidieť cez jeho endpointy:",
       "dataNoTypes": "Tento priestor nepomenúva dátový model, takže nie je čo čítať.",
       "back": "← Kontextové priestory",
@@ -872,6 +879,12 @@
       "publish": "Navrhnúť verejný odkaz",
       "link": "Po zlúčení a nasadení zmeny je odkaz {url}",
       "notPublished": "Tento pohľad nie je zverejnený alebo už nie je.",
+      "heading": "Verejný pohľad na údaje",
+      "publicLead": "Otvorené údaje, ktoré si môže prečítať ktokoľvek bez prihlásenia; čo ukazujú, určuje ich vydavateľ.",
+      "closed": "Tento pohľad nie je otvorený verejnosti.",
+      "busy": "Práve je tu priveľa návštev. Skúste to znova o {seconds} s.",
+      "busyLater": "Práve je tu priveľa návštev. Skúste to znova o minútu.",
+      "down": "Služba s údajmi neodpovedala. Skúste to znova.",
       "types": "Typy",
       "first": "Prvých {count} entít.",
       "count": "{count, plural, one {# entita} few {# entity} other {# entít}}.",
@@ -1932,7 +1945,7 @@
     "playground": {
       "title": "Vyskúšať",
       "reading": "Zisťujem, čo smiete volať…",
-      "nothing": "Váš prístup vám cez tento endpoint nedovoľuje nič volať.",
+      "nothing": "Váš prístup vám cez tento endpoint nedovoľuje nič volať. Na čítanie požiadajte jeho vlastníkov v časti Požiadať o prístup nižšie.",
       "operation": "Čo čítať",
       "operations": {
         "list": "Entity typu",
@@ -2273,6 +2286,33 @@
         "policy": "Politika",
         "endpoint": "Endpoint",
         "type": "Typ"
+      }
+    },
+    "request": {
+      "section": "Požiadať o prístup",
+      "sectionLead": "Požiadajte vlastníkov priestoru tohto endpointu o čítanie jeho údajov. Oprávnenie bude len pre vás; rozhodne o ňom vlastník a odpoveď uvidíte tu.",
+      "reading": "Načítavajú sa vaše žiadosti…",
+      "retry": "Skúsiť znova",
+      "yours": "Vaše žiadosti o prístup",
+      "yourRequest": "Vaša žiadosť",
+      "approvedHint": "Schválené: oprávnenie platí po zlúčení jeho zmeny. Potom vám Vyskúšať vyššie odpovie na čítanie.",
+      "sent": "Žiadosť odoslaná. Rozhodnú o nej vlastníci priestoru; jej stav uvidíte tu.",
+      "noTypes": "Priestor tohto endpointu nemá skompilovaný dátový model, preto zatiaľ nemožno žiadať o žiadny typ. Požiadajte vlastníkov, aby ho pridali.",
+      "title": "Požiadať o čítanie",
+      "lead": "Vyberte typy, ktoré potrebujete, uveďte dôvod a nastavte koniec, ak ich potrebujete len na čas.",
+      "types": "Typy entít",
+      "until": "Do (nepovinné)",
+      "reason": "Dôvod",
+      "send": "Odoslať žiadosť",
+      "missing": {
+        "types": "Vyberte aspoň jeden typ.",
+        "until": "Vyberte neskorší deň.",
+        "reason": "Uveďte, na čo údaje potrebujete."
+      },
+      "hint": {
+        "types": "Druhy údajov, ktoré tento endpoint poskytuje a ktoré potrebujete, napr. parkovacie miesta.",
+        "until": "Posledný deň oprávnenia, napr. 2027-01-31. Prázdne znamená bez konca.",
+        "reason": "Na čo údaje potrebujete, napr. Týždenná správa o ovzduší pre okresný úrad."
       }
     }
   },
@@ -3298,9 +3338,9 @@
       "until": "Do {date}",
       "noEnd": "Bez dátumu konca",
       "decided": "{who}: {reason}",
-      "inbox": "Pipeline žiadajúce o prístup",
-      "inboxLead": "Pipeline iných priestorov a projektov, ktoré žiadajú čítať alebo zapisovať do tohto priestoru. Schválenie navrhne prístup ako zmenu tohto projektu.",
-      "inboxEmpty": "Žiadna pipeline nežiadala o prístup k tomuto priestoru.",
+      "inbox": "Žiadosti o prístup",
+      "inboxLead": "Ľudia, ktorí žiadajú čítať endpoint tohto priestoru, a pipeline iných priestorov, ktoré žiadajú čítať alebo zapisovať tento priestor. Schválenie navrhne oprávnenie ako zmenu tohto projektu; túto zmenu schváli iná osoba.",
+      "inboxEmpty": "O prístup k tomuto priestoru zatiaľ nikto nepožiadal.",
       "on": "na {endpoint}, žiada {who}",
       "decisionReason": "Dôvod pre žiadateľa",
       "approve": "Schváliť",
@@ -3322,7 +3362,8 @@
       "noTypes": "Priestor endpointu nemá skompilovaný dátový model, takže zatiaľ nemožno žiadať o typ. Požiadajte vlastníkov, aby ho pridali.",
       "endpointFirst": "Najprv vyberte endpoint.",
       "noAttrs": "Model nedeklaruje žiadny atribút typu {type}.",
-      "typeFirst": "Najprv vyberte typ entity."
+      "typeFirst": "Najprv vyberte typ entity.",
+      "allAttrs": "všetky atribúty"
     },
     "map": {
       "views": "Zobrazenia pipeline",
@@ -3763,7 +3804,11 @@
       "unconstrained": "bez obmedzenia",
       "prohibitions": "Výslovne zakázané",
       "forbidden": "Tento endpoint vám neodpovedá; prihláste sa účtom, ktorý má oprávnenie.",
-      "unavailable": "Dokument o prístupe sa nepodarilo prečítať. Skúste to o chvíľu znova."
+      "unavailable": "Dokument o prístupe sa nepodarilo prečítať. Skúste to o chvíľu znova.",
+      "source": "Odkiaľ",
+      "grants": "{count, plural, one {# oprávnenie} few {# oprávnenia} other {# oprávnení}}",
+      "noSource": "oprávnenie tohto priestoru",
+      "noSourceHint": "Tomuto oprávneniu nezodpovedá žiadna politika, ktorú smiete čítať."
     },
     "panel": {
       "title": "Váš prístup",
@@ -4020,6 +4065,19 @@
       "nothing": "Zatiaľ nič nepovolené",
       "endpointRole": "Každý volajúci endpointu {endpoint}",
       "endpointTier": "Rola aplikácie {tier} na endpointe {endpoint}"
+    },
+    "constraint": {
+      "back": "história najviac {duration} dozadu",
+      "older": "história staršia ako {duration}",
+      "since": "história od {at}",
+      "until": "história pred {at}",
+      "between": "história od {from} do {to}",
+      "scopeBelow": "v rámci rozsahu {scope} a všetkého pod ním",
+      "point": "bodu {lat}, {lon}",
+      "area": "nakreslenej oblasti",
+      "near": "do {distance} od {where}",
+      "within": "vnútri {where}",
+      "intersects": "dotýkajúce sa {where}"
     }
   },
   "flows": {
@@ -4944,7 +5002,19 @@
       "createTitle": "Vytvoriť zo šablóny {title}",
       "createHint": "Zvoľte endpoint, ktorého dáta aplikácia ukazuje; zvyšok je zo šablóny.",
       "screenshot": "{title}, ako ju ukazuje ukážka",
-      "demo": "Otvoriť ukážku"
+      "demo": "Otvoriť ukážku",
+      "useAsIs": "Použiť bez úprav",
+      "modelOut": "Generovanie nie je dostupné: kľúč modelu Portálu je odmietnutý alebo bez kreditu, takže tvorca aplikácií neodpovie, kým ho administrátor nevymení alebo nedobije. Použiť bez úprav funguje aj tak: aplikáciu založí zo šablóny bez zmien a model sa nepýta.",
+      "modelOutShort": "Tvorca aplikácií neodpovedá: kľúč modelu je odmietnutý alebo bez kreditu. Použite radšej Použiť bez úprav.",
+      "useTitle": "Použiť {title} bez úprav",
+      "useHint": "Šablóna sa bez zmien uloží do vlastného repozitára a aplikácia sa navrhne na schválenie; model sa nepýta.",
+      "useLead": "Pomenujte aplikáciu a zvoľte endpoint, ktorý číta. Po schválení sa zostaví v repozitári a otvorí sa ako každá iná aplikácia.",
+      "name": "Názov aplikácie",
+      "nameHint": "Malé písmená, číslice a pomlčky, napríklad bike-finder. Pomenuje aplikáciu aj jej repozitár.",
+      "endpointHint": "Zobrazujú sa len endpointy, ktoré smiete čítať; aplikácia ukazuje dáta zvoleného endpointu.",
+      "noEndpoints": "V tomto projekte zatiaľ nie je endpoint, ktorý smiete čítať. Požiadajte správcu, aby ho vytvoril alebo vám ho sprístupnil.",
+      "chooseFirst": "Najprv zadajte názov a zvoľte endpoint.",
+      "useSubmit": "Vytvoriť aplikáciu"
     },
     "jobs": {
       "title": "Plánované úlohy",
@@ -5507,12 +5577,9 @@
     "endpoint": "Čítať cez endpoint",
     "noEndpoint": "Tento priestor nemá endpoint, cez ktorý sa dá čítať.",
     "noType": "Vyberte typ entity, aby sa načítali entity.",
-    "detail": "Entita",
-    "close": "Zavrieť",
     "loadFailed": "Entity sa nepodarilo načítať. Skúste to znova alebo čítajte cez iný endpoint.",
     "delete": "Zmazať entitu",
     "removeTitle": "Zmazať túto entitu?",
-    "removeLead": "{id} sa odstráni z priestoru cez tento endpoint.",
     "removeConfirm": "Zmazať",
     "removeNote": "Rozhoduje Policy endpointu: zmazanie beží s vaším prihlásením, nie so servisnou identitou, a nedá sa vrátiť.",
     "removeReason": "Dôvod",
@@ -5630,7 +5697,9 @@
       "pickEntity": "Vyberte entitu, ktorej priebeh sa má zobraziť."
     },
     "pickSpaceFirst": "Najprv vyberte priestor.",
-    "noMatch": "Dopytu nič nezodpovedá; zmeňte alebo odstráňte filter."
+    "noMatch": "Dopytu nič nezodpovedá; zmeňte alebo odstráňte filter.",
+    "technical": "Technické podrobnosti (JSON-LD)",
+    "copyJson": "Kopírovať JSON-LD"
   },
   "agentRun": {
     "title": "Beh aplikácie",
@@ -6270,7 +6339,8 @@
         "drifted": "Odchýlka od repozitára"
       },
       "change": {
-        "merged": "Zmena zlúčená"
+        "merged": "Zmena zlúčená",
+        "rejected": "Zmena zamietnutá"
       },
       "pipeline": {
         "throughput": "Priepustnosť pipeline",
@@ -7735,7 +7805,8 @@
       "allows": "Dovoľuje",
       "from": "Odkiaľ",
       "none": "Žiadna väzba vám tu nič nedáva.",
-      "binding": "väzba {binding}, {scope}"
+      "binding": "väzba {binding}, {scope}",
+      "approveOthers": "Schvaľujete zmeny, ktoré navrhnú iní; vaše vlastné zmeny čakajú na iného schvaľovateľa, lebo na tieto druhy nemáte aj právo mazať."
     },
     "danger": {
       "title": "Zmazať projekt",

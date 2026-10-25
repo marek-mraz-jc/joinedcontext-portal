@@ -138,7 +138,13 @@ const SPACE_ROWS = [
 
 function renderInside(
   gateway: { status: number; count?: number },
-  surface: { status: number; rows?: unknown[]; answer?: (url: URL) => unknown[]; holdProbe?: boolean } = { status: 200 },
+  surface: {
+    status: number;
+    rows?: unknown[];
+    answer?: (url: URL) => unknown[];
+    holdProbe?: boolean;
+    headers?: Record<string, string>;
+  } = { status: 200 },
   seed: {
     space?: unknown;
     models?: unknown;
@@ -183,8 +189,10 @@ function renderInside(
       if (surface.holdProbe && url.searchParams.get("limit") === "1") {
         return new Promise<Response>(() => undefined);
       }
+      // Status 0: the request never reached an answer (the network or the edge dropped it).
+      if (surface.status === 0) throw new TypeError("Failed to fetch");
       if (surface.status !== 200) {
-        return json({ title: "Not Found" }, surface.status);
+        return json({ title: "Not Found" }, surface.status, surface.headers);
       }
       const answered = surface.answer?.(url) ?? surface.rows ?? SPACE_ROWS;
       return json(answered, 200, { "NGSILD-Results-Count": String(answered.length) });
@@ -692,6 +700,46 @@ describe("the space's own data", () => {
     expect(screen.queryByText(en.spaces.inside.dataThroughEndpoints)).toBeNull();
   });
 
+  // T-5601: only a refusal lists the endpoints; a busy or unreachable surface is a retry.
+  it.each([503, 504])("names a %s surface read with its status and a retry", async (status) => {
+    renderInside({ status: 200, count: 1 }, { status });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(`HTTP ${status}`);
+    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeEnabled();
+    expect(screen.queryByText(en.spaces.inside.dataThroughEndpoints)).toBeNull();
+  });
+
+  it("holds the retry for a 429's Retry-After and lists no endpoints", async () => {
+    renderInside({ status: 200, count: 1 }, { status: 429, headers: { "Retry-After": "30" } });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(en.spaces.inside.dataFailed);
+    expect(alert).toHaveTextContent("The Portal is busy right now; nothing was changed. Try again in 30 seconds.");
+    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByText(en.spaces.inside.dataThroughEndpoints)).toBeNull();
+    expect(screen.queryByRole("link", { name: "public-air" })).toBeNull();
+  });
+
+  it("frees the retry once a 429's Retry-After has passed", async () => {
+    renderInside({ status: 200, count: 1 }, { status: 429, headers: { "Retry-After": "1" } });
+    const retry = within(await screen.findByRole("alert")).getByRole("button", { name: en.app.error.retry });
+    expect(retry).toHaveAttribute("aria-disabled", "true");
+    await waitFor(() => expect(retry).not.toHaveAttribute("aria-disabled"), { timeout: 3000 });
+  });
+
+  it.each([429, 408, 0])("calls a %s probe a busy Portal with a retry", async (status) => {
+    renderInside({ status: 200, count: 1 }, { status });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(en.spaces.inside.dataBusy);
+    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeEnabled();
+    expect(screen.queryByText(en.spaces.inside.dataThroughEndpoints)).toBeNull();
+  });
+
+  it.each([401, 403])("points at the endpoints when the surface refuses with %s", async (status) => {
+    renderInside({ status: 200, count: 1 }, { status });
+    expect(await screen.findByText(en.spaces.inside.dataThroughEndpoints)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("points at the endpoints when the surface answers this person nothing", async () => {
     renderInside({ status: 200, count: 1 }, { status: 404 });
 
@@ -733,7 +781,7 @@ describe("the space's own data", () => {
     window.history.pushState({}, "", "/projects/banskabystrica/spaces/ovzdusie?row=javascript%3Aalert(1)");
     renderInside({ status: 200, count: 1 });
     const urn = SPACE_ROWS[0].id;
-    await userEvent.click(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: ${urn}` }));
+    await userEvent.click(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: ${urn.split(":").at(-1)}` }));
     expect(await screen.findByRole("dialog", { name: `${en.entityGrid.rowDetail}: ${urn.split(":").at(-1)}` })).toBeInTheDocument();
     expect(new URLSearchParams(window.location.search).get("row")).toBe(urn);
   });

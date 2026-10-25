@@ -240,8 +240,8 @@ describe("data explorer (UI-33)", () => {
     await userEvent.selectOptions(screen.getByLabelText(en.entities.type), "AirQualityObserved");
 
     // The whole type first: two rows and the broker's count.
-    // The row shows its URN's end; the whole id is its button's name (T-4265).
-    expect(await screen.findByRole("button", { name: ROWS[1].id })).toBeInTheDocument();
+    // The row shows its URN's end and is opened by it, the whole id its tooltip (T-4265, T-5619).
+    expect(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: sasova-01` })).toHaveAttribute("title", ROWS[1].id);
     // The endpoint's own count, as the grid's footer says it (R22).
     expect(screen.getByText(`2 ${en.entityGrid.of} 2 ${en.entityGrid.loaded}`)).toBeInTheDocument();
 
@@ -252,7 +252,7 @@ describe("data explorer (UI-33)", () => {
     await userEvent.selectOptions(screen.getByLabelText(en.entities.operator), ">");
     await userEvent.type(value, "20");
     expect(screen.getByLabelText(en.entities.q)).toHaveValue("pm10>20");
-    await waitFor(() => expect(screen.queryByRole("button", { name: ROWS[0].id })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("button", { name: `${en.entityGrid.openRow}: radvan-01` })).not.toBeInTheDocument());
     const last = gatewayUrls(fetchMock).at(-1)!;
     expect(last.pathname).toContain("/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa/");
     expect(last.searchParams.get("q")).toBe("pm10>20");
@@ -273,11 +273,12 @@ describe("data explorer (UI-33)", () => {
     expect(gatewayUrls(fetchMock).slice(sent).some((url) => url.searchParams.get("q")?.includes("qzxwv"))).toBe(false);
     await userEvent.clear(screen.getByLabelText(en.entities.q));
 
-    // One entity in full, read by id.
-    await userEvent.click(await screen.findByRole("button", { name: ROWS[1].id }));
-    const detail = await screen.findByTestId("explore-entity");
-    await within(detail).findByText("2026-09-07T10:00:00Z");
+    // One entity in full, in the grid's own detail; its JSON-LD read by id once asked for (T-5619).
+    await userEvent.click(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: sasova-01` }));
+    const detail = await screen.findByRole("dialog");
     expect(detail.textContent).not.toContain("{\n");
+    await userEvent.click(within(detail).getByText(en.explore.technical));
+    await within(detail).findByRole("group", { name: en.codeBlock.entity });
     // The entity was read by its id through the same endpoint; the grid's own list read may be the
     // last call of all, so what matters is that this one happened at all.
     expect(

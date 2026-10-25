@@ -72,7 +72,7 @@ describe("a Policy reads as what it allows (T-5591)", () => {
     expect(sentence).toContain("steward");
     expect(sentence).toContain("BikeHireDockingStation");
     expect(sentence).toContain("status");
-    expect(sentence).toContain('status!="retired"');
+    expect(sentence).toContain('where status ≠ "retired"');
     expect(sentence).toMatch(/may change/);
     expect(within(summary).getByText("did:web:hel.fi")).toBeVisible();
     expect(within(summary).getByText("No end date")).toBeInTheDocument();

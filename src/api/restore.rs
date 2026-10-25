@@ -180,6 +180,7 @@ pub async fn restore_change_for(
         PlanSummary::new(restored.len(), 0, 0),
     )
     .in_repository(&opened.repository)
+    .proposed_through(&opened.body)
     .with_merge_request(opened.url);
     Ok(Change::new(
         change_meta(state, gitea, opened.number, project),
@@ -344,6 +345,7 @@ pub async fn undo_change_for(
         PlanSummary::new(0, put_back.len(), 0),
     )
     .in_repository(&opened.repository)
+    .proposed_through(&opened.body)
     .with_merge_request(opened.url);
     Ok(Change::new(
         change_meta(state, gitea, opened.number, project),

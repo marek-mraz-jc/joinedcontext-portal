@@ -82,6 +82,28 @@ const FAILED = {
   details: { reason: FAILED_REASON, object: "endpoints/helsinki-transport" },
 };
 
+// T-5613: a rejection names the rejecter and keeps their reason in the row, not behind the
+// technical disclosure.
+const REJECTED = {
+  time: "2026-09-16T09:13:00Z",
+  project: "helsinki",
+  kind: "change.rejected",
+  source: "portal",
+  summary:
+    "Change chg-0000001d rejected: create Endpoint public-air, by eva.novakova@banskabystrica.sk: The maintenance notes are private",
+  severity: "info",
+  correlationId: "chg-0000001d",
+  details: {
+    change: "chg-0000001d",
+    resourceKind: "Endpoint",
+    name: "public-air",
+    operation: "create",
+    rejectedBy: "eva.novakova@banskabystrica.sk",
+    reason: "The maintenance notes are private",
+    object: "endpoints/public-air",
+  },
+};
+
 const NAMESPACES = Object.keys(
   JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src/locales/en.json"), "utf8")) as object,
 );
@@ -168,6 +190,24 @@ test.describe("activity", () => {
       .toBe(true);
   });
 
+  // T-5608: a link to the page with `?kind=mcp.tool` (the MCP door's own pointer at its calls)
+  // opens it filtered to that kind, and asks the server for that kind alone.
+  for (const width of [1440, 400]) {
+    test(`a kind in the address opens the feed filtered at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const asked: string[] = [];
+      await stubApi(page);
+      page.on("request", (request) => {
+        if (request.url().includes("/activity?")) asked.push(request.url());
+      });
+
+      await page.goto("/projects/helsinki/activity?kind=mcp.tool&lang=en");
+      await expect(page.getByLabel("Kind")).toHaveValue("mcp.tool");
+      await expect.poll(() => asked.some((url) => url.includes("kind=mcp.tool"))).toBe(true);
+      if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/activity-kind-from-address-${width}.png`, fullPage: true });
+    });
+  }
+
   test("the activity page has no axe violations", async ({ page }) => {
     await stubApi(page);
 
@@ -179,7 +219,7 @@ test.describe("activity", () => {
   for (const width of [1440, 400]) {
     test(`kinds the Portal writes read as words at ${width} px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
-      await stubApi(page, { items: [UPLOADED, FAILED], live: ASKED });
+      await stubApi(page, { items: [REJECTED, UPLOADED, FAILED], live: ASKED });
 
       await page.goto("/projects/helsinki/activity?lang=en");
       await expect(page.getByRole("cell", { name: UPLOADED.summary })).toBeVisible();
@@ -188,6 +228,12 @@ test.describe("activity", () => {
       const row = (summary: string) => page.getByRole("row").filter({ hasText: summary });
       await expect(row(UPLOADED.summary)).toContainText("File added to a knowledge source");
       await expect(row(ASKED.summary)).toContainText("Access request");
+      await expect(row(REJECTED.summary)).toContainText("Change rejected");
+      await expect(row(REJECTED.summary).getByRole("link", { name: "chg-0000001d" })).toHaveAttribute(
+        "href",
+        "/projects/helsinki/approvals/chg-0000001d",
+      );
+      await expect(page.getByLabel("Kind").locator("option", { hasText: "Change rejected" })).toHaveCount(1);
       await expect(page.getByLabel("Kind").locator("option", { hasText: "File added to a knowledge source" })).toHaveCount(1);
       await expect(row("Endpoint helsinki-transport was not published.")).toContainText("Technical details");
 

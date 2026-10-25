@@ -135,6 +135,12 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
     document.getElementById(tabId(next.id))?.focus();
   };
   const label = all.find((column) => column.attr === attr)?.label ?? attr;
+  // Out of the modal state first: while it is modal the page behind is inert, so the host's focus
+  // back to the grid went nowhere and the focus fell to the body once the dialog left (T-5619).
+  const close = () => {
+    dialog.current?.close();
+    onClose();
+  };
 
   return (
     <dialog
@@ -148,7 +154,7 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
         const typing = /^(INPUT|SELECT|TEXTAREA)$/.test((e.target as HTMLElement).tagName);
         if (e.key === "Escape" && !typing) {
           e.preventDefault();
-          onClose();
+          close();
         }
       }}
     >
@@ -166,7 +172,7 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
           >
             {copied ? (labels.copied ?? "Copied") : (labels.copyId ?? "Copy identifier")}
           </button>
-          <button type="button" onClick={onClose}>
+          <button type="button" onClick={close}>
             {labels.close}
           </button>
         </span>
