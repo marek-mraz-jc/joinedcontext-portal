@@ -2139,6 +2139,15 @@
       "tests": [
         "representation_outputs_field.test.tsx"
       ]
+    },
+    "src/pages/mqttbrokers/AddDevice.tsx": {
+      "controls": {
+        "Button": 5,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "mqtt_devices.test.tsx"
+      ]
     }
   }
 }

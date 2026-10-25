@@ -892,6 +892,15 @@ routes:
     rule: "project-verb:read:MqttBroker"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
     note: "what the broker measures, read by the Portal from the broker's own HTTP API; the browser never reaches a broker (API/01 §44, T-4043)"
+  - route: GET /projects/{project}/mqttbrokers/{name}/devices
+    rule: "project-verb:read:MqttBroker"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "the Add device form's options: roles only for a person who may propose ServiceAccount and the broker (T-5532)"
+  - route: POST /projects/{project}/mqttbrokers/{name}/devices
+    rule: "project-verb:propose:ServiceAccount+MqttBroker, person only"
+    expect: [403, 403, 403, allow, 403, allow, 404, 403]
+    body: {"name": "dev1", "role": "camera", "topic": "cameras/#", "jwks": {"keys": [{"kty": "EC", "crv": "P-256", "kid": "k1", "x": "f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU", "y": "x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}]}}
+    note: "one Change of the device's ServiceAccount (public keys only) and the broker role; a workload token is 403 (tests/mqtt_devices_tests.rs)"
   - route: GET /projects/{project}/mqttbrokers/{name}/captured
     rule: "project-verb:approve:MqttBroker (PL-87)"
     expect: [401, 404, 404, allow, allow, allow, 404, 404]

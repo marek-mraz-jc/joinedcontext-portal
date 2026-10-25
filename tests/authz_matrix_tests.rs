@@ -485,7 +485,9 @@ async fn fixture() -> AppState {
             "Project",
             project,
             ORG_NAMESPACE,
-            json!({ "organizationRef": "hel", "repository": { "name": project }, "ref": "main" }),
+            // MQTT on, so a device proposal meets the permission rule and not the allowance (PF-117).
+            json!({ "organizationRef": "hel", "repository": { "name": project }, "ref": "main",
+                    "quotas": { "mqtt": { "enabled": true, "brokers": 2, "connections": 2000 } } }),
         ));
     }
     state
