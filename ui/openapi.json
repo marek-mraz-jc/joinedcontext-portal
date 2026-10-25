@@ -783,6 +783,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "step_up",
+            "in": "query",
+            "description": "`true` asks the realm for the second factor a decision needs (`acr_values`, `prompt=login`)",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -26895,6 +26904,10 @@
               "type": "string"
             },
             "description": "Keycloak realm roles from the ID token's `realm_access.roles` (CC-42). Empty when the\ntoken asserts none. Display and enablement only — the resource API and the forge enforce\nthe same boundaries independently."
+          },
+          "second_factor": {
+            "type": "boolean",
+            "description": "The person proved a second factor when this session signed in: the token's `amr` names\n`otp`, or its `acr` is the realm's step-up level `mfa`. Every decision door asks for it\n(T-5567); `GET /api/v1/auth/me` reports it so the UI can offer the step-up."
           },
           "subject": {
             "type": "string",

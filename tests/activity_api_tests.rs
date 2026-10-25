@@ -51,6 +51,7 @@ fn cookie(config: &Config, username: &str) -> String {
             name: Some(username.to_owned()),
             roles: vec!["portal-approver".to_owned()],
             groups: vec![],
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,

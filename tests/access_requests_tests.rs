@@ -699,3 +699,56 @@ async fn the_door_refuses_what_the_form_would_not_offer() {
         assert!(answer.text.contains("endpoint.name"), "{}", answer.text);
     }
 }
+
+/// T-5567, AUT-2: approving, declining and revoking an access request are decisions; an owner
+/// whose session proved no second factor is refused at each, the request stays as it was, and
+/// the same owner after a step-up login decides it.
+#[tokio::test]
+async fn an_owner_decides_a_request_only_after_a_second_factor() {
+    let Some(pool) = pool().await else { return };
+    let pipeline = unique("mfa");
+    let mut state = state(pool, &pipeline, true).await;
+    state.config = Arc::new(Config {
+        decisions_need_second_factor: true,
+        ..(*state.config).clone()
+    });
+    let filed = send(
+        &state,
+        "jana",
+        "POST",
+        &format!("/api/v1/projects/{KPIS}/pipelines/{pipeline}/access-requests"),
+        Some(ask()),
+    )
+    .await;
+    assert_eq!(filed.status, StatusCode::CREATED, "{}", filed.text);
+    let id = serde_json::from_str::<Value>(&filed.text).expect("json")["id"]
+        .as_str()
+        .expect("id")
+        .to_owned();
+    let base = format!("/api/v1/projects/{HELSINKI}/access-requests/{id}");
+    for (door, body) in [
+        ("approve", None),
+        (
+            "decline",
+            Some(json!({ "reason": "use the open endpoint" })),
+        ),
+        ("revoke", Some(json!({ "reason": "the project ended" }))),
+    ] {
+        let refused = send(&state, "olli", "POST", &format!("{base}/{door}"), body).await;
+        assert_eq!(
+            refused.status,
+            StatusCode::FORBIDDEN,
+            "{door}: {}",
+            refused.text
+        );
+        assert!(
+            refused.text.contains("second-factor-required"),
+            "{door}: {}",
+            refused.text
+        );
+    }
+    let mut olli = common::person("olli");
+    olli.second_factor = true;
+    let approved = common::send(&state, olli, "POST", &format!("{base}/approve"), None).await;
+    assert_eq!(approved.status, StatusCode::ACCEPTED, "{}", approved.text);
+}

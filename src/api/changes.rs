@@ -1965,6 +1965,7 @@ pub async fn approve_change_for(
 ) -> Result<Change, ApiError> {
     refuse_bearer_decision(identity)?;
     may_approve_anything(state, identity, project)?;
+    crate::auth::session::require_second_factor(identity, &state.config)?;
     let (gitea, pr_number) = resolve_change(state, project, id)?;
     let gitea: &crate::git::GiteaClient = &gitea;
 
@@ -2533,6 +2534,7 @@ pub async fn reject_change_for(
 ) -> Result<Change, ApiError> {
     refuse_bearer_decision(identity)?;
     may_approve_anything(state, identity, project)?;
+    crate::auth::session::require_second_factor(identity, &state.config)?;
     let (gitea, pr_number) = resolve_change(state, project, id)?;
     let gitea: &crate::git::GiteaClient = &gitea;
 
@@ -2647,6 +2649,7 @@ mod tests {
                 name: Some("Jana Kováčová".into()),
                 roles: roles.into_iter().map(String::from).collect(),
                 groups: Vec::new(),
+                second_factor: false,
             },
             expires_at: 9_999_999_999,
             issued_at: 1000,

@@ -31,6 +31,7 @@ pub struct ProblemDetails {
 #[rustfmt::skip]
 pub const PORTAL_PROBLEM_TYPES: &[ProblemType] = &[
     ProblemType { slug: "invalid-request", status: 400, title: "Invalid Request", hint: "Correct the request as the detail says; errors lists every violation at once." },
+    ProblemType { slug: "second-factor-required", status: 403, title: "Second Factor Required", hint: "Sign in again with your one-time code (GET /api/v1/auth/login?step_up=true), then repeat the decision." },
     ProblemType { slug: "self-approval", status: 403, title: "Self Approval Forbidden", hint: "Ask another person who may approve changes in this project to approve it." },
     ProblemType { slug: "service-off", status: 403, title: "Service Off", hint: "Ask an administrator to switch the service on at the layer the answer names." },
     ProblemType { slug: "recipient-refused", status: 403, title: "Recipient Refused", hint: "Send only to people of the organization with a verified address." },
@@ -74,6 +75,9 @@ pub enum ApiError {
     Denied(String),
     #[error("self-approval: {0}")]
     SelfApproval(String),
+    /// 403 at a decision door: the session proved no second factor (T-5567, AUT-2).
+    #[error("second factor required")]
+    SecondFactorRequired,
     #[error("conflict: {0}")]
     Conflict(String),
     /// 409 with the verdict gate's own document (PF-57): `error: verdict_required`, the check to
@@ -153,6 +157,12 @@ impl IntoResponse for ApiError {
             ),
             Self::Forbidden => (StatusCode::FORBIDDEN, "forbidden", "Forbidden", None),
             Self::Denied(msg) => (StatusCode::FORBIDDEN, "forbidden", "Forbidden", Some(msg)),
+            Self::SecondFactorRequired => (
+                StatusCode::FORBIDDEN,
+                "second-factor-required",
+                "Second Factor Required",
+                Some("This decision needs a second factor in this session: sign in again with your one-time code, then repeat it.".into()),
+            ),
             Self::SelfApproval(msg) => (
                 StatusCode::FORBIDDEN,
                 "self-approval",
@@ -243,6 +253,7 @@ mod tests {
             (ApiError::Unauthorized, StatusCode::UNAUTHORIZED),
             (ApiError::Forbidden, StatusCode::FORBIDDEN),
             (ApiError::SelfApproval("test".into()), StatusCode::FORBIDDEN),
+            (ApiError::SecondFactorRequired, StatusCode::FORBIDDEN),
             (ApiError::Conflict("test".into()), StatusCode::CONFLICT),
             (
                 ApiError::TooManyRequests("test".into()),
@@ -280,6 +291,7 @@ mod tests {
     async fn every_problem_carries_its_catalogued_hint() {
         for (err, slug) in [
             (ApiError::SelfApproval("mine".into()), "self-approval"),
+            (ApiError::SecondFactorRequired, "second-factor-required"),
             (ApiError::Forbidden, "forbidden"),
         ] {
             let body = err

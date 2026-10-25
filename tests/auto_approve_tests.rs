@@ -47,6 +47,7 @@ fn identity() -> Identity {
         name: Some("Jana Kováčová".into()),
         roles: Vec::new(),
         groups: Vec::new(),
+        second_factor: false,
     }
 }
 

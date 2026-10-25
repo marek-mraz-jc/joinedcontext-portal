@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { BrandingProvider } from "./branding";
 import { SessionEndedDialog } from "./components/SessionEndedDialog";
+import { StepUpDialog } from "./components/StepUpDialog";
 import { createPortalRouter } from "./router";
 
 export function RoutedApp({ router }: { router: ReturnType<typeof createPortalRouter> }) {
@@ -27,6 +28,7 @@ export function RoutedApp({ router }: { router: ReturnType<typeof createPortalRo
       {/* Only a person who was signed in can lose a session; an anonymous visitor's 401s are
           the router's way to the login page. */}
       {auth.status === "authenticated" ? <SessionEndedDialog /> : null}
+      {auth.status === "authenticated" ? <StepUpDialog /> : null}
     </>
   );
 }

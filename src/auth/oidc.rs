@@ -302,6 +302,9 @@ impl OidcClient {
                     id_token = fresh.to_string();
                     identity.roles = realm_roles(&id_token);
                     identity.groups = token_groups(&id_token);
+                    // A refresh keeps the factor this session proved: Keycloak need not repeat
+                    // `amr` in a refreshed token, and the realm session is the same one.
+                    identity.second_factor |= second_factor(&id_token);
                 }
                 Err(e) => {
                     tracing::warn!(error = %e, "id_token from the refresh did not verify; keeping the old one")
@@ -369,6 +372,11 @@ pub struct LoginQuery {
     /// The Portal's language, for the realm's sign-in page (`ui_locales`, T-4199).
     #[serde(default)]
     pub lang: Option<String>,
+    /// `true` asks the realm for the second factor a decision needs (T-5567): `acr_values`
+    /// [`session::STEP_UP_ACR`] and `prompt=login`, so the code is asked even with a live
+    /// realm session.
+    #[serde(default)]
+    pub step_up: bool,
 }
 
 /// A language tag the realm may be handed: two or three ASCII letters, lower-cased; anything else
@@ -458,7 +466,9 @@ fn oidc(state: &AppState) -> Result<&OidcClient, ApiError> {
         ("redirect_to" = Option<String>, Query,
          description = "An in-app path to return to; honoured only when it is same-origin"),
         ("lang" = Option<String>, Query,
-         description = "The Portal's language (2-3 letters), handed to the realm as `ui_locales`")
+         description = "The Portal's language (2-3 letters), handed to the realm as `ui_locales`"),
+        ("step_up" = Option<bool>, Query,
+         description = "`true` asks the realm for the second factor a decision needs (`acr_values`, `prompt=login`)")
     ),
     responses(
         (status = 303, description = "Redirect to the provider's authorization endpoint"),
@@ -487,6 +497,11 @@ pub async fn login(
     // The sign-in page in the Portal's language: a Slovak Portal led to an English login (T-4199).
     if let Some(locale) = ui_locale(query.lang.as_deref()) {
         request = request.add_extra_param("ui_locales", locale);
+    }
+    if query.step_up {
+        request = request
+            .add_extra_param("acr_values", session::STEP_UP_ACR)
+            .add_extra_param("prompt", "login");
     }
     let (auth_url, csrf_state, nonce) = request.url();
 
@@ -649,6 +664,7 @@ pub async fn callback(
             .map(|n| n.to_string()),
         roles: realm_roles(id_token.to_string().as_str()),
         groups: token_groups(id_token.to_string().as_str()),
+        second_factor: second_factor(id_token.to_string().as_str()),
     };
     let session = mint_session(identity, id_token.to_string(), issued_at, &token_response);
     tracing::info!(subject = %session.identity.subject, "portal login");
@@ -699,6 +715,18 @@ fn token_groups(id_token: &str) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// [`session::proves_second_factor`] over a verified ID token's `acr` and `amr` (T-5567).
+fn second_factor(id_token: &str) -> bool {
+    #[derive(serde::Deserialize)]
+    struct Payload {
+        acr: Option<String>,
+        #[serde(default)]
+        amr: serde_json::Value,
+    }
+    jwt_payload::<Payload>(id_token)
+        .is_some_and(|p| session::proves_second_factor(p.acr.as_deref(), &p.amr))
 }
 
 fn realm_roles(id_token: &str) -> Vec<String> {
@@ -1120,6 +1148,7 @@ mod tests {
                 name: None,
                 roles: vec!["portal-viewer".into()],
                 groups: vec!["editors".into()],
+                second_factor: false,
             },
             expires_at: session::now_unix() + 600,
             issued_at: session::now_unix() - 60,
@@ -1505,7 +1534,7 @@ mod tests {
 
 #[cfg(test)]
 mod realm_roles_tests {
-    use super::{jwt_exp, realm_roles};
+    use super::{jwt_exp, realm_roles, second_factor};
     use base64::engine::{general_purpose::URL_SAFE_NO_PAD, Engine};
 
     /// Builds a JWT-shaped string around `payload`. Nothing here is signed: `realm_roles` runs
@@ -1540,6 +1569,17 @@ mod realm_roles_tests {
         );
         assert_eq!(jwt_exp(&token(r#"{"sub":"u1"}"#)), None);
         assert_eq!(jwt_exp("opaque-refresh-token"), None);
+    }
+
+    /// T-5567: the ID token of a login says whether it asked the one-time code.
+    #[test]
+    fn the_id_token_proves_a_second_factor_by_amr_otp_or_the_step_up_acr() {
+        assert!(second_factor(&token(r#"{"acr":"mfa","amr":[]}"#)));
+        assert!(second_factor(&token(r#"{"acr":"pwd","amr":["otp"]}"#)));
+        assert!(!second_factor(&token(r#"{"acr":"pwd","amr":["pwd"]}"#)));
+        assert!(!second_factor(&token(r#"{"acr":"1"}"#)));
+        assert!(!second_factor(&token(r#"{"sub":"u1"}"#)));
+        assert!(!second_factor("not-a-token"));
     }
 
     #[test]
