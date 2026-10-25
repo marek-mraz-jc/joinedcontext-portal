@@ -742,6 +742,28 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
     await waitFor(() => {
       expect(proposed).toHaveLength(1);
     });
+    // The writes the dialog sends, in order: the dry run on the kind's collection naming the
+    // draft, and the draft save the proposal names (T-5515 kept them through the split).
+    const writes = fetchMock.mock.calls
+      .map(([input, init]) => {
+        const url = new URL(input instanceof Request ? input.url : input.toString());
+        const method = input instanceof Request ? input.method : (init?.method ?? "GET");
+        return `${method} ${url.pathname}${url.search}`;
+      })
+      .filter((line) => !line.startsWith("GET "));
+    expect(writes).toEqual([
+      "POST /api/v1/projects/banskabystrica/datasources?dryRun=All",
+      "PUT /api/v1/projects/banskabystrica/drafts/DataSource/aq-feed",
+    ]);
+    expect(checks).toEqual([
+      {
+        apiVersion: "joinedcontext.com/v1alpha1",
+        kind: "DataSource",
+        metadata: { name: "aq-feed", namespace: "banskabystrica" },
+        spec: { type: "http", http: { url: "" } },
+        draft: { kind: "DataSource", name: "aq-feed" },
+      },
+    ]);
   });
 
   it("warns that applying restarts the stream when the check says so (T-1056)", async () => {

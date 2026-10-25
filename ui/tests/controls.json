@@ -185,9 +185,8 @@
     },
     "src/components/ResourceFormDialogBody.tsx": {
       "controls": {
-        "Button": 6,
-        "Checkbox": 1,
-        "FilePicker": 1
+        "Button": 1,
+        "Checkbox": 1
       },
       "tests": [
         "draft_form.test.tsx",
@@ -389,6 +388,31 @@
       },
       "tests": [
         "form_route.test.tsx"
+      ]
+    },
+    "src/components/forms/ResourceFormFooter.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "form_dialog_parts.test.tsx"
+      ]
+    },
+    "src/components/forms/ResourceFormNotes.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "form_dialog_parts.test.tsx"
+      ]
+    },
+    "src/components/forms/ResourceYamlPanel.tsx": {
+      "controls": {
+        "Button": 1,
+        "FilePicker": 1
+      },
+      "tests": [
+        "form_dialog_parts.test.tsx"
       ]
     },
     "src/components/forms/theme.tsx": {

@@ -1,14 +1,9 @@
 {
   "check_is_not_suppressed": {
-    "_max": 6,
+    "_max": 5,
     "src/assistant/state.ts": {
       "lines": 1,
       "group": "ui-parts"
-    },
-    "src/components/ResourceFormDialogBody.tsx": {
-      "lines": 2,
-      "group": "ui-forms",
-      "reason": "two react-hooks suppressions, each with its reason on the line: the draft write keys on currentDigest, the manifest a page builds around the form, which the rule cannot see; and the YAML submit's queue is consumed in the render after onChange so the parent's widened schema judges what was typed (T-0890)"
     },
     "src/components/dashboards/MapLibreView.tsx": {
       "lines": 1,
