@@ -12,8 +12,14 @@
  * radius, a focus ring or a spacing scale changed by hand is a red lane instead of something a
  * person notices in a recording.
  *
- * A baseline changes only on purpose: `pnpm e2e -- --project=gallery --update-snapshots`, and
- * the four PNGs under `gallery.spec.ts-snapshots/` are reviewed like code.
+ * A baseline changes only on purpose, and the four PNGs under `gallery.spec.ts-snapshots/` are
+ * reviewed like code. They are taken in the Playwright image ci.yml's `ui-gallery` job runs in,
+ * never on a bare machine, whose fallback fonts move ~2 000 pixels (T-5575). From `ui/`, after
+ * `pnpm install` here and in `../sdk`:
+ *
+ *   docker run --rm --ipc=host --user "$(id -u):$(id -g)" -e HOME=/tmp -e PW_ONLY=gallery \
+ *     -v "$PWD/..:/repo" -w /repo/ui mcr.microsoft.com/playwright@<digest in ci.yml> \
+ *     node node_modules/@playwright/test/cli.js test --update-snapshots
  *
  * The dark theme is `@media (prefers-color-scheme: dark)` in `src/tokens.css`, so it is a size
  * here like any other: the same page with `colorScheme: "dark"`.
@@ -150,8 +156,8 @@ for (const size of SIZES) {
         caret: "hide",
         // Pixels, not a ratio of the page (T-5575): 2 px more padding on the shared Button moved
         // 5 758 to 14 563 pixels per size, under 1 % of the full page, so the old 3 % ratio let it
-        // through. Another machine's chromium rasterizes text a shade differently: 0 to 217 pixels
-        // against these baselines on the sandbox's chromium 1243.
+        // through. The bare ubuntu-latest runner (ci-full e2e) and the ui-gallery image missed the
+        // older sandbox baselines by the same 2 041 to 2 278 pixels, within 4 of each other.
         maxDiffPixels: 1500,
       });
     });
