@@ -146,3 +146,62 @@ impl FeedbackStore {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn one<'a>(text: &'a str, screenshot: Option<&'a [u8]>) -> NewFeedback<'a> {
+        NewFeedback {
+            page: "/spaces",
+            version: "1.0.0",
+            text,
+            screenshot,
+        }
+    }
+
+    /// The administrators' list pages by id: oldest first, after the last one seen, at most
+    /// [`PAGE`] per page.
+    #[tokio::test]
+    async fn the_list_pages_oldest_first_after_the_last_id_seen() {
+        let store = FeedbackStore::new(None);
+        for n in 0..PAGE + 2 {
+            store
+                .add(one(&format!("note {n}"), None))
+                .await
+                .expect("kept");
+        }
+        let first = store.after(0).await.expect("listed");
+        assert_eq!(first.len(), PAGE as usize);
+        assert_eq!(first.first().map(|f| f.id), Some(1));
+        let last = first.last().map_or(0, |f| f.id);
+        let rest = store.after(last).await.expect("listed");
+        assert_eq!(
+            rest.iter().map(|f| f.id).collect::<Vec<_>>(),
+            vec![PAGE + 1, PAGE + 2]
+        );
+        assert_eq!(store.after(PAGE + 2).await.expect("listed"), Vec::new());
+    }
+
+    /// The list says a screenshot came along; the image itself is read by id alone.
+    #[tokio::test]
+    async fn a_screenshot_is_flagged_in_the_list_and_read_by_id() {
+        let store = FeedbackStore::new(None);
+        let plain = store.add(one("no image", None)).await.expect("kept");
+        let shot = store
+            .add(one("with image", Some(b"png")))
+            .await
+            .expect("kept");
+        let listed = store.after(0).await.expect("listed");
+        assert_eq!(
+            listed.iter().map(|f| f.screenshot).collect::<Vec<_>>(),
+            vec![false, true]
+        );
+        assert_eq!(
+            store.screenshot(shot).await.expect("read"),
+            Some(b"png".to_vec())
+        );
+        assert_eq!(store.screenshot(plain).await.expect("read"), None);
+        assert_eq!(store.screenshot(99).await.expect("read"), None);
+    }
+}

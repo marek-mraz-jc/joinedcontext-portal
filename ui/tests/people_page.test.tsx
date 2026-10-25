@@ -71,6 +71,7 @@ function answer(
     verbs = ["read", "create", "update", "disable", "delete"],
     smtp = true,
     next = null as number | null,
+    refuseEva = false,
   } = {},
 ) {
   return async (url: URL, request: Request) => {
@@ -95,7 +96,11 @@ function answer(
     if (path.endsWith("/reset-password")) {
       return reply(smtp ? 202 : 200, { emailSent: smtp, ...(smtp ? {} : { temporaryPassword: PASSWORD }) });
     }
+    if (path.endsWith("/eva-id/disable") && refuseEva) {
+      return reply(403, { title: "Forbidden", status: 403, detail: "eva@hel.fi holds a right you do not" });
+    }
     if (path.endsWith("/disable")) return reply(200, { ...JANA, enabled: false });
+    if (path.endsWith("/people/remove")) return reply(202, CHANGE);
     if (request.method === "DELETE") return reply(202, CHANGE);
     return reply(204);
   };
@@ -192,6 +197,60 @@ describe("Organization → People", () => {
       locale: "sk",
     });
     expect(await screen.findByText(/sent nora@hel\.fi an e-mail/)).toBeInTheDocument();
+  });
+
+  it("deletes the ticked people in one Change after a confirm naming the count (T-5606)", async () => {
+    const user = userEvent.setup();
+    const sent: Sent[] = [];
+    renderPage(<People />, { path: "/organization/people", answer: answer(sent) });
+
+    await screen.findByRole("link", { name: "Jana Nováková" });
+    expect(screen.getByText(P.bulk.hint)).toBeInTheDocument();
+    expect(screen.queryByRole("toolbar")).toBeNull();
+    await user.click(screen.getByRole("checkbox", { name: P.bulk.selectAll }));
+    const toolbar = screen.getByRole("toolbar", { name: "2 selected" });
+    await user.click(within(toolbar).getByRole("button", { name: P.bulk.delete }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Delete 2 people?" });
+    expect(dialog).toHaveTextContent(/One change takes all of them out of every group/);
+    await user.click(within(dialog).getByTestId("confirm-accept"));
+
+    await waitFor(() => expect(sent.filter((s) => s.path.endsWith("/people/remove"))).toHaveLength(1));
+    const [removal] = sent.filter((s) => s.path.endsWith("/people/remove"));
+    expect(removal).toMatchObject({ method: "POST", body: { ids: ["jana-id", "eva-id"] } });
+    expect(sent.filter((s) => s.method === "DELETE")).toHaveLength(0);
+    expect(await screen.findByText(/chg-0000009/)).toBeInTheDocument();
+    expect(screen.queryByRole("toolbar")).toBeNull();
+    await expectNoViolations(screen.getByRole("table", { name: P.caption }).closest("section") as HTMLElement);
+  });
+
+  it("disables the ticked people and names whom the server refused (T-5606)", async () => {
+    const user = userEvent.setup();
+    const sent: Sent[] = [];
+    renderPage(<People />, { path: "/organization/people", answer: answer(sent, { refuseEva: true }) });
+
+    await user.click(await screen.findByRole("checkbox", { name: "Select Jana Nováková" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select Eva Kováčová" }));
+    await user.click(screen.getByRole("button", { name: P.bulk.disable }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Disable 2 people?" });
+    await user.click(within(dialog).getByTestId("confirm-accept"));
+
+    const status = await screen.findByText(/1 of 2 disabled/);
+    expect(status).toHaveTextContent("eva@hel.fi (eva@hel.fi holds a right you do not)");
+    expect(sent.filter((s) => s.path.endsWith("/disable")).map((s) => s.path)).toEqual([
+      "/api/v1/organization/people/jana-id/disable",
+      "/api/v1/organization/people/eva-id/disable",
+    ]);
+  });
+
+  it("offers a bulk delete only to a caller whose role deletes people, with the reason (T-5606)", async () => {
+    const user = userEvent.setup();
+    renderPage(<People />, { path: "/organization/people", answer: answer([], { verbs: ["read", "disable"] }) });
+
+    await user.click(await screen.findByRole("checkbox", { name: "Select Jana Nováková" }));
+    await waitFor(() =>
+      expectDenied(screen.getByRole("button", { name: P.bulk.delete }), /^Only an organization administrator can /),
+    );
+    expect(screen.getByRole("button", { name: P.bulk.disable })).not.toHaveAttribute("aria-disabled");
   });
 
   it("shows a temporary password once, and it is gone after its dialog closes", async () => {

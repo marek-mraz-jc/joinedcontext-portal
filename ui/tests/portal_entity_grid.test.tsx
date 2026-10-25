@@ -129,6 +129,36 @@ describe("the Portal's entity grid", () => {
     expect(attempts).toBeGreaterThan(0);
   });
 
+  // T-5623: the Explore page builds a new config when the person's grant arrives; the endpoint
+  // the grid reads is the same, so its first page is read once, not once per config.
+  it("reads the endpoint once when the page hands it an equal config again", async () => {
+    await i18n.changeLanguage("en");
+    const reads: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      reads.push(String(input));
+      return new Response(JSON.stringify(entities), { status: 200, headers: { "Content-Type": "application/json", "NGSILD-Results-Count": "1" } });
+    });
+    const again = () => parseGridConfig({
+      source: { kind: "endpoint", slug: "helsinki-bikes" },
+      type: TYPE,
+      columns: [{ attr: "availableBikeNumber", label: "Bikes" }],
+      pageSize: 10,
+    }).config!;
+    const { rerender } = render(
+      <I18nextProvider i18n={i18n}>
+        <PortalEntityGrid project={PROJECT} config={again()} />
+      </I18nextProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <PortalEntityGrid project={PROJECT} config={again()} />
+      </I18nextProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
+    expect(reads.filter((url) => url.includes("/entities?"))).toHaveLength(1);
+  });
+
   it("runs the grid's hooks on the Portal's own React", async () => {
     await i18n.changeLanguage("en");
     // A second copy of React in the linked package makes `useState` inside the grid throw

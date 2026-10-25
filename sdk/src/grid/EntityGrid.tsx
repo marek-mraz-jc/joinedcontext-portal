@@ -1120,7 +1120,11 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     [editing, state.activeCell, state.edits, rows, columns, editable, relations, hookOptions.enums, labels.pasteTooLarge, labels.pasted, labels.skipped, labels.notAllowed, setEdits, rules, accessRows, accessOf],
   );
 
-  /** The window of rows in sight, read off the scroll position; past its end the next page loads. */
+  /**
+   * The window of rows in sight, read off the scroll position. Once its end passes 60 % of the
+   * loaded rows the next page is asked for, so it is there before the person reaches the end
+   * (T-5623).
+   */
   const onScroll = useCallback(() => {
     const box = scrollRef.current;
     if (!virtual || !box) return;
@@ -1131,15 +1135,23 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     const start = Math.max(0, Math.floor(box.scrollTop / height) - OVERSCAN);
     setWindowStart(start);
     setWindowSize(inSight + 2 * OVERSCAN);
-    if (grid.more && start + inSight + 2 * OVERSCAN >= rows.length - OVERSCAN) {
+    if (grid.more && start + inSight + 2 * OVERSCAN >= rows.length * PREFETCH_AT) {
       grid.loadMore();
     }
   }, [virtual, grid, rows.length]);
+  // A page that lands while the window is still past the mark asks for the next one: a person who
+  // scrolled to the end waits for no further scroll event, which a scroll box at its end never sends.
+  React.useEffect(() => {
+    if (virtual && !grid.loadingMore) onScroll();
+  }, [virtual, grid.loadingMore, rows.length, onScroll]);
   // A key that moves the active cell out of the window scrolls to it; the scroll moves the window.
+  // Only a move of the cell does: a person scrolling away from it is not pulled back (T-5623).
+  const scrolledTo = useRef<number | undefined>(undefined);
   React.useEffect(() => {
     const row = state.activeCell?.row;
     const box = scrollRef.current;
-    if (!virtual || row === undefined || !box) return;
+    if (!virtual || row === undefined || !box || row === scrolledTo.current) return;
+    scrolledTo.current = row;
     if (row < windowStart || row >= windowStart + windowSize) {
       box.scrollTop = row * rowHeight.current;
       onScroll();
@@ -1205,6 +1217,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           ref={tableRef}
           className={`jc-grid-table${classNames?.table ? ` ${classNames.table}` : ""}`}
           {...gridProps}
+          // The rows of the last answer stay, dimmed, while the next question is read (T-5623).
+          aria-busy={loading && rows.length > 0 ? true : undefined}
           onKeyDown={onGridKeyDown}
           onFocus={onGridFocus}
           onPaste={onGridPaste}
@@ -1564,7 +1578,11 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         <div className="jc-grid-empty">{emptySlot ?? labels.empty}</div>
       )}
 
-      {loading && <div className="jc-grid-loading">{labels.loading}</div>}
+      {loading && (
+        <div className="jc-grid-loading" role="status">
+          {rows.length > 0 && grid.narrowed ? labels.filtering : labels.loading}
+        </div>
+      )}
 
       {error && <div className="jc-grid-error">{labels.error}: {error}</div>}
 
@@ -1916,6 +1934,8 @@ const FALLBACK_ROW_HEIGHT = 36;
 const FALLBACK_VIEWPORT_ROWS = 30;
 /** Rows drawn beyond the window on each side, so a scroll shows rows rather than blank space. */
 const OVERSCAN = 10;
+/** The share of the loaded rows the window's end passes before the next page is asked for. */
+const PREFETCH_AT = 0.6;
 
 /** The query as a person reads and copies it: the `q`, and the id pattern when one is asked. */
 function queryText(asked: { q?: string; idPattern?: string }): string {
