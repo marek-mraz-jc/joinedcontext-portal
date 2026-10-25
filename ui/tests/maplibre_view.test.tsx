@@ -65,6 +65,7 @@ vi.mock("maplibre-gl", () => {
     }
     removeLayer() {}
     removeSource() {}
+    off() {}
     easeTo() {}
     fitBounds() {}
     getBounds() {

@@ -1058,7 +1058,7 @@
       "tooLarge": "Súbor má {size} MB; import prečíta najviac {limit} MB. Rozdeľte ho na menšie súbory alebo odstráňte stĺpce, ktoré nepotrebujete, a importujte každú časť.",
       "denied": "Nič sa nezapísalo: priestor {space} vašej roli nedovoľuje vytvárať entity {type} ({reason}). Požiadajte vlastníka projektu o Policy na tomto priestore, ktorá vašej roli povolí dávkové vytváranie {type}, a potom súbor importujte znova.",
       "read": "{name}: {rows, plural, one {# riadok} few {# riadky} other {# riadkov}}, {columns, plural, one {# stĺpec} few {# stĺpce} other {# stĺpcov}}.",
-      "cut": "Súbor má {total} riadkov; načíta sa len prvých {max}. Súbor rozdeľte alebo ho prineste ako DataSource a Pipeline.",
+      "cut": "Súbor má {total} riadkov; načíta sa len prvých {max}. Rozdeľte ho na súbory s najviac {max} riadkami.",
       "mapping": "Ktoré pole plní každý stĺpec",
       "column": "Stĺpec",
       "field": "Pole",
