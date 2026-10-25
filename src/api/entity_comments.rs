@@ -211,7 +211,7 @@ pub async fn list_comments(
     readable(&state, &user, &project, &space)?;
     let urn = urn_of(&query.urn)?;
     entity_readable(&state, &headers, &space, urn).await?;
-    let me = user.0.identity.username.as_str();
+    let me = user.0.identity.subject.as_str();
     let comments = state
         .comments
         .list(&project, &space, urn)
@@ -221,7 +221,7 @@ pub async fn list_comments(
         comments
             .into_iter()
             .map(|comment| CommentView {
-                mine: comment.author == me,
+                mine: comment.author_subject.as_deref() == Some(me),
                 comment,
             })
             .collect(),
@@ -293,6 +293,7 @@ pub async fn add_comment(
             Author {
                 id: &identity.username,
                 name,
+                subject: &identity.subject,
             },
             NewComment {
                 project: &project,
@@ -348,7 +349,7 @@ pub async fn remove_comment(
     readable(&state, &user, &project, &space)?;
     if state
         .comments
-        .remove(&project, &space, &user.0.identity.username, id)
+        .remove(&project, &space, &user.0.identity.subject, id)
         .await
         .map_err(stored)?
     {

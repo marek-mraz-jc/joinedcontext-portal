@@ -74,12 +74,19 @@ impl FromRequestParts<AppState> for Front {
     }
 }
 
+/// A token's `email` claim when its `email_verified` claim is `true`, else `None`.
+pub fn verified_email(email: Option<String>, verified: Option<bool>) -> Option<String> {
+    email.filter(|_| verified == Some(true))
+}
+
 /// Who is signed in. Returned by `GET /api/v1/auth/me` and used by every protected route.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct Identity {
     /// Keycloak `sub`: stable, opaque, the only durable user key.
     pub subject: String,
     pub username: String,
+    /// Only an address the identity provider verified ([`verified_email`]): a binding's `user`
+    /// subject matches it, so an address a person typed in unverified grants nothing.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

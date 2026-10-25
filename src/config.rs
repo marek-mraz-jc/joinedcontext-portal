@@ -180,6 +180,11 @@ pub struct Config {
     /// `smtps://user:password@host:465` or `smtp://user:password@host:587?tls=required` for a
     /// relay (T-3583, AP-168). `None` leaves `POST /api/services/email/send` answering 503.
     pub smtp_url: Option<String>,
+    /// The key a data subject is hashed with for the erasure requests and their log
+    /// (`JC_PORTAL_ERASURE_KEY`, a `secretRef`, DM-124): its own secret, so rotating the artifact
+    /// store's credential leaves every logged subject hash matching. `None` falls back to
+    /// `JC_PORTAL_ARTIFACT_STORE_SECRET_KEY`, the key earlier hashes were made with.
+    pub erasure_key: Option<String>,
     /// The address App mail is sent from (`JC_PORTAL_MAIL_FROM`, e.g.
     /// `noreply@example.org`); the App's title is the display name beside it. Required
     /// with `JC_PORTAL_SMTP_URL`.
@@ -343,6 +348,10 @@ impl std::fmt::Debug for Config {
             )
             .field("pipeline_runner_url", &self.pipeline_runner_url)
             .field("smtp_url", &self.smtp_url.as_ref().map(|_| "[redacted]"))
+            .field(
+                "erasure_key",
+                &self.erasure_key.as_ref().map(|_| "[redacted]"),
+            )
             .field("mail_from", &self.mail_from)
             .field("pipeline_identity", &self.pipeline_identity)
             .field("pipelines_concurrency", &self.pipelines_concurrency)
@@ -1700,6 +1709,7 @@ impl Config {
 
         let apps_dir = lookup("JC_PORTAL_APPS_DIR");
         let smtp_url = lookup("JC_PORTAL_SMTP_URL").filter(|url| !url.trim().is_empty());
+        let erasure_key = lookup("JC_PORTAL_ERASURE_KEY").filter(|key| !key.trim().is_empty());
         let mail_from = match lookup("JC_PORTAL_MAIL_FROM").filter(|from| !from.trim().is_empty()) {
             Some(from) => Some(from.trim().parse::<lettre::Address>().map_err(|err| {
                 ConfigError::Invalid {
@@ -1789,6 +1799,7 @@ impl Config {
             knowledge_url,
             apps_dir,
             smtp_url,
+            erasure_key,
             mail_from,
             apps_cache_dir,
             apps_url,
@@ -1862,6 +1873,7 @@ impl Config {
             apps_store_origin: None,
             apps_dir: None,
             smtp_url: None,
+            erasure_key: None,
             mail_from: None,
             apps_cache_dir: None,
             apps_url: None,

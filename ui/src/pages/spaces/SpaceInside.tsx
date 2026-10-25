@@ -79,7 +79,7 @@ import { useWorkspace } from "../../components/layout/WorkspaceContext";
 import { CommentsPanel } from "./Comments";
 import { importSlotsOf, MAX_EXPORT_IDS } from "./importRows";
 import { useOrgDomain } from "../../api/projects";
-import { FormSettingsEditor, FormSharePanel, FormView } from "./FormView";
+import { everyAttribute, FormSettingsEditor, FormSharePanel, FormView } from "./FormView";
 import type { FormSettings } from "./formView";
 import { AiFieldPanel } from "./AiField";
 import { SpaceChecks } from "./SpaceChecks";
@@ -1117,7 +1117,7 @@ function SpaceData({
             project={project}
             space={space}
             type={type}
-            attributes={attributes}
+            attributes={everyAttribute(typeSlots.map((slot) => slot.name), attributes)}
             asked={(formSettings.fields?.length ? formSettings.fields.map((field) => field.attr) : typeSlots.map((slot) => slot.name))}
             relationships={typeSlots.filter((slot) => slot.kind === "Relationship").map((slot) => slot.name)}
           />
