@@ -16,7 +16,7 @@ describe("the Endpoint form", () => {
       enabledRepresentations: ["ngsi-ld", "csv"],
       rateLimits: { requestsPerMinute: 600 },
       policyRef: "urn:ngsi-ld:Policy:hel.fi:helsinki:public-bikes",
-      publish: { ckan: { instanceRef: { kind: "CkanInstance", name: "hel-fi" }, datastore: { representation: "csv", refresh: "onReconcile" } } },
+      publish: { ckan: { instanceRef: { kind: "CkanInstance", name: "hel-fi" } } },
     },
   };
 

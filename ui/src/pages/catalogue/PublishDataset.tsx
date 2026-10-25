@@ -38,8 +38,6 @@ interface Drafted {
   /** The dataset's title and description, in the form's language (`metadata.title`, `.description`). */
   title: string;
   description: string;
-  /** Mirror the rows into the CKAN DataStore (`spec.publish.ckan.datastore`, EP-65). */
-  datastore: boolean;
   /** Offered attributes the person left out of the dataset; they join `projection.hiddenAttributes`. */
   leftOut: string[];
 }
@@ -129,7 +127,6 @@ function Flow({
         form,
         title: localized(metadata.title, form.language, metadata.name),
         description: localized(metadata.description, form.language, ""),
-        datastore: draft.datastoreAvailable && ckanOf(draft.publish).datastore !== undefined,
         leftOut: [],
       };
     },
@@ -146,8 +143,6 @@ function Flow({
       const projection = (current.projection ?? {}) as Record<string, unknown>;
       const hidden = hiddenOf(projection.hiddenAttributes, attributesOf(value.draft), value.leftOut);
       const ckan = { ...ckanOf(value.draft.publish) };
-      if (value.datastore) ckan.datastore = ckan.datastore ?? { representation: "csv" };
-      else delete ckan.datastore;
       const body = {
         apiVersion,
         kind,
@@ -260,7 +255,6 @@ function Flow({
           title={drafted.title}
           description={drafted.description}
           catalog={catalogOf(drafted.draft.catalog as CatalogBlock, drafted.form)}
-          datastore={drafted.datastore}
           columns={attributes.length > 0 ? columns : undefined}
         />
         {drafted.draft.makesPublic ? (
@@ -478,20 +472,6 @@ function Flow({
           ))
         )}
       </fieldset>
-      <div className="flex flex-col gap-1">
-        <Checkbox
-          label={t("catalogue.publish.datastore")}
-          aria-describedby="publish-datastore-help"
-          checked={drafted.datastore}
-          disabled={!drafted.draft.datastoreAvailable}
-          disabledReason={t("catalogue.publish.datastoreUnavailable")}
-          onChange={() => setDrafted({ ...drafted, datastore: !drafted.datastore })}
-        />
-        {/* Below the box, not beside it: at phone width a hint beside it squeezes the label. */}
-        <p id="publish-datastore-help" className="text-caption text-fg-muted">
-          {t(drafted.draft.datastoreAvailable ? "catalogue.publish.datastoreHelp" : "catalogue.publish.datastoreUnavailable")}
-        </p>
-      </div>
       <div className="flex justify-between gap-2">
         <Button onClick={() => setStep("pick")}>{t("catalogue.publish.back")}</Button>
         <Button type="submit" variant="primary">

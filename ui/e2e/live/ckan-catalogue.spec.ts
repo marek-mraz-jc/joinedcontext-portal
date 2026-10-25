@@ -8,8 +8,8 @@
  * 2. The joinedcontext look at 375, 768, 1440 and 2560 pixels: the mark with the installation's
  *    name, no stock CKAN teal on a link or the header, and no CKAN link or badge in the footer.
  *    A screenshot of each width goes into the report.
- * 3. Every dataset with a DataStore sheet holds rows: each sheet's `total` is read from
- *    `datastore_search` and written into the report, never typed.
+ * 3. CKAN holds no rows (T-5060): no dataset carries a DataStore table resource; the
+ *    datasets that still do are written into the report by name.
  */
 import { expect, test } from "@playwright/test";
 import { axeViolations } from "../axe";
@@ -95,26 +95,21 @@ for (const width of WIDTHS) {
 
 interface Resource {
   id: string;
+  url_type?: string | null;
   datastore_active?: boolean;
 }
 
-test("every dataset's DataStore sheet holds rows", async ({ request }, info) => {
+test("no dataset carries a DataStore table", async ({ request }, info) => {
   const search = await request.get(`${CATALOGUE}/api/3/action/package_search?rows=1000`);
   expect(search.ok(), `package_search: ${search.status()}`).toBe(true);
   const datasets = ((await search.json()) as { result: { results: { name: string; resources: Resource[] }[] } }).result.results;
+  expect(datasets.length, "the catalogue lists datasets").toBeGreaterThan(0);
 
-  const totals: Record<string, number> = {};
-  for (const dataset of datasets) {
-    for (const resource of dataset.resources.filter((one) => one.datastore_active)) {
-      const answer = await request.get(`${CATALOGUE}/api/3/action/datastore_search?resource_id=${resource.id}&limit=0`);
-      expect(answer.ok(), `datastore_search ${dataset.name}: ${answer.status()}`).toBe(true);
-      totals[dataset.name] = ((await answer.json()) as { result: { total: number } }).result.total;
-    }
-  }
-  await info.attach("datastore-totals.json", { body: JSON.stringify(totals, null, 2), contentType: "application/json" });
-  expect(Object.keys(totals).length, "the catalogue has at least one DataStore sheet").toBeGreaterThan(0);
-  const empty = Object.entries(totals).filter(([, total]) => total === 0).map(([name]) => name);
-  expect(empty, "datasets whose sheet is empty").toEqual([]);
+  const tables = datasets
+    .filter((dataset) => dataset.resources.some((one) => one.url_type === "datastore" || one.datastore_active === true))
+    .map((dataset) => dataset.name);
+  await info.attach("datastore-tables.json", { body: JSON.stringify(tables, null, 2), contentType: "application/json" });
+  expect(tables, "datasets that still carry a DataStore table").toEqual([]);
 });
 
 /**

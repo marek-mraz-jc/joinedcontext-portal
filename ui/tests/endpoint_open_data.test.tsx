@@ -18,7 +18,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import i18n from "../src/i18n";
 import { SchemaForm } from "../src/components/forms/SchemaForm";
 import validator from "../src/components/forms/validator";
-import { endpointSchema, DATASTORE_REFRESH, DATASTORE_REPRESENTATIONS } from "../src/schemas/kinds";
+import { endpointSchema } from "../src/schemas/kinds";
 import { toEnvelope, toForm } from "../src/routes/EndpointsPage";
 import type { Manifest } from "../src/api/manifest";
 import en from "../src/locales/en.json";
@@ -47,7 +47,7 @@ beforeEach(async () => {
 });
 
 describe("the open-data option of an Endpoint", () => {
-  it("writes the publication the catalogue name turns on", () => {
+  it("writes the publication the catalogue name turns on, without the removed row mirror (T-5060)", () => {
     const manifest = toEnvelope(
       PROJECT,
       form({
@@ -68,7 +68,6 @@ describe("the open-data option of an Endpoint", () => {
         instanceRef: { kind: "CkanInstance", name: "hel-fi" },
         organization: "hel-fi",
         name: "ilmanlaatu",
-        datastore: { representation: "csv", refresh: "onReconcile" },
       },
     });
   });
@@ -81,7 +80,6 @@ describe("the open-data option of an Endpoint", () => {
       { ckan: { instanceRef: "   ", organization: "hel-fi" } },
       // The other fields alone do not publish: they say how, not whether.
       { ckan: { organization: "hel-fi", name: "ilmanlaatu" } },
-      { ckan: { datastore: { representation: "csv" } } },
     ]) {
       const manifest = toEnvelope(PROJECT, form({ publish }), SLUG, []);
       expect(spec(manifest).publish, JSON.stringify(publish)).toBeUndefined();
@@ -112,7 +110,8 @@ describe("the open-data option of an Endpoint", () => {
     const back = toForm(manifest);
     expect(back.publish?.ckan?.instanceRef).toBe("hel-fi");
     expect(back.publish?.ckan?.name).toBe("ilmanlaatu");
-    expect(back.publish?.ckan?.datastore).toEqual({ representation: "csv", refresh: "onChange" });
+    // A block written before T-5060 loses its row mirror on the way in, so a save drops it.
+    expect(back.publish?.ckan).not.toHaveProperty("datastore");
     // A second round trip keeps the reference a name and not "[object Object]".
     expect(toForm(toEnvelope(PROJECT, { ...form(), ...back }, SLUG, [])).publish?.ckan?.instanceRef).toBe(
       "hel-fi",
@@ -160,11 +159,11 @@ describe("the open-data option of an Endpoint", () => {
     expect(open.pattern).toBeTruthy();
   });
 
-  it("offers only what the publisher can actually read a sheet from", () => {
-    // `xlsx` is a binary the gateway builds and the JSON file is not a tabular projection; the
-    // publisher refuses both, so the form does not offer them (EP-65).
-    expect([...DATASTORE_REPRESENTATIONS]).toEqual(["csv"]);
-    expect([...DATASTORE_REFRESH]).toEqual(["onChange", "onReconcile"]);
+  it("offers no row mirror: CKAN holds no rows (T-5060)", () => {
+    const schema = endpointSchema(t, ["bikes"]) as unknown as {
+      properties: { publish: { properties: { ckan: { properties: Record<string, unknown> } } } };
+    };
+    expect(Object.keys(schema.properties.publish.properties.ckan.properties)).not.toContain("datastore");
   });
 
   it("refuses at the field a catalogue name and an organization that are not names", () => {
@@ -197,7 +196,7 @@ describe("the open-data option of an Endpoint", () => {
           <I18nextProvider i18n={i18n}>
             <SchemaForm
               schema={endpointSchema(t, ["bikes"], [], undefined, ["hel-fi"])}
-              formData={{ publish: { ckan: { instanceRef: "hel-fi", datastore: { representation: "csv" } } } }}
+              formData={{ publish: { ckan: { instanceRef: "hel-fi" } } }}
               onSubmit={() => {}}
             />
           </I18nextProvider>

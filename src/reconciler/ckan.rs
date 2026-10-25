@@ -1,8 +1,8 @@
 //! The open-data catalogue, brought to what the repository declares (EP-62…EP-67, T-2405).
 //!
 //! The publisher itself is `jcctl::publish::ckan`: it builds the dataset from the Endpoint's own
-//! DCAT-AP record, the resources from the representations it enables, and the optional sheet from
-//! its tabular answer. Until now nothing drove it inside the platform, so a dataset appeared when
+//! DCAT-AP record, the resources from the representations it enables, and the charts from its
+//! models; CKAN holds no rows (T-5060). Until now nothing drove it inside the platform, so a dataset appeared when
 //! somebody ran `jcctl publish ckan` from a shell and a withdrawn publication stayed in the
 //! catalogue until somebody noticed. EP-62 asks the reconciler to do it, which is this wave.
 //!
@@ -50,14 +50,12 @@ use std::time::{Duration, Instant};
 /// What one run did with one Endpoint's publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Publication {
-    /// The dataset is what the Endpoint describes; `rows` is what the sheet holds, if any.
+    /// The dataset is what the Endpoint describes.
     Published {
         /// The dataset name in CKAN.
         dataset: String,
         /// What happened to the dataset itself.
         outcome: Outcome,
-        /// Rows written into the sheet, `None` when the Endpoint declares none.
-        rows: Option<usize>,
         /// The record lists a model without its LinkML artifact, so the dataset links the
         /// schema index for it (EP-68).
         no_linkml: bool,
@@ -320,11 +318,8 @@ impl CkanSync {
         };
         for report in reports {
             let (line, wrote) = match &report.publication {
-                Publication::Published { outcome, rows, .. } => (
-                    match rows {
-                        Some(rows) => format!("{} (sheet of {rows} rows)", outcome_word(*outcome)),
-                        None => outcome_word(*outcome).to_owned(),
-                    },
+                Publication::Published { outcome, .. } => (
+                    outcome_word(*outcome).to_owned(),
                     matches!(outcome, Outcome::Created | Outcome::Updated),
                 ),
                 Publication::Withdrawn { .. } => ("withdrawn".to_owned(), true),
@@ -349,45 +344,6 @@ impl CkanSync {
             said.insert(key, line);
         }
         logged
-    }
-
-    /// The DataStore rows of `ids` in every dataset the published Endpoints of `space` mirror
-    /// (DM-126, T-4668), each on a blocking thread with its instance's token. Returns the rows
-    /// that went; the first catalogue that refuses fails the whole pass, asked again next run.
-    pub(crate) async fn erase_rows(
-        &self,
-        repo: &Repository,
-        repository: &Path,
-        (project, space): (&str, &str),
-        ids: &[String],
-    ) -> Result<u64, String> {
-        let targets: Vec<Target> = publisher::targets(repo, project)
-            .map_err(|err| err.to_string())?
-            .into_iter()
-            .filter(|t| {
-                crate::resource::reference_name(&t.manifest.spec["contextSpaceRef"]) == Some(space)
-            })
-            .collect();
-        let mut gone = 0;
-        for target in targets {
-            let api_url = self.api_url(&target.instance);
-            let repository = repository.to_path_buf();
-            let age_key_file = self.age_key_file.clone();
-            let ids = ids.to_vec();
-            gone += tokio::task::spawn_blocking(move || {
-                let source = publisher::TokenSource {
-                    env: None,
-                    age_key_file: age_key_file.as_deref(),
-                };
-                let token = publisher::token(&target.instance, &repository, source)
-                    .map_err(|err| err.to_string())?;
-                let mut api = HttpCkan::new(&api_url, token).map_err(|err| err.to_string())?;
-                erase_rows_with(&mut api, target.dataset_name(), &ids)
-            })
-            .await
-            .map_err(|err| format!("the erasure did not finish: {err}"))??;
-        }
-        Ok(gone)
     }
 
     /// One Endpoint: resolve the token, then publish or withdraw on a blocking thread.
@@ -493,7 +449,7 @@ impl CkanSync {
 }
 
 /// How long an Endpoint whose publication went through, and has not changed, is left alone:
-/// its measurements and its sheet are at most this old in the catalogue (T-4717).
+/// its measurements and its charts are at most this old in the catalogue (T-4717).
 pub const REFRESH: Duration = Duration::from_secs(3600);
 /// The longest a failing Endpoint waits before it is tried again.
 pub const MOST_BACKOFF: Duration = Duration::from_secs(3600);
@@ -756,15 +712,15 @@ pub fn sweep_with(
 
 /// The gateway requests of `publisher::record`: the record, and `/ws` for its example type.
 pub const RECORD_READS: u32 = 2;
-/// The gateway requests of `publisher::rows`: `file.csv`, `model.schema.json`, `model.linkml.yaml`.
-pub const ROWS_READS: u32 = 3;
+/// The gateway requests of `publisher::models`: `model.schema.json`, `model.linkml.yaml`.
+pub const MODELS_READS: u32 = 2;
 
 /// Publishes one Endpoint through an open catalogue connection.
 ///
-/// The record and the rows are read from the gateway as an ordinary consumer, which is what keeps
-/// a dataset to what the Endpoint's policy set already allows (EP-66). Both reads keep the
-/// catalogue's pace, since they pass the same edge (T-4717). Blocking: both reads and every
-/// catalogue call open a socket.
+/// The record and the models its charts are drawn from are read from the gateway as an ordinary
+/// consumer, which is what keeps a dataset to what the Endpoint's policy set already allows
+/// (EP-66). Both reads keep the catalogue's pace, since they pass the same edge (T-4717).
+/// Blocking: both reads and every catalogue call open a socket.
 pub fn publish_one<A: CkanApi>(
     api: &mut Paced<A>,
     target: &Target,
@@ -775,36 +731,28 @@ pub fn publish_one<A: CkanApi>(
         .reads(RECORD_READS, || publisher::record(target, settings))
         .map_err(|err| err.to_string())?;
     let record = jcctl::publish::ckan::measured(&record, measured);
-    let reads = if target.publication.datastore.is_some() {
-        ROWS_READS
-    } else {
-        0
-    };
-    match api.reads(reads, || publisher::rows(target, settings)) {
-        Ok(rows) => publish_with(api, target, &record, rows.as_ref(), settings),
-        Err(err) => publish_without_rows(api, target, &record, &err.to_string(), settings),
+    match api.reads(MODELS_READS, || publisher::models(target, settings)) {
+        Ok(models) => publish_with(api, target, &record, Some(&models), settings),
+        Err(err) => publish_without_models(api, target, &record, &err.to_string(), settings),
     }
 }
 
-/// The dataset brought to its record when the sheet's rows did not read, and a failure that
-/// says so: the rows were read first and their failure skipped the dataset too, so
-/// helsinki-transport kept the resources of 05:28 while its Endpoint gained `/ws` (T-4065).
-/// The sheet keeps what it holds until a run reads the rows again.
-pub fn publish_without_rows(
+/// The dataset brought to its record when the models did not read, and a failure that says so:
+/// a failed read must not skip the dataset, or helsinki-transport keeps the resources of 05:28
+/// while its Endpoint gained `/ws` (T-4065). The charts come back with the next good read.
+pub fn publish_without_models(
     api: &mut impl CkanApi,
     target: &Target,
     record: &serde_json::Value,
     unread: &str,
     settings: &Settings,
 ) -> Result<Publication, String> {
-    let mut dataset_only = target.clone();
-    dataset_only.publication.datastore = None;
-    let outcome = match publish_with(api, &dataset_only, record, None, settings)? {
+    let outcome = match publish_with(api, target, record, None, settings)? {
         Publication::Published { outcome, .. } => outcome_word(outcome),
         _ => "not published",
     };
     Err(format!(
-        "the dataset is {outcome}, its sheet was not refreshed: {unread}"
+        "the dataset is {outcome}, its charts were not refreshed: {unread}"
     ))
 }
 
@@ -819,7 +767,7 @@ fn outcome_word(outcome: Outcome) -> &'static str {
     }
 }
 
-/// The catalogue half of a publication: the dataset and the sheet, from a record already read.
+/// The catalogue half of a publication: the dataset and its views, from a record already read.
 ///
 /// Split from [`publish_one`] so what a run writes into the catalogue can be asserted without a
 /// gateway to read from and without a catalogue to write to.
@@ -827,15 +775,14 @@ pub fn publish_with(
     api: &mut impl CkanApi,
     target: &Target,
     record: &serde_json::Value,
-    rows: Option<&publisher::Rows>,
+    models: Option<&publisher::Models>,
     settings: &Settings,
 ) -> Result<Publication, String> {
-    let line = publisher::publish_one(api, target, record, rows, settings)
+    let line = publisher::publish_one(api, target, record, models, settings)
         .map_err(|err| err.to_string())?;
     Ok(Publication::Published {
         dataset: line.dataset,
         outcome: line.outcome,
-        rows: line.mirror.map(|mirror| mirror.rows),
         no_linkml: line.no_linkml,
     })
 }
@@ -864,53 +811,7 @@ pub fn measurements(
     }
 }
 
-/// The rows of `ids` in every DataStore table of `dataset`, deleted (DM-126, T-4668): counted by
-/// `entity_id` first, then deleted by it, a thousand ids per call. A dataset CKAN does not hold
-/// has no rows. Returns the rows that went.
-pub(crate) fn erase_rows_with(
-    api: &mut impl CkanApi,
-    dataset: &str,
-    ids: &[String],
-) -> Result<u64, String> {
-    let Some(live) = api
-        .show("package_show", dataset)
-        .map_err(|err| err.to_string())?
-    else {
-        return Ok(0);
-    };
-    let tables: Vec<String> = live["resources"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter(|r| r["url_type"].as_str() == Some("datastore"))
-        .filter_map(|r| r["id"].as_str().map(str::to_owned))
-        .collect();
-    let mut gone = 0;
-    for table in &tables {
-        for batch in ids.chunks(1000) {
-            let filters = serde_json::json!({ "entity_id": batch });
-            let found = api
-                .action(
-                    "datastore_search",
-                    &serde_json::json!({ "resource_id": table, "filters": filters, "limit": 0 }),
-                )
-                .map_err(|err| err.to_string())?;
-            let total = found["total"].as_u64().unwrap_or(0);
-            if total == 0 {
-                continue;
-            }
-            api.action(
-                "datastore_delete",
-                &serde_json::json!({ "resource_id": table, "filters": filters, "force": true }),
-            )
-            .map_err(|err| err.to_string())?;
-            gone += total;
-        }
-    }
-    Ok(gone)
-}
-
-/// Withdraws one Endpoint's dataset, and its sheet with it (EP-62, CC-19).
+/// Withdraws one Endpoint's dataset (EP-62, CC-19).
 pub fn withdraw_one(api: &mut impl CkanApi, target: &Target) -> Result<Publication, String> {
     let line = publisher::withdraw_one(api, target).map_err(|err| err.to_string())?;
     Ok(Publication::Withdrawn {
@@ -995,75 +896,4 @@ pub fn withdrawn(previous: &Mirror, published: &BTreeSet<(String, String)>) -> V
         });
     }
     gone
-}
-
-#[cfg(test)]
-mod erasure_tests {
-    use super::*;
-    use jcctl::publish::ckan::CkanError;
-    use serde_json::{json, Value};
-
-    /// A catalogue with one dataset of two DataStore tables and a file resource.
-    #[derive(Default)]
-    struct Catalogue {
-        calls: Vec<(String, Value)>,
-        down: bool,
-    }
-
-    impl CkanApi for Catalogue {
-        fn show(&self, _: &str, name: &str) -> Result<Option<Value>, CkanError> {
-            Ok((name == "bike-trips").then(|| {
-                json!({"resources": [
-                    {"id": "t1", "url_type": "datastore"},
-                    {"id": "t2", "url_type": "datastore"},
-                    {"id": "csv", "url_type": "upload"},
-                ]})
-            }))
-        }
-
-        fn action(&mut self, action: &str, payload: &Value) -> Result<Value, CkanError> {
-            if self.down {
-                return Err(CkanError::Unavailable("no route".into()));
-            }
-            self.calls.push((action.to_owned(), payload.clone()));
-            let total = if payload["resource_id"] == "t1" { 2 } else { 0 };
-            Ok(json!({ "total": total }))
-        }
-    }
-
-    #[test]
-    fn the_rows_of_the_entities_go_from_every_datastore_table_and_nothing_else() {
-        let ids = vec![
-            "urn:ngsi-ld:BikeTrip:t-1".to_owned(),
-            "urn:ngsi-ld:BikeTrip:t-2".to_owned(),
-        ];
-        let mut api = Catalogue::default();
-        assert_eq!(erase_rows_with(&mut api, "bike-trips", &ids), Ok(2));
-        let called: Vec<(&str, &str)> = api
-            .calls
-            .iter()
-            .map(|(a, p)| (a.as_str(), p["resource_id"].as_str().unwrap_or_default()))
-            .collect();
-        // t2 holds none of them: counted, never deleted; the file resource is never asked.
-        assert_eq!(
-            called,
-            [
-                ("datastore_search", "t1"),
-                ("datastore_delete", "t1"),
-                ("datastore_search", "t2")
-            ]
-        );
-        assert_eq!(api.calls[1].1["filters"]["entity_id"], json!(ids));
-        assert_eq!(api.calls[1].1["force"], true);
-
-        assert_eq!(
-            erase_rows_with(&mut Catalogue::default(), "gone-dataset", &ids),
-            Ok(0)
-        );
-        let mut down = Catalogue {
-            down: true,
-            ..Catalogue::default()
-        };
-        assert!(erase_rows_with(&mut down, "bike-trips", &ids).is_err());
-    }
 }
