@@ -2138,6 +2138,18 @@
         "evidence/worker-t5534/T-5534/test-watch-1440.png",
         "evidence/worker-t5534/T-5534/test-watch-400.png"
       ]
+    },
+    "src/components/StepUpDialog.tsx": {
+      "walkedBy": "worker-t5567",
+      "date": "2026-10-25",
+      "screenshots": [
+        "evidence/worker-t5567/T-5567/step-up-refused-1440.png",
+        "evidence/worker-t5567/T-5567/step-up-refused-400.png",
+        "evidence/worker-t5567/T-5567/step-up-not-yet-1440.png",
+        "evidence/worker-t5567/T-5567/step-up-not-yet-400.png",
+        "evidence/worker-t5567/T-5567/step-up-approved-1440.png",
+        "evidence/worker-t5567/T-5567/step-up-approved-400.png"
+      ]
     }
   }
 }

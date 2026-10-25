@@ -632,6 +632,11 @@ fn stepped_up_cookie(username: &str, second_factor: bool) -> String {
 
 /// The `Set-Cookie` lines `session::store` writes for a session, attributes and all.
 fn stored_session(access_in: i64, issued_ago: i64) -> Vec<String> {
+    stored_session_with(access_in, issued_ago, false)
+}
+
+/// [`stored_session`] of a session that did or did not prove a second factor (T-5567).
+fn stored_session_with(access_in: i64, issued_ago: i64, second_factor: bool) -> Vec<String> {
     use axum::response::IntoResponse;
     use axum_extra::extract::cookie::{Key, PrivateCookieJar};
     use joinedcontext_portal::auth::session::{now_unix, store, Identity, Session};
@@ -646,7 +651,7 @@ fn stored_session(access_in: i64, issued_ago: i64) -> Vec<String> {
             name: None,
             roles: vec!["portal-viewer".into()],
             groups: Vec::new(),
-            second_factor: false,
+            second_factor,
         },
         expires_at: now + 3600,
         issued_at: now + issued_ago,
@@ -742,6 +747,56 @@ async fn a_session_near_access_expiry_is_refreshed_and_both_cookies_rotate() {
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let me: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(me["username"], "demo.steward");
+}
+
+/// T-5567: a refresh keeps the second factor the session proved, though Keycloak's refreshed ID
+/// token need not repeat `amr`, and a refresh without it never grants one.
+#[tokio::test]
+async fn a_refresh_keeps_the_second_factor_and_never_invents_one() {
+    let realm = realm().await;
+    let fresh_id = keys::id_token(&issuer_of(&realm), "demo.steward", "unused");
+    mount_token_endpoint(
+        &realm,
+        ResponseTemplate::new(200).set_body_json(json!({
+            "access_token": "fresh-access-token",
+            "token_type": "Bearer",
+            "expires_in": 300,
+            "refresh_token": refresh_token_with_exp(joinedcontext_portal::auth::session::now_unix() + 3000),
+            "id_token": fresh_id,
+        })),
+        2,
+    )
+    .await;
+    let app = app_with_realm(&realm).await;
+    for proved in [true, false] {
+        let cookies = stored_session_with(-5, -600, proved)
+            .iter()
+            .filter_map(|c| c.split(';').next().map(str::to_string))
+            .collect::<Vec<_>>()
+            .join("; ");
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/auth/me")
+                    .header(header::ACCEPT, "application/json")
+                    .header(header::COOKIE, cookies)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(
+            set_cookie_values(&response)
+                .iter()
+                .any(|c| c.starts_with("__Host-jc_session=")),
+            "the session was refreshed"
+        );
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let me: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(me["second_factor"], json!(proved), "{me}");
+    }
 }
 
 #[tokio::test]
