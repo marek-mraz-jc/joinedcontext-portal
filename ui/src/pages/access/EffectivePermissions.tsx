@@ -38,7 +38,7 @@ export function readsOf(actions: string[]): string[] {
 
 const CONSTRAINT_NAMES: ConstraintName[] = ["q", "scopeQ", "geoQ", "temporalQ"];
 
-function ConstraintList({ entry, labels }: { entry: GrantEntry; labels: Record<string, string> }): JSX.Element {
+export function ConstraintList({ entry, labels }: { entry: GrantEntry; labels: Record<string, string> }): JSX.Element {
   const { t, i18n } = useTranslation();
   const residual = CONSTRAINT_NAMES.flatMap((name) => {
     const value = entry.constraints?.[name];

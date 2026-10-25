@@ -78,6 +78,8 @@ export interface ResourceFormFooterProps {
   /** What the footer's buttons answered, beside them, where the person is looking (T-1424). */
   error: string | null;
   className?: string;
+  /** The YAML view's footer holds Propose too, so tests scope to it; the form view's footer sits inside theme.tsx's. */
+  testId?: string;
   children?: ReactNode;
 }
 
@@ -91,11 +93,12 @@ export function ResourceFormFooter({
   lax,
   error,
   className = "",
+  testId,
   children,
 }: ResourceFormFooterProps): JSX.Element {
   const { t } = useTranslation();
   return (
-    <div className={`flex flex-wrap items-center gap-2 ${className}`.trim()}>
+    <div data-testid={testId} className={`flex flex-wrap items-center gap-2 ${className}`.trim()}>
       <Button variant="ghost" onClick={onCancel}>
         {t("form.cancel")}
       </Button>
