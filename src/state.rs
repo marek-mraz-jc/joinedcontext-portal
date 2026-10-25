@@ -1267,6 +1267,7 @@ mod tests {
                 name: None,
                 roles: Vec::new(),
                 groups: Vec::new(),
+                second_factor: false,
             },
             expires_at: issued_at + 600,
             issued_at,

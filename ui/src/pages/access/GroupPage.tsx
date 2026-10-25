@@ -14,7 +14,7 @@ import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { Alert, Button, Field, PageHeader, Select } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
-import { asUser, withMember, withoutMember } from "../apps/members";
+import { withMember, withoutMember } from "../apps/members";
 import { PersonPicker } from "../../components/pickers/PersonPicker";
 import type { RolesSpec } from "../apps/members";
 import {
@@ -23,7 +23,7 @@ import {
   bindingWithoutGroup,
   groupBinding,
   refusedPlace,
-  withGroupMember,
+  withGroupMembers,
 } from "./groupRoles";
 import type { Place, RoleChoice } from "./groupRoles";
 import { instancesReachedBy } from "../ckan/ckanAccess";
@@ -101,6 +101,20 @@ export function GroupPage({ name }: { name: string }): JSX.Element {
         ),
     })),
   });
+
+  // An open Change on this group: the next member edit is computed from the stored list, so a
+  // second proposal beside it would drop what the first one adds (T-5605). The API reads no
+  // manifest of an unmerged Change, so the page waits for its decision instead of guessing.
+  const changes = useQuery({
+    queryKey: queryKeys.changes(ORG_NAMESPACE),
+    queryFn: async () =>
+      unwrap(await api.GET("/api/v1/projects/{project}/changes", { params: { path: { project: ORG_NAMESPACE } } })),
+  });
+  const waiting =
+    (changes.data?.items ?? []).find((open) => {
+      const params = open.summary.params as Record<string, unknown>;
+      return open.status.phase === "PendingApproval" && params.kind === "Group" && params.name === name;
+    })?.metadata.name ?? null;
 
   const propose = useMutation({
     mutationFn: ({ project, plural, manifest, create }: Proposal) =>
@@ -223,8 +237,9 @@ export function GroupPage({ name }: { name: string }): JSX.Element {
       <Members
         members={members}
         busy={propose.isPending}
-        onAdd={(email) => {
-          const next = withGroupMember(members, email);
+        waiting={waiting}
+        onAdd={(emails) => {
+          const next = withGroupMembers(members, emails);
           if (next) proposeGroup(next);
         }}
         onRemove={(email) => proposeGroup(members.filter((member) => member.user !== email))}
@@ -260,28 +275,44 @@ export function GroupPage({ name }: { name: string }): JSX.Element {
 function Members({
   members,
   busy,
+  waiting,
   onAdd,
   onRemove,
 }: {
   members: { user: string }[];
   busy: boolean;
-  onAdd: (email: string) => void;
+  /** The id of a Change on this group that waits for a decision: no second edit is built beside it. */
+  waiting: string | null;
+  onAdd: (emails: string[]) => void;
   onRemove: (email: string) => void;
 }): JSX.Element {
   const { t } = useTranslation();
   const heading = useId();
   const field = useId();
   // The realm's people the caller may list, searched on the server; a person not signed in yet is
-  // named by a full e-mail (T-2685, T-4947).
-  const [typed, setTyped] = useState("");
-  const email = asUser(typed);
-  const held = email !== null && members.some((member) => member.user.toLowerCase() === email);
-  const reason = email === null ? t("access.groupPage.needEmail") : held ? t("access.groupPage.already") : undefined;
+  // named by a full e-mail, and a pasted list adds each of its e-mails (T-2685, T-4947, T-5605).
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [refused, setRefused] = useState<string[]>([]);
+  const held = members.map((member) => member.user.toLowerCase());
+  const adding = chosen.filter((email) => !held.includes(email));
+  const blocked = waiting
+    ? t("access.groupPage.waiting", { change: waiting })
+    : adding.length === 0
+      ? t("access.groupPage.needEmail")
+      : undefined;
   return (
     <section aria-labelledby={heading} className="space-y-3 rounded border border-border p-4">
       <h2 id={heading} className="text-title font-semibold text-fg">
         {t("access.groupPage.members")}
       </h2>
+      {waiting ? (
+        <Alert tone="warning" title={t("access.groupPage.waitingTitle")}>
+          {t("access.groupPage.waiting", { change: waiting })}{" "}
+          <Link to="/projects/$project/approvals/$id" params={{ project: ORG_NAMESPACE, id: waiting }} className="underline">
+            {t("access.groupPage.openChange", { change: waiting })}
+          </Link>
+        </Alert>
+      ) : null}
       {members.length === 0 ? (
         <p className="text-body text-fg-muted">{t("access.groups.nobody")}</p>
       ) : (
@@ -293,8 +324,8 @@ function Members({
                 <Button
                   size="sm"
                   variant="secondary"
-                  disabled={busy}
-                  disabledReason={t("app.busyReason")}
+                  disabled={busy || waiting !== null}
+                  disabledReason={waiting ? t("access.groupPage.waiting", { change: waiting }) : t("app.busyReason")}
                   aria-label={t("access.groupPage.removeMember", { member: member.user })}
                   onClick={() => onRemove(member.user)}
                 >
@@ -309,25 +340,34 @@ function Members({
         className="flex max-w-xl flex-col gap-3"
         onSubmit={(event) => {
           event.preventDefault();
-          if (email && !held) {
-            onAdd(email);
-            setTyped("");
+          if (blocked === undefined && !busy) {
+            onAdd(adding);
+            setChosen([]);
+            setRefused([]);
           }
         }}
       >
-        <Field id={field} label={t("access.groupPage.email")} description={t("access.groupPage.hint.email")}>
+        <Field
+          id={field}
+          label={t("access.groupPage.email")}
+          description={t("access.groupPage.hint.email")}
+          errors={refused.length > 0 ? [t("access.groupPage.notEmails", { words: refused.join(", ") })] : undefined}
+        >
           <PersonPicker
             id={field}
             label={t("access.groupPage.email")}
             labelled
-            value={typed}
-            exclude={members.map((member) => member.user)}
-            onChange={setTyped}
+            multiple
+            value={chosen}
+            exclude={held}
+            invalid={refused.length > 0}
+            onChange={setChosen}
+            onRefused={setRefused}
           />
         </Field>
         <PermissionGuard project={ORG_NAMESPACE} kind="Group" verb="propose">
-          <Button type="submit" size="sm" className="self-start" disabled={busy || reason !== undefined} disabledReason={reason}>
-            {t("access.groupPage.addMember")}
+          <Button type="submit" size="sm" className="self-start" disabled={busy || blocked !== undefined} disabledReason={blocked ?? t("app.busyReason")}>
+            {adding.length > 1 ? t("access.groupPage.addMembers", { count: adding.length }) : t("access.groupPage.addMember")}
           </Button>
         </PermissionGuard>
       </form>

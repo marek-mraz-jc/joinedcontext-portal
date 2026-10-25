@@ -156,6 +156,7 @@ fn jana(state: &AppState) -> Identity {
         name: None,
         roles: vec![state.config.bootstrap_admins.clone()],
         groups: vec![],
+        second_factor: false,
     }
 }
 

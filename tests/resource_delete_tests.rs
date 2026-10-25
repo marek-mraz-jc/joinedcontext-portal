@@ -34,6 +34,7 @@ fn make_session_cookie(config: &Config) -> String {
             name: Some("Demo Steward".into()),
             roles: Vec::new(),
             groups: vec!["portal-approver".into()],
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,
@@ -1027,6 +1028,7 @@ mod under_identity {
             name: None,
             roles: Vec::new(),
             groups: groups.iter().map(|g| (*g).to_owned()).collect(),
+            second_factor: false,
         }
     }
 

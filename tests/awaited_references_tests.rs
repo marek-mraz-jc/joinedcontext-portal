@@ -33,6 +33,7 @@ fn steward() -> Identity {
         name: Some("Steward".into()),
         roles: vec!["portal-approver".into()],
         groups: Vec::new(),
+        second_factor: false,
     }
 }
 
@@ -272,6 +273,7 @@ async fn approve(state: &AppState) -> common::Answer {
         name: Some("Approver".into()),
         roles: vec!["portal-approver".into()],
         groups: Vec::new(),
+        second_factor: false,
     };
     common::send(
         state,

@@ -4,6 +4,7 @@ import { ariaDescribedByIds } from "@rjsf/utils";
 import type { WidgetProps } from "@rjsf/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { ApiError, api, queryKeys, unwrap } from "../../../api/client";
 import { asManifests, localized } from "../../../api/manifest";
 import { Button, InlineError, Select } from "../../ui";
@@ -23,6 +24,7 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
     props;
   const { t, i18n } = useTranslation();
   const errors = useShownErrors(id, rawErrors);
+  const invalid = errors && errors.length > 0 ? "true" : undefined;
 
   const plural = typeof options?.plural === "string" ? options.plural : undefined;
   // Written into the uiSchema by the page that renders the form: a widget has no route of
@@ -30,50 +32,24 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
   const formProject = useContext(FormProjectContext);
   const project = (typeof options?.project === "string" ? options.project : undefined) ?? formProject;
 
-  const query = useQuery({
-    queryKey: queryKeys.list(project ?? "", plural ?? ""),
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/{plural}", {
-          params: { path: { project: project as string, plural: plural as string } },
-        }),
-      ),
-    enabled: Boolean(project && plural),
-  });
-
-  const choices = useMemo(
-    () =>
-      asManifests(query.data?.items ?? []).map((manifest) => ({
-        name: manifest.metadata.name,
-        label: localized(manifest.metadata.title, i18n.language, manifest.metadata.name),
-      })),
-    [query.data, i18n.language],
-  );
+  const { query, choices } = useResourceChoices(project, plural, i18n.language);
 
   // A list that could not be asked for is not an empty project (UI-44, T-1486): a 403 or a 500
   // read as "No results" in every form that picks a resource, so nobody could tell the difference.
   const failed = query.isError;
-  const reason =
-    query.error instanceof ApiError
-      ? (query.error.problem?.detail ?? query.error.message)
-      : query.error instanceof Error
-        ? query.error.message
-        : "";
-  const empty = query.isLoading
-    ? t("app.loading")
-    : failed
-      ? t("form.noResults")
-      : choices.length === 0
-        ? t("form.noResults")
-        : t("form.choose");
+  const reason = listFailure(query.error);
+  const empty = placeholder(t, query.isLoading, failed, choices.length);
+
+  // What an empty list asks the person to do next (T-5590), where the page names it.
+  const nothing = typeof options?.empty === "string" && !query.isLoading && !failed && choices.length === 0;
 
   const select = (
     <Select
       id={id}
       required={required}
       disabled={disabled || readonly}
-      aria-describedby={ariaDescribedByIds(id)}
-      aria-invalid={errors && errors.length > 0 ? "true" : undefined}
+      aria-describedby={nothing ? `${ariaDescribedByIds(id)} ${id}-empty` : ariaDescribedByIds(id)}
+      aria-invalid={invalid}
       value={typeof value === "string" ? value : ""}
       onChange={(event: ChangeEvent<HTMLSelectElement>) =>
         onChange(event.target.value === "" ? undefined : event.target.value)
@@ -90,6 +66,16 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
     </Select>
   );
 
+  if (nothing) {
+    return (
+      <div className="flex flex-col gap-1">
+        {select}
+        <p id={`${id}-empty`} className="text-caption text-fg-muted">
+          {t(options.empty as string)}
+        </p>
+      </div>
+    );
+  }
   if (!failed) {
     return select;
   }
@@ -111,4 +97,43 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
       </InlineError>
     </div>
   );
+}
+
+/** The project's manifests of one plural, as select choices titled in the reader's language. */
+function useResourceChoices(project: string | undefined, plural: string | undefined, language: string) {
+  const query = useQuery({
+    queryKey: queryKeys.list(project ?? "", plural ?? ""),
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/projects/{project}/{plural}", {
+          params: { path: { project: project as string, plural: plural as string } },
+        }),
+      ),
+    enabled: Boolean(project && plural),
+  });
+  const choices = useMemo(
+    () =>
+      asManifests(query.data?.items ?? []).map((manifest) => ({
+        name: manifest.metadata.name,
+        label: localized(manifest.metadata.title, language, manifest.metadata.name),
+      })),
+    [query.data, language],
+  );
+  return { query, choices };
+}
+
+/** The words of a failed list read: the server's problem detail when it sent one. */
+function listFailure(error: unknown): string {
+  if (error instanceof ApiError) {
+    return error.problem?.detail ?? error.message;
+  }
+  return error instanceof Error ? error.message : "";
+}
+
+/** The empty option's text: loading, nothing to pick (or the read failed), or a prompt to choose. */
+function placeholder(t: TFunction, loading: boolean, failed: boolean, count: number): string {
+  if (loading) {
+    return t("app.loading");
+  }
+  return failed || count === 0 ? t("form.noResults") : t("form.choose");
 }

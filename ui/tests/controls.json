@@ -224,6 +224,14 @@
         "session_ended.test.tsx"
       ]
     },
+    "src/components/StepUpDialog.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "step_up.test.tsx"
+      ]
+    },
     "src/components/WorkOnCopyDialog.tsx": {
       "controls": {
         "Button": 3
@@ -1940,7 +1948,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 17,
+        "Button": 18,
         "RadioGroup": 1
       },
       "tests": [
