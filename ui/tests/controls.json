@@ -2154,6 +2154,7 @@
       },
       "tests": [
         "mqtt_allowance_ui.test.tsx",
+        "mqtt_broker_topics.test.tsx",
         "mqtt_brokers_page.test.tsx",
         "mqtt_test_publish.test.tsx"
       ]
