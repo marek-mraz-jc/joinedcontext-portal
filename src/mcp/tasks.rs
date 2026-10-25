@@ -102,6 +102,21 @@ impl McpTasks {
         let created_at = now_unix();
         let tasks = self.tasks.clone();
         let key = id.clone();
+        // The entry is in the map before the work starts: work that finishes first finds it and
+        // keeps its answer, never leaving the task `working` for good.
+        if let Ok(mut map) = self.tasks.lock() {
+            map.insert(
+                id.clone(),
+                Task {
+                    owner: owner.to_owned(),
+                    status: Status::Working,
+                    result: None,
+                    created_at,
+                    finished_at: None,
+                    handle: None,
+                },
+            );
+        }
         let handle = tokio::spawn(async move {
             let outcome = work.await;
             if let Ok(mut map) = tasks.lock() {
@@ -120,17 +135,9 @@ impl McpTasks {
             }
         });
         if let Ok(mut map) = self.tasks.lock() {
-            map.insert(
-                id.clone(),
-                Task {
-                    owner: owner.to_owned(),
-                    status: Status::Working,
-                    result: None,
-                    created_at,
-                    finished_at: None,
-                    handle: Some(handle),
-                },
-            );
+            if let Some(task) = map.get_mut(&id) {
+                task.handle = Some(handle);
+            }
         }
         self.describe(owner, &id).unwrap_or_else(|| json!({}))
     }
@@ -237,6 +244,30 @@ fn rand_id() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-5699, F-POR4-009: on a multi-thread runtime, work that finishes before `start` returns
+    /// still leaves its answer; it used to find no entry and the task stayed `working`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn an_instant_answer_is_kept_on_a_multi_thread_runtime() {
+        let tasks = McpTasks::new();
+        let ids: Vec<String> = (0..200)
+            .map(|_| {
+                let started = tasks.start("owner-1", async { json!({ "ok": 1 }) });
+                started["taskId"].as_str().unwrap_or_default().to_owned()
+            })
+            .collect();
+        for id in &ids {
+            let mut answered = false;
+            for _ in 0..200 {
+                if matches!(tasks.result("owner-1", id), Ok(Some(_))) {
+                    answered = true;
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+            assert!(answered, "{id} never answered");
+        }
+    }
 
     #[tokio::test]
     async fn a_task_carries_its_answer_to_the_caller_who_started_it_and_to_nobody_else() {

@@ -493,6 +493,17 @@ routes:
     values: {"id": "ar-0a1b2c3d4e5f"}
     body: {"reason": "moved"}
     note: "a reader's 503 is the fixture's: without a database the request's space is unknown, so the owner check (tests/access_requests_tests.rs) comes after it"
+  - route: GET /projects/{project}/mcp-elicitations/{id}
+    rule: "the asking person's own session: the question's subject and project (AG-63, T-5699)"
+    expect: [401, 404, 404, 404, 404, 404, 404, 403]
+    values: {"id": "eli-0a1b2c3d4e5f6a7b"}
+    note: "the fixture holds no question, so every person's 404 is the unknown id; a bearer token is refused before the lookup; tests/mcp_portal_tests.rs plays the real question"
+  - route: POST /projects/{project}/mcp-elicitations/{id}/decision
+    rule: "the asking person's own session: the question's subject and project (AG-63, T-5699)"
+    expect: [403, 404, 404, 404, 404, 404, 404, 403]
+    values: {"id": "eli-0a1b2c3d4e5f6a7b"}
+    body: {"decision": "accept"}
+    note: "the fixture holds no question, so every person's 404 is the unknown id; a bearer token is refused before the lookup; tests/mcp_portal_tests.rs plays the real question"
   - route: POST /projects/{project}/spaces/{space}/erasures
     rule: "space-read, then approve on ContextSpace in the space (DM-126)"
     expect: [403, 403, allow, allow, allow, allow, 404, 403]

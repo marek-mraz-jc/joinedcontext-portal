@@ -10507,5 +10507,22 @@
       "window": "Dni končiace dnešným dňom (UTC), napr. posledných 30 dní.",
       "month": "Mesiac v tvare RRRR-MM, napr. 2026-10."
     }
+  },
+  "mcpElicitation": {
+    "title": "Rozhodnite o volaní AI klienta",
+    "lead": "Váš AI klient chce spustiť volanie, ktoré mení projekt. Spustí sa, len ak ho tu prijmete.",
+    "operation": "Operácia",
+    "expires": "Otvorené do",
+    "look": "Pozrite si, čo toto volanie mení",
+    "hint": "Prijatie dovolí toto jedno volanie raz, keď ho klient pošle znova; odmietnutie ho zastaví. Odpoveď môžete dovtedy zmeniť.",
+    "accept": "Prijať volanie",
+    "decline": "Odmietnuť volanie",
+    "accepted": "Toto volanie ste prijali",
+    "declined": "Toto volanie ste odmietli",
+    "backToClient": "Vráťte sa k AI klientovi: keď volanie pošle znova, spustí ho, alebo sa dozvie, že ste ho odmietli.",
+    "failed": "Vaša odpoveď sa nezaznamenala",
+    "gone": "Táto otázka už nie je otvorená",
+    "goneHint": "Bola zodpovedaná, po desiatich minútach vypršala, alebo ju položil klient inej osoby. Požiadajte AI klienta, aby volanie poslal znova a položil novú otázku.",
+    "home": "Späť na projekt"
   }
 }

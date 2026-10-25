@@ -158,8 +158,8 @@ pub(super) fn agent_refusal(operation: &str) -> Option<&'static str> {
         // A run asking a question and a run answering it would be a run deciding for the person it
         // acts for (AG-11, AG-45).
         "jc_run_answer" => {
-            "an agent run does not answer the question a run asked the person it acts for; \
-             a person does (AG-11, AG-45)"
+            "an agent run or an MCP client does not answer the question a run asked the \
+             person it acts for; a person does, in the Portal (AG-11, AG-45)"
         }
         _ => return None,
     })
@@ -170,6 +170,11 @@ pub(super) fn agent_refusal(operation: &str) -> Option<&'static str> {
 pub(super) fn refuse_agent(caller: &Caller, operation: &str) -> Result<(), OpError> {
     match agent_refusal(operation) {
         Some(why) if caller.via == super::Via::Agent => {
+            Err(OpError::Api(crate::error::ApiError::Denied(why.into())))
+        }
+        // The answer is the person's decision: an MCP client is a tool a model drives even with
+        // the person's token (T-1005), so it never answers for them (T-5699).
+        Some(why) if operation == "jc_run_answer" && caller.via == super::Via::Mcp => {
             Err(OpError::Api(crate::error::ApiError::Denied(why.into())))
         }
         _ => Ok(()),
