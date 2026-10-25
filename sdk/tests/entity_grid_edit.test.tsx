@@ -90,13 +90,15 @@ describe("edit mode", () => {
     const panel = screen.getByRole("region", { name: DEFAULT_LABELS.review });
     // Each column says what it holds: the entity, the attribute, the stored value, the new one.
     expect(within(panel).getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
-      DEFAULT_LABELS.id,
+      DEFAULT_LABELS.entity,
       DEFAULT_LABELS.attribute,
       DEFAULT_LABELS.before,
       DEFAULT_LABELS.after,
     ]);
-    expect(panel.textContent).toContain("availableBikeNumber");
-    expect(panel.textContent).toContain("urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:001");
+    // The row's name and the column's label, never the URN (T-5530): that sits behind its copy button.
+    expect(within(panel).getByRole("row", { name: /Kamppi/ }).textContent).toContain("Bikes");
+    expect(panel.textContent).not.toContain("urn:ngsi-ld:");
+    expect(within(panel).getByRole("button", { name: `${DEFAULT_LABELS.copyId}: Kamppi` })).toBeInTheDocument();
 
     fireEvent.click(within(panel).getByRole("button", { name: DEFAULT_LABELS.apply }));
     await waitFor(() => expect(written).toHaveLength(1));

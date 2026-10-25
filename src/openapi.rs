@@ -139,6 +139,7 @@ use crate::tools::model_tools::{
         crate::api::agent_runs::preview,
         crate::api::assistant::start_conversation,
         crate::api::assistant::get_access,
+        crate::api::access_attributes::explain_attribute,
         crate::api::access_simulate::simulate_access,
         crate::api::access_explore::explore_access,
         crate::api::access_matrix::access_matrix,
@@ -322,6 +323,7 @@ use crate::tools::model_tools::{
         crate::mcp::handle_mcp,
     ),
     components(schemas(
+        crate::api::access_attributes::AttributeExplained,
         crate::api::access_simulate::SimulateRequest,
         crate::api::access_simulate::Who,
         crate::api::access_simulate::Simulated,

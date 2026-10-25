@@ -11,6 +11,7 @@ import { RecordLink } from "../../components/RecordLink";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 import { CopyUrlButton, hubUrl, namedServerUrl, representationUrl } from "../../components/endpoints/links";
 import { Alert, Badge, Button, Card, CardHeader, ConfirmDialog, EmptyState, Field, Input, Select } from "../../components/ui";
+import type { GeoQ, GrantEntry } from "../../api/access";
 
 type Who = components["schemas"]["Who"];
 type Kind = Who["kind"];
@@ -18,18 +19,6 @@ type Explored = components["schemas"]["Explored"];
 type Reached = components["schemas"]["Reached"];
 type Consent = components["schemas"]["Consent"];
 
-/** One AuthZEN entry as the gateway answers it (API/02 §7b). */
-interface Entry {
-  resource?: { type?: string; idPatterns?: string[]; id?: string };
-  actions?: string[];
-  attributes?: "*" | string[];
-  constraints?: { q?: string; scopeQ?: string; geoQ?: GeoQ; temporalQ?: unknown };
-}
-interface GeoQ {
-  geometry?: string;
-  coordinates?: unknown;
-  georel?: string;
-}
 
 const KINDS: Kind[] = ["person", "group", "role", "serviceAccount", "public"];
 
@@ -279,8 +268,8 @@ function Result({
 
 function Row({ project, row, domain }: { project: string; row: Reached; domain: string | undefined }): JSX.Element {
   const { t } = useTranslation();
-  const entries = row.permissions as Entry[];
-  const prohibitions = row.prohibitions as Entry[];
+  const entries = row.permissions as GrantEntry[];
+  const prohibitions = row.prohibitions as GrantEntry[];
   return (
     <li className="rounded-lg border border-border">
       <details>
@@ -316,7 +305,7 @@ function Row({ project, row, domain }: { project: string; row: Reached; domain: 
   );
 }
 
-function Entries({ title, entries }: { title: string; entries: Entry[] }): JSX.Element {
+function Entries({ title, entries }: { title: string; entries: GrantEntry[] }): JSX.Element {
   const { t } = useTranslation();
   return (
     <div>
