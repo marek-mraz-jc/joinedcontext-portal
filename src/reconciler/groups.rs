@@ -11,7 +11,6 @@
 
 use crate::config::ClientAuth;
 use std::collections::BTreeSet;
-use std::time::Duration;
 
 use jc_core::kinds::GroupSpec;
 use serde::Deserialize;
@@ -23,8 +22,6 @@ use crate::store::{ListOptions, Mirror};
 /// The attribute that says a group is this platform's to write (PF-63).
 pub const MANAGED_BY: &str = "managed-by";
 pub const MANAGED_VALUE: &str = "joinedcontext";
-
-const TIMEOUT: Duration = Duration::from_secs(20);
 
 /// What one run did with one group, in the shape the mirror and the feed both carry.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -72,29 +69,9 @@ struct KcUser {
     email: Option<String>,
 }
 
-#[derive(Deserialize)]
-struct KcToken {
-    access_token: String,
-}
-
-/// The admin token stays out of every log line (T-4321).
-impl std::fmt::Debug for KcToken {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("KcToken")
-            .field("access_token", &"[redacted]")
-            .finish()
-    }
-}
-
 /// The realm's groups, as this Portal's own client may write them.
 pub struct GroupSync {
-    http: reqwest::Client,
-    /// `https://host/realms/{realm}`: where the token comes from.
-    issuer: String,
-    /// `https://host/admin/realms/{realm}`: where the groups are.
-    admin: String,
-    client_id: String,
-    auth: ClientAuth,
+    admin: super::app_clients::Admin,
     /// Where a run records the groups it may not write, for the write doors (AP-115).
     foreign: Option<std::sync::Arc<super::foreign::ForeignNames>>,
 }
@@ -106,88 +83,13 @@ impl GroupSync {
         self
     }
 
-    /// The admin base of an issuer URL: `…/realms/{r}` becomes `…/admin/realms/{r}`. `None`
-    /// when the issuer is not a realm URL, because then there is nothing to manage.
-    fn admin_base(issuer: &str) -> Option<String> {
-        let trimmed = issuer.trim_end_matches('/');
-        let (root, realm) = trimmed.rsplit_once("/realms/")?;
-        Some(format!("{root}/admin/realms/{realm}"))
-    }
-
     /// `None` when no admin client is configured: the groups are then read from the repository
     /// and written nowhere, which is what a Portal without the credential does.
     pub fn new(issuer: &str, client_id: String, auth: ClientAuth) -> Option<Self> {
         Some(Self {
-            http: crate::auth::client_auth::realm_http(TIMEOUT)?,
-            issuer: issuer.trim_end_matches('/').to_owned(),
-            admin: Self::admin_base(issuer)?,
-            client_id,
-            auth,
+            admin: super::app_clients::Admin::new(issuer, client_id, auth)?,
             foreign: None,
         })
-    }
-
-    async fn token(&self) -> Result<String, String> {
-        let response = crate::auth::client_auth::paced(|| async {
-            let form = self
-                .auth
-                .form(&self.client_id, &[("grant_type", "client_credentials")])
-                .await?;
-            self.http
-                .post(format!("{}/protocol/openid-connect/token", self.issuer))
-                .form(&form)
-                .send()
-                .await
-                .map_err(|err| err.to_string())
-        })
-        .await?;
-        if !response.status().is_success() {
-            return Err(format!(
-                "the realm refused the reconciler's client: {}",
-                response.status()
-            ));
-        }
-        let token: KcToken = response.json().await.map_err(|err| err.to_string())?;
-        Ok(token.access_token)
-    }
-
-    async fn get(&self, token: &str, path: &str) -> Result<Value, String> {
-        let response = crate::auth::client_auth::paced(|| {
-            let request = self
-                .http
-                .get(format!("{}{path}", self.admin))
-                .bearer_auth(token);
-            async { request.send().await.map_err(|err| err.to_string()) }
-        })
-        .await?;
-        if !response.status().is_success() {
-            return Err(format!("GET {path}: {}", response.status()));
-        }
-        response.json().await.map_err(|err| err.to_string())
-    }
-
-    async fn write(
-        &self,
-        token: &str,
-        method: reqwest::Method,
-        path: &str,
-        body: Option<Value>,
-    ) -> Result<(), String> {
-        let response = crate::auth::client_auth::paced(|| {
-            let mut request = self
-                .http
-                .request(method.clone(), format!("{}{path}", self.admin))
-                .bearer_auth(token);
-            if let Some(body) = &body {
-                request = request.json(body);
-            }
-            async { request.send().await.map_err(|err| err.to_string()) }
-        })
-        .await?;
-        if !response.status().is_success() {
-            return Err(format!("{method} {path}: {}", response.status()));
-        }
-        Ok(())
     }
 
     /// Brings the realm to what the manifests say, and answers what it had to change.
@@ -208,7 +110,7 @@ impl GroupSync {
         mirror: &Mirror,
         generated: &[(String, BTreeSet<String>)],
     ) -> Vec<GroupOutcome> {
-        let token = match self.token().await {
+        let token = match self.admin.token().await {
             Ok(token) => token,
             Err(err) => {
                 return vec![GroupOutcome {
@@ -221,7 +123,8 @@ impl GroupSync {
         };
 
         let existing: Vec<KcGroup> = match self
-            .get(&token, "/groups?briefRepresentation=false&max=1000")
+            .admin
+            .get::<Value>(&token, "/groups?briefRepresentation=false&max=1000")
             .await
             .and_then(|value| serde_json::from_value(value).map_err(|err| err.to_string()))
         {
@@ -294,7 +197,8 @@ impl GroupSync {
             }
             let mut outcome = GroupOutcome::of(&group.name);
             match self
-                .write(
+                .admin
+                .send(
                     &token,
                     reqwest::Method::DELETE,
                     &format!("/groups/{}", group.id),
@@ -302,7 +206,7 @@ impl GroupSync {
                 )
                 .await
             {
-                Ok(()) => outcome.drift.push(
+                Ok(_) => outcome.drift.push(
                     "the group was managed here and no manifest declares it any more; it was \
                      removed from the realm"
                         .to_owned(),
@@ -335,11 +239,12 @@ impl GroupSync {
             Some(group) => group.id.clone(),
             None => {
                 if let Err(err) = self
-                    .write(
+                    .admin
+                    .send(
                         token,
                         reqwest::Method::POST,
                         "/groups",
-                        Some(json!({
+                        Some(&json!({
                             "name": name,
                             "attributes": { MANAGED_BY: [MANAGED_VALUE] }
                         })),
@@ -353,7 +258,8 @@ impl GroupSync {
                     .drift
                     .push(format!("the realm had no group '{name}'; it was created"));
                 match self
-                    .get(token, &format!("/groups?search={name}&exact=true"))
+                    .admin
+                    .get::<Value>(token, &format!("/groups?search={name}&exact=true"))
                     .await
                     .and_then(|v| {
                         serde_json::from_value::<Vec<KcGroup>>(v).map_err(|e| e.to_string())
@@ -376,7 +282,8 @@ impl GroupSync {
 
         // Who is in the group now, by e-mail, against who the manifest says.
         let members: Vec<KcUser> = match self
-            .get(token, &format!("/groups/{id}/members?max=1000"))
+            .admin
+            .get::<Value>(token, &format!("/groups/{id}/members?max=1000"))
             .await
             .and_then(|v| serde_json::from_value(v).map_err(|e| e.to_string()))
         {
@@ -397,7 +304,8 @@ impl GroupSync {
             match self.user_id(token, email).await {
                 Ok(Some(user)) => {
                     match self
-                        .write(
+                        .admin
+                        .send(
                             token,
                             reqwest::Method::PUT,
                             &format!("/users/{user}/groups/{id}"),
@@ -405,7 +313,7 @@ impl GroupSync {
                         )
                         .await
                     {
-                        Ok(()) => outcome
+                        Ok(_) => outcome
                             .drift
                             .push(format!("{email} belongs in the group and was added")),
                         Err(err) => outcome.error = Some(err),
@@ -424,7 +332,8 @@ impl GroupSync {
                 continue;
             }
             match self
-                .write(
+                .admin
+                .send(
                     token,
                     reqwest::Method::DELETE,
                     &format!("/users/{user}/groups/{id}"),
@@ -432,7 +341,7 @@ impl GroupSync {
                 )
                 .await
             {
-                Ok(()) => outcome.drift.push(format!(
+                Ok(_) => outcome.drift.push(format!(
                     "{email} was in the realm's group and does not belong in it; the \
                      membership was removed"
                 )),
@@ -445,7 +354,8 @@ impl GroupSync {
     /// The realm's user id for an address, or `None` when nobody has signed in under it yet.
     async fn user_id(&self, token: &str, email: &str) -> Result<Option<String>, String> {
         let users: Vec<KcUser> = self
-            .get(
+            .admin
+            .get::<Value>(
                 token,
                 &format!("/users?exact=true&email={}", urlencoding(email)),
             )
@@ -518,31 +428,6 @@ pub fn record(mirror: &Mirror, outcomes: &[GroupOutcome]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_kc_token_debug_never_shows_the_admin_token() {
-        let token = KcToken {
-            access_token: "s3cr3t-test".into(),
-        };
-        let text = format!("{token:?}");
-        assert!(
-            !text.contains("s3cr3t-test") && text.contains("[redacted]"),
-            "{text}"
-        );
-    }
-
-    #[test]
-    fn the_admin_base_is_the_realm_url_with_admin_in_front_of_realms() {
-        assert_eq!(
-            GroupSync::admin_base("https://id.example.sk/realms/bb"),
-            Some("https://id.example.sk/admin/realms/bb".to_owned())
-        );
-        assert_eq!(
-            GroupSync::admin_base("https://id.example.sk/realms/bb/"),
-            Some("https://id.example.sk/admin/realms/bb".to_owned())
-        );
-        assert_eq!(GroupSync::admin_base("https://id.example.sk/"), None);
-    }
 
     #[test]
     fn an_address_is_safe_in_a_query_string() {

@@ -975,28 +975,8 @@ pub async fn retry_rejected(
     Path((project, name)): Path<(String, String)>,
     Json(request): Json<RetryRequest>,
 ) -> Result<(axum::http::StatusCode, Json<RetryAnswer>), ApiError> {
-    let not_found = || {
-        ApiError::NotFound(format!(
-            "pipeline '{name}' not found in project '{project}'"
-        ))
-    };
+    let pipeline = readable_pipeline(&state, &user, &project, &name)?;
     let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
-    if !effective.may_read_project() || !is_dns1123(&project) || !is_dns1123(&name) {
-        return Err(not_found());
-    }
-    let pipeline = state
-        .mirror
-        .get(&project, "Pipeline", &name)
-        .filter(|p| {
-            may_pipeline(
-                &effective,
-                &state,
-                &project,
-                &p.spec,
-                jc_core::kinds::Verb::Read,
-            )
-        })
-        .ok_or_else(not_found)?;
     if !may_pipeline(
         &effective,
         &state,

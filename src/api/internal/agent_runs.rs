@@ -373,7 +373,8 @@ pub async fn internal_mcp(
     Ok(crate::mcp::dispatch_for(state, caller, body).await)
 }
 
-/// The two routes the credential proxy calls, served on the internal listener alone (AG-52).
+/// The routes the credential proxy calls (a run, its MCP, events, inbox and diagnostics), served
+/// on the internal listener alone (AG-52).
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/internal/agent-runs/{id}/mcp", post(internal_mcp))

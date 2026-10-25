@@ -16,6 +16,7 @@
 //! Portal's own service-account token, never straight at the broker: the space's policy decides
 //! this write like any other, and the gateway injects the tenant (SP-06, SP-07).
 
+use crate::capped::refusal;
 use crate::config::ClientAuth;
 use crate::pipeline_secrets::Resolver;
 use crate::store::Mirror;
@@ -321,7 +322,7 @@ impl SubscriptionSync {
             return Ok(());
         }
         if created.status() != reqwest::StatusCode::CONFLICT {
-            return Err(refusal("the space refused the subscription", created).await);
+            return Err(refusal("the space refused the subscription", created, None).await);
         }
         // Already there: the manifest is still the truth, so it is patched onto it. The id is
         // not sent again — a PATCH that renames the resource is not what this is.
@@ -342,7 +343,7 @@ impl SubscriptionSync {
             .map_err(|err| err.to_string())?;
         match updated.status().is_success() {
             true => Ok(()),
-            false => Err(refusal("the space refused the update", updated).await),
+            false => Err(refusal("the space refused the update", updated, None).await),
         }
     }
 
@@ -385,37 +386,8 @@ impl SubscriptionSync {
         match response.status().is_success() || response.status() == reqwest::StatusCode::NOT_FOUND
         {
             true => Ok(()),
-            false => Err(refusal("the space refused the delete", response).await),
+            false => Err(refusal("the space refused the delete", response, None).await),
         }
-    }
-}
-
-/// `what: status body`, with the body cut short — a problem document is a sentence, an HTML
-/// error page is not, and neither belongs in a status field whole.
-async fn refusal(what: &str, response: reqwest::Response) -> String {
-    let status = response.status();
-    let body = crate::capped::text(response, crate::capped::ANSWER_BYTES)
-        .await
-        .unwrap_or_default();
-    // A problem document says it in `detail` (or `title`): that sentence, not its JSON (T-4866).
-    let sentence = serde_json::from_str::<Value>(&body)
-        .ok()
-        .and_then(|problem| {
-            ["detail", "title"]
-                .iter()
-                .find_map(|key| problem.get(*key).and_then(Value::as_str).map(str::to_owned))
-        });
-    let mut said = sentence.unwrap_or(body).trim().replace('\n', " ");
-    if said.len() > 300 {
-        let mut end = 300;
-        while !said.is_char_boundary(end) {
-            end -= 1;
-        }
-        said.truncate(end);
-    }
-    match said.is_empty() {
-        true => format!("{what}: {status}"),
-        false => format!("{what}: {status}: {said}"),
     }
 }
 

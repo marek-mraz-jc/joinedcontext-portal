@@ -342,15 +342,8 @@ async fn checked(
     let endpoint = readable_endpoint(state, identity, project, &request.endpoint_name)?;
     let needs = needs_on(&template, &endpoint);
     let endpoints = std::slice::from_ref(&endpoint);
-    crate::agents::needs::validate_data_needs(
-        &state.mirror,
-        project,
-        endpoints,
-        "project",
-        &needs,
-        user,
-    )
-    .map_err(|err| on_endpoint(&endpoint.name, err))?;
+    crate::agents::needs::validate_data_needs(&state.mirror, project, endpoints, "project", &needs)
+        .map_err(|err| on_endpoint(&endpoint.name, err))?;
     crate::agents::held::check(
         crate::agents::held::client(),
         state.config.gateway_url.as_deref(),

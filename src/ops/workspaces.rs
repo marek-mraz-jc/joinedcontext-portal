@@ -668,15 +668,14 @@ pub async fn reap_expired_at(state: &AppState, now: DateTime<Utc>) -> usize {
         state.previews.forget(&workspace.name);
         // A branch the forge no longer has is already `Ok`, so a second pass over the same record
         // cannot stall on it.
-        if let Err(error) = forge(state, &workspace.project) {
-            tracing::warn!(workspace = %workspace.name, %error, "an expired workspace keeps its branch");
-            continue;
-        }
-        if let Err(error) = forge(state, &workspace.project)
-            .expect("checked above")
-            .delete_branch(&workspace.branch())
-            .await
-        {
+        let gitea = match forge(state, &workspace.project) {
+            Ok(gitea) => gitea,
+            Err(error) => {
+                tracing::warn!(workspace = %workspace.name, %error, "an expired workspace keeps its branch");
+                continue;
+            }
+        };
+        if let Err(error) = gitea.delete_branch(&workspace.branch()).await {
             tracing::warn!(workspace = %workspace.name, %error, "the branch of an expired workspace was not deleted; it is tried again next pass");
             continue;
         }
@@ -768,13 +767,6 @@ pub fn may_see(
 }
 
 /// The live workspace `name` of `project`, readable by the caller.
-///
-/// The two wordings of the 404 below — the store's `no workspace named 'x'` for a name nobody
-/// has, and this one for a name that belongs to another project — are an existence oracle over
-/// every workspace in the organization. That is T-2296, owned by worker-1, whose fix is one
-/// sentence here and a narrowed conflict in `open`; `edge_workspace_routes_tests` pins both
-/// wordings until then. T-1682 found the same thing and left it alone rather than land half of
-/// somebody else's task.
 pub(crate) async fn visible(
     state: &AppState,
     identity: &Identity,
@@ -1653,17 +1645,9 @@ fn discarded_schema() -> Value {
     json!({ "type": "object", "properties": { "discarded": { "type": "string" } }, "required": ["discarded"] })
 }
 
-fn annotations(read_only: bool, destructive: bool, idempotent: bool) -> crate::ops::Annotations {
-    crate::ops::Annotations {
-        read_only_hint: read_only,
-        destructive_hint: destructive,
-        idempotent_hint: idempotent,
-    }
-}
-
 /// The workspace operations of the registry (API/01 §21, §22).
 pub fn operations() -> Vec<crate::ops::Operation> {
-    use crate::ops::{parse_input, Operation};
+    use crate::ops::{annotations, parse_input, Operation};
     vec![
         Operation {
             name: "jc_workspace_open",

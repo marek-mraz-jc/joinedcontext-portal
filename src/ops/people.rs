@@ -18,7 +18,7 @@ use serde_json::{json, Value};
 
 use super::bounds::{text, ID, TITLE};
 use super::runs::as_user;
-use super::{parse_input, Annotations, Operation};
+use super::{annotations, parse_input, Operation};
 use crate::api::people::{
     disable_person, edit_person, enable_person, get_person, list_people, sign_out_person,
 };
@@ -70,14 +70,6 @@ struct EditInput {
 const HAND_OVER: &str = "The realm sent no e-mail, so the person has no way in yet. A person \
      with update on Person gives them a password with Reset password on their page in the Portal; \
      a password is never answered to a tool.";
-
-fn annotations(read_only: bool, destructive: bool, idempotent: bool) -> Annotations {
-    Annotations {
-        read_only_hint: read_only,
-        destructive_hint: destructive,
-        idempotent_hint: idempotent,
-    }
-}
 
 fn id_schema(what: &str) -> Value {
     json!({

@@ -287,10 +287,7 @@ pub fn operations() -> Vec<Operation> {
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     refuse_agent(caller, "jc_run_create")?;
-                    let request = serde_json::from_value(val).map_err(|e| {
-                        let (path, message) = super::serde_error_path_and_message(&e);
-                        OpError::InvalidInput { path, message }
-                    })?;
+                    let request = super::parse_input(val)?;
                     let (_, Json(created)) = crate::api::agent_runs::create_run(
                         as_user(caller),
                         // Through the registry a run is a person's: no header reaches it (AG-93).

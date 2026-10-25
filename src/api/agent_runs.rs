@@ -536,7 +536,6 @@ pub async fn create_run(
         &run_endpoints,
         &request.visibility,
         &request.data_needs,
-        &user,
     )?;
     // T-3159, T-3160: a dashboard and an analysis only read; one that writes is an application.
     if (request.kind == "dashboard" || request.kind == "analysis") && allows_write {

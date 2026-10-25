@@ -30,6 +30,44 @@ pub(crate) async fn text(response: reqwest::Response, max: usize) -> Result<Stri
     Ok(String::from_utf8_lossy(&bytes(response, max).await?).into_owned())
 }
 
+/// `what: status: sentence` of a refused call, for a log line or a status condition: a problem
+/// document's `detail` (or `title`), else the body, on one line, `token` redacted, cut to 300
+/// bytes.
+pub(crate) async fn refusal(
+    what: &str,
+    response: reqwest::Response,
+    token: Option<&str>,
+) -> String {
+    let status = response.status();
+    let body = text(response, ANSWER_BYTES).await.unwrap_or_default();
+    // A problem document says it in `detail` (or `title`): that sentence, not its JSON (T-4866).
+    let sentence = serde_json::from_str::<serde_json::Value>(&body)
+        .ok()
+        .and_then(|problem| {
+            ["detail", "title"].iter().find_map(|key| {
+                problem
+                    .get(*key)
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+            })
+        });
+    let mut said = sentence.unwrap_or(body).trim().replace('\n', " ");
+    if let Some(token) = token.filter(|token| !token.is_empty()) {
+        said = said.replace(token, "[redacted]");
+    }
+    if said.len() > 300 {
+        let mut end = 300;
+        while !said.is_char_boundary(end) {
+            end -= 1;
+        }
+        said.truncate(end);
+    }
+    match said.is_empty() {
+        true => format!("{what}: {status}"),
+        false => format!("{what}: {status}: {said}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

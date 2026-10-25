@@ -2,9 +2,8 @@
 //! (CC-34, AG-11).
 
 use super::bounds;
-use super::serde_error_path_and_message;
+use super::parse_input;
 use super::EmptyInput;
-use super::OpError;
 use super::Operation;
 use super::OperationAnnotations;
 use super::{empty_input_schema, resources};
@@ -146,20 +145,10 @@ pub fn operations() -> Vec<Operation> {
             kind: "*",
             verb: None,
             lane: Lane::Green,
-            validate: |val| {
-                serde_json::from_value::<EmptyInput>(val.clone())
-                    .map(|_| ())
-                    .map_err(|e| {
-                        let (path, message) = serde_error_path_and_message(&e);
-                        OpError::InvalidInput { path, message }
-                    })
-            },
+            validate: |val| parse_input::<EmptyInput>(val.clone()).map(|_| ()),
             run: |caller, state, project, val| {
                 Box::pin(async move {
-                    let _: EmptyInput = serde_json::from_value(val).map_err(|e| {
-                        let (path, message) = serde_error_path_and_message(&e);
-                        OpError::InvalidInput { path, message }
-                    })?;
+                    let _: EmptyInput = parse_input(val)?;
                     let list =
                         changes::list_changes_readable(state, &caller.identity, project).await?;
                     Ok(serde_json::to_value(list)?)
@@ -180,21 +169,11 @@ pub fn operations() -> Vec<Operation> {
             kind: "Change",
             verb: Some(Verb::Approve),
             lane: Lane::Red,
-            validate: |val| {
-                serde_json::from_value::<ChangeApproveInput>(val.clone())
-                    .map(|_| ())
-                    .map_err(|e| {
-                        let (path, message) = serde_error_path_and_message(&e);
-                        OpError::InvalidInput { path, message }
-                    })
-            },
+            validate: |val| parse_input::<ChangeApproveInput>(val.clone()).map(|_| ()),
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     resources::refuse_agent_decision(caller)?;
-                    let input: ChangeApproveInput = serde_json::from_value(val).map_err(|e| {
-                        let (path, message) = serde_error_path_and_message(&e);
-                        OpError::InvalidInput { path, message }
-                    })?;
+                    let input: ChangeApproveInput = parse_input(val)?;
                     let change = changes::approve_change_for(
                         state,
                         &caller.identity,

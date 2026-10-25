@@ -25,6 +25,7 @@ use super::space_rules::{
     RetentionCount,
 };
 use super::temporal_q::intersect;
+use crate::capped::refusal;
 use jc_core::envelope::ORG_NAMESPACE;
 use jc_core::kinds::data_model::ModelImport;
 use jc_core::kinds::{
@@ -2260,40 +2261,6 @@ impl ViewSync {
 fn lock<T>(held: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     held.lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-}
-
-/// `what: status: detail`, the detail of a problem document when it is one, cut short; the
-/// request's bearer `token`, when a broker repeats it, is replaced before the cut (T-4772), so
-/// no status or API error ever carries it.
-async fn refusal(what: &str, response: reqwest::Response, token: Option<&str>) -> String {
-    let status = response.status();
-    let body = crate::capped::text(response, crate::capped::ANSWER_BYTES)
-        .await
-        .unwrap_or_default();
-    let detail = serde_json::from_str::<Value>(&body)
-        .ok()
-        .and_then(|problem| {
-            problem
-                .get("detail")
-                .and_then(Value::as_str)
-                .map(str::to_owned)
-        })
-        .unwrap_or(body);
-    let mut said = detail.trim().replace('\n', " ");
-    if let Some(token) = token.filter(|token| !token.is_empty()) {
-        said = said.replace(token, "[redacted]");
-    }
-    if said.len() > 300 {
-        let mut end = 300;
-        while !said.is_char_boundary(end) {
-            end -= 1;
-        }
-        said.truncate(end);
-    }
-    match said.is_empty() {
-        true => format!("{what}: {status}"),
-        false => format!("{what}: {status}: {said}"),
-    }
 }
 
 /// Each Endpoint's and Context Space's view condition, replacing the one a run before set

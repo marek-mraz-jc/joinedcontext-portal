@@ -213,6 +213,7 @@ async fn sent(request: reqwest::RequestBuilder) -> Result<reqwest::Response, Api
         404 => ApiError::NotFound(detail()),
         409 => ApiError::Conflict(detail()),
         413 => ApiError::TooLarge(detail()),
+        429 => ApiError::TooManyRequests(detail()),
         415 => ApiError::UnsupportedMediaType(detail()),
         401 | 403 => {
             tracing::error!("the knowledge assistant refused the Portal's own token");
@@ -986,15 +987,9 @@ pub(super) fn administers(
     )
 }
 
-/// The assistant's path of one conversation the caller administers with `verb`; a conversation id
-/// is a UUID, or no conversation of this project.
-fn conversation_path(
-    state: &AppState,
-    user: &CurrentUser,
-    (project, conversation): (&str, &str),
-    verb: Verb,
-) -> Result<String, ApiError> {
-    administers(state, user, project, verb)?;
+/// The assistant's path of one conversation of `project`, whose verb the caller already holds; a
+/// conversation id is a UUID, or no conversation of this project.
+fn conversation_path(project: &str, conversation: &str) -> Result<String, ApiError> {
     let uuid = conversation.len() == 36
         && conversation.char_indices().all(|(i, c)| {
             if matches!(i, 8 | 13 | 18 | 23) {
@@ -1181,7 +1176,7 @@ async fn transcript_call(
     administers(state, user, project, verb)?;
     admitted(&user.0.identity.subject, Instant::now())?;
     let call = async {
-        let path = conversation_path(state, user, (project, conversation), verb)?;
+        let path = conversation_path(project, conversation)?;
         let suffix = suffix.ok_or_else(|| ApiError::NotFound("no such stored turn".into()))?;
         ask(state, method, &format!("{path}{suffix}"), None).await
     };
@@ -1301,24 +1296,10 @@ pub async fn chat(
         return Err(ApiError::NotFound(format!("project '{project}' not found")));
     }
     deployed(&state, &project, &deployment)?;
-    let base = state.config.knowledge_url.as_deref().ok_or_else(|| {
-        ApiError::Unavailable(
-            "this Portal has no knowledge assistant address (JC_PORTAL_KNOWLEDGE_URL)".into(),
-        )
-    })?;
-    let oidc = state.oidc.as_ref().ok_or_else(|| {
-        ApiError::Unavailable("this Portal has no Keycloak client to ask the assistant with".into())
-    })?;
-    let token = oidc.service_token().await.map_err(|err| {
-        ApiError::Unavailable(format!("no token for the knowledge assistant: {err}"))
-    })?;
-    let mut request = http()
-        .post(format!(
-            "{base}/internal/v1/projects/{project}/knowledge/deployments/{deployment}/chat"
-        ))
-        .bearer_auth(token)
+    let path = format!("{project}/knowledge/deployments/{deployment}/chat");
+    let mut request = request(&state, reqwest::Method::POST, &path, CHAT_TIMEOUT)
+        .await?
         .header("x-jc-person", &user.0.identity.username)
-        .timeout(CHAT_TIMEOUT)
         .json(&question);
     // The person's own token, for an internal deployment's connectors (AG-115): passed on,
     // never kept or logged here.
@@ -1327,34 +1308,7 @@ pub async fn chat(
     {
         request = request.header("x-jc-person-token", person);
     }
-    let answer = request.send().await.map_err(|err| {
-        tracing::warn!(error = %err.without_url(), "the knowledge assistant did not answer");
-        ApiError::Unavailable("the knowledge assistant did not answer; try again shortly".into())
-    })?;
-    let status = answer.status().as_u16();
-    if !(200..300).contains(&status) {
-        let body: Value = crate::capped::json(answer, crate::capped::ANSWER_BYTES)
-            .await
-            .unwrap_or(Value::Null);
-        let detail = body
-            .get("detail")
-            .and_then(Value::as_str)
-            .unwrap_or("no reason given")
-            .to_owned();
-        return Err(match status {
-            400 => ApiError::BadRequest(detail),
-            404 => ApiError::NotFound(detail),
-            409 => ApiError::Conflict(detail),
-            429 => ApiError::TooManyRequests(detail),
-            401 | 403 => {
-                tracing::error!("the knowledge assistant refused the Portal's own token");
-                ApiError::Unavailable(
-                    "the knowledge assistant does not accept this Portal's token".into(),
-                )
-            }
-            _ => ApiError::Unavailable(format!("the knowledge assistant answered {status}")),
-        });
-    }
+    let answer = sent(request).await?;
     // The events as they come, so the person sees each tool and the answer when it is there.
     let events = futures_util::stream::unfold(Some(answer), |answer| async move {
         let mut answer = answer?;

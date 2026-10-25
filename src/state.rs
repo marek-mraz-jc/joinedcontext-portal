@@ -280,30 +280,7 @@ impl AppState {
     }
 
     pub fn with_db(mut self, db: sqlx::PgPool) -> Self {
-        self.agents = Arc::new(AgentStore::new(Some(db.clone())));
-        self.drafts = DraftStore::new(Some(db.clone())).with_hub(self.draft_events.clone());
-        self.draft_events.connect(db.clone());
-        self.workspaces = crate::ops::workspaces::WorkspaceStore::new(Some(db.clone()));
-        self.data_views = crate::ops::data_views::DataViewStore::new(Some(db.clone()));
-        self.pipeline_templates =
-            crate::ops::pipeline_templates::TemplateStore::new(Some(db.clone()));
-        self.activity = crate::activity::ActivityStore::new(Some(db.clone()))
-            .with_hub(self.activity_events.clone());
-        self.rejected = Arc::new(crate::pipeline_outcomes::RejectedStore::new(Some(
-            db.clone(),
-        )));
-        self.pipeline_log = Arc::new(crate::pipeline_log::LogStore::new(Some(db.clone())));
-        self.source_ledger = Arc::new(crate::pipeline_source_deletes::Ledger::new(Some(
-            db.clone(),
-        )));
-        self.trash = Arc::new(crate::entity_trash::TrashStore::new(Some(db.clone())));
-        self.comments = Arc::new(crate::entity_comments::CommentStore::new(Some(db.clone())));
-        self.feedback = Arc::new(crate::feedback::FeedbackStore::new(Some(db.clone())));
-        self.alerts = Arc::new(crate::alerts::AlertStore::new(Some(db.clone())));
-        self.health_log = Arc::new(crate::health_log::HealthStore::new(Some(db.clone())));
-        self.link_check = Arc::new(crate::link_check::LinkStore::new(Some(db.clone())));
-        self.endpoint_usage = Arc::new(crate::endpoint_usage::UsageStore::new(Some(db.clone())));
-        self.mqtt_capture = Arc::new(crate::mqtt_capture::CaptureStore::new(Some(db.clone())));
+        self.attach_stores(&Some(db.clone()));
         self.db = Some(db);
         self
     }
@@ -359,8 +336,6 @@ impl AppState {
                 )),
             ));
         }
-        state.pipeline_log = Arc::new(crate::pipeline_log::LogStore::new(db.clone()));
-        state.source_ledger = Arc::new(crate::pipeline_source_deletes::Ledger::new(db.clone()));
         state.db = db;
         // What the process before this one refused stays refused (T-0980).
         state.load_revocations().await;
@@ -1038,6 +1013,8 @@ impl AppState {
         self.endpoint_usage = Arc::new(crate::endpoint_usage::UsageStore::new(db.clone()));
         self.mqtt_capture = Arc::new(crate::mqtt_capture::CaptureStore::new(db.clone()));
         self.quality = Arc::new(crate::quality::Store::new(db.clone()));
+        self.pipeline_log = Arc::new(crate::pipeline_log::LogStore::new(db.clone()));
+        self.source_ledger = Arc::new(crate::pipeline_source_deletes::Ledger::new(db.clone()));
     }
 
     /// The cluster clients a builder run and its test sandbox are scheduled with.

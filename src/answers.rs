@@ -61,6 +61,7 @@ pub async fn forget_all(state: &AppState) -> Option<u64> {
 
 /// Looks at the mirror every 30 seconds and forgets every kept answer once a Policy or an
 /// Endpoint changed since the last look; a purge that failed is tried again on the next look.
+/// Only the leader purges: the answers live in jc-assistant, and one purge per change is enough.
 pub(crate) fn spawn_periodic(state: AppState) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
@@ -68,6 +69,13 @@ pub(crate) fn spawn_periodic(state: AppState) {
         let mut seen = fingerprint(&state.mirror);
         loop {
             interval.tick().await;
+            if state
+                .syncer
+                .as_ref()
+                .is_some_and(|syncer| !syncer.is_leader())
+            {
+                continue;
+            }
             let now = fingerprint(&state.mirror);
             if now != seen {
                 if let Some(forgotten) = forget_all(&state).await {

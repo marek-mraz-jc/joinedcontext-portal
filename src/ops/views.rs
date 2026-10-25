@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 
 use super::bounds::{text, ID, NAME, QUERY, TERM};
 use super::runs::as_user;
-use super::{parse_input, Annotations, Caller, OpError, Operation};
+use super::{parse_input, Annotations, Caller, EmptyInput, OpError, Operation};
 use crate::change::Lane;
 use crate::state::AppState;
 
@@ -40,10 +40,6 @@ pub struct ActivityInput {
     #[serde(default)]
     pub cursor: Option<String>,
 }
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct EmptyInput {}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
