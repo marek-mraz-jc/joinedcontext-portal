@@ -5371,6 +5371,7 @@
     "datasetId": "Dataset",
     "empty": "Žiadne entity.",
     "loading": "Načítavam…",
+    "filtering": "Filtrujem…",
     "previous": "Predchádzajúca",
     "next": "Nasledujúca",
     "page": "Strana",

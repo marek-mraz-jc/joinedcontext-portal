@@ -5371,6 +5371,7 @@
     "datasetId": "Dataset",
     "empty": "No entities here.",
     "loading": "Loading…",
+    "filtering": "Filtering…",
     "previous": "Previous",
     "next": "Next",
     "page": "Page",
