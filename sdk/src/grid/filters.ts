@@ -209,6 +209,13 @@ export interface FilterColumn {
   options?: EnumOption[];
   /** The unit symbol of a number column's values, for its hint. */
   unit?: string;
+  /** A LanguageProperty: `q` asks its text in any language (`name[*]`), the map itself matches nothing. */
+  language?: boolean;
+}
+
+/** The attribute as a `q` path names it: a language map through `[*]`, NGSI-LD's "any language". */
+function qAttr(attr: string, column: FilterColumn): string {
+  return column.language && !column.meta ? `${attr}[*]` : attr;
 }
 
 /**
@@ -236,7 +243,7 @@ export function queryFromFilters(
     if (!column.attr) {
       continue;
     }
-    const built = termOf(column.attr, column.meta, filter, column.kind);
+    const built = termOf(qAttr(column.attr, column), column.meta, filter, column.kind);
     if (built) {
       terms.push(built);
     }
@@ -286,7 +293,7 @@ export function queryFromGroup(columns: FilterColumn[], group: FilterGroup): str
     } else {
       const column = byKey.get(item.key);
       if (column?.attr && column.kind !== "id") {
-        built = termOf(column.attr, column.meta, item.filter, column.kind);
+        built = termOf(qAttr(column.attr, column), column.meta, item.filter, column.kind);
       }
     }
     if (built) parts.push(built);
@@ -295,12 +302,20 @@ export function queryFromGroup(columns: FilterColumn[], group: FilterGroup): str
   return parts.map((part) => (/[;|]/.test(part) ? `(${part})` : part)).join(group.join === "or" ? "|" : ";");
 }
 
+/** The most text attributes one search asks: each is a regular expression the broker runs per row. */
+const SEARCH_ATTRS = 8;
+
 /**
- * The search box as a `q` (T-4883): any of the named text attributes holds the typed text,
- * case-insensitively. The endpoint searches the whole type with the reader's grant, never the
- * loaded page.
+ * The search box as a `q` (T-4883): any text attribute of the type holds the typed text,
+ * case-insensitively, a LanguageProperty in any of its languages (T-5600). Number, date, place,
+ * enum and metadata columns are left out: a regular expression over them matches nothing. The
+ * endpoint searches the whole type with the reader's grant, never the loaded page.
  */
-export function searchQuery(text: string, attrs: readonly string[]): string | undefined {
+export function searchQuery(text: string, columns: readonly FilterColumn[]): string | undefined {
+  const attrs = columns
+    .filter((column) => column.kind === "text" && column.attr && !column.meta)
+    .slice(0, SEARCH_ATTRS)
+    .map((column) => qAttr(column.attr!, column));
   if (text.trim() === "" || attrs.length === 0) return undefined;
   const pattern = patternLiteral(text, "(?i)");
   const terms = attrs.map((attr) => `${attr}~=${pattern}`);
