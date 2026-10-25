@@ -303,10 +303,10 @@ fn said(envelope: &ResourceEnvelope) -> String {
         .unwrap_or_default()
 }
 
-/// A detail fit to show: credentials masked, one line, at most [`MAX_DETAIL`] characters.
+/// A detail fit to show: a quoted JSON body in its words, credentials masked, one line, at most [`MAX_DETAIL`] characters.
 fn shown(detail: &str) -> String {
     let one_line = detail.split_whitespace().collect::<Vec<_>>().join(" ");
-    crate::pipeline_outcomes::mask_text(&one_line)
+    crate::pipeline_outcomes::mask_text(&crate::pipeline_outcomes::json_in_words(&one_line))
         .chars()
         .take(MAX_DETAIL)
         .collect()
@@ -1045,6 +1045,26 @@ mod tests {
             leaky.detail.text
         );
         assert!(leaky.fix.text.contains("secretRef"), "{}", leaky.fix.text);
+    }
+
+    /// T-5734: the walker found the gateway's 403 body as raw JSON on /projects/helsinki/health.
+    #[test]
+    fn a_detail_tells_a_quoted_json_body_in_words() {
+        let findings = derive(
+            &mirror(vec![envelope(
+                "Pipeline",
+                "refused",
+                Some(Phase::Error),
+                r#"the last run failed for a cause outside its source: the write failed: processors failed: the target HTTP request returned unexpected response code (403): 403 Forbidden, Error: {"type":"about:blank","title":"Forbidden","status":403,"detail":"the Policy grants no write of this type"}; next try 22:45"#,
+            )]),
+            &crate::quality::Store::default(),
+            &[],
+        );
+        let refused = find(&findings, "refused", "reconcile");
+        assert_eq!(
+            refused.detail.text,
+            "the last run failed for a cause outside its source: the write failed: processors failed: the target HTTP request returned unexpected response code (403): 403 Forbidden, Error: the Policy grants no write of this type; next try 22:45"
+        );
     }
 
     fn finding(status: Status) -> Finding {
