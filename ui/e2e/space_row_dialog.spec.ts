@@ -110,7 +110,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
 
     const dialog = page.getByRole("dialog", { name: "Details: District 3" });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole("tab")).toHaveText(["Fields", "History", "Comments"]);
+    await expect(dialog.getByRole("tab")).toHaveText(["Fields", "History", "Metadata", "Comments"]);
     await expect(dialog.getByText("30", { exact: true })).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
     await shot(page, `row-fields-${label}`);

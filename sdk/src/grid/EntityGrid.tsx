@@ -25,6 +25,7 @@ import { objectsOf, pointingAt, searchTargets } from "../relations";
 import type { TargetOption } from "../relations";
 import { NGSI_LD_NULL, RelationPicker } from "./RelationPicker";
 import { RowDetail } from "./RowDetail";
+import { AttributeMetadata } from "./AttributeMetadata";
 import type { RowDetailTab } from "./RowDetail";
 import { parseClipboard, planPaste } from "./paste";
 import { problemOf } from "./rules";
@@ -1414,6 +1415,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
             rowFields: labels.rowFields,
             rowHistory: labels.history,
             historyAttr: labels.attribute,
+            rowMetadata: labels.metadata,
           }}
           history={
             historyOn
@@ -1430,6 +1432,17 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                 )
               : undefined
           }
+          // Created and changed come with the row; who wrote it needs the history the config allows.
+          metadata={(attr) => (
+            <AttributeMetadata
+              source={historyOn ? hookOptions.source : {}}
+              id={detailRow.id}
+              attr={attr}
+              cell={detailRow.cells[attr]}
+              locale={where}
+              labels={hookOptions.labels?.metadataLabels}
+            />
+          )}
           tabs={detailTabs?.(detailRow)}
           onClose={() => {
             setDetailId(null);
