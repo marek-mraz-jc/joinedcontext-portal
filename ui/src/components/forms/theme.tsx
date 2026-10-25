@@ -724,7 +724,7 @@ export function SubmitButton(props: SubmitButtonProps): React.JSX.Element | null
   return (
     <>
       {after ? <div className="mt-4 flex flex-col gap-3">{after}</div> : null}
-      <div className="mt-6 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
+      <div data-testid="form-footer" className="mt-6 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
         {gate.disabled && gate.title && !live.reasonShown ? (
           <span role="status" className="text-caption text-fg-muted">
             {gate.title}
