@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { EntityGrid } from "../src/grid/EntityGrid";
 import { parseGridConfig } from "../src/grid/config";
-import { fixtureSource } from "../src/grid/source";
+import { endpointSource, fixtureSource } from "../src/grid/source";
 import { DEFAULT_LABELS, useEntityGrid } from "../src/grid/useEntityGrid";
 import { formatDate } from "../src/grid/cells";
 
@@ -846,6 +846,68 @@ describe("EntityGrid", () => {
       await waitFor(() => expect(asked.at(-1)).toEqual({ orderBy: "availableBikeNumber;desc", offset: 0 }));
       // The source's highest comes first: the one row of the page is the most bikes.
       await waitFor(() => expect(screen.getAllByRole("gridcell").map((c) => c.textContent)).toContain("5"));
+    });
+
+    // A view that also reads other brokers refuses `orderBy` (CIM 009 5.7.2.4, 4.23.1): the grid asks
+    // once more without it, sorts the loaded rows and says so, and never sends the refused order
+    // again for that source (T-5618).
+    const refusesOrder = () => {
+      const paths: string[] = [];
+      const transport = async (req: { path: string }) => {
+        paths.push(req.path);
+        if (req.path.includes("orderBy=")) {
+          return {
+            status: 400,
+            headers: {},
+            body: {
+              type: "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+              title: "BadRequestData",
+              detail: "orderBy requires local scope — ordering is never applied to distributed operations (5.7.2.4, 4.23.1)",
+            },
+          };
+        }
+        return { status: 200, headers: {}, body: bikeEntities };
+      };
+      return { paths, source: endpointSource("t5618-federating-view", transport as never) };
+    };
+    const names = () => screen.getAllByRole("gridcell").map((c) => c.textContent).filter((t) => t === "Kamppi" || t === "Kallio");
+
+    it("sorts the loaded rows when the source refuses the order, and asks for it only once", async () => {
+      const { paths, source } = refusesOrder();
+      const { unmount } = render(<EntityGrid config={config} source={source} />);
+      await waitFor(() => expect(names()).toEqual(["Kamppi", "Kallio"]));
+
+      fireEvent.click(screen.getByRole("button", { name: `${DEFAULT_LABELS.sortAll} Bikes` }));
+      await waitFor(() => expect(names()).toEqual(["Kallio", "Kamppi"]));
+      expect(screen.getByText(DEFAULT_LABELS.sortedLoaded.replace("{count}", "2"))).toHaveAttribute("role", "status");
+      expect(screen.queryByText(/local scope/)).toBeNull();
+      // The header no longer promises every row.
+      const header = screen.getByRole("button", { name: `${DEFAULT_LABELS.sortPage} Bikes` });
+      expect(paths.filter((path) => path.includes("orderBy=")).length).toBe(1);
+
+      fireEvent.click(header);
+      await waitFor(() => expect(names()).toEqual(["Kamppi", "Kallio"]));
+      expect(paths.filter((path) => path.includes("orderBy=")).length).toBe(1);
+
+      // The remembered sort reopens with rows, not the refusal.
+      unmount();
+      render(<EntityGrid config={config} source={source} state={{ sort: { attr: "availableBikeNumber", dir: "asc" } }} />);
+      await waitFor(() => expect(names()).toEqual(["Kallio", "Kamppi"]));
+      expect(paths.filter((path) => path.includes("orderBy=")).length).toBe(1);
+      expect(screen.queryByText(new RegExp(DEFAULT_LABELS.error))).toBeNull();
+    });
+
+    it("words any other refused query plainly and keeps the broker's sentence under a disclosure", async () => {
+      const transport = async () => ({
+        status: 400,
+        headers: {},
+        body: { type: "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest", title: "InvalidRequest", detail: "q: unexpected token at 7 (4.9)" },
+      });
+      render(<EntityGrid config={config} source={endpointSource("t5618-bad-query", transport as never)} />);
+      expect(await screen.findByText(`${DEFAULT_LABELS.error}: ${DEFAULT_LABELS.queryRefused}: InvalidRequest`, { exact: false })).toBeInTheDocument();
+      const disclosure = screen.getByText(DEFAULT_LABELS.errorDetail);
+      expect(disclosure.tagName).toBe("SUMMARY");
+      expect(disclosure.closest("details")).toHaveTextContent("q: unexpected token at 7 (4.9)");
     });
   });
 
