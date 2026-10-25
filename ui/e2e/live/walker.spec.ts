@@ -28,6 +28,7 @@ import { pageFindings, unexcused, viewerWriteFindings } from "../../tests/pageCh
 import type { Excused } from "../../tests/pageChecks";
 import { STEWARD, VIEWER, afterSelfReload, hiddenSections, inHiddenSection, journeyMarkerOnPortalOnly, openToJudge, signIn } from "./portal";
 import { secretMasks, shot, writeIndex } from "./shoot";
+import { Tab } from "./tab";
 import { P, visits } from "./walk-routes";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -89,57 +90,76 @@ for (const [who, person] of [
 ] as const) {
   test(`every page and form, at ${WIDTHS.map((size) => size.width).join(" and ")} px in ${LANGS.join(", ")}, for the ${who}`, async ({ browser }) => {
     test.setTimeout(2_400_000);
-    const { context, page } = await signIn(browser, person, `${P}/spaces?lang=en`);
+    const { context, page: first } = await signIn(browser, person, `${P}/spaces?lang=en`);
     // A page's read of another origin (the API host's MCP route on /connect) failed its CORS
     // preflight on the marker and the walk reported a console error no person meets (T-5025).
-    await journeyMarkerOnPortalOnly(context, new URL(page.url()).host);
+    await journeyMarkerOnPortalOnly(context, new URL(first.url()).host);
     const report: { route: string; address: string; width: number; lang: string; findings: string[]; screenshot: string }[] = [];
     let current: string[] = [];
     let refused: string[] = [];
-    page.on("console", (message) => {
-      if (message.type() === "error" && !message.text().startsWith("Failed to load resource")) {
-        current.push(`console: ${message.text().slice(0, 200)}`);
-      }
-    });
-    page.on("pageerror", (error) => current.push(`console: ${error.message.slice(0, 200)}`));
-    page.on("response", (response) => {
-      if (response.url().includes("/api/") && response.status() >= 400 && !expected(who, response)) {
-        current.push(`http: ${response.status()} ${response.request().method()} ${new URL(response.url()).pathname}`);
-      }
+    // A renderer crash opens a fresh tab with the same listeners (T-5730).
+    const tab = new Tab(context, first, (page) => {
+      page.on("console", (message) => {
+        if (message.type() === "error" && !message.text().startsWith("Failed to load resource")) {
+          current.push(`console: ${message.text().slice(0, 200)}`);
+        }
+      });
+      page.on("pageerror", (error) => current.push(`console: ${error.message.slice(0, 200)}`));
+      page.on("response", (response) => {
+        if (response.url().includes("/api/") && response.status() >= 400 && !expected(who, response)) {
+          current.push(`http: ${response.status()} ${response.request().method()} ${new URL(response.url()).pathname}`);
+        }
+      });
     });
 
     try {
       // A section the installation hides is no page to walk (T-2874).
-      const hidden = await hiddenSections(page.request);
-      const all = (await visits(page, who)).filter((visit) => !inHiddenSection(visit.address, hidden) && (!ONLY || ONLY.test(visit.address)));
+      const hidden = await hiddenSections(tab.page.request);
+      // The routes are gathered on list pages a crash names no route of: once more on a fresh tab.
+      let gathered = await tab.run((page) => visits(page, who));
+      if (gathered.crashed) gathered = await tab.run((page) => visits(page, who));
+      if (gathered.crashed) throw new Error("the browser tab crashed twice while the walker gathered the routes to walk");
+      const all = gathered.value.filter((visit) => !inHiddenSection(visit.address, hidden) && (!ONLY || ONLY.test(visit.address)));
       // Each address loads once per language and is judged at every width by resizing the open page:
       // a reload per width doubled the walk, and the walk after a rollout has 15 minutes (T-4950).
       for (const lang of LANGS) for (const visit of all) {
         let edgeRefused = false;
         for (const [index, size] of WIDTHS.entries()) {
           current = [];
-          await page.setViewportSize(size);
-          if (index === 0) {
-            edgeRefused = await openToJudge(page, `${visit.address}${visit.address.includes("?") ? "&" : "?"}lang=${lang}`);
-          } else {
-            await page.waitForTimeout(300);
-            if (!edgeRefused) await afterSelfReload(page);
+          const judged = await tab.run(async (page) => {
+            await page.setViewportSize(size);
+            if (index === 0) {
+              edgeRefused = await openToJudge(page, `${visit.address}${visit.address.includes("?") ? "&" : "?"}lang=${lang}`);
+            } else {
+              await page.waitForTimeout(300);
+              if (!edgeRefused) await afterSelfReload(page);
+            }
+            const findings = edgeRefused ? ["boot: the edge refused the page with 429 Too Many Requests, after two loads again"] : [
+              ...current,
+              ...(await page.evaluate(pageFindings, { namespaces: NAMESPACES, layout: true })),
+              ...(await axeViolations(page))
+                .filter((violation) => /\((serious|critical)\)/.test(violation))
+                .map((violation) => `axe: ${violation.slice(0, 200)}`),
+              ...(who === "viewer" && !OWN.has(visit.route) ? await page.evaluate(viewerWriteFindings, true) : []),
+            ];
+            const screenshot = test.info().outputPath(`${who}-${lang}-${size.width}${visit.address.replace(/[^a-z0-9]+/gi, "-")}.png`);
+            await page.screenshot({ path: screenshot, fullPage: true, mask: secretMasks(page) });
+            await shot(page, { area: "portal", route: visit.address, state: "open", who, lang });
+            return { findings, screenshot };
+          });
+          if (judged.crashed) {
+            // A person meets this as a dead tab: reported on the page, and the walk goes on.
+            report.push({ ...visit, width: size.width, lang, findings: ["crash: the browser tab crashed on this page"], screenshot: "" });
+            break;
           }
-          const findings = edgeRefused ? ["boot: the edge refused the page with 429 Too Many Requests, after two loads again"] : [
-            ...current,
-            ...(await page.evaluate(pageFindings, { namespaces: NAMESPACES, layout: true })),
-            ...(await axeViolations(page))
-              .filter((violation) => /\((serious|critical)\)/.test(violation))
-              .map((violation) => `axe: ${violation.slice(0, 200)}`),
-            ...(who === "viewer" && !OWN.has(visit.route) ? await page.evaluate(viewerWriteFindings, true) : []),
-          ];
-          const screenshot = test.info().outputPath(`${who}-${lang}-${size.width}${visit.address.replace(/[^a-z0-9]+/gi, "-")}.png`);
-          await page.screenshot({ path: screenshot, fullPage: true, mask: secretMasks(page) });
-          await shot(page, { area: "portal", route: visit.address, state: "open", who, lang });
+          const { findings, screenshot } = judged.value;
           report.push({ ...visit, width: size.width, lang, findings: unexcused(visit.route, findings, allow.excused), screenshot });
         }
       }
-      if (who === "viewer") refused = await endpointsRefused(page);
+      if (who === "viewer") {
+        const checked = await tab.run(endpointsRefused);
+        refused = checked.crashed ? ["admin-only: the browser tab crashed on the cross-project Endpoints"] : checked.value;
+      }
     } finally {
       const body = JSON.stringify(report, null, 2);
       if (process.env.SHOTS_DIR) writeIndex(process.env.SHOTS_DIR);
