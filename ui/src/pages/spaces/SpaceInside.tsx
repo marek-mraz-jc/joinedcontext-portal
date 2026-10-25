@@ -344,6 +344,88 @@ function slugOf(endpoint: Manifest | undefined): string | undefined {
   return typeof endpoint?.spec.slug === "string" ? endpoint.spec.slug : undefined;
 }
 
+/** The probe statuses that mean the space surface answers this person nothing (T-5601). */
+const SURFACE_REFUSED = new Set([401, 403, 404]);
+/** The longest Retry-After the Retry button waits for: a page stays usable after five minutes. */
+const MAX_RETRY_WAIT_S = 300;
+
+/**
+ * Why the space's rows did not come. Only a refusal (401, 403, 404) means the person reads this
+ * space through its endpoints, so only it lists them; a failure to reach the surface (0, 408,
+ * 429, 5xx) is a retry, and a 429's Retry-After holds the Retry button until it has passed
+ * (T-5093, T-5601).
+ */
+function ProbeFailure({
+  error,
+  endpoints,
+  retrying,
+  onRetry,
+}: {
+  error: Error;
+  endpoints: Manifest[];
+  retrying: boolean;
+  onRetry: () => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const status = error instanceof SourceError ? error.status : 0;
+  const wait = Math.min(error instanceof SourceError ? (error.retryAfter ?? 0) : 0, MAX_RETRY_WAIT_S);
+  const [waiting, setWaiting] = useState(wait > 0);
+  // The parent keys this by the error's time, so each new refusal starts its own wait.
+  useEffect(() => {
+    if (wait <= 0) return undefined;
+    const timer = setTimeout(() => setWaiting(false), wait * 1000);
+    return () => clearTimeout(timer);
+  }, [wait]);
+
+  if (SURFACE_REFUSED.has(status)) {
+    return (
+      <div className="text-body text-fg-muted">
+        <p>{t("spaces.inside.dataThroughEndpoints")}</p>
+        <ul className="mt-1 flex flex-wrap gap-2">
+          {endpoints.map((endpoint) => {
+            const slug = slugOf(endpoint);
+            return (
+              <li key={endpoint.metadata.name}>
+                {slug ? (
+                  <EndpointLink href={endpointUrl(slug, "")}>{endpoint.metadata.name}</EndpointLink>
+                ) : (
+                  <Badge mono>{endpoint.metadata.name}</Badge>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
+  }
+  const busy = status === 0 || status === 408 || status === 429;
+  const hint = !busy
+    ? t("spaces.inside.dataFailedHint", { status, detail: error.message })
+    : wait > 0
+      ? t("spaces.inside.dataBusyWait", { count: wait })
+      : t("spaces.inside.dataBusy");
+  return (
+    <Alert
+      tone="danger"
+      title={t("spaces.inside.dataFailed")}
+      actions={
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={onRetry}
+          loading={retrying}
+          disabled={waiting}
+          disabledReason={waiting ? t("spaces.inside.dataBusyWaiting") : undefined}
+        >
+          {t("app.error.retry")}
+        </Button>
+      }
+    >
+      {hint}
+    </Alert>
+  );
+}
+
 function SpaceData({
   project,
   space,
@@ -773,38 +855,8 @@ function SpaceData({
       ) : null}
 
       {probe.isPending ? <p role="status">{t("app.loading")}</p> : null}
-      {/* An Endpoint that failed (a 502 behind the gateway) is a failure to retry, not a space
-          this person reads only through its endpoints (T-5093). */}
-      {probe.isError && probe.error instanceof SourceError && probe.error.status >= 500 ? (
-        <Alert
-          tone="danger"
-          title={t("spaces.inside.dataFailed")}
-          actions={
-            <Button size="sm" variant="secondary" onClick={() => void probe.refetch()} loading={probe.isFetching}>
-              {t("app.error.retry")}
-            </Button>
-          }
-        >
-          {t("spaces.inside.dataFailedHint", { status: probe.error.status, detail: probe.error.message })}
-        </Alert>
-      ) : probe.isError ? (
-        <div className="text-body text-fg-muted">
-          <p>{t("spaces.inside.dataThroughEndpoints")}</p>
-          <ul className="mt-1 flex flex-wrap gap-2">
-            {endpoints.map((endpoint) => {
-              const slug = (endpoint.spec as { slug?: string }).slug ?? "";
-              return (
-                <li key={endpoint.metadata.name}>
-                  {slug ? (
-                    <EndpointLink href={endpointUrl(slug, "")}>{endpoint.metadata.name}</EndpointLink>
-                  ) : (
-                    <Badge mono>{endpoint.metadata.name}</Badge>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+      {probe.isError ? (
+        <ProbeFailure key={probe.errorUpdatedAt} error={probe.error} endpoints={endpoints} retrying={probe.isFetching} onRetry={() => void probe.refetch()} />
       ) : null}
       {probe.isSuccess ? (
         <Tabs

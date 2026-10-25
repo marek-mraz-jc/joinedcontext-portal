@@ -366,3 +366,40 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await shot(page, `grid-footer-max-${label}`);
   });
 }
+
+// T-5601: a busy space surface (429 with Retry-After) is a retry that waits as asked and then
+// loads the rows; only a refusal (404) lists the space's endpoints.
+for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
+  test(`A busy space surface is a retry, a refusal names the endpoints (${label})`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await stubApi(page, [], []);
+    let answer = 429;
+    await page.route(`**/cs/${SPACE}/**/entities?*`, async (route) => {
+      if (answer === 200) return route.fallback();
+      const headers: Record<string, string> = answer === 429 ? { "Retry-After": "2" } : {};
+      return route.fulfill({ status: answer, contentType: "application/json", headers, body: JSON.stringify({ title: answer === 429 ? "Too Many Requests" : "Not Found" }) });
+    });
+    await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
+
+    const alert = page.getByRole("alert").filter({ hasText: "The space's data did not answer" });
+    await expect(alert).toContainText("The Portal is busy right now; nothing was changed. Try again in 2 seconds.");
+    const retry = alert.getByRole("button", { name: "Retry" });
+    await expect(retry).toHaveAttribute("aria-disabled", "true");
+    await expect(page.getByText("You can see this space through its endpoints:")).toHaveCount(0);
+    expect(await axeViolations(page)).toEqual([]);
+    await shot(page, `probe-busy-${label}`);
+
+    await expect(retry).not.toHaveAttribute("aria-disabled", "true", { timeout: 5000 });
+    answer = 200;
+    await retry.click();
+    await expect(page.getByText("Workshop for Families").first()).toBeVisible();
+    await shot(page, `probe-retried-${label}`);
+
+    answer = 404;
+    await page.reload();
+    await expect(page.getByText("You can see this space through its endpoints:")).toBeVisible();
+    await expect(page.getByRole("link", { name: "app-helsinki-data" })).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "did not answer" })).toHaveCount(0);
+    await shot(page, `probe-refused-${label}`);
+  });
+}

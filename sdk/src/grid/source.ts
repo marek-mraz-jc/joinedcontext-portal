@@ -80,12 +80,24 @@ export class SourceError extends Error {
   readonly status: number;
   /** The attribute the refusal is about, where the problem names one (`slot`, DM-70). */
   readonly slot?: string;
-  constructor(status: number, message: string, slot?: string) {
+  /** Seconds the server asked to wait before asking again (`Retry-After` on a 429 or 503). */
+  readonly retryAfter?: number;
+  constructor(status: number, message: string, slot?: string, retryAfter?: number) {
     super(message);
     this.name = "SourceError";
     this.status = status;
     this.slot = slot;
+    this.retryAfter = retryAfter;
   }
+}
+
+/** `Retry-After` in seconds: delta-seconds or an HTTP date (RFC 9110 10.2.3); none when absent or unreadable. */
+function retryAfterOf(headers: Record<string, string> | undefined): number | undefined {
+  const value = headers?.["retry-after"]?.trim();
+  if (!value) return undefined;
+  if (/^\d+$/.test(value)) return Number(value);
+  const at = Date.parse(value);
+  return Number.isNaN(at) ? undefined : Math.max(0, Math.ceil((at - Date.now()) / 1000));
 }
 
 /**
@@ -220,9 +232,9 @@ export function historyOf(body: unknown, attr: string): HistoryPoint[] {
  * write: a Context Space surface says the same whether the space is missing or not granted.
  */
 function ngsiSource(base: string, transport: Transport, language: string, hidden?: string, tilesAt?: string): EntitySource {
-  const refuse = (status: number, body: unknown, fallback: string): never => {
+  const refuse = (status: number, body: unknown, fallback: string, headers?: Record<string, string>): never => {
     if (status === 404 && hidden) throw new SourceError(404, hidden);
-    throw new SourceError(status, detailOf(body, fallback), slotOf(body));
+    throw new SourceError(status, detailOf(body, fallback), slotOf(body), retryAfterOf(headers));
   };
   const ok = (status: number) => status >= 200 && status < 300;
   const entity = (id: string) => `${base}/entities/${encodeURIComponent(id)}`;
@@ -235,7 +247,7 @@ function ngsiSource(base: string, transport: Transport, language: string, hidden
         method: "GET",
         path: `${base}/entities?${entitiesQuery(q, page.offset, page.limit)}`,
       });
-      if (!ok(status)) refuse(status, body, "the read was refused");
+      if (!ok(status)) refuse(status, body, "the read was refused", headers);
       if (!Array.isArray(body)) throw new SourceError(status, "the answer is not a list of entities");
       return {
         rows: body.map((item) => toRichRow(item as Record<string, unknown>, language)),

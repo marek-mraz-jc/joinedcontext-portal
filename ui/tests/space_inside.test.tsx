@@ -138,7 +138,7 @@ const SPACE_ROWS = [
 
 function renderInside(
   gateway: { status: number; count?: number },
-  surface: { status: number; rows?: unknown[] } = { status: 200 },
+  surface: { status: number; rows?: unknown[]; headers?: Record<string, string> } = { status: 200 },
   seed: {
     space?: unknown;
     models?: unknown;
@@ -180,8 +180,10 @@ function renderInside(
     }
     // The space's own surface: the whole space, by the caller's grants (T-1434).
     if (path.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities")) {
+      // Status 0: the request never reached an answer (the network or the edge dropped it).
+      if (surface.status === 0) throw new TypeError("Failed to fetch");
       if (surface.status !== 200) {
-        return json({ title: "Not Found" }, surface.status);
+        return json({ title: "Not Found" }, surface.status, surface.headers);
       }
       return json(surface.rows ?? SPACE_ROWS, 200, {
         "NGSILD-Results-Count": String((surface.rows ?? SPACE_ROWS).length),
@@ -665,6 +667,46 @@ describe("the space's own data", () => {
     expect(alert).toHaveTextContent("HTTP 502");
     expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
     expect(screen.queryByText(en.spaces.inside.dataThroughEndpoints)).toBeNull();
+  });
+
+  // T-5601: only a refusal lists the endpoints; a busy or unreachable surface is a retry.
+  it.each([503, 504])("names a %s surface read with its status and a retry", async (status) => {
+    renderInside({ status: 200, count: 1 }, { status });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(`HTTP ${status}`);
+    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeEnabled();
+    expect(screen.queryByText(en.spaces.inside.dataThroughEndpoints)).toBeNull();
+  });
+
+  it("holds the retry for a 429's Retry-After and lists no endpoints", async () => {
+    renderInside({ status: 200, count: 1 }, { status: 429, headers: { "Retry-After": "30" } });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(en.spaces.inside.dataFailed);
+    expect(alert).toHaveTextContent("The Portal is busy right now; nothing was changed. Try again in 30 seconds.");
+    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByText(en.spaces.inside.dataThroughEndpoints)).toBeNull();
+    expect(screen.queryByRole("link", { name: "public-air" })).toBeNull();
+  });
+
+  it("frees the retry once a 429's Retry-After has passed", async () => {
+    renderInside({ status: 200, count: 1 }, { status: 429, headers: { "Retry-After": "1" } });
+    const retry = within(await screen.findByRole("alert")).getByRole("button", { name: en.app.error.retry });
+    expect(retry).toHaveAttribute("aria-disabled", "true");
+    await waitFor(() => expect(retry).not.toHaveAttribute("aria-disabled"), { timeout: 3000 });
+  });
+
+  it.each([429, 408, 0])("calls a %s probe a busy Portal with a retry", async (status) => {
+    renderInside({ status: 200, count: 1 }, { status });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(en.spaces.inside.dataBusy);
+    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeEnabled();
+    expect(screen.queryByText(en.spaces.inside.dataThroughEndpoints)).toBeNull();
+  });
+
+  it.each([401, 403])("points at the endpoints when the surface refuses with %s", async (status) => {
+    renderInside({ status: 200, count: 1 }, { status });
+    expect(await screen.findByText(en.spaces.inside.dataThroughEndpoints)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("points at the endpoints when the surface answers this person nothing", async () => {
