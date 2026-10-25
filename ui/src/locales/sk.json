@@ -5340,8 +5340,7 @@
   },
   "entities": {
     "type": "Typ entity",
-    "scopeQ": "Rozsah (scope)",
-    "scopeQHint": "NGSI-LD scopeQ, napr. /district/1",
+    "scopeQ": "Oblasť",
     "filters": "Filtre",
     "attribute": "Atribút",
     "operator": "Operátor",
@@ -5349,17 +5348,24 @@
     "addFilter": "Pridať filter",
     "remove": "Odstrániť",
     "advanced": "Toto q používa | alebo zátvorky, ktoré riadky nezobrazia; upravte ho ako text.",
-    "q": "Dopyt (q)",
-    "qHint": "NGSI-LD q, ktoré riadky skladajú; upravte ho tu alebo v YAML.",
+    "q": "Dopyt ako text (q)",
     "attrs": "Čítané atribúty",
-    "typeNotGranted": "{name} (cez tento endpoint neudelené)",
     "qProblem": {
       "shape": "Každú podmienku napíšte ako atribút, porovnanie a hodnotu bez medzier, napr. name==\"Nemocnica\"; podmienky spájajte znakom ; (a zároveň) alebo | (alebo).",
       "unquoted": "Text patrí do úvodzoviek: {fix}"
     },
-    "typeHint": "Typ entít na výpis; filtre nižšie sa riadia jeho modelom.",
     "noTypes": "Niet čo vybrať: dátový model priestoru nedeklaruje žiadny typ a priestor nemá entitu, ktorú smiete čítať.",
-    "noAttributes": "Model typu neuvádza žiadny atribút: filter napíšte nižšie ako Dopyt (q)."
+    "noAttributes": "Model typu neuvádza žiadny atribút: filter napíšte nižšie ako Dopyt ako text (q) v Technických podrobnostiach.",
+    "typesNotGranted": "Cez tento endpoint sa čítať nedajú",
+    "technical": "Technické podrobnosti",
+    "technicalScope": "Oblasť sa posiela ako NGSI-LD scopeQ, filtre ako q nižšie.",
+    "hint": {
+      "type": "Čo sa má vypísať, napr. merania kvality ovzdušia; filtre nižšie sa riadia jeho modelom.",
+      "scope": "Kód oblasti, pod ktorou sú entity zaradené, napr. /district/1; prázdne pole znamená všetky oblasti.",
+      "q": "Filtre vyššie zapísané v dopytovacom jazyku NGSI-LD, napr. pm10>40 pre pm10 nad 40; upravte ho tu alebo v YAML.",
+      "filters": "Každý riadok zužuje zoznam, napr. Voľné bicykle > 3. Riadky sa sčítajú: platiť musí každý.",
+      "attrs": "Zaškrtnite atribúty, ktoré sa majú zobraziť ako stĺpce, napr. Názov a Dátum pozorovania; bez zaškrtnutia sa zobrazia všetky."
+    }
   },
   "entityGrid": {
     "id": "ID",
@@ -5405,6 +5411,9 @@
     "filterRow": "Filtre",
     "sortPage": "Zoradiť túto stranu podľa",
     "sortAll": "Zoradiť všetky riadky podľa",
+    "sortedLoaded": "Zoradené v rámci {count} načítaných riadkov: tento pohľad číta aj ďalšie brokery, ktoré nezoraďujú.",
+    "queryRefused": "Broker tento dopyt odmietol",
+    "errorDetail": "Čo broker odpovedal",
     "matching": "vyhovujúcich",
     "noTotal": "endpoint pri tejto odpovedi neuvádza celkový počet",
     "history": "História",
@@ -5542,6 +5551,9 @@
     "sortDesc": "Zoradiť zostupne",
     "filterColumn": "Filtrovať",
     "hideColumn": "Skryť pole",
+    "hiddenFields": "Skryté polia",
+    "showColumn": "Zobraziť pole",
+    "showAllColumns": "Zobraziť všetky",
     "renameColumn": "Názov v tomto pohľade",
     "renameReset": "Použiť názov z modelu",
     "columnWidth": "Šírka",
@@ -5567,7 +5579,7 @@
       "filterDate": "Vyberte test a zvoľte dátum, napr. po 2026-10-01.",
       "filterEnum": "Vyberte test; pri „ktorákoľvek z“ zvoľte jednu alebo viac povolených hodnôt:",
       "filterOther": "Vyberte test, napr. má hodnotu alebo prázdne.",
-      "editAsText": "Napíšte dopyt NGSI-LD sami"
+      "editAsText": "Zapíšte filter ako text, napr. pm10>40"
     },
     "groupNoValue": "(bez hodnoty)"
   },
@@ -5595,7 +5607,6 @@
     "noSpaceHint": "Jeho entity sa otvoria tu, čítané cez jeden z jeho endpointov. Začnite jedným z priestorov tohto projektu:",
     "typeInModel": "Tento typ v jeho dátovom modeli:",
     "readThrough": "Číta sa cez",
-    "endpointHint": "Endpoint, ktorého politika určuje, čo uvidíte. Odkaz, ktorý pošlete, ho uvádza, takže kolega číta cez ten istý.",
     "endpointUnshown": "Odkaz uvádza Endpoint {name}, ktorý vám tento priestor neukazuje",
     "endpointUnshownPick": "Namiesto neho sa nečíta cez iný Endpoint. Vyberte vyššie jeden z Endpointov, ktoré môžete čítať, alebo požiadajte správcu priestoru o prístup k {name}.",
     "views": "Čo zobraziť",
@@ -5700,7 +5711,13 @@
     "pickSpaceFirst": "Najprv vyberte priestor.",
     "noMatch": "Dopytu nič nezodpovedá; zmeňte alebo odstráňte filter.",
     "technical": "Technické podrobnosti (JSON-LD)",
-    "copyJson": "Kopírovať JSON-LD"
+    "copyJson": "Kopírovať JSON-LD",
+    "endpointApps": "Aplikácie",
+    "unknownType": "Typ {type} v tomto priestore neexistuje",
+    "unknownTypeHint": "Adresa uvádza typ, ktorý tento priestor nemá. Vyberte jeden z jeho typov:",
+    "hint": {
+      "endpoint": "Endpoint, ktorého politika rozhoduje, čo uvidíte, napr. verejný endpoint priestoru. Odkaz, ktorý zdieľate, ho uvádza, takže kolega číta cez ten istý."
+    }
   },
   "agentRun": {
     "title": "Beh aplikácie",

@@ -5340,8 +5340,7 @@
   },
   "entities": {
     "type": "Entitätstyp",
-    "scopeQ": "Bereich (scope)",
-    "scopeQHint": "NGSI-LD scopeQ, z. B. /district/1",
+    "scopeQ": "Bereich",
     "filters": "Filter",
     "attribute": "Attribut",
     "operator": "Operator",
@@ -5349,17 +5348,24 @@
     "addFilter": "Filter hinzufügen",
     "remove": "Entfernen",
     "advanced": "Dieses q verwendet | oder Klammern, die die Zeilen nicht zeigen können; als Text bearbeiten.",
-    "q": "Abfrage (q)",
-    "qHint": "Das NGSI-LD q, das die Zeilen bilden; hier oder im YAML bearbeiten.",
+    "q": "Abfrage als Text (q)",
     "attrs": "Gelesene Attribute",
-    "typeNotGranted": "{name} (über diesen Endpoint nicht gewährt)",
     "qProblem": {
       "shape": "Schreiben Sie jede Bedingung als Attribut, Vergleich und Wert ohne Leerzeichen, z. B. name==\"Klinikum\"; verbinden Sie Bedingungen mit ; (und) oder | (oder).",
       "unquoted": "Text steht in Anführungszeichen: {fix}"
     },
-    "typeHint": "Der Typ der aufzulistenden Entitäten; die Filter unten folgen seinem Modell.",
     "noTypes": "Nichts zu wählen: Das Datenmodell des Raums deklariert keinen Typ und der Raum hält keine Entität, die Sie lesen dürfen.",
-    "noAttributes": "Das Modell des Typs nennt kein Attribut: Schreiben Sie den Filter unten als Abfrage (q)."
+    "noAttributes": "Das Modell des Typs nennt kein Attribut: Schreiben Sie den Filter unten unter Technische Details als Abfrage als Text (q).",
+    "typesNotGranted": "Über diesen Endpoint nicht lesbar",
+    "technical": "Technische Details",
+    "technicalScope": "Der Bereich wird als NGSI-LD scopeQ gesendet, die Filter als q unten.",
+    "hint": {
+      "type": "Was aufgelistet wird, z. B. Luftqualitätsmessungen; die Filter unten folgen seinem Modell.",
+      "scope": "Der Bereichscode, unter dem die Entitäten abgelegt sind, z. B. /district/1; leer lassen für alle Bereiche.",
+      "q": "Die Filter oben in der NGSI-LD-Abfragesprache, z. B. pm10>40 für pm10 über 40; hier oder im YAML bearbeiten.",
+      "filters": "Jede Zeile grenzt die Liste ein, z. B. Freie Räder > 3. Die Zeilen gelten zusammen: jede muss zutreffen.",
+      "attrs": "Haken Sie die Attribute an, die als Spalten erscheinen, z. B. Name und Beobachtungsdatum; ohne Haken erscheinen alle."
+    }
   },
   "entityGrid": {
     "id": "ID",
@@ -5405,6 +5411,9 @@
     "filterRow": "Filter",
     "sortPage": "Diese Seite sortieren nach",
     "sortAll": "Alle Zeilen sortieren nach",
+    "sortedLoaded": "Sortiert innerhalb der {count} geladenen Zeilen: Diese Ansicht liest auch andere Broker, die nicht sortieren.",
+    "queryRefused": "Der Broker hat diese Abfrage abgelehnt",
+    "errorDetail": "Was der Broker gemeldet hat",
     "matching": "passend",
     "noTotal": "der Endpoint nennt für diese Antwort keine Gesamtzahl",
     "history": "Verlauf",
@@ -5542,6 +5551,9 @@
     "sortDesc": "Absteigend sortieren",
     "filterColumn": "Filtern",
     "hideColumn": "Feld ausblenden",
+    "hiddenFields": "Ausgeblendete Felder",
+    "showColumn": "Feld einblenden",
+    "showAllColumns": "Alle einblenden",
     "renameColumn": "Bezeichnung in dieser Ansicht",
     "renameReset": "Bezeichnung des Modells verwenden",
     "columnWidth": "Breite",
@@ -5567,7 +5579,7 @@
       "filterDate": "Einen Test wählen, dann ein Datum, z. B. nach 2026-10-01.",
       "filterEnum": "Einen Test wählen; bei „eines von“ einen oder mehrere erlaubte Werte wählen:",
       "filterOther": "Einen Test wählen, z. B. hat einen Wert oder leer.",
-      "editAsText": "Die NGSI-LD-Abfrage selbst schreiben"
+      "editAsText": "Den Filter als Text schreiben, z. B. pm10>40"
     },
     "groupNoValue": "(kein Wert)"
   },
@@ -5595,7 +5607,6 @@
     "noSpaceHint": "Seine Entitäten öffnen sich hier, gelesen über einen seiner Endpunkte. Beginnen Sie mit einem der Räume dieses Projekts:",
     "typeInModel": "Dieser Typ in seinem Datenmodell:",
     "readThrough": "Gelesen über",
-    "endpointHint": "Der Endpoint, dessen Policy bestimmt, was Sie sehen. Ein geteilter Link nennt ihn, damit eine Kollegin oder ein Kollege über denselben liest.",
     "endpointUnshown": "Der Link nennt den Endpoint {name}, den dieser Raum Ihnen nicht zeigt",
     "endpointUnshownPick": "An seiner Stelle wird über keinen anderen Endpoint gelesen. Wählen Sie oben einen der Endpoints, die Sie lesen dürfen, oder bitten Sie die Verantwortlichen des Raums um Zugriff auf {name}.",
     "views": "Was zeigen",
@@ -5700,7 +5711,13 @@
     "pickSpaceFirst": "Wählen Sie zuerst einen Raum.",
     "noMatch": "Nichts passt zu dieser Abfrage; ändern oder entfernen Sie einen Filter.",
     "technical": "Technische Details (JSON-LD)",
-    "copyJson": "JSON-LD kopieren"
+    "copyJson": "JSON-LD kopieren",
+    "endpointApps": "Anwendungen",
+    "unknownType": "In diesem Bereich gibt es keinen Typ {type}",
+    "unknownTypeHint": "Die Adresse nennt einen Typ, den dieser Datenraum nicht hat. Wählen Sie einen seiner Typen:",
+    "hint": {
+      "endpoint": "Der Endpoint, dessen Policy entscheidet, was Sie sehen, z. B. der öffentliche des Datenraums. Ein geteilter Link nennt ihn, damit ein Kollege über denselben liest."
+    }
   },
   "agentRun": {
     "title": "Anwendungslauf",

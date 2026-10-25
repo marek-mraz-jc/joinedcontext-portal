@@ -159,7 +159,7 @@ describe("the filters the model generates (UI-33)", () => {
 
   it("the_q_field_says_what_it_is_for_before_the_box", () => {
     show({ type: "AirQualityObserved" });
-    expect(screen.getByLabelText(en.entities.q)).toHaveAccessibleDescription(en.entities.qHint);
+    expect(screen.getByLabelText(en.entities.q)).toHaveAccessibleDescription(en.entities.hint.q);
   });
 });
 
