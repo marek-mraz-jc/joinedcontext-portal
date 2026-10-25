@@ -2627,6 +2627,19 @@ mod project_repository_tests {
             .await
             .expect_err("org.yaml is not a file of the project repository");
         assert!(refused.to_string().contains("org.yaml"), "{refused}");
+        let refused = client
+            .write_files(
+                "portal/x",
+                "m",
+                author,
+                &[
+                    ("projects/ovzdusie/project.yaml".into(), "a".into(), None),
+                    ("org.yaml".into(), "b".into(), Some("abc".into())),
+                ],
+            )
+            .await
+            .expect_err("write_files refuses org.yaml in the project repository too");
+        assert!(refused.to_string().contains("org.yaml"), "{refused}");
 
         let organization = client.for_repository("configuration");
         assert!(!organization.is_project_repository());

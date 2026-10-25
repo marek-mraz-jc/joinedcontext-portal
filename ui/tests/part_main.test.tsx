@@ -61,6 +61,33 @@ describe("the entry point against the UI contract", () => {
     expect(logged).toHaveBeenCalled();
   });
 
+  it("loads the page again when the Portal's own first chunk did not load (T-5731)", async () => {
+    // A rollout swapped the asset names, or the edge refused the chunk with 429: the import of the
+    // App rejects before React exists, so no boundary sees it. It reloads once like a lazy page
+    // (T-4949), instead of an unhandled rejection and index.html's "did not load" notice.
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    const reload = vi.fn();
+    vi.spyOn(window, "location", "get").mockReturnValue({ ...window.location, reload });
+    window.sessionStorage.clear();
+    document.body.innerHTML = '<div id="root"></div>';
+    vi.resetModules();
+    // vitest wraps an error its mock factory throws, so the module's one export throws the browser's words.
+    vi.doMock("../src/App", () => ({
+      get App() {
+        throw new TypeError("Failed to fetch dynamically imported module: /assets/App-x.js");
+      },
+    }));
+    await import("../src/main");
+
+    await waitFor(() => expect(reload).toHaveBeenCalledOnce());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    process.off("unhandledRejection", unhandled);
+    expect(unhandled).not.toHaveBeenCalled();
+    expect(logged).not.toHaveBeenCalled();
+  });
+
   it.each(SUPPORTED_LOCALES)("says that in %s, because i18n is loaded before the App", async (locale) => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     await i18n.changeLanguage(locale);
