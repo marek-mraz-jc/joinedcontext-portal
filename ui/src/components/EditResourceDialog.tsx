@@ -37,6 +37,11 @@ export interface EditableForm {
   toManifest: (form: Record<string, unknown>, stored: unknown) => unknown;
   /** Panels under the fields that follow the manifest as it is edited, e.g. a live preview (T-4693). */
   afterFields?: (manifest: unknown) => ReactNode;
+  /**
+   * The stored record read in plain words above its fields (T-5591). With one, the fields fold
+   * under "Show the manifest fields": closed for a reader, open for a person who may change them.
+   */
+  summary?: (manifest: unknown) => ReactNode;
 }
 
 /**

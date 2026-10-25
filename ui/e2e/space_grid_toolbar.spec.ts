@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { axeViolations } from "./axe";
+import { smallTouchTargets } from "./touch";
 
 // The space grid shaped like Baserow (T-4883): one toolbar row, row numbers with checkboxes, one
 // line a row with the name frozen, a filter panel whose AND/OR conditions reach the endpoint as
@@ -414,3 +415,38 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await expect(page.getByText("Board game club").first()).toBeVisible();
   });
 }
+
+// T-5596: on a touch screen every control of the space page is a finger's 44 px, the grid's
+// checkboxes through their labels, the crumbs, brand, back and CSV links through `touch-target`;
+// a tap beside a row's box ticks it and leaves the row closed. Nothing scrolls sideways.
+test.describe("The space page at phone width with touch", () => {
+  test.use({ hasTouch: true, isMobile: true });
+  for (const [width, height] of [[400, 860], [360, 740]] as const) {
+    test(`44 px targets at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await stubApi(page, [], []);
+      await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
+      await expect(page.getByText("Workshop for Families").first()).toBeVisible();
+      expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches), "the phone is a touch screen").toBe(true);
+
+      expect(await smallTouchTargets(page), "every control is at least 44 x 44 px").toEqual([]);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth), "nothing scrolls sideways").toBeLessThanOrEqual(width);
+      // The box keeps its size: the label around it is what grew.
+      const box = await page.getByRole("checkbox", { name: /^Select row: / }).first().boundingBox();
+      expect(box?.width).toBeLessThan(24);
+      // The frozen name column starts where the row-number column ends, not over it.
+      const rownum = await page.locator("tbody td.jc-grid-rownum").first().boundingBox();
+      const name = await page.locator("tbody td.jc-grid-pinned").first().boundingBox();
+      expect(name!.x).toBeGreaterThanOrEqual(rownum!.x + rownum!.width - 0.5);
+
+      // A tap on the label beside the box ticks the row and opens nothing.
+      const target = page.locator("tbody .jc-grid-check").first();
+      await target.scrollIntoViewIfNeeded();
+      const area = await target.boundingBox();
+      await page.touchscreen.tap(area!.x + 3, area!.y + 3);
+      await expect(page.getByRole("checkbox", { name: /^Select row: / }).first()).toBeChecked();
+      await expect(page.locator("dialog[open]")).toHaveCount(0);
+      await shot(page, `grid-touch-${width}`);
+    });
+  }
+});

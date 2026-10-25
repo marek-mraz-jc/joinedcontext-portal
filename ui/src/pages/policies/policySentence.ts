@@ -20,7 +20,8 @@ function listed(items: string[], language: string): string {
   return new Intl.ListFormat(language, { style: "long", type: "conjunction" }).format(items);
 }
 
-function day(value: string | undefined, language: string): string | undefined {
+/** A day as the person reads it; a value that is no date stays as written. */
+export function day(value: string | undefined, language: string): string | undefined {
   if (!value) return undefined;
   const at = new Date(value);
   return Number.isNaN(at.getTime()) ? value : new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(at);

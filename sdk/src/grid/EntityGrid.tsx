@@ -1103,13 +1103,16 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
             <tr>
               {rowNumbers && (
                 <th className="jc-grid-rownum" scope="col">
-                  <input
-                    type="checkbox"
-                    aria-label={rowNumbers.selectAll}
-                    checked={allChecked}
-                    disabled={!onSelectedChange || rows.length === 0}
-                    onChange={() => onSelectedChange?.(allChecked ? [] : rows.map((row) => row.id))}
-                  />
+                  {/* The label is the finger's target: 44 px on a touch screen, the box keeps its size (T-5596). */}
+                  <label className="jc-grid-check">
+                    <input
+                      type="checkbox"
+                      aria-label={rowNumbers.selectAll}
+                      checked={allChecked}
+                      disabled={!onSelectedChange || rows.length === 0}
+                      onChange={() => onSelectedChange?.(allChecked ? [] : rows.map((row) => row.id))}
+                    />
+                  </label>
                 </th>
               )}
               {columns.map((col, i) => {
@@ -1290,17 +1293,20 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                 {rowNumbers && (
                   <td className="jc-grid-rownum">
                     <span className="jc-grid-rownum-n" aria-hidden="true">{rowIndex + 1 + (virtual ? 0 : state.offset)}</span>
-                    <input
-                      type="checkbox"
-                      aria-label={`${rowNumbers.selectRow}: ${rowName(row)}`}
-                      checked={selected.includes(row.id)}
-                      disabled={!onSelectedChange}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        checkRow(rowIndex, row.id, e.shiftKey);
-                      }}
-                      onChange={() => undefined}
-                    />
+                    {/* A tap beside the box ticks it and does not open the row. */}
+                    <label className="jc-grid-check" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        aria-label={`${rowNumbers.selectRow}: ${rowName(row)}`}
+                        checked={selected.includes(row.id)}
+                        disabled={!onSelectedChange}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          checkRow(rowIndex, row.id, e.shiftKey);
+                        }}
+                        onChange={() => undefined}
+                      />
+                    </label>
                     {/* A pointer's shortcut: the row's name is the same button for a keyboard and a screen reader. */}
                     <button
                       type="button"

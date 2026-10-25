@@ -585,7 +585,8 @@ describe("a person who may not change a record still opens it, read only", () =>
   it("a reader gets the filled form, closed, with the reason, and nothing to propose", async () => {
     await renderRoute({ path: "/projects/helsinki/subscriptions/alerts/edit?lang=en", answer, permissions: READER });
     expect(await screen.findByText(/Your role does not permit changing Subscription here/)).toBeInTheDocument();
-    expect(screen.getAllByText("View alerts").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("alerts").length).toBeGreaterThan(0);
+    expect(screen.getByText("Read only")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Propose change" })).toBeNull();
     const fields = await screen.findAllByRole("textbox");
     expect(fields.length).toBeGreaterThan(0);
@@ -634,7 +635,8 @@ describe("a person who may not change a record still opens it, read only", () =>
       const text = await screen.findByRole("textbox", { name: `The manifest of ${name}` });
       expect(text).toHaveAttribute("readonly");
       expect((text as HTMLTextAreaElement).value).toContain(one.kind);
-      expect(screen.getAllByText(`View ${name}`).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(name).length).toBeGreaterThan(0);
+      expect(screen.getByText("Read only")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /^Propose/ })).toBeNull();
     });
   }

@@ -486,7 +486,8 @@
     "action": "{name} bearbeiten",
     "loading": "{name} wird gelesen…",
     "unreadable": "{name} konnte nicht gelesen werden.",
-    "viewTitle": "{name} ansehen",
+    "readOnlyBadge": "Nur lesen",
+    "showFields": "Felder des Manifests anzeigen",
     "readOnly": "Ihre Rolle erlaubt hier keine Änderung an {kind}, daher ist dieses Formular schreibgeschützt. Eine Administratorin oder ein Administrator des Projekts kann das erteilen.",
     "manifest": "Manifest von {name}"
   },
@@ -1716,11 +1717,20 @@
       "policyUnbound": "Der Richtlinienverweis benennt keine Richtlinie dieses Raums, deshalb gewährt dieser Endpunkt nichts, bis der Verweis berichtigt ist: {urn}",
       "policyAssignee": "Gewährt an",
       "policyGrants": "Darf",
-      "policyWrites": "kann Daten ändern",
-      "policyReads": "liest nur",
+      "grantChanges": {
+        "data": "ändert Daten",
+        "subscriptions": "verwaltet Abonnements",
+        "nothing": "liest nur"
+      },
+      "grantDenies": "entzieht",
+      "grantMayNot": "Darf nicht",
+      "grantOn": "Auf",
+      "grantEveryType": "jeder Typ im Raum, alle Attribute",
+      "grantAnyType": "beliebiger Typ",
+      "grantOnly": "nur {attributes}",
+      "grantAllAttributes": "alle Attribute",
+      "mayNotChange": "Ihre Rolle erlaubt Ihnen, diesen Endpoint anzusehen, aber nicht zu ändern oder als Datensatz zu veröffentlichen. Ein Projektverantwortlicher oder eine Administration kann Ihnen dieses Recht geben.",
       "groupMembers": "Deckt {count} Operationen ab",
-      "operationSingle": "eine Operation",
-      "operationsSingle": "{count} einzelne Operationen",
       "policiesAll": "Alle {count} Richtlinien zeigen",
       "policiesFewer": "Weniger Richtlinien zeigen",
       "policyEmpty": "Diese Richtlinie benennt keine Operation und gewährt damit nichts.",
@@ -6609,6 +6619,18 @@
       "didHint": "Geben Sie den dezentralen Identifikator ein, etwa did:web:example.org; eine Auswahlliste gibt es nicht.",
       "peopleHidden": "Nur eine Administration der Organisation sieht die Liste der Personen; geben Sie die E-Mail ein, mit der sich die Person anmeldet.",
       "noneYet": "Von dieser Art gibt es noch nichts zur Auswahl ({kind}); geben Sie den Namen so ein, wie der Identitätsanbieter ihn schreibt."
+    },
+    "summary": {
+      "title": "Was diese Richtlinie erlaubt",
+      "assigner": "Aussteller",
+      "validFrom": "Gültig ab",
+      "validTo": "Gültig bis",
+      "always": "Immer",
+      "noEnd": "Kein Enddatum",
+      "lastChange": "Letzte Änderung",
+      "notRecorded": "Nicht erfasst",
+      "changed": "{at}, vorgeschlagen von {author}",
+      "changedApproved": "{at}, vorgeschlagen von {author}, genehmigt von {approver}"
     },
     "sentence": {
       "title": "In Worten",
