@@ -476,6 +476,7 @@ pub(crate) async fn approve_erasure(
 ) -> Result<Json<Value>, ApiError> {
     let spec = owned(&state, &user, &project, &space)?;
     refuse_bearer(&user)?;
+    crate::auth::session::require_second_factor(&user.0.identity, &state.config)?;
     let Json(request) = body.map_err(|e| ApiError::BadRequest(e.body_text()))?;
     if let Some(why) = erasure::subject_refusal(&request.subject) {
         return Err(ApiError::BadRequest(why));
@@ -554,6 +555,7 @@ pub(crate) async fn decline_erasure(
 ) -> Result<Json<Value>, ApiError> {
     owned(&state, &user, &project, &space)?;
     refuse_bearer(&user)?;
+    crate::auth::session::require_second_factor(&user.0.identity, &state.config)?;
     let Json(request) = body.map_err(|e| ApiError::BadRequest(e.body_text()))?;
     reason_checked(&request.reason)?;
     let pool = erasure_log(&state)?;
@@ -653,6 +655,7 @@ mod tests {
                 name: None,
                 roles: Vec::new(),
                 groups: Vec::new(),
+                second_factor: false,
             },
             expires_at: 9_999_999_999,
             issued_at: 1000,

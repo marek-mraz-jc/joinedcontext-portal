@@ -1003,6 +1003,7 @@ pub fn named_person(mirror: &Mirror, person: &str) -> Identity {
         name: None,
         roles: Vec::new(),
         groups,
+        second_factor: false,
     }
 }
 

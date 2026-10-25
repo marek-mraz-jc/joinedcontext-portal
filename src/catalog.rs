@@ -105,6 +105,7 @@ mod tests {
             name: Some("Aino".to_owned()),
             roles: Vec::new(),
             groups: Vec::new(),
+            second_factor: false,
         }
     }
 

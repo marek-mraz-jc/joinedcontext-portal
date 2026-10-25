@@ -44,6 +44,7 @@ fn session_cookie(
             name: Some(username.to_string()),
             roles: roles.into_iter().map(str::to_string).collect(),
             groups: groups.into_iter().map(str::to_string).collect(),
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,
@@ -519,6 +520,7 @@ async fn the_reads_that_had_only_a_route_answer_through_the_registry() {
             name: None,
             roles: vec!["portal-approver".into()],
             groups: vec!["platform-admins".into()],
+            second_factor: false,
         },
         via: ops::Via::Mcp,
         access: None,
@@ -591,6 +593,7 @@ async fn the_run_operations_answer_and_an_agent_is_refused_by_name() {
             name: None,
             roles: vec!["portal-approver".into()],
             groups: vec!["platform-admins".into()],
+            second_factor: false,
         },
         via: ops::Via::Mcp,
         access: None,
@@ -749,6 +752,7 @@ async fn a_change_is_never_decided_over_mcp_or_by_an_agent() {
             name: None,
             roles: vec!["portal-approver".into()],
             groups: vec!["platform-admins".into()],
+            second_factor: false,
         },
         via: ops::Via::Session,
         access: None,
@@ -805,6 +809,7 @@ async fn a_run_is_offered_its_profile_and_not_its_starter_whole_reach() {
         name: None,
         roles: vec!["portal-approver".into()],
         groups: vec!["platform-admins".into()],
+        second_factor: false,
     };
 
     let person = ops::Caller {
@@ -880,6 +885,7 @@ async fn the_services_catalog_is_one_read_only_operation() {
             name: None,
             roles: vec![],
             groups: vec![],
+            second_factor: false,
         },
         via: ops::Via::Mcp,
         access: None,

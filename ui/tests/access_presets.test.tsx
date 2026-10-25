@@ -20,7 +20,7 @@ import {
 } from "../src/components/forms/widgets/accessPresets";
 import { AccessPresetChoice } from "../src/components/forms/widgets/AccessPresetChoice";
 import { offeredByRoleSchema } from "../src/components/forms/widgets/RolePresetField";
-import { grantWrites } from "../src/components/endpoints/operationGroups";
+import { grantChanges } from "../src/components/endpoints/operationGroups";
 import {
   OPERATION_CHOICES,
   ROLE_VERBS,
@@ -66,7 +66,7 @@ describe("the preset table", () => {
         expect(OPERATION_CHOICES, `${preset}: ${operation}`).toContain(operation);
       }
     }
-    expect(grantWrites(OPERATION_PRESETS.reader)).toBe(false);
+    expect(grantChanges(OPERATION_PRESETS.reader)).toBe("nothing");
     // No preset forwards or purges: those stay a Custom choice somebody makes on purpose.
     const all = ACCESS_PRESETS.flatMap((preset) => OPERATION_PRESETS[preset]);
     expect(all).not.toContain("redirectionOps");

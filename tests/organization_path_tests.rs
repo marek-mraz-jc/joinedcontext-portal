@@ -39,6 +39,7 @@ fn cookies(config: &Config) -> String {
             roles: Vec::new(),
             // The bootstrap group: the test is about the path, not about who may write.
             groups: vec![config.bootstrap_admins.clone()],
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,

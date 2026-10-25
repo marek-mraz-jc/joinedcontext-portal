@@ -40,6 +40,7 @@ fn session_cookie(
             name: Some(username.to_string()),
             roles: roles.into_iter().map(str::to_string).collect(),
             groups: groups.into_iter().map(str::to_string).collect(),
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,
