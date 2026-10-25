@@ -127,6 +127,15 @@ describe("the grid's inspector", () => {
     expect(document.activeElement).toBe(screen.getByRole("grid"));
   });
 
+  it("closes with the host's own word for close", async () => {
+    render(<EntityGrid config={config()} source={source(async () => table)} labels={{ close: "Sulje" }} />);
+    const cell = (await screen.findByText("21")).closest('[role="gridcell"]') as HTMLElement;
+    fireEvent.click(cell);
+    const panel = screen.getByRole("dialog", { name: `${L.title}: no2` });
+    fireEvent.click(within(panel).getByRole("button", { name: "Sulje" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("opens with i on the active cell and comes back to that cell", async () => {
     render(<EntityGrid config={config()} source={source(async () => table)} />);
     const cell = (await screen.findByText("8")).closest('[role="gridcell"]') as HTMLElement;

@@ -13,7 +13,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { EntityGrid, DEFAULT_LABELS, originTransport, sourceFor } from "@joinedcontext/sdk";
-import type { CellInspectorLabels, ColumnLayout, EntityGridProps, GeoLabels, GridLabels, GridMapLabels, GridSource, GridState, ResolvedGridConfig } from "@joinedcontext/sdk";
+import type { ColumnLayout, EntityGridProps, GeoLabels, GridLabels, GridMapLabels, GridSource, GridState, ResolvedGridConfig } from "@joinedcontext/sdk";
 
 /** Where the layout a person set is kept, per project and per type. */
 function layoutKey(project: string, type: string): string {
@@ -87,7 +87,7 @@ function writeLayout(project: string, type: string, layout: Layout): void {
 const INSPECTOR_KEYS = [
   "title", "close", "read", "write", "delete", "allowed", "notAllowed", "loading", "failed", "grant", "notInGrant",
   "noGrant", "formula", "prohibited", "prohibitedBy", "prohibitedHidden", "naming", "namingFailed", "askAccess",
-] as const satisfies readonly (keyof CellInspectorLabels)[];
+] as const satisfies readonly (keyof NonNullable<GridLabels["inspectorLabels"]>)[];
 
 export function gridLabels(t: (key: string, values?: Record<string, string>) => string): GridLabels {
   const ops = DEFAULT_LABELS.ops;
