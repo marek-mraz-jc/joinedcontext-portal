@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { RichRow, RichCell } from "./model";
 import { cellText } from "./model";
 import type { ColumnLayout, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
-import { MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, useEntityGrid } from "./useEntityGrid";
+import { MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, readableName, useEntityGrid } from "./useEntityGrid";
 import { CellView, cellDisplayText, columnKind, formatDate } from "./cells";
 import type { CellLabels, ColumnKind } from "./cells";
 import { ColumnMenu } from "./ColumnMenu";
@@ -768,6 +768,22 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     if (onHide) onHide(attr);
     else setOwnHidden((before) => [...before, attr]);
   }, [onHide]);
+  // The way back from "Hide field" where the grid holds the hide itself (T-5620); a host that holds
+  // `hidden` offers its own, and the host's own `hidden` (an Endpoint's projection) is not the person's.
+  const [shownAgain, setShownAgain] = useState<string | null>(null);
+  const showColumns = (attrs: readonly string[]) => {
+    const left = ownHidden.filter((attr) => !attrs.includes(attr));
+    setOwnHidden(left);
+    // With none left the control goes: focus moves to the restored column's menu button once drawn.
+    if (left.length === 0) setShownAgain(attrs[0] ?? null);
+  };
+  useEffect(() => {
+    if (shownAgain === null) return;
+    setShownAgain(null);
+    tableRef.current?.querySelector<HTMLElement>(`th[data-col-attr="${shownAgain.replace(/["\\]/g, "\\$&")}"] .jc-grid-meta-btn`)?.focus();
+  }, [shownAgain]);
+  const hiddenLabel = (attr: string): string =>
+    layout.labels?.[attr] ?? hookOptions.config.columns.find((column) => column.attr === attr)?.label ?? readableName(attr);
   const renameColumn = useCallback((attr: string, text: string | undefined) => {
     const { [attr]: _gone, ...rest } = layout.labels ?? {};
     setLayout({ ...layout, labels: text === undefined ? rest : { ...rest, [attr]: text } });
@@ -1104,6 +1120,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           {activeFilters > 0 ? `${labels.filterRow} (${activeFilters})` : labels.filterRow}
         </button>
       )}
+      {!onHide && ownHidden.length > 0 && <HiddenFields attrs={ownHidden} labels={labels} labelOf={hiddenLabel} onShow={showColumns} />}
       {overflows && <p className="jc-grid-scroll-hint">{labels.scrollHint}</p>}
       <div className="jc-grid-scroll" ref={scrollRef} onScroll={virtual ? onScroll : undefined}>
         <table
@@ -1971,4 +1988,44 @@ function EditableCell({
 function unitHover(cell: RichCell | RichCell[] | undefined, meta: string | null): string | undefined {
   if (meta || !cell || Array.isArray(cell) || cell.kind !== "property" || !cell.unitCode) return undefined;
   return unitTitle(cell.unitCode);
+}
+
+/**
+ * "Hidden fields (2)" above the rows (T-5620): the fields hidden from the header menu, each with
+ * "Show field", and "Show all" for more than one. Focus stays on the count while fields remain.
+ */
+function HiddenFields({ attrs, labels, labelOf, onShow }: { attrs: readonly string[]; labels: GridLabelsAll; labelOf: (attr: string) => string; onShow: (attrs: readonly string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const listId = React.useId();
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const show = (which: readonly string[]) => {
+    onShow(which);
+    toggleRef.current?.focus();
+  };
+  return (
+    <div className="jc-grid-hidden">
+      <button ref={toggleRef} type="button" className="jc-grid-filter-toggle jc-grid-hidden-toggle" aria-expanded={open} aria-controls={listId} onClick={() => setOpen((was) => !was)}>
+        {`${labels.hiddenFields} (${attrs.length})`}
+      </button>
+      {open && (
+        <ul id={listId} className="jc-grid-hidden-list" aria-label={labels.hiddenFields}>
+          {attrs.map((attr) => (
+            <li key={attr}>
+              <span>{labelOf(attr)}</span>
+              <button type="button" aria-label={`${labels.showColumn}: ${labelOf(attr)}`} onClick={() => show([attr])}>
+                {labels.showColumn}
+              </button>
+            </li>
+          ))}
+          {attrs.length > 1 && (
+            <li>
+              <button type="button" onClick={() => show(attrs)}>
+                {labels.showAllColumns}
+              </button>
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
 }

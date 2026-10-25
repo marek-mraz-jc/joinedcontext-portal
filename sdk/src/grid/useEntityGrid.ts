@@ -158,6 +158,10 @@ export interface GridLabels {
   sortDesc: string;
   filterColumn: string;
   hideColumn: string;
+  /** The control that lists the fields hidden from the header menu (T-5620), with its count after it. */
+  hiddenFields: string;
+  showColumn: string;
+  showAllColumns: string;
   renameColumn: string;
   renameReset: string;
   columnWidth: string;
@@ -301,6 +305,9 @@ export const DEFAULT_LABELS: GridLabels = {
   sortDesc: "Sort descending",
   filterColumn: "Filter",
   hideColumn: "Hide field",
+  hiddenFields: "Hidden fields",
+  showColumn: "Show field",
+  showAllColumns: "Show all",
   renameColumn: "Label in this view",
   renameReset: "Use the model's label",
   columnWidth: "Width",
