@@ -1019,9 +1019,14 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         setEdit(cell.id, cell.attr, e.key === stored ? undefined : coerce(e.key, stored, rules?.[cell.attr]));
         return;
       }
+      // Typing on a locked cell says why nothing opens (T-5530), in the grid's status line.
+      const lockedHere = here ? locks.get(here.key) : undefined;
+      if (onGrid && typed && lockedHere !== undefined) {
+        setPasteNote(`${labels.locked}: ${lockedHere}`);
+      }
       gridProps.onKeyDown(e);
     },
-    [activeCellId, gridProps, setEdit, leaveCell, state.activeCell, cellAt, rows, rules, columns, inspects, editable],
+    [activeCellId, gridProps, setEdit, leaveCell, state.activeCell, cellAt, rows, rules, columns, inspects, editable, locks, labels.locked],
   );
 
   /**

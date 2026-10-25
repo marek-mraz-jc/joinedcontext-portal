@@ -155,6 +155,19 @@ describe("the permission-aware grid", () => {
     expect(writeText).toHaveBeenCalledWith(ID);
   });
 
+  it("says why when a person types on a locked cell", async () => {
+    const { source } = recorded();
+    render(<EntityGrid config={configOf()} source={source} access={ACCESS} />);
+    await screen.findByDisplayValue("Kamppi");
+    const grid = screen.getByRole("grid");
+    grid.focus();
+    // id, name, availableBikeNumber: the third column is not in the person's grant.
+    for (let step = 0; step < 3; step++) fireEvent.keyDown(grid, { key: "ArrowRight" });
+    fireEvent.keyDown(grid, { key: "7" });
+    expect(screen.getByText(`${DEFAULT_LABELS.locked}: ${DEFAULT_INSPECTOR_LABELS.notInGrant}`, { selector: "[role=status]" })).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("7")).toBeNull();
+  });
+
   it("counts pasted cells the person may not change as not allowed", async () => {
     const { source } = recorded();
     render(<EntityGrid config={configOf()} source={source} access={ACCESS} />);
