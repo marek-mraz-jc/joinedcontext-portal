@@ -266,6 +266,10 @@ routes:
   - route: GET /organization/setup
     rule: "org-admin (approve and delete on RoleBinding, PF-03)"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: GET /projects/{project}/endpoints/{name}/access/attributes
+    rule: "project-read, then read of the Endpoint in its space"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "the Policy behind a refused attribute, about the caller alone (API/01 §56, T-5528); the fixture has no such Endpoint, so readers meet 404; tests/access_attributes_tests.rs holds the 200, 403 and Policy-name paths"
   - route: POST /projects/{project}/endpoints/{name}/access/simulate
     rule: "org-admin"
     expect: [403, 403, 403, 403, 403, allow, 403, 403]

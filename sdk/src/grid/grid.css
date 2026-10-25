@@ -1291,6 +1291,123 @@ a.jc-cell--link:focus-visible {
   color: var(--jc-color-danger, #cf222e);
 }
 
+/* The cell inspector (T-5528): what the person may do with one attribute. A panel on the right
+   from 1024 px, a bottom sheet below; the table behind stays usable, so it is not modal. */
+.jc-grid-inspector {
+  box-sizing: border-box;
+  position: fixed;
+  z-index: 40;
+  top: 0;
+  right: 0;
+  width: min(22rem, 100vw);
+  height: 100dvh;
+  overflow: auto;
+  padding: var(--jc-space-4, 1rem);
+  border-left: 1px solid var(--jc-color-line, #d0d7de);
+  background: var(--jc-color-surface, #fff);
+  box-shadow: -4px 0 16px rgb(0 0 0 / 0.12);
+}
+
+@media (max-width: 1023px) {
+  .jc-grid-inspector {
+    top: auto;
+    bottom: 0;
+    width: 100vw;
+    height: auto;
+    max-height: 60dvh;
+    border-left: 0;
+    border-top: 1px solid var(--jc-color-line, #d0d7de);
+    border-radius: var(--jc-radius-md, 0.5rem) var(--jc-radius-md, 0.5rem) 0 0;
+    box-shadow: 0 -4px 16px rgb(0 0 0 / 0.12);
+  }
+}
+
+.jc-grid-inspector-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--jc-space-2, 0.5rem);
+}
+
+.jc-grid-inspector-head h3 {
+  margin: 0;
+  font-size: var(--jc-font-size-md, 1rem);
+}
+
+.jc-grid-inspector-head h3:focus-visible,
+.jc-grid-inspector-close:focus-visible,
+.jc-grid-inspector-ask:focus-visible,
+.jc-grid-info:focus-visible {
+  outline: 2px solid var(--jc-color-accent, #0066cc);
+  outline-offset: 2px;
+}
+
+.jc-grid-inspector-close {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border: 0;
+  background: transparent;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.jc-grid-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jc-space-2, 0.5rem);
+  margin: var(--jc-space-3, 0.75rem) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jc-grid-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: var(--jc-font-size-sm, 0.875rem);
+  color: #fff;
+}
+
+/* Each tone is dark enough for white text (WCAG AA 4.5:1); the word says it too. */
+.jc-grid-chip--read { background: var(--jc-color-success, #15803d); }
+.jc-grid-chip--write { background: var(--jc-color-info, #1d4ed8); }
+.jc-grid-chip--delete { background: var(--jc-color-warning, #b45309); }
+.jc-grid-chip--none {
+  background: var(--jc-color-card, #f3f4f6);
+  color: var(--jc-color-muted, #4b5563);
+  border: 1px solid var(--jc-color-line, #d0d7de);
+}
+
+.jc-grid-inspector-reason { margin: 0 0 var(--jc-space-3, 0.75rem); }
+.jc-grid-inspector-failed { color: var(--jc-color-danger, #b91c1c); }
+.jc-grid-inspector-ask { color: var(--jc-color-accent, #0066cc); }
+
+/* The small "i" beside a cell's value: seen on hover and on the active cell, always clickable. */
+.jc-grid-info {
+  float: right;
+  margin-inline-start: 0.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  border: 1px solid var(--jc-color-line, #d0d7de);
+  border-radius: 999px;
+  background: var(--jc-color-surface, #fff);
+  color: var(--jc-color-muted, #4b5563);
+  font: italic 600 0.75rem/1 Georgia, serif;
+  cursor: pointer;
+  opacity: 0;
+}
+/* The glyph is drawn, not text: a cell's text and a copied cell stay the value alone. */
+.jc-grid-info::before { content: "i"; }
+.jc-grid-td:hover .jc-grid-info,
+.jc-grid-td[data-active] .jc-grid-info,
+.jc-grid-info:focus-visible { opacity: 1; }
+@media (hover: none) {
+  .jc-grid-info { opacity: 1; }
+}
+
 /* The way back from "Hide field" (T-5620): a count above the rows, and the hidden fields under it. */
 .jc-grid-hidden { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--jc-space-2, 8px); padding: var(--jc-space-2, 8px); }
 .jc-grid .jc-grid-hidden-toggle { display: inline-flex; align-items: center; }

@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useAccess } from "../../components/entities/AccessPanel";
-import type { GrantDocument } from "../../components/entities/AccessPanel";
+import type { GrantDocument } from "../../api/access";
 import { endpointUrl } from "../../components/endpoints/links";
 import { CodeBlock, Alert, Button, Field, Input, Select, Tabs, tabPanelProps } from "../../components/ui";
 

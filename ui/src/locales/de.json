@@ -5581,7 +5581,28 @@
       "filterOther": "Einen Test wählen, z. B. hat einen Wert oder leer.",
       "editAsText": "Den Filter als Text schreiben, z. B. pm10>40"
     },
-    "groupNoValue": "(kein Wert)"
+    "groupNoValue": "(kein Wert)",
+    "inspector": {
+      "title": "Ihr Zugriff",
+      "close": "Schließen",
+      "read": "Lesen",
+      "write": "Schreiben",
+      "delete": "Löschen",
+      "allowed": "erlaubt",
+      "notAllowed": "nicht erlaubt",
+      "loading": "Ihr Zugriff wird geprüft…",
+      "failed": "Ihr Zugriff konnte nicht gelesen werden ({reason}). Laden Sie die Seite neu, um es erneut zu versuchen.",
+      "grant": "Ihr Zugriff erlaubt das.",
+      "notInGrant": "Nicht in Ihrem Zugriff.",
+      "noGrant": "Ihr Zugriff umfasst diesen Typ nicht.",
+      "formula": "Von einer Pipeline berechnet, daher hier nicht bearbeitet.",
+      "prohibited": "Ausdrücklich durch eine Richtlinie untersagt.",
+      "prohibitedBy": "Ausdrücklich durch die Richtlinie „{policy}“ untersagt.",
+      "prohibitedHidden": "Durch eine Richtlinie verborgen, die Sie nicht lesen dürfen.",
+      "naming": "Richtlinie wird gesucht…",
+      "namingFailed": "Die Richtlinie konnte nicht benannt werden; bitte gleich erneut versuchen.",
+      "askAccess": "Zugriff anfragen"
+    }
   },
   "explore": {
     "title": "Daten erkunden",
