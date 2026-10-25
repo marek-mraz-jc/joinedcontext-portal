@@ -47,3 +47,26 @@ test("the journey marker reaches the Portal's host and no other origin", async (
     other.server.close();
   }
 });
+
+test.describe("a stranger's context under the live config's marker", () => {
+  test.use({ extraHTTPHeaders: { "X-JC-Run-Origin": "journey" } });
+
+  // The App probe's anonymous visit stands for a stranger, who sends no marker (T-5416).
+  test("carries the marker by default and none when it clears the headers", async ({ browser }) => {
+    const saw: (string | undefined)[] = [];
+    const server = await listen((headers, _method, res) => {
+      saw.push(headers["x-jc-run-origin"] as string | undefined);
+      res.writeHead(200, { "content-type": "text/html" }).end("<!doctype html><title>App</title>");
+    });
+    try {
+      for (const options of [{}, { extraHTTPHeaders: {} }]) {
+        const context = await browser.newContext(options);
+        await (await context.newPage()).goto(server.origin);
+        await context.close();
+      }
+      expect(saw).toEqual(["journey", undefined]);
+    } finally {
+      server.server.close();
+    }
+  });
+});
