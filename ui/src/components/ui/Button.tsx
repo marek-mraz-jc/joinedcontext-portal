@@ -79,6 +79,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     disabled,
     disabledReason,
     onClick,
+    title,
+    "aria-describedby": describedBy,
     ...rest
   },
   ref,
@@ -93,14 +95,15 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       type={type ?? "button"}
       disabled={explained ? undefined : disabled || loading}
       aria-disabled={explained || undefined}
-      aria-describedby={explained ? id : undefined}
+      // The reason first, then what the caller describes the button with (F-UI1-014).
+      aria-describedby={[explained ? id : undefined, describedBy].filter(Boolean).join(" ") || undefined}
       aria-busy={loading || undefined}
       // `preventDefault`, not just "no handler": a refused button that is `type="submit"` still
       // submits the form it stands in, because `aria-disabled` means nothing to the browser.
       // Every schema-driven form of the Portal closes its submit this way, so "proposing is
       // closed" and "your role may not propose" sent the proposal all the same.
       onClick={explained ? (event) => event.preventDefault() : onClick}
-      title={explained ? disabledReason : rest.title}
+      title={explained ? disabledReason : title}
       className={buttonClass(variant, size, className)}
       {...rest}
     >
