@@ -95,11 +95,11 @@ export function McpElicitationPage({ project, id }: { project: string; id: strin
           {asked.message}
         </p>
         <dl className="grid gap-2 text-body sm:grid-cols-[auto_1fr]">
-          <dt className="text-muted-fg">{t("mcpElicitation.operation")}</dt>
+          <dt className="text-fg-muted">{t("mcpElicitation.operation")}</dt>
           <dd>
             <code>{asked.operation}</code>
           </dd>
-          <dt className="text-muted-fg">{t("mcpElicitation.expires")}</dt>
+          <dt className="text-fg-muted">{t("mcpElicitation.expires")}</dt>
           <dd>{expires}</dd>
         </dl>
         <a href={safeHref(asked.resource)} className="focus-ring text-body text-primary-soft-fg underline hover:no-underline">
@@ -120,7 +120,7 @@ export function McpElicitationPage({ project, id }: { project: string; id: strin
         </Alert>
       ) : null}
       <div className="space-y-2">
-        <p className="text-body text-muted-fg">{t("mcpElicitation.hint")}</p>
+        <p className="text-body text-fg-muted">{t("mcpElicitation.hint")}</p>
         <div className="flex flex-wrap gap-3">
           <Button
             variant="primary"
