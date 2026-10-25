@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RichRow, RichCell } from "./model";
+import type { ResolvedGridConfig } from "./config";
 import { cellText } from "./model";
-import type { ColumnLayout, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
+import type { ColumnLayout, GridLabels, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
 import { readableName } from "./readableName";
 import { MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, useEntityGrid } from "./useEntityGrid";
 import { CellView, cellDisplayText, columnKind, formatDate, targetName } from "./cells";
@@ -10,7 +11,7 @@ import { ColumnMenu } from "./ColumnMenu";
 import { opsForKind, valuesNeeded } from "./filters";
 import type { ColumnFilter, FilterColumn } from "./filters";
 import { applyChanges, MAX_ENTITIES, MAX_REASON, reasonOk } from "./apply";
-import type { EntityChange, Observed, Refusal } from "./apply";
+import type { AttributeChange, EntityChange, Observed, Refusal } from "./apply";
 import { EntityHistory } from "./EntityHistory";
 import { GridMap } from "./GridMap";
 import { unitTitle } from "../sdk/units";
@@ -26,7 +27,7 @@ import { objectsOf, pointingAt, searchTargets } from "../relations";
 import type { TargetOption } from "../relations";
 import { NGSI_LD_NULL, RelationPicker } from "./RelationPicker";
 import { CellInspector, DEFAULT_INSPECTOR_LABELS } from "./CellInspector";
-import type { AccessAction, AccessExplanation } from "./CellInspector";
+import type { AccessAction, AccessExplanation, CellInspectorLabels } from "./CellInspector";
 import type { AttributeAccess } from "./source";
 import { RowDetail } from "./RowDetail";
 import { AttributeMetadata } from "./AttributeMetadata";
@@ -259,7 +260,37 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     () => (onHide || ownHidden.length === 0 ? hostHidden : [...(hostHidden ?? []), ...ownHidden]),
     [onHide, hostHidden, ownHidden],
   );
-  const grid = useEntityGrid({ ...hookOptions, layout, hidden: hiddenNow });
+  // The person's decisions per attribute: the host's, else the source's own (T-5528). Until they
+  // are read, and when they cannot be, no cell opens an editor whose write could be refused.
+  const accessType = hookOptions.config.type;
+  const askAccess = hookOptions.source.access;
+  const [ownAccess, setOwnAccess] = useState<{ type: string; rows?: AttributeAccess[]; failed?: string } | null>(null);
+  useEffect(() => {
+    if (hostAccess !== undefined || !askAccess) return;
+    let current = true;
+    setOwnAccess(null);
+    askAccess(accessType).then(
+      (rows) => current && setOwnAccess({ type: accessType, rows }),
+      (err: unknown) => current && setOwnAccess({ type: accessType, failed: err instanceof Error ? err.message : String(err) }),
+    );
+    return () => {
+      current = false;
+    };
+  }, [hostAccess, askAccess, accessType]);
+  const accessRows = hostAccess !== undefined ? hostAccess : ownAccess?.type === accessType ? ownAccess.rows : undefined;
+  // What the person may not read (T-5530) is never asked for: it leaves the query's `attrs` and
+  // the columns, and stands as a "hidden: no access" column instead, so nothing is silently missing.
+  const unreadable = useMemo(() => (accessRows ?? []).filter((row) => !row.read).map((row) => row.name), [accessRows]);
+  const gridHidden = useMemo(
+    () => (unreadable.length === 0 ? hiddenNow : [...(hiddenNow ?? []), ...unreadable]),
+    [hiddenNow, unreadable],
+  );
+  const gridConfig = useMemo(() => withoutAttrs(hookOptions.config, unreadable), [hookOptions.config, unreadable]);
+  const gridQuery = useMemo(
+    () => (hookOptions.query?.attrs ? { ...hookOptions.query, attrs: hookOptions.query.attrs.filter((attr) => !unreadable.includes(attr)) } : hookOptions.query),
+    [hookOptions.query, unreadable],
+  );
+  const grid = useEntityGrid({ ...hookOptions, config: gridConfig, query: gridQuery, layout, hidden: gridHidden });
   const reloadGrid = grid.reload;
   const reloadedFor = useRef(reloadKey);
   useEffect(() => {
@@ -324,27 +355,10 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const editing = hookOptions.config.mode === "edit" && Boolean(hookOptions.source.patch);
   // Which columns open: the config's own list, which `parseGridConfig` requires in edit mode, so a
   // grid never opens a column nobody named.
-  // The person's decisions per attribute: the host's, else the source's own (T-5528). Until they
-  // are read, and when they cannot be, no cell opens an editor whose write could be refused.
-  const accessType = hookOptions.config.type;
-  const askAccess = hookOptions.source.access;
-  const [ownAccess, setOwnAccess] = useState<{ type: string; rows?: AttributeAccess[]; failed?: string } | null>(null);
-  useEffect(() => {
-    if (hostAccess !== undefined || !askAccess) return;
-    let current = true;
-    setOwnAccess(null);
-    askAccess(accessType).then(
-      (rows) => current && setOwnAccess({ type: accessType, rows }),
-      (err: unknown) => current && setOwnAccess({ type: accessType, failed: err instanceof Error ? err.message : String(err) }),
-    );
-    return () => {
-      current = false;
-    };
-  }, [hostAccess, askAccess, accessType]);
-  const accessRows = hostAccess !== undefined ? hostAccess : ownAccess?.type === accessType ? ownAccess.rows : undefined;
   const accessFailed = hostAccess === null ? labels.error : ownAccess?.type === accessType ? ownAccess.failed : undefined;
   const asked = hostAccess !== undefined || Boolean(askAccess);
-  const accessOf = useCallback((attr: string) => accessRows?.find((row) => row.name === attr), [accessRows]);
+  const accessByName = useMemo(() => new Map((accessRows ?? []).map((row) => [row.name, row])), [accessRows]);
+  const accessOf = useCallback((attr: string) => accessByName.get(attr), [accessByName]);
   const editable = useMemo(() => {
     const allowed = hookOptions.config.editableAttrs;
     return (column: VisibleColumn): boolean =>
@@ -361,6 +375,14 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const inspectorLabels = { ...DEFAULT_INSPECTOR_LABELS, close: labels.close, ...hookOptions.labels?.inspectorLabels };
   const inspects = (column: VisibleColumn): column is VisibleColumn & { attr: string } =>
     asked && column.attr !== null && column.meta === null && column.key !== "id";
+  // A column the person cannot change once their decisions are read wears a lock with the reason
+  // (T-5530), so a value without an editor is never a puzzle.
+  const lockOf = (column: VisibleColumn): string | undefined =>
+    accessRows && inspects(column) && !editable(column) ? lockReason(accessOf(column.attr), labels, inspectorLabels) : undefined;
+  // Once per column per render, not per cell: ten thousand rows scroll through the same few reasons.
+  const locks = new Map(columns.map((column) => [column.key, lockOf(column)]));
+  const [dropped, setDropped] = useState<string[]>([]);
+  const noAccess = unreadable.filter((name) => !dropped.includes(name));
   const [open, setOpen] = useState(false);
   const [observed, setObserved] = useState<Observed>("keep");
   const [applying, setApplying] = useState(false);
@@ -1044,9 +1066,14 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         setEdit(cell.id, cell.attr, e.key === stored ? undefined : coerce(e.key, stored, rules?.[cell.attr]));
         return;
       }
+      // Typing on a locked cell says why nothing opens (T-5530), in the grid's status line.
+      const lockedHere = here ? locks.get(here.key) : undefined;
+      if (onGrid && typed && lockedHere !== undefined) {
+        setPasteNote(`${labels.locked}: ${lockedHere}`);
+      }
       gridProps.onKeyDown(e);
     },
-    [activeCellId, gridProps, setEdit, leaveCell, state.activeCell, cellAt, rows, rules, columns, inspects, editable],
+    [activeCellId, gridProps, setEdit, leaveCell, state.activeCell, cellAt, rows, rules, columns, inspects, editable, locks, labels.locked],
   );
 
   /**
@@ -1064,6 +1091,10 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       const plan = planPaste(parseClipboard(text), (r, c) => {
         const row = rows[start.row + r];
         const column = columns[start.col + c];
+        // The server's own refusal is counted apart, so the note says why those cells did not change.
+        if (row && column && accessRows && column.attr !== null && column.meta === null && column.key !== "id" && accessOf(column.attr)?.write !== true) {
+          return { id: row.id, attr: undefined, current: null, refused: true };
+        }
         if (!row || !column || !editable(column) || column.attr === null) {
           return { id: row?.id, attr: undefined, current: null };
         }
@@ -1099,9 +1130,11 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           };
         }),
       );
-      setPasteNote(`${plan.edits.length} ${labels.pasted}${plan.skipped > 0 ? `, ${plan.skipped} ${labels.skipped}` : ""}`);
+      setPasteNote(
+        `${plan.edits.length} ${labels.pasted}${plan.refused > 0 ? `, ${plan.refused} ${labels.notAllowed}` : ""}${plan.skipped > 0 ? `, ${plan.skipped} ${labels.skipped}` : ""}`,
+      );
     },
-    [editing, state.activeCell, state.edits, rows, columns, editable, relations, hookOptions.enums, labels.pasteTooLarge, labels.pasted, labels.skipped, setEdits, rules],
+    [editing, state.activeCell, state.edits, rows, columns, editable, relations, hookOptions.enums, labels.pasteTooLarge, labels.pasted, labels.skipped, labels.notAllowed, setEdits, rules, accessRows, accessOf],
   );
 
   /**
@@ -1265,6 +1298,9 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                     {col.label}
                     {state.sort?.attr === (col.attr ?? col.key) ? (state.sort.dir === "asc" ? " ↑" : " ↓") : ""}
                   </button>
+                  {locks.get(col.key) !== undefined ? (
+                    <span className="jc-grid-lock" role="img" aria-label={`${labels.locked}: ${locks.get(col.key)}`} title={locks.get(col.key)} />
+                  ) : null}
                   {own !== null && (
                     <button
                       type="button"
@@ -1343,6 +1379,21 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                 </th>
                 );
               })}
+              {noAccess.map((name) => (
+                <th key={`no-access-${name}`} className="jc-grid-th jc-grid-th--no-access" scope="col" data-no-access={name}>
+                  <span className="jc-grid-no-access-name">{name}</span>
+                  <span className="jc-grid-no-access-note">{labels.hiddenNoAccess}</span>
+                  <button
+                    type="button"
+                    className="jc-grid-meta-btn"
+                    aria-label={`${labels.removeHidden}: ${name}`}
+                    title={labels.removeHidden}
+                    onClick={() => setDropped((before) => [...before, name])}
+                  >
+                    ×
+                  </button>
+                </th>
+              ))}
             </tr>
             {filterRow && filterable.size > 0 && (
               <tr className="jc-grid-filter-row" aria-label={labels.filterRow}>
@@ -1371,7 +1422,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           <tbody className={`jc-grid-tbody${classNames?.row ? ` ${classNames.row}` : ""}`}>
             {spacerAbove > 0 && (
               <tr className="jc-grid-spacer" aria-hidden="true">
-                <td colSpan={columns.length + lead} style={{ height: spacerAbove }} />
+                <td colSpan={columns.length + lead + noAccess.length} style={{ height: spacerAbove }} />
               </tr>
             )}
             {shownRows.map((row, shownIndex) => {
@@ -1384,7 +1435,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                 const text = cellText(row.cells[group.attr]);
                 return (
                   <tr key={`group-${group.level}`} className="jc-grid-group" data-level={group.level}>
-                    <th scope="colgroup" colSpan={columns.length + lead} style={{ paddingInlineStart: `${0.75 + group.level * 1.25}rem` }}>
+                    <th scope="colgroup" colSpan={columns.length + lead + noAccess.length} style={{ paddingInlineStart: `${0.75 + group.level * 1.25}rem` }}>
                       <span className="jc-grid-group-name">{column?.label ?? group.attr}</span>{" "}
                       <span className="jc-grid-group-value">{text === "" ? labels.groupNoValue : text}</span>
                       {groupHeader ? <span className="jc-grid-group-extra">{groupHeader(group)}</span> : null}
@@ -1438,7 +1489,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                 {columns.map((col, colIndex) => (
                   <td
                     key={`${row.id}-${col.key}`}
-                    className={`jc-grid-td${col.pinned ? " jc-grid-pinned" : ""}${classNames?.cell ? ` ${classNames.cell}` : ""}`}
+                    className={`jc-grid-td${col.pinned ? " jc-grid-pinned" : ""}${locks.get(col.key) !== undefined ? " jc-grid-td--locked" : ""}${classNames?.cell ? ` ${classNames.cell}` : ""}`}
                     {...getCellProps(row, rowIndex, col, colIndex)}
                     onClick={
                       inspects(col) && !editable(col)
@@ -1479,13 +1530,17 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                     </div>
                   </td>
                 ))}
+                {/* No value is asked for or drawn here: the cell only says the column is not the person's to read. */}
+                {noAccess.map((name) => (
+                  <td key={`${row.id}-no-access-${name}`} className="jc-grid-td jc-grid-td--no-access" aria-label={`${name}: ${labels.hiddenNoAccess}`} />
+                ))}
               </tr>
               </React.Fragment>
               );
             })}
             {spacerBelow > 0 && (
               <tr className="jc-grid-spacer" aria-hidden="true">
-                <td colSpan={columns.length + lead} style={{ height: spacerBelow }} />
+                <td colSpan={columns.length + lead + noAccess.length} style={{ height: spacerBelow }} />
               </tr>
             )}
           </tbody>
@@ -1651,23 +1706,32 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
             <table>
               <thead>
                 <tr>
-                  <th>{labels.id}</th>
+                  <th>{labels.entity}</th>
                   <th>{labels.attribute}</th>
                   <th>{labels.before}</th>
                   <th>{labels.after}</th>
                 </tr>
               </thead>
               <tbody>
-                {pendingChanges.flatMap((entity) =>
-                  entity.changes.map((change) => (
+                {/* What a person reads, drawn as the grid draws the cell: the row's name, the column's
+                    label and each value formatted; the URN only behind its copy button (T-5530). */}
+                {pendingChanges.flatMap((entity) => {
+                  const row = rows.find((one) => one.id === entity.id);
+                  const name = row ? rowName(row) : targetName(entity.id).name;
+                  return entity.changes.map((change) => (
                     <tr key={`${entity.id}-${change.attribute}`}>
-                      <td title={entity.id}>{entity.id}</td>
-                      <td>{change.attribute}</td>
-                      <td>{change.before === undefined ? "—" : String(change.before)}</td>
-                      <td>{String(change.after)}</td>
+                      <td>
+                        {name}{" "}
+                        <button type="button" className="jc-grid-copy" aria-label={`${labels.copyId}: ${name}`} title={labels.copyId} onClick={() => void navigator.clipboard?.writeText(entity.id)}>
+                          ⧉
+                        </button>
+                      </td>
+                      <td>{columns.find((col) => col.attr === change.attribute && col.meta === null)?.label ?? change.attribute}</td>
+                      <td>{reviewValue(change, change.before, where, cellLabels)}</td>
+                      <td>{reviewValue(change, change.after, where, cellLabels)}</td>
                     </tr>
-                  )),
-                )}
+                  ));
+                })}
               </tbody>
             </table>
           </div>
@@ -1839,6 +1903,45 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       )}
     </div>
   );
+}
+
+/** The config without the attributes the person may not read: neither a column nor asked in `attrs` (T-5530). */
+function withoutAttrs(config: ResolvedGridConfig, gone: readonly string[]): ResolvedGridConfig {
+  if (gone.length === 0) return config;
+  const preset = config.filters.preset;
+  return {
+    ...config,
+    columns: config.columns.filter((column) => !gone.includes(column.attr)),
+    filters: preset?.attrs ? { ...config.filters, preset: { ...preset, attrs: preset.attrs.filter((attr) => !gone.includes(attr)) } } : config.filters,
+  };
+}
+
+/** Why the person cannot change an attribute, in the inspector's own words (T-5530). */
+function lockReason(row: AttributeAccess | undefined, labels: GridLabels, words: CellInspectorLabels): string {
+  if (!row) return words.noGrant;
+  if (row.write) return labels.lockNotOffered;
+  switch (row.reason) {
+    case "prohibited":
+      return words.prohibited;
+    case "formula":
+      return words.formula;
+    case "not_in_grant":
+      return words.notInGrant;
+    case "no_grant":
+      return words.noGrant;
+    default:
+      return labels.lockReadOnly;
+  }
+}
+
+/** One side of a reviewed change as the grid's cell draws it; no value, or a value removed, is a dash. */
+function reviewValue(change: AttributeChange, value: unknown, locale: string, labels: CellLabels): React.ReactNode {
+  if (value === undefined || value === null || value === NGSI_LD_NULL) return "—";
+  const cell: RichCell =
+    change.kind === "relationship"
+      ? { kind: "relationship", value: undefined, object: value as string | string[] }
+      : { kind: change.kind === "geo" ? "geo" : "property", value, unitCode: change.unitCode };
+  return <CellView cell={cell} locale={locale} labels={labels} />;
 }
 
 /** The page buttons a pager shows: 1, the pages beside the current one and the last, `null` for a gap. */

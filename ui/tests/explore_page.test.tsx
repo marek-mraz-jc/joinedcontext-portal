@@ -121,6 +121,13 @@ async function openDetail(remove: () => Response, access?: unknown, entity: unkn
           }),
         );
       }
+      // The endpoint's own decision on deleteEntity (T-5530): yes unless the grant given reads only.
+      if (url.includes("/access/check")) {
+        const failing = (access as { checkStatus?: number } | undefined)?.checkStatus;
+        if (failing) return Promise.resolve(new Response(JSON.stringify({ title: "Bad Gateway" }), { status: failing }));
+        const allows = access === undefined || JSON.stringify(access).includes("deleteEntity");
+        return Promise.resolve(new Response(JSON.stringify({ decision: allows }), { status: 200, headers: { "Content-Type": "application/json" } }));
+      }
       if (access !== undefined && url.includes("/access")) {
         return Promise.resolve(
           new Response(JSON.stringify(access), {
@@ -400,6 +407,18 @@ it("disables the delete button, with a reason, when the grant allows only reads"
   // by keyboard and swallowed by `pointer-events-none`, so the refusal could never be read
   // (UI-44, T-1768).
   await waitFor(() => expectDenied(remove, /delete/));
+});
+
+/** T-5530: a decision the endpoint could not give offers no delete either, and says to reload. */
+it("disables the delete button, with a reason, when the endpoint's decision cannot be read", async () => {
+  await i18n.changeLanguage("en");
+  await openDetail(() => new Response("", { status: 204 }), {
+    checkStatus: 502,
+    permissions: [{ resource: { type: "BikeHireDockingStation" }, actions: ["queryEntity", "deleteEntity"] }],
+  });
+  const remove = await screen.findByTestId("explore-delete");
+  await waitFor(() => expect(remove).toHaveAccessibleDescription(en.explore.deleteUnchecked));
+  expect(remove).toHaveAttribute("aria-disabled", "true");
 });
 
 /**

@@ -684,7 +684,7 @@
   max-height: calc(100dvh - 2rem);
   overflow: auto;
   padding: 1rem;
-  border: 1px solid var(--jc-color-border, #d0d7de);
+  border: 1px solid var(--jc-color-line, #d0d7de);
   border-radius: 0.5rem;
   background: var(--jc-color-surface, #fff);
   color: inherit;
@@ -711,7 +711,7 @@
   flex-wrap: wrap;
   gap: 0.25rem;
   margin-top: 0.75rem;
-  border-bottom: 1px solid var(--jc-color-border, #d0d7de);
+  border-bottom: 1px solid var(--jc-color-line, #d0d7de);
 }
 
 .jc-grid-detail-tabs [role="tab"] {
@@ -1275,20 +1275,17 @@ a.jc-cell--link:focus-visible {
   .jc-grid :is(th, td).jc-grid-pinned { min-width: min(58vw, 15rem); }
 }
 
-/* The Metadata tab (T-5529): a hidden field reads as withheld, never as an empty value. */
-.jc-grid-meta-hidden {
-  color: var(--jc-color-muted, #57606a);
-  font-style: italic;
-}
-
-.jc-grid-meta-absolute {
-  display: block;
-  font-size: 0.8125rem;
-  color: var(--jc-color-muted, #57606a);
-}
-
-.jc-grid-meta-error {
-  color: var(--jc-color-danger, #cf222e);
+/* T-5530: the review's copy button beside a row's name holds the URN the table no longer prints. */
+.jc-grid-copy {
+  border: 1px solid var(--jc-color-line, #d0d7de);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0.125rem 0.25rem;
+  vertical-align: middle;
 }
 
 /* The cell inspector (T-5528): what the person may do with one attribute. A panel on the right
@@ -1406,6 +1403,79 @@ a.jc-cell--link:focus-visible {
 .jc-grid-info:focus-visible { opacity: 1; }
 @media (hover: none) {
   .jc-grid-info { opacity: 1; }
+}
+
+/* T-5530: a column the person cannot change wears a lock in its header (the reason is its name and
+   tooltip), and its cells a muted ground, so a value without an editor reads as read-only. */
+.jc-grid-lock {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-inline-start: var(--jc-space-1, 4px);
+  vertical-align: -0.0625rem;
+  background: var(--jc-color-muted, #4b5563);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 7V5a4 4 0 1 1 8 0v2h1v8H3V7h1zm2 0h4V5a2 2 0 1 0-4 0v2z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.jc-grid-td--locked {
+  background: var(--jc-color-card, #f6f7f9);
+  color: var(--jc-color-muted, #4b5563);
+}
+
+/* An attribute the person may not read: a narrow grey column that says so and holds no value. */
+.jc-grid-th--no-access,
+.jc-grid-td--no-access {
+  width: 7rem;
+  min-width: 7rem;
+  max-width: 7rem;
+  background: var(--jc-color-card, #f3f4f6);
+  color: var(--jc-color-muted, #4b5563);
+}
+
+.jc-grid-td--no-access {
+  background-image: repeating-linear-gradient(135deg, transparent 0 6px, var(--jc-color-line, #d0d7de) 6px 7px);
+}
+
+.jc-grid-th--no-access {
+  padding-inline-end: 1.75rem;
+}
+
+.jc-grid-no-access-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The note wraps rather than cut: "hidden: no access" is the whole message of the column. */
+.jc-grid-no-access-note {
+  display: block;
+  white-space: normal;
+  font-size: var(--jc-font-size-sm, 12px);
+  font-weight: normal;
+  font-style: italic;
+}
+
+.jc-grid-th--no-access .jc-grid-meta-btn {
+  position: absolute;
+  inset-block-start: 0.25rem;
+  inset-inline-end: 0.25rem;
+}
+
+/* The Metadata tab (T-5529): a hidden field reads as withheld, never as an empty value. */
+.jc-grid-meta-hidden {
+  color: var(--jc-color-muted, #57606a);
+  font-style: italic;
+}
+
+.jc-grid-meta-absolute {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--jc-color-muted, #57606a);
+}
+
+.jc-grid-meta-error {
+  color: var(--jc-color-danger, #cf222e);
 }
 
 /* The way back from "Hide field" (T-5620): a count above the rows, and the hidden fields under it. */

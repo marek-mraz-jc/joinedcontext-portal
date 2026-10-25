@@ -42,7 +42,7 @@ export function ConstraintList({ entry, labels }: { entry: GrantEntry; labels: R
   const { t, i18n } = useTranslation();
   const residual = CONSTRAINT_NAMES.flatMap((name) => {
     const value = entry.constraints?.[name];
-    return value ? [[name, value] as const] : [];
+    return value ? [[name, constraintText(value)] as const] : [];
   });
   if (residual.length === 0) {
     return <span className="text-body text-fg-muted">{t("access.matrix.unconstrained")}</span>;
@@ -51,9 +51,9 @@ export function ConstraintList({ entry, labels }: { entry: GrantEntry; labels: R
   return (
     <ul className="space-y-1">
       {residual.map(([name, value]) => (
-        <li key={name} title={`${name}=${constraintText(value)}`}>
-          {constraintInWords(name, constraintText(value), t, i18n.language, labels)}
-          <span className="sr-only"> ({`${name}=${constraintText(value)}`})</span>
+        <li key={name} title={`${name}=${value}`}>
+          {constraintInWords(name, value, t, i18n.language, labels)}
+          <span className="sr-only"> ({`${name}=${value}`})</span>
         </li>
       ))}
     </ul>
@@ -97,7 +97,7 @@ export function sourcesOf(entry: GrantEntry, policies: readonly PolicySource[], 
         if ((rule.effect === "prohibition" ? "prohibition" : "permission") !== effect) return false;
         const info = rule.information ?? policy.spec.information ?? [];
         const holding = info.length === 0 ? (type === "*" ? [{}] : []) : info.filter((item) => (item.entities ?? []).some((one) => one.type === type));
-        const filters = CONSTRAINT_NAMES.every((name) => (rule[name] ?? policy.spec[name] ?? "") === (entry.constraints?.[name] ?? ""));
+        const filters = CONSTRAINT_NAMES.every((name) => (rule[name] ?? policy.spec[name] ?? "") === constraintText(entry.constraints?.[name] ?? ""));
         return filters && holding.some((item) => sameAttributes(entry, [...(item.propertyNames ?? []), ...(item.relationshipNames ?? [])]));
       });
     })

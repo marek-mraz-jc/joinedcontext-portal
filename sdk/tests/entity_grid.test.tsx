@@ -997,7 +997,8 @@ describe("EntityGrid", () => {
       };
       return { paths, source: endpointSource("t5618-federating-view", transport as never) };
     };
-    const names = () => screen.getAllByRole("gridcell").map((c) => c.textContent).filter((t) => t === "Kamppi" || t === "Kallio");
+    // The cell's value, without its inspector button (T-5528).
+    const names = () => screen.getAllByRole("gridcell").map((c) => c.querySelector(".jc-grid-cell")?.textContent).filter((t) => t === "Kamppi" || t === "Kallio");
 
     it("sorts the loaded rows when the source refuses the order, and asks for it only once", async () => {
       const { paths, source } = refusesOrder();

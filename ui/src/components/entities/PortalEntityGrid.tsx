@@ -175,6 +175,10 @@ export function gridLabels(t: (key: string, values?: Record<string, string>) => 
       changedBy: t("entityGrid.historyChangedBy"),
       reason: t("entityGrid.historyReason"),
     },
+    // The placeholders go through as they are: the inspector fills them with the policy or the reason.
+    inspectorLabels: Object.fromEntries(
+      INSPECTOR_KEYS.map((key) => [key, t(`entityGrid.inspector.${key}`, { policy: "{policy}", reason: "{reason}" })]),
+    ) as Record<(typeof INSPECTOR_KEYS)[number], string>,
     metadata: t("entityGrid.metadata"),
     metadataLabels: {
       created: t("entityGrid.metaCreated"),
@@ -207,15 +211,13 @@ export function gridLabels(t: (key: string, values?: Record<string, string>) => 
         assistant: t("entityGrid.metaChannelAssistant"),
       },
     },
-    // The placeholders go through as they are: the inspector fills them with the policy or the reason.
-    inspectorLabels: Object.fromEntries(
-      INSPECTOR_KEYS.map((key) => [key, t(`entityGrid.inspector.${key}`, { policy: "{policy}", reason: "{reason}" })]),
-    ) as Record<(typeof INSPECTOR_KEYS)[number], string>,
     edit: t("entityGrid.edit"),
     pending: t("entityGrid.pending"),
     review: t("entityGrid.review"),
     apply: t("entityGrid.apply"),
     discard: t("entityGrid.discard"),
+    entity: t("entityGrid.entity"),
+    copyId: t("entityGrid.copyId"),
     attribute: t("entityGrid.attribute"),
     before: t("entityGrid.before"),
     after: t("entityGrid.after"),
@@ -245,6 +247,12 @@ export function gridLabels(t: (key: string, values?: Record<string, string>) => 
     close: t("entityGrid.close"),
     pasted: t("entityGrid.pasted"),
     skipped: t("entityGrid.skipped"),
+    notAllowed: t("entityGrid.notAllowed"),
+    locked: t("entityGrid.locked"),
+    lockReadOnly: t("entityGrid.lockReadOnly"),
+    lockNotOffered: t("entityGrid.lockNotOffered"),
+    hiddenNoAccess: t("entityGrid.hiddenNoAccess"),
+    removeHidden: t("entityGrid.removeHidden"),
     pasteTooLarge: t("entityGrid.pasteTooLarge"),
     loaded: t("entityGrid.loaded"),
     of: t("entityGrid.of"),

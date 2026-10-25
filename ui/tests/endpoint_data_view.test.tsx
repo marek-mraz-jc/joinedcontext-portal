@@ -43,12 +43,19 @@ const ENTITIES = [
   },
 ];
 
+/** The person's decisions per attribute (T-5530): every attribute of the type read, none written. */
+function decisionsOf(type: string, unread: string[] = []) {
+  const names = Object.keys(SCHEMA.$defs[type as keyof typeof SCHEMA.$defs]?.properties ?? {});
+  return { type, attributes: names.map((name) => ({ name, read: !unread.includes(name), write: false, delete: false, reason: "not_in_grant" })) };
+}
+
 /** The endpoint's schema index, its JSON Schema, and one page of entities. */
 function answer(url: URL): Response | undefined {
   if (url.pathname.endsWith("/schema/index.json")) {
     return json({ models: [{ name: "air", version: 3 }] });
   }
   if (url.pathname.endsWith("/schema/v3/json-schema")) return json(SCHEMA);
+  if (url.pathname.endsWith("/access/attributes")) return json(decisionsOf(url.searchParams.get("type") ?? ""));
   if (url.pathname.includes("/ngsi-ld/v1/entities")) {
     return new Response(JSON.stringify(ENTITIES), {
       status: 200,
@@ -225,6 +232,19 @@ describe("the data section of an endpoint", () => {
     const href = new URL(link.getAttribute("href") ?? "", "http://portal.test");
     expect(href.pathname).toBe("/api/endpoint/air-quality/file.csv");
     expect(Object.fromEntries(href.searchParams)).toEqual({ type: "AirQualityObserved", q: "co2>400", orderBy: "co2;desc" });
+  });
+
+  it("offers no CSV, and says why, when the person may not read a shown column or the access is unknown (T-5530)", async () => {
+    show({ csv: true }, (url) =>
+      url.pathname.endsWith("/access/attributes") ? json(decisionsOf("AirQualityObserved", ["co2"])) : answer(url),
+    );
+    const refused = await screen.findByRole("button", { name: en.endpoints.data.csv });
+    expect(refused).toHaveAttribute("aria-disabled", "true");
+    expect(refused).toHaveAccessibleDescription(en.endpoints.data.csvRefused.replace("{attributes}", "Co2"));
+    expect(screen.queryByRole("link", { name: en.endpoints.data.csv })).not.toBeInTheDocument();
+
+    show({ csv: true }, (url) => (url.pathname.endsWith("/access/attributes") ? json({ title: "Bad Gateway" }, 502) : answer(url)));
+    await waitFor(() => expect(screen.getAllByText(en.endpoints.data.csvUnchecked).length).toBeGreaterThan(0));
   });
 
   it("opens and leaves the full window, by the button and by Escape", async () => {

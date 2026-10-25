@@ -89,6 +89,35 @@ export function useAttributeAccess(slug: string | undefined, type: string | unde
   return useQuery(attributeAccessQuery(slug, type));
 }
 
+/**
+ * The endpoint's own decision on one action over `type` (AuthZEN check, API/02 §7b), for a control
+ * that is offered only when the server says yes (T-5530). Anything but a yes refuses.
+ */
+export function useDecision(slug: string | undefined, type: string | undefined, action: string) {
+  return useQuery({
+    queryKey: ["access-decision", slug, type, action],
+    enabled: Boolean(slug && type),
+    retry: false,
+    gcTime: 0,
+    queryFn: async (): Promise<boolean> => {
+      const response = await gatewayFetch(slug!, "/access/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: { name: action }, resource: { type } }),
+      });
+      if (!response.ok) throw new Error(`access check answered ${response.status}`);
+      const body = (await response.json()) as { decision?: unknown };
+      return body.decision === true;
+    },
+  });
+}
+
+/** The attributes of `shown` the decisions do not let the person read: none read yet is all of them. */
+export function unreadableOf(rows: AttributeAccess[] | undefined, shown: readonly string[]): string[] {
+  const readable = new Set((rows ?? []).filter((row) => row.read).map((row) => row.name));
+  return shown.filter((name) => !readable.has(name));
+}
+
 /** The attributes the decisions let the person correct in place: a write, and not a formula's. */
 export function writableOf(rows: AttributeAccess[] | undefined): string[] {
   return (rows ?? []).filter((row) => row.write && row.reason !== "formula").map((row) => row.name);

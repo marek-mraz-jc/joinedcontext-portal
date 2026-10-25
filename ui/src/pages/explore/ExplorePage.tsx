@@ -9,7 +9,7 @@ import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized, refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { AccessPanel, useAccess } from "../../components/entities/AccessPanel";
-import { deniedOf, explainAttribute, useAttributeAccess, writableOf } from "../../api/access";
+import { deniedOf, explainAttribute, useAttributeAccess, useDecision, writableOf } from "../../api/access";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { enumsOfModel, fetchEntity, filterSlotsOf, qProblem, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
@@ -205,19 +205,21 @@ export function ExplorePage({
   // UI-44, EP-55: a control the grant denies stays visible and says why, rather than working
   // until the gateway refuses it. The grant is the endpoint's own `/access` document, already
   // read above for the attributes it hides (T-1021).
-  const mayDelete = (type: string) =>
-    access.data === undefined ||
-    (access.data.permissions ?? []).some(
-      (entry) =>
-        (entry.resource?.type === undefined || entry.resource.type === type) &&
-        (entry.actions ?? []).some((action) => action === "deleteEntity" || action === "deleteBatch"),
-    );
+  // Delete is offered on the endpoint's own decision (T-5530), never on a grant read in the browser.
+  const deleteDecision = useDecision(slug, query.type, "deleteEntity");
+  const mayDelete = deleteDecision.data === true;
+  const deleteRefusal = deleteDecision.isPending
+    ? t("entityGrid.inspector.loading")
+    : deleteDecision.isError
+      ? t("explore.deleteUnchecked")
+      : t("explore.deleteDenied", { type: query.type ?? "" });
   // The attributes this person may correct in place, by the endpoint's own grant (UI-67).
   // A formula field is its pipeline's to write (DM-80): shown, never edited in place.
   const editableAttrs = useMemo(
     () => writableOf(attributeAccess.data).filter((attr) => slots.some((slot) => slot.name === attr && !slot.formula)),
     [attributeAccess.data, slots],
   );
+  // The React Compiler memoizes this; a manual useCallback over `endpoint` could not be preserved.
   const explainAccess = (attribute: string, action: "read" | "write" | "delete") =>
     explainAttribute(project, endpointName ?? "", query.type ?? "", attribute, action);
 
@@ -232,6 +234,11 @@ export function ExplorePage({
     if (!slug || !query.type || modelPending || unknownType !== undefined || qProblem(query.q)) {
       return null;
     }
+    // The grid waits for the person's decisions (T-5530): an attribute they may not read is then
+    // never asked for, and no editor opens before the server said it may.
+    if (attributeAccess.isPending) {
+      return null;
+    }
     const parsed = parseGridConfig({
       source: { kind: "endpoint", slug },
       type: query.type,
@@ -243,7 +250,7 @@ export function ExplorePage({
       ...(editableAttrs.length > 0 ? { mode: "edit" as const, editableAttrs } : {}),
     });
     return parsed.config ?? null;
-  }, [slug, query.type, modelPending, unknownType, query.q, query.attrs, query.scopeQ, editableAttrs]);
+  }, [slug, query.type, modelPending, unknownType, query.q, query.attrs, query.scopeQ, editableAttrs, attributeAccess.isPending]);
 
   // A stable callback and the same object back when nothing moved: the grid hands its page over
   // from an effect, so a new function or a new object on every render would read and re-render
@@ -264,7 +271,7 @@ export function ExplorePage({
         key={row.id}
         slug={slug}
         id={row.id}
-        deniedReason={mayDelete(row.type) ? undefined : t("explore.deleteDenied", { type: row.type })}
+        deniedReason={mayDelete ? undefined : deleteRefusal}
         onDeleted={() => {
           setSelected(null);
           // The grid holds a page that still lists the entity; a new key makes it read the endpoint
@@ -412,6 +419,11 @@ export function ExplorePage({
             onOpen={setSelected}
           />
         </div>
+      ) : null}
+      {slug && query.type && !qProblem(query.q) && attributeAccess.isPending ? (
+        <p role="status" className="text-caption text-fg-muted">
+          {t("entityGrid.inspector.loading")}
+        </p>
       ) : null}
       {config ? (
         // The table stays mounted under the other views: its filter row is the map's filter too,
