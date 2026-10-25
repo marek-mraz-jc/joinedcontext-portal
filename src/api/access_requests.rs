@@ -627,6 +627,15 @@ pub(crate) async fn approve_request(
             request.state
         )));
     }
+    if let Requester::Person(person) = &request.requester {
+        if !crate::permissions::is_person_id(person) {
+            return Err(ApiError::Conflict(format!(
+                "access request {id} was filed before people were named by their Keycloak id \
+                 and its grant would write their username into Git (ADR-N-061); decline it and \
+                 ask them to request again"
+            )));
+        }
+    }
     let endpoint = endpoint_of(&state, &project, &request.endpoint).ok_or_else(|| {
         ApiError::Conflict(format!(
             "endpoint '{}' is no longer in project '{project}'; decline the request",
@@ -990,7 +999,8 @@ pub(crate) async fn file_person_request(
     let request = AccessRequest {
         id: requests::new_id(),
         project: project.clone(),
-        requester: Requester::Person(username.clone()),
+        // The grant names the person by their Keycloak id, never their address (ADR-N-061).
+        requester: Requester::Person(user.0.identity.subject.clone()),
         endpoint_project: project.clone(),
         endpoint: name.clone(),
         space,

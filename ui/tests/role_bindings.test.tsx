@@ -202,7 +202,7 @@ describe("people and roles", () => {
       "aria-invalid",
       "true",
     );
-    await userEvent.type(within(dialog).getByLabelText(new RegExp(en.access.roles.personLabel)), "jana.kovacova@hel.fi");
+    await userEvent.type(within(dialog).getByLabelText(new RegExp(en.access.roles.personLabel)), "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e{Enter}");
     await waitFor(() => expect(within(dialog).getByRole("option", { name: "steward" })).toBeInTheDocument());
     await userEvent.selectOptions(within(dialog).getByLabelText(new RegExp(en.access.roles.roleLabel)), "steward");
     await userEvent.selectOptions(within(dialog).getByLabelText(en.access.roles.whereLabel), "space:citybikes");
@@ -214,9 +214,9 @@ describe("people and roles", () => {
     await expect(post.clone().json()).resolves.toEqual({
       apiVersion: "joinedcontext.com/v1alpha1",
       kind: "RoleBinding",
-      metadata: { name: "jana-kovacova-steward-citybikes", namespace: "org" },
+      metadata: { name: "2f1c6b1e-steward-citybikes", namespace: "org" },
       spec: {
-        subjects: [{ user: "jana.kovacova@hel.fi" }],
+        subjects: [{ user: "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e" }],
         role: "steward",
         scope: { contextSpace: "citybikes" },
       },

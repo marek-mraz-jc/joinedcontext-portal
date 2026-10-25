@@ -1718,6 +1718,14 @@
         "people_page.test.tsx"
       ]
     },
+    "src/pages/organization/NameById.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "name_by_id.test.tsx"
+      ]
+    },
     "src/pages/organization/ProjectMqtt.tsx": {
       "controls": {
         "Button": 1

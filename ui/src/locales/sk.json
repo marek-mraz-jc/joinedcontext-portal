@@ -3850,7 +3850,7 @@
         "name": "Názov skupiny",
         "description": "Čo je táto skupina",
         "members": "Členovia",
-        "memberUser": "Adresa"
+        "memberUser": "Osoba"
       },
       "propose": "Navrhnúť zmenu",
       "reason": {
@@ -3891,11 +3891,11 @@
       "notFound": "Skupina {name} v organizácii neexistuje.",
       "deleteCascade": "Zmazaním skupiny ju tá istá zmena odstráni aj z {bindings} priradení rolí platformy a {apps} rolí aplikácií.",
       "members": "Členovia",
-      "email": "E-mail osoby",
+      "email": "Osoba",
       "addMember": "Pridať člena",
       "removeMember": "Odobrať {member} zo skupiny",
       "remove": "Odobrať",
-      "needEmail": "Najprv zadajte e-mailovú adresu osoby.",
+      "needEmail": "Najprv vyberte osobu.",
       "already": "Už je tam.",
       "platformRoles": "Roly platformy",
       "platformLead": "Priradenia rolí, ktoré menujú túto skupinu: aká rola a kde platí.",
@@ -3934,7 +3934,7 @@
       "ckanVia": "cez rolu {role}",
       "appNotLoaded": "Aplikácia sa ešte načítava alebo ju nemôžete čítať.",
       "hint": {
-        "email": "Vyberte jednu alebo viac osôb z organizácie, alebo zadajte či vložte celé e-maily oddelené čiarkou alebo novým riadkom, napr. jana.novak@example.org, peter.horak@example.org.",
+        "email": "Vyberte jednu alebo viac osôb organizácie podľa mena alebo vložte e-maily oddelené čiarkami, napr. jana.novak@example.org, peter.horak@example.org. Skupina si zapíše identifikátor osoby, nie adresu.",
         "where": "Kde rola platí: celá organizácia alebo jeden projekt, napr. helsinki.",
         "space": "Ponechajte celý projekt alebo zúžte rolu na jeden kontextový priestor, napr. air-quality.",
         "role": "Čo môžu členovia robiť, napr. viewer číta, steward aj navrhuje zmeny.",
@@ -3946,7 +3946,7 @@
       "waitingTitle": "Zmena tejto skupiny čaká na rozhodnutie",
       "waiting": "Zmena {change} upravuje členov tejto skupiny a čaká na schválenie. Členov pridajte alebo odoberte po jej rozhodnutí, aby zostali ľudia, ktorých pridáva.",
       "openChange": "Otvoriť zmenu {change}",
-      "notEmails": "Nepridané, toto nie sú e-mailové adresy: {words}. Opravte ich a zadajte znova."
+      "notEmails": "Nepridané, nikto v organizácii nemá tieto adresy: {words}. Najprv ich pozvite na stránke Ľudia."
     },
     "explorer": {
       "title": "Pozrite, k čomu má niekto prístup",
@@ -4938,10 +4938,10 @@
       "groupMember": "Skupina {group}",
       "remove": "Odobrať",
       "removeLabel": "Odobrať {member} z roly {role}",
-      "email": "E-mail",
+      "email": "Osoba",
       "group": "Skupina",
       "pickGroup": "Vyberte skupinu",
-      "needEmail": "Zadajte e-mailovú adresu osoby.",
+      "needEmail": "Najprv vyberte osobu.",
       "needGroup": "Vyberte skupinu.",
       "already": "Túto rolu už má.",
       "defaultGroup": "Predvolená skupina {group}",
@@ -4950,7 +4950,8 @@
       "others": "Ďalšie skupiny a osoby s touto rolou",
       "noOthers": "Túto rolu nemá žiadna iná skupina.",
       "give": "Prideliť rolu skupine",
-      "groupsUnreadable": "Vaša rola nezobrazuje skupiny organizácie."
+      "groupsUnreadable": "Vaša rola nezobrazuje skupiny organizácie.",
+      "personHint": "Hľadajte podľa mena alebo e-mailu, napr. Jana Nováková. Skupina si zapíše identifikátor osoby, nie adresu."
     },
     "check": {
       "green": "Funguje",
@@ -5188,7 +5189,7 @@
       "kindPerson": "Osobe",
       "whichGroup": "Skupina",
       "pickGroup": "Vyberte skupinu",
-      "email": "E-mail",
+      "email": "Osoba",
       "addShort": "Dať právo",
       "attached": "Endpointy, ktoré sem publikujú",
       "noneAttached": "Do tohto katalógu nepublikuje žiadny endpoint.",
@@ -5196,15 +5197,15 @@
         "noInstance": "Najprv vyberte katalóg.",
         "unknownInstance": "Projekt nemá katalóg {instance}; obnovte stránku.",
         "nameTooLong": "Názvy projektu a katalógu sú spolu na názov roly priveľmi dlhé (63 znakov); katalóg potrebuje kratší názov.",
-        "noSubject": "Najprv vyberte skupinu alebo napíšte e-mail.",
+        "noSubject": "Najprv vyberte skupinu alebo osobu.",
         "already": "Katalóg {instance} už spravujú.",
         "absent": "Katalóg {instance} nespravujú cez jeho rolu.",
-        "badEmail": "Napíšte celú e-mailovú adresu, napríklad jana@example.org."
+        "badEmail": "Vyberte osobu zo zoznamu; ak chýba, najprv ju pozvite na stránke Ľudia."
       },
       "hidden": "Kto spravuje tento katalóg, vidia administrátori organizácie.",
-      "kindHelp": "Celá skupina, alebo jedna osoba podľa e-mailu.",
+      "kindHelp": "Celá skupina alebo jedna osoba organizácie.",
       "whichGroupHelp": "Každý v skupine spravuje tento katalóg, kým je v nej.",
-      "emailHelp": "E-mail, ktorým sa osoba prihlasuje, napríklad jana@example.org."
+      "emailHelp": "Hľadajte podľa mena alebo e-mailu, napr. Jana Nováková; rola uvádza identifikátor osoby, nie adresu."
     }
   },
   "mappings": {
@@ -7277,6 +7278,21 @@
         "disabled": "Zakázaných ľudí: {count}.",
         "deleted": "Odstránených ľudí: {count}.",
         "partly": "Zakázaných {done} z {count}. Nezakázaní: {failed}."
+      },
+      "id": "Identifikátor v manifestoch",
+      "nameById": {
+        "title": "Uvádzať ľudí podľa identifikátora",
+        "help": "Skupiny, priradenia rolí a politiky uvádzajú osobu podľa jej identifikátora v Keycloaku, nikdy podľa e-mailu. Skontrolujte, ktoré manifesty ešte obsahujú e-mail alebo používateľské meno, a navrhnite jednu zmenu pre každý repozitár, ktorá ich prepíše; schváli ju druhý administrátor. História v Gite pôvodný text zachová.",
+        "check": "Skontrolovať repozitáre",
+        "propose": "Navrhnúť zmeny",
+        "checkFirst": "Najprv skontrolujte repozitáre.",
+        "nothingToPropose": "Nie je čo navrhnúť: zmeny sú navrhnuté alebo každý manifest uvádza ľudí podľa identifikátora.",
+        "nothing": "Každý manifest už uvádza ľudí podľa identifikátora.",
+        "preview": "{count} manifest(ov) v {repositories} repozitár(och) ešte uvádza ľudí podľa e-mailu alebo mena:",
+        "proposed": "Navrhnuté zmeny: {count}; každá čaká na schválenie:",
+        "change": "Zmena {change}",
+        "unresolvedTitle": "Adresy, ktoré v organizácii nikto nemá",
+        "unresolved": "Tieto zostanú, ako sú, a skupina, ktorá niektorú uvádza, sa nesynchronizuje, kým sa neopraví: {addresses}. Osobu pozvite alebo adresu z manifestu odstráňte."
       }
     },
     "setup": {
@@ -8274,12 +8290,14 @@
     },
     "person": {
       "group": "Ľudia organizácie",
-      "typed": "Zadaný e-mail",
-      "none": "Nikto nezodpovedá. Zadajte celý e-mail osoby, ktorá sa ešte neprihlásila.",
-      "unlisted": "Ľudí organizácie nemôžete zobraziť. Zadajte celý e-mail osoby, napr. jana.novak@example.org.",
-      "invite": "Použiť {email} (ešte sa neprihlásil/a)",
-      "needEmail": "Zadajte celú e-mailovú adresu osoby.",
-      "addList": "Pridať e-maily zo zoznamu ({count})"
+      "none": "Nikto nezodpovedá. Najprv osobu pozvite na stránke Ľudia; potom ju tu môžete uviesť.",
+      "unlisted": "Nemáte právo zobraziť ľudí organizácie. Vložte identifikátor osoby zo stránky osoby v časti Ľudia.",
+      "needEmail": "Zadajte meno alebo celú e-mailovú adresu osoby.",
+      "addList": "Pridať e-maily zo zoznamu ({count})",
+      "chosen": "Vybraní",
+      "useId": "Použiť osobu s identifikátorom {id}",
+      "notInvited": "V organizácii zatiaľ nie je nikto s adresou {email}: najprv ho pozvite na stránke Ľudia",
+      "placeholder": "Jana Nováková alebo jana.novakova@example.org"
     }
   },
   "units": {

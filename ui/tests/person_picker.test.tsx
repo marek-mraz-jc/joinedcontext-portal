@@ -1,7 +1,8 @@
 // covers (T-2137, the module gate in gate_modules.test.ts): src/components/pickers/PersonPicker.tsx.
 /**
- * T-4947: a person is picked from the realm's people the server lists to this caller, searched
- * on the server; someone not signed in yet is named by a full e-mail and by nothing else.
+ * T-4947, ADR-N-061: a person is picked from the realm's people the server lists to this caller,
+ * searched on the server, and saved as their Keycloak id, never their e-mail; a caller who may not
+ * list people pastes an id, and an address alone names nobody.
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -14,9 +15,9 @@ import en from "../src/locales/en.json";
 import { PersonPicker } from "../src/components/pickers/PersonPicker";
 
 const PEOPLE = [
-  { id: "1", email: "Jana@Hel.fi", firstName: "Jana", lastName: "K", enabled: true, emailVerified: true, requiredActions: [] },
-  { id: "2", email: "petra@hel.fi", firstName: "Petra", lastName: "N", enabled: true, emailVerified: true, requiredActions: [] },
-  { id: "3", email: "gone@hel.fi", firstName: "Gone", lastName: "", enabled: false, emailVerified: true, requiredActions: [] },
+  { id: "00000000-0000-4000-8000-000000000001", email: "Jana@Hel.fi", firstName: "Jana", lastName: "K", enabled: true, emailVerified: true, requiredActions: [] },
+  { id: "00000000-0000-4000-8000-000000000002", email: "petra@hel.fi", firstName: "Petra", lastName: "N", enabled: true, emailVerified: true, requiredActions: [] },
+  { id: "00000000-0000-4000-8000-000000000003", email: "gone@hel.fi", firstName: "Gone", lastName: "", enabled: false, emailVerified: true, requiredActions: [] },
 ];
 
 function stub(readsPeople: boolean): string[] {
@@ -75,15 +76,15 @@ afterEach(() => {
 });
 
 describe("the person picker (T-4947)", () => {
-  it("lists the enabled people by name, leaves out the excluded, and saves the e-mail in lower case", async () => {
+  it("lists the enabled people by name, leaves out the excluded, and saves the person's id", async () => {
     stub(true);
-    show(["petra@hel.fi"]);
+    show(["00000000-0000-4000-8000-000000000002"]);
     const user = userEvent.setup();
     await user.click(screen.getByRole("combobox", { name: "Person" }));
     const options = within(await screen.findByRole("listbox")).getAllByRole("option");
     expect(options.map((o) => o.textContent ?? "")).toEqual([expect.stringContaining("Jana K")]);
     await user.click(options[0]);
-    expect(chosen).toEqual(["jana@hel.fi"]);
+    expect(chosen).toEqual(["00000000-0000-4000-8000-000000000001"]);
   });
 
   it("searches on the server as the person types", async () => {
@@ -94,7 +95,7 @@ describe("the person picker (T-4947)", () => {
     await waitFor(() => expect(searched).toContain("petra"));
   });
 
-  it("names someone not signed in yet only by a full e-mail", async () => {
+  it("takes a pasted id from a caller who may not list people, and never an address", async () => {
     stub(false);
     show();
     const user = userEvent.setup();
@@ -102,9 +103,11 @@ describe("the person picker (T-4947)", () => {
     await user.click(box);
     expect(await screen.findByText(en.picker.person.unlisted)).toBeInTheDocument();
     await user.type(box, "not an address{Enter}");
-    expect(chosen).toEqual([]);
     await user.clear(box);
     await user.type(box, "New.Person@Hel.fi{Enter}");
-    expect(chosen).toEqual(["new.person@hel.fi"]);
+    expect(chosen).toEqual([]);
+    await user.clear(box);
+    await user.type(box, "2F1C6B1E-7A4D-4C55-9E0E-3B8F1A2D4C6E{Enter}");
+    expect(chosen).toEqual(["2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e"]);
   });
 });

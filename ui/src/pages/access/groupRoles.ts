@@ -90,14 +90,17 @@ export function groupBinding(group: string, role: string, place: Place, orgDomai
   );
 }
 
-/** The members of a Group spec with `email` added, or `null` when it is already one. */
-export function withGroupMember(members: { user: string }[], email: string): { user: string }[] | null {
-  return withGroupMembers(members, [email]);
+/** The members of a Group spec with the person `id` added, or `null` when they are one already. */
+export function withGroupMember(members: { user: string }[], id: string): { user: string }[] | null {
+  return withGroupMembers(members, [id]);
 }
 
-/** The members with every new e-mail of `emails` added once, or `null` when none is new (T-5605). */
-export function withGroupMembers(members: { user: string }[], emails: string[]): { user: string }[] | null {
-  const held = new Set(members.map((member) => member.user.toLowerCase()));
-  const added = [...new Set(emails)].filter((email) => !held.has(email));
+/**
+ * The members with every new person of `ids` added once, or `null` when none is new (T-5605). A
+ * member is their Keycloak user id, never an e-mail (ADR-N-061).
+ */
+export function withGroupMembers(members: { user: string }[], ids: string[]): { user: string }[] | null {
+  const held = new Set(members.map((member) => member.user));
+  const added = [...new Set(ids)].filter((id) => !held.has(id));
   return added.length === 0 ? null : [...members, ...added.map((user) => ({ user }))];
 }

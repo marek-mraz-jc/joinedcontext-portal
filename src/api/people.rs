@@ -179,7 +179,7 @@ impl std::fmt::Debug for PasswordReset {
     }
 }
 
-fn people(state: &AppState) -> Result<&People, ApiError> {
+pub(super) fn people(state: &AppState) -> Result<&People, ApiError> {
     state.people.as_deref().ok_or_else(|| {
         ApiError::Unavailable(
             "no Keycloak admin client is configured, so people cannot be managed here".into(),
@@ -391,29 +391,49 @@ async fn record(state: &AppState, identity: &Identity, action: &str, id: &str) {
 }
 
 /// The `Group` manifests naming `email` as a member.
-fn groups_of(state: &AppState, email: &str) -> Vec<ResourceEnvelope> {
+/// How a manifest names one person: by their Keycloak user id (ADR-N-061), or by the e-mail a
+/// manifest written before the id migration still holds, until that repository's migration
+/// Change is merged.
+struct Who {
+    id: String,
+    email: String,
+}
+
+impl Who {
+    fn of(user: &KcUser) -> Self {
+        Who {
+            id: user.id.clone(),
+            email: email_of(user),
+        }
+    }
+
+    fn named_by(&self, user: &str) -> bool {
+        user == self.id || (!self.email.is_empty() && user.eq_ignore_ascii_case(&self.email))
+    }
+}
+
+fn groups_of(state: &AppState, who: &Who) -> Vec<ResourceEnvelope> {
     state.mirror.matching(|candidate| {
         candidate.kind == "Group"
             && candidate.metadata.namespace.as_deref() == Some(ORG_NAMESPACE)
-            && members(&candidate.spec).any(|member| member == email)
+            && members(&candidate.spec).any(|member| who.named_by(member))
     })
 }
 
-fn members(spec: &Value) -> impl Iterator<Item = String> + '_ {
+fn members(spec: &Value) -> impl Iterator<Item = &str> + '_ {
     spec.get("members")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
         .filter_map(|member| member.get("user").and_then(Value::as_str))
-        .map(str::to_ascii_lowercase)
 }
 
-/// How a subject list reaches `email`: the person themselves, or one of `groups`.
-fn reaches(subjects: Option<&Value>, email: &str, groups: &[String]) -> Option<Value> {
+/// How a subject list reaches `who`: the person themselves, or one of `groups`.
+fn reaches(subjects: Option<&Value>, who: &Who, groups: &[String]) -> Option<Value> {
     subjects?.as_array()?.iter().find_map(|subject| {
         if let Some(user) = subject.get("user").and_then(Value::as_str) {
-            if user.eq_ignore_ascii_case(email) {
-                return Some(json!({ "user": email }));
+            if who.named_by(user) {
+                return Some(json!({ "user": user }));
             }
         }
         subject
@@ -424,10 +444,10 @@ fn reaches(subjects: Option<&Value>, email: &str, groups: &[String]) -> Option<V
     })
 }
 
-/// The bindings that give `email` a role, directly or through a group.
+/// The bindings that give `who` a role, directly or through a group.
 fn bindings_reaching(
     state: &AppState,
-    email: &str,
+    who: &Who,
     groups: &[String],
 ) -> Vec<(ResourceEnvelope, Value)> {
     state
@@ -435,7 +455,7 @@ fn bindings_reaching(
         .matching(|candidate| candidate.kind == "RoleBinding")
         .into_iter()
         .filter_map(|binding| {
-            let via = reaches(binding.spec.get("subjects"), email, groups)?;
+            let via = reaches(binding.spec.get("subjects"), who, groups)?;
             Some((binding, via))
         })
         .collect()
@@ -463,11 +483,12 @@ async fn holds_what_they_hold(
              change this person (PF-93)"
         )));
     }
-    let groups: Vec<String> = groups_of(state, &email)
+    let who = Who::of(user);
+    let groups: Vec<String> = groups_of(state, &who)
         .into_iter()
         .map(|group| group.metadata.name)
         .collect();
-    for (binding, _) in bindings_reaching(state, &email, &groups) {
+    for (binding, _) in bindings_reaching(state, &who, &groups) {
         let manifest =
             serde_json::to_value(&binding).map_err(|e| ApiError::Internal(e.to_string()))?;
         crate::permissions::within_own_rights(
@@ -501,7 +522,8 @@ fn not_self_nor_last(state: &AppState, identity: &Identity, user: &KcUser) -> Re
         ));
     }
     let administrators = crate::permissions::administrator_people(&state.mirror);
-    if !administrators.is_empty() && administrators.iter().all(|admin| *admin == email) {
+    let who = Who::of(user);
+    if !administrators.is_empty() && administrators.iter().all(|admin| who.named_by(admin)) {
         return Err(ApiError::Conflict(format!(
             "{email} is the last Organization Administrator; bind another person to an \
              administrator role first (PF-03)"
@@ -513,7 +535,7 @@ fn not_self_nor_last(state: &AppState, identity: &Identity, user: &KcUser) -> Re
 /// A person's account, their consents and their second factor are decided by a person in a
 /// Portal session; a service account's or an agent's token never removes them, whatever its
 /// grants (AG-133, PF-58).
-fn refuse_bearer(identity: &Identity) -> Result<(), ApiError> {
+pub(super) fn refuse_bearer(identity: &Identity) -> Result<(), ApiError> {
     if identity.client.is_some() {
         return Err(ApiError::Denied(
             "a person is deleted, or loses a consent or their second factor, only by a person in \
@@ -728,12 +750,12 @@ pub async fn get_person(
     Path(id): Path<String>,
 ) -> Result<Json<PersonDetail>, ApiError> {
     let (admin, found) = target(&state, &user.0.identity, Verb::Read, &id).await?;
-    let email = email_of(&found);
-    let groups: Vec<String> = groups_of(&state, &email)
+    let who = Who::of(&found);
+    let groups: Vec<String> = groups_of(&state, &who)
         .into_iter()
         .map(|group| group.metadata.name)
         .collect();
-    let mut platform_roles: Vec<PlatformRole> = bindings_reaching(&state, &email, &groups)
+    let mut platform_roles: Vec<PlatformRole> = bindings_reaching(&state, &who, &groups)
         .into_iter()
         .map(|(binding, via)| PlatformRole {
             role: binding
@@ -757,7 +779,7 @@ pub async fn get_person(
             .into_iter()
             .flatten()
         {
-            if let Some(via) = reaches(entry.get("subjects"), &email, &groups) {
+            if let Some(via) = reaches(entry.get("subjects"), &who, &groups) {
                 app_roles.push(AppRole {
                     project: app.metadata.namespace.clone().unwrap_or_default(),
                     app: app.metadata.name.clone(),
@@ -1170,7 +1192,7 @@ struct Removal {
     removed: Vec<ResourceEnvelope>,
 }
 
-fn removal(state: &AppState, emails: &[String]) -> Result<Removal, ApiError> {
+fn removal(state: &AppState, people: &[Who]) -> Result<Removal, ApiError> {
     let mut removal = Removal::default();
     let mut elsewhere = Vec::new();
     for mut envelope in state
@@ -1191,7 +1213,7 @@ fn removal(state: &AppState, emails: &[String]) -> Result<Removal, ApiError> {
             !entry
                 .get("user")
                 .and_then(Value::as_str)
-                .is_some_and(|user| emails.iter().any(|email| user.eq_ignore_ascii_case(email)))
+                .is_some_and(|user| people.iter().any(|who| who.named_by(user)))
         });
         if list.len() == before {
             continue;
@@ -1337,13 +1359,11 @@ async fn removable(
 /// none of them is the last one alone (PF-03).
 fn not_every_administrator(state: &AppState, people: &[KcUser]) -> Result<(), ApiError> {
     let administrators = crate::permissions::administrator_people(&state.mirror);
-    let removed: Vec<String> = people.iter().map(email_of).collect();
+    let removed: Vec<Who> = people.iter().map(Who::of).collect();
     if !administrators.is_empty()
-        && administrators.iter().all(|admin| {
-            removed
-                .iter()
-                .any(|email| email.eq_ignore_ascii_case(admin))
-        })
+        && administrators
+            .iter()
+            .all(|admin| removed.iter().any(|who| who.named_by(admin)))
     {
         return Err(ApiError::Conflict(
             "this removal takes every Organization Administrator; keep one or bind another \
@@ -1384,8 +1404,8 @@ async fn remove(
     admin: &Admin<'_>,
     people: &[KcUser],
 ) -> Result<Response, ApiError> {
-    let emails: Vec<String> = people.iter().map(email_of).collect();
-    let removal = removal(state, &emails)?;
+    let named: Vec<Who> = people.iter().map(Who::of).collect();
+    let removal = removal(state, &named)?;
     if removal.edited.is_empty() && removal.removed.is_empty() {
         for found in people {
             admin.delete(&found.id).await?;

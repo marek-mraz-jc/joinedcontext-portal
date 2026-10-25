@@ -7,13 +7,14 @@ import { isChange, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 import { proposeChecked } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
-import { Alert, Button, Field, Input, Select } from "../../components/ui";
+import { Alert, Button, Field, Select } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { useGroups } from "../access/Groups";
 import { withGroupMember } from "../access/groupRoles";
-import { usePeopleChoices } from "../organization/People";
+import { PersonPicker } from "../../components/pickers/PersonPicker";
+import { personLabel, usePersonNames } from "../../api/personNames";
 
-import { asUser, defaultGroupOf, othersOf, withMember, withoutMember } from "./members";
+import { defaultGroupOf, othersOf, withMember, withoutMember } from "./members";
 import type { AppRole, RolesSpec, Subject } from "./members";
 
 export { asUser, defaultGroupOf, membersOf, othersOf, withMember, withoutMember } from "./members";
@@ -188,18 +189,16 @@ function RoleRow({
   });
   const groups = useGroups();
   const members = (stored.data as { spec?: GroupSpec } | undefined)?.spec?.members ?? [];
-  // The realm's people, offered as the address is typed (T-2685); a person the caller may not
-  // list is still typed in full.
-  const people = usePeopleChoices().filter((person) => !members.some((member) => member.user.toLowerCase() === person));
-  const [typed, setTyped] = useState("");
+  // The realm's people the caller may list, each written as their Keycloak id (T-2685, ADR-N-061).
+  const held = members.map((member) => member.user);
+  const names = usePersonNames([...held, ...others.flatMap((subject) => (subject.user ? [subject.user] : []))]);
+  const [person, setPerson] = useState("");
   const [picked, setPicked] = useState("");
-  const email = asUser(typed);
-  const held = email !== null && members.some((member) => member.user.toLowerCase() === email);
   const addReason = !stored.data
     ? t("apps.roles.noDefaultGroup", { group })
-    : email === null
+    : person === ""
       ? t("apps.roles.needEmail")
-      : held
+      : held.includes(person)
         ? t("apps.roles.already")
         : undefined;
   const offered = ((groups.data?.items ?? []) as { metadata: { name: string } }[])
@@ -233,14 +232,14 @@ function RoleRow({
           <ul className="space-y-1">
             {members.map((member) => (
               <li key={member.user} className="flex items-center gap-2">
-                <span>{member.user}</span>
+                <span>{personLabel(member.user, names)}</span>
                 <PermissionGuard project={project} kind="App" verb="propose">
                   <Button
                     size="sm"
                     variant="secondary"
                     disabled={busy}
                     disabledReason={t("app.busyReason")}
-                    aria-label={t("apps.roles.removeLabel", { member: member.user, role: title })}
+                    aria-label={t("apps.roles.removeLabel", { member: personLabel(member.user, names), role: title })}
                     onClick={() =>
                       onGroup(
                         stored.data,
@@ -259,31 +258,16 @@ function RoleRow({
           className="flex flex-wrap items-end gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            const next = email && stored.data ? withGroupMember(members, email) : null;
+            const next = person && stored.data ? withGroupMember(members, person) : null;
             if (next) {
               onGroup(stored.data, next);
-              setTyped("");
+              setPerson("");
             }
           }}
         >
-          <Field id={`${ids}-person`} label={t("apps.roles.email")}>
-            <Input
-              id={`${ids}-person`}
-              type="email"
-              autoComplete="off"
-              value={typed}
-              list={people.length > 0 ? `${ids}-people` : undefined}
-              placeholder="firstname.lastname@example.org"
-              onChange={(event) => setTyped(event.target.value)}
-            />
+          <Field id={`${ids}-person`} label={t("apps.roles.email")} description={t("apps.roles.personHint")}>
+            <PersonPicker id={`${ids}-person`} label={t("apps.roles.email")} labelled value={person} exclude={held} onChange={setPerson} />
           </Field>
-          {people.length > 0 ? (
-            <datalist id={`${ids}-people`}>
-              {people.map((person) => (
-                <option key={person} value={person} />
-              ))}
-            </datalist>
-          ) : null}
           <PermissionGuard project={project} kind="App" verb="propose">
             <Button type="submit" size="sm" disabled={busy || addReason !== undefined} disabledReason={addReason}>
               {t("apps.roles.addPerson")}
@@ -299,7 +283,7 @@ function RoleRow({
         ) : (
           <ul className="space-y-1">
             {others.map((subject) => {
-              const label = subject.user ?? t("apps.roles.groupMember", { group: subject.group });
+              const label = subject.user ? personLabel(subject.user, names) : t("apps.roles.groupMember", { group: subject.group });
               return (
                 <li key={subject.user ?? `group:${subject.group}`} className="flex items-center gap-2">
                   <span>{label}</span>

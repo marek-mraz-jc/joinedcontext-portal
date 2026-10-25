@@ -1546,8 +1546,27 @@ fn in_group(identity: &Identity, group: &str) -> bool {
     identity.groups.iter().any(|g| g == group) || identity.roles.iter().any(|r| r == group)
 }
 
+/// A Keycloak user id as ADR-N-061 writes a person into a manifest: a lower-case hyphenated
+/// UUID, the token's `sub`.
+pub fn is_person_id(value: &str) -> bool {
+    let groups: Vec<&str> = value.split('-').collect();
+    groups.len() == 5
+        && groups.iter().zip([8, 4, 4, 4, 12]).all(|(group, len)| {
+            group.len() == len
+                && group
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        })
+}
+
 fn is_subject(identity: &Identity, subject: &jc_core::kinds::Subject) -> bool {
     if let Some(user) = &subject.user {
+        // A person's id matches their `sub` and nothing else: a username or an address that
+        // spells somebody's id is not them (ADR-N-061). Any other value is an e-mail an older
+        // manifest wrote, or a `service-account-<client>` user.
+        if is_person_id(user) {
+            return identity.subject == *user;
+        }
         return identity
             .email
             .as_deref()
@@ -1749,6 +1768,38 @@ mod tests {
             spec,
             status: None,
         }
+    }
+
+    #[test]
+    fn a_person_id_subject_matches_their_sub_and_no_username_or_address_spelling_it() {
+        let id = "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e";
+        let subject = jc_core::kinds::Subject {
+            user: Some(id.to_owned()),
+            ..Default::default()
+        };
+        let person = |sub: &str, username: &str, email: &str| Identity {
+            client: None,
+            subject: sub.to_owned(),
+            username: username.to_owned(),
+            email: Some(email.to_owned()),
+            name: None,
+            roles: Vec::new(),
+            groups: Vec::new(),
+            second_factor: false,
+        };
+        assert!(is_subject(&person(id, "jana", "jana@hel.fi"), &subject));
+        assert!(!is_subject(&person("other", id, "x@hel.fi"), &subject));
+        assert!(!is_subject(&person("other", "x", id), &subject));
+        // An address an older manifest wrote still names its person until the migration lands.
+        let legacy = jc_core::kinds::Subject {
+            user: Some("Jana@hel.fi".to_owned()),
+            ..Default::default()
+        };
+        assert!(is_subject(&person(id, "jana", "jana@hel.fi"), &legacy));
+        assert!(is_person_id(id));
+        assert!(!is_person_id("jana@hel.fi"));
+        assert!(!is_person_id(&id.to_uppercase()));
+        assert!(!is_person_id("2f1c6b1e7a4d4c559e0e3b8f1a2d4c6e"));
     }
 
     #[test]

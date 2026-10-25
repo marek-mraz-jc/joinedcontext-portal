@@ -3850,7 +3850,7 @@
         "name": "Name der Gruppe",
         "description": "Was diese Gruppe ist",
         "members": "Mitglieder",
-        "memberUser": "Adresse"
+        "memberUser": "Person"
       },
       "propose": "Änderung vorschlagen",
       "reason": {
@@ -3891,11 +3891,11 @@
       "notFound": "Die Gruppe {name} gibt es in der Organisation nicht.",
       "deleteCascade": "Wer diese Gruppe löscht, nimmt sie mit derselben Änderung auch aus {bindings} Rollenzuweisung(en) der Plattform und {apps} Anwendungsrolle(n).",
       "members": "Mitglieder",
-      "email": "E-Mail der Person",
+      "email": "Person",
       "addMember": "Mitglied hinzufügen",
       "removeMember": "{member} aus der Gruppe entfernen",
       "remove": "Entfernen",
-      "needEmail": "Geben Sie zuerst die E-Mail-Adresse der Person ein.",
+      "needEmail": "Wählen Sie zuerst eine Person.",
       "already": "Schon vorhanden.",
       "platformRoles": "Plattformrollen",
       "platformLead": "Die Rollenzuweisungen, die diese Gruppe nennen: welche Rolle und wo sie gilt.",
@@ -3934,7 +3934,7 @@
       "ckanVia": "über die Rolle {role}",
       "appNotLoaded": "Die App wird noch geladen, oder Sie dürfen sie nicht lesen.",
       "hint": {
-        "email": "Wählen Sie eine oder mehrere Personen der Organisation, oder geben Sie vollständige E-Mails ein bzw. fügen Sie sie ein, getrennt durch Kommas oder Zeilenumbrüche, z. B. jana.novak@example.org, peter.horak@example.org.",
+        "email": "Wählen Sie eine oder mehrere Personen der Organisation nach Namen oder fügen Sie durch Kommas getrennte E-Mails ein, z. B. jana.novak@example.org, peter.horak@example.org. Die Gruppe speichert die Kennung der Person, nicht die Adresse.",
         "where": "Wo die Rolle gilt: die ganze Organisation oder ein Projekt, z. B. helsinki.",
         "space": "Das ganze Projekt behalten oder die Rolle auf einen Kontextraum begrenzen, z. B. air-quality.",
         "role": "Was die Mitglieder dort dürfen, z. B. viewer liest, steward schlägt auch Änderungen vor.",
@@ -3946,7 +3946,7 @@
       "waitingTitle": "Eine Änderung dieser Gruppe wartet auf eine Entscheidung",
       "waiting": "Änderung {change} bearbeitet die Mitglieder dieser Gruppe und wartet auf Freigabe. Fügen Sie Mitglieder hinzu oder entfernen Sie sie, sobald sie entschieden ist, damit die Personen erhalten bleiben, die sie hinzufügt.",
       "openChange": "Änderung {change} öffnen",
-      "notEmails": "Nicht hinzugefügt, das sind keine E-Mail-Adressen: {words}. Korrigieren Sie sie und geben Sie sie erneut ein."
+      "notEmails": "Nicht hinzugefügt, niemand in der Organisation hat diese Adressen: {words}. Laden Sie die Personen zuerst auf der Seite Personen ein."
     },
     "explorer": {
       "title": "Sehen, worauf jemand zugreifen kann",
@@ -4938,10 +4938,10 @@
       "groupMember": "Gruppe {group}",
       "remove": "Entfernen",
       "removeLabel": "{member} aus {role} entfernen",
-      "email": "E-Mail",
+      "email": "Person",
       "group": "Gruppe",
       "pickGroup": "Gruppe wählen",
-      "needEmail": "Geben Sie die E-Mail-Adresse der Person ein.",
+      "needEmail": "Wählen Sie zuerst eine Person.",
       "needGroup": "Wählen Sie eine Gruppe.",
       "already": "Hat diese Rolle bereits.",
       "defaultGroup": "Standardgruppe {group}",
@@ -4950,7 +4950,8 @@
       "others": "Weitere Gruppen und Personen mit dieser Rolle",
       "noOthers": "Keine andere Gruppe hat diese Rolle.",
       "give": "Rolle einer Gruppe geben",
-      "groupsUnreadable": "Ihre Rolle zeigt die Gruppen der Organisation nicht an."
+      "groupsUnreadable": "Ihre Rolle zeigt die Gruppen der Organisation nicht an.",
+      "personHint": "Suchen Sie nach Name oder E-Mail, z. B. Jana Nováková. Die Gruppe speichert die Kennung der Person, nicht die Adresse."
     },
     "check": {
       "green": "Funktioniert",
@@ -5188,7 +5189,7 @@
       "kindPerson": "Eine Person",
       "whichGroup": "Gruppe",
       "pickGroup": "Gruppe wählen",
-      "email": "E-Mail",
+      "email": "Person",
       "addShort": "Recht geben",
       "attached": "Endpunkte, die hierhin veröffentlichen",
       "noneAttached": "Kein Endpunkt veröffentlicht in diesen Katalog.",
@@ -5196,15 +5197,15 @@
         "noInstance": "Wählen Sie zuerst einen Katalog.",
         "unknownInstance": "Das Projekt hat keinen Katalog {instance}; laden Sie die Seite neu.",
         "nameTooLong": "Projekt- und Katalogname sind zusammen zu lang für einen Rollennamen (63 Zeichen); der Katalog braucht einen kürzeren Namen.",
-        "noSubject": "Wählen Sie zuerst eine Gruppe oder geben Sie eine E-Mail ein.",
+        "noSubject": "Wählen Sie zuerst eine Gruppe oder eine Person.",
         "already": "Sie verwalten {instance} bereits.",
         "absent": "Sie verwalten {instance} nicht über die Rolle dieses Katalogs.",
-        "badEmail": "Geben Sie eine vollständige E-Mail-Adresse ein, etwa jana@example.org."
+        "badEmail": "Wählen Sie eine Person aus der Liste; fehlt sie, laden Sie sie zuerst auf der Seite Personen ein."
       },
       "hidden": "Wer diesen Katalog verwaltet, sehen die Administratoren der Organisation.",
-      "kindHelp": "Eine ganze Gruppe oder eine Person über ihre E-Mail.",
+      "kindHelp": "Eine ganze Gruppe oder eine Person der Organisation.",
       "whichGroupHelp": "Alle in der Gruppe verwalten diesen Katalog, solange sie darin sind.",
-      "emailHelp": "Die E-Mail, mit der sich die Person anmeldet, etwa jana@example.org."
+      "emailHelp": "Suchen Sie nach Name oder E-Mail, z. B. Jana Nováková; die Rolle nennt die Kennung der Person, nicht die Adresse."
     }
   },
   "mappings": {
@@ -7277,6 +7278,21 @@
         "disabled": "{count} Personen deaktiviert.",
         "deleted": "{count} Personen gelöscht.",
         "partly": "{done} von {count} deaktiviert. Nicht deaktiviert: {failed}."
+      },
+      "id": "Kennung in Manifesten",
+      "nameById": {
+        "title": "Personen per Kennung nennen",
+        "help": "Gruppen, Rollenbindungen und Richtlinien nennen eine Person mit ihrer Keycloak-Kennung, nie mit ihrer E-Mail. Prüfen Sie, welche Manifeste noch eine E-Mail oder einen Benutzernamen enthalten, und schlagen Sie pro Repository eine Änderung vor, die sie umschreibt; ein zweiter Administrator genehmigt sie. Der Git-Verlauf behält den alten Text.",
+        "check": "Repositories prüfen",
+        "propose": "Änderungen vorschlagen",
+        "checkFirst": "Prüfen Sie zuerst die Repositories.",
+        "nothingToPropose": "Nichts vorzuschlagen: die Änderungen sind vorgeschlagen oder jedes Manifest nennt Personen per Kennung.",
+        "nothing": "Jedes Manifest nennt Personen bereits per Kennung.",
+        "preview": "{count} Manifest(e) in {repositories} Repository(s) nennen Personen noch per E-Mail oder Benutzername:",
+        "proposed": "{count} Änderung(en) vorgeschlagen; jede wartet auf Genehmigung:",
+        "change": "Änderung {change}",
+        "unresolvedTitle": "Adressen, die niemand in der Organisation hat",
+        "unresolved": "Diese bleiben, wie sie sind, und eine Gruppe, die eine davon nennt, wird erst synchronisiert, wenn sie korrigiert ist: {addresses}. Laden Sie die Person ein oder entfernen Sie die Adresse aus dem Manifest."
       }
     },
     "setup": {
@@ -8274,12 +8290,14 @@
     },
     "person": {
       "group": "Personen der Organisation",
-      "typed": "Eingegebene E-Mail",
-      "none": "Niemand passt. Geben Sie die vollständige E-Mail einer Person ein, die sich noch nicht angemeldet hat.",
-      "unlisted": "Sie dürfen die Personen der Organisation nicht auflisten. Geben Sie die vollständige E-Mail ein, z. B. jana.novak@example.org.",
-      "invite": "{email} verwenden (noch nicht angemeldet)",
-      "needEmail": "Geben Sie die vollständige E-Mail-Adresse der Person ein.",
-      "addList": "E-Mails der Liste hinzufügen ({count})"
+      "none": "Niemand passt. Laden Sie die Person zuerst auf der Seite Personen ein; dann kann sie hier genannt werden.",
+      "unlisted": "Sie dürfen die Personen der Organisation nicht auflisten. Fügen Sie die Kennung der Person ein, die auf ihrer Seite unter Personen steht.",
+      "needEmail": "Geben Sie einen Namen oder die vollständige E-Mail-Adresse der Person ein.",
+      "addList": "E-Mails der Liste hinzufügen ({count})",
+      "chosen": "Ausgewählt",
+      "useId": "Die Person mit der Kennung {id} verwenden",
+      "notInvited": "Noch niemand mit {email} ist in der Organisation: laden Sie die Person zuerst auf der Seite Personen ein",
+      "placeholder": "Jana Nováková oder jana.novakova@example.org"
     }
   },
   "units": {

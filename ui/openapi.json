@@ -2643,6 +2643,122 @@
         }
       }
     },
+    "/api/v1/organization/people/name-by-id": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Name People by Id",
+        "description": "Proposes, per repository, one Change rewriting every Group member, RoleBinding and role subject and Policy user assignee that names a person by e-mail or username into their Keycloak user id (ADR-N-061), and lists the addresses no user carries. `dryRun=true` answers the plan alone. Needs `update` on Person.",
+        "operationId": "name_by_id",
+        "parameters": [
+          {
+            "name": "dryRun",
+            "in": "query",
+            "description": "`true` answers the plan and proposes nothing.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan, and the Change of each repository unless a dry run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationPlan"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks update on Person, or is not a person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client or forge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/people/names": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Resolve Person Names",
+        "description": "Answers the name behind each Keycloak user id a manifest names. Needs `update` on Person or `approve` on Group.",
+        "operationId": "person_names",
+        "parameters": [
+          {
+            "name": "ids",
+            "in": "query",
+            "description": "Comma-separated Keycloak user ids, at most 100.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The names of the ids the realm knows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonNames"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller neither updates people nor approves groups",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "An id is not a Keycloak user id, or more than 100",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/people/remove": {
       "post": {
         "tags": [
@@ -28635,6 +28751,28 @@
           "did-web"
         ]
       },
+      "MigrationPlan": {
+        "type": "object",
+        "required": [
+          "repositories",
+          "unresolved"
+        ],
+        "properties": {
+          "repositories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RepositoryPlan"
+            }
+          },
+          "unresolved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Addresses and usernames no Keycloak user carries: they stay as they are, and the\nreconciler leaves a group naming one as the realm holds it until somebody fixes it."
+          }
+        }
+      },
       "ModelChange": {
         "type": "object",
         "description": "Single detected difference between the published model and the candidate LinkML source.",
@@ -29673,6 +29811,38 @@
             "items": {
               "$ref": "#/components/schemas/PlatformRole"
             }
+          }
+        }
+      },
+      "PersonName": {
+        "type": "object",
+        "description": "One id and the name of the person behind it.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "First and last name; the e-mail when the realm holds no name."
+          }
+        }
+      },
+      "PersonNames": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonName"
+            },
+            "description": "The ids the realm knows; an id it does not know is left out."
           }
         }
       },
@@ -31938,6 +32108,34 @@
           }
         },
         "additionalProperties": false
+      },
+      "RepositoryPlan": {
+        "type": "object",
+        "description": "What the migration rewrites in one repository.",
+        "required": [
+          "repository",
+          "manifests"
+        ],
+        "properties": {
+          "change": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Change proposed for it; absent in a dry run."
+          },
+          "manifests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`Kind namespace/name` of each manifest the Change rewrites."
+          },
+          "repository": {
+            "type": "string",
+            "description": "`organization`, or the project whose own repository it is."
+          }
+        }
       },
       "Requestable": {
         "type": "object",

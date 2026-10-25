@@ -88,7 +88,7 @@ function answer(sent: Sent[], { bindingRefused = false } = {}) {
     record();
     if (request.method === "GET") return reply(200, { items: [ACCEPTED, WAITING, LAPSED] });
     if (request.method === "POST" && path === "/api/v1/organization/people") {
-      return reply(201, { person: person("new-id", "Viera", { requiredActions: ["VERIFY_EMAIL"] }), emailSent: true });
+      return reply(201, { person: person("00000000-0000-4000-8000-0000000000aa", "Viera", { requiredActions: ["VERIFY_EMAIL"] }), emailSent: true });
     }
     if (path.endsWith("/resend-invitation")) return reply(202, { emailSent: true });
     if (request.method === "DELETE") return reply(204);
@@ -112,11 +112,11 @@ async function invite(user: ReturnType<typeof userEvent.setup>, project?: string
 }
 
 describe("the invitation's rules", () => {
-  it("proposes the role in the project, for the address as the realm keeps it", () => {
-    const binding = inviteBinding(" Viera@Example.org ", "editor", "helsinki", "hel.fi");
+  it("proposes the role in the project, for the person's Keycloak id and never the address (ADR-N-061)", () => {
+    const binding = inviteBinding("00000000-0000-4000-8000-0000000000aa", "editor", "helsinki", "hel.fi");
     expect(binding.kind).toBe("RoleBinding");
     expect(binding.metadata.namespace).toBe("org");
-    expect(binding.spec).toEqual({ subjects: [{ user: "viera@example.org" }], role: "editor", scope: { project: "helsinki" } });
+    expect(binding.spec).toEqual({ subjects: [{ user: "00000000-0000-4000-8000-0000000000aa" }], role: "editor", scope: { project: "helsinki" } });
   });
 
   it("offers the roles least first", () => {
@@ -173,7 +173,7 @@ describe("inviting a person into a project (PF-108)", () => {
     const bindings = sent.filter((s) => s.path === "/api/v1/projects/org/rolebindings");
     expect(bindings.map((s) => s.search)).toEqual(["?dryRun=All", ""]);
     expect((bindings[1].body as { spec: unknown }).spec).toEqual({
-      subjects: [{ user: "viera@example.org" }],
+      subjects: [{ user: "00000000-0000-4000-8000-0000000000aa" }],
       role: "editor",
       scope: { project: "helsinki" },
     });

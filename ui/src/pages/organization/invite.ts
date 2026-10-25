@@ -11,11 +11,12 @@ export const INVITE_ROLES = ["viewer", "editor", "steward"] as const;
 export type InviteRole = (typeof INVITE_ROLES)[number];
 
 /**
- * The RoleBinding that gives the invited person `role` in `project`. It is proposed like every
- * other grant and holds once approved: the invitation itself grants nothing (PF-95, PF-108).
+ * The RoleBinding that gives the invited person `role` in `project`, naming them by the Keycloak
+ * user id the invitation created, never their e-mail (ADR-N-061). It is proposed like every other
+ * grant and holds once approved: the invitation itself grants nothing (PF-95, PF-108).
  */
-export function inviteBinding(email: string, role: InviteRole, project: string, orgDomain: string): Manifest {
-  return bindingOf({ subjectKind: "user", subject: email.trim().toLowerCase(), role, place: "project", until: "" }, project, orgDomain);
+export function inviteBinding(id: string, role: InviteRole, project: string, orgDomain: string): Manifest {
+  return bindingOf({ subjectKind: "user", subject: id, role, place: "project", until: "" }, project, orgDomain);
 }
 
 export type InvitationState =

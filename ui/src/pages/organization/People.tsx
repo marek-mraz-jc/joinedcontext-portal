@@ -40,6 +40,7 @@ import type { ResourceProposal } from "../../api/manifest";
 import { useOrgDomain, useProjects } from "../../api/projects";
 import { RadioGroup } from "../../components/ui/RadioGroup";
 import { INVITE_ROLES, inviteBinding, invitationState } from "./invite";
+import { NameById } from "./NameById";
 import type { InviteRole } from "./invite";
 
 type Person = components["schemas"]["Person"];
@@ -64,22 +65,6 @@ function when(iso: string | null | undefined, locale: string): string | null {
   return Number.isNaN(at.getTime())
     ? null
     : new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(at);
-}
-
-/**
- * The people a group's member field offers (T-2685): the first page of the realm, for a caller
- * who may read people at all. Typing an address stays possible; the list is a choice, not a wall.
- */
-export function usePeopleChoices(): string[] {
-  const permissions = usePermissions(ORG_NAMESPACE);
-  const reads = mayRead(permissions.data, "Person") === true;
-  const people = useQuery({
-    queryKey: queryKeys.peoplePage("", 0),
-    enabled: reads,
-    queryFn: async () =>
-      unwrap(await api.GET("/api/v1/organization/people", { params: { query: { max: 100 } } })),
-  });
-  return (people.data?.items ?? []).filter((person) => person.enabled).map((person) => person.email);
 }
 
 /**
@@ -283,7 +268,7 @@ function NewPersonForm({
         const change = (await proposeChecked(
           ORG_NAMESPACE,
           "rolebindings",
-          inviteBinding(created.person.email, role, project, orgDomain) as ResourceProposal,
+          inviteBinding(created.person.id, role, project, orgDomain) as ResourceProposal,
           true,
         )) as Change;
         return { created, project, role, change };
@@ -581,6 +566,7 @@ export function People(): JSX.Element {
         }}
       />
       <OneTimePassword secret={secret} onClose={() => setSecret(null)} />
+      <NameById />
     </section>
   );
 }
@@ -1052,6 +1038,8 @@ export function PersonPage({ id }: { id: string }): JSX.Element {
         </h2>
         <PersonState person={person} />
         <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-body">
+          <dt className="text-fg-muted">{t("organization.people.id")}</dt>
+          <dd className="font-mono text-caption">{person.id}</dd>
           <dt className="text-fg-muted">{t("organization.people.form.locale")}</dt>
           <dd>{person.locale ? t(`organization.people.language.${person.locale}`) : t("organization.people.form.localeRealm")}</dd>
           <dt className="text-fg-muted">{t("organization.people.created")}</dt>

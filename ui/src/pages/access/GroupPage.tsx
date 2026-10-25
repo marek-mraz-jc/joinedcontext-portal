@@ -16,6 +16,7 @@ import { ResourcePageFailed } from "../../components/ui/PageState";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { withMember, withoutMember } from "../apps/members";
 import { PersonPicker } from "../../components/pickers/PersonPicker";
+import { personLabel, usePersonNames } from "../../api/personNames";
 import type { RolesSpec } from "../apps/members";
 import {
   appRolesNaming,
@@ -238,11 +239,11 @@ export function GroupPage({ name }: { name: string }): JSX.Element {
         members={members}
         busy={propose.isPending}
         waiting={waiting}
-        onAdd={(emails) => {
-          const next = withGroupMembers(members, emails);
+        onAdd={(ids) => {
+          const next = withGroupMembers(members, ids);
           if (next) proposeGroup(next);
         }}
-        onRemove={(email) => proposeGroup(members.filter((member) => member.user !== email))}
+        onRemove={(id) => proposeGroup(members.filter((member) => member.user !== id))}
       />
 
       <PlatformRoles
@@ -289,12 +290,13 @@ function Members({
   const { t } = useTranslation();
   const heading = useId();
   const field = useId();
-  // The realm's people the caller may list, searched on the server; a person not signed in yet is
-  // named by a full e-mail, and a pasted list adds each of its e-mails (T-2685, T-4947, T-5605).
+  // The realm's people the caller may list, searched on the server, each written as their Keycloak
+  // id; a pasted list of e-mails adds each person it finds (T-2685, T-4947, T-5605, ADR-N-061).
   const [chosen, setChosen] = useState<string[]>([]);
   const [refused, setRefused] = useState<string[]>([]);
-  const held = members.map((member) => member.user.toLowerCase());
-  const adding = chosen.filter((email) => !held.includes(email));
+  const held = members.map((member) => member.user);
+  const names = usePersonNames(held);
+  const adding = chosen.filter((id) => !held.includes(id));
   const blocked = waiting
     ? t("access.groupPage.waiting", { change: waiting })
     : adding.length === 0
@@ -319,14 +321,14 @@ function Members({
         <ul className="space-y-1">
           {members.map((member) => (
             <li key={member.user} className="flex items-center gap-2">
-              <span className="font-mono text-caption">{member.user}</span>
+              <span className="text-caption">{personLabel(member.user, names)}</span>
               <PermissionGuard project={ORG_NAMESPACE} kind="Group" verb="propose">
                 <Button
                   size="sm"
                   variant="secondary"
                   disabled={busy || waiting !== null}
                   disabledReason={waiting ? t("access.groupPage.waiting", { change: waiting }) : t("app.busyReason")}
-                  aria-label={t("access.groupPage.removeMember", { member: member.user })}
+                  aria-label={t("access.groupPage.removeMember", { member: personLabel(member.user, names) })}
                   onClick={() => onRemove(member.user)}
                 >
                   {t("access.groupPage.remove")}

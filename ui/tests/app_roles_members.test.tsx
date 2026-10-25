@@ -144,7 +144,12 @@ describe("an application's roles and members", () => {
     const { sent } = renderSection();
     const steward = await role("Steward");
     await within(steward).findByText(en.apps.roles.nobody);
-    await user.type(within(steward).getByLabelText(en.apps.roles.email), " Demo.Viewer@Hel.fi ");
+    // A caller who may not list people pastes the person's id; an address alone names nobody (ADR-N-061).
+    const box = within(steward).getByRole("combobox", { name: en.apps.roles.email });
+    await user.type(box, "demo.viewer@hel.fi{Enter}");
+    expect(within(steward).getByRole("button", { name: en.apps.roles.addPerson })).toHaveAttribute("aria-disabled", "true");
+    await user.clear(box);
+    await user.type(box, "00000000-0000-4000-8000-0000000000dd{Enter}");
     await user.click(within(steward).getByRole("button", { name: en.apps.roles.addPerson }));
 
     expect(await screen.findByRole("link", { name: /review/i })).toBeInTheDocument();
@@ -154,7 +159,7 @@ describe("an application's roles and members", () => {
     ]);
     expect(sent[1].body).toEqual({
       ...defaultGroup("alerts-steward", []),
-      spec: { members: [{ user: "demo.viewer@hel.fi" }] },
+      spec: { members: [{ user: "00000000-0000-4000-8000-0000000000dd" }] },
     });
   });
 
