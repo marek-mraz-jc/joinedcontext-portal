@@ -181,7 +181,8 @@
         },
         "personOnly": "removing a person deletes their account and cannot be proposed as a Change a second person approves",
         "routes": [
-          "DELETE /api/v1/organization/people/{id}"
+          "DELETE /api/v1/organization/people/{id}",
+          "POST /api/v1/organization/people/remove"
         ]
       },
       "refused-no-permission": {

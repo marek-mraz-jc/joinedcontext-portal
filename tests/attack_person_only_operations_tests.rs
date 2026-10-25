@@ -641,6 +641,7 @@ async fn a_bearer_token_never_deletes_a_person_or_removes_their_second_factor() 
         ("DELETE", person.to_owned()),
         ("POST", format!("{person}/remove-second-factor")),
         ("DELETE", format!("{person}/consents/jc-hub")),
+        ("POST", "/api/v1/organization/people/remove".to_owned()),
     ];
     for (who, token) in tokens() {
         for (http, uri) in &doors {

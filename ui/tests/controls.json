@@ -1635,7 +1635,8 @@
     },
     "src/pages/organization/People.tsx": {
       "controls": {
-        "Button": 14,
+        "Button": 17,
+        "Checkbox": 2,
         "RadioGroup": 1
       },
       "tests": [
