@@ -98,8 +98,8 @@ pub async fn list(
         return Err(not_found());
     }
     // A grant narrowed to one Organization's own settings reads its own manifests alone
-    // (ADR-N-058 section 2.4).
-    let item_by_item = !effective.may_read(kind_info.kind);
+    // (ADR-N-058 section 2.4), one bound to a context space that space's (PF-60, T-5607).
+    let item_by_item = !effective.may_read_every(kind_info.kind);
 
     let limit = match query.limit {
         Some(0) => return Err(ApiError::BadRequest("limit must be greater than 0".into())),
@@ -227,8 +227,8 @@ pub async fn get_resource(
     }
     .ok_or_else(not_found)?;
     // A grant narrowed to one Organization's own settings reads its own manifests alone
-    // (ADR-N-058 section 2.4).
-    if !effective.may_read(kind_info.kind)
+    // (ADR-N-058 section 2.4), one bound to a context space that space's (T-5607).
+    if !effective.may_read_every(kind_info.kind)
         && !app_group
         && !serde_json::to_value(&envelope)
             .is_ok_and(|manifest| effective.may_read_manifest(kind_info.kind, &manifest))

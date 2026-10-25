@@ -131,10 +131,17 @@ pub fn effective(
     // (T-4589). Asked once per space, not once per rule.
     let mut home: BTreeMap<String, Option<String>> = BTreeMap::new();
     let mut own_settings = Vec::new();
-    let mut grants: Vec<Grant> = in_force(mirror, identity, now)
+    let held = in_force(mirror, identity, now);
+    let readers = if kept_to_members(mirror, project) {
+        reading_only(&held)
+    } else {
+        BTreeSet::new()
+    };
+    let mut grants: Vec<Grant> = held
         .into_iter()
         .filter_map(|(reach, mut grant)| {
             grant.space = match reach {
+                Reach::Organization(_) if readers.contains(&grant.binding) => return None,
                 Reach::Organization(org) if organization_reaches(mirror, &org, project) => None,
                 Reach::Organization(org) if project == ORG_NAMESPACE => {
                     own_settings.extend(narrowed_to_own_settings(mirror, &org, grant));
@@ -235,6 +242,18 @@ impl Effective {
                 .any(|grant| grant.organization.is_some() && grant.rule.grants(kind, Verb::Read))
     }
 
+    /// Whether the caller reads every manifest of `kind` here: a grant neither bound to one
+    /// context space nor narrowed to one Organization's settings. A list or a read without it
+    /// filters item by item with [`Self::may_read_manifest`] (PF-60, T-5607).
+    pub fn may_read_every(&self, kind: &str) -> bool {
+        self.bootstrap
+            || self.grants.iter().any(|grant| {
+                grant.space.is_none()
+                    && grant.organization.is_none()
+                    && grant.rule.grants(kind, Verb::Read)
+            })
+    }
+
     /// Whether the caller may read `kind` here (PF-59). `propose` on a kind implies `read` on
     /// it, which is what keeps a role written before the verb working (jc-core `Rule::grants`).
     pub fn may_read(&self, kind: &str) -> bool {
@@ -259,7 +278,16 @@ impl Effective {
     /// kind, and — when the binding is scoped to one context space — a manifest of that space.
     /// This is what an organization-level list filters with, item by item.
     pub fn may_read_manifest(&self, kind: &str, manifest: &Value) -> bool {
-        self.may_read_in(kind, space_ref(manifest).as_deref())
+        // A ContextSpace lives in itself: a binding scoped to it reads it (T-5607).
+        let space = if kind == "ContextSpace" {
+            manifest
+                .pointer("/metadata/name")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        } else {
+            space_ref(manifest)
+        };
+        self.may_read_in(kind, space.as_deref())
             || self.grants.iter().any(|grant| {
                 grant.organization.is_some()
                     && grant.rule.grants(kind, Verb::Read)
@@ -494,6 +522,41 @@ pub fn organization_of(mirror: &Mirror, project: &str) -> Option<String> {
                 .map(str::to_owned)
         })
         .or_else(|| installation_organization(mirror))
+}
+
+/// Whether `project` keeps itself to its members (PF-61, T-5607): its own `spec.visibility`, else
+/// its Organization's `projects.visibility`, is `members`. The organization's own namespace never is.
+fn kept_to_members(mirror: &Mirror, project: &str) -> bool {
+    if project == ORG_NAMESPACE {
+        return false;
+    }
+    let own = mirror
+        .get(ORG_NAMESPACE, "Project", project)
+        .and_then(|env| env.spec.get("visibility").cloned());
+    let visibility = own.or_else(|| {
+        let organization = organization_of(mirror, project)?;
+        organizations(mirror)
+            .into_iter()
+            .find(|(name, _)| *name == organization)
+            .and_then(|(_, spec)| spec.pointer("/projects/visibility").cloned())
+    });
+    visibility.as_ref().and_then(Value::as_str) == Some("members")
+}
+
+/// The organization-scope bindings whose every rule grants `read` and nothing else: the
+/// organization-wide reader a project kept to its members does not let in (PF-61).
+fn reading_only(held: &[(Reach, Grant)]) -> BTreeSet<String> {
+    let mut readers = BTreeSet::new();
+    let mut others = BTreeSet::new();
+    for (reach, grant) in held {
+        let only_reads = grant.rule.verbs.iter().all(|verb| *verb == Verb::Read);
+        match reach {
+            Reach::Organization(_) if only_reads => readers.insert(grant.binding.clone()),
+            _ => others.insert(grant.binding.clone()),
+        };
+    }
+    readers.retain(|binding| !others.contains(binding));
+    readers
 }
 
 /// Whether a binding scoped to `organization` applies in `project` (PF-123, ADR-N-058 section

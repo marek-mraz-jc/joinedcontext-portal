@@ -4,7 +4,7 @@
  * The steward (`org-admin`) opens the throwaway project `walk-admin` with one space per department,
  * then walks seven lapped steps: (1) 100 people through the people API and 3 through the form,
  * (2) five department Groups of 20, the traffic department added one by one on the Group page,
- * (3) a space-scope and a project-scope RoleBinding per Group, (4) one member of each department
+ * (3) two space-scope RoleBindings per Group in a project kept to its members (T-5607), (4) one member of each department
  * signs in and is checked against the other departments' spaces, (5) one person moves department,
  * (6) the mayor's office (20 people) is disabled and deleted, its Changes counted, (7) the
  * activity feed is read back for an entry per create, disable and delete naming the steward.
@@ -275,6 +275,30 @@ test.beforeAll(async ({ browser }) => {
     await approveAny(page, changeOf(await answer.json()));
     await waitStatus(page, `/api/v1/projects/${PROJECT}`, 200);
   }
+  // T-5607: the project keeps itself to its members, so the organization-wide viewer every
+  // person holds does not read the departments' spaces (PF-61).
+  const registry = `/api/v1/projects/org/projects/${PROJECT}`;
+  const project = (await (await page.request.get(registry)).json()) as {
+    metadata: { name: string; namespace: string };
+    spec: Record<string, unknown>;
+  };
+  if (project.spec.visibility !== "members") {
+    await approveAny(
+      page,
+      await propose(
+        steward,
+        "org",
+        "projects",
+        { apiVersion: API_VERSION, kind: "Project", metadata: project.metadata, spec: { ...project.spec, visibility: "members" } },
+        false,
+      ),
+    );
+    await expect
+      .poll(async () => ((await (await page.request.get(registry)).json()) as { spec: { visibility?: string } }).spec.visibility, {
+        timeout: 300_000,
+      })
+      .toBe("members");
+  }
   for (const department of DEPARTMENTS) {
     if ((await status(page, `/api/v1/projects/${PROJECT}/spaces/${space(department)}`)) === 200) continue;
     const change = await propose(
@@ -523,11 +547,13 @@ test("a municipality admin onboards 100 employees into five departments and offb
     await both(page, tally, "/organization/groups", "5-departments", "steward");
   });
 
-  await lap("3 a space-scope and a project-scope RoleBinding per Group", async (tally) => {
+  await lap("3 two space-scope RoleBindings per Group", async (tally) => {
     for (const department of DEPARTMENTS) {
+      // A project-scope binding reads every space of the project (PF-59), so the second binding
+      // is a viewer of the department's own space, which the project's `members` keeps apart.
       for (const [suffix, role, scope] of [
         ["space", "editor", { contextSpace: space(department) }],
-        ["project", "viewer", { project: PROJECT }],
+        ["reader", "viewer", { contextSpace: space(department) }],
       ] as const) {
         const name = `${group(department)}-${suffix}`;
         tally.changes += 1;

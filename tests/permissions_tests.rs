@@ -1957,3 +1957,188 @@ fn own_settings_grants_administer_nothing_of_the_installation() {
     );
     assert!(jana.administers_organization());
 }
+
+/// T-5607: project `walk` with a space per department, an Endpoint in each, the organization-wide
+/// `viewer` bound to `platform-readers`, an `editor` of the traffic space bound to its Group and
+/// the seeded `org-admin`. `project` is the `spec` of the walk's Project manifest, `visibility`
+/// the Organization's `projects.visibility`.
+fn departments(project: Value, visibility: &str) -> Vec<ResourceEnvelope> {
+    let mut envelopes = vec![
+        org(
+            "Organization",
+            "hel",
+            json!({ "projects": { "visibility": visibility } }),
+        ),
+        org("Project", "walk", project),
+        org(
+            "Role",
+            "viewer",
+            json!({ "rules": [{ "kinds": ["ContextSpace", "Endpoint"], "verbs": ["read"] }] }),
+        ),
+        org(
+            "Role",
+            "editor",
+            json!({ "rules": [{ "kinds": ["ContextSpace", "Endpoint"], "verbs": ["propose"] }] }),
+        ),
+        org(
+            "Role",
+            "org-admin",
+            json!({ "rules": [{ "kinds": ["ContextSpace", "Endpoint", "RoleBinding"], "verbs": ["propose", "approve", "delete"] }] }),
+        ),
+        binding(
+            "viewers",
+            "viewer",
+            json!([{ "group": "platform-readers", "source": "provider" }]),
+            json!({ "organization": "hel" }),
+            None,
+        ),
+        binding(
+            "traffic-space",
+            "editor",
+            json!([{ "group": "walk-dep-traffic" }]),
+            json!({ "contextSpace": "traffic" }),
+            None,
+        ),
+        binding(
+            "admins",
+            "org-admin",
+            json!([{ "user": "admin@hel.fi" }]),
+            json!({ "organization": "hel" }),
+            None,
+        ),
+    ];
+    for department in ["traffic", "finance"] {
+        envelopes.push(space_in("walk", department));
+        envelopes.push(endpoint_in(
+            "walk",
+            &format!("{department}-data"),
+            department,
+        ));
+    }
+    envelopes
+}
+
+/// What `who` lists of `plural` in `walk`, and the status of `spaces/finance`.
+async fn walk_reads(
+    envelopes: &[ResourceEnvelope],
+    who: &Identity,
+    plural: &str,
+) -> (StatusCode, Vec<String>, StatusCode) {
+    let config = Config::for_tests();
+    let (status, body) = get(
+        app_with(&config, envelopes.to_vec()),
+        &config,
+        who.clone(),
+        &format!("/api/v1/projects/walk/{plural}"),
+    )
+    .await;
+    let names = if status == StatusCode::OK {
+        listed(&body)
+    } else {
+        Vec::new()
+    };
+    let (finance, _) = get(
+        app_with(&config, envelopes.to_vec()),
+        &config,
+        who.clone(),
+        "/api/v1/projects/walk/spaces/finance",
+    )
+    .await;
+    (status, names, finance)
+}
+
+/// PF-61, T-5607: in a project kept to its members the organization-wide reader does not reach
+/// it, so a traffic employee reads the traffic space and its Endpoint alone and the finance space
+/// is `404`; the administrator still reads both, and a reader no project or space binding names
+/// finds no project. Without the setting nobody loses a right.
+#[tokio::test]
+async fn a_project_kept_to_its_members_keeps_its_departments_apart() {
+    let member = identity(
+        "walk-001@walk.invalid",
+        &["platform-readers", "walk-dep-traffic"],
+    );
+    let reader = identity("jana@hel.fi", &["platform-readers"]);
+    let admin = identity("admin@hel.fi", &["platform-readers"]);
+    let kept = departments(json!({ "visibility": "members" }), "organization");
+
+    for (plural, own) in [
+        ("spaces", "walk/traffic"),
+        ("endpoints", "walk/traffic-data"),
+    ] {
+        let (status, names, finance) = walk_reads(&kept, &member, plural).await;
+        assert_eq!(status, StatusCode::OK, "{plural}");
+        assert_eq!(names, vec![own.to_owned()], "{plural}");
+        assert_eq!(finance, StatusCode::NOT_FOUND, "{plural}");
+    }
+    let (status, _, finance) = walk_reads(&kept, &reader, "spaces").await;
+    assert_eq!(
+        (status, finance),
+        (StatusCode::NOT_FOUND, StatusCode::NOT_FOUND)
+    );
+    let (status, names, finance) = walk_reads(&kept, &admin, "spaces").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        names,
+        vec!["walk/finance".to_owned(), "walk/traffic".to_owned()]
+    );
+    assert_eq!(finance, StatusCode::OK);
+
+    // No setting: the organization-wide viewer reads every space, as before.
+    let open = departments(json!({}), "organization");
+    for who in [&member, &reader] {
+        let (status, names, finance) = walk_reads(&open, who, "spaces").await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            names,
+            vec!["walk/finance".to_owned(), "walk/traffic".to_owned()]
+        );
+        assert_eq!(finance, StatusCode::OK);
+    }
+
+    // The Organization's `members` holds for a project that sets nothing; the project's own
+    // `organization` wins over it.
+    let (status, _, _) = walk_reads(&departments(json!({}), "members"), &reader, "spaces").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let opened = departments(json!({ "visibility": "organization" }), "members");
+    let (status, _, finance) = walk_reads(&opened, &reader, "spaces").await;
+    assert_eq!((status, finance), (StatusCode::OK, StatusCode::OK));
+}
+
+/// PF-60, T-5607: a person whose only binding is scoped to one context space lists and reads
+/// that space and its Endpoints alone, whatever the project's visibility.
+#[tokio::test]
+async fn a_space_binding_lists_only_its_own_space() {
+    let member = identity("walk-002@walk.invalid", &["walk-dep-traffic"]);
+    let open = departments(json!({}), "organization");
+    for (plural, own) in [
+        ("spaces", "walk/traffic"),
+        ("endpoints", "walk/traffic-data"),
+    ] {
+        let (status, names, finance) = walk_reads(&open, &member, plural).await;
+        assert_eq!(status, StatusCode::OK, "{plural}");
+        assert_eq!(names, vec![own.to_owned()], "{plural}");
+        assert_eq!(finance, StatusCode::NOT_FOUND, "{plural}");
+    }
+    let config = Config::for_tests();
+    for uri in [
+        "/api/v1/projects/walk/spaces/traffic",
+        "/api/v1/projects/walk/endpoints/traffic-data",
+    ] {
+        let (status, body) = get(
+            app_with(&config, open.clone()),
+            &config,
+            member.clone(),
+            uri,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{uri}: {body}");
+    }
+    let (status, _) = get(
+        app_with(&config, open),
+        &config,
+        member,
+        "/api/v1/projects/walk/endpoints/finance-data",
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
