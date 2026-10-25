@@ -68,12 +68,44 @@ describe("row dialog (T-4828)", () => {
     fireEvent.keyDown(tabs[0], { key: "ArrowRight" });
     expect(within(dialog).getByRole("tab", { name: "History" })).toHaveAttribute("aria-selected", "true");
     expect(within(dialog).getByRole("tab", { name: "History" })).toHaveFocus();
-    await waitFor(() => expect(history).toHaveBeenCalledWith(KPI, "name", expect.objectContaining({ lastN: expect.any(Number) })));
-    fireEvent.change(within(dialog).getByRole("combobox", { name: "Attribute" }), { target: { value: "kpiValue" } });
-    await waitFor(() => expect(history).toHaveBeenLastCalledWith(KPI, "kpiValue", expect.anything()));
+    // History opens on the measured attribute, not on the name that does not change (T-5602).
+    await waitFor(() => expect(history).toHaveBeenCalledWith(KPI, "kpiValue", expect.objectContaining({ lastN: expect.any(Number) })));
+    expect(history).not.toHaveBeenCalledWith(KPI, "name", expect.anything());
+    fireEvent.change(within(dialog).getByRole("combobox", { name: "Attribute" }), { target: { value: "name" } });
+    await waitFor(() => expect(history).toHaveBeenLastCalledWith(KPI, "name", expect.anything()));
 
     fireEvent.keyDown(within(dialog).getByRole("tab", { name: "History" }), { key: "End" });
     expect(within(dialog).getByRole("tabpanel")).toHaveTextContent(`comments of ${KPI}`);
+  });
+
+  it("opens on the tab and attribute a host names and reports each change (T-5602)", async () => {
+    const history = vi.fn<History>(async () => []);
+    const onPlace = vi.fn();
+    render(
+      <EntityGrid
+        config={configOf("view")}
+        source={sourceWith(history)}
+        openRow={KPI}
+        detailPlace={{ tab: "history", attr: "name" }}
+        onDetailPlace={onPlace}
+      />,
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Details: Recycling rate" });
+    expect(within(dialog).getByRole("tab", { name: "History" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(history).toHaveBeenCalledWith(KPI, "name", expect.anything()));
+    fireEvent.change(within(dialog).getByRole("combobox", { name: "Attribute" }), { target: { value: "kpiValue" } });
+    expect(onPlace).toHaveBeenLastCalledWith({ tab: "history", attr: "kpiValue" });
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Fields" }));
+    expect(onPlace).toHaveBeenLastCalledWith({ tab: "fields", attr: "kpiValue" });
+  });
+
+  it("reads a tab or attribute the row does not have as the defaults (T-5602)", async () => {
+    const history = vi.fn<History>(async () => []);
+    render(<EntityGrid config={configOf("view")} source={sourceWith(history)} openRow={KPI} detailPlace={{ tab: "model", attr: "<script>" }} />);
+    const dialog = await screen.findByRole("dialog", { name: "Details: Recycling rate" });
+    expect(within(dialog).getByRole("tab", { name: "Fields" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(within(dialog).getByRole("tab", { name: "History" }));
+    await waitFor(() => expect(history).toHaveBeenCalledWith(KPI, "kpiValue", expect.anything()));
   });
 
   it("has no History tab where the source reads no history", async () => {
@@ -106,6 +138,30 @@ describe("row dialog (T-4828)", () => {
     expect(onOpenRow).toHaveBeenLastCalledWith(null);
   });
 
+  // T-5600: a row read by its id showed "6.7" without its unit, an ISO time and "Point".
+  it("shows a row read by its id as the loaded page shows it", async () => {
+    const measured = kpis.map((kpi) => ({
+      ...kpi,
+      kpiValue: { ...(kpi.kpiValue as object), unitCode: "GQ" },
+      location: { type: "GeoProperty", value: { type: "Point", coordinates: [24.94, 60.17] } },
+    }));
+    const config = parseGridConfig({
+      source: { kind: "fixture", name: "test" },
+      type: "KeyPerformanceIndicator",
+      columns: [{ attr: "name", label: "Name", pinned: true }, { attr: "kpiValue", label: "Value" }, { attr: "location", label: "Place" }],
+      pageSize: 10,
+    }).config!;
+    const fields = async (pageSize: number) => {
+      const { unmount } = render(<EntityGrid config={{ ...config, pageSize }} source={fixtureSource(measured)} openRow={OTHER} onOpenRow={vi.fn()} />);
+      const text = (await screen.findByRole("dialog", { name: "Details: Bus punctuality" })).textContent;
+      unmount();
+      return text;
+    };
+    const listed = await fields(10);
+    expect(listed).toContain("µg/m³");
+    expect(await fields(1)).toBe(listed);
+  });
+
   it("closes a link to a row that is gone or not readable", async () => {
     const onOpenRow = vi.fn();
     render(<EntityGrid config={configOf("edit")} source={sourceWith()} openRow="urn:ngsi-ld:KeyPerformanceIndicator:none" onOpenRow={onOpenRow} />);
@@ -125,7 +181,7 @@ describe("row dialog (T-4828)", () => {
     expect(history.mock.calls.every(([, , window]) => !window.versions)).toBe(true);
     fireEvent.click(screen.getByRole("checkbox", { name: /Every version/ }));
     expect(await screen.findByText(/Your role may not read earlier versions/)).toBeInTheDocument();
-    expect(history).toHaveBeenLastCalledWith(KPI, "name", expect.objectContaining({ versions: true }));
+    expect(history).toHaveBeenLastCalledWith(KPI, "kpiValue", expect.objectContaining({ versions: true }));
   });
 
   it("lists each version with who changed it and why, markup as text", async () => {

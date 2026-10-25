@@ -549,6 +549,10 @@
       "open": "Look inside",
       "data": "Data",
       "dataEmpty": "Nothing here yet: no pipeline has written to this space.",
+      "searchNoMatch": "No row of {type} matches “{text}”.",
+      "filterNoMatch": "No row of {type} matches the filters.",
+      "clearSearch": "Clear the search",
+      "clearFilters": "Clear the filters",
       "addRow": "Add row",
       "copyLive": "Entities stay live in a copy",
       "copyLiveHint": "A copy holds the project's resources, not its entities: the rows here are the live space, so nothing in them can be changed from the copy. To change data without touching the project, start the copy's preview, copy data into it and change it there:",
@@ -3879,14 +3883,19 @@
       "ckanVia": "through the role {role}",
       "appNotLoaded": "The app is still loading, or you may not read it.",
       "hint": {
-        "email": "Pick one of the organization's people, or type the full e-mail of someone who has not signed in yet, e.g. jana.novak@example.org.",
+        "email": "Pick one or more of the organization's people, or type or paste full e-mails separated by commas or line breaks, e.g. jana.novak@example.org, peter.horak@example.org.",
         "where": "Where the role holds: the whole organization or one project, e.g. helsinki.",
         "space": "Keep the whole project, or narrow the role to one context space, e.g. air-quality.",
         "role": "What the members may do there, e.g. viewer reads, steward also proposes changes.",
         "project": "The project the application belongs to, e.g. helsinki.",
         "app": "The application whose role the group gets, e.g. air-quality-dashboard.",
         "appRole": "One of the roles the application defines, e.g. reader."
-      }
+      },
+      "addMembers": "Add members ({count})",
+      "waitingTitle": "A change to this group waits for a decision",
+      "waiting": "Change {change} edits this group's members and waits for approval. Add or remove members once it is decided, so it keeps the people it adds.",
+      "openChange": "Open change {change}",
+      "notEmails": "Not added, these are not e-mail addresses: {words}. Correct them and type them again."
     },
     "explorer": {
       "title": "See what someone can access",
@@ -8100,7 +8109,8 @@
       "none": "Nobody matches. Type the person's full e-mail to name someone who has not signed in yet.",
       "unlisted": "You may not list the organization's people. Type the person's full e-mail, e.g. jana.novak@example.org.",
       "invite": "Use {email} (not signed in yet)",
-      "needEmail": "Type the person's full e-mail address."
+      "needEmail": "Type the person's full e-mail address.",
+      "addList": "Add the e-mails of the list ({count})"
     }
   },
   "units": {
@@ -9679,7 +9689,8 @@
         "no_subscription": "There is nothing this subscriber may read.",
         "no_realm": "The gateway has no realm to check tokens with."
       }
-    }
+    },
+    "noAccounts": "No service account of this project that you can read. Add a device from the broker's page, or create one under Project settings, Service accounts."
   },
   "connect": {
     "title": "Connect an AI assistant",

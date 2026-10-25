@@ -91,10 +91,47 @@ pub fn check_manifest(
 ) -> Result<(), ApiError> {
     let name = &envelope.metadata.name;
     match envelope.kind.as_str() {
-        "MqttBroker" => check(&state.mirror, project, name, &envelope.spec),
+        "MqttBroker" => {
+            check_accounts(state, identity, project, &envelope.spec)?;
+            check(&state.mirror, project, name, &envelope.spec)
+        }
         "Project" => check_project(state, identity, name, &envelope.spec),
         _ => Ok(()),
     }
+}
+
+/// Refuses a role naming an account the caller may not read in the same words as one that is not
+/// there (T-5590): the form offers only the accounts the caller's list holds, and a name sent past
+/// it neither reaches an account they cannot see nor tells them it exists. An account that is not
+/// there is left to the reference check (MF-13), which also knows the Change that creates it.
+fn check_accounts(
+    state: &crate::state::AppState,
+    identity: &crate::auth::session::Identity,
+    project: &str,
+    spec: &Value,
+) -> Result<(), ApiError> {
+    let effective = crate::permissions::for_request(state, identity, project);
+    let roles = spec.get("roles").and_then(Value::as_array);
+    for (i, role) in roles.into_iter().flatten().enumerate() {
+        let accounts = role.get("serviceAccounts").and_then(Value::as_array);
+        for (j, name) in accounts.into_iter().flatten().enumerate() {
+            let Some(name) = name.as_str() else { continue };
+            let Some(account) = state.mirror.get(project, "ServiceAccount", name) else {
+                continue;
+            };
+            let readable = serde_json::to_value(&account)
+                .is_ok_and(|manifest| effective.may_read_manifest("ServiceAccount", &manifest));
+            if !readable {
+                let missing = crate::references::Missing {
+                    path: format!("spec.roles[{i}].serviceAccounts[{j}]"),
+                    kind: "ServiceAccount".to_owned(),
+                    name: name.to_owned(),
+                };
+                return Err(crate::references::refusal(project, &missing));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The MQTT rows of a project on the organization limits page (API/01 §46): `(dimension,
