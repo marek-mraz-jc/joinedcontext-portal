@@ -92,7 +92,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/projects/{project}/endpoints/{name}/quality", "the dataset's quality score, a reading about the data the Endpoint page shows and not a manifest (T-5112)"),
 ("POST", "/projects/{project}/endpoints/{name}/preview", "the filter editor's proof, one page through a draft a person is typing; the assistant proposes a filter and reads the saved Endpoint (EP-85)"),
 ("POST", "/projects/{project}/kpis/check", "the KPI editor's check as a person types, and its preview on the sources' current pages; the assistant proposes a KPI and the proposal's dry run holds it (PL-105)"),
-("GET", "/projects/{project}/endpoints/{name}/access/matrix", "the Endpoint page's Access tab: who may do what, from the gateway's grant documents; no tool asks it (API/01 §56, EP-103)"),
+("GET", "/projects/{project}/endpoints/{name}/access/matrix", "the Endpoint page's Access tab: who may do what, from the gateway's grant documents; no tool asks it (API/01 §57, EP-103)"),
 ("POST", "/projects/{project}/access/explore", "an administrator's look at what another principal reaches, from the Access explorer; no tool asks it (API/01 §41, EP-103)"),
 ("GET", "/projects/{project}/serviceaccounts/{name}/access", "an agent account's grants on its Access view; no tool asks it (API/01 §52, AG-130)"),
 ("POST", "/projects/{project}/serviceaccounts/{name}/revoke", "a person revokes an agent's grant at once in the Portal; an agent never changes access (API/01 §52, AG-132)"),

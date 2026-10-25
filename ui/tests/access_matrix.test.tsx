@@ -1,5 +1,5 @@
 /**
- * T-5531, API/01 §56: the Endpoint page's "Who may do what". Every principal against each type
+ * T-5531, API/01 §57: the Endpoint page's "Who may do what". Every principal against each type
  * and read, write, delete and history, a cell's attributes, condition and Policy one click away,
  * the graph principal → Policy → Endpoint → type, and the refusal and empty states.
  */

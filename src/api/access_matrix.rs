@@ -1,4 +1,4 @@
-//! Who may do what on one Endpoint (API/01 §56, EP-103, T-5531).
+//! Who may do what on one Endpoint (API/01 §57, EP-103, T-5531).
 //!
 //! The Endpoint page's Access tab: every principal a Policy of the Endpoint's space names (and
 //! the project's ServiceAccounts and the public) against each type and read, write, delete and
@@ -100,7 +100,7 @@ pub struct Matrix {
     get,
     path = "/api/v1/projects/{project}/endpoints/{name}/access/matrix",
     summary = "Who May Do What On An Endpoint",
-    description = "Every principal a Policy of the Endpoint's space names, the project's ServiceAccounts the caller may read and the public, against each type and read, write, delete and history, from the gateway's own grant document per principal (API/01 §56, EP-103). Organization administrators and whoever reads Policies in the Endpoint's space; recorded as an `access.simulated` activity event. Changes no data.",
+    description = "Every principal a Policy of the Endpoint's space names, the project's ServiceAccounts the caller may read and the public, against each type and read, write, delete and history, from the gateway's own grant document per principal (API/01 §57, EP-103). Organization administrators and whoever reads Policies in the Endpoint's space; recorded as an `access.simulated` activity event. Changes no data.",
     tag = "access",
     params(
         ("project" = String, Path, description = "Project name"),

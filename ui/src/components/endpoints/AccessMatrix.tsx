@@ -1,5 +1,5 @@
 /**
- * Who may do what on one Endpoint (API/01 §56, T-5531): every principal its space's Policies
+ * Who may do what on one Endpoint (API/01 §57, T-5531): every principal its space's Policies
  * name, against each type and read, write, delete and history, from the gateway's own grant
  * documents. A matrix to scan and a graph principal → Policy → Endpoint → type to follow.
  *

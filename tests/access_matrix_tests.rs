@@ -1,4 +1,4 @@
-//! Who may do what on one Endpoint (API/01 §56, EP-103, T-5531): the Portal asks the gateway's
+//! Who may do what on one Endpoint (API/01 §57, EP-103, T-5531): the Portal asks the gateway's
 //! `access/simulate` with no action once per principal the Endpoint's space names, with its own
 //! token, and lays the grant documents out as a matrix and a graph.
 

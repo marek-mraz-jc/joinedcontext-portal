@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-// T-5531: who may do what on one Endpoint, every principal at once (API/01 §56). Each state at
+// T-5531: who may do what on one Endpoint, every principal at once (API/01 §57). Each state at
 // 1440 and 400 px: the matrix, a partial cell's detail, the graph, the refusal, no Policy yet and
 // a gateway that does not answer.
 
