@@ -51,6 +51,16 @@
       "close": "Nicht jetzt",
       "notYet": "Sie sind noch nicht angemeldet. Schließen Sie die Anmeldung im anderen Tab ab und machen Sie dann weiter."
     },
+    "stepUp": {
+      "title": "Mit Einmalcode bestätigen",
+      "body": "Genehmigen, Ablehnen, Entziehen und die Verwaltung von Personen brauchen in dieser Sitzung einen zweiten Faktor. Sie haben sich nur mit dem Passwort angemeldet.",
+      "how": "Melden Sie sich in einem neuen Tab erneut mit Passwort und dem Code Ihrer Authenticator-App an. Haben Sie noch keine, richtet die Anmeldeseite eine ein. Diese Seite und Ihre Eingaben bleiben erhalten.",
+      "afterSignIn": "Wenn Sie den Code im neuen Tab eingegeben haben, kehren Sie hierher zurück, fahren Sie fort und lösen Sie die Entscheidung erneut aus.",
+      "signIn": "Im neuen Tab mit Code anmelden",
+      "continue": "Hier fortfahren",
+      "close": "Nicht jetzt",
+      "notYet": "Der Code ist noch nicht angekommen. Schließen Sie die Anmeldung im anderen Tab ab und fahren Sie dann fort."
+    },
     "listHidden": "Diese Liste ist für Sie in {project} nicht offen. Wer das Projekt verwaltet, kann sie freigeben.",
     "busyReason": "Warten Sie, bis die laufende Aktion abgeschlossen ist.",
     "firstPage": "Das ist die erste Seite.",
@@ -8931,7 +8941,8 @@
     "unprocessable": "Beheben Sie jeden Befund, den die Antwort nennt; ein Probelauf zeigt dieselben Befunde vor dem Senden.",
     "recipient-refused": "Senden Sie nur an Personen der Organisation mit bestätigter E-Mail-Adresse.",
     "no-model-key": "Bitten Sie die Administration der Organisation, den Modellschlüssel hinzuzufügen oder zu erneuern, und versuchen Sie es erneut.",
-    "no-json": "Fragen Sie erneut; die Antwort des Modells entsprach nicht dem angeforderten Schema."
+    "no-json": "Fragen Sie erneut; die Antwort des Modells entsprach nicht dem angeforderten Schema.",
+    "second-factor-required": "Melden Sie sich erneut mit Ihrem Einmalcode an und wiederholen Sie die Entscheidung."
   },
   "jobs": {
     "title": "Was Sie gestartet haben",

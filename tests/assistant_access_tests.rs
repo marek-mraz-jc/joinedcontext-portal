@@ -93,6 +93,7 @@ fn person(email: &str, groups: &[&str]) -> Identity {
         name: None,
         roles: Vec::new(),
         groups: groups.iter().map(|g| (*g).to_owned()).collect(),
+        second_factor: false,
     }
 }
 

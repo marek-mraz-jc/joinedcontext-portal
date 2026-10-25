@@ -188,8 +188,14 @@ fn people(state: &AppState) -> Result<&People, ApiError> {
 }
 
 /// The caller holds `verb` on `Person` in a binding at organization scope (PF-91).
+/// The verb on Person; administering anyone (every verb but read) is a decision door that
+/// also wants a second factor in the session (T-5567).
 fn allow(state: &AppState, identity: &Identity, verb: Verb) -> Result<(), ApiError> {
-    crate::permissions::for_request(state, identity, ORG_NAMESPACE).check(PERSON, verb, None)
+    crate::permissions::for_request(state, identity, ORG_NAMESPACE).check(PERSON, verb, None)?;
+    if verb == Verb::Read {
+        return Ok(());
+    }
+    crate::auth::session::require_second_factor(identity, &state.config)
 }
 
 fn parse<T: serde::de::DeserializeOwned>(body: &[u8]) -> Result<T, ApiError> {

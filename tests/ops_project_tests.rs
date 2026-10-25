@@ -56,6 +56,7 @@ fn zuzana() -> Identity {
         name: Some("zuzana".into()),
         roles: Vec::new(),
         groups: vec!["air-readers".into()],
+        second_factor: false,
     }
 }
 

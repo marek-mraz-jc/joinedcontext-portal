@@ -193,6 +193,7 @@ mod tests {
                 name: None,
                 roles: Vec::new(),
                 groups: Vec::new(),
+                second_factor: false,
             },
             expires_at: 0,
             issued_at: 0,

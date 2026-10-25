@@ -72,6 +72,7 @@ fn session_cookie(config: &Config, username: &str, roles: &[&str], groups: &[&st
             name: None,
             roles: roles.iter().map(|role| role.to_string()).collect(),
             groups: groups.iter().map(|group| group.to_string()).collect(),
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,
