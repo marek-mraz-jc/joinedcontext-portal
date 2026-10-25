@@ -132,7 +132,7 @@ function byType(entries: GrantEntry[]): GrantEntry[][] {
   return [...groups.values()];
 }
 
-function Operations({ actions, tone }: { actions: string[]; tone?: "warning" }): JSX.Element {
+export function Operations({ actions, tone }: { actions: string[]; tone?: "warning" }): JSX.Element {
   const { t } = useTranslation();
   if (actions.length === 0) return <span className="text-fg-subtle">{t("access.matrix.none")}</span>;
   return (

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
-import { readsOf, sourcesOf, writesOf } from "../src/pages/access/EffectivePermissions";
+import { Operations, readsOf, sourcesOf, writesOf } from "../src/pages/access/EffectivePermissions";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -164,6 +164,33 @@ describe("effective permissions", () => {
       "deleteEntity",
     ]);
     expect(writesOf(["queryTemporal"])).toEqual([]);
+  });
+
+  it("names operations by area, the CIM 009 names behind them, writes in the warning tone", () => {
+    const { container, rerender } = render(
+      <I18nextProvider i18n={i18n}>
+        <Operations actions={["retrieveEntity", "queryEntity", "someFutureOp"]} />
+      </I18nextProvider>,
+    );
+    const items = container.querySelectorAll("li");
+    expect(items[0]).toHaveAttribute("title", "retrieveEntity, queryEntity");
+    expect(container).toHaveTextContent("(retrieveEntity, queryEntity)");
+    expect(screen.getByText("someFutureOp")).toBeInTheDocument();
+    expect(container.querySelector(".text-warning")).toBeNull();
+
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <Operations actions={["updateAttrs"]} tone="warning" />
+      </I18nextProvider>,
+    );
+    expect(container.querySelector(".text-warning")).not.toBeNull();
+
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <Operations actions={[]} />
+      </I18nextProvider>,
+    );
+    expect(container).toHaveTextContent(en.access.matrix.none);
   });
 
   it("renders one row group per entity type with its operations, attributes and filters in words", async () => {
