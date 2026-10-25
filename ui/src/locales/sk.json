@@ -3749,7 +3749,11 @@
       "unconstrained": "bez obmedzenia",
       "prohibitions": "Výslovne zakázané",
       "forbidden": "Tento endpoint vám neodpovedá; prihláste sa účtom, ktorý má oprávnenie.",
-      "unavailable": "Dokument o prístupe sa nepodarilo prečítať. Skúste to o chvíľu znova."
+      "unavailable": "Dokument o prístupe sa nepodarilo prečítať. Skúste to o chvíľu znova.",
+      "source": "Odkiaľ",
+      "grants": "{count, plural, one {# oprávnenie} few {# oprávnenia} other {# oprávnení}}",
+      "noSource": "oprávnenie tohto priestoru",
+      "noSourceHint": "Tomuto oprávneniu nezodpovedá žiadna politika, ktorú smiete čítať."
     },
     "panel": {
       "title": "Váš prístup",
@@ -4001,6 +4005,19 @@
       "nothing": "Zatiaľ nič nepovolené",
       "endpointRole": "Každý volajúci endpointu {endpoint}",
       "endpointTier": "Rola aplikácie {tier} na endpointe {endpoint}"
+    },
+    "constraint": {
+      "back": "história najviac {duration} dozadu",
+      "older": "história staršia ako {duration}",
+      "since": "história od {at}",
+      "until": "história pred {at}",
+      "between": "história od {from} do {to}",
+      "scopeBelow": "v rámci rozsahu {scope} a všetkého pod ním",
+      "point": "bodu {lat}, {lon}",
+      "area": "nakreslenej oblasti",
+      "near": "do {distance} od {where}",
+      "within": "vnútri {where}",
+      "intersects": "dotýkajúce sa {where}"
     }
   },
   "flows": {
@@ -7707,7 +7724,8 @@
       "allows": "Dovoľuje",
       "from": "Odkiaľ",
       "none": "Žiadna väzba vám tu nič nedáva.",
-      "binding": "väzba {binding}, {scope}"
+      "binding": "väzba {binding}, {scope}",
+      "approveOthers": "Schvaľujete zmeny, ktoré navrhnú iní; vaše vlastné zmeny čakajú na iného schvaľovateľa, lebo na tieto druhy nemáte aj právo mazať."
     },
     "danger": {
       "title": "Zmazať projekt",

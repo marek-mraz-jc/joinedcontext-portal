@@ -288,14 +288,33 @@ function General({ project }: { project: string }): JSX.Element {
 }
 
 /**
+ * Whether `rule` grants approve on a kind no rule of the person also grants delete on: such a
+ * person approves the changes others propose, and their own wait for another approver (PF-58).
+ */
+export function approvesOthersOnly(rule: Rule, rules: readonly Rule[]): boolean {
+  if (!(rule.verbs ?? []).includes("approve")) return false;
+  const deletes = new Set(rules.filter((one) => (one.verbs ?? []).includes("delete")).flatMap((one) => one.kinds ?? []));
+  return !deletes.has("*") && (rule.kinds ?? []).some((kind) => !deletes.has(kind));
+}
+
+/**
  * Your access (PF-50, PF-60): what the signed-in person's bindings let them do here, each grant
  * with the binding and the scope it came from, so an inherited grant does not look local. Then the
  * endpoint matrix of the old Access page, the gateway's own answer (EP-60).
  */
-function YourAccess({ project }: { project: string }): JSX.Element {
+function YourAccess({
+  project,
+  endpoint,
+  onEndpoint,
+}: {
+  project: string;
+  endpoint?: string;
+  onEndpoint: (name: string) => void;
+}): JSX.Element {
   const { t } = useTranslation();
   const permissions = usePermissions(project);
   const grants = permissions.data?.grants ?? [];
+  const rules = grants.map((grant) => grant.rule as Rule);
   return (
     <div className="space-y-8">
       <section className="space-y-4" aria-labelledby="your-access-heading">
@@ -329,6 +348,10 @@ function YourAccess({ project }: { project: string }): JSX.Element {
                     </TableCell>
                     <TableCell>
                       <RuleInWords rule={grant.rule as Rule} />
+                      {/* PF-58: approve without delete approves other people's changes only. */}
+                      {approvesOthersOnly(grant.rule as Rule, rules) ? (
+                        <p className="mt-1 text-caption text-fg-muted">{t("projectSettings.access.approveOthers")}</p>
+                      ) : null}
                     </TableCell>
                     <TableCell>
                       {t("projectSettings.access.binding", { binding: grant.binding, scope: grant.scope })}
@@ -340,7 +363,7 @@ function YourAccess({ project }: { project: string }): JSX.Element {
           )}
         </Table>
       </section>
-      <EffectivePermissions project={project} />
+      <EffectivePermissions project={project} endpoint={endpoint} onEndpoint={onEndpoint} />
     </div>
   );
 }
@@ -422,7 +445,16 @@ function SettingsSearch({ project }: { project: string }): JSX.Element {
  * and quotas, who is bound in it, its own roles, its service accounts, what the signed-in person
  * may do here, and its deletion. Project → Access folded into it; every write is a proposed change.
  */
-export function ProjectSettingsPage({ project, tab }: { project: string; tab: ProjectSettingsTab }): JSX.Element {
+export function ProjectSettingsPage({
+  project,
+  tab,
+  endpoint,
+}: {
+  project: string;
+  tab: ProjectSettingsTab;
+  /** The Endpoint Your access opens on (`?endpoint=`, T-5593). */
+  endpoint?: string;
+}): JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
   // The explorer shows another principal's access: an organization administrator's tab (T-3792).
@@ -448,7 +480,20 @@ export function ProjectSettingsPage({ project, tab }: { project: string; tab: Pr
         {tab === "members" ? <RoleBindings project={project} scope="project" /> : null}
         {tab === "roles" ? <Roles project={project} scope="project" /> : null}
         {tab === "service-accounts" ? <ServiceAccounts project={project} /> : null}
-        {tab === "access" ? <YourAccess project={project} /> : null}
+        {tab === "access" ? (
+          <YourAccess
+            project={project}
+            endpoint={endpoint}
+            onEndpoint={(next) =>
+              void navigate({
+                to: "/projects/$project/settings/$tab",
+                params: { project, tab: "access" },
+                search: { endpoint: next },
+                replace: true,
+              })
+            }
+          />
+        ) : null}
         {tab === "explorer" ? <AccessExplorer project={project} /> : null}
         {tab === "danger" ? <Danger project={project} /> : null}
       </div>

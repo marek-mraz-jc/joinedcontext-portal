@@ -15,6 +15,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { Effective } from "../src/api/permissions";
 import {
+  approvesOthersOnly,
   fromProject,
   ProjectSettingsPage,
   toProject,
@@ -224,6 +225,15 @@ describe("Roles (PF-68)", () => {
 });
 
 describe("Your access (PF-50, PF-60)", () => {
+  it("says approve without delete approves other people's changes only (PF-58, T-5593)", () => {
+    const approve = { verbs: ["propose", "approve"], kinds: ["Endpoint", "Policy"] };
+    expect(approvesOthersOnly(approve, [approve])).toBe(true);
+    expect(approvesOthersOnly(approve, [approve, { verbs: ["delete"], kinds: ["Endpoint", "Policy"] }])).toBe(false);
+    expect(approvesOthersOnly(approve, [approve, { verbs: ["delete"], kinds: ["*"] }])).toBe(false);
+    expect(approvesOthersOnly(approve, [approve, { verbs: ["delete"], kinds: ["Endpoint"] }])).toBe(true);
+    expect(approvesOthersOnly({ verbs: ["read"], kinds: ["*"] }, [])).toBe(false);
+  });
+
   it("lists the caller's own grants with the binding and scope each came from", async () => {
     renderTab("access");
     const row = await screen.findByRole("row", { name: /steward/ });

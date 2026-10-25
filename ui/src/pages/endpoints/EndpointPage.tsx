@@ -289,6 +289,17 @@ export function EndpointPage({
           {manifest.status?.sourceUrl ? (
             <SourceLink href={manifest.status.sourceUrl} label={t("spaces.field.source")} />
           ) : null}
+          {/* What the person may do through this Endpoint, the Data access table opened on it (T-5593). */}
+          {slug ? (
+            <Link
+              to="/projects/$project/settings/$tab"
+              params={{ project, tab: "access" }}
+              search={{ endpoint: name }}
+              className="text-sm text-primary-soft-fg underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
+            >
+              {t("projectSettings.access.title")}
+            </Link>
+          ) : null}
         </div>
       </div>
 
