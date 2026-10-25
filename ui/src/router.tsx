@@ -30,6 +30,7 @@ import type { FormTarget } from "./components/forms/FormRoute";
 import { ActivityPage } from "./routes/ActivityPage";
 import { HealthPage } from "./pages/health/HealthLog";
 const ApprovalsPage = lazy(() => import("./routes/ApprovalsPage").then((module) => ({ default: module.ApprovalsPage })));
+const McpElicitationPage = lazy(() => import("./pages/mcp/McpElicitationPage").then((module) => ({ default: module.McpElicitationPage })));
 const ApprovalDetailPage = lazy(() => import("./routes/ApprovalDetailPage").then((module) => ({ default: module.ApprovalDetailPage })));
 const ModelsPage = lazy(() => import("./pages/models/ModelsPage").then((module) => ({ default: module.ModelsPage })));
 const ModelsList = lazy(() => import("./pages/models/ModelsList").then((module) => ({ default: module.ModelsList })));
@@ -531,6 +532,20 @@ const approvalDetailRoute = createRoute({
     return (
       <Shell project={project}>
         <ApprovalDetailPage project={project} id={id} />
+      </Shell>
+    );
+  },
+});
+
+/** The question an AI client's MCP call asked, decided by the person (AG-63, T-5699). */
+const mcpElicitationRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/mcp-elicitations/$id",
+  component: function McpElicitationRoute() {
+    const { project, id } = mcpElicitationRoute.useParams();
+    return (
+      <Shell project={project}>
+        <McpElicitationPage project={project} id={id} />
       </Shell>
     );
   },
@@ -1333,6 +1348,7 @@ export const routeTree = rootRoute.addChildren([
     healthRoute,
     approvalsRoute,
     approvalDetailRoute,
+    mcpElicitationRoute,
     playgroundRoute,
     allEndpointsRoute,
     organizationRoute,

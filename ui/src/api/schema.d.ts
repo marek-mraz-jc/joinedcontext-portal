@@ -2993,6 +2993,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/mcp-elicitations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read an MCP Call's Question
+         * @description The question a Yellow, Red or destructive MCP call asked, for the person whose client asked it: what would run, the page of what it changes, when it expires and the decision so far (AG-63). Another person's question, an answered or an expired one is 404; a bearer token is refused.
+         */
+        get: operations["get_question"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/mcp-elicitations/{id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide an MCP Call's Question
+         * @description The person whose client asked records `accept` or `decline`; the client's next call with the question's id runs or is refused on it (AG-63). A decision may be changed until that call. Another person's question, an answered or an expired one is 404; a bearer token is refused.
+         */
+        post: operations["decide_question"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/mqtt/allowance": {
         parameters: {
             query?: never;
@@ -6220,6 +6260,11 @@ export interface components {
         Decision: {
             reason: string;
         };
+        /** @description The person's answer to one question. */
+        DecisionRequest: {
+            /** @description `accept` lets the call run once; `decline` refuses it. */
+            decision: components["schemas"]["ElicitationDecision"];
+        };
         /** @description Why the proposal is declined, for the audit record. */
         DeclineRequest: {
             reason: string;
@@ -6404,6 +6449,11 @@ export interface components {
             project: string;
             projects?: null | components["schemas"]["ProjectAffordances"];
         };
+        /**
+         * @description What the person decided on the Portal page.
+         * @enum {string}
+         */
+        ElicitationDecision: "accept" | "decline";
         /**
          * @description What the assistant may prepare on one endpoint's entities.
          * @enum {string}
@@ -8220,6 +8270,21 @@ export interface components {
             /** Format: int64 */
             expectedVersion?: number | null;
             manifest: unknown;
+        };
+        /** @description One open question as its page shows it to the person who asked. */
+        Question: {
+            decision?: null | components["schemas"]["ElicitationDecision"];
+            /**
+             * Format: int64
+             * @description Unix seconds after which the question is no longer answered.
+             */
+            expiresAt: number;
+            id: string;
+            message: string;
+            /** @description The operation the call runs, `jc_resource_delete`. */
+            operation: string;
+            /** @description The Portal path of what the call would change, `/projects/helsinki/endpoints/air`. */
+            resource: string;
         };
         /** @description One quota dimension of a project. */
         QuotaUse: {
@@ -19081,6 +19146,128 @@ export interface operations {
                 };
             };
             /** @description No such project */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_question: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description The question's id, `eli-` and 16 hex digits */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The open question */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Question"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A bearer token, not the person's session */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No open question of this person by that id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    decide_question: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description The question's id, `eli-` and 16 hex digits */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "decision": "accept"
+                 *     }
+                 */
+                "application/json": components["schemas"]["DecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description The question with the decision recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Question"];
+                };
+            };
+            /** @description A body that is not `{"decision": "accept"}` or `decline` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A bearer token, not the person's session */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No open question of this person by that id */
             404: {
                 headers: {
                     [name: string]: unknown;
