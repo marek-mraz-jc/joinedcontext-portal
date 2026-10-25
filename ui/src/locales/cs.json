@@ -3766,7 +3766,11 @@
       "unconstrained": "bez omezení",
       "prohibitions": "Výslovně zakázáno",
       "forbidden": "Tento endpoint vám neodpovídá; přihlaste se účtem, který má oprávnění.",
-      "unavailable": "Dokument o přístupu se nepodařilo přečíst. Zkuste to za chvíli znovu."
+      "unavailable": "Dokument o přístupu se nepodařilo přečíst. Zkuste to za chvíli znovu.",
+      "source": "Odkud",
+      "grants": "{count, plural, one {# oprávnění} few {# oprávnění} other {# oprávnění}}",
+      "noSource": "oprávnění tohoto prostoru",
+      "noSourceHint": "Tomuto oprávnění neodpovídá žádná politika, kterou smíte číst."
     },
     "panel": {
       "title": "Váš přístup",
@@ -4023,6 +4027,19 @@
       "nothing": "Zatím nic nepovoleno",
       "endpointRole": "Každý volající endpointu {endpoint}",
       "endpointTier": "Role aplikace {tier} na endpointu {endpoint}"
+    },
+    "constraint": {
+      "back": "historie nejvýše {duration} zpět",
+      "older": "historie starší než {duration}",
+      "since": "historie od {at}",
+      "until": "historie před {at}",
+      "between": "historie od {from} do {to}",
+      "scopeBelow": "v rámci rozsahu {scope} a všeho pod ním",
+      "point": "bodu {lat}, {lon}",
+      "area": "nakreslené oblasti",
+      "near": "do {distance} od {where}",
+      "within": "uvnitř {where}",
+      "intersects": "dotýkající se {where}"
     }
   },
   "flows": {
@@ -7750,7 +7767,8 @@
       "allows": "Dovoluje",
       "from": "Odkud",
       "none": "Žádná vazba vám zde nic nedává.",
-      "binding": "vazba {binding}, {scope}"
+      "binding": "vazba {binding}, {scope}",
+      "approveOthers": "Schvalujete změny, které navrhnou jiní; vaše vlastní změny čekají na jiného schvalovatele, protože na tyto druhy nemáte také právo mazat."
     },
     "danger": {
       "title": "Smazat projekt",

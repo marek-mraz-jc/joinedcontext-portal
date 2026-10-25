@@ -3766,7 +3766,11 @@
       "unconstrained": "keine Einschränkung",
       "prohibitions": "Ausdrücklich verboten",
       "forbidden": "Dieser Endpunkt antwortet Ihnen nicht; melden Sie sich mit einem berechtigten Konto an.",
-      "unavailable": "Das Zugriffsdokument konnte nicht gelesen werden. Versuchen Sie es gleich noch einmal."
+      "unavailable": "Das Zugriffsdokument konnte nicht gelesen werden. Versuchen Sie es gleich noch einmal.",
+      "source": "Woher",
+      "grants": "{count, plural, one {# Berechtigung} other {# Berechtigungen}}",
+      "noSource": "eine Berechtigung dieses Raums",
+      "noSourceHint": "Keine Policy, die Sie lesen dürfen, passt zu dieser Berechtigung."
     },
     "panel": {
       "title": "Ihr Zugriff",
@@ -4023,6 +4027,19 @@
       "nothing": "Noch nichts gewährt",
       "endpointRole": "Jeder Aufrufer des Endpoints {endpoint}",
       "endpointTier": "App-Rolle {tier} auf dem Endpoint {endpoint}"
+    },
+    "constraint": {
+      "back": "Verlauf höchstens {duration} zurück",
+      "older": "Verlauf älter als {duration}",
+      "since": "Verlauf seit {at}",
+      "until": "Verlauf vor {at}",
+      "between": "Verlauf von {from} bis {to}",
+      "scopeBelow": "im Bereich {scope} und allem darunter",
+      "point": "dem Punkt {lat}, {lon}",
+      "area": "einem gezeichneten Gebiet",
+      "near": "höchstens {distance} von {where}",
+      "within": "innerhalb von {where}",
+      "intersects": "berührend {where}"
     }
   },
   "flows": {
@@ -7750,7 +7767,8 @@
       "allows": "Erlaubt",
       "from": "Woher",
       "none": "Keine Bindung gibt Ihnen hier etwas.",
-      "binding": "Bindung {binding}, {scope}"
+      "binding": "Bindung {binding}, {scope}",
+      "approveOthers": "Sie genehmigen Änderungen, die andere vorschlagen; Ihre eigenen warten auf eine andere genehmigende Person, weil Sie für diese Arten nicht auch löschen dürfen."
     },
     "danger": {
       "title": "Projekt löschen",
