@@ -45,6 +45,7 @@ pub fn person(name: &str) -> Identity {
         name: Some(name.to_owned()),
         roles: Vec::new(),
         groups: Vec::new(),
+        second_factor: false,
     }
 }
 

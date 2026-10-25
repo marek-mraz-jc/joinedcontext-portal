@@ -1807,6 +1807,7 @@ uptime_seconds 900
                     name: None,
                     roles: Vec::new(),
                     groups: Vec::new(),
+                    second_factor: false,
                 },
                 expires_at: 0,
                 issued_at: 0,

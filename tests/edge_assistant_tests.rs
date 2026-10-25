@@ -123,6 +123,7 @@ fn cookie(config: &Config, username: &str, groups: &[&str]) -> String {
             name: None,
             roles: Vec::new(),
             groups: groups.iter().map(|group| group.to_string()).collect(),
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,
