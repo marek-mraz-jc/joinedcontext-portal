@@ -127,6 +127,37 @@ describe("one attribute's history", () => {
     expect(screen.queryByRole("table")).toBeNull();
   });
 
+  it("names the missing right on a 403 and offers no retry (T-5597)", async () => {
+    const { source } = withHistory(async () => {
+      throw new SourceError(403, "the history was refused");
+    });
+    render(<EntityHistory source={source} id={ID} attr="pm10" />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(L.refused);
+    expect(screen.queryByRole("button", { name: L.retry })).toBeNull();
+  });
+
+  it("offers a retry after a 503 and reads again when asked (T-5597)", async () => {
+    let calls = 0;
+    const { source } = withHistory(async () => {
+      calls += 1;
+      if (calls === 1) throw new SourceError(503, "the broker did not answer");
+      return NUMBERS;
+    });
+    render(<EntityHistory source={source} id={ID} attr="pm10" />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(`${L.error}: the broker did not answer`);
+    expect(screen.getByRole("alert")).not.toHaveTextContent(L.refused);
+    fireEvent.click(screen.getByRole("button", { name: L.retry }));
+    expect(await screen.findByRole("table")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says nothing was recorded for an empty window, with no error and no retry (T-5597)", async () => {
+    const { source } = withHistory(async () => []);
+    render(<EntityHistory source={source} id={ID} attr="name" />);
+    expect(await screen.findByText(L.empty)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("copies the series as CSV a spreadsheet can read", async () => {
     const written: string[] = [];
     vi.stubGlobal("navigator", { clipboard: { writeText: (text: string) => written.push(text) } });

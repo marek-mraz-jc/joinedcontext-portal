@@ -145,3 +145,48 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await shot(page, `row-add-${label}`);
   });
 }
+
+// The History tab's answers (T-5597): a 404 for an attribute with nothing recorded says so with no
+// retry, a 403 names the missing right with no retry, a 503 offers a retry that reads again.
+for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
+  test(`the History tab tells nothing recorded, a refusal and a failure apart (${label})`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await stubApi(page);
+    let failed = false;
+    await page.route("**/cs/**/temporal/entities/**", async (route) => {
+      const attrs = new URL(route.request().url()).searchParams.get("attrs");
+      const answer = (status: number, body: unknown) =>
+        route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+      if (attrs === "name") return answer(404, { type: "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound", title: "Not Found" });
+      if (attrs === "category") return answer(403, { type: "https://uri.etsi.org/ngsi-ld/errors/PermissionDenied", title: "Forbidden" });
+      if (!failed) {
+        failed = true;
+        return answer(503, { title: "Service Unavailable", detail: "the broker did not answer" });
+      }
+      return route.fallback();
+    });
+    await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en&row=${encodeURIComponent(URN)}`);
+    const dialog = page.getByRole("dialog", { name: "Details: District 3" });
+    await dialog.getByRole("tab", { name: "History" }).click();
+    const attribute = dialog.getByRole("combobox", { name: "Attribute" });
+
+    await attribute.selectOption("name");
+    await expect(dialog.getByText("Nothing was recorded in this window.")).toBeVisible();
+    await expect(dialog.getByRole("alert")).toHaveCount(0);
+    await shot(page, `row-history-nothing-${label}`);
+
+    await attribute.selectOption("category");
+    await expect(dialog.getByRole("alert")).toContainText("Your role may read current values but not their history");
+    await expect(dialog.getByRole("button", { name: "Try again" })).toHaveCount(0);
+    expect(await axeViolations(page)).toEqual([]);
+    await shot(page, `row-history-refused-${label}`);
+
+    await attribute.selectOption("kpiValue");
+    await expect(dialog.getByRole("alert")).toContainText("Not loaded: the broker did not answer");
+    await shot(page, `row-history-failed-${label}`);
+    await dialog.getByRole("button", { name: "Try again" }).click();
+    await expect(dialog.getByRole("cell", { name: "30" }).first()).toBeVisible();
+    await expect(dialog.getByRole("alert")).toHaveCount(0);
+    await shot(page, `row-history-values-${label}`);
+  });
+}
