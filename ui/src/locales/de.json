@@ -486,7 +486,8 @@
     "action": "{name} bearbeiten",
     "loading": "{name} wird gelesen…",
     "unreadable": "{name} konnte nicht gelesen werden.",
-    "viewTitle": "{name} ansehen",
+    "readOnlyBadge": "Nur lesen",
+    "showFields": "Felder des Manifests anzeigen",
     "readOnly": "Ihre Rolle erlaubt hier keine Änderung an {kind}, daher ist dieses Formular schreibgeschützt. Eine Administratorin oder ein Administrator des Projekts kann das erteilen.",
     "manifest": "Manifest von {name}"
   },
@@ -6605,6 +6606,18 @@
       "didHint": "Geben Sie den dezentralen Identifikator ein, etwa did:web:example.org; eine Auswahlliste gibt es nicht.",
       "peopleHidden": "Nur eine Administration der Organisation sieht die Liste der Personen; geben Sie die E-Mail ein, mit der sich die Person anmeldet.",
       "noneYet": "Von dieser Art gibt es noch nichts zur Auswahl ({kind}); geben Sie den Namen so ein, wie der Identitätsanbieter ihn schreibt."
+    },
+    "summary": {
+      "title": "Was diese Richtlinie erlaubt",
+      "assigner": "Aussteller",
+      "validFrom": "Gültig ab",
+      "validTo": "Gültig bis",
+      "always": "Immer",
+      "noEnd": "Kein Enddatum",
+      "lastChange": "Letzte Änderung",
+      "notRecorded": "Nicht erfasst",
+      "changed": "{at}, vorgeschlagen von {author}",
+      "changedApproved": "{at}, vorgeschlagen von {author}, genehmigt von {approver}"
     },
     "sentence": {
       "title": "In Worten",
