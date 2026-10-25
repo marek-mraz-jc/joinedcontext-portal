@@ -482,10 +482,8 @@ async fn openbao(server: &MockServer) -> joinedcontext_portal::pipeline_secrets:
         })))
         .mount(server)
         .await;
-    let jwt = std::env::temp_dir().join(format!(
-        "jc-portal-t5565-token-{}",
-        server.address().port()
-    ));
+    let jwt =
+        std::env::temp_dir().join(format!("jc-portal-t5565-token-{}", server.address().port()));
     std::fs::write(&jwt, "a.service.account.token").expect("write the token");
     Resolver::new(Backend::OpenBao {
         address: server.uri(),
