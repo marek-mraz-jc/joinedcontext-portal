@@ -170,13 +170,6 @@ pub struct NodeCounters {
     pub errors: Option<u64>,
 }
 
-/// Folds every series of one stream into the counters the view shows. Series of the same family
-/// are summed (a stream may have several inputs or outputs); the latency takes the slowest
-/// output rather than a sum, which would mean nothing. Since the upsert is a processor
-/// (T-4056) the latency is its writes' ([`crate::reconciler::streams::is_write_label`]); a
-/// stream rendered before that still reports it on its output. `stream` is the runner's id of the
-/// stream, [`crate::reconciler::streams::stream_id`]: the project-qualified id is the `stream`
-/// label to select on (T-3002).
 /// How many outcome reports the runner dropped for one stream, cumulative over the stream id's
 /// runs since the runner started (F-POR3-006): the sends of the sink's `outcome_drop` fallback.
 /// `None` when the scrape has no such series, which Bento exports, at 0, once the stream is built.
@@ -192,6 +185,13 @@ pub(crate) fn dropped_reports(body: &str, stream: &str) -> Option<u64> {
         .reduce(|a, b| a + b)
 }
 
+/// Folds every series of one stream into the counters the view shows. Series of the same family
+/// are summed (a stream may have several inputs or outputs); the latency takes the slowest
+/// output rather than a sum, which would mean nothing. Since the upsert is a processor
+/// (T-4056) the latency is its writes' ([`crate::reconciler::streams::is_write_label`]); a
+/// stream rendered before that still reports it on its output. `stream` is the runner's id of the
+/// stream, [`crate::reconciler::streams::stream_id`]: the project-qualified id is the `stream`
+/// label to select on (T-3002).
 pub(crate) fn scrape(body: &str, stream: &str, scraped_at: String) -> PipelineMetrics {
     let mut metrics = PipelineMetrics {
         pipeline: stream.to_string(),
