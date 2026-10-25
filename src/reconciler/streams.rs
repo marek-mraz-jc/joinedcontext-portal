@@ -127,6 +127,9 @@ pub struct StreamDeployer {
     queue: Mutex<RunQueue>,
     /// Where each ended run is told, for the snapshot pipelines' source deletes (T-4891).
     run_ends: Option<tokio::sync::mpsc::UnboundedSender<crate::pipeline_source_deletes::RunEnd>>,
+    /// Each running run's dropped outcome reports at its start, the base its end is counted
+    /// from (F-POR3-006).
+    report_drops: Mutex<HashMap<run_queue::Key, u64>>,
 }
 
 /// How often the run queue looks at the runner.
@@ -234,6 +237,7 @@ impl StreamDeployer {
             replace_timeout: REPLACE_TIMEOUT,
             queue: Mutex::new(RunQueue::new(1, 1)),
             run_ends: None,
+            report_drops: Mutex::new(HashMap::new()),
         }
     }
 
@@ -425,6 +429,19 @@ impl StreamDeployer {
             return None;
         }
         response.text().await.ok()
+    }
+
+    /// The stream's dropped outcome reports on its runner, cumulative over its runs (F-POR3-006);
+    /// `Err` when the runner's metrics did not answer.
+    async fn dropped_reports(&self, key: &run_queue::Key) -> Result<Option<u64>, &'static str> {
+        let body = self
+            .metrics(&key.0)
+            .await
+            .ok_or("the runner's metrics did not answer")?;
+        Ok(crate::api::pipelines::dropped_reports(
+            &body,
+            &stream_id(&key.0, &key.1),
+        ))
     }
 
     /// The runner's base URL for one project, or nothing when the name is not a project name.
@@ -1323,6 +1340,18 @@ fn place(
 impl Runner for StreamDeployer {
     async fn start(&self, key: &run_queue::Key, stream: &Value) -> Result<(), String> {
         tracing::info!(project = %key.0, pipeline = %key.1, "loading the pipeline's run into the runner (PL-78)");
+        if self.run_ends.is_some() {
+            // A stream the runner never built has no series yet: none of its reports dropped.
+            let base = self
+                .dropped_reports(key)
+                .await
+                .map(Option::unwrap_or_default);
+            let mut drops = self.report_drops.lock().unwrap_or_else(|p| p.into_inner());
+            match base {
+                Ok(base) => drops.insert(key.clone(), base),
+                Err(_) => drops.remove(key),
+            };
+        }
         match self.deploy_stream(&key.0, &key.1, stream).await? {
             StreamOutcome::Live => Ok(()),
             StreamOutcome::Error(reason) => Err(reason),
@@ -1350,11 +1379,20 @@ impl Runner for StreamDeployer {
 
     async fn ended(&self, key: &run_queue::Key, run: &str, finished: bool) {
         if let Some(ends) = &self.run_ends {
+            // Bento keeps a deleted stream's series until it restarts, so the count outlives the
+            // stream this run ran in.
+            let end = self.dropped_reports(key).await;
+            let base = self
+                .report_drops
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .remove(key);
             let _ = ends.send(crate::pipeline_source_deletes::RunEnd {
                 project: key.0.clone(),
                 pipeline: key.1.clone(),
                 run: run.to_owned(),
                 finished,
+                reports: report_count(base, end),
             });
         }
     }
@@ -1370,6 +1408,26 @@ impl Runner for StreamDeployer {
             "its run ended or it is new to this Portal (PL-78)",
         )
         .await
+    }
+}
+
+/// A run's lost outcome reports from the runner's counter at its start (`base`) and at its end.
+fn report_count(
+    base: Option<u64>,
+    end: Result<Option<u64>, &'static str>,
+) -> crate::pipeline_source_deletes::ReportCount {
+    use crate::pipeline_source_deletes::ReportCount;
+    match (base, end) {
+        (_, Err(why)) => ReportCount::Unknown(why),
+        (_, Ok(None)) => ReportCount::Unknown("the runner does not export the outcome_drop counter"),
+        (None, _) => ReportCount::Unknown(
+            "no count at the run's start: the runner's metrics did not answer or this Portal restarted",
+        ),
+        (Some(base), Ok(Some(end))) if end < base => {
+            ReportCount::Unknown("the runner restarted during the run")
+        }
+        (Some(base), Ok(Some(end))) if end == base => ReportCount::Complete,
+        (Some(base), Ok(Some(end))) => ReportCount::Lost(end - base),
     }
 }
 
@@ -2752,6 +2810,70 @@ output:
             assert!(!rendered.to_string().contains("sync_response"), "{output}");
             assert!(!rendered.to_string().contains("/answer"), "{output}");
         }
+    }
+
+    /// F-POR3-006: a run's lost reports are the runner's drop count at its end less the count at
+    /// its start; anything that leaves either end uncounted is no count, never zero.
+    #[test]
+    fn the_lost_reports_are_counted_from_the_runs_start() {
+        use crate::pipeline_source_deletes::ReportCount;
+        assert_eq!(report_count(Some(3), Ok(Some(3))), ReportCount::Complete);
+        assert_eq!(report_count(Some(3), Ok(Some(5))), ReportCount::Lost(2));
+        for (base, end) in [
+            (None, Ok(Some(0))),
+            (Some(0), Ok(None)),
+            (Some(0), Err("down")),
+            (Some(4), Ok(Some(1))),
+        ] {
+            assert!(
+                matches!(report_count(base, end), ReportCount::Unknown(_)),
+                "{base:?} {end:?}"
+            );
+        }
+    }
+
+    /// F-POR3-006: the deployer reads the stream's drop counter on the runner as the run starts
+    /// and again once it ended, and tells the run's end the difference.
+    #[tokio::test]
+    async fn a_run_end_carries_the_reports_the_runner_dropped_during_the_run() {
+        let server = wiremock::MockServer::start().await;
+        let key = ("helsinki".to_owned(), "registry".to_owned());
+        let line = |n: u64| {
+            format!(
+                "output_sent{{label=\"outcome_drop\",stream=\"{}\"}} {n}\n",
+                stream_id(&key.0, &key.1)
+            )
+        };
+        for (body, times) in [(line(4), Some(1)), (line(6), None)] {
+            let mock = wiremock::Mock::given(wiremock::matchers::method("GET"))
+                .and(wiremock::matchers::path("/metrics"))
+                .respond_with(wiremock::ResponseTemplate::new(200).set_body_string(body));
+            match times {
+                Some(n) => mock.up_to_n_times(n).mount(&server).await,
+                None => mock.mount(&server).await,
+            }
+        }
+        wiremock::Mock::given(wiremock::matchers::any())
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+        let (ends, mut heard) = tokio::sync::mpsc::unbounded_channel();
+        let deployer = StreamDeployer::new(server.uri()).with_run_ends(ends);
+        let stream =
+            serde_json::json!({ "input": { "generate": { "count": 1, "mapping": "root = {}" } } });
+        let _ = Runner::start(&deployer, &key, &stream).await;
+        Runner::ended(&deployer, &key, "r1", true).await;
+        let end = heard.try_recv().expect("the run's end");
+        assert_eq!(
+            end.reports,
+            crate::pipeline_source_deletes::ReportCount::Lost(2)
+        );
+        // A second end with no start of its own has no base to count from.
+        Runner::ended(&deployer, &key, "r2", true).await;
+        assert!(matches!(
+            heard.try_recv().expect("the run's end").reports,
+            crate::pipeline_source_deletes::ReportCount::Unknown(_)
+        ));
     }
 
     /// T-4044: with pipeline identity nothing the reconciler sends the runner names a client

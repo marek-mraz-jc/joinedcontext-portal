@@ -177,6 +177,21 @@ pub struct NodeCounters {
 /// stream rendered before that still reports it on its output. `stream` is the runner's id of the
 /// stream, [`crate::reconciler::streams::stream_id`]: the project-qualified id is the `stream`
 /// label to select on (T-3002).
+/// How many outcome reports the runner dropped for one stream, cumulative over the stream id's
+/// runs since the runner started (F-POR3-006): the sends of the sink's `outcome_drop` fallback.
+/// `None` when the scrape has no such series, which Bento exports, at 0, once the stream is built.
+pub(crate) fn dropped_reports(body: &str, stream: &str) -> Option<u64> {
+    body.lines()
+        .filter_map(parse_line)
+        .filter(|sample| {
+            matches!(family(sample.name), Some(Family::Sent))
+                && label(sample.labels, "stream") == Some(stream)
+                && label(sample.labels, "label") == Some(crate::pipeline_log::SINK_LABELS[6])
+        })
+        .map(|sample| sample.value as u64)
+        .reduce(|a, b| a + b)
+}
+
 pub(crate) fn scrape(body: &str, stream: &str, scraped_at: String) -> PipelineMetrics {
     let mut metrics = PipelineMetrics {
         pipeline: stream.to_string(),
@@ -1518,6 +1533,44 @@ uptime_seconds 900
             scraped("aq-mqtt-ingest").rejected,
             None,
             "no stage, no count"
+        );
+    }
+
+    /// F-POR3-006: lines of the pinned runner image's own scrape (bento 1.22.0, the dev args):
+    /// `p-a` dropped 6 reports over two runs, `p-c` built its sink and dropped none.
+    const DROPS: &str = concat!(
+        "output_error{label=\"outcome_drop\",path=\"root.output.broker.outputs.1.fallback.1\",stream=\"p-c\"} 0\n",
+        "output_sent{label=\"outcome_drop\",path=\"root.output.broker.outputs.1.fallback.1\",stream=\"p-a\"} 6\n",
+        "output_sent{label=\"outcome_drop\",path=\"root.output.broker.outputs.1.fallback.1\",stream=\"p-c\"} 0\n",
+        "output_sent{label=\"outcome_post\",path=\"root.output.broker.outputs.1.fallback.0\",stream=\"p-c\"} 3\n",
+        "output_sent{label=\"output\",path=\"root.output.broker.outputs.0\",stream=\"p-c\"} 3\n",
+    );
+
+    #[test]
+    fn the_dropped_reports_are_the_sinks_drop_sends_of_that_stream_alone() {
+        assert_eq!(dropped_reports(DROPS, "p-a"), Some(6));
+        assert_eq!(
+            dropped_reports(DROPS, "p-c"),
+            Some(0),
+            "built, none dropped"
+        );
+        assert_eq!(
+            dropped_reports(DROPS, "p-b"),
+            None,
+            "another stream's lines"
+        );
+        assert_eq!(
+            dropped_reports("output_sent{label=\"output\",stream=\"p-a\"} 9\n", "p-a"),
+            None,
+            "a runner without the counter has no count"
+        );
+        assert_eq!(
+            dropped_reports(
+                "bento_output_sent_total{label=\"outcome_drop\",stream=\"p-a\"} 2\n",
+                "p-a"
+            ),
+            Some(2),
+            "a prefixed counter"
         );
     }
 
