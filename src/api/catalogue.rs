@@ -40,6 +40,18 @@ pub const PAGE_SIZE: usize = 20;
 const ROWS: usize = 1000;
 /// The most rows a sample shows (EP-82).
 const SAMPLE_ROWS: usize = 10;
+/// The most entities the dataset page's map reads (EP-82, T-5628).
+// ponytail: one page of 1000; past it the page says "N of M" and the developer page pages on.
+pub const MAP_ROWS: usize = 1000;
+/// The GeoJSON geometry types a map draws.
+const GEOMETRIES: &[&str] = &[
+    "Point",
+    "MultiPoint",
+    "LineString",
+    "MultiLineString",
+    "Polygon",
+    "MultiPolygon",
+];
 
 static HTTP: LazyLock<reqwest::Client> = LazyLock::new(|| {
     reqwest::Client::builder()
@@ -397,6 +409,49 @@ pub struct CatalogueSample {
     pub entity_type: String,
     pub columns: Vec<String>,
     pub rows: Vec<Vec<String>>,
+}
+
+/// The located entities of a dataset, read through its Endpoint for the dataset page's map
+/// (EP-82, T-5628).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueMap {
+    #[serde(rename = "type")]
+    pub entity_type: String,
+    /// Entities of the type the Endpoint holds, located or not, when it counted them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<u64>,
+    /// The key attributes a popup and the list show, in display order, labelled in `lang`.
+    pub fields: Vec<CatalogueMapField>,
+    /// One per entity with a GeoJSON geometry, at most 1000.
+    pub features: Vec<CatalogueFeature>,
+    /// The project whose basemap draws under the features, when the platform has a basemap.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub basemap: Option<String>,
+}
+
+/// One attribute a popup shows (DM-99, DM-100).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct CatalogueMapField {
+    pub slot: String,
+    pub label: String,
+}
+
+/// One located entity: its id, its geometry and its key attributes as text.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct CatalogueFeature {
+    pub id: String,
+    #[schema(value_type = Object)]
+    pub geometry: Value,
+    pub properties: BTreeMap<String, String>,
+}
+
+/// The query of the map route.
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[serde(deny_unknown_fields)]
+pub struct MapQuery {
+    /// The language the labels are in, e.g. `sk` (default `en`).
+    pub lang: Option<String>,
 }
 
 /// The filters of one search.
@@ -1108,19 +1163,7 @@ async fn model_of(
     endpoint: &Value,
     docs_url: Option<String>,
 ) -> Option<CatalogueDataModel> {
-    let space = crate::resource::reference_name(&endpoint["contextSpaceRef"])?;
-    let space = state.mirror.get(project, "ContextSpace", space)?;
-    let name = crate::resource::reference_name(&space.spec["dataModelRef"])?.to_owned();
-    let model = state.mirror.get(project, "DataModel", &name)?;
-    let names: Vec<String> = model.spec["classes"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|c| c.as_str().map(str::to_owned))
-        .collect();
-    let linkml = crate::api::datamodels::read_source(state, project, &name)
-        .await
-        .ok();
+    let (name, names, linkml) = model_source(state, project, endpoint).await?;
     Some(CatalogueDataModel {
         classes: classes(&names, linkml.as_deref()),
         docs_url,
@@ -1329,6 +1372,120 @@ pub fn table(entity_type: &str, entities: &[Value]) -> CatalogueSample {
     }
 }
 
+/// Whether `value` is a GeoJSON geometry a map draws.
+fn is_geometry(value: &Value) -> bool {
+    value["type"]
+        .as_str()
+        .is_some_and(|t| GEOMETRIES.contains(&t))
+        && value["coordinates"].is_array()
+}
+
+/// An entity's geometry: its `location`, else the first attribute holding a GeoJSON geometry.
+fn geometry_of(entity: &serde_json::Map<String, Value>) -> Option<&Value> {
+    entity
+        .get("location")
+        .filter(|v| is_geometry(v))
+        .or_else(|| entity.values().find(|v| is_geometry(v)))
+}
+
+/// The map of up to [`MAP_ROWS`] keyValues entities of `class`: the key attributes the Endpoint's
+/// `display` override, then the model, then jc-core's field order choose (EP-135, DM-98, DM-99),
+/// labelled in `lang`, and every entity with a geometry as a feature.
+pub fn map_of(
+    class: &str,
+    entities: &[Value],
+    linkml: Option<&str>,
+    view: Option<&jc_core::display_order::Display>,
+    lang: &str,
+) -> CatalogueMap {
+    let entities: Vec<&serde_json::Map<String, Value>> = entities
+        .iter()
+        .filter_map(Value::as_object)
+        .take(MAP_ROWS)
+        .collect();
+    let mut attributes: Vec<(&str, bool)> = Vec::new();
+    for entity in &entities {
+        for (key, value) in entity.iter() {
+            if !["id", "type", "@context"].contains(&key.as_str())
+                && !attributes.iter().any(|(name, _)| name == key)
+            {
+                attributes.push((key.as_str(), value.is_number()));
+            }
+        }
+    }
+    // A model that does not parse orders by the heuristic, as a type without one does.
+    let order = jc_core::display_order::display_order(linkml, class, &attributes, view)
+        .or_else(|_| jc_core::display_order::display_order(None, class, &attributes, view))
+        .unwrap_or_default();
+    // A popup shows text: a geometry or a structured value is no line of it.
+    let scalar = |name: &str| {
+        entities.iter().any(|e| {
+            e.get(name)
+                .is_some_and(|v| !v.is_object() && !v.is_array() && !v.is_null())
+        })
+    };
+    let mut fields: Vec<CatalogueMapField> = order
+        .iter()
+        .filter(|f| f.summary && scalar(&f.slot))
+        .map(|f| CatalogueMapField {
+            slot: f.slot.clone(),
+            label: f.label(lang),
+        })
+        .collect();
+    // A type without a model class marks no key attribute: its first four name it.
+    if fields.is_empty() {
+        fields = order
+            .iter()
+            .filter(|f| scalar(&f.slot))
+            .take(4)
+            .map(|f| CatalogueMapField {
+                slot: f.slot.clone(),
+                label: f.label(lang),
+            })
+            .collect();
+    }
+    let features = entities
+        .iter()
+        .filter_map(|entity| {
+            let id = entity.get("id")?.as_str()?.to_owned();
+            let geometry = geometry_of(entity)?.clone();
+            let properties = fields
+                .iter()
+                .filter_map(|f| {
+                    let value = entity.get(&f.slot)?;
+                    let text = cell(Some(value));
+                    (!value.is_object() && !value.is_array() && !text.is_empty())
+                        .then(|| (f.slot.clone(), text))
+                })
+                .collect();
+            Some(CatalogueFeature {
+                id,
+                geometry,
+                properties,
+            })
+        })
+        .collect();
+    CatalogueMap {
+        entity_type: class.to_owned(),
+        total: None,
+        fields,
+        features,
+        basemap: None,
+    }
+}
+
+/// The address of the Endpoint `slug` this Portal reads: in the cluster the gateway answers
+/// directly; the public host is the same Endpoint.
+fn gateway_endpoint(state: &AppState, slug: &str) -> String {
+    let base = state
+        .config
+        .gateway_url
+        .as_deref()
+        .and_then(|g| Url::parse(g).ok())
+        .unwrap_or_else(|| state.config.public_base_url.clone());
+    endpoint_url(&base, slug)
+}
+
 #[utoipa::path(
     get,
     path = "/api/v1/catalogue/datasets/{name}/sample",
@@ -1364,14 +1521,7 @@ pub async fn get_sample(
         .map(|c| c.name)
         .ok_or_else(no_sample)?;
     let slug = our_endpoint_slug(&state, &endpoint.url).ok_or_else(no_sample)?;
-    // In the cluster the gateway answers directly; the public host is the same Endpoint.
-    let base = state
-        .config
-        .gateway_url
-        .as_deref()
-        .and_then(|g| Url::parse(g).ok())
-        .unwrap_or_else(|| state.config.public_base_url.clone());
-    let url = format!("{}ngsi-ld/v1/entities", endpoint_url(&base, &slug));
+    let url = format!("{}ngsi-ld/v1/entities", gateway_endpoint(&state, &slug));
     let limit = SAMPLE_ROWS.to_string();
     let unavailable = |reason: String| {
         tracing::warn!(dataset = %name, %reason, "catalogue sample failed");
@@ -1400,6 +1550,105 @@ pub async fn get_sample(
     Ok(cached(&headers, table(&entity_type, &entities)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/catalogue/datasets/{name}/map",
+    summary = "Map a Catalogue Dataset",
+    description = "Up to 1000 located entities of the dataset's first model class, read anonymously through its public Endpoint, with the key attributes its popups show (EP-82, T-5628). A dataset without locations answers no features.",
+    tag = "ckan",
+    params(("name" = String, Path, description = "The dataset's name in the catalogue"), MapQuery),
+    responses(
+        (status = 200, description = "The located entities", body = CatalogueMap),
+        (status = 400, description = "`lang` is no language code", body = crate::error::ProblemDetails),
+        (status = 404, description = "No public dataset of an Endpoint here that serves NGSI-LD", body = crate::error::ProblemDetails),
+        (status = 503, description = "The Endpoint did not answer", body = crate::error::ProblemDetails),
+    )
+)]
+pub async fn get_map(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+    axum::extract::Query(query): axum::extract::Query<MapQuery>,
+) -> Result<Response, ApiError> {
+    let lang = query.lang.unwrap_or_else(|| "en".to_owned());
+    if !(2..=3).contains(&lang.len()) || !lang.bytes().all(|b| b.is_ascii_lowercase()) {
+        return Err(ApiError::BadRequest(format!(
+            "lang '{lang}' is no language code; send two or three lowercase letters, e.g. lang=sk"
+        )));
+    }
+    let (_, found) = dataset(&state, &name).await?;
+    let no_map = || ApiError::NotFound(format!("dataset '{name}' has no public endpoint here"));
+    let slug = extra(&found, "endpoint")
+        .and_then(|e| our_endpoint_slug(&state, &e))
+        .ok_or_else(no_map)?;
+    let (project, endpoint) = public_endpoint(&state, &slug).ok_or_else(no_map)?;
+    let (_, classes, linkml) = model_source(&state, &project, &endpoint.spec)
+        .await
+        .ok_or_else(no_map)?;
+    let class = classes.into_iter().next().ok_or_else(no_map)?;
+    let unavailable = |reason: String| {
+        tracing::warn!(dataset = %name, %reason, "catalogue map failed");
+        ApiError::Unavailable(format!(
+            "the endpoint of dataset '{name}' did not answer; try again in a minute"
+        ))
+    };
+    let response = HTTP
+        .get(format!(
+            "{}ngsi-ld/v1/entities",
+            gateway_endpoint(&state, &slug)
+        ))
+        .query(&[
+            ("type", class.as_str()),
+            ("limit", MAP_ROWS.to_string().as_str()),
+            ("options", "keyValues"),
+            ("count", "true"),
+        ])
+        .header(header::ACCEPT, "application/json")
+        .send()
+        .await
+        .map_err(|e| unavailable(e.to_string()))?;
+    if !response.status().is_success() {
+        return Err(unavailable(format!("status {}", response.status())));
+    }
+    let total = response
+        .headers()
+        .get("NGSILD-Results-Count")
+        .and_then(|v| v.to_str().ok()?.parse().ok());
+    let entities: Vec<Value> = response
+        .json()
+        .await
+        .map_err(|e| unavailable(e.to_string()))?;
+    let view: Option<jc_core::display_order::Display> =
+        serde_json::from_value(endpoint.spec["display"][&class].clone()).ok();
+    let mut map = map_of(&class, &entities, linkml.as_deref(), view.as_ref(), &lang);
+    map.total = total;
+    map.basemap = crate::api::basemap::style_url(&state.config, &project).map(|_| project);
+    Ok(cached(&headers, map))
+}
+
+/// The DataModel of the space an Endpoint serves: its name, its classes and its LinkML source,
+/// `None` where the forge cannot give the source.
+async fn model_source(
+    state: &AppState,
+    project: &str,
+    endpoint: &Value,
+) -> Option<(String, Vec<String>, Option<String>)> {
+    let space = crate::resource::reference_name(&endpoint["contextSpaceRef"])?;
+    let space = state.mirror.get(project, "ContextSpace", space)?;
+    let name = crate::resource::reference_name(&space.spec["dataModelRef"])?.to_owned();
+    let model = state.mirror.get(project, "DataModel", &name)?;
+    let classes: Vec<String> = model.spec["classes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|c| c.as_str().map(str::to_owned))
+        .collect();
+    let linkml = crate::api::datamodels::read_source(state, project, &name)
+        .await
+        .ok();
+    Some((name, classes, linkml))
+}
+
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/catalogue", axum::routing::get(get_catalogue))
@@ -1410,6 +1659,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/catalogue/datasets/{name}/sample",
             axum::routing::get(get_sample),
+        )
+        .route(
+            "/catalogue/datasets/{name}/map",
+            axum::routing::get(get_map),
         )
 }
 
@@ -1780,6 +2033,119 @@ mod tests {
         ] {
             assert_eq!(endpoint_slug(&foreign, &base), None, "{foreign}");
         }
+    }
+
+    const AIR: &str = r#"
+id: https://example.org/air
+name: air
+in_language: sk
+classes:
+  AirQualityObserved:
+    attributes:
+      name:
+        annotations: { summary: true, label: { sk: Názov, en: Name } }
+      pm10:
+        annotations: { summary: true, label: { sk: Prachové častice PM10 } }
+      address:
+        annotations: { summary: true }
+      location: {}
+      dateObserved: {}
+"#;
+
+    fn air(id: &str, location: Option<Value>) -> Value {
+        let mut entity = json!({
+            "id": id,
+            "type": "AirQualityObserved",
+            "name": "Stanica",
+            "pm10": 21.5,
+            "address": { "addressLocality": "Praha" },
+            "dateObserved": "2026-10-24T10:00:00Z",
+        });
+        if let Some(location) = location {
+            entity["location"] = location;
+        }
+        entity
+    }
+
+    #[test]
+    fn the_map_draws_each_located_entity_with_the_models_key_attributes_in_the_language_asked() {
+        let point = json!({ "type": "Point", "coordinates": [14.42, 50.08] });
+        let entities = vec![
+            air("urn:ngsi-ld:AirQualityObserved:a", Some(point.clone())),
+            air("urn:ngsi-ld:AirQualityObserved:b", None),
+            air(
+                "urn:ngsi-ld:AirQualityObserved:c",
+                Some(json!({ "type": "Point", "coordinates": "nowhere" })),
+            ),
+        ];
+        let map = map_of("AirQualityObserved", &entities, Some(AIR), None, "sk");
+        // The address is a structured value: no popup line holds raw JSON.
+        assert_eq!(
+            map.fields,
+            vec![
+                CatalogueMapField {
+                    slot: "name".into(),
+                    label: "Názov".into()
+                },
+                CatalogueMapField {
+                    slot: "pm10".into(),
+                    label: "Prachové častice PM10".into()
+                },
+            ]
+        );
+        assert_eq!(map.features.len(), 1);
+        assert_eq!(map.features[0].id, "urn:ngsi-ld:AirQualityObserved:a");
+        assert_eq!(map.features[0].geometry, point);
+        assert_eq!(
+            map.features[0].properties,
+            BTreeMap::from([
+                ("name".into(), "Stanica".into()),
+                ("pm10".into(), "21.5".into())
+            ])
+        );
+        assert_eq!(
+            map_of("AirQualityObserved", &entities, Some(AIR), None, "en").fields[0].label,
+            "Name"
+        );
+    }
+
+    #[test]
+    fn the_endpoints_display_override_chooses_the_popup_before_the_model() {
+        let point = json!({ "type": "Point", "coordinates": [14.42, 50.08] });
+        let view: jc_core::display_order::Display =
+            serde_json::from_value(json!({ "summary": ["dateObserved"] })).expect("a display");
+        let entities = vec![air("urn:ngsi-ld:AirQualityObserved:a", Some(point))];
+        let map = map_of(
+            "AirQualityObserved",
+            &entities,
+            Some(AIR),
+            Some(&view),
+            "en",
+        );
+        let slots: Vec<&str> = map.fields.iter().map(|f| f.slot.as_str()).collect();
+        assert_eq!(slots, vec!["dateObserved"]);
+    }
+
+    #[test]
+    fn a_dataset_without_locations_has_no_features_and_a_type_without_a_model_still_names_its_points(
+    ) {
+        let entities = vec![air("urn:ngsi-ld:AirQualityObserved:a", None)];
+        assert!(
+            map_of("AirQualityObserved", &entities, Some(AIR), None, "en")
+                .features
+                .is_empty()
+        );
+        let located = vec![air(
+            "urn:ngsi-ld:AirQualityObserved:a",
+            Some(json!({ "type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]] })),
+        )];
+        let map = map_of("AirQualityObserved", &located, None, None, "en");
+        assert_eq!(map.features.len(), 1);
+        assert!(!map.fields.is_empty());
+        assert!(map
+            .fields
+            .iter()
+            .all(|f| f.slot != "location" && f.slot != "address"));
     }
 
     #[test]

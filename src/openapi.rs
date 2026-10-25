@@ -17,8 +17,9 @@ use crate::api::assistant::{AgentAccessList, OperationAccess, ProfileAccess, Sta
 use crate::api::blueprints::FlowRequest;
 use crate::api::catalogue::{
     CatalogueClass, CatalogueContact, CatalogueDataModel, CatalogueDataset, CatalogueDatasetDetail,
-    CatalogueEndpoint, CatalogueFacetValue, CatalogueFacets, CatalogueLicence, CataloguePage,
-    CataloguePublisher, CatalogueResource, CatalogueSample, CatalogueTemporal, CatalogueTheme,
+    CatalogueEndpoint, CatalogueFacetValue, CatalogueFacets, CatalogueFeature, CatalogueLicence,
+    CatalogueMap, CatalogueMapField, CataloguePage, CataloguePublisher, CatalogueResource,
+    CatalogueSample, CatalogueTemporal, CatalogueTheme,
 };
 use crate::api::changes::{
     ChangeAuthor, ChangeDecision, ChangeList, ChangeProposal, ChangeSummary, OutsideMergeRequest,
@@ -286,6 +287,7 @@ use crate::tools::model_tools::{
         crate::api::catalogue::get_catalogue,
         crate::api::catalogue::get_dataset,
         crate::api::catalogue::get_sample,
+        crate::api::catalogue::get_map,
         crate::api::endpoint_standards::get_standards,
         crate::api::catalogue_draft::draft_publication,
         crate::api::changes::get_change,
@@ -537,6 +539,9 @@ use crate::tools::model_tools::{
         CatalogueClass,
         CatalogueTheme,
         CatalogueSample,
+        CatalogueMap,
+        CatalogueMapField,
+        CatalogueFeature,
         crate::api::endpoint_standards::EndpointStandards,
         crate::api::endpoint_standards::StandardGuide,
         crate::api::endpoint_standards::EndpointLicence,
