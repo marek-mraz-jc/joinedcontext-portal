@@ -649,6 +649,27 @@ function DefaultFilter({
   );
 }
 
+/**
+ * Why the CSV is not offered, or undefined when it is (T-5530). The CSV holds every shown column,
+ * so it is offered only when the endpoint says the person reads each of them. `slug` is undefined
+ * when there is no CSV or another origin is read anonymously: no decisions to ask.
+ */
+function useCsvRefusal(
+  slug: string | undefined,
+  type: string | undefined,
+  shown: readonly string[],
+  labels: Record<string, string>,
+): string | undefined {
+  const { t } = useTranslation();
+  const decisions = useAttributeAccess(slug, type);
+  const unreadable = useMemo(() => unreadableOf(decisions.data, shown), [decisions.data, shown]);
+  if (!slug) return undefined;
+  if (decisions.isPending) return t("entityGrid.inspector.loading");
+  if (decisions.isError) return t("endpoints.data.csvUnchecked");
+  if (unreadable.length === 0) return undefined;
+  return t("endpoints.data.csvRefused", { attributes: unreadable.map((name) => labels[name] ?? name).join(", ") });
+}
+
 export function EndpointDataView({
   project,
   slug,
@@ -685,20 +706,7 @@ export function EndpointDataView({
   const [picked, setPicked] = useState<string[] | null>(null);
   const { types, type, columns, klass, view: classView, slots, shape, shownColumns, defs, enums, relations, links, kinds, gridColumns } =
     useTypeColumns(schema.data, model.data, chosen, hidden, picked, i18n.language, widget.data);
-  // The CSV holds every shown column, so it is offered only when the endpoint says the person reads
-  // each of them (T-5530). Another origin is read anonymously and has no decisions to ask.
-  const decisions = useAttributeAccess(csv && !origin ? slug : undefined, type?.name);
-  const unreadable = useMemo(() => unreadableOf(decisions.data, shownColumns), [decisions.data, shownColumns]);
-  const csvRefused =
-    !csv || origin
-      ? undefined
-      : decisions.isPending
-        ? t("entityGrid.inspector.loading")
-        : decisions.isError
-          ? t("endpoints.data.csvUnchecked")
-          : unreadable.length > 0
-            ? t("endpoints.data.csvRefused", { attributes: unreadable.map((name) => shape.labels[name] ?? name).join(", ") })
-            : undefined;
+  const csvRefused = useCsvRefusal(csv && !origin ? slug : undefined, type?.name, shownColumns, shape.labels);
   // The order, the column inputs and the typed query the grid opens with; the grid holds them from then on.
   const [view, setView] = useState<OpenedView | null>(null);
   const [pageLength, setPageLength] = useState<number | null>(null);
@@ -819,7 +827,7 @@ export function EndpointDataView({
         full={full}
         onFull={() => setFull((each) => !each)}
         csv={csv ? csvHref(origin, slug, type.name, asked, sortText) : undefined}
-        csvRefused={csv ? csvRefused : undefined}
+        csvRefused={csvRefused}
       />
       <div className="flex flex-wrap items-center gap-2 empty:hidden">
         <DefaultFilter
