@@ -153,6 +153,14 @@
   color: var(--jc-color-danger, #cc0000);
 }
 
+/* The retry after a failed read sits under its sentence, a target a thumb can hit (T-5597). */
+.jc-grid-error button {
+  display: block;
+  margin: var(--jc-space-2, 8px) auto 0;
+  min-height: 2.75rem;
+  color: var(--jc-color-text, inherit);
+}
+
 /* It wraps on a phone: centred and on one line it spilled past both edges of the grid. */
 .jc-grid-pager {
   display: flex;
@@ -164,7 +172,8 @@
   border-top: 1px solid var(--jc-color-line, #e0e0e0);
 }
 
-.jc-grid-pager button {
+.jc-grid-pager button,
+.jc-grid-error button {
   padding: var(--jc-space-1, 4px) var(--jc-space-2, 8px);
   border: 1px solid var(--jc-color-line, #e0e0e0);
   border-radius: var(--jc-radius-sm, 2px);
@@ -747,11 +756,23 @@
   overflow-wrap: anywhere;
 }
 
-.jc-grid-detail-id {
-  margin: 0.25rem 0 0;
-  font-size: 0.8125rem;
+/* Copy identifier and Close: 44 px targets that wrap under each other on a phone (T-5599). */
+.jc-grid-detail-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.jc-grid-detail-actions button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
+/* An attribute with no value says so instead of showing nothing (T-5599). */
+.jc-grid-detail-empty {
   color: var(--jc-color-muted, #57606a);
-  overflow-wrap: anywhere;
+  font-style: italic;
 }
 
 .jc-grid-detail-list {

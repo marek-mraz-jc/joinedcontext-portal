@@ -167,6 +167,9 @@ routes:
   - route: GET /internal/previews
     rule: "workload:gateway"
     expect: [401, 401, 401, 401, 401, 401, 401, 401]
+  - route: GET /internal/revocations
+    rule: "workload:gateway"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
   - route: GET /mcp
     rule: "public"
     expect: [405, 405, 405, 405, 405, 405, 405, 405]

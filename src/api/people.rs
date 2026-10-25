@@ -873,6 +873,22 @@ pub async fn edit_person(
     )))
 }
 
+/// Refuses every token of the person issued until now, here and, through `/internal/revocations`,
+/// on the gateway's doors (T-5568, AR-6): Keycloak's logout ends sessions, never a token already
+/// issued. A person's Keycloak user id is their tokens' `sub`.
+async fn revoke(state: &AppState, id: &str) {
+    state
+        .revoke_subject(id, crate::auth::session::now_unix())
+        .await;
+}
+
+/// [`revoke`], then Keycloak's logout, which ends the refresh tokens and sessions. The mark comes
+/// first, so a failed logout still leaves the person refused.
+async fn end_access(state: &AppState, admin: &Admin<'_>, id: &str) -> Result<(), ApiError> {
+    revoke(state, id).await;
+    admin.sign_out(id).await.map_err(ApiError::from)
+}
+
 /// Disable or enable, the person as it now is.
 async fn set_enabled(
     state: &AppState,
@@ -888,7 +904,7 @@ async fn set_enabled(
         .update(&found.id, |rep| rep["enabled"] = json!(enabled))
         .await?;
     if !enabled {
-        admin.sign_out(&found.id).await?;
+        end_access(state, &admin, &found.id).await?;
     }
     record(
         state,
@@ -1100,7 +1116,7 @@ pub async fn sign_out_person(
 ) -> Result<StatusCode, ApiError> {
     let identity = &user.0.identity;
     let (admin, found) = target(&state, identity, Verb::Disable, &id).await?;
-    admin.sign_out(&found.id).await?;
+    end_access(&state, &admin, &found.id).await?;
     record(&state, identity, "signed out", &found.id).await;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -1327,6 +1343,7 @@ async fn remove(
     if removal.edited.is_empty() && removal.removed.is_empty() {
         for found in people {
             admin.delete(&found.id).await?;
+            revoke(state, &found.id).await;
             forget_invitation(state, &found.id).await;
             record(state, identity, "deleted", &found.id).await;
         }
@@ -1471,7 +1488,7 @@ async fn remove(
         admin
             .update(&found.id, |rep| rep["enabled"] = json!(false))
             .await?;
-        admin.sign_out(&found.id).await?;
+        end_access(state, admin, &found.id).await?;
         record(state, identity, "proposed the removal of", &found.id).await;
     }
     Ok((StatusCode::ACCEPTED, Json(change)).into_response())

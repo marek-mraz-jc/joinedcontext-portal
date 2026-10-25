@@ -1434,3 +1434,83 @@ async fn a_pending_invitation_is_sent_again_and_an_accepted_one_is_not() {
     .await;
     assert_eq!(refused.status, StatusCode::FORBIDDEN, "{}", refused.text);
 }
+
+/// What `/api/v1/auth/me` answers the session cookie `cookie`.
+async fn me_with(state: &AppState, cookie: &str) -> StatusCode {
+    use tower::ServiceExt as _;
+    joinedcontext_portal::server::app(state.clone())
+        .oneshot(
+            axum::http::Request::builder()
+                .uri("/api/v1/auth/me")
+                .header(axum::http::header::COOKIE, cookie)
+                .body(axum::body::Body::empty())
+                .expect("a request"),
+        )
+        .await
+        .expect("a response")
+        .status()
+}
+
+/// T-5568, TR-03187 AR-6: disabling a person refuses the session they already hold at once, and
+/// lists them for the gateway, which refuses their unexpired tokens on its own doors; signing
+/// out does the same; a sign-in after the mark is admitted again.
+#[tokio::test]
+async fn a_disabled_person_is_refused_before_their_token_expires() {
+    let (kc, gitea) = (realm(true).await, forge().await);
+    let state = state_with(&kc, &gitea);
+    let jana = common::cookie(
+        &state.config,
+        joinedcontext_portal::auth::session::Identity {
+            subject: "jana-id".into(),
+            ..person("jana")
+        },
+    );
+    assert_eq!(me_with(&state, &jana).await, StatusCode::OK);
+    assert!(state.revocations(0).is_empty());
+
+    let answer = send(
+        &state,
+        person("ada"),
+        "POST",
+        &format!("{PEOPLE}/jana-id/disable"),
+        None,
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+    assert_eq!(me_with(&state, &jana).await, StatusCode::UNAUTHORIZED);
+    let listed = state.revocations(joinedcontext_portal::auth::session::now_unix());
+    assert_eq!(
+        listed.iter().map(|(s, _)| s.as_str()).collect::<Vec<_>>(),
+        ["jana-id"]
+    );
+    // Enabled and signed in again, a second after the mark: admitted.
+    let mut later = joinedcontext_portal::auth::session::Session {
+        identity: joinedcontext_portal::auth::session::Identity {
+            subject: "jana-id".into(),
+            ..person("jana")
+        },
+        expires_at: listed[0].1 + 3600,
+        issued_at: listed[0].1 + 1,
+        id_token: String::new(),
+        access_expires_at: listed[0].1 + 3600,
+        refresh_token: None,
+    };
+    assert!(!state.is_revoked(&later));
+    later.issued_at = listed[0].1;
+    assert!(state.is_revoked(&later));
+
+    // Signing a person out ends their tokens too, not only their Keycloak sessions.
+    let answer = send(
+        &state,
+        person("ada"),
+        "POST",
+        &format!("{PEOPLE}/pia-id/sign-out"),
+        None,
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::NO_CONTENT, "{}", answer.text);
+    assert!(state
+        .revocations(joinedcontext_portal::auth::session::now_unix())
+        .iter()
+        .any(|(s, _)| s == "pia-id"));
+}
