@@ -892,6 +892,10 @@ routes:
     rule: "project-verb:read:MqttBroker"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
     note: "what the broker measures, read by the Portal from the broker's own HTTP API; the browser never reaches a broker (API/01 §44, T-4043)"
+  - route: GET /projects/{project}/mqttbrokers/{name}/bindings
+    rule: "project-verb:read:MqttBroker"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "which topic fills which attribute, joined from the manifests; each hop the caller may not read is hidden without its name (API/01 §47, T-5533)"
   - route: GET /projects/{project}/mqttbrokers/{name}/captured
     rule: "project-verb:approve:MqttBroker (PL-87)"
     expect: [401, 404, 404, allow, allow, allow, 404, 404]

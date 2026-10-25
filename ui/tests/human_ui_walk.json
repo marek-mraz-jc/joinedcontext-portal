@@ -1451,6 +1451,20 @@
       "date": "2026-10-20",
       "screenshots": []
     },
+    "src/pages/mqttbrokers/BrokerTopics.tsx": {
+      "walkedBy": "worker-t5533",
+      "date": "2026-10-24",
+      "screenshots": [
+        "evidence/T-5533/topics-bindings-capture-1440.png",
+        "evidence/T-5533/topics-bindings-capture-400.png",
+        "evidence/T-5533/topics-hidden-capture-empty-1440.png",
+        "evidence/T-5533/topics-hidden-capture-empty-400.png",
+        "evidence/T-5533/topics-no-binding-1440.png",
+        "evidence/T-5533/topics-no-binding-400.png",
+        "evidence/T-5533/topics-refused-1440.png",
+        "evidence/T-5533/topics-refused-400.png"
+      ]
+    },
     "src/pages/organization/AgentActivity.tsx": {
       "walkedBy": "worker-t5301",
       "date": "2026-10-23",

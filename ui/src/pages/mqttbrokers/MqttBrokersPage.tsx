@@ -25,6 +25,7 @@ import { CodeBlock,
 import { KindList } from "../../routes/ResourceListPage";
 import { durationWords } from "../../schemas/mqttbroker";
 import { useMqttAllowance } from "./allowance";
+import { BrokerTopics } from "./BrokerTopics";
 import { connectionsOf } from "./connections";
 import type { Edge } from "./connections";
 
@@ -187,6 +188,7 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
           <dt className="text-fg-muted">{t("mqttbrokers.connect.pipeline")}</dt>
           <dd>{t("mqttbrokers.connect.brokerRef", { broker: name })}</dd>
         </dl>
+        <BrokerTopics project={project} broker={name} mode={mode} />
       </section>
     </Card>
   );
