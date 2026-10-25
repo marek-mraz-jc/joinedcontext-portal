@@ -39,6 +39,7 @@ export const EVENT_KINDS = [
   "navigate",
   "lag",
   "endpoints",
+  "app-build",
 ] as const;
 
 export interface AgentRun {
@@ -193,8 +194,13 @@ export function setRunInUrl(runId: string | null): void {
   window.history.replaceState(window.history.state, "", url);
 }
 
+const NO_EVENTS: RunEvent[] = [];
+
 export function useAgentRun(project: string, runId: string | null) {
-  const [events, setEvents] = useState<RunEvent[]>([]);
+  // The events are the run's they came on: a switch to another run shows none of the last one's
+  // and drops none of its own as a replay (F-UI2-011).
+  const [stream, setStream] = useState<{ runId: string | null; events: RunEvent[] }>({ runId, events: [] });
+  const events = stream.runId === runId ? stream.events : NO_EVENTS;
   const [streaming, setStreaming] = useState(false);
   const queryClient = useQueryClient();
   const key = ["agent-run", project, runId];
@@ -215,6 +221,7 @@ export function useAgentRun(project: string, runId: string | null) {
     if (runId === null) {
       return;
     }
+    seen.current = new Set<number>();
     // Resolved at call time: jsdom has no EventSource, and a test substitutes one.
     const Source = (globalThis as { EventSource?: typeof EventSource }).EventSource;
     if (!Source) {
@@ -245,7 +252,10 @@ export function useAgentRun(project: string, runId: string | null) {
           return;
         }
         seen.current.add(seq);
-        setEvents((current) => [...current, { seq, kind, payload }].sort((a, b) => a.seq - b.seq));
+        setStream((current) => ({
+          runId,
+          events: [...(current.runId === runId ? current.events : []), { seq, kind, payload }].sort((a, b) => a.seq - b.seq),
+        }));
         if (kind === "status" || kind === "preview" || kind === "usage") {
           void queryClient.invalidateQueries({ queryKey: key });
         }
@@ -324,8 +334,8 @@ export function useAgentRun(project: string, runId: string | null) {
 
   const reset = useCallback(() => {
     seen.current = new Set<number>();
-    setEvents([]);
-  }, []);
+    setStream({ runId, events: [] });
+  }, [runId]);
 
   return { run, events, streaming, answer, send, cancel, publish, reset };
 }
