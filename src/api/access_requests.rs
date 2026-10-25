@@ -701,6 +701,15 @@ pub(crate) async fn decline_request(
     Path((project, id)): Path<(String, String)>,
     body: Result<Json<Decision>, JsonRejection>,
 ) -> Result<Json<Value>, ApiError> {
+    // Declining closes the request for good, so it is a person's in a Portal session; approving
+    // and revoking only propose a Change a person still approves (AG-133, PF-58).
+    if user.0.identity.client.is_some() {
+        return Err(ApiError::Denied(
+            "an access request is declined by a person in the Portal, never with a service \
+             account's or an agent's token (AG-133, PF-58)"
+                .into(),
+        ));
+    }
     let mut request = owned_request(&state, &user, &project, &id).await?;
     let reason = decision(body)?;
     decided(

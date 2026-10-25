@@ -9620,6 +9620,55 @@
       "truncated": "Es sind mehr Nachrichten behalten als hier gezeigt.",
       "errorTitle": "Die mitgeschnittenen Nachrichten konnten nicht gelesen werden",
       "error": "Versuchen Sie es in einer Minute erneut."
+    },
+    "test": {
+      "open": "Nachricht testen",
+      "openHint": "Prüfen Sie, was mit der Nachricht eines Geräts geschieht, bevor es sie sendet.",
+      "title": "Nachricht auf {broker} testen",
+      "description": "Ein Probelauf: nichts wird veröffentlicht oder geschrieben.",
+      "noPublisher": "Keine Rolle dieses Brokers darf veröffentlichen. Ergänzen Sie einen Publish-Filter in einer Rolle des Broker-Manifests und testen Sie erneut.",
+      "account": "Gerätekonto",
+      "topic": "Thema",
+      "payload": "Nachricht",
+      "hints": {
+        "account": "Das Konto, mit dem sich das Gerät anmeldet, z. B. cam-west; nur Konten von Rollen, die veröffentlichen dürfen, stehen zur Wahl.",
+        "topic": "Das genaue Topic, auf dem das Gerät veröffentlicht, ohne + oder #, z. B. cameras/helsinki-cam-west/frame.",
+        "payload": "Die Nachricht, wie das Gerät sie sendet, z. B. ein JSON-Objekt mit einem Messwert.",
+        "watch": "Einschalten und auf dem Gerät die mosquitto_pub-Zeile oben ausführen: eine Minute lang erscheint hier jede Ablehnung der Anmeldung binnen Sekunden."
+      },
+      "run": "Test ausführen",
+      "failed": "Der Test lief nicht; versuchen Sie es in einer Minute erneut.",
+      "result": "Testergebnis",
+      "nothingSent": "Nichts wurde veröffentlicht. Das Gerät verbindet sich als {client}.",
+      "outcome": {
+        "ok": "Bestanden",
+        "refused": "Abgelehnt",
+        "unchecked": "Nicht geprüft"
+      },
+      "step": {
+        "acl": "Erlaubtes Topic",
+        "size": "Größe",
+        "rate": "Nachrichtenrate",
+        "binding": "Verarbeitet von",
+        "mapping": "Mapping",
+        "endpoint": "Endpoint"
+      },
+      "watch": "Auf die echte Nachricht warten",
+      "connected": "{count, plural, one {# Gerät dieses Kontos ist verbunden} other {# Geräte dieses Kontos sind verbunden}}",
+      "noRefusal": "Keine Ablehnung seit dem Einschalten.",
+      "refusalsUnread": "Die Ablehnungen des Gateways ließen sich nicht lesen; der Grund steht unten.",
+      "refusal": {
+        "no_token": "Kein Token: das Gerät sandte kein Passwort.",
+        "expired": "Das Token ist abgelaufen: holen Sie ein neues.",
+        "wrong_audience": "Das Token wurde für einen anderen Broker ausgestellt.",
+        "invalid_token": "Das Token stammt nicht von dieser Plattform.",
+        "wrong_client": "Client-ID oder Benutzername ist nicht der Client des Tokens.",
+        "unknown_account": "Der Client des Tokens ist kein Gerätekonto.",
+        "other_project": "Das Konto gehört zu einem anderen Projekt.",
+        "no_role": "Das Konto hat keine Rolle dieses Brokers.",
+        "no_subscription": "Dieser Abonnent darf nichts lesen.",
+        "no_realm": "Das Gateway hat keinen Realm zur Tokenprüfung."
+      }
     }
   },
   "connect": {

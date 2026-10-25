@@ -457,3 +457,196 @@ fn the_refusal_reaches_every_door_as_a_forbidden_with_its_reason() {
         );
     }
 }
+
+// --- a bearer token at the decision doors (T-5558; AG-133, PF-58) ------------------------------
+
+/// The person every bearer test below speaks for: an approver of every kind in [`PROJECT`] and a
+/// people administrator of the organization, so what refuses the token is never a missing grant.
+const HOLDER: &str = "jana";
+
+/// The Portal verifying bearer tokens of the test realm, on the forge `gitea`, with [`HOLDER`]
+/// bound to approve Changes in [`PROJECT`] and to administer people.
+fn state_for_tokens(gitea: &MockServer) -> AppState {
+    let config = Config::from_vars(|key| {
+        match key {
+            "JC_OIDC_ISSUER" => Some(common::REALM.issuer.as_str()),
+            "JC_OIDC_CLIENT_ID" => Some("portal-api"),
+            "JC_OIDC_CLIENT_SECRET" => Some("test-secret"),
+            _ => None,
+        }
+        .map(str::to_owned)
+    })
+    .expect("config");
+    let forge = joinedcontext_portal::git::GiteaClient::new(
+        gitea.uri().parse().expect("mock url"),
+        "test-owner",
+        "test-repo",
+        "token-xyz",
+    )
+    .expect("client");
+    let state = AppState::new(config, None)
+        .with_mirror(Arc::new(Mirror::new()))
+        .with_gitea(Arc::new(forge));
+    state.mirror.upsert(org(
+        "Role",
+        "decider",
+        json!({ "rules": [
+            { "kinds": ["Change", "Endpoint", "Policy", "ContextSpace", "Project"],
+              "verbs": ["read", "propose", "approve", "delete"] },
+            { "kinds": ["Person"], "verbs": ["read", "update", "disable", "delete"] },
+        ] }),
+    ));
+    state.mirror.upsert(org(
+        "RoleBinding",
+        "decider-in-project",
+        json!({ "subjects": [{ "user": format!("{HOLDER}@hel.fi") }], "role": "decider",
+                "scope": { "project": PROJECT } }),
+    ));
+    state.mirror.upsert(org(
+        "RoleBinding",
+        "decider-of-people",
+        json!({ "subjects": [{ "user": format!("{HOLDER}@hel.fi") }], "role": "decider",
+                "scope": { "organization": "hel" } }),
+    ));
+    state
+}
+
+/// One request through the whole router with `token` as `Authorization: Bearer`.
+async fn with_token(
+    state: &AppState,
+    token: &str,
+    http: &str,
+    uri: &str,
+    body: Value,
+) -> (StatusCode, String) {
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+    let request = axum::http::Request::builder()
+        .method(http)
+        .uri(uri)
+        .header(axum::http::header::AUTHORIZATION, format!("Bearer {token}"))
+        .header(axum::http::header::CONTENT_TYPE, "application/json")
+        .body(axum::body::Body::from(body.to_string()))
+        .expect("a request");
+    let response = joinedcontext_portal::server::app(state.clone())
+        .oneshot(request)
+        .await
+        .expect("a response");
+    let status = response.status();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("a body")
+        .to_bytes();
+    (status, String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// Tokens that speak for [`HOLDER`] and carry their grants, each with the `azp` of the client that
+/// obtained it: a person's CLI and an agent that exchanged a token for them (AG-94). A
+/// ServiceAccount's own grants never carry `approve` (PF-58), so these are the tokens a grant
+/// would let through; the refusal reads only `azp`, which a ServiceAccount's token carries too.
+fn tokens() -> Vec<(&'static str, String)> {
+    vec![
+        (
+            "a person's CLI token",
+            common::REALM.person_token_of("portal-api", "jcctl", HOLDER, &[]),
+        ),
+        (
+            "an agent's token exchanged for the person",
+            common::REALM.person_token_of("portal-api", "helsinki-jc-agent-proxy", HOLDER, &[]),
+        ),
+    ]
+}
+
+/// AG-133: `POST …/ops/jc_change_approve` and `…/jc_change_reject` refuse a bearer token as the
+/// REST route does, before the forge is asked, so the Change stays open. The shared functions
+/// refuse it too, so no later door that reaches them with a token decides either.
+#[tokio::test]
+async fn a_bearer_token_never_approves_or_rejects_through_the_ops_route() {
+    let gitea = MockServer::start().await;
+    let state = state_for_tokens(&gitea);
+    for (who, token) in tokens() {
+        for (name, body) in [
+            ("jc_change_approve", json!({ "id": "chg-00000001" })),
+            (
+                "jc_change_reject",
+                json!({ "id": "chg-00000001", "reason": "no" }),
+            ),
+        ] {
+            let uri = format!("/api/v1/projects/{PROJECT}/ops/{name}");
+            let (status, text) = with_token(&state, &token, "POST", &uri, body).await;
+            assert_eq!(StatusCode::FORBIDDEN, status, "{who} on {name}: {text}");
+            assert!(text.contains("AG-133"), "{who} on {name}: {text}");
+        }
+    }
+    let mut holder = steward();
+    holder.client = Some("jcctl".into());
+    for by in [
+        joinedcontext_portal::api::changes::ApprovedBy::Operation,
+        joinedcontext_portal::api::changes::ApprovedBy::Person,
+    ] {
+        let approved = joinedcontext_portal::api::changes::approve_change_for(
+            &state,
+            &holder,
+            PROJECT,
+            "chg-00000001",
+            None,
+            by,
+        )
+        .await
+        .expect_err("a token approved");
+        assert_eq!(StatusCode::FORBIDDEN, approved.into_response().status());
+    }
+    let rejected = joinedcontext_portal::api::changes::reject_change_for(
+        &state,
+        &holder,
+        PROJECT,
+        "chg-00000001",
+        Some("no"),
+    )
+    .await
+    .expect_err("a token rejected");
+    assert_eq!(StatusCode::FORBIDDEN, rejected.into_response().status());
+    let seen = gitea.received_requests().await.unwrap_or_default();
+    assert!(
+        seen.is_empty(),
+        "a refused decision reached the forge: {:?}",
+        seen.iter().map(|r| r.url.to_string()).collect::<Vec<_>>(),
+    );
+}
+
+/// AG-133: declining closes an access request for good, so a token never declines one.
+#[tokio::test]
+async fn a_bearer_token_never_declines_an_access_request() {
+    let gitea = MockServer::start().await;
+    let state = state_for_tokens(&gitea);
+    let uri = format!("/api/v1/projects/{PROJECT}/access-requests/ar-0123456789ab/decline");
+    for (who, token) in tokens() {
+        let reason = json!({ "reason": "the KPI project ended" });
+        let (status, text) = with_token(&state, &token, "POST", &uri, reason).await;
+        assert_eq!(StatusCode::FORBIDDEN, status, "{who}: {text}");
+        assert!(text.contains("declined by a person"), "{who}: {text}");
+    }
+}
+
+/// AG-133, PF-58: a person's account, a consent of theirs and their second factor are removed
+/// only by a person in a Portal session; the token is refused before the realm is asked.
+#[tokio::test]
+async fn a_bearer_token_never_deletes_a_person_or_removes_their_second_factor() {
+    let gitea = MockServer::start().await;
+    let state = state_for_tokens(&gitea);
+    let person = "/api/v1/organization/people/0b6f0e4c-1d2e-4f00-9a7b-3c4d5e6f7a8b";
+    let doors = [
+        ("DELETE", person.to_owned()),
+        ("POST", format!("{person}/remove-second-factor")),
+        ("DELETE", format!("{person}/consents/jc-hub")),
+    ];
+    for (who, token) in tokens() {
+        for (http, uri) in &doors {
+            let (status, text) = with_token(&state, &token, http, uri, json!({})).await;
+            assert_eq!(StatusCode::FORBIDDEN, status, "{who} {http} {uri}: {text}");
+            assert!(text.contains("AG-133"), "{who} {http} {uri}: {text}");
+        }
+    }
+}

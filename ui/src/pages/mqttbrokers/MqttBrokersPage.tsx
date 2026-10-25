@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -13,6 +14,7 @@ import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { CodeBlock,
   Alert,
   Badge,
+  Button,
   Card,
   Skeleton,
   Table,
@@ -28,6 +30,7 @@ import { AddDevice } from "./AddDevice";
 import { useMqttAllowance } from "./allowance";
 import { BrokerTopics } from "./BrokerTopics";
 import { connectionsOf } from "./connections";
+import { TestPublishDialog } from "./TestPublish";
 import type { Edge } from "./connections";
 
 /**
@@ -84,6 +87,7 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
   const address = brokerAddress(name, project, window.location.hostname, spec.port);
   const devices = [...new Set(roles.flatMap((role) => role.serviceAccounts ?? []))];
   const caption = t("mqttbrokers.acl.caption", { broker: name });
+  const [testing, setTesting] = useState(false);
   const measured = useQuery({
     queryKey: ["mqttBrokerMeasured", project, name],
     refetchInterval: 15_000,
@@ -195,6 +199,13 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
           example={(client, topic) => (address ? publishExample(address, client, topic) : undefined)}
         />
         <BrokerTopics project={project} broker={name} mode={mode} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={() => setTesting(true)}>{t("mqttbrokers.test.open")}</Button>
+          <span className="text-caption text-fg-muted">{t("mqttbrokers.test.openHint")}</span>
+        </div>
+        {testing ? (
+          <TestPublishDialog project={project} broker={name} roles={roles} open={testing} onOpenChange={setTesting} />
+        ) : null}
       </section>
     </Card>
   );

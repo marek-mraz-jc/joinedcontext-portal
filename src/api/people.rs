@@ -504,6 +504,20 @@ fn not_self_nor_last(state: &AppState, identity: &Identity, user: &KcUser) -> Re
     Ok(())
 }
 
+/// A person's account, their consents and their second factor are decided by a person in a
+/// Portal session; a service account's or an agent's token never removes them, whatever its
+/// grants (AG-133, PF-58).
+fn refuse_bearer(identity: &Identity) -> Result<(), ApiError> {
+    if identity.client.is_some() {
+        return Err(ApiError::Denied(
+            "a person is deleted, or loses a consent or their second factor, only by a person in \
+             the Portal, never with a service account's or an agent's token (AG-133, PF-58)"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
 /// The person `id`, after the verb and the takeover guard.
 async fn target<'a>(
     state: &'a AppState,
@@ -1058,6 +1072,7 @@ pub async fn remove_second_factor(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let identity = &user.0.identity;
+    refuse_bearer(identity)?;
     let (admin, found) = target(&state, identity, Verb::Disable, &id).await?;
     admin.remove_second_factor(&found.id).await?;
     record(&state, identity, "removed the second factor of", &found.id).await;
@@ -1113,6 +1128,7 @@ pub async fn revoke_consent(
     Path((id, client)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let identity = &user.0.identity;
+    refuse_bearer(identity)?;
     let (admin, found) = target(&state, identity, Verb::Disable, &id).await?;
     admin.revoke_consent(&found.id, &client).await?;
     record(
@@ -1206,6 +1222,7 @@ pub async fn delete_person(
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
     let identity = &user.0.identity;
+    refuse_bearer(identity)?;
     let (admin, found) = target(&state, identity, Verb::Delete, &id).await?;
     not_self_nor_last(&state, identity, &found)?;
     let email = email_of(&found);

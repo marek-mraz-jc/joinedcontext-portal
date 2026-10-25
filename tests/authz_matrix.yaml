@@ -455,8 +455,8 @@ routes:
     values: {"id": "ar-0a1b2c3d4e5f"}
     note: "a reader's 503 is the fixture's: without a database the request's space is unknown, so the owner check (tests/access_requests_tests.rs) comes after it"
   - route: POST /projects/{project}/access-requests/{id}/decline
-    rule: "project-read, then approve on the request's ContextSpace (PL-91, PL-93)"
-    expect: [403, allow, allow, allow, allow, allow, 404, allow]
+    rule: "a person's session (AG-133), then project-read, then approve on the request's ContextSpace (PL-91, PL-93)"
+    expect: [403, allow, allow, allow, allow, allow, 404, 403]
     values: {"id": "ar-0a1b2c3d4e5f"}
     body: {"reason": "moved"}
     note: "a reader's 503 is the fixture's: without a database the request's space is unknown, so the owner check (tests/access_requests_tests.rs) comes after it"
@@ -913,6 +913,14 @@ routes:
     rule: "project-verb:read:MqttBroker"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
     note: "which topic fills which attribute, joined from the manifests; each hop the caller may not read is hidden without its name (API/01 §47, T-5533)"
+  - route: POST /projects/{project}/mqttbrokers/{name}/test-publish
+    rule: "project-verb:read:MqttBroker"
+    expect: [403, 422, 422, 422, 422, 422, 422, 422]
+    note: "a dry run that publishes and writes nothing; the matrix sends an empty body, which the JSON reader refuses with 422 before anyone is asked, and it names no broker; a caller who may not read the project gets 404 with a whole body (tests/mqtt_test_publish_tests.rs, API/01 §44a, T-5534)"
+  - route: GET /projects/{project}/mqttbrokers/{name}/watch
+    rule: "project-verb:read:MqttBroker"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "the gateway's kept refusals of a broker and what it measures now; the fixture names no gateway, so the answer says why it read none (API/01 §44a, T-5534)"
   - route: GET /projects/{project}/mqttbrokers/{name}/captured
     rule: "project-verb:approve:MqttBroker (PL-87)"
     expect: [401, 404, 404, allow, allow, allow, 404, 404]
