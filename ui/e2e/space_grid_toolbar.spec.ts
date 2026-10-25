@@ -492,3 +492,48 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await shot(page, `probe-refused-${label}`);
   });
 }
+
+for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
+  test(`The bulk bar says when checked rows are not loaded (F-UI3-014, ${label})`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await stubApi(page, [], []);
+    // A search that leaves the first row out: it stays checked, but no longer loaded.
+    await page.route(
+      (url) => url.pathname.endsWith("/entities") && (url.searchParams.get("q") ?? "").includes("Espoo"),
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          headers: { "NGSILD-Results-Count": "23" },
+          body: JSON.stringify(Array.from({ length: 23 }, (_, i) => event(i + 2))),
+        }),
+    );
+    await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
+    await expect(page.getByText("Workshop for Families").first()).toBeVisible();
+    await page.getByRole("checkbox", { name: /^Select row: / }).nth(0).click();
+    await page.getByRole("checkbox", { name: /^Select row: / }).nth(1).click();
+    await expect(page.getByText("2 selected")).toBeVisible();
+    await expect(page.getByText(/are loaded: Delete selected/)).toHaveCount(0);
+
+    await page.getByRole("searchbox", { name: "Search the rows" }).fill("Espoo");
+    await expect(page.getByText("1 of 2 are loaded: Delete selected and Set a field act on those 1.", { exact: false })).toBeVisible();
+    await shot(page, `bulk-not-loaded-${label}`);
+  });
+}
+
+for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
+  test(`An address with a broken escape keeps the shell and its breadcrumb (F-UI1-002, ${label})`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await stubApi(page, [], []);
+    // vite preview answers a malformed escape 404 where the Portal serves the app shell: serve it here.
+    await page.route(
+      (url) => url.pathname.includes("%E0%A4%A"),
+      async (route) => route.fulfill({ response: await route.fetch({ url: new URL("/", route.request().url()).href }) }),
+    );
+    await page.goto(`/projects/${PROJECT}/spaces/%E0%A4%A?lang=en`);
+    await expect(page.getByRole("main")).toBeVisible();
+    await expect(page.getByRole("banner")).toBeVisible();
+    await shot(page, `broken-escape-${label}`);
+  });
+}
+
