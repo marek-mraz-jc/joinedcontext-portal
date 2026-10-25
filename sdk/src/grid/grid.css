@@ -1396,6 +1396,8 @@ a.jc-cell--link:focus-visible {
   cursor: pointer;
   opacity: 0;
 }
+/* The glyph is drawn, not text: a cell's text and a copied cell stay the value alone. */
+.jc-grid-info::before { content: "i"; }
 .jc-grid-td:hover .jc-grid-info,
 .jc-grid-td[data-active] .jc-grid-info,
 .jc-grid-info:focus-visible { opacity: 1; }

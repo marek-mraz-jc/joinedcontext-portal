@@ -1521,9 +1521,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                           e.stopPropagation();
                           setInspected({ attr: col.attr, label: col.label });
                         }}
-                      >
-                        i
-                      </button>
+                      />
                     ) : null}
                     {/* At most three lines at the column's widest (T-5192): a dragged width replaces
                         the cap, the full value stays in the row's detail. */}
