@@ -1,5 +1,5 @@
-import { useId, useState } from "react";
-import type { FormEvent, JSX } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import type { FormEvent, JSX, ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
@@ -9,6 +9,7 @@ import type { components } from "../../api/schema";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { Combobox } from "../../components/pickers/Combobox";
 import { Alert, Badge, Button, Field, Input, RadioGroup, Textarea } from "../../components/ui";
+import type { AccessAsk, FindingAccess } from "./WorkbenchTarget";
 
 /**
  * Access for a pipeline to another space (API/01 §47, PL-90…PL-93, T-4863). The pipeline's people
@@ -54,6 +55,74 @@ async function listed(answer: Promise<unknown>): Promise<{ items: AccessRequestV
 
 /** One Endpoint the request may name, with the types and attributes its space's model serves. */
 export type RequestableEndpoint = components["schemas"]["Requestable"];
+
+/** A grant the record check found missing, as the request form opens with it (PL-90, T-5369). */
+export interface AccessPrefill {
+  /** `project/endpoint`. */
+  endpoint: string;
+  operations: "read" | "write";
+  type?: string;
+}
+
+/**
+ * The Endpoints the request form offers the pipeline, by the rule the request door applies
+ * again (T-4946); one query per pipeline, shared by the form and the editor's findings.
+ */
+export function useRequestable(project: string, name: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: [KEY, project, name, "endpoints"],
+    enabled: enabled && Boolean(name),
+    retry: false,
+    queryFn: async () => {
+      const body: unknown = await unwrap(
+        await api.GET("/api/v1/projects/{project}/pipelines/{name}/access-requests/endpoints", {
+          params: { path: { project, name: name ?? "" } },
+        }),
+      );
+      return body as { items: RequestableEndpoint[] };
+    },
+  });
+}
+
+/** The request form's frame: a `<form>`, or inside another form a `role="form"` region sent by its button. */
+function Shell({ nested, onSubmit, labelledBy, children }: { nested?: boolean; onSubmit: (event: FormEvent) => void; labelledBy: string; children: ReactNode }): JSX.Element {
+  const className = "flex flex-col gap-3 rounded-md border border-border p-3";
+  return nested ? (
+    <div role="form" aria-labelledby={labelledBy} className={className}>
+      {children}
+    </div>
+  ) : (
+    <form onSubmit={onSubmit} noValidate aria-labelledby={labelledBy} className={className}>
+      {children}
+    </form>
+  );
+}
+
+/** The form's first state: closed and empty, or open with what the editor already knows. */
+function initialRequest(prefill: AccessPrefill | undefined) {
+  return {
+    open: prefill !== undefined,
+    endpoint: prefill?.endpoint ?? "",
+    operations: prefill?.operations ?? ("read" as const),
+    type: prefill?.type ?? "",
+    lead: prefill ? "pipelines.access.prefilled" : "pipelines.access.lead",
+  };
+}
+
+/** Send and Cancel; nested, Send is a plain button so it never submits the editor's form. */
+function FormActions({ nested, pending, onSend, onCancel }: { nested?: boolean; pending: boolean; onSend: () => void; onCancel: () => void }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button type={nested ? "button" : "submit"} disabled={pending} disabledReason={t("app.busyReason")} onClick={nested ? onSend : undefined}>
+        {t("pipelines.access.send")}
+      </Button>
+      <Button type="button" variant="secondary" onClick={onCancel}>
+        {t("pipelines.access.cancel")}
+      </Button>
+    </div>
+  );
+}
 
 /** The request body from the form, or the first thing the person still has to fill in. */
 export function requestBody(form: {
@@ -113,15 +182,30 @@ export function Grant({ request }: { request: AccessRequestView }): JSX.Element 
   );
 }
 
-/** The pipeline's requests and the form that files a new one (PL-90). */
-export function PipelineAccessRequests({ project, name }: { project: string; name: string }): JSX.Element {
+/**
+ * The pipeline's requests and the form that files a new one (PL-90); `prefill` opens the form
+ * with the Endpoint, operation and type of a grant the record check found missing (T-5369).
+ */
+export function PipelineAccessRequests({
+  project,
+  name,
+  prefill,
+  nested,
+}: {
+  project: string;
+  name: string;
+  prefill?: AccessPrefill;
+  /** Inside another form (the pipeline editor): no `<form>` of its own, which HTML forbids there. */
+  nested?: boolean;
+}): JSX.Element {
   const { t } = useTranslation();
   const ids = useId();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [chosen, setChosen] = useState("");
-  const [operations, setOperations] = useState<"read" | "write">("read");
-  const [rows, setRows] = useState<{ type: string; attrs: string[] }[]>([{ type: "", attrs: [] }]);
+  const [initial] = useState(() => initialRequest(prefill));
+  const [open, setOpen] = useState(initial.open);
+  const [chosen, setChosen] = useState(initial.endpoint);
+  const [operations, setOperations] = useState<"read" | "write">(initial.operations);
+  const [rows, setRows] = useState<{ type: string; attrs: string[] }[]>([{ type: initial.type, attrs: [] }]);
   const [until, setUntil] = useState("");
   const [reason, setReason] = useState("");
   const [missing, setMissing] = useState<string | null>(null);
@@ -155,19 +239,7 @@ export function PipelineAccessRequests({ project, name }: { project: string; nam
   });
 
   // The choices come from the server, by the rule the request door applies again (T-4946).
-  const offered = useQuery({
-    queryKey: [KEY, project, name, "endpoints"],
-    enabled: open,
-    retry: false,
-    queryFn: async () => {
-      const body: unknown = await unwrap(
-        await api.GET("/api/v1/projects/{project}/pipelines/{name}/access-requests/endpoints", {
-          params: { path: { project, name } },
-        }),
-      );
-      return body as { items: RequestableEndpoint[] };
-    },
-  });
+  const offered = useRequestable(project, name, open);
   const endpoints = offered.data?.items ?? [];
   const target = endpoints.find((one) => `${one.project}/${one.name}` === chosen);
   // An Endpoint the list does not offer is asked for by its typed name; its owners check the
@@ -177,8 +249,8 @@ export function PipelineAccessRequests({ project, name }: { project: string; nam
   const typesOf = (type: string) => target?.types.find((one) => one.type === type)?.attrs ?? [];
   const failedList = offered.isError ? { reason: problem(offered.error, t("app.error.generic")), retry: () => void offered.refetch() } : undefined;
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
+  const submit = (event?: FormEvent) => {
+    event?.preventDefault();
     const built = requestBody({ project: owner, endpoint, operations, rows, until, reason });
     if ("missing" in built) {
       setMissing(t(`pipelines.access.missing.${built.missing}`));
@@ -213,11 +285,11 @@ export function PipelineAccessRequests({ project, name }: { project: string; nam
         </ul>
       )}
       {open ? (
-        <form onSubmit={submit} noValidate aria-labelledby={`${ids}-title`} className="flex flex-col gap-3 rounded-md border border-border p-3">
+        <Shell nested={nested} onSubmit={submit} labelledBy={`${ids}-title`}>
           <h3 id={`${ids}-title`} className="text-body font-semibold text-fg">
             {t("pipelines.access.request")}
           </h3>
-          <p className="text-caption text-fg-muted">{t("pipelines.access.lead")}</p>
+          <p className="text-caption text-fg-muted">{t(initial.lead)}</p>
           <Field
             id={`${ids}-endpoint`}
             label={t("pipelines.access.endpoint")}
@@ -364,15 +436,8 @@ export function PipelineAccessRequests({ project, name }: { project: string; nam
               {problem(file.error, t("app.error.generic"))}
             </Alert>
           ) : null}
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={file.isPending} disabledReason={t("app.busyReason")}>
-              {t("pipelines.access.send")}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              {t("pipelines.access.cancel")}
-            </Button>
-          </div>
-        </form>
+          <FormActions nested={nested} pending={file.isPending} onSend={() => submit()} onCancel={() => setOpen(false)} />
+        </Shell>
       ) : (
         <div>
           {file.isSuccess ? (
@@ -387,6 +452,41 @@ export function PipelineAccessRequests({ project, name }: { project: string; nam
       )}
     </div>
   );
+}
+
+/**
+ * The record check's missing grants as "No access to <space>: Request access" (T-5369): the ask
+ * each finding line renders, and the request form it opens, prefilled. The space comes only from
+ * the server's list for this person (T-4946); an Endpoint it does not offer reads `project/name`.
+ * A pipeline not yet proposed has no account to grant, so the button says to propose it first.
+ */
+export function useAccessAsk(project: string, pipeline: string | undefined, wanted: boolean): { ask: AccessAsk; form: JSX.Element | null } {
+  const { t } = useTranslation();
+  const [asking, setAsking] = useState<FindingAccess | null>(null);
+  const offered = useRequestable(project, pipeline, wanted);
+  const section = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (asking) section.current?.scrollIntoView?.({ block: "nearest" });
+  }, [asking]);
+  const ask: AccessAsk = {
+    where: (access) =>
+      offered.data?.items.find((one) => one.project === access.project && one.name === access.name)?.space ?? `${access.project}/${access.name}`,
+    open: setAsking,
+    ...(pipeline ? {} : { disabledReason: t("pipelines.access.proposeFirst") }),
+  };
+  const form =
+    asking && pipeline ? (
+      <section ref={section} aria-label={t("pipelines.access.section")} data-testid="workbench-access">
+        <PipelineAccessRequests
+          key={`${asking.operations}:${asking.project}/${asking.name}:${asking.type ?? ""}`}
+          project={project}
+          name={pipeline}
+          nested
+          prefill={{ endpoint: `${asking.project}/${asking.name}`, operations: asking.operations, ...(asking.type ? { type: asking.type } : {}) }}
+        />
+      </section>
+    ) : null;
+  return { ask, form };
 }
 
 /** The requests into one space of this project, for its owners (PL-91, PL-93). */

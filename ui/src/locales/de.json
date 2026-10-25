@@ -3365,7 +3365,11 @@
       "endpointFirst": "Wählen Sie zuerst den Endpunkt.",
       "noAttrs": "Das Modell deklariert kein Attribut von {type}.",
       "typeFirst": "Wählen Sie zuerst den Entitätstyp.",
-      "allAttrs": "alle Attribute"
+      "allAttrs": "alle Attribute",
+      "noAccess": "Kein Zugriff auf {where}:",
+      "requestFor": "Zugriff auf {endpoint} anfordern",
+      "proposeFirst": "Schlagen Sie die Pipeline zuerst vor: Eine Zugriffsanfrage gilt dem Konto einer vorgeschlagenen Pipeline.",
+      "prefilled": "Aus der Datensatzprüfung ausgefüllt. Wählen Sie jedes Attribut, das die Pipeline braucht, und begründen Sie es; nichts wird gewährt, bevor die Eigentümer des Bereichs zustimmen."
     },
     "map": {
       "views": "Pipeline-Ansichten",

@@ -740,7 +740,7 @@ pub(super) fn inject_source_space(value: &mut Value, segments: &[String]) {
 /// A typed `endpointRef` may name another project's Endpoint; that Endpoint must admit the
 /// pipeline's project by its audience (public, its own organization, or `allowedProjects`), and
 /// the gateway decides the read itself on that project's Policies at run time (PL-92).
-pub(super) fn source_endpoint(
+pub(crate) fn source_endpoint(
     mirror: &Mirror,
     ns: &str,
     reference: &jc_core::Ref,
