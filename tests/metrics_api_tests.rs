@@ -46,7 +46,7 @@ async fn call(path: &str) -> (StatusCode, String, String) {
 
 #[tokio::test]
 async fn the_scrape_target_answers_the_text_format_prometheus_reads() {
-    call("/").await;
+    call("/catalogue").await;
     let (status, content_type, body) = call("/metrics").await;
 
     assert_eq!(status, StatusCode::OK);
@@ -62,7 +62,7 @@ async fn the_scrape_target_answers_the_text_format_prometheus_reads() {
 
 #[tokio::test]
 async fn a_request_through_the_surface_moves_the_counter() {
-    call("/").await;
+    call("/catalogue").await;
 
     let (_, _, body) = call("/metrics").await;
     let counted: Vec<&str> = body
@@ -115,7 +115,7 @@ async fn the_health_probe_does_not_count_as_traffic() {
 /// be combined with another replica's (docs Deployment/05 §1, T-0464).
 #[tokio::test]
 async fn a_duration_is_exported_as_buckets_a_dashboard_can_sum() {
-    call("/").await;
+    call("/catalogue").await;
     let (_, _, body) = call("/metrics").await;
 
     assert!(

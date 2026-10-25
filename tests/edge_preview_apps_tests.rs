@@ -471,8 +471,9 @@ async fn the_portals_shell_answers_every_route_and_says_nothing_about_who_asked(
     let state = AppState::new(Config::for_tests(), None);
 
     // A deep app route of the SPA: the shell, so the router in the browser can take it.
+    // `/` itself sends a visitor without a session to /catalogue (T-5627): that page stands in.
     for uri in [
-        "/",
+        "/catalogue",
         "/index.html",
         "/projects/ovzdusie/spaces",
         "/projects/does-not-exist/workspaces/secret-name",

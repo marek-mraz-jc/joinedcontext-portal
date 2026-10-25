@@ -87,7 +87,7 @@ async fn pages_and_assets_come_from_the_bundle_with_the_portals_headers() {
     let ui = bundle(json!({"commit": "abc", "openapi": committed_spec_sha()})).await;
     let config = reading(&ui);
 
-    for page in ["/", "/index.html", "/projects/demo/explore"] {
+    for page in ["/catalogue", "/index.html", "/projects/demo/explore"] {
         let (status, kind, cache, body) = get(&config, page).await;
         assert_eq!(status, StatusCode::OK, "{page}");
         assert!(kind.starts_with("text/html"), "{page}: {kind}");
@@ -143,7 +143,7 @@ async fn an_unreachable_bundle_is_a_503_and_an_unknown_contract() {
         ui_url: Some(format!("http://127.0.0.1:{port}")),
         ..Config::for_tests()
     };
-    let (status, ..) = get(&config, "/").await;
+    let (status, ..) = get(&config, "/catalogue").await;
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     let (status, _, _, body) = get(&config, "/api/v1/version").await;
     assert_eq!(status, StatusCode::OK);
