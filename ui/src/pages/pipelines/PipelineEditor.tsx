@@ -735,6 +735,7 @@ export function PipelineEditorDialog({
             onVerdict={(ok, tested) => setVerdict({ ok, bloblang: tested })}
             mappingFile={mappingFile}
             draftName={editing?.metadata.name ?? draftName}
+            pipeline={editing?.metadata.name}
           >
             {/* What the six steps do not cover (several sources, processor steps, a KPI, the flow
                 view) stays one fold away, on the same draft (ADR-N-034). */}

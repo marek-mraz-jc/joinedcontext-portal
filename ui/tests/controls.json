@@ -2276,6 +2276,16 @@
       "tests": [
         "mqtt_test_publish.test.tsx"
       ]
+    },
+    "src/pages/pipelines/WorkbenchTarget.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "access_requests.test.tsx",
+        "pipeline_history.test.tsx",
+        "workbench_target.test.tsx"
+      ]
     }
   }
 }

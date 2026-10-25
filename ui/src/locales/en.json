@@ -3365,7 +3365,11 @@
       "endpointFirst": "Choose the Endpoint first.",
       "noAttrs": "The model declares no attribute of {type}.",
       "typeFirst": "Choose the entity type first.",
-      "allAttrs": "all attributes"
+      "allAttrs": "all attributes",
+      "noAccess": "No access to {where}:",
+      "requestFor": "Request access to {endpoint}",
+      "proposeFirst": "Propose the pipeline first: an access request asks for the account of a proposed pipeline.",
+      "prefilled": "Filled in from the record check. Pick every attribute the pipeline needs and say why; nothing is granted until the space's owners approve."
     },
     "map": {
       "views": "Pipeline views",
