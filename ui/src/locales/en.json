@@ -5567,12 +5567,9 @@
     "endpoint": "Read through endpoint",
     "noEndpoint": "This space has no endpoint to read through.",
     "noType": "Choose an entity type to load entities.",
-    "detail": "Entity",
-    "close": "Close",
     "loadFailed": "The entities could not be loaded. Try again, or read through another endpoint.",
     "delete": "Delete entity",
     "removeTitle": "Delete this entity?",
-    "removeLead": "{id} is removed from the space through this endpoint.",
     "removeConfirm": "Delete",
     "removeNote": "The endpoint's Policy decides: the deletion runs with your session, not with a service identity, and it cannot be undone.",
     "removeReason": "Reason",
@@ -5690,7 +5687,9 @@
       "pickEntity": "Pick the entity to chart over time."
     },
     "pickSpaceFirst": "Pick a space first.",
-    "noMatch": "Nothing matches this query; change or remove a filter."
+    "noMatch": "Nothing matches this query; change or remove a filter.",
+    "technical": "Technical details (JSON-LD)",
+    "copyJson": "Copy JSON-LD"
   },
   "agentRun": {
     "title": "Application run",

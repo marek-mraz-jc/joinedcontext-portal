@@ -147,8 +147,8 @@ async function openDetail(remove: () => Response, access?: unknown, entity: unkn
     </QueryClientProvider>,
   );
   await userEvent.selectOptions(await screen.findByLabelText(/Entity type/i), "BikeHireDockingStation");
-  await userEvent.click(await screen.findByRole("button", { name: ROW.id }));
-  await screen.findByTestId("explore-entity");
+  await userEvent.click(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: 001` }));
+  await screen.findByRole("dialog");
   return calls;
 }
 
@@ -284,14 +284,14 @@ describe("removing an entity from the explorer (UI-60, T-0912)", () => {
         }),
     );
     await userEvent.click(screen.getByTestId("explore-delete"));
-    expect(within(screen.getByRole("dialog")).getByText(new RegExp(ROW.id))).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: en.explore.removeTitle })).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(new RegExp(en.explore.removeReason)), "duplicate");
     await userEvent.click(screen.getByTestId("explore-delete-confirm"));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    expect(await within(screen.getByRole("dialog")).findByRole("alert")).toHaveTextContent(
       "the policy of this endpoint does not let you write BikeHireDockingStation",
     );
     // Still open on the entity: nothing was removed.
-    expect(screen.getByTestId("explore-entity")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     const deletes = calls.filter((call) => call.method === "DELETE");
     expect(deletes).toHaveLength(1);
     expect(deletes[0].url).toContain(
@@ -306,7 +306,7 @@ describe("removing an entity from the explorer (UI-60, T-0912)", () => {
     await userEvent.click(screen.getByTestId("explore-delete"));
     await userEvent.type(screen.getByLabelText(new RegExp(en.explore.removeReason)), "Duplikát, ďalší je 12");
     await userEvent.click(screen.getByTestId("explore-delete-confirm"));
-    await waitFor(() => expect(screen.queryByTestId("explore-entity")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     const deletes = calls.filter((call) => call.method === "DELETE");
     expect(deletes).toHaveLength(1);
     expect(deletes[0].csrf).toBe("token-for-the-session");
@@ -324,18 +324,55 @@ describe("removing an entity from the explorer (UI-60, T-0912)", () => {
     await userEvent.click(screen.getByTestId("explore-delete-confirm"));
     expect(await within(screen.getByRole("dialog")).findByText(en.explore.removeReasonError.required)).toBeInTheDocument();
     expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(0);
-    expect(screen.getByTestId("explore-entity")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
 
 // T-4265 (photo audit T-4160 #19): every id of a type starts with the same `urn:ngsi-ld:Type:…`, so a
 // cell cut at a phone's width read the same on every row. The row is named by its URN's end, the
-// whole id its accessible name and its tooltip.
-it("names each row by the end of its URN, the whole id its accessible name", async () => {
+// whole id its tooltip; the opener is named by what opens, not by the URN (T-5619).
+it("names each row by the end of its URN, the whole id its tooltip", async () => {
   await openDetail(() => new Response(null, { status: 204 }));
-  const open = screen.getByRole("button", { name: ROW.id });
+  await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: en.entityGrid.close }));
+  const open = screen.getByRole("button", { name: `${en.entityGrid.openRow}: 001` });
   expect(open).toHaveTextContent(/^001$/);
   expect(open).toHaveAttribute("title", ROW.id);
+});
+
+/**
+ * T-5619: a row opens in the grid's own detail, its fields drawn by type and a History tab, not as
+ * the whole entity in raw JSON-LD under the grid. The JSON-LD is behind a closed disclosure, read
+ * only when opened; Escape gives the focus back to the grid.
+ */
+describe("the row detail of the explorer (T-5619)", () => {
+  it("opens the grid's detail with Fields and History, and no JSON on screen", async () => {
+    await i18n.changeLanguage("en");
+    const calls = await openDetail(() => new Response(null, { status: 204 }), undefined, MEASURED);
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("tab", { name: en.entityGrid.rowFields })).toHaveAttribute("aria-selected", "true");
+    expect(within(dialog).getByRole("tab", { name: en.entityGrid.history })).toBeInTheDocument();
+    expect(within(dialog).getByText("availableBikeNumber")).toBeInTheDocument();
+    expect(dialog.textContent).not.toContain("@context");
+    expect(dialog.textContent).not.toContain(ROW.id);
+    expect(document.querySelector("pre")).toBeNull();
+    const technical = within(dialog).getByTestId("explore-technical");
+    expect(technical).not.toHaveAttribute("open");
+    // The raw entity is read through the endpoint only when someone opens the disclosure.
+    const single = () => calls.filter((call) => call.url.includes("/entities/") && call.method === "GET").length;
+    expect(single()).toBe(0);
+    await userEvent.click(within(technical).getByText(en.explore.technical));
+    expect(await within(technical).findByRole("group", { name: en.codeBlock.entity })).toHaveTextContent(ROW.id);
+    expect(within(technical).getByRole("button", { name: en.explore.copyJson })).toBeInTheDocument();
+    expect(single()).toBe(1);
+  });
+
+  it("closes on Escape and gives the focus back to the grid", async () => {
+    await i18n.changeLanguage("en");
+    await openDetail(() => new Response(null, { status: 204 }));
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(document.activeElement).toBe(screen.getByRole("grid"));
+  });
 });
 
 /**
@@ -357,11 +394,6 @@ it("disables the delete button, with a reason, when the grant allows only reads"
     },
   );
 
-  // The pane the entity arrives in is a live region: opening one announced nothing and its
-  // arrival announced nothing either (T-1768).
-  const pane = screen.getByTestId("explore-entity");
-  expect(pane).toHaveAttribute("aria-live", "polite");
-
   const remove = await screen.findByTestId("explore-delete");
   // Refused with its reason, not hard-disabled: a `title` on a disabled button is unreachable
   // by keyboard and swallowed by `pointer-events-none`, so the refusal could never be read
@@ -381,10 +413,11 @@ it("shows what a value is measured in, and when it was observed", async () => {
   // A count is in "one" (C62), which has no symbol: the number alone, the unit named on hover.
   const cell = screen.getAllByText("5").find((node) => node.closest("td") !== null);
   expect(cell?.closest("td")).toHaveAttribute("title", "one (C62)");
-  // T-5516: the entity pane shows the same value as a row, unit and time beside it, no JSON text.
-  const detail = screen.getByTestId("explore-entity");
-  expect(within(detail).getByText("C62 · 2026-09-19T08:00:00Z")).toBeInTheDocument();
+  // The row's detail shows the value as the grid draws it, no JSON text (T-5516, T-5619).
+  const detail = screen.getByRole("dialog");
+  expect(within(detail).getAllByText("5").length).toBeGreaterThan(0);
   expect(detail.textContent).not.toContain("{\n");
+  await userEvent.keyboard("{Escape}");
   await userEvent.click(screen.getByLabelText(`${en.entityGrid.columnMenu}: availableBikeNumber`));
   await userEvent.click(screen.getByLabelText(en.entityGrid.observedAt));
   await waitFor(() =>
@@ -443,7 +476,7 @@ describe("correcting a value from the explorer", () => {
     );
     await userEvent.selectOptions(await screen.findByLabelText(/Entity type/i), "BikeHireDockingStation");
     // The row is there either way; whether its cell can be typed in is what the grant decides.
-    await screen.findByRole("button", { name: MEASURED.id });
+    await screen.findByRole("button", { name: `${en.entityGrid.openRow}: 001` });
   }
 
   it("offers the cell to a person whose grant names a write", async () => {
@@ -528,8 +561,8 @@ it("opens on the entity the route names", async () => {
     </QueryClientProvider>,
   );
 
-  // The detail pane is open on that entity without anyone clicking a row.
-  expect(await screen.findByTestId("explore-delete")).toBeInTheDocument();
+  // The row's detail is open on that entity without anyone clicking a row.
+  expect(await within(await screen.findByRole("dialog")).findByTestId("explore-delete")).toBeInTheDocument();
   await waitFor(() =>
     expect(
       calls.some((call) => call.url.includes(`/entities/${encodeURIComponent(ROW.id)}`) || call.url.includes(`/entities/${ROW.id}`)),
@@ -585,7 +618,7 @@ it("opens the grid on the type and the filter the route carries, without a space
   await waitFor(() =>
     expect(screen.getByLabelText(en.explore.space)).toHaveValue("helsinki"),
   );
-  expect(await screen.findByRole("button", { name: ROW.id })).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: 001` })).toBeInTheDocument();
   await waitFor(() =>
     expect(
       urls.some(
