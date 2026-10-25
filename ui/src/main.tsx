@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { i18nReady, loadFullLocales } from "./i18n";
 import "./index.css";
-import { ErrorBoundary, mayReloadForChunk } from "./components/ErrorBoundary";
+import { ErrorBoundary, bootOrReload, mayReloadForChunk } from "./components/ErrorBoundary";
 import { PublicApp } from "./PublicApp";
 import { isPublicPath } from "./publicRouter";
 import { preloadSpacePage } from "./pages/spaces/preload";
@@ -21,7 +21,7 @@ const queryClient = new QueryClient({
 // Portal and every word of the chosen language first.
 const portal = isPublicPath(window.location.pathname)
   ? Promise.resolve(PublicApp)
-  : Promise.all([import("./App"), i18nReady.then(loadFullLocales)]).then(([module]) => module.App);
+  : bootOrReload(Promise.all([import("./App"), i18nReady.then(loadFullLocales)]).then(([module]) => module.App));
 
 // A space's grid starts its first reads beside the session check (T-5598).
 if (!isPublicPath(window.location.pathname)) preloadSpacePage(queryClient, window.location.pathname);

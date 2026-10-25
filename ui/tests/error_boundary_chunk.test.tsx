@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ErrorBoundary,
+  bootOrReload,
   isChunkLoadError,
   mayReloadForChunk,
   reloadForChunk,
@@ -138,5 +139,36 @@ describe("chunk load errors", () => {
     expect(html).toContain("animation: boot-failed-show 0s 8s forwards");
     // The CSP allows no inline script; the fallback must work without one.
     expect(html.match(/<script/g)).toHaveLength(1);
+  });
+});
+
+// T-5733: the walker met "Failed to fetch dynamically imported module .../App-*.js" on dev: the
+// entry's import of the Portal had no boundary to reload it, so the person got the boot notice.
+describe("the boot import", () => {
+  const chunk = () => new TypeError("Failed to fetch dynamically imported module: https://x/assets/App-a.js");
+
+  it("reloads once for a chunk it could not load and never settles meanwhile", async () => {
+    const reload = vi.fn(() => true);
+    const settled = vi.fn();
+    void bootOrReload(Promise.reject(chunk()), reload).then(settled, settled);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(settled).not.toHaveBeenCalled();
+  });
+
+  it("rejects as before when the reload already ran within the minute", async () => {
+    await expect(bootOrReload(Promise.reject(chunk()), () => false)).rejects.toThrow(/dynamically imported/);
+  });
+
+  it("never reloads for any other error, nor for a boot that loaded", async () => {
+    const reload = vi.fn(() => true);
+    await expect(bootOrReload(Promise.reject(new Error("render broke")), reload)).rejects.toThrow("render broke");
+    await expect(bootOrReload(Promise.resolve("App"), reload)).resolves.toBe("App");
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("guards the entry's import of the Portal", () => {
+    const main = readFileSync(join(__dirname, "../src/main.tsx"), "utf8");
+    expect(main).toMatch(/bootOrReload\(Promise\.all\(\[import\("\.\/App"\)/);
   });
 });

@@ -94,6 +94,18 @@ export function reloadForChunk(
   return true;
 }
 
+/**
+ * T-5733: the entry's own import of the Portal sits outside every boundary, so a chunk it could not
+ * load left an unhandled rejection and the 8 s boot notice for the person to reload by hand. It
+ * reloads once, as a page's chunk does; a second failure within the minute rejects as before.
+ */
+export function bootOrReload<T>(boot: Promise<T>, reload: () => boolean = () => reloadForChunk()): Promise<T> {
+  return boot.catch((error: unknown) => {
+    if (isChunkLoadError(error) && reload()) return new Promise<T>(() => undefined);
+    throw error;
+  });
+}
+
 interface State {
   reference: string | null;
   chunk: boolean;
