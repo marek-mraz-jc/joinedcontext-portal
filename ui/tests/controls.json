@@ -1175,6 +1175,14 @@
         "datasource_templates.test.tsx"
       ]
     },
+    "src/pages/endpoints/AccessRequest.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "endpoint_access_request.test.tsx"
+      ]
+    },
     "src/pages/endpoints/CatalogSection.tsx": {
       "controls": {
         "Button": 1
@@ -1665,7 +1673,8 @@
         "RadioGroup": 1
       },
       "tests": [
-        "access_requests.test.tsx"
+        "access_requests.test.tsx",
+        "endpoint_access_request.test.tsx"
       ]
     },
     "src/pages/pipelines/DebugPanel.tsx": {

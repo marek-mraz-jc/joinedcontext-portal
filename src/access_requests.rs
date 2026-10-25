@@ -6,6 +6,10 @@
 //! by the approver and judged by that project's lane: the Endpoint admitting the requesting
 //! project and one Policy naming exactly the requested types and attributes for the pipeline's
 //! own account. Revoking proposes that Policy ended now.
+//!
+//! A person asks the same way on an Endpoint they read but get nothing through (EP-55, PF-58,
+//! T-5615): a read of named types of its space, for themself only. Approving proposes one Policy
+//! assigned to that person, until the request's end.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -84,12 +88,21 @@ pub struct NewRequest {
     pub reason: String,
 }
 
+/// Who a request asks for: a pipeline of `project`, or the person who filed it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Requester {
+    Pipeline(String),
+    /// The person's username, the id a Policy's `user` assignee names.
+    Person(String),
+}
+
 /// A stored request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccessRequest {
     pub id: String,
+    /// The pipeline's project; for a person's request the Endpoint's own.
     pub project: String,
-    pub pipeline: String,
+    pub requester: Requester,
     pub endpoint_project: String,
     pub endpoint: String,
     pub space: String,
@@ -112,14 +125,36 @@ fn rfc3339(at: OffsetDateTime) -> String {
 }
 
 impl AccessRequest {
-    /// The account a grant names: the pipeline's own, qualified by its project (PL-19, PL-92).
+    /// The account a grant names: the pipeline's own, qualified by its project (PL-19, PL-92),
+    /// or the person's username.
     pub fn account(&self) -> String {
-        format!("{}/pl-{}", self.project, self.pipeline)
+        match &self.requester {
+            Requester::Pipeline(pipeline) => format!("{}/pl-{pipeline}", self.project),
+            Requester::Person(person) => person.clone(),
+        }
     }
 
-    /// The Policy that carries the grant (PL-91).
+    /// The Policy that carries the grant (PL-91): a person's is named by the request, since a
+    /// username is no manifest name.
     pub fn policy_name(&self) -> String {
-        format!("{}-{}-{}", self.endpoint, self.project, self.pipeline)
+        match &self.requester {
+            Requester::Pipeline(pipeline) => {
+                format!("{}-{}-{pipeline}", self.endpoint, self.project)
+            }
+            // `ar-` and 12 hex digits leave 47 characters of the 63 for the Endpoint's name.
+            Requester::Person(_) if self.endpoint.len() <= 47 => {
+                format!("{}-{}", self.endpoint, self.id)
+            }
+            Requester::Person(_) => format!("access-{}", self.id),
+        }
+    }
+
+    /// The pipeline's name, `None` for a person's request.
+    pub fn pipeline(&self) -> Option<&str> {
+        match &self.requester {
+            Requester::Pipeline(pipeline) => Some(pipeline),
+            Requester::Person(_) => None,
+        }
     }
 
     /// The state a reader sees: an approved grant whose end has passed is `ended`.
@@ -134,7 +169,11 @@ impl AccessRequest {
     pub fn view(&self, now: OffsetDateTime) -> Value {
         json!({
             "id": self.id,
-            "pipeline": { "project": self.project, "name": self.pipeline },
+            "pipeline": self.pipeline().map(|name| json!({ "project": self.project, "name": name })),
+            "person": match &self.requester {
+                Requester::Person(person) => Some(person.as_str()),
+                Requester::Pipeline(_) => None,
+            },
             "account": self.account(),
             "endpoint": { "project": self.endpoint_project, "name": self.endpoint },
             "space": self.space,
@@ -218,6 +257,41 @@ pub fn checked_types(types: &[TypeGrant]) -> Result<Vec<TypeGrant>, String> {
     Ok(out)
 }
 
+/// The types a person asks for (EP-55, T-5615): one to twenty distinct type names, each one the
+/// Endpoint serves (`served`), each for all its attributes. The error names the field.
+pub fn checked_person_types(
+    types: &[String],
+    served: &[String],
+) -> Result<Vec<TypeGrant>, Vec<String>> {
+    if types.is_empty() || types.len() > MAX_TYPES {
+        return Err(vec![format!(
+            "types: choose one to {MAX_TYPES} entity types"
+        )]);
+    }
+    let mut problems = Vec::new();
+    let mut out: Vec<TypeGrant> = Vec::with_capacity(types.len());
+    for (at, name) in types.iter().enumerate() {
+        let name = name.trim();
+        if !served.iter().any(|one| one == name) {
+            problems.push(format!(
+                "types[{at}]: '{name}' is no type this endpoint serves"
+            ));
+        } else if out.iter().any(|known| known.entity_type == name) {
+            problems.push(format!("types[{at}]: the type {name} is named twice"));
+        } else {
+            out.push(TypeGrant {
+                entity_type: name.to_owned(),
+                attrs: Vec::new(),
+            });
+        }
+    }
+    if problems.is_empty() {
+        Ok(out)
+    } else {
+        Err(problems)
+    }
+}
+
 /// The end date of a request: in the future, or none.
 pub fn checked_until(
     until: Option<&str>,
@@ -284,10 +358,15 @@ fn writable(manifest: &Value) -> Value {
 /// What approving `request` proposes (PL-91): the Endpoint admitting the requesting project when
 /// its audience is a list, and the Policy granting exactly what was asked to the pipeline's
 /// account until the request's end.
+/// A person's grant is the Policy alone: the person reads the Endpoint in its own project already.
 pub fn grant_bundle(request: &AccessRequest, endpoint: &Value) -> Vec<Value> {
     let mut manifests = Vec::with_capacity(2);
     let audience = endpoint["spec"]["audience"].as_str().unwrap_or("project");
-    if audience != "organization" && audience != "public" {
+    let (assignee_kind, person) = match &request.requester {
+        Requester::Pipeline(_) => ("serviceAccount", false),
+        Requester::Person(_) => ("user", true),
+    };
+    if !person && audience != "organization" && audience != "public" {
         let mut updated = writable(endpoint);
         let mut allowed: Vec<String> = updated["spec"]["allowedProjects"]
             .as_array()
@@ -308,13 +387,20 @@ pub fn grant_bundle(request: &AccessRequest, endpoint: &Value) -> Vec<Value> {
     let information: Vec<Value> = request
         .types
         .iter()
-        .map(|grant| json!({ "entities": [{ "type": grant.entity_type }], "propertyNames": grant.attrs }))
+        .map(|grant| {
+            let mut info = json!({ "entities": [{ "type": grant.entity_type }] });
+            // A person asks for whole types; a pipeline names each attribute (PL-90).
+            if !grant.attrs.is_empty() {
+                info["propertyNames"] = json!(grant.attrs);
+            }
+            info
+        })
         .collect();
     let mut spec = json!({
         "contextSpaceRef": { "kind": "ContextSpace", "name": request.space },
         // Rendered by the loader, so a copied organization is its own assigner (CC-82).
         "assigner": "did:web:{orgDomain}",
-        "assignee": { "kind": "serviceAccount", "id": request.account() },
+        "assignee": { "kind": assignee_kind, "id": request.account() },
         "operations": request.operations.policy_operations(),
         "information": information,
     });
@@ -356,9 +442,11 @@ pub fn revoke_bundle(
                 })
                 .is_none_or(|to| to > now)
     });
-    let listed = endpoint["spec"]["allowedProjects"]
-        .as_array()
-        .is_some_and(|list| list.iter().any(|p| p == request.project.as_str()));
+    // A person's grant never admitted a project, so its revoke leaves the Endpoint alone.
+    let listed = request.pipeline().is_some()
+        && endpoint["spec"]["allowedProjects"]
+            .as_array()
+            .is_some_and(|list| list.iter().any(|p| p == request.project.as_str()));
     if listed && !others_remain {
         let mut updated = writable(endpoint);
         if let Some(list) = updated["spec"]["allowedProjects"].as_array_mut() {
@@ -466,6 +554,7 @@ struct Row {
     id: String,
     project: String,
     pipeline: String,
+    person: Option<String>,
     endpoint_project: String,
     endpoint: String,
     space: String,
@@ -487,7 +576,10 @@ impl From<Row> for AccessRequest {
         Self {
             id: row.id,
             project: row.project,
-            pipeline: row.pipeline,
+            requester: match row.person {
+                Some(person) => Requester::Person(person),
+                None => Requester::Pipeline(row.pipeline),
+            },
             endpoint_project: row.endpoint_project,
             endpoint: row.endpoint,
             space: row.space,
@@ -510,7 +602,7 @@ impl From<Row> for AccessRequest {
 macro_rules! select {
     ($rest:literal) => {
         concat!(
-            "SELECT id, project, pipeline, endpoint_project, endpoint, space, operations, types, until, \
+            "SELECT id, project, pipeline, person, endpoint_project, endpoint, space, operations, types, until, \
              reason, state, requested_by, requested_at, decided_by, decided_at, decision_reason, change \
              FROM access_requests ",
             $rest
@@ -518,17 +610,21 @@ macro_rules! select {
     };
 }
 
-/// Stores a new request; `Ok(false)` when the pipeline already has an open or granted one for
-/// that Endpoint (PL-90).
+/// Stores a new request; `Ok(false)` when the pipeline or the person already has an open or
+/// granted one for that Endpoint (PL-90).
 pub(crate) async fn insert(pool: &PgPool, request: &AccessRequest) -> Result<bool, sqlx::Error> {
     let done = sqlx::query(
-        "INSERT INTO access_requests (id, project, pipeline, endpoint_project, endpoint, space, operations, \
-           types, until, reason, state, requested_by, requested_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', $11, $12) ON CONFLICT DO NOTHING",
+        "INSERT INTO access_requests (id, project, pipeline, person, endpoint_project, endpoint, space, \
+           operations, types, until, reason, state, requested_by, requested_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending', $12, $13) ON CONFLICT DO NOTHING",
     )
     .bind(&request.id)
     .bind(&request.project)
-    .bind(&request.pipeline)
+    .bind(request.pipeline().unwrap_or_default())
+    .bind(match &request.requester {
+        Requester::Person(person) => Some(person.as_str()),
+        Requester::Pipeline(_) => None,
+    })
     .bind(&request.endpoint_project)
     .bind(&request.endpoint)
     .bind(&request.space)
@@ -578,10 +674,27 @@ pub async fn outgoing(
     pipeline: &str,
 ) -> Result<Vec<AccessRequest>, sqlx::Error> {
     sqlx::query_as::<_, Row>(select!(
-        "WHERE project = $1 AND pipeline = $2 ORDER BY requested_at DESC LIMIT 200"
+        "WHERE project = $1 AND pipeline = $2 AND person IS NULL ORDER BY requested_at DESC LIMIT 200"
     ))
     .bind(project)
     .bind(pipeline)
+    .fetch_all(pool)
+    .await
+    .map(|rows| rows.into_iter().map(AccessRequest::from).collect())
+}
+
+/// A person's own requests on one Endpoint, newest first.
+pub async fn of_person(
+    pool: &PgPool,
+    person: &str,
+    (endpoint_project, endpoint): (&str, &str),
+) -> Result<Vec<AccessRequest>, sqlx::Error> {
+    sqlx::query_as::<_, Row>(select!(
+        "WHERE person = $1 AND endpoint_project = $2 AND endpoint = $3 ORDER BY requested_at DESC LIMIT 50"
+    ))
+    .bind(person)
+    .bind(endpoint_project)
+    .bind(endpoint)
     .fetch_all(pool)
     .await
     .map(|rows| rows.into_iter().map(AccessRequest::from).collect())
@@ -621,7 +734,7 @@ mod tests {
         AccessRequest {
             id: "ar-0a1b2c3d4e5f".into(),
             project: "city-kpis".into(),
-            pipeline: "air-index".into(),
+            requester: Requester::Pipeline("air-index".into()),
             endpoint_project: "helsinki".into(),
             endpoint: "air-quality".into(),
             space: "air".into(),
@@ -866,5 +979,83 @@ mod tests {
             json!({ "project": "helsinki", "name": "air-quality" })
         );
         assert_eq!(view["account"], "city-kpis/pl-air-index");
+    }
+
+    fn person_request() -> AccessRequest {
+        AccessRequest {
+            project: "helsinki".into(),
+            requester: Requester::Person("demo.viewer".into()),
+            types: vec![TypeGrant {
+                entity_type: "AirQualityObserved".into(),
+                attrs: Vec::new(),
+            }],
+            ..request()
+        }
+    }
+
+    /// PL-115 (T-5615): approving a person's request proposes one Policy for that person alone,
+    /// on the asked-for types until the end, and leaves the Endpoint's audience as it is.
+    #[test]
+    fn a_persons_approval_proposes_one_policy_for_that_person() {
+        let request = person_request();
+        let bundle = grant_bundle(&request, &endpoint("project-list", &["traffic"]));
+        assert_eq!(bundle.len(), 1, "{bundle:?}");
+        let policy = &bundle[0];
+        assert_eq!(policy["kind"], "Policy");
+        assert_eq!(policy["metadata"]["name"], "air-quality-ar-0a1b2c3d4e5f");
+        assert_eq!(policy["metadata"]["namespace"], "helsinki");
+        assert_eq!(
+            policy["spec"]["assignee"],
+            json!({ "kind": "user", "id": "demo.viewer" })
+        );
+        assert_eq!(policy["spec"]["operations"], json!(["retrieveOps"]));
+        assert_eq!(
+            policy["spec"]["information"],
+            json!([{ "entities": [{ "type": "AirQualityObserved" }] }])
+        );
+        assert_eq!(policy["spec"]["validity"]["to"], "2027-01-31T23:59:59Z");
+        assert_eq!(request.account(), "demo.viewer");
+        assert_eq!(request.view(request.requested_at)["pipeline"], Value::Null);
+        assert_eq!(request.view(request.requested_at)["person"], "demo.viewer");
+    }
+
+    /// Revoking a person's grant ends the Policy and never takes a project off the Endpoint.
+    #[test]
+    fn a_persons_revoke_ends_only_the_policy() {
+        let request = person_request();
+        let policy = grant_bundle(&request, &endpoint("project-list", &["helsinki"]))[0].clone();
+        let now = time::macros::datetime!(2026-11-01 10:00 UTC);
+        let ended = revoke_bundle(
+            &request,
+            &endpoint("project-list", &["helsinki"]),
+            &[policy],
+            now,
+        );
+        assert_eq!(ended.len(), 1, "{ended:?}");
+        assert_eq!(ended[0]["kind"], "Policy");
+        assert_eq!(ended[0]["spec"]["validity"]["to"], "2026-11-01T10:00:00Z");
+    }
+
+    /// PL-115: a person asks only for types the Endpoint serves, each once; each refusal names its field.
+    #[test]
+    fn a_person_names_only_served_types() {
+        let served = ["AirQualityObserved".to_owned(), "Device".to_owned()];
+        let asked = |names: &[&str]| names.iter().map(|n| (*n).to_owned()).collect::<Vec<_>>();
+        assert_eq!(
+            checked_person_types(&asked(&[" Device "]), &served),
+            Ok(vec![TypeGrant {
+                entity_type: "Device".into(),
+                attrs: Vec::new()
+            }])
+        );
+        assert_eq!(
+            checked_person_types(&asked(&["Device", "Vehicle"]), &served),
+            Err(vec![
+                "types[1]: 'Vehicle' is no type this endpoint serves".to_owned()
+            ])
+        );
+        assert!(checked_person_types(&asked(&["Device", "Device"]), &served).is_err());
+        assert!(checked_person_types(&[], &served).is_err());
+        assert!(checked_person_types(&asked(&["Device"]), &[]).is_err());
     }
 }

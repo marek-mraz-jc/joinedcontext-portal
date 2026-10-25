@@ -1918,7 +1918,7 @@
     "playground": {
       "title": "Vyzkoušet",
       "reading": "Zjišťuji, co smíte volat…",
-      "nothing": "Váš přístup vám přes tento endpoint nedovoluje nic volat.",
+      "nothing": "Váš přístup vám přes tento endpoint nedovoluje nic volat. Ke čtení požádejte jeho vlastníky v části Požádat o přístup níže.",
       "operation": "Co číst",
       "operations": {
         "list": "Entity typu",
@@ -2259,6 +2259,33 @@
         "policy": "Politika",
         "endpoint": "Endpoint",
         "type": "Typ"
+      }
+    },
+    "request": {
+      "section": "Požádat o přístup",
+      "sectionLead": "Požádejte vlastníky prostoru tohoto endpointu o čtení jeho dat. Oprávnění bude jen pro vás; rozhodne o něm vlastník a odpověď uvidíte zde.",
+      "reading": "Načítají se vaše žádosti…",
+      "retry": "Zkusit znovu",
+      "yours": "Vaše žádosti o přístup",
+      "yourRequest": "Vaše žádost",
+      "approvedHint": "Schváleno: oprávnění platí po sloučení jeho změny. Potom vám Vyzkoušet výše odpoví na čtení.",
+      "sent": "Žádost odeslána. Rozhodnou o ní vlastníci prostoru; její stav uvidíte zde.",
+      "noTypes": "Prostor tohoto endpointu nemá zkompilovaný datový model, proto zatím nelze žádat o žádný typ. Požádejte vlastníky, aby ho přidali.",
+      "title": "Požádat o čtení",
+      "lead": "Vyberte typy, které potřebujete, uveďte důvod a nastavte konec, pokud je potřebujete jen na čas.",
+      "types": "Typy entit",
+      "until": "Do (nepovinné)",
+      "reason": "Důvod",
+      "send": "Odeslat žádost",
+      "missing": {
+        "types": "Vyberte alespoň jeden typ.",
+        "until": "Vyberte pozdější den.",
+        "reason": "Uveďte, k čemu data potřebujete."
+      },
+      "hint": {
+        "types": "Druhy dat, které tento endpoint poskytuje a které potřebujete, např. parkovací místa.",
+        "until": "Poslední den oprávnění, např. 2027-01-31. Prázdné znamená bez konce.",
+        "reason": "K čemu data potřebujete, např. Týdenní zpráva o ovzduší pro okresní úřad."
       }
     }
   },
@@ -3284,9 +3311,9 @@
       "until": "Do {date}",
       "noEnd": "Bez data konce",
       "decided": "{who}: {reason}",
-      "inbox": "Pipeline žádající o přístup",
-      "inboxLead": "Pipeline jiných prostorů a projektů, které žádají číst nebo zapisovat do tohoto prostoru. Schválení navrhne přístup jako změnu tohoto projektu.",
-      "inboxEmpty": "Žádná pipeline nežádala o přístup k tomuto prostoru.",
+      "inbox": "Žádosti o přístup",
+      "inboxLead": "Lidé a pipeline jiných prostorů, kteří žádají o čtení nebo zápis tohoto prostoru. Schválení navrhne oprávnění jako změnu tohoto projektu; tuto změnu schválí jiná osoba.",
+      "inboxEmpty": "O přístup k tomuto prostoru zatím nikdo nepožádal.",
       "on": "na {endpoint}, žádá {who}",
       "decisionReason": "Důvod pro žadatele",
       "approve": "Schválit",
@@ -3308,7 +3335,8 @@
       "noTypes": "Prostor endpointu nemá zkompilovaný datový model, takže zatím nelze žádat o typ. Požádejte vlastníky, aby ho přidali.",
       "endpointFirst": "Nejprve vyberte endpoint.",
       "noAttrs": "Model nedeklaruje žádný atribut typu {type}.",
-      "typeFirst": "Nejprve vyberte typ entity."
+      "typeFirst": "Nejprve vyberte typ entity.",
+      "allAttrs": "všechny atributy"
     },
     "map": {
       "views": "Zobrazení pipeline",

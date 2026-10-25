@@ -2148,6 +2148,32 @@
         "evidence/worker-t5592/T-5592/viewer-endpoint-1440.png",
         "evidence/worker-t5592/T-5592/viewer-endpoint-400.png"
       ]
+    },
+    "src/pages/endpoints/AccessRequest.tsx": {
+      "walkedBy": "worker-t5615",
+      "date": "2026-10-25",
+      "screenshots": [
+        "evidence/worker-t5615/T-5615/endpoint-access-approved-1440.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-approved-400.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-approved-change-1440.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-approved-change-400.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-empty-1440.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-empty-400.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-error-1440.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-error-400.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-filled-1440.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-filled-400.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-inbox-1440.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-inbox-400.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-missing-1440.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-missing-400.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-no-types-1440.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-no-types-400.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-pending-1440.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-pending-400.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-refusal-1440.png",
+        "evidence/worker-t5615/T-5615/endpoint-access-refusal-400.png"
+      ]
     }
   }
 }

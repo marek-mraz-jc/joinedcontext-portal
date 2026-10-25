@@ -5,6 +5,9 @@
 //! ContextSpace) approves, declines or later revokes it. Approving and revoking propose a Change
 //! of the owning project as the approver, through the import door, so every check of a proposal
 //! (who may propose a Policy there, nobody granting above their own rights, the lane) applies.
+//!
+//! A person who reads an Endpoint asks the same owners on its page (EP-55, PF-58, T-5615): a read
+//! of types the Endpoint serves, for themself; the request waits in the same incoming list.
 
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, State};
@@ -18,7 +21,9 @@ use serde_json::{json, Value};
 use time::OffsetDateTime;
 use utoipa::ToSchema;
 
-use crate::access_requests::{self as requests, AccessRequest, EndpointName, NewRequest};
+use crate::access_requests::{
+    self as requests, AccessRequest, EndpointName, NewRequest, Operations, Requester,
+};
 use crate::auth::CurrentUser;
 use crate::error::ApiError;
 use crate::resource::is_dns1123;
@@ -121,9 +126,14 @@ async fn record(state: &AppState, user: &CurrentUser, request: &AccessRequest, w
         "actor": actor,
         "action": what,
         "request": request.id,
-        "pipeline": { "project": request.project, "name": request.pipeline },
+        "pipeline": request.pipeline().map(|name| json!({ "project": request.project, "name": name })),
+        "person": matches!(request.requester, Requester::Person(_)).then(|| request.account()),
         "endpoint": { "project": request.endpoint_project, "name": request.endpoint },
     });
+    let asker = match &request.requester {
+        Requester::Pipeline(pipeline) => format!("pipeline {}/{pipeline}", request.project),
+        Requester::Person(person) => format!("person {person}"),
+    };
     let event = |project: &str, space: Option<&str>| crate::activity::ActivityEvent {
         time: chrono::Utc::now(),
         project: project.to_owned(),
@@ -131,14 +141,18 @@ async fn record(state: &AppState, user: &CurrentUser, request: &AccessRequest, w
         kind: "access-request".to_owned(),
         source: "portal".to_owned(),
         summary: format!(
-            "{actor} {what}: pipeline {}/{} on endpoint {}/{}",
-            request.project, request.pipeline, request.endpoint_project, request.endpoint
+            "{actor} {what}: {asker} on endpoint {}/{}",
+            request.endpoint_project, request.endpoint
         ),
         severity: "info".to_owned(),
         correlation_id: None,
         details: details.clone(),
     };
-    let mut events = vec![event(&request.project, None)];
+    // A person's request lives in the Endpoint's project alone.
+    let mut events = Vec::with_capacity(2);
+    if request.pipeline().is_some() {
+        events.push(event(&request.project, None));
+    }
     // A typed name that names no Endpoint has no owner to tell (T-4946).
     if !request.space.is_empty() {
         events.push(event(&request.endpoint_project, Some(&request.space)));
@@ -471,7 +485,7 @@ fn new_request(
     let request = AccessRequest {
         id: requests::new_id(),
         project: project.to_owned(),
-        pipeline: pipeline.to_owned(),
+        requester: Requester::Pipeline(pipeline.to_owned()),
         endpoint_project: owner,
         endpoint: name,
         space,
@@ -787,8 +801,228 @@ pub(crate) async fn revoke_request(
     Ok((StatusCode::ACCEPTED, Json(change)).into_response())
 }
 
+/// The body a person sends on an Endpoint's page (EP-55, T-5615). It names no grantee: the grant
+/// is always for the person who files it.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PersonRequest {
+    /// Entity types the Endpoint serves, e.g. `["AirQualityObserved"]`.
+    pub types: Vec<String>,
+    /// The grant's end, RFC 3339; none is no end.
+    #[serde(default)]
+    pub until: Option<String>,
+    pub reason: String,
+}
+
+/// The Endpoint `name` of `project` as the caller reads it, and its space; 404 when they do not.
+fn readable_endpoint(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    name: &str,
+) -> Result<(Value, String), ApiError> {
+    let gone = || {
+        ApiError::NotFound(format!(
+            "endpoint '{name}' not found in project '{project}'"
+        ))
+    };
+    let effective = crate::permissions::for_request(state, &user.0.identity, project);
+    let manifest = endpoint_of(state, project, name).ok_or_else(gone)?;
+    if !effective.may_read_project() || !effective.may_read_manifest("Endpoint", &manifest) {
+        return Err(gone());
+    }
+    let space = crate::resource::reference_name(&manifest["spec"]["contextSpaceRef"])
+        .map(str::to_owned)
+        .ok_or_else(gone)?;
+    Ok((manifest, space))
+}
+
+/// The entity types `endpoint` serves: its space's compiled model, narrowed to the classes of the
+/// ModelProjection it names; empty when the space has no compiled model.
+fn served_types(state: &AppState, project: &str, space: &str, endpoint: &Value) -> Vec<String> {
+    let Some(model) = state.model_schemas.get(project, space) else {
+        return Vec::new();
+    };
+    let projected: Option<Vec<String>> =
+        crate::resource::reference_name(&endpoint["spec"]["projectionRef"]).map(|projection| {
+            state
+                .mirror
+                .get(project, "ModelProjection", projection)
+                .map(|held| {
+                    held.spec["classes"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|class| class["name"].as_str().map(str::to_owned))
+                        .collect()
+                })
+                .unwrap_or_default()
+        });
+    model
+        .classes
+        .keys()
+        .filter(|class| projected.as_ref().is_none_or(|kept| kept.contains(class)))
+        .cloned()
+        .collect()
+}
+
+/// Why a new Policy on the space would not reach `endpoint`, so a request could never be granted:
+/// it names its Policies, or it is an App's own Endpoint (AP-139).
+fn fixed_grants(state: &AppState, project: &str, endpoint: &Value) -> Option<String> {
+    let spec = &endpoint["spec"];
+    if !spec["policyRef"].is_null() || !spec["policyRefs"].is_null() {
+        return Some(
+            "this endpoint serves only the policies it names, so a new grant would not reach it; \
+             ask its owners to add one to its policy list"
+                .into(),
+        );
+    }
+    let name = endpoint["metadata"]["name"].as_str().unwrap_or_default();
+    name.strip_prefix("app-")
+        .filter(|app| state.mirror.get(project, "App", app).is_some())
+        .map(|app| {
+            format!("this endpoint belongs to app '{app}' and serves its roles only; ask for a role of the app instead")
+        })
+}
+
+/// A person, never a service account's or an agent's token, asks for a grant of their own.
+fn person_only(user: &CurrentUser) -> Result<(), ApiError> {
+    if user.0.identity.client.is_some() {
+        return Err(ApiError::Denied(
+            "a person asks for access in the Portal, never with a service account's or an \
+             agent's token (PF-58)"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/endpoints/{name}/access-requests",
+    summary = "List My Access Requests On An Endpoint",
+    description = "The caller's own requests on this Endpoint and the types they may ask for (EP-55): the types its space's model serves through it. `refusal` says why no request can be granted here, when that is so.",
+    tag = "endpoints",
+    params(
+        ("project" = String, Path, description = "The Endpoint's project"),
+        ("name" = String, Path, description = "The Endpoint"),
+    ),
+    responses(
+        (status = 200, description = "`{ types, refusal, items }`", body = Object),
+        (status = 404, description = "No such Endpoint the caller reads", body = crate::error::ProblemDetails),
+        (status = 503, description = "No database", body = crate::error::ProblemDetails),
+    )
+)]
+pub(crate) async fn list_mine(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+) -> Result<Json<Value>, ApiError> {
+    let (endpoint, space) = readable_endpoint(&state, &user, &project, &name)?;
+    let found = requests::of_person(pool(&state)?, &user.0.identity.username, (&project, &name))
+        .await
+        .map_err(store_error)?;
+    let at = now();
+    Ok(Json(json!({
+        "types": served_types(&state, &project, &space, &endpoint),
+        "refusal": fixed_grants(&state, &project, &endpoint),
+        "items": found.iter().map(|r| r.view(at)).collect::<Vec<_>>(),
+    })))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/projects/{project}/endpoints/{name}/access-requests",
+    summary = "Request Access To An Endpoint",
+    description = "Asks the owners of the Endpoint's space for a read of named types for the caller (EP-55, PF-58). Grants nothing until another person, an owner of the space, approves it; the approval proposes one Policy for the caller.",
+    tag = "endpoints",
+    params(
+        ("project" = String, Path, description = "The Endpoint's project"),
+        ("name" = String, Path, description = "The Endpoint"),
+    ),
+    request_body(
+        content = PersonRequest,
+        content_type = "application/json",
+        example = json!({ "types": ["AirQualityObserved"], "until": "2027-01-31T23:59:59Z", "reason": "Weekly air report for the district office" })
+    ),
+    responses(
+        (status = 201, description = "The request, pending", body = Object),
+        (status = 400, description = "The body is no request (an unknown member, such as a grantee)", body = crate::error::ProblemDetails),
+        (status = 403, description = "A service account's or an agent's token", body = crate::error::ProblemDetails),
+        (status = 404, description = "No such Endpoint the caller reads", body = crate::error::ProblemDetails),
+        (status = 409, description = "Already asked or granted, or no grant could reach this Endpoint", body = crate::error::ProblemDetails),
+        (status = 422, description = "A field names what the Endpoint does not serve, or an end that passed", body = crate::error::ProblemDetails),
+        (status = 503, description = "No database", body = crate::error::ProblemDetails),
+    )
+)]
+pub(crate) async fn file_person_request(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, name)): Path<(String, String)>,
+    body: Result<Json<PersonRequest>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    person_only(&user)?;
+    let (endpoint, space) = readable_endpoint(&state, &user, &project, &name)?;
+    let Json(body) = body.map_err(|e| ApiError::BadRequest(e.body_text()))?;
+    if let Some(refusal) = fixed_grants(&state, &project, &endpoint) {
+        return Err(ApiError::Conflict(refusal));
+    }
+    let requested_at = now();
+    let served = served_types(&state, &project, &space, &endpoint);
+    let mut errors = Vec::new();
+    let types = requests::checked_person_types(&body.types, &served)
+        .map_err(|problems| errors.extend(problems))
+        .unwrap_or_default();
+    let until = requests::checked_until(body.until.as_deref(), requested_at)
+        .map_err(|problem| errors.push(format!("until: {problem}")))
+        .unwrap_or_default();
+    let reason = requests::reason(&body.reason)
+        .map_err(|problem| errors.push(format!("reason: {problem}")))
+        .unwrap_or_default();
+    if !errors.is_empty() {
+        return Err(ApiError::Unprocessable {
+            detail: format!("the request to endpoint '{project}/{name}' is not complete (EP-55)"),
+            errors,
+        });
+    }
+    let username = user.0.identity.username.clone();
+    let request = AccessRequest {
+        id: requests::new_id(),
+        project: project.clone(),
+        requester: Requester::Person(username.clone()),
+        endpoint_project: project.clone(),
+        endpoint: name.clone(),
+        space,
+        operations: Operations::Read,
+        types,
+        until,
+        reason,
+        state: "pending".into(),
+        requested_by: username,
+        requested_at,
+        decided_by: None,
+        decided_at: None,
+        decision_reason: None,
+        change: None,
+    };
+    if !requests::insert(pool(&state)?, &request)
+        .await
+        .map_err(store_error)?
+    {
+        return Err(ApiError::Conflict(format!(
+            "you already have an open or granted request on endpoint '{project}/{name}'; its state shows on the endpoint's page"
+        )));
+    }
+    record(&state, &user, &request, "asked for access").await;
+    Ok((StatusCode::CREATED, Json(request.view(requested_at))).into_response())
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route(
+            "/projects/{project}/endpoints/{name}/access-requests",
+            post(file_person_request).get(list_mine),
+        )
         .route(
             "/projects/{project}/pipelines/{name}/access-requests",
             post(file_request).get(list_outgoing),
