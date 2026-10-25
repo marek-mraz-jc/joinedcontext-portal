@@ -1,22 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
 import { useTranslation } from "react-i18next";
 import { parseGridConfig } from "@joinedcontext/sdk";
 import type { GridState, ResolvedGridConfig, RichRow } from "@joinedcontext/sdk";
-import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized, refName } from "../../api/manifest";
 import { AccessPanel, deniedAttributes, editableAttributes, useAccess } from "../../components/entities/AccessPanel";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
-import { deleteEntity, enumsOfModel, MAX_REASON, reasonProblem, fetchEntity, filterSlotsOf, qProblem, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
+import { enumsOfModel, fetchEntity, filterSlotsOf, qProblem, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import type { EntityQuery } from "../../components/entities/filters";
-import { RecordView, Alert, Button, Dialog, EmptyState, Field, Input, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
+import { Alert, Button, EmptyState, Field, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
 import { TypeQuality } from "./TypeQuality";
 import { TypeLink } from "../models/ModelLinks";
-import { localId } from "../apps/QueryResultCard";
 import { ExportView } from "./ExportView";
+import { ExploreRowActions } from "./ExploreRowActions";
 import { UseThisData } from "./UseThisData";
 import { ChartFromView } from "./ChartFromView";
 import { ExploreMap, isLocated } from "./ExploreMap";
@@ -85,22 +85,17 @@ export function ExplorePage({
   // space below.
   const [chosenSpace, setSpace] = useState<string | null>(initialSpace ?? null);
   const [endpointChoice, setEndpointChoice] = useState<string>(initialEndpoint ?? "");
-  const [query, setQuery] = useState<EntityQuery>(
+  const [askedQuery, setQuery] = useState<EntityQuery>(
     initialType ? { type: initialType, q: initialQ } : {},
   );
   const [selected, setSelected] = useState<string | null>(initialEntityId ?? null);
   // The type's entities, or its data-quality report (T-3252).
   const [view, setView] = useState<"entities" | "quality" | "map">("entities");
-  const [removing, setRemoving] = useState(false);
-  /** Why the person deletes, sent as `JC-Reason` (DM-113); checked once they try to confirm. */
-  const [reason, setReason] = useState("");
-  const [reasonTried, setReasonTried] = useState(false);
   /** What the grid's filter row asks and its order, for the export of the whole view (T-3253). */
   const [gridAsk, setGridAsk] = useState<{ q?: string; idPattern?: string }>({});
   const [gridSort, setGridSort] = useState<ViewSort | null>(null);
   /** Bumped when an entity is removed, so the grid reads the endpoint again. */
   const [generation, setGeneration] = useState(0);
-  const queryClient = useQueryClient();
 
   /**
    * The `entities` hand-off names the endpoint and not its space (UI-59), and the page reads an
@@ -123,6 +118,20 @@ export function ExplorePage({
       : (chosenEndpoint ?? pickReadEndpoint(spaceEndpoints, identity ? (identity.groups ?? []) : null, project));
   const endpointName = endpoint?.metadata.name;
 
+  const slug = typeof endpoint?.spec.slug === "string" ? String(endpoint.spec.slug) : undefined;
+  // A link naming an entity and not its type (the command palette's "Open entity") reads the entity
+  // once through the endpoint to learn its type, so the grid opens on it and shows its detail.
+  const linkedType = useQuery({
+    queryKey: ["explore-entity", slug, selected],
+    queryFn: () => fetchEntity(slug!, selected!),
+    enabled: Boolean(slug && selected && !askedQuery.type),
+  });
+  const typeOfLink = askedQuery.type ? undefined : linkedType.data?.type;
+  const query: EntityQuery = useMemo(
+    () => (typeof typeOfLink === "string" ? { ...askedQuery, type: typeOfLink } : askedQuery),
+    [askedQuery, typeOfLink],
+  );
+
   // What is chosen stands in the address as it changes (UI-89, T-3239): a reload or a link sent
   // to a colleague opens the same space, endpoint, type, search and entity. `space` and
   // `endpoint` are also the assistant's hand-off; written as the page's own, they mount nothing
@@ -142,7 +151,6 @@ export function ExplorePage({
     put("entityId", selected);
     replaceOwnSearch(address);
   }, [chosenSpace, endpointChoice, endpointName, query.type, query.q, selected]);
-  const slug = typeof endpoint?.spec.slug === "string" ? String(endpoint.spec.slug) : undefined;
   const spaceManifest = (spaces.data ?? []).find((s) => s.metadata.name === space);
   const model = (models.data ?? []).find(
     (m) => m.metadata.name === refName(spaceManifest?.spec.dataModelRef),
@@ -188,11 +196,11 @@ export function ExplorePage({
   // UI-44, EP-55: a control the grant denies stays visible and says why, rather than working
   // until the gateway refuses it. The grant is the endpoint's own `/access` document, already
   // read above for the attributes it hides (T-1021).
-  const mayDelete =
+  const mayDelete = (type: string) =>
     access.data === undefined ||
     (access.data.permissions ?? []).some(
       (entry) =>
-        (entry.resource?.type === undefined || entry.resource.type === query.type) &&
+        (entry.resource?.type === undefined || entry.resource.type === type) &&
         (entry.actions ?? []).some((action) => action === "deleteEntity" || action === "deleteBatch"),
     );
   // The attributes this person may correct in place, by the endpoint's own grant (UI-67).
@@ -235,55 +243,23 @@ export function ExplorePage({
       previous?.attr === next.sort?.attr && previous?.dir === next.sort?.dir ? previous : next.sort,
     );
   }, []);
-  const renderers = useMemo(
-    () => ({
-      // The identifier opens the entity as the endpoint holds it: the whole JSON-LD, and the one
-      // place the removal of UI-60 is offered from.
-      id: (_cell: unknown, row: RichRow) => (
-        // `xs` with no side padding: the id has to sit on the row's own line rather than in a
-        // button-shaped box, and that is the one size of the shared control that fits a cell.
-        // Every id of the type starts `urn:ngsi-ld:Type:…`, so the cell shows the URN's end and
-        // the whole id is the name and the tooltip: cut at a phone's width, each row read the
-        // same (T-4265, photo audit T-4160 #19).
-        <Button
-          variant="ghost"
-          size="xs"
-          className="px-0 font-mono text-primary-soft-fg underline-offset-2 hover:bg-transparent hover:underline"
-          aria-label={row.id}
-          title={row.id}
-          onClick={() => setSelected(row.id)}
-        >
-          {localId(row.id)}
-        </Button>
-      ),
-    }),
-    [],
-  );
-
-  const detail = useQuery({
-    queryKey: ["explore-entity", slug, selected],
-    queryFn: () => fetchEntity(slug!, selected!),
-    enabled: Boolean(slug && selected),
-  });
-
-  // UI-60: the entity is removed through the same endpoint that shows it, with this person's
-  // session. A refusal is the gateway's own sentence, shown as it came.
-  const remove = useMutation({
-    mutationFn: () => deleteEntity(slug!, selected!, reason),
-    onSuccess: () => {
-      setRemoving(false);
-      setReason("");
-      setReasonTried(false);
-      setSelected(null);
-      void queryClient.removeQueries({ queryKey: ["explore-entity", slug] });
-      // The grid holds a page that still lists the entity; a new key makes it read the endpoint
-      // again rather than show a row that is gone.
-      setGeneration((each) => each + 1);
-    },
-  });
-  const reasonError = reasonTried ? reasonProblem(reason) : null;
-  const removeFailed =
-    remove.error instanceof ApiError ? remove.error.message : remove.error ? t("app.error.generic") : null;
+  // A row opens in the grid's own detail (T-5619): its fields as the grid draws them, its history,
+  // and under them what the page adds, the removal of UI-60 and the entity as the endpoint holds it.
+  const detailExtra = (row: RichRow) =>
+    slug ? (
+      <ExploreRowActions
+        key={row.id}
+        slug={slug}
+        id={row.id}
+        deniedReason={mayDelete(row.type) ? undefined : t("explore.deleteDenied", { type: row.type })}
+        onDeleted={() => {
+          setSelected(null);
+          // The grid holds a page that still lists the entity; a new key makes it read the endpoint
+          // again rather than show a row that is gone.
+          setGeneration((each) => each + 1);
+        }}
+      />
+    ) : null;
 
   function changeQuery(next: EntityQuery) {
     setQuery(next);
@@ -445,7 +421,9 @@ export function ExplorePage({
             onGridState={onGridState}
             // A filter that excludes everything says so, and how to get rows back (T-4160 #22).
             emptyText={query.q ? t("explore.noMatch") : undefined}
-            renderers={renderers}
+            openRow={selected}
+            onOpenRow={setSelected}
+            detailExtra={detailExtra}
             toolbar={
               slug ? (
                 <div className="flex flex-wrap items-center gap-2">
@@ -512,115 +490,6 @@ export function ExplorePage({
         />
       ) : null}
 
-      {selected ? (
-        <section
-          aria-labelledby="explore-detail"
-          className="rounded-md border border-border bg-surface p-3"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <h2 id="explore-detail" className="text-body font-semibold text-fg">
-              {t("explore.detail")} <span className="font-mono font-normal">{selected}</span>
-            </h2>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="danger"
-                data-testid="explore-delete"
-                disabled={!mayDelete}
-                // `title` on a hard-disabled button is unreachable twice over: the control is
-                // out of the tab order and `disabled:pointer-events-none` swallows the tooltip,
-                // so the grant's refusal was written and could never be read (UI-44, T-1768).
-                disabledReason={
-                  mayDelete ? undefined : t("explore.deleteDenied", { type: query.type ?? "" })
-                }
-                onClick={() => {
-                  remove.reset();
-                  setReason("");
-                  setReasonTried(false);
-                  setRemoving(true);
-                }}
-              >
-                {t("explore.delete")}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setSelected(null)}>
-                {t("explore.close")}
-              </Button>
-            </div>
-          </div>
-          {detail.error ? (
-            <Alert role="alert" tone="danger">
-              {detail.error instanceof ApiError ? detail.error.message : t("explore.loadFailed")}
-            </Alert>
-          ) : (
-            // Opening an entity announced nothing and arriving announced nothing either: a
-            // screen-reader user was left waiting on a pane that had already filled (T-1768).
-            <div className="mt-2" data-testid="explore-entity" aria-live="polite" aria-busy={detail.isPending || undefined}>
-              {detail.data ? (
-                <RecordView value={detail.data} label={t("codeBlock.entity")} className="max-h-96" />
-              ) : (
-                <p className="text-caption text-fg-muted">{t("app.loading")}</p>
-              )}
-            </div>
-          )}
-        </section>
-      ) : null}
-
-      <Dialog
-        open={removing && selected !== null}
-        onOpenChange={(next) => {
-          setRemoving(next);
-          if (!next) {
-            remove.reset();
-          }
-        }}
-        size="sm"
-        title={t("explore.removeTitle")}
-        description={t("explore.removeLead", { id: selected ?? "" })}
-        closeLabel={t("explore.close")}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setRemoving(false)}>
-              {t("form.cancel")}
-            </Button>
-            <Button
-              variant="danger"
-              disabled={remove.isPending}
-              disabledReason={t("app.busyReason")}
-              onClick={() => {
-                setReasonTried(true);
-                if (reasonProblem(reason) === null) remove.mutate();
-              }}
-              data-testid="explore-delete-confirm"
-            >
-              {t("explore.removeConfirm")}
-            </Button>
-          </>
-        }
-      >
-        <div className="flex flex-col gap-3">
-          <p className="text-caption text-fg-muted">{t("explore.removeNote")}</p>
-          <Field
-            id="explore-delete-reason"
-            label={t("explore.removeReason")}
-            required
-            help={t("explore.removeReasonHint")}
-            errors={reasonError ? [t(`explore.removeReasonError.${reasonError}`, { max: MAX_REASON })] : undefined}
-          >
-            <Input
-              id="explore-delete-reason"
-              value={reason}
-              maxLength={MAX_REASON}
-              autoComplete="off"
-              onChange={(event) => setReason(event.target.value)}
-            />
-          </Field>
-          {removeFailed ? (
-            <Alert role="alert" tone="danger">
-              {removeFailed}
-            </Alert>
-          ) : null}
-        </div>
-      </Dialog>
     </div>
   );
 }

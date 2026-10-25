@@ -1577,6 +1577,7 @@ pub async fn propose_files(
         crate::api::changes::change_meta(state, gitea, pull.number, project),
         ChangeStatus::new(lane, ChangePhase::PendingApproval, summary)
             .in_repository(&pull.repository)
+            .proposed_through(&pull.body)
             .with_merge_request(pull.url),
     );
     Ok(change)

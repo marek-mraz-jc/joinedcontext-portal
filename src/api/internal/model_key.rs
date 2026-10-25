@@ -118,6 +118,19 @@ pub fn transition(before: Option<Known>, report: &KeyReport) -> Option<(&'static
 // alerts read the newest series. A shared row is the upgrade when the Portal scales out.
 static KNOWN: Mutex<Option<Known>> = Mutex::new(None);
 
+/// Whether the app builder can answer, as far as this replica heard: `false` from the report
+/// that the key is refused or out of credit until one says it works again (T-5617). A Portal no
+/// report reached yet counts the key as working; the run itself says so when it does not.
+pub fn builder_answers() -> bool {
+    let known = *KNOWN
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    !matches!(
+        known.map(|known| known.state),
+        Some(KeyState::Invalid | KeyState::OutOfCredit)
+    )
+}
+
 pub async fn model_key(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -237,6 +250,25 @@ mod tests {
             transition(known(KeyState::Valid, false), &unreachable),
             None
         );
+    }
+
+    /// T-5617: the gallery offers Generate again only once the key works again.
+    #[test]
+    fn the_builder_answers_until_the_key_is_refused_or_empty() {
+        let set = |known: Option<Known>| {
+            *KNOWN
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = known;
+        };
+        set(None);
+        assert!(builder_answers());
+        set(known(KeyState::OutOfCredit, false));
+        assert!(!builder_answers());
+        set(known(KeyState::Invalid, false));
+        assert!(!builder_answers());
+        set(known(KeyState::Valid, true));
+        assert!(builder_answers());
+        set(None);
     }
 
     #[test]

@@ -29,6 +29,11 @@ pub struct Config {
     /// without an edge in front leaves it off and the header is ignored
     /// (`JC_TRUST_EDGE_TOKEN`, the literal string `true` to turn it on; default `false`).
     pub trust_edge_token: bool,
+    /// Keycloak clients an MCP connector holds a person's token through (AG-63, AG-82, T-5610):
+    /// such a bearer writes only through `/api/v1/mcp`, which asks the person first, and REST
+    /// refuses its writes. Always [`CONNECTOR_CLIENTS`], plus any `JC_PORTAL_CONNECTOR_CLIENTS`
+    /// names (comma-separated): the setting adds clients, it cannot open the door again.
+    pub connector_clients: Vec<String>,
     /// Whether the Dashboards section is shown (`JC_PORTAL_DASHBOARDS`, the literal string
     /// `true` to show it; default hidden, the owner's call of 2026-09-25, T-2874). Hidden, the
     /// navigation leaves it out, its page sends a visit to the project and the assistant does
@@ -312,6 +317,7 @@ impl std::fmt::Debug for Config {
             .field("public_base_url", &self.public_base_url.as_str())
             .field("oidc", &self.oidc)
             .field("trust_edge_token", &self.trust_edge_token)
+            .field("connector_clients", &self.connector_clients)
             .field(
                 "decisions_need_second_factor",
                 &self.decisions_need_second_factor,
@@ -1688,6 +1694,7 @@ impl Config {
 
         // Only the literal `true` turns it on: a misspelling must not open the door (ADR-N-019).
         let trust_edge_token = lookup("JC_TRUST_EDGE_TOKEN").is_some_and(|v| v.trim() == "true");
+        let connector_clients = connector_clients(lookup("JC_PORTAL_CONNECTOR_CLIENTS"));
         let dashboards = lookup("JC_PORTAL_DASHBOARDS").is_some_and(|v| v.trim() == "true");
         let setup = SetupStatements::from_vars(&lookup);
 
@@ -1746,6 +1753,7 @@ impl Config {
             public_base_url,
             oidc,
             trust_edge_token,
+            connector_clients,
             dashboards,
             setup,
             cookie_key,
@@ -1813,6 +1821,7 @@ impl Config {
                 .unwrap_or_else(|_| unreachable!("valid test url")),
             oidc: None,
             trust_edge_token: false,
+            connector_clients: connector_clients(None),
             // The tests exercise the section; hiding it is tested where it is decided.
             dashboards: true,
             setup: SetupStatements::default(),
@@ -1909,6 +1918,21 @@ fn broker_url_template(raw: &str) -> Result<String, ConfigError> {
         return Err(invalid("must be http or https"));
     }
     Ok(raw.to_owned())
+}
+
+/// The Keycloak clients of the MCP connectors the platform ships (deployment
+/// components/context-gateway/keycloak-clients.yaml): the person's connector and the hub's.
+pub const CONNECTOR_CLIENTS: [&str; 2] = ["mcp-mobile", "mcp-hub"];
+
+/// [`CONNECTOR_CLIENTS`] and the names `extra` adds, each once.
+fn connector_clients(extra: Option<String>) -> Vec<String> {
+    let mut clients: Vec<String> = CONNECTOR_CLIENTS.map(String::from).to_vec();
+    for name in extra.iter().flat_map(|v| v.split(',')).map(str::trim) {
+        if !name.is_empty() && !clients.iter().any(|c| c == name) {
+            clients.push(name.to_owned());
+        }
+    }
+    clients
 }
 
 #[cfg(test)]
@@ -2975,6 +2999,36 @@ mod tests {
                     .unwrap();
             assert_eq!(config.dashboards, shown, "{value:?}");
         }
+    }
+
+    /// T-5610: the connector clients are always refused REST writes; the setting only adds.
+    #[test]
+    fn the_connector_clients_are_the_defaults_plus_what_the_deployment_adds() {
+        assert_eq!(
+            Config::from_vars(|_| None).unwrap().connector_clients,
+            ["mcp-mobile", "mcp-hub"]
+        );
+        for value in ["", " , ", "mcp-mobile"] {
+            let config = Config::from_vars(|k| match k {
+                "JC_PORTAL_CONNECTOR_CLIENTS" => Some(value.to_string()),
+                _ => None,
+            })
+            .unwrap();
+            assert_eq!(
+                config.connector_clients,
+                ["mcp-mobile", "mcp-hub"],
+                "{value:?}"
+            );
+        }
+        let config = Config::from_vars(|k| match k {
+            "JC_PORTAL_CONNECTOR_CLIENTS" => Some(" claude-desktop ,mcp-hub".to_string()),
+            _ => None,
+        })
+        .unwrap();
+        assert_eq!(
+            config.connector_clients,
+            ["mcp-mobile", "mcp-hub", "claude-desktop"]
+        );
     }
 
     /// ADR-N-019: the edge token is trusted on the literal `true` and on nothing else.

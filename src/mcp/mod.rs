@@ -612,11 +612,34 @@ fn may_read_kind(state: &AppState, caller: &crate::ops::Caller, project: &str, k
     crate::permissions::for_request(state, &caller.identity, project).may_read(kind)
 }
 /// One `tools/call`, answered as its JSON-RPC envelope: an error, or a result the caller grounds.
+///
+/// Every commit and merge request the call opens carries its channel and client (AG-17,
+/// AG-137), and the call is one row on the project's activity (AG-56, T-5609).
 async fn tools_call(
     state: &AppState,
     caller: crate::ops::Caller,
     id: Value,
     params: &Value,
+) -> Value {
+    let via = crate::change::ProposedVia::mcp(caller.identity.client.as_deref());
+    let mut answer = None;
+    let envelope = crate::change::PROPOSED_VIA
+        .scope(
+            via.clone(),
+            answer_call(state, caller.clone(), id, params, &via, &mut answer),
+        )
+        .await;
+    record_call(state, &caller, params, &envelope, answer, &via).await;
+    envelope
+}
+
+async fn answer_call(
+    state: &AppState,
+    caller: crate::ops::Caller,
+    id: Value,
+    params: &Value,
+    via: &crate::change::ProposedVia,
+    answer: &mut Option<&'static str>,
 ) -> Value {
     let name = params.get("name").and_then(Value::as_str).unwrap_or("");
     let arguments = params
@@ -654,7 +677,7 @@ async fn tools_call(
     // rather than asked to confirm something that would be refused after they answered.
     if let Err(refused) = caller
         .may_run(op)
-        .and_then(|()| crate::ops::permitted(op, &caller.identity, state, project))
+        .and_then(|()| crate::ops::may_try(op, &caller.identity, state, project, Some(&input)))
     {
         return result(id, failure_result(&refused.to_string()));
     }
@@ -707,10 +730,10 @@ async fn tools_call(
                 .answer(owner, op.name, project, &digest, sent)
             {
                 elicitation::Answer::Accepted => {
-                    record_answer(state, project, &caller, op.name, "accepted").await;
+                    *answer = Some("accepted");
                 }
                 elicitation::Answer::Declined => {
-                    record_answer(state, project, &caller, op.name, "declined").await;
+                    *answer = Some("declined");
                     return result(
                         id,
                         failure_result("the person declined this call; nothing was run (AG-63)"),
@@ -738,23 +761,27 @@ async fn tools_call(
         let state_for_task = state.clone();
         let project = project.to_owned();
         let op_name = op.name;
-        let task = state.mcp_tasks.start(&owner, async move {
-            let op = crate::ops::find(op_name).expect("the operation was found above");
-            let mut outcome =
-                match crate::ops::call(op, &caller, &state_for_task, &project, input).await {
-                    Ok(output) => call_result(&output),
-                    Err(crate::ops::OpError::Conflict(val)) => conflict_result(&val),
-                    Err(err) => failure_result(&err.to_string()),
-                };
-            // `tasks/result` answers this later: grounded when it was evaluated (AG-12).
-            if let Some(outcome) = outcome.as_object_mut() {
-                outcome.insert(
-                    "_meta".to_owned(),
-                    json!({ "joinedcontext.com/grounding": grounding(&state_for_task) }),
-                );
-            }
-            outcome
-        });
+        // The task runs apart from this request: it carries the call's channel itself.
+        let task = state.mcp_tasks.start(
+            &owner,
+            crate::change::PROPOSED_VIA.scope(via.clone(), async move {
+                let op = crate::ops::find(op_name).expect("the operation was found above");
+                let mut outcome =
+                    match crate::ops::call(op, &caller, &state_for_task, &project, input).await {
+                        Ok(output) => call_result(&output),
+                        Err(crate::ops::OpError::Conflict(val)) => conflict_result(&val),
+                        Err(err) => failure_result(&err.to_string()),
+                    };
+                // `tasks/result` answers this later: grounded when it was evaluated (AG-12).
+                if let Some(outcome) = outcome.as_object_mut() {
+                    outcome.insert(
+                        "_meta".to_owned(),
+                        json!({ "joinedcontext.com/grounding": grounding(&state_for_task) }),
+                    );
+                }
+                outcome
+            }),
+        );
         return result(id, json!({ "task": task }));
     }
 
@@ -982,7 +1009,8 @@ fn lane_word(lane: crate::change::Lane) -> &'static str {
     }
 }
 
-/// Where the person looks at what the call would do: the project's page for that kind.
+/// Where the person looks at what the call would do: the resource the arguments name, else the
+/// project's page for that kind.
 ///
 /// An operation of one kind names it; `jc_resource_*` takes any kind, so the arguments name it
 /// and the page is the one holding the resource the call is about.
@@ -997,20 +1025,89 @@ fn confirm_url(state: &AppState, project: &str, kind: &str, input: &Value) -> St
         "*" => named.unwrap_or(kind),
         named_by_operation => named_by_operation,
     };
-    match crate::resource::by_kind(kind) {
-        Some(info) => format!("{base}/projects/{project}/{}", info.plural),
-        None => format!("{base}/projects/{project}"),
+    // The resource itself when the arguments name one (AG-63: the person looks at what the call
+    // would change); a name that is no resource name keeps the kind's page, so the arguments
+    // never shape the address beyond one path segment.
+    let name = input
+        .get("name")
+        .or_else(|| input.pointer("/manifest/metadata/name"))
+        .and_then(Value::as_str)
+        .filter(|name| crate::resource::is_dns1123(name));
+    match (crate::resource::by_kind(kind), name) {
+        (Some(info), Some(name)) => format!("{base}/projects/{project}/{}/{name}", info.plural),
+        (Some(info), None) => format!("{base}/projects/{project}/{}", info.plural),
+        (None, _) => format!("{base}/projects/{project}"),
     }
 }
 
-/// The person's answer, on the project's activity: who allowed what, and when (AG-56, AG-63).
-async fn record_answer(
+/// What one `tools/call` came to, as its activity row says it: `ran`, `started` (a task),
+/// `asked` (the question of AG-63), `declined` (the person's answer) or `refused`.
+fn decision_of(envelope: &Value, answer: Option<&str>) -> &'static str {
+    let result = &envelope["result"];
+    if answer == Some("declined") {
+        "declined"
+    } else if envelope.get("error").is_some() || result["isError"] == true {
+        "refused"
+    } else if result["status"] == "input_required" {
+        "asked"
+    } else if result.get("task").is_some() {
+        "started"
+    } else {
+        "ran"
+    }
+}
+
+/// The Change a call opened, by the name the activity correlates it with.
+fn change_of(envelope: &Value) -> Option<String> {
+    let out = &envelope["result"]["structuredContent"];
+    [out, &out["change"]]
+        .into_iter()
+        .find(|v| v["kind"] == "Change")
+        .and_then(|change| change.pointer("/metadata/name")?.as_str())
+        .map(str::to_owned)
+}
+
+/// One `tools/call` on the project's activity (AG-56, AG-63, T-5609): who ran which operation
+/// through which client, and what came of it. Names only: no argument value and no manifest
+/// content reaches the row. A call about a project the caller may not read, or naming no known
+/// operation, writes nothing there: its readers learn nothing a stranger typed.
+async fn record_call(
     state: &AppState,
-    project: &str,
     caller: &crate::ops::Caller,
-    operation: &str,
-    decision: &str,
+    params: &Value,
+    envelope: &Value,
+    answer: Option<&'static str>,
+    via: &crate::change::ProposedVia,
 ) {
+    let name = params.get("name").and_then(Value::as_str).unwrap_or("");
+    let Some(op) = crate::ops::find(name) else {
+        return;
+    };
+    let project = params
+        .pointer("/arguments/project")
+        .or_else(|| params.get("project"))
+        .and_then(Value::as_str)
+        .filter(|p| !p.trim().is_empty());
+    let Some(project) = project.filter(|p| may_read(state, caller, p)) else {
+        return;
+    };
+    let decision = decision_of(envelope, answer);
+    let change = change_of(envelope);
+    let username = caller.identity.username.as_str();
+    let mut details = json!({
+        "operation": op.name,
+        "decision": decision,
+        "subject": caller.identity.subject,
+        "username": username,
+        "channel": via.channel,
+        "client": via.client,
+    });
+    if let Some(answer) = answer {
+        details["answer"] = json!(answer);
+    }
+    if let Some(change) = &change {
+        details["change"] = json!(change);
+    }
     let event = crate::activity::ActivityEvent {
         time: chrono::Utc::now(),
         project: project.to_owned(),
@@ -1018,19 +1115,20 @@ async fn record_answer(
         kind: "mcp.tool".to_owned(),
         source: "portal".to_owned(),
         summary: format!(
-            "{} {decision} {operation} asked through MCP",
-            caller.identity.username
+            "{username} {decision} {} through {} (MCP)",
+            op.name, via.client
         ),
-        severity: "info".to_owned(),
-        correlation_id: None,
-        details: json!({
-            "operation": operation,
-            "decision": decision,
-            "subject": caller.identity.subject,
-        }),
+        severity: if decision == "refused" {
+            "warning"
+        } else {
+            "info"
+        }
+        .to_owned(),
+        correlation_id: change,
+        details,
     };
     if let Err(err) = state.activity.append(&[event]).await {
-        tracing::warn!(operation, error = %err, "the MCP consent answer is not on the activity feed");
+        tracing::warn!(operation = op.name, error = %err, "the MCP call is not on the activity feed");
     }
 }
 

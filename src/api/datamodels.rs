@@ -1212,6 +1212,7 @@ pub(crate) async fn propose_model(
         },
     )
     .in_repository(&pr.repository)
+    .proposed_through(&pr.body)
     .with_merge_request(pr.url);
     Ok(Change::new(change_meta, change_status))
 }

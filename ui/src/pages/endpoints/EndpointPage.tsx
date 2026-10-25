@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Playground } from "./Playground";
+import { EndpointAccessRequest } from "./AccessRequest";
 import { ShareFlow } from "./ShareFlow";
 import { AccessRequestInbox } from "../pipelines/AccessRequests";
 import { EndpointDocs } from "./EndpointDocs";
@@ -288,6 +289,17 @@ export function EndpointPage({
           <LifecycleBadge kind="phase" value={manifest.status?.phase} />
           {manifest.status?.sourceUrl ? (
             <SourceLink href={manifest.status.sourceUrl} label={t("spaces.field.source")} />
+          ) : null}
+          {/* What the person may do through this Endpoint, the Data access table opened on it (T-5593). */}
+          {slug ? (
+            <Link
+              to="/projects/$project/settings/$tab"
+              params={{ project, tab: "access" }}
+              search={{ endpoint: name }}
+              className="text-sm text-primary-soft-fg underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
+            >
+              {t("projectSettings.access.title")}
+            </Link>
           ) : null}
         </div>
       </div>
@@ -612,6 +624,11 @@ export function EndpointPage({
         >
           {t("endpoints.page.openPolicies")}
         </Link>
+      </Section>
+
+      {/* A person's own ask for a read here, decided by the space's owners (EP-55, T-5615). */}
+      <Section title={t("endpoints.request.section")} lead={t("endpoints.request.sectionLead")}>
+        <EndpointAccessRequest project={project} name={name} />
       </Section>
 
       {/* Who may do what, for every principal at once, as the gateway answers it (T-5531). */}

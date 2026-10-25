@@ -14,6 +14,7 @@ import { api, ApiError, unwrap } from "../../api/client";
 import type { Change, ResourceProposal } from "../../api/manifest";
 import { useProposal } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
+import { columnLabel, displayOrder } from "../../components/entities/displayOrder";
 import { endpointUrl } from "../../components/endpoints/links";
 import {
   Alert,
@@ -161,13 +162,81 @@ export function SharePanel({
   );
 }
 
+/** A refused or failed anonymous read: its status, and the seconds a 429 asks to wait. */
+export class PublicReadError extends ApiError {
+  readonly retryAfter?: number;
+
+  constructor(status: number, message: string, retryAfter?: number) {
+    super(status, message);
+    this.retryAfter = retryAfter;
+  }
+}
+
+/** `Retry-After` in seconds (RFC 9110 §10.2.3): delay seconds or an HTTP date; absent when neither. */
+export function retryAfterSeconds(header: string | null, now = Date.now()): number | undefined {
+  if (!header) return undefined;
+  const text = header.trim();
+  if (/^\d+$/.test(text)) return Number(text);
+  const at = Date.parse(text);
+  return Number.isNaN(at) ? undefined : Math.max(0, Math.ceil((at - now) / 1000));
+}
+
 /** One anonymous read of a public Endpoint; the gateway decides what it answers. */
 async function readPublic(slug: string, path: string): Promise<unknown> {
   const response = await globalThis.fetch(
     new Request(endpointUrl(slug, path), { headers: { Accept: "application/json" }, credentials: "omit" }),
   );
-  if (!response.ok) throw new ApiError(response.status, response.statusText || `HTTP ${response.status}`);
+  if (!response.ok) {
+    throw new PublicReadError(
+      response.status,
+      response.statusText || `HTTP ${response.status}`,
+      retryAfterSeconds(response.headers.get("Retry-After")),
+    );
+  }
   return response.json();
+}
+
+/** Asked again only when the service failed (5xx) or never answered: a refusal stays a refusal. */
+export function retryPublic(failures: number, error: unknown): boolean {
+  return failures < 2 && (!(error instanceof ApiError) || error.status >= 500);
+}
+
+/** The back-off between the two retries: 0.5 s, then 1 s. */
+export const publicRetryDelay = (attempt: number): number => 500 * 2 ** attempt;
+
+/** What a failed read tells the visitor, one sentence per kind of failure. */
+export function failureText(error: unknown, t: (key: string, options?: Record<string, unknown>) => string): string {
+  const status = error instanceof ApiError ? error.status : 0;
+  if (status === 404) return t("spaces.share.notPublished");
+  if (status === 401 || status === 403) return t("spaces.share.closed");
+  if (status === 429) {
+    const seconds = error instanceof PublicReadError ? error.retryAfter : undefined;
+    return seconds === undefined ? t("spaces.share.busyLater") : t("spaces.share.busy", { seconds });
+  }
+  return t("spaces.share.down");
+}
+
+/** The text of one language in a JSON-LD value: the page's language, its base, English, the first. */
+export function inLanguage(value: unknown, locale: string): string | undefined {
+  const items = (Array.isArray(value) ? value : [value]).flatMap((item) =>
+    typeof item === "string"
+      ? [{ lang: "", text: item }]
+      : item && typeof item === "object" && typeof (item as { "@value"?: unknown })["@value"] === "string"
+        ? [{ lang: String((item as { "@language"?: unknown })["@language"] ?? ""), text: (item as { "@value": string })["@value"] }]
+        : [],
+  );
+  const base = locale.split("-")[0];
+  return (
+    items.find((item) => item.lang === locale) ??
+    items.find((item) => item.lang === base) ??
+    items.find((item) => item.lang === "en") ??
+    items[0]
+  )?.text;
+}
+
+/** `urn:ngsi-ld:WeatherObserved:bcn:X4` as a visitor reads it: `X4`; the whole id stays its title. */
+export function localPart(id: string): string {
+  return id.split(":").at(-1) || id;
 }
 
 /** The value of one key-value attribute as text. */
@@ -176,13 +245,39 @@ function textOf(value: unknown): string {
   return typeof value === "object" ? JSON.stringify(value) : String(value);
 }
 
+/** A failed read with the button that asks again. */
+function Failure({ error, onRetry }: { error: unknown; onRetry: () => void }): JSX.Element {
+  const { t } = useTranslation();
+  const again = !(error instanceof ApiError) || error.status >= 500 || error.status === 429;
+  return (
+    <Alert role="alert" tone={error instanceof ApiError && error.status === 404 ? "info" : "danger"}>
+      <div className="flex flex-wrap items-center gap-3">
+        <span>{failureText(error, t)}</span>
+        {again ? (
+          <Button size="sm" variant="secondary" onClick={onRetry}>
+            {t("app.error.retry")}
+          </Button>
+        ) : null}
+      </div>
+    </Alert>
+  );
+}
+
 /** The page at `/v/{slug}`: what the public Endpoint answers anybody, read-only. */
 export function PublicViewPage({ slug }: { slug: string }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [chosen, setChosen] = useState("");
+  // The Endpoint's own catalogue entry (its DCAT index, EP-08) names the view; without it the type does.
+  const entry = useQuery({
+    queryKey: ["public-view", slug, "entry"],
+    retry: retryPublic,
+    retryDelay: publicRetryDelay,
+    queryFn: async () => (await readPublic(slug, "/")) as { "dct:title"?: unknown },
+  });
   const types = useQuery({
     queryKey: ["public-view", slug, "types"],
-    retry: false,
+    retry: retryPublic,
+    retryDelay: publicRetryDelay,
     queryFn: async () => {
       const body = (await readPublic(slug, "/ngsi-ld/v1/types")) as { typeList?: unknown } | unknown[];
       const list = Array.isArray(body) ? body : (body as { typeList?: unknown }).typeList;
@@ -193,7 +288,8 @@ export function PublicViewPage({ slug }: { slug: string }): JSX.Element {
   const rows = useQuery({
     queryKey: ["public-view", slug, "rows", type],
     enabled: type !== "",
-    retry: false,
+    retry: retryPublic,
+    retryDelay: publicRetryDelay,
     queryFn: async () => {
       const body = await readPublic(
         slug,
@@ -204,59 +300,71 @@ export function PublicViewPage({ slug }: { slug: string }): JSX.Element {
   });
   const columns = useMemo(
     () =>
-      [...new Set((rows.data ?? []).flatMap((row) => Object.keys(row)))].filter(
-        (key) => !["id", "type", "@context"].includes(key),
+      displayOrder(
+        [],
+        [...new Set((rows.data ?? []).flatMap((row) => Object.keys(row)))].filter(
+          (key) => !["id", "type", "@context"].includes(key),
+        ),
       ),
     [rows.data],
   );
+  const locale = i18n.language;
+  const typeLabel = (name: string) => columnLabel(undefined, name, locale);
+  const title = inLanguage(entry.data?.["dct:title"], locale) ?? (type ? typeLabel(type) : t("spaces.share.heading"));
 
-  // Every state keeps the page's one heading: the link's own name until a type is read.
+  // Every state keeps the page's one heading: the catalogue's title, never the link's slug.
   if (types.isPending || types.isError || types.data.length === 0) {
     return (
       <div className="flex flex-col gap-3" data-testid="public-view">
-        <h1 className="text-title font-semibold text-fg">{slug}</h1>
-        <p className="text-body text-fg-muted" role="status">
-          {types.isPending ? t("app.loading") : t("spaces.share.notPublished")}
-        </p>
+        <h1 className="text-title font-semibold text-fg">{title}</h1>
+        <p className="text-body text-fg-muted">{t("spaces.share.publicLead")}</p>
+        {types.isPending ? (
+          <p className="text-body text-fg-muted" role="status">
+            {t("app.loading")}
+          </p>
+        ) : (
+          <Failure error={types.isError ? types.error : new ApiError(404, "Not Found")} onRetry={() => void types.refetch()} />
+        )}
       </div>
     );
   }
   return (
     <div className="flex flex-col gap-3" data-testid="public-view">
-      <h1 className="text-title font-semibold text-fg">{type}</h1>
+      <h1 className="text-title font-semibold text-fg">{title}</h1>
+      <p className="text-body text-fg-muted">{t("spaces.share.publicLead")}</p>
       {types.data.length > 1 ? (
         <div className="flex flex-wrap gap-2" role="group" aria-label={t("spaces.share.types")}>
           {types.data.map((name) => (
             <Button key={name} size="sm" variant={name === type ? "primary" : "secondary"} aria-pressed={name === type} onClick={() => setChosen(name)}>
-              {name}
+              {typeLabel(name)}
             </Button>
           ))}
         </div>
       ) : null}
       {rows.isPending ? <p role="status">{t("app.loading")}</p> : null}
-      {rows.isError ? (
-        <Alert role="alert" tone="danger">
-          {rows.error instanceof Error ? rows.error.message : t("app.error.generic")}
-        </Alert>
-      ) : null}
+      {rows.isError ? <Failure error={rows.error} onRetry={() => void rows.refetch()} /> : null}
       {rows.data ? (
         <>
           <p className="text-caption text-fg-muted">
             {t(rows.data.length >= PUBLIC_ROWS ? "spaces.share.first" : "spaces.share.count", { count: rows.data.length })}
           </p>
-          <Table caption={type}>
+          <Table caption={typeLabel(type)}>
             <TableHead>
-              <TableHeaderCell>{t("entityGrid.id")}</TableHeaderCell>
+              <TableHeaderCell className="normal-case! tracking-normal">{t("entityGrid.id")}</TableHeaderCell>
               {columns.map((column) => (
-                <TableHeaderCell key={column}>{column}</TableHeaderCell>
+                <TableHeaderCell key={column} className="normal-case! tracking-normal">
+                  {columnLabel(undefined, column, locale)}
+                </TableHeaderCell>
               ))}
             </TableHead>
             <TableBody>
               {rows.data.map((row) => (
                 <TableRow key={String(row.id)}>
-                  <TableCell className="font-mono text-caption [overflow-wrap:anywhere]">{String(row.id)}</TableCell>
+                  <TableCell className="whitespace-nowrap font-mono text-caption" title={String(row.id)}>
+                    {localPart(String(row.id))}
+                  </TableCell>
                   {columns.map((column) => (
-                    <TableCell key={column} className="[overflow-wrap:anywhere]">
+                    <TableCell key={column} className="break-words">
                       {textOf(row[column])}
                     </TableCell>
                   ))}

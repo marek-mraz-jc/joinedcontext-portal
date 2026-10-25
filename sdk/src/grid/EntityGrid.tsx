@@ -3,7 +3,7 @@ import type { RichRow, RichCell } from "./model";
 import { cellText } from "./model";
 import type { ColumnLayout, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
 import { MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, useEntityGrid } from "./useEntityGrid";
-import { CellView, cellDisplayText, columnKind, formatDate } from "./cells";
+import { CellView, cellDisplayText, columnKind, formatDate, targetName } from "./cells";
 import type { CellLabels, ColumnKind } from "./cells";
 import { ColumnMenu } from "./ColumnMenu";
 import { opsForKind, valuesNeeded } from "./filters";
@@ -578,7 +578,10 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     // panel (T-3097): the person reads the row by its name and opens it from there. Inside an
     // App's shell that is the shell's one entity panel (SDK-40, T-3396), else the grid's own.
     if (column.key === "id" || isPrimary(column)) {
-      const name = rowName(row);
+      // A row named by nothing but its id is called by the id's last part, as its detail heading
+      // and its chips are: every id of a type starts `urn:ngsi-ld:Type:…` (T-4265, T-5619).
+      const named = rowName(row);
+      const name = named === row.id ? targetName(row.id).name : named;
       return (
         <button
           type="button"
@@ -590,7 +593,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
             openDetail(row);
           }}
         >
-          {column.key === "id" ? text : text || row.id}
+          {column.key === "id" ? targetName(text).name : text || row.id}
         </button>
       );
     }

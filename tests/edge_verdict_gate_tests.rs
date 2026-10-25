@@ -570,7 +570,8 @@ async fn only_a_proposal_carries_a_verdict_refusal_and_it_is_the_routes_own() {
 // -------------------------------------------------------------------------------------------------
 
 /// AG-59, PF-50: what a caller is offered is what they may take. The listing is the registry filtered
-/// by the same two halves `call` uses, so no door can offer an operation that would then be refused —
+/// by the two halves `call` uses and the cheap half of each writing route's own check (AG-63,
+/// T-5608), so no door can offer an operation that would then be refused —
 /// and a stranger is offered nothing at all.
 #[test]
 fn nobody_is_offered_an_operation_the_gate_would_refuse_them() {
@@ -588,7 +589,7 @@ fn nobody_is_offered_an_operation_the_gate_would_refuse_them() {
 
         for op in ops::registry() {
             let allowed = caller.may_run(op).is_ok()
-                && ops::permitted(op, &caller.identity, &state, PROJECT).is_ok();
+                && ops::may_try(op, &caller.identity, &state, PROJECT, None).is_ok();
             assert_eq!(
                 names.contains(&op.name),
                 allowed,

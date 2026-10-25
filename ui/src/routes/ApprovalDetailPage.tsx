@@ -16,6 +16,7 @@ import { localized } from "../api/manifest";
 import type { components } from "../api/schema";
 import {
   Alert,
+  Badge,
   Button,
   Dialog,
   ExternalLink,
@@ -183,6 +184,12 @@ export function ApprovalDetailPage({
           <div className="flex flex-wrap items-center gap-2">
             <LifecycleBadge kind="lane" value={proposal.status.lane} />
             <LifecycleBadge kind="phase" value={proposal.status.phase} />
+            {/* An AI client proposed it for the author (AG-137): the approver reads that first. */}
+            {proposal.status.proposedVia ? (
+              <Badge tone="accent" data-testid="change-proposed-via">
+                {t("approvals.proposedVia.badge", { client: proposal.status.proposedVia.client })}
+              </Badge>
+            ) : null}
           </div>
         }
       />
@@ -212,6 +219,14 @@ export function ApprovalDetailPage({
               <span className="ml-1 text-xs text-fg-muted">({proposal.author.email})</span>
             ) : null}
           </dd>
+          {proposal.status.proposedVia ? (
+            <dd className="mt-1 text-xs text-fg-muted">
+              {t("approvals.proposedVia.hint", {
+                client: proposal.status.proposedVia.client,
+                author: proposal.author.name,
+              })}
+            </dd>
+          ) : null}
         </div>
         {proposal.workspace ? (
           <div className="sm:col-span-2" data-testid="change-workspace">

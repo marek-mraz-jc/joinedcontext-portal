@@ -149,6 +149,25 @@ test.describe("approvals", () => {
     await page.screenshot({ path: test.info().outputPath("approval-detail-1440.png"), fullPage: true });
   });
 
+  test("an approver sees a change came through an AI client over MCP, at 400 and 1440 px (T-5609)", async ({ page }) => {
+    const viaMcp = { ...PROPOSAL, status: { ...PROPOSAL.status, proposedVia: { channel: "mcp", client: "mcp-mobile" } } };
+    await stubApi(page);
+    await page.route(`**/changes/${PROPOSAL.metadata.name}`, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(viaMcp) }),
+    );
+    for (const width of [400, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/projects/helsinki/approvals/${PROPOSAL.metadata.name}?lang=en`);
+      await expect(page.getByTestId("change-proposed-via")).toHaveText("Proposed through mcp-mobile (MCP)");
+      await expect(page.getByText("An AI client (mcp-mobile) wrote this proposal over MCP")).toBeVisible();
+      const sideways = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(sideways).toBe(0);
+      await page.screenshot({ path: test.info().outputPath(`approval-via-mcp-${width}.png`), fullPage: true });
+    }
+  });
+
   test("at 375 px a create's field table fits the screen and shows labels, not spec paths (T-4991)", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 900 });
     const create = {
