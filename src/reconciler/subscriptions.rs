@@ -231,7 +231,7 @@ impl SubscriptionSync {
             .endpoint
             .receiver_info
             .iter()
-            .map(|pair| json!({ &pair.key: pair.value }))
+            .map(|pair| json!({ "key": pair.key, "value": pair.value }))
             .collect();
         if let Some(reference) = &spec.notification.endpoint.secret_ref {
             let resolver = secrets.ok_or_else(|| {
@@ -245,7 +245,7 @@ impl SubscriptionSync {
                 .one(repository, reference)
                 .await
                 .map_err(|err| err.to_string())?;
-            receiver_info.push(json!({ CREDENTIAL_HEADER: value }));
+            receiver_info.push(json!({ "key": CREDENTIAL_HEADER, "value": value }));
         }
         if !receiver_info.is_empty() {
             endpoint.insert("receiverInfo".to_owned(), Value::Array(receiver_info));

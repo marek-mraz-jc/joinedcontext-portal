@@ -162,7 +162,7 @@ async fn a_declared_subscription_is_created_in_the_space_it_names() {
     );
     assert_eq!(
         posted.2["notification"]["endpoint"]["receiverInfo"],
-        json!([{ "X-Space": SPACE }]),
+        json!([{ "key": "X-Space", "value": SPACE }]),
         "no credential is invented where the manifest declares none"
     );
 }
@@ -462,5 +462,83 @@ async fn each_subscription_is_written_to_the_space_its_manifest_names() {
     assert!(
         air.2.get("geoQ").is_none(),
         "a manifest without a geoQ sends none"
+    );
+}
+
+/// An OpenBao holding the webhook token `alerts-webhook/token` (T-5565).
+async fn openbao(server: &MockServer) -> joinedcontext_portal::pipeline_secrets::Resolver {
+    use joinedcontext_portal::pipeline_secrets::{Backend, Resolver};
+    Mock::given(method("POST"))
+        .and(path("/v1/auth/kubernetes/login"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "auth": { "client_token": "a-session", "lease_duration": 3600, "renewable": true }
+        })))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/secret/data/alerts-webhook"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": { "data": { "token": "Bearer the-webhook-token" }, "metadata": { "version": 1 } }
+        })))
+        .mount(server)
+        .await;
+    let jwt = std::env::temp_dir().join(format!(
+        "jc-portal-t5565-token-{}",
+        server.address().port()
+    ));
+    std::fs::write(&jwt, "a.service.account.token").expect("write the token");
+    Resolver::new(Backend::OpenBao {
+        address: server.uri(),
+        role: "portal".to_owned(),
+        jwt_path: jwt,
+    })
+}
+
+#[tokio::test]
+async fn the_credential_is_sent_as_a_key_value_pair() {
+    let server = MockServer::start().await;
+    realm(&server).await;
+    Mock::given(method("GET"))
+        .and(path(format!("/cs/{SEGMENT}/ngsi-ld/v1/subscriptions")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("/cs/{SEGMENT}/ngsi-ld/v1/subscriptions")))
+        .respond_with(ResponseTemplate::new(201))
+        .mount(&server)
+        .await;
+    let bao = MockServer::start().await;
+    let resolver = openbao(&bao).await;
+
+    let mut spec = declared();
+    spec["notification"]["endpoint"]["secretRef"] =
+        json!({ "name": "alerts-webhook", "key": "token" });
+    let mirror = mirror_with(&[("alerts", spec)]);
+    let outcomes = sync(&server)
+        .converge(
+            &mirror,
+            &mirror_with(&[]),
+            std::path::Path::new("/nonexistent"),
+            Some(&resolver),
+        )
+        .await;
+
+    assert!(
+        !matches!(outcomes[0].2, SubscriptionOutcome::Error(_)),
+        "{outcomes:?}"
+    );
+    let posted = seen(&server)
+        .await
+        .into_iter()
+        .find(|(verb, _, _)| verb == "POST")
+        .expect("the space was asked to create it");
+    // Antares refuses any receiverInfo entry that is not a {key, value} pair (CIM 009 5.2.22).
+    assert_eq!(
+        posted.2["notification"]["endpoint"]["receiverInfo"],
+        json!([
+            { "key": "X-Space", "value": SPACE },
+            { "key": "Authorization", "value": "Bearer the-webhook-token" }
+        ])
     );
 }
