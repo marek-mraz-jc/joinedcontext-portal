@@ -25,10 +25,11 @@ rust_reads() {
     p=${p%/*}
   done
   pats="$pats$p\""
-  # What the rust job compiles and tests: the crate (--lib --bins) and the two integration tests
-  # it names. Keep this list in step with the job's `cargo test` lines.
+  # What the rust job compiles and tests: the crate (--lib --bins) and the integration tests it
+  # names. Keep this list in step with the job's `cargo test` lines.
   (cd "$ROOT" && printf '%s\n' "$pats" |
-    grep -rqF -f - src build.rs tests/openapi_tests.rs tests/route_coverage_tests.rs)
+    grep -rqF -f - src build.rs tests/openapi_tests.rs tests/route_coverage_tests.rs \
+      tests/authz_matrix_tests.rs tests/problem_types_tests.rs tests/gitea_client_tests.rs)
 }
 
 classify() {
@@ -73,6 +74,7 @@ selftest() {
   check "ui only" 'ui/src/components/Foo.tsx\n' "rust=false ui=true apps=false "
   check "committed OpenAPI spec" 'ui/openapi.json\n' "rust=true ui=true apps=false "
   check "read by a ci-full test only" 'ui/src/pages/apps/AppGenerator.tsx\n' "rust=false ui=true apps=false "
+  check "a locale the problem-types test reads" 'ui/src/locales/sk.json\n' "rust=true ui=true apps=false "
   check "src only" 'src/main.rs\nmigrations/0001.sql\n' "rust=true ui=false apps=false "
   check "a fixture the UI suite reads" 'tests/fixtures/bus-expires.blobl\n' "rust=true ui=true apps=false "
   check "lock" 'Cargo.lock\n' "rust=true ui=false apps=false "
