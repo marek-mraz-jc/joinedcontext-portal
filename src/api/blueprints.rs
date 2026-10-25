@@ -291,6 +291,7 @@ pub async fn start_flow(
         crate::api::changes::change_meta(&state, gitea, pr.number, &project),
         ChangeStatus::new(planned.lane, ChangePhase::PendingApproval, planned.summary)
             .in_repository(&pr.repository)
+            .proposed_through(&pr.body)
             .with_merge_request(pr.url.clone()),
     );
 

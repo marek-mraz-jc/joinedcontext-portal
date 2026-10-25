@@ -1227,6 +1227,7 @@ async fn propose_engine(
     let change_meta = crate::api::changes::change_meta(state, gitea, pr.number, project);
     let change_status = ChangeStatus::new(lane, ChangePhase::PendingApproval, plan.summary)
         .in_repository(&pr.repository)
+        .proposed_through(&pr.body)
         .with_merge_request(pr.url.clone());
     let change = Change::new(change_meta, change_status);
 

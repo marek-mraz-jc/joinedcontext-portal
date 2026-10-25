@@ -1996,3 +1996,115 @@ async fn a_service_account_token_audienced_to_the_portal_reaches_the_mcp_door_an
         .unwrap();
     assert_eq!(refused.status(), StatusCode::UNAUTHORIZED);
 }
+
+/// A person's token from an MCP connector client: `azp` names the client, the user is the person.
+fn sign_connector_token(
+    signer: &EncodingKey,
+    kid: &str,
+    issuer: &str,
+    subject: &str,
+    groups: &[&str],
+) -> String {
+    let mut header = Header::new(Algorithm::ES256);
+    header.kid = Some(kid.to_string());
+    let now = joinedcontext_portal::auth::session::now_unix();
+    let claims = json!({
+        "iss": issuer,
+        "aud": PORTAL_AUDIENCE,
+        "azp": "mcp-mobile",
+        "sub": subject,
+        "preferred_username": subject,
+        "exp": now + 3600,
+        "iat": now,
+        "groups": groups,
+    });
+    encode(&header, &claims, signer).expect("sign token")
+}
+
+/// AG-56, AG-137, T-5609: every `tools/call` is one activity row of the person, with channel
+/// `mcp` and the client, and what came of it; no argument value reaches the row, and a call
+/// about a project the caller may not read writes nothing into that project's activity.
+#[tokio::test]
+async fn every_tools_call_is_one_activity_row_of_the_person_through_mcp() {
+    let (app, issuer, signer, kid) = setup_app_and_keys().await;
+    let steward =
+        sign_connector_token(&signer, &kid, &issuer, "steward.user", &["platform-admins"]);
+    let viewer = sign_connector_token(&signer, &kid, &issuer, "city.viewer", &["city-viewers"]);
+    let call = |token: &str, name: &str, arguments: Value| {
+        let body = json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                           "params": { "name": name, "arguments": arguments } });
+        let (app, token) = (app.clone(), token.to_owned());
+        async move { rpc(app, &token, body).await }
+    };
+
+    let read = call(
+        &steward,
+        "jc_catalog_search",
+        json!({ "project": "ovzdusie", "q": "needle-7f3a" }),
+    )
+    .await;
+    assert!(read["result"]["structuredContent"].is_object(), "{read}");
+    let asked = call(
+        &steward,
+        "jc_resource_delete",
+        json!({ "project": "ovzdusie", "kind": "Endpoint", "name": "public-air", "confirm": "public-air" }),
+    )
+    .await;
+    assert_eq!(
+        asked["result"]["status"],
+        json!("input_required"),
+        "{asked}"
+    );
+    call(
+        &viewer,
+        "jc_catalog_search",
+        json!({ "project": "elsewhere", "q": "x" }),
+    )
+    .await;
+
+    let rows = call(
+        &steward,
+        "jc_activity_list",
+        json!({ "project": "ovzdusie", "kind": "mcp.tool" }),
+    )
+    .await;
+    let items = rows["result"]["structuredContent"]["items"]
+        .as_array()
+        .cloned()
+        .unwrap_or_else(|| panic!("{rows}"));
+    let row_of = |operation: &str| {
+        items
+            .iter()
+            .find(|row| row["details"]["operation"] == operation)
+            .unwrap_or_else(|| panic!("no row for {operation}: {items:?}"))
+            .clone()
+    };
+    let ran = row_of("jc_catalog_search");
+    assert_eq!(ran["details"]["decision"], json!("ran"));
+    assert_eq!(ran["details"]["channel"], json!("mcp"));
+    assert_eq!(ran["details"]["client"], json!("mcp-mobile"));
+    assert_eq!(ran["details"]["subject"], json!("steward.user"));
+    assert_eq!(ran["details"]["username"], json!("steward.user"));
+    assert_eq!(
+        row_of("jc_resource_delete")["details"]["decision"],
+        json!("asked")
+    );
+    assert!(
+        !serde_json::to_string(&items)
+            .unwrap()
+            .contains("needle-7f3a"),
+        "{items:?}"
+    );
+
+    let elsewhere = call(
+        &steward,
+        "jc_activity_list",
+        json!({ "project": "elsewhere", "kind": "mcp.tool" }),
+    )
+    .await;
+    assert_eq!(
+        elsewhere["result"]["structuredContent"]["items"],
+        json!([]),
+        "a refused stranger wrote into the project: {elsewhere}"
+    );
+}

@@ -5640,6 +5640,7 @@ export interface components {
             mergeRequest?: string | null;
             phase: components["schemas"]["ChangePhase"];
             plan: components["schemas"]["PlanSummary"];
+            proposedVia?: null | components["schemas"]["ProposedVia"];
             /**
              * @description The one repository the Change targets (CC-87): the organization's, or in layout 2 a
              *     project's own.
@@ -7977,6 +7978,13 @@ export interface components {
             endpoints: components["schemas"]["EndpointTotal"][];
             from: string;
             to: string;
+        };
+        /** @description The channel a Change came through and the OAuth client that sent it (AG-17, AG-137). */
+        ProposedVia: {
+            /** @description `mcp`: a person's AI client over the Portal's MCP server. */
+            channel: string;
+            /** @description The token's `azp`, at most 64 characters of `[A-Za-z0-9._:-]`. */
+            client: string;
         };
         /** @description What one endpoint publishes, and where. */
         PublicationStatus: {

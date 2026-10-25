@@ -1365,6 +1365,7 @@ pub async fn delete_person(
             PlanSummary::new(0, removal.edited.len(), removal.removed.len()),
         )
         .in_repository(&pr.repository)
+        .proposed_through(&pr.body)
         .with_merge_request(pr.url.clone()),
     );
     crate::db::insert_person_deletion(
