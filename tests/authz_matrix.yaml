@@ -210,6 +210,10 @@ routes:
     rule: "public"
     expect: [404, 404, 404, 404, 404, 404, 404, 404]
     note: "public: the fixture configures no catalogue, so no dataset is found by anybody"
+  - route: GET /catalogue/datasets/{name}/map
+    rule: "public"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "public: the fixture configures no catalogue, so no dataset is found by anybody"
   - route: GET /catalogue/endpoints/{slug}/standards
     rule: "public"
     expect: [404, 404, 404, 404, 404, 404, 404, 404]

@@ -1115,6 +1115,14 @@
         "catalogue_page.test.tsx"
       ]
     },
+    "src/pages/catalogue/DatasetMap.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "catalogue_page.test.tsx"
+      ]
+    },
     "src/pages/catalogue/DatasetPage.tsx": {
       "controls": {
         "Button": 3

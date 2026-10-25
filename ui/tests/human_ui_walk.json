@@ -1007,6 +1007,7 @@
         "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-ckan-dialog-publish-a-dataset-steward-en-1440.png"
       ]
     },
+    "src/pages/catalogue/DatasetMap.tsx": null,
     "src/pages/catalogue/DatasetPage.tsx": null,
     "src/pages/catalogue/SubscribeMenu.tsx": null,
     "src/pages/catalogue/PublishDataset.tsx": {

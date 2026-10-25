@@ -194,6 +194,7 @@ button-to-decision | GET /api/v1/branding/{} | joinedcontext_portal::api::brandi
 button-to-decision | GET /api/v1/catalogue | joinedcontext_portal::api::catalogue::get_catalogue | public: the open-data catalogue (EP-84)
 button-to-decision | GET /api/v1/catalogue/datasets/{} | joinedcontext_portal::api::catalogue::get_dataset | public: one dataset of the open-data catalogue
 button-to-decision | GET /api/v1/catalogue/datasets/{}/sample | joinedcontext_portal::api::catalogue::get_sample | public: a public dataset's sample rows
+button-to-decision | GET /api/v1/catalogue/datasets/{}/map | joinedcontext_portal::api::catalogue::get_map | public: a public dataset's located entities
 button-to-decision | GET /api/v1/forms | joinedcontext_portal::api::forms::list_forms | signed-in: the organization's form arrangements, the same for every person; no project data
 button-to-decision | GET /api/v1/notifications | joinedcontext_portal::api::entity_comments::list_notifications | signed-in: the caller's own notifications, selected by recipient
 button-to-decision | GET /api/v1/preferences | joinedcontext_portal::api::preferences::get_preferences | signed-in: the caller's own preferences, keyed by subject

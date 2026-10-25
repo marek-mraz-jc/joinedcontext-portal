@@ -1177,6 +1177,81 @@
         }
       }
     },
+    "/api/v1/catalogue/datasets/{name}/map": {
+      "get": {
+        "tags": [
+          "ckan"
+        ],
+        "summary": "Map a Catalogue Dataset",
+        "description": "Up to 1000 located entities of the dataset's first model class, read anonymously through its public Endpoint, with the key attributes its popups show (EP-82, T-5628). A dataset without locations answers no features.",
+        "operationId": "get_map",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "The dataset's name in the catalogue",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "description": "The language the labels are in, e.g. `sk` (default `en`).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The located entities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueMap"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`lang` is no language code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No public dataset of an Endpoint here that serves NGSI-LD",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Endpoint did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/catalogue/datasets/{name}/sample": {
       "get": {
         "tags": [
@@ -23801,6 +23876,32 @@
           }
         }
       },
+      "CatalogueFeature": {
+        "type": "object",
+        "description": "One located entity: its id, its geometry and its key attributes as text.",
+        "required": [
+          "id",
+          "geometry",
+          "properties"
+        ],
+        "properties": {
+          "geometry": {
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "CatalogueFeed": {
         "type": "object",
         "description": "One feed output of an Endpoint: its name, its title per language and its three documents.",
@@ -23871,6 +23972,66 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "CatalogueMap": {
+        "type": "object",
+        "description": "The located entities of a dataset, read through its Endpoint for the dataset page's map\n(EP-82, T-5628).",
+        "required": [
+          "type",
+          "fields",
+          "features"
+        ],
+        "properties": {
+          "basemap": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The project whose basemap draws under the features, when the platform has a basemap."
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueFeature"
+            },
+            "description": "One per entity with a GeoJSON geometry, at most 1000."
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueMapField"
+            },
+            "description": "The key attributes a popup and the list show, in display order, labelled in `lang`."
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Entities of the type the Endpoint holds, located or not, when it counted them.",
+            "minimum": 0
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "CatalogueMapField": {
+        "type": "object",
+        "description": "One attribute a popup shows (DM-99, DM-100).",
+        "required": [
+          "slot",
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "slot": {
+            "type": "string"
           }
         }
       },

@@ -33,6 +33,8 @@ import { subscriptionsOf } from "./subscriptions";
 
 // The menu's dropdown (Radix, about 30 KB gz) loads beside the page, not in its first chunk, and only
 // for a dataset with something to subscribe to (T-5165).
+// The map loads beside the page, and MapLibre only for a dataset with places (T-5628).
+const DatasetMap = lazy(() => import("./DatasetMap").then((module) => ({ default: module.DatasetMap })));
 const SubscribeMenu = lazy(() => import("./SubscribeMenu").then((module) => ({ default: module.SubscribeMenu })));
 
 type DatasetDetail = components["schemas"]["CatalogueDatasetDetail"];
@@ -202,6 +204,11 @@ function Dataset({ detail, back }: { detail: DatasetDetail; back: JSX.Element })
       </Card>
 
       {detail.quality ? <QualityScore score={detail.quality} /> : null}
+      {detail.endpoint ? (
+        <Suspense fallback={null}>
+          <DatasetMap name={detail.name} />
+        </Suspense>
+      ) : null}
       <Resources detail={detail} />
       {detail.model ? <Model model={detail.model} /> : null}
       {detail.endpoint ? <Sample name={detail.name} /> : null}

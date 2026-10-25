@@ -56,6 +56,25 @@ const SAMPLE = {
   rows: [["urn:ngsi-ld:KeyPerformanceIndicator:bbsk:kpi:1", "KeyPerformanceIndicator", "12"]],
 };
 
+const MAP = {
+  type: "AirQualityObserved",
+  total: 14,
+  fields: [
+    { slot: "name", label: "Name" },
+    { slot: "pm10", label: "PM10" },
+  ],
+  features: [
+    { id: "urn:ngsi-ld:AirQualityObserved:a", geometry: { type: "Point", coordinates: [14.42, 50.08] }, properties: { name: "Praha 2 - Legerova", pm10: "21.5" } },
+    { id: "urn:ngsi-ld:AirQualityObserved:b", geometry: { type: "Point", coordinates: [14.47, 50.11] }, properties: { name: "Praha 8 - Karlín", pm10: "18" } },
+    { id: "urn:ngsi-ld:AirQualityObserved:c", geometry: { type: "Point", coordinates: [14.33, 50.05] }, properties: { name: "Praha 5 - Stodůlky", pm10: "12.4" } },
+  ],
+};
+
+async function shot(page: Page, name: string): Promise<void> {
+  const dir = process.env.SHOTS_DIR;
+  if (dir) await page.screenshot({ path: `${dir}/${name}.png`, fullPage: true });
+}
+
 async function stubApi(page: Page, asked: string[]): Promise<void> {
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
@@ -78,6 +97,54 @@ async function stubApi(page: Page, asked: string[]): Promise<void> {
 }
 
 test.describe("the public catalogue", () => {
+  // T-5628: a citizen sees where a dataset's things are, on the dataset page, in either language.
+  for (const lang of ["en", "sk"]) {
+    for (const width of [1440, 400]) {
+      test(`a located dataset shows its places on a map and as a list (${lang}, ${width} px)`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 900 });
+        const asked: string[] = [];
+        await stubApi(page, asked);
+        await page.route((url) => url.pathname === "/api/v1/catalogue/datasets/bbsk-kpi/map", (route) => {
+          const url = new URL(route.request().url());
+          asked.push(url.pathname + url.search);
+          return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MAP) });
+        });
+        await page.goto(`/catalogue/bbsk-kpi?lang=${lang}`);
+        const label = lang === "en" ? "Map of AirQualityObserved" : "Mapa: AirQualityObserved";
+        await expect(page.getByRole("heading", { level: 2, name: lang === "en" ? "Places on the map" : "Miesta na mape" })).toBeVisible();
+        await expect(page.getByRole("application", { name: label })).toBeVisible();
+        await expect(page.getByText(lang === "en" ? "The map shows the first 3 of 14 places." : "Mapa ukazuje prvých 3 z 14 miest.")).toBeVisible();
+        expect(asked).toContain(`/api/v1/catalogue/datasets/bbsk-kpi/map?lang=${lang}`);
+        // The list is the keyboard's way to every place.
+        const list = page.getByText(lang === "en" ? "The 3 places as a list" : "Miesta ako zoznam (3)");
+        await list.focus();
+        await page.keyboard.press("Enter");
+        await expect(page.getByRole("table", { name: label }).getByText("Praha 8 - Karlín")).toBeVisible();
+        expect(await axeViolations(page)).toEqual([]);
+        await shot(page, `dataset-map-filled-${lang}-${width}`);
+      });
+    }
+  }
+
+  test("a dataset without places shows no map, and one whose map fails says so", async ({ page }) => {
+    await page.setViewportSize({ width: 400, height: 900 });
+    await stubApi(page, []);
+    await page.goto("/catalogue/bbsk-kpi?lang=en");
+    await expect(page.getByRole("table", { name: /Up to ten KeyPerformanceIndicator/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Places on the map" })).toHaveCount(0);
+    await shot(page, "dataset-map-none-en-400");
+    await page.route((url) => url.pathname === "/api/v1/catalogue/datasets/bbsk-kpi/map", (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: "application/problem+json",
+        body: JSON.stringify({ title: "Service Unavailable", status: 503, detail: "the endpoint of dataset 'bbsk-kpi' did not answer; try again in a minute" }),
+      }),
+    );
+    await page.reload();
+    await expect(page.getByRole("alert").filter({ hasText: "The map could not be read" })).toBeVisible();
+    await shot(page, "dataset-map-error-en-400");
+  });
+
   test("a visitor searches, filters and opens a dataset without signing in", async ({ page }) => {
     const asked: string[] = [];
     await stubApi(page, asked);

@@ -411,6 +411,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalogue/datasets/{name}/map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Map a Catalogue Dataset
+         * @description Up to 1000 located entities of the dataset's first model class, read anonymously through its public Endpoint, with the key attributes its popups show (EP-82, T-5628). A dataset without locations answers no features.
+         */
+        get: operations["get_map"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/catalogue/datasets/{name}/sample": {
         parameters: {
             query?: never;
@@ -5509,6 +5529,14 @@ export interface components {
             theme: components["schemas"]["CatalogueFacetValue"][];
             year: components["schemas"]["CatalogueFacetValue"][];
         };
+        /** @description One located entity: its id, its geometry and its key attributes as text. */
+        CatalogueFeature: {
+            geometry: Record<string, never>;
+            id: string;
+            properties: {
+                [key: string]: string;
+            };
+        };
         /** @description One feed output of an Endpoint: its name, its title per language and its three documents. */
         CatalogueFeed: {
             links: components["schemas"]["CatalogueFeedLink"][];
@@ -5530,6 +5558,29 @@ export interface components {
             id: string;
             title: string;
             url?: string | null;
+        };
+        /**
+         * @description The located entities of a dataset, read through its Endpoint for the dataset page's map
+         *     (EP-82, T-5628).
+         */
+        CatalogueMap: {
+            /** @description The project whose basemap draws under the features, when the platform has a basemap. */
+            basemap?: string | null;
+            /** @description One per entity with a GeoJSON geometry, at most 1000. */
+            features: components["schemas"]["CatalogueFeature"][];
+            /** @description The key attributes a popup and the list show, in display order, labelled in `lang`. */
+            fields: components["schemas"]["CatalogueMapField"][];
+            /**
+             * Format: int64
+             * @description Entities of the type the Endpoint holds, located or not, when it counted them.
+             */
+            total?: number | null;
+            type: string;
+        };
+        /** @description One attribute a popup shows (DM-99, DM-100). */
+        CatalogueMapField: {
+            label: string;
+            slot: string;
         };
         /** @description One model of the Smart Data Models catalogue index, as the wizard lists and searches it. */
         CatalogueModel: {
@@ -10105,6 +10156,59 @@ export interface operations {
             };
             /** @description No public dataset has this name */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_map: {
+        parameters: {
+            query?: {
+                /** @description The language the labels are in, e.g. `sk` (default `en`). */
+                lang?: string | null;
+            };
+            header?: never;
+            path: {
+                /** @description The dataset's name in the catalogue */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The located entities */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueMap"];
+                };
+            };
+            /** @description `lang` is no language code */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No public dataset of an Endpoint here that serves NGSI-LD */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The Endpoint did not answer */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -1,5 +1,5 @@
 // covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
-// src/pages/catalogue/CataloguePage.tsx, DatasetPage.tsx, search.ts and snippets.ts through the
+// src/pages/catalogue/CataloguePage.tsx, DatasetPage.tsx, DatasetMap.tsx, search.ts and snippets.ts through the
 // router, signed in and anonymous (EP-81, EP-82, T-2726).
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -12,6 +12,39 @@ import { catalogueKey, datasetKey } from "../src/pages/catalogue/queries";
 import { notesBlocks, resourceSays } from "../src/pages/catalogue/DatasetPage";
 import { narrowed, parseCatalogueSearch, toggled } from "../src/pages/catalogue/search";
 import { snippets } from "../src/pages/catalogue/snippets";
+import { DatasetMap, mapCollection } from "../src/pages/catalogue/DatasetMap";
+import type { MapLayer } from "../src/components/dashboards/MapLibreView";
+
+const drawn: { layers: MapLayer[]; project?: string } = { layers: [] };
+vi.mock("../src/components/dashboards/MapLibreView", () => ({
+  MapLibreView: ({ layers, label, project }: { layers: MapLayer[]; label: string; project?: string }) => {
+    drawn.layers = layers;
+    drawn.project = project;
+    return <div role="application" aria-label={label} />;
+  },
+}));
+
+const MAP = {
+  type: "AirQualityObserved",
+  total: 14,
+  fields: [
+    { slot: "name", label: "Name" },
+    { slot: "pm10", label: "PM10" },
+  ],
+  features: [
+    {
+      id: "urn:ngsi-ld:AirQualityObserved:a",
+      geometry: { type: "Point", coordinates: [14.42, 50.08] },
+      properties: { name: "Praha 2 - Legerova", pm10: "21.5" },
+    },
+    {
+      id: "urn:ngsi-ld:AirQualityObserved:b",
+      geometry: { type: "Point", coordinates: [14.47, 50.11] },
+      properties: { name: "Praha 8 - Karlín" },
+    },
+  ],
+  basemap: "praha",
+};
 
 const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", name: "Jana Kováčová", roles: ["portal-viewer"] };
 const LIST = "joinedcontext.com/v1alpha1";
@@ -107,6 +140,7 @@ describe("the catalogue (EP-81, EP-82)", () => {
       "/api/v1/catalogue": { status: 200, body: PAGE },
       "/api/v1/catalogue/datasets/bbsk-kpi": { status: 200, body: DETAIL },
       "/api/v1/catalogue/datasets/bbsk-kpi/sample": { status: 200, body: SAMPLE },
+      "/api/v1/catalogue/datasets/bbsk-kpi/map": { status: 200, body: { ...MAP, total: 0, features: [] } },
     };
   });
 
@@ -310,6 +344,68 @@ describe("the catalogue (EP-81, EP-82)", () => {
     expect(screen.getByRole("table", { name: "Resources" })).toBeInTheDocument();
   });
 
+  it("draws a dataset's places on a map with labelled popups and the same places as a list (T-5628)", async () => {
+    answers["/api/v1/catalogue/datasets/bbsk-kpi/map"] = { status: 200, body: MAP };
+    renderAt("/catalogue/bbsk-kpi");
+    expect(await screen.findByRole("heading", { level: 2, name: "Places on the map" })).toBeInTheDocument();
+    expect(await screen.findByRole("application", { name: "Map of AirQualityObserved" })).toBeInTheDocument();
+    expect(screen.getByText("The map shows the first 2 of 14 places.")).toBeInTheDocument();
+    const [layer] = drawn.layers;
+    expect(layer.popupProperties).toEqual(["Name", "PM10"]);
+    expect(layer.cluster).toBe(true);
+    expect(drawn.project).toBe("praha");
+    expect((layer.data as { features: { properties: unknown }[] }).features[0].properties).toEqual({
+      Name: "Praha 2 - Legerova",
+      PM10: "21.5",
+    });
+    fireEvent.click(screen.getByText("The 2 places as a list"));
+    const list = screen.getByRole("table", { name: "Map of AirQualityObserved" });
+    expect(within(list).getByRole("columnheader", { name: "PM10" })).toBeInTheDocument();
+    expect(within(list).getByText("Praha 8 - Karlín")).toBeInTheDocument();
+    expect(within(list).getByText("—")).toBeInTheDocument();
+    const asked = fetchMock.mock.calls
+      .map((call) => new URL((call[0] as Request).url))
+      .find((url) => url.pathname.endsWith("/map"));
+    expect(asked?.searchParams.get("lang")).toBe("en");
+  });
+
+  it("asks for the map's labels in the page's language", async () => {
+    await i18n.changeLanguage("sk");
+    answers["/api/v1/catalogue/datasets/bbsk-kpi/map"] = { status: 200, body: { ...MAP, total: 2 } };
+    renderAt("/catalogue/bbsk-kpi");
+    expect(await screen.findByText("2 miesta na mape.")).toBeInTheDocument();
+    const asked = fetchMock.mock.calls
+      .map((call) => new URL((call[0] as Request).url))
+      .find((url) => url.pathname.endsWith("/map"));
+    expect(asked?.searchParams.get("lang")).toBe("sk");
+  });
+
+  it("shows no map and no empty box for a dataset without places", async () => {
+    renderAt("/catalogue/bbsk-kpi");
+    expect(await screen.findByRole("table", { name: "Up to ten KeyPerformanceIndicator read through the endpoint" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.map((call) => new URL((call[0] as Request).url).pathname)).toContain(
+        "/api/v1/catalogue/datasets/bbsk-kpi/map",
+      ),
+    );
+    expect(screen.queryByRole("heading", { name: "Places on the map" })).toBeNull();
+    expect(screen.queryByRole("application")).toBeNull();
+  });
+
+  it("says why when the map cannot be read, and reads it again on retry", async () => {
+    answers["/api/v1/catalogue/datasets/bbsk-kpi/map"] = {
+      status: 503,
+      body: { title: "Service Unavailable", status: 503, detail: "The endpoint of dataset 'bbsk-kpi' did not answer; try again in a minute." },
+    };
+    answers["/api/v1/catalogue/datasets/bbsk-kpi/sample"] = { status: 404, body: { title: "Not Found", status: 404 } };
+    renderAt("/catalogue/bbsk-kpi");
+    expect(await screen.findByRole("heading", { level: 2, name: "Places on the map" })).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/The endpoint of dataset 'bbsk-kpi' did not answer; try again in a minute\.Retry$/);
+    answers["/api/v1/catalogue/datasets/bbsk-kpi/map"] = { status: 200, body: MAP };
+    fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("application", { name: "Map of AirQualityObserved" })).toBeInTheDocument();
+  });
+
   it("shows no sample and no snippets for a dataset of no endpoint here", async () => {
     answers["/api/v1/catalogue/datasets/bbsk-kpi"] = {
       status: 200,
@@ -321,6 +417,75 @@ describe("the catalogue (EP-81, EP-82)", () => {
     expect(screen.queryByRole("heading", { name: "Use this data" })).toBeNull();
     const paths = fetchMock.mock.calls.map((call) => new URL((call[0] as Request).url).pathname);
     expect(paths).not.toContain("/api/v1/catalogue/datasets/bbsk-kpi/sample");
+  });
+});
+
+describe("the dataset map on its own (T-5628)", () => {
+  function renderMap(answer: Answer) {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify(answer.body), {
+          status: answer.status,
+          headers: { "Content-Type": answer.status >= 400 ? "application/problem+json" : "application/json" },
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const view = render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <I18nextProvider i18n={i18n}>
+          <DatasetMap name="bbsk-kpi" />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    return { fetchMock, view };
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("draws the places it is given and counts them", async () => {
+    renderMap({ status: 200, body: MAP });
+    expect(await screen.findByRole("application", { name: "Map of AirQualityObserved" })).toBeInTheDocument();
+    expect(screen.getByText("The map shows the first 2 of 14 places.")).toBeInTheDocument();
+    expect(drawn.layers[0].popupProperties).toEqual(["Name", "PM10"]);
+  });
+
+  it("renders nothing for a dataset without places or without an endpoint", async () => {
+    for (const answer of [
+      { status: 200, body: { ...MAP, total: 0, features: [] } },
+      { status: 404, body: { title: "Not Found", status: 404, detail: "dataset 'bbsk-kpi' has no public endpoint here" } },
+    ]) {
+      const { fetchMock, view } = renderMap(answer);
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      await waitFor(() => expect(view.container).toBeEmptyDOMElement());
+      view.unmount();
+    }
+  });
+
+  it("says in one sentence why the map cannot be read, with a generic line when the server gives none", async () => {
+    const { view } = renderMap({
+      status: 503,
+      body: { title: "Service Unavailable", status: 503, detail: "The endpoint of dataset 'bbsk-kpi' did not answer; try again in a minute." },
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/The endpoint of dataset 'bbsk-kpi' did not answer; try again in a minute\.Retry$/);
+    expect(screen.getByRole("alert")).not.toHaveTextContent("could not be read");
+    view.unmount();
+    renderMap({ status: 503, body: { title: "Service Unavailable", status: 503 } });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/The map could not be read; try again in a moment\.Retry$/);
+  });
+});
+
+describe("the dataset map's features (T-5628)", () => {
+  it("keys each popup line by its label and leaves out what an entity does not hold", () => {
+    const [first, second] = mapCollection(MAP as unknown as Parameters<typeof mapCollection>[0]).features as { properties: Record<string, string> }[];
+    expect(first.properties).toEqual({ Name: "Praha 2 - Legerova", PM10: "21.5" });
+    expect(second.properties).toEqual({ Name: "Praha 8 - Karlín" });
   });
 });
 
