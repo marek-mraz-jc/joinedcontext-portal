@@ -41,7 +41,7 @@ export function HelpMenu({ onFeedback }: { onFeedback?: () => void } = {}): JSX.
     <>
       <Menu>
         <MenuTrigger asChild>
-          <Button variant="ghost" className="relative px-1.5" aria-label={t("help.label", { count: unread })}>
+          <Button variant="ghost" className="relative pointer-coarse:max-sm:px-1.5" aria-label={t("help.label", { count: unread })}>
             <Icon name="info" className="size-5" />
             {unread > 0 ? (
               <span aria-hidden="true" className="absolute right-0.5 top-0.5 size-2 rounded-full bg-primary" />
