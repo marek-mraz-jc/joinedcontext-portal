@@ -165,6 +165,8 @@ export function groupTerm(attr: string, value: string): string {
 }
 
 export interface GroupCountsProps {
+  /** Whose counts these are (`{project}/{space}`): every count's cache key names it (F-UI1-006). */
+  scope: string;
   source: EntitySource;
   type: string;
   attr: string;
@@ -180,12 +182,12 @@ export interface GroupCountsProps {
  * One count per value of the grouping attribute, each the space's own `count=true` answer read
  * with the person's session: the counts narrow as their grants do and are never the page's tally.
  */
-export function GroupCounts({ source, type, attr, options, q, chosen, onChoose }: GroupCountsProps): JSX.Element {
+export function GroupCounts({ scope, source, type, attr, options, q, chosen, onChoose }: GroupCountsProps): JSX.Element {
   const { t } = useTranslation();
   const shown = options.slice(0, MAX_GROUPS);
   const counts = useQueries({
     queries: shown.map((option) => ({
-      queryKey: ["group-count", type, attr, option.value, q ?? ""],
+      queryKey: ["group-count", scope, type, attr, option.value, q ?? ""],
       retry: false,
       staleTime: 30_000,
       queryFn: async () => (await source.query({ type, q: andQ(q, groupTerm(attr, option.value)) }, { offset: 0, limit: 1 })).total ?? null,

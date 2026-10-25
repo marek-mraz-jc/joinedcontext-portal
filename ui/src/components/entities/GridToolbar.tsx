@@ -141,20 +141,20 @@ function footerState(runs: { on: boolean; isError: boolean; isPending: boolean }
  * the view's whole query. A filled count is the query with the attribute present (`q=attr`), so a
  * reader's grant narrows it exactly as it narrows the rows.
  */
-function useFooterValue(source: EntitySource, type: string, attr: string, q: string | undefined, value: Aggregation) {
+function useFooterValue(scope: string, source: EntitySource, type: string, attr: string, q: string | undefined, value: Aggregation) {
   const ordered = ORDERED_ANY.has(value);
   const needsTotal = value !== "none" && value !== "filled" && !ordered;
   const needsFilled = value !== "none" && value !== "count";
   const count = async (asked: string | undefined) => (await source.query({ type, q: asked }, { offset: 0, limit: 1 })).total ?? null;
   const total = useQuery({
-    queryKey: ["grid-aggregate", type, "total", q ?? ""],
+    queryKey: ["grid-aggregate", scope, type, "total", q ?? ""],
     enabled: needsTotal,
     retry: false,
     staleTime: 30_000,
     queryFn: () => count(q),
   });
   const filled = useQuery({
-    queryKey: ["grid-aggregate", type, attr, q ?? ""],
+    queryKey: ["grid-aggregate", scope, type, attr, q ?? ""],
     enabled: needsFilled,
     retry: false,
     staleTime: 30_000,
@@ -163,7 +163,7 @@ function useFooterValue(source: EntitySource, type: string, attr: string, q: str
   const some = filled.data ?? null;
   const read = ordered && some !== null ? orderedRead(value, some) : null;
   const picked = useQuery({
-    queryKey: ["grid-aggregate", type, attr, value, q ?? "", some ?? -1],
+    queryKey: ["grid-aggregate", scope, type, attr, value, q ?? "", some ?? -1],
     enabled: read !== null,
     retry: false,
     staleTime: 30_000,
@@ -188,6 +188,7 @@ function useFooterValue(source: EntitySource, type: string, attr: string, q: str
 
 /** One column's footer: the aggregation picked for it and its value over the view's whole query. */
 export function FooterAggregate({
+  scope,
   source,
   type,
   attr,
@@ -197,6 +198,8 @@ export function FooterAggregate({
   value,
   onChange,
 }: {
+  /** Whose counts these are (`{project}/{space}`): every count's cache key names it (F-UI1-004). */
+  scope: string;
   source: EntitySource;
   type: string;
   attr: string;
@@ -208,7 +211,7 @@ export function FooterAggregate({
   onChange: (next: Aggregation) => void;
 }): JSX.Element {
   const { t } = useTranslation();
-  const { failed, waiting, shown } = useFooterValue(source, type, attr, q, value);
+  const { failed, waiting, shown } = useFooterValue(scope, source, type, attr, q, value);
   const offered = aggregationsFor(kind, source.orders === true);
   return (
     <div className="flex items-center gap-1">
@@ -398,12 +401,12 @@ export function groupValueTerm(attr: string, value: unknown): string | null {
 }
 
 /** A group header's count (T-5188): the endpoint's `count=true` over the view's query and the group's values. */
-export function GroupCount({ source, type, q, path }: { source: EntitySource; type: string; q?: string; path: { attr: string; value: unknown }[] }): JSX.Element | null {
+export function GroupCount({ scope, source, type, q, path }: { scope: string; source: EntitySource; type: string; q?: string; path: { attr: string; value: unknown }[] }): JSX.Element | null {
   const { t } = useTranslation();
   const terms = path.map((step) => groupValueTerm(step.attr, step.value));
   const asked = terms.every((term): term is string => term !== null) ? andQ(q, ...terms) : null;
   const count = useQuery({
-    queryKey: ["group-header-count", type, asked ?? ""],
+    queryKey: ["group-header-count", scope, type, asked ?? ""],
     enabled: asked !== null,
     retry: false,
     staleTime: 30_000,

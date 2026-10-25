@@ -1086,6 +1086,7 @@ function SpaceData({
       {readable && config && view === "grid" ? <LiveNotice change={live} /> : null}
       {readable && config && view === "grid" && groupBy[0] !== undefined && enums[groupBy[0]] ? (
         <GroupCounts
+          scope={`${project}/${space}`}
           source={source}
           type={type}
           attr={groupBy[0]}
@@ -1170,7 +1171,7 @@ function SpaceData({
           view={saved || steered ? gridView : undefined}
           thenBy={thenBy}
           groupBy={groupBy}
-          groupHeader={(each) => <GroupCount source={source} type={type} q={andQ(asked.q, gridQuery?.q)} path={each.path} />}
+          groupHeader={(each) => <GroupCount scope={`${project}/${space}`} source={source} type={type} q={andQ(asked.q, gridQuery?.q)} path={each.path} />}
           onGridState={onGridState}
           onQuery={setAsked}
           onRows={onRows}
@@ -1192,6 +1193,7 @@ function SpaceData({
           footer={(column) =>
             column.attr && !column.meta ? (
               <FooterAggregate
+                scope={`${project}/${space}`}
                 source={source}
                 type={type}
                 attr={column.attr}
