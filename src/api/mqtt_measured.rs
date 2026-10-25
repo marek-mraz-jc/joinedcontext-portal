@@ -132,7 +132,7 @@ fn tally(project: &str, spec: &MqttBrokerSpec, clients: &[Client]) -> (Vec<Accou
     (accounts.into_values().collect(), publishers)
 }
 
-fn http() -> &'static reqwest::Client {
+pub(crate) fn http() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(|| {
         reqwest::Client::builder()
@@ -230,15 +230,25 @@ pub async fn get_measured(
         .get(&project, "MqttBroker", &name)
         .ok_or_else(not_found)?;
     let spec: MqttBrokerSpec = serde_json::from_value(manifest.spec).map_err(|_| not_found())?;
+    let release = release_name(&project, &name);
+    Ok(Json(measured_now(&state, &project, &spec, &release).await))
+}
+
+/// What broker `release` of `project` measures now, read in the instance's MQTT namespace.
+pub(crate) async fn measured_now(
+    state: &AppState,
+    project: &str,
+    spec: &MqttBrokerSpec,
+    release: &str,
+) -> Measured {
     let Some(namespace) = state.config.mqtt_namespace.as_deref() else {
-        return Ok(Json(not_measured(
+        return not_measured(
             Utc::now(),
             "this instance runs no MQTT brokers namespace (JC_PORTAL_MQTT_NAMESPACE)".to_owned(),
-        )));
+        );
     };
-    let release = release_name(&project, &name);
     let base = format!("http://{release}.{namespace}.svc.cluster.local:{API_PORT}");
-    Ok(Json(measure(&base, &project, &spec).await))
+    measure(&base, project, spec).await
 }
 
 pub fn router() -> Router<AppState> {

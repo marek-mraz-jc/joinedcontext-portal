@@ -92,7 +92,7 @@ pub struct Bindings {
 }
 
 /// Whether the caller may read `kind` in `space` (`None`: anywhere in the project).
-type May<'a> = &'a dyn Fn(&str, Option<&str>) -> bool;
+pub type May<'a> = &'a dyn Fn(&str, Option<&str>) -> bool;
 
 /// The map of the output mapper's header (outputMapper.ts `MapperState`).
 #[derive(Deserialize)]
@@ -157,21 +157,14 @@ impl Join<'_> {
         rows
     }
 
-    /// A pipeline is readable as on the flow map (API/01 §50): anywhere, or in a space it writes.
     fn pipeline(&self, start: &Binding, name: &str, spec: &PipelineSpec) -> Vec<Binding> {
-        let outputs = spec.outputs();
-        let spaces: Vec<Option<String>> = outputs.iter().map(|o| self.space_of(o)).collect();
-        let readable = (self.may)("Pipeline", None)
-            || spaces
-                .iter()
-                .flatten()
-                .any(|s| (self.may)("Pipeline", Some(s)));
-        if !readable {
+        if !pipeline_visible(self.mirror, self.project, spec, self.may) {
             return vec![Binding {
                 pipeline: Some(Hop::hidden("Pipeline")),
                 ..start.clone()
             }];
         }
+        let outputs = spec.outputs();
         let at = Binding {
             pipeline: Some(Hop::named("Pipeline", name)),
             ..start.clone()
@@ -179,6 +172,10 @@ impl Join<'_> {
         if outputs.is_empty() {
             return vec![at];
         }
+        let spaces: Vec<Option<String>> = outputs
+            .iter()
+            .map(|o| space_of(self.mirror, self.project, o))
+            .collect();
         let mapper = mapper_of(spec);
         outputs
             .iter()
@@ -220,14 +217,22 @@ impl Join<'_> {
             ..at.clone()
         }
     }
+}
 
-    /// The space an Endpoint of this project serves; `None` for one the project does not declare.
-    fn space_of(&self, output: &PipelineOutput) -> Option<String> {
-        let endpoint =
-            self.mirror
-                .get(self.project, "Endpoint", output.target_endpoint.local_id())?;
-        ref_name(&endpoint.spec["contextSpaceRef"])
-    }
+/// A pipeline is readable as on the flow map (API/01 §50): anywhere, or in a space it writes.
+pub fn pipeline_visible(mirror: &Mirror, project: &str, spec: &PipelineSpec, may: May<'_>) -> bool {
+    may("Pipeline", None)
+        || spec
+            .outputs()
+            .iter()
+            .filter_map(|o| space_of(mirror, project, o))
+            .any(|s| may("Pipeline", Some(&s)))
+}
+
+/// The space an Endpoint of this project serves; `None` for one the project does not declare.
+fn space_of(mirror: &Mirror, project: &str, output: &PipelineOutput) -> Option<String> {
+    let endpoint = mirror.get(project, "Endpoint", output.target_endpoint.local_id())?;
+    ref_name(&endpoint.spec["contextSpaceRef"])
 }
 
 fn row(topic_filter: Option<String>, data_source: Hop) -> Binding {
