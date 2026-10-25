@@ -2250,7 +2250,7 @@ export interface paths {
         };
         /**
          * Why An Attribute Is Refused
-         * @description What decided one attribute for the caller and, for a caller who may read it, the Policy that decided (API/01 §56). The decisions table itself is the gateway's `access/attributes`, read with the person's session. Whoever may read the Endpoint. Changes no data.
+         * @description What decided one attribute for the caller and, for a caller who may read it, the Policy that decided (API/01 §58). The decisions table itself is the gateway's `access/attributes`, read with the person's session. Whoever may read the Endpoint. Changes no data.
          */
         get: operations["explain_attribute"];
         put?: never;

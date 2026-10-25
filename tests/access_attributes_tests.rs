@@ -1,4 +1,4 @@
-//! The Policy behind a refused attribute (API/01 §56, T-5528): the Portal asks the gateway's
+//! The Policy behind a refused attribute (API/01 §58, T-5528): the Portal asks the gateway's
 //! `access/simulate` about the caller themself, with its own token, and names the Policy only to
 //! a caller who may read it.
 

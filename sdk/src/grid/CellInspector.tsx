@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import type { AttributeAccess } from "./source";
 
-/** The Policy behind a refused attribute, where the host can name it (API/01 §56). */
+/** The Policy behind a refused attribute, where the host can name it (API/01 §58). */
 export interface AccessExplanation {
   policy: string | null;
   policyTitle?: string | null;

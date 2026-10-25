@@ -4,9 +4,16 @@
  * session, so it is the decision their real request gets.
  */
 import { useQuery } from "@tanstack/react-query";
-import { accessOf } from "@joinedcontext/sdk";
-import type { AccessAction, AccessExplanation, AttributeAccess } from "@joinedcontext/sdk";
+import { endpointSource, originTransport, SourceError } from "@joinedcontext/sdk";
+import type { EntityGridProps, EntitySource } from "@joinedcontext/sdk";
 import { ApiError, api, unwrap } from "./client";
+
+// Read off the SDK's exported shapes: each name the SDK exports costs the app builder's prompt.
+/** One attribute's decisions: `{name, read, write, delete, reason}`. */
+export type AttributeAccess = Awaited<ReturnType<NonNullable<EntitySource["access"]>>>[number];
+type Explain = NonNullable<EntityGridProps["explainAccess"]>;
+export type AccessAction = Parameters<Explain>[1];
+export type AccessExplanation = Awaited<ReturnType<Explain>>;
 
 export interface GeoQ {
   geometry?: string;
@@ -65,8 +72,15 @@ export function attributeAccessQuery(slug: string | undefined, type: string | un
     // One person's decisions never outlive their page (R17).
     gcTime: 0,
     queryFn: async (): Promise<AttributeAccess[]> => {
-      const response = await gatewayFetch(slug!, `/access/attributes?type=${encodeURIComponent(type!)}`);
-      return accessOf(await response.json());
+      // The SDK's own reading, so the grid and this page trust the same rows (deny by default).
+      // A `Request` on the page's origin, as gatewayFetch sends it.
+      const send = originTransport((path, init) => globalThis.fetch(new Request(new URL(String(path), window.location.origin), init)));
+      const access = endpointSource(slug!, send).access;
+      try {
+        return await access!(type!);
+      } catch (error) {
+        throw error instanceof SourceError ? new ApiError(error.status, error.message) : error;
+      }
     },
   };
 }
@@ -118,7 +132,7 @@ export function deniedOf(rows: AttributeAccess[] | undefined, t: (key: string) =
   );
 }
 
-/** The Policy behind a refused attribute, named only to a caller who may read it (API/01 §56). */
+/** The Policy behind a refused attribute, named only to a caller who may read it (API/01 §58). */
 export async function explainAttribute(
   project: string,
   endpoint: string,

@@ -1,4 +1,4 @@
-//! The Policy behind a refused attribute, for the entity grid's cell inspector (API/01 §56, T-5528).
+//! The Policy behind a refused attribute, for the entity grid's cell inspector (API/01 §58, T-5528).
 //!
 //! The per-attribute decisions are the gateway's: the browser reads `access/attributes` with the
 //! person's own session, so the Portal never computes or relays a grant. What the gateway never
@@ -95,7 +95,7 @@ fn caller(identity: &Identity) -> Resolved {
     get,
     path = "/api/v1/projects/{project}/endpoints/{name}/access/attributes",
     summary = "Why An Attribute Is Refused",
-    description = "What decided one attribute for the caller and, for a caller who may read it, the Policy that decided (API/01 §56). The decisions table itself is the gateway's `access/attributes`, read with the person's session. Whoever may read the Endpoint. Changes no data.",
+    description = "What decided one attribute for the caller and, for a caller who may read it, the Policy that decided (API/01 §58). The decisions table itself is the gateway's `access/attributes`, read with the person's session. Whoever may read the Endpoint. Changes no data.",
     tag = "access",
     params(
         ("project" = String, Path, description = "Project name"),

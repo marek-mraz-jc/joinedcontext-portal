@@ -140,7 +140,7 @@ export interface EntityGridProps extends UseEntityGridOptions {
    * attribute opens an editor only where its row says `write`.
    */
   access?: AttributeAccess[] | null;
-  /** Names the Policy behind a prohibited attribute in the cell inspector (API/01 §56). */
+  /** Names the Policy behind a prohibited attribute in the cell inspector (API/01 §58). */
   explainAccess?: (attribute: string, action: AccessAction) => Promise<AccessExplanation>;
   /** Where the inspector sends a person to ask for access. */
   accessRequestHref?: string;
@@ -365,7 +365,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       (!asked || accessOf(column.attr)?.write === true);
   }, [editing, hookOptions.config.editableAttrs, asked, accessOf]);
   const [inspected, setInspected] = useState<{ attr: string; label: string } | null>(null);
-  const inspectorLabels = { ...DEFAULT_INSPECTOR_LABELS, ...hookOptions.labels?.inspectorLabels };
+  // A host that translated only the grid's labels still gets its own word for closing.
+  const inspectorLabels = { ...DEFAULT_INSPECTOR_LABELS, close: labels.close, ...hookOptions.labels?.inspectorLabels };
   const inspects = (column: VisibleColumn): column is VisibleColumn & { attr: string } =>
     asked && column.attr !== null && column.meta === null && column.key !== "id";
   // A column the person cannot change once their decisions are read wears a lock with the reason
