@@ -160,6 +160,13 @@ export function Combobox({
   }, [open]);
 
 
+  const enter = (text: string) => {
+    setTyped(text);
+    setActive(0);
+    setOpen(true);
+    onSearch?.(text);
+  };
+
   const choose = (index: number) => {
     if (index < shown.length) {
       pick(shown[index].value);
@@ -263,10 +270,19 @@ export function Combobox({
             }
           }}
           onChange={(event) => {
-            setTyped(event.target.value);
-            setActive(0);
-            setOpen(true);
-            onSearch?.(event.target.value);
+            enter(event.target.value);
+          }}
+          onPaste={(event) => {
+            // A one-line field drops line breaks, which runs a pasted column of names into one
+            // word; where the form may name something new, each line becomes a comma (T-5605).
+            const text = event.clipboardData.getData("text");
+            if (!create || !/[\r\n]/.test(text)) {
+              return;
+            }
+            event.preventDefault();
+            const input = event.currentTarget;
+            const lines = text.trim().split(/\s*[\r\n]+\s*/).join(", ");
+            enter(input.value.slice(0, input.selectionStart ?? input.value.length) + lines + input.value.slice(input.selectionEnd ?? input.value.length));
           }}
           onKeyDown={onKeyDown}
           className="pl-7"

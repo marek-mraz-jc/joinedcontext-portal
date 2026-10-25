@@ -1940,7 +1940,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 17,
+        "Button": 18,
         "RadioGroup": 1
       },
       "tests": [

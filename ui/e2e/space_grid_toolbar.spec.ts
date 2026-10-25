@@ -368,6 +368,54 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
   });
 }
 
+// T-5600: a name is a LanguageProperty on dev, and `name~=` compares its language map, which matched
+// no row; a search that matched nothing then said no pipeline had written to the space.
+for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
+  test(`The search finds a name in any language and says when nothing matches (${label})`, async ({ page }) => {
+    const asked: string[] = [];
+    await page.setViewportSize({ width, height });
+    await stubApi(page, asked, []);
+    // Registered last, so it answers the rows: names in two languages, filtered by the term the grid sent.
+    await page.route("**/cs/**/entities?*", async (route) => {
+      const q = new URL(route.request().url()).searchParams.get("q") ?? "";
+      asked.push(q);
+      const rows = Array.from({ length: 24 }, (_, i) => event(i + 1)).map((row) => ({
+        ...row,
+        name: { type: "LanguageProperty", languageMap: { en: row.name.value, fi: `${row.name.value} (fi)` } },
+      }));
+      const term = /name\[\*\]~="\(\?i\)([^"]+)"/.exec(q)?.[1]?.toLowerCase();
+      const found = term ? rows.filter((row) => Object.values(row.name.languageMap).some((name) => name.toLowerCase().includes(term))) : rows;
+      return route.fulfill({ status: 200, contentType: "application/json", headers: { "NGSILD-Results-Count": String(found.length) }, body: JSON.stringify(found) });
+    });
+    await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
+    await expect(page.getByText("Workshop for Families").first()).toBeVisible();
+
+    const search = page.getByRole("searchbox", { name: "Search the rows" });
+    await search.fill("workshop");
+    await expect.poll(() => asked.at(-1)).toContain('name[*]~="(?i)workshop"');
+    expect(asked.at(-1)).not.toContain("audience~=");
+    expect(asked.at(-1)).not.toContain("startDate~=");
+    await expect(page.getByText("Board game club")).toHaveCount(0);
+    await expect(page.getByText("Workshop for Families").first()).toBeVisible();
+    await page.getByText("Workshop for Families").first().scrollIntoViewIfNeeded();
+    await shot(page, `grid-search-language-${label}`);
+
+    await search.fill("Herttoniemi");
+    const none = page.getByRole("status").filter({ hasText: "No row of Event matches “Herttoniemi”." });
+    await expect(none).toBeVisible();
+    await expect(page.getByText("no pipeline has written")).toHaveCount(0);
+    // The empty answer keeps the columns' kinds: the next ask still leaves the number and date out.
+    expect(asked.filter((q) => q.includes("Herttoniemi")).every((q) => !q.includes("audience~=") && !q.includes("startDate~="))).toBe(true);
+    expect(await axeViolations(page)).toEqual([]);
+    await none.scrollIntoViewIfNeeded();
+    await shot(page, `grid-search-no-match-${label}`);
+
+    await none.getByRole("button", { name: "Clear the search" }).click();
+    await expect(search).toHaveValue("");
+    await expect(page.getByText("Board game club").first()).toBeVisible();
+  });
+}
+
 // T-5596: on a touch screen every control of the space page is a finger's 44 px, the grid's
 // checkboxes through their labels, the crumbs, brand, back and CSV links through `touch-target`;
 // a tap beside a row's box ticks it and leaves the row closed. Nothing scrolls sideways.
