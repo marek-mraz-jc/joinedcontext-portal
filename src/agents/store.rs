@@ -224,35 +224,47 @@ impl AgentStore {
         next: AgentRunStatus,
         error: Option<&str>,
     ) -> Result<AgentRun, StatusChangeError> {
-        let run = self
-            .get_run(id)
-            .await
-            .map_err(StatusChangeError::Store)?
-            .ok_or(StatusChangeError::Unknown)?;
-        let current = AgentRunStatus::parse(&run.status).ok_or(StatusChangeError::Unknown)?;
-        if !current.allows_transition_to(next) {
-            return Err(StatusChangeError::Refused {
-                from: current,
-                to: next,
-            });
-        }
-
-        if next.is_terminal() {
-            crate::telemetry::run_finished(&run.kind, next);
-        }
         if let Some(pool) = &self.db {
-            db::update_agent_run_status(pool, id, next.as_str(), error, next.is_terminal())
-                .await
-                .map_err(|err| StatusChangeError::Store(StoreError(err)))?;
-            return self
+            let run = self
                 .get_run(id)
                 .await
                 .map_err(StatusChangeError::Store)?
-                .ok_or(StatusChangeError::Unknown);
+                .ok_or(StatusChangeError::Unknown)?;
+            let current = transition(&run.status, next)?;
+            let moved = db::update_agent_run_status(
+                pool,
+                id,
+                current.as_str(),
+                next.as_str(),
+                error,
+                next.is_terminal(),
+            )
+            .await
+            .map_err(|err| StatusChangeError::Store(StoreError(err)))?;
+            let after = self
+                .get_run(id)
+                .await
+                .map_err(StatusChangeError::Store)?
+                .ok_or(StatusChangeError::Unknown)?;
+            if !moved {
+                // Another transition won the race: refused from the status it left.
+                let from =
+                    AgentRunStatus::parse(&after.status).ok_or(StatusChangeError::Unknown)?;
+                return Err(StatusChangeError::Refused { from, to: next });
+            }
+            if next.is_terminal() {
+                crate::telemetry::run_finished(&run.kind, next);
+            }
+            return Ok(after);
         }
 
+        // Judged and written under one lock, so two racing transitions cannot both pass.
         let mut memory = self.memory.write().await;
         let stored = memory.runs.get_mut(id).ok_or(StatusChangeError::Unknown)?;
+        transition(&stored.status, next)?;
+        if next.is_terminal() {
+            crate::telemetry::run_finished(&stored.kind, next);
+        }
         stored.status = next.as_str().to_owned();
         if let Some(message) = error {
             stored.error = Some(message.to_owned());
@@ -509,6 +521,19 @@ pub fn now_rfc3339() -> String {
         .unwrap_or_default()
 }
 
+/// The run's status as read, when it may move to `next` (AG-43); the refusal otherwise.
+fn transition(status: &str, next: AgentRunStatus) -> Result<AgentRunStatus, StatusChangeError> {
+    let current = AgentRunStatus::parse(status).ok_or(StatusChangeError::Unknown)?;
+    if current.allows_transition_to(next) {
+        Ok(current)
+    } else {
+        Err(StatusChangeError::Refused {
+            from: current,
+            to: next,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -556,6 +581,36 @@ mod tests {
             expires_at: "2026-09-12T10:35:30Z".to_owned(),
             error: None,
         }
+    }
+
+    /// F-POR1-019: two terminal transitions of one run race; exactly one wins and the other is
+    /// refused from the status the winner left.
+    #[tokio::test]
+    async fn of_two_racing_endings_exactly_one_wins() {
+        let store = std::sync::Arc::new(AgentStore::new(None));
+        store
+            .create_run(&run("run-1", "helsinki", "2026-09-12T10:15:30Z"))
+            .await
+            .expect("create");
+        let (a, b) = (store.clone(), store.clone());
+        let (cancel, fail) = tokio::join!(
+            tokio::spawn(
+                async move { a.set_status("run-1", AgentRunStatus::Cancelled, None).await }
+            ),
+            tokio::spawn(async move {
+                b.set_status("run-1", AgentRunStatus::Failed, Some("x"))
+                    .await
+            }),
+        );
+        let outcomes = [cancel.expect("joined"), fail.expect("joined")];
+        assert_eq!(
+            outcomes.iter().filter(|o| o.is_ok()).count(),
+            1,
+            "{outcomes:?}"
+        );
+        assert!(outcomes
+            .iter()
+            .any(|o| matches!(o, Err(StatusChangeError::Refused { .. }))));
     }
 
     #[tokio::test]

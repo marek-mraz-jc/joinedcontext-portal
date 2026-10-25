@@ -42,6 +42,12 @@ fn digest(entities: u64) -> Value {
 }
 
 async fn world(held: bool, target_digest: Value, on_main: &str) -> World {
+    // A fresh move reads the target once before it copies: an empty tenant (F-POR4-015).
+    let empty_first = !on_main.contains("moving-to");
+    world_with(held, target_digest, on_main, empty_first).await
+}
+
+async fn world_with(held: bool, target_digest: Value, on_main: &str, empty_first: bool) -> World {
     let forge = forge().await;
     Mock::given(method("GET"))
         .and(path(format!("{REPO}/contents/{MANIFEST}")))
@@ -75,6 +81,17 @@ async fn world(held: bool, target_digest: Value, on_main: &str) -> World {
         .mount(&source)
         .await;
     let target = MockServer::start().await;
+    if empty_first {
+        Mock::given(method("GET"))
+            .and(path(format!("{TENANT}/digest")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({"tenant": "ovzdusie-air", "entities": 0, "attrInstances": 0, "sha256": "00".repeat(32)}),
+            ))
+            .up_to_n_times(1)
+            .with_priority(1)
+            .mount(&target)
+            .await;
+    }
     Mock::given(method("POST"))
         .and(path(format!("{TENANT}/import")))
         .respond_with(ResponseTemplate::new(204))
@@ -331,4 +348,30 @@ async fn only_an_administrator_moves_and_only_to_another_declared_broker() {
     let none = send(&world.state, person("jana"), "GET", route, None).await;
     assert_eq!(none.status, StatusCode::NOT_FOUND);
     assert!(commits(&world.forge).await.is_empty());
+}
+
+/// F-POR4-015: a target tenant that already holds data is refused before anything is copied, and
+/// it is never purged: the space stays where it was and the hold is released.
+#[tokio::test]
+async fn a_target_that_already_holds_data_is_refused_and_kept() {
+    let world = world_with(true, digest(5), SPACE, false).await;
+    let job = moved(&world).await;
+    assert_eq!(job["state"], "failed", "{job}");
+    assert!(
+        job["reason"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("already holds 5 entities"),
+        "{job}"
+    );
+    assert!(
+        sent(&world.target, "POST", &format!("{TENANT}/import"))
+            .await
+            .is_empty(),
+        "copied into it"
+    );
+    assert!(
+        sent(&world.target, "DELETE", TENANT).await.is_empty(),
+        "the target's data was purged"
+    );
 }

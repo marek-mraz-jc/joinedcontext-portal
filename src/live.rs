@@ -46,8 +46,9 @@ pub struct LiveHub {
     /// The Portal's public origin, where the gateway delivers.
     public_base: String,
     channels: Mutex<HashMap<Pair, broadcast::Sender<Arc<Changed>>>>,
-    /// Every pair a window watched; a delivery key is checked against these in constant time.
-    keys: Mutex<std::collections::HashSet<Pair>>,
+    /// The delivery key of every pair a window watches, to the pair: one lookup per delivery,
+    /// then the tag verified in constant time (F-POR4-021).
+    keys: Mutex<HashMap<String, Pair>>,
     written: Mutex<HashMap<Pair, Instant>>,
     writer: Option<Arc<SubscriptionSync>>,
 }
@@ -62,7 +63,7 @@ impl LiveHub {
             secret,
             public_base: public_base.trim_end_matches('/').to_owned(),
             channels: Mutex::new(HashMap::new()),
-            keys: Mutex::new(std::collections::HashSet::new()),
+            keys: Mutex::new(HashMap::new()),
             written: Mutex::new(HashMap::new()),
             writer,
         }
@@ -86,33 +87,47 @@ impl LiveHub {
             .into_bytes())
     }
 
-    /// The watched pair `key` was made for, compared in constant time with each.
+    /// The watched pair `key` was made for, its tag verified in constant time.
     fn pair_of(&self, key: &str) -> Option<Pair> {
         let tag = unhex(key)?;
+        let pair = self
+            .keys
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&key.to_ascii_lowercase())
+            .cloned()?;
+        self.mac(&pair.0, &pair.1, &pair.2)
+            .verify_slice(&tag)
+            .is_ok()
+            .then_some(pair)
+    }
+
+    /// Forgets every pair no window listens to any more, so a hub that served many spaces holds
+    /// only what is watched now (F-POR4-021).
+    fn prune(&self) {
+        let mut channels = self.channels.lock().unwrap_or_else(|e| e.into_inner());
+        channels.retain(|_, sender| sender.receiver_count() > 0);
         self.keys
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .iter()
-            .find(|(project, space, entity_type)| {
-                self.mac(project, space, entity_type)
-                    .verify_slice(&tag)
-                    .is_ok()
-            })
-            .cloned()
+            .retain(|_, pair| channels.contains_key(pair));
     }
 
-    /// A window's stream of one pair's changes; the subscription is written when it is new or old.
+    /// A window's stream of one pair's changes; the subscription is written when it is new or old,
+    /// into the tenant of the space's URN `segment` (PF-84, F-POR4-012).
     pub fn watch(
         self: &Arc<Self>,
         project: &str,
         space: &str,
+        segment: &str,
         entity_type: &str,
     ) -> broadcast::Receiver<Arc<Changed>> {
+        self.prune();
         let pair = (project.to_owned(), space.to_owned(), entity_type.to_owned());
         self.keys
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .insert(pair.clone());
+            .insert(self.key(project, space, entity_type), pair.clone());
         let receiver = self
             .channels
             .lock()
@@ -132,8 +147,9 @@ impl LiveHub {
         };
         if due {
             let hub = Arc::clone(self);
+            let segment = segment.to_owned();
             tokio::spawn(async move {
-                if let Err(reason) = hub.write(&pair.0, &pair.1, &pair.2).await {
+                if let Err(reason) = hub.write(&pair.0, &segment, &pair.1, &pair.2).await {
                     tracing::warn!(project = %pair.0, space = %pair.1, r#type = %pair.2, %reason, "live-update subscription not written");
                     // The next window tries again rather than waiting half a day.
                     hub.written
@@ -167,19 +183,25 @@ impl LiveHub {
         })
     }
 
-    async fn write(&self, project: &str, space: &str, entity_type: &str) -> Result<(), String> {
+    async fn write(
+        &self,
+        project: &str,
+        segment: &str,
+        space: &str,
+        entity_type: &str,
+    ) -> Result<(), String> {
         let Some(writer) = &self.writer else {
             return Err("no gateway, realm client or organization domain to write with".into());
         };
         // One id per pair, so a second write updates; project and type are hashed into a name
         // segment, so a same-named space of another project writes a subscription of its own.
         let digest = Sha256::digest(format!("{project}\0{entity_type}").as_bytes());
-        let id = writer.urn(space, &format!("portal-live-{}", &hex(&digest)[..16]));
+        let id = writer.urn(segment, &format!("portal-live-{}", &hex(&digest)[..16]));
         let token = writer.token().await?;
         writer
             .write(
                 &token,
-                space,
+                segment,
                 &id,
                 &self.subscription(&id, project, space, entity_type),
             )
@@ -281,7 +303,7 @@ mod tests {
             .mount(&server)
             .await;
         Mock::given(method("POST"))
-            .and(path("/cs/bikes/ngsi-ld/v1/subscriptions"))
+            .and(path("/cs/helsinki-bikes/ngsi-ld/v1/subscriptions"))
             .respond_with(ResponseTemplate::new(201))
             .expect(1)
             .mount(&server)
@@ -297,8 +319,9 @@ mod tests {
             "https://portal.example",
             Some(Arc::new(writer)),
         ));
-        let _a = hub.watch("p", "bikes", "Station");
-        let _b = hub.watch("p", "bikes", "Station");
+        // F-POR4-012: the tenant is the space's URN segment, never its bare name.
+        let _a = hub.watch("p", "bikes", "helsinki-bikes", "Station");
+        let _b = hub.watch("p", "bikes", "helsinki-bikes", "Station");
         for _ in 0..50 {
             if !server
                 .received_requests()
@@ -322,7 +345,7 @@ mod tests {
         assert!(written[0]["id"]
             .as_str()
             .unwrap_or_default()
-            .starts_with("urn:ngsi-ld:Subscription:hel.fi:bikes:portal-live-"));
+            .starts_with("urn:ngsi-ld:Subscription:hel.fi:helsinki-bikes:portal-live-"));
         assert_eq!(
             written[0]["notification"]["endpoint"]["uri"],
             format!(
@@ -332,12 +355,29 @@ mod tests {
         );
     }
 
+    /// F-POR4-021: a pair no window listens to any more is forgotten at the next watch.
+    #[tokio::test]
+    async fn a_pair_without_windows_is_forgotten() {
+        let hub = Arc::new(LiveHub::new("https://portal.example", None));
+        for space in ["a", "b", "c"] {
+            drop(hub.watch("p", space, space, "Station"));
+        }
+        let _kept = hub.watch("p", "d", "d", "Station");
+        assert_eq!(
+            hub.keys.lock().map(|keys| keys.len()).unwrap_or_default(),
+            1
+        );
+        assert_eq!(hub.channels.lock().map(|c| c.len()).unwrap_or_default(), 1);
+        assert!(!hub.deliver(&hub.key("p", "a", "Station")));
+        assert!(hub.deliver(&hub.key("p", "d", "Station")));
+    }
+
     #[tokio::test]
     async fn a_watcher_hears_only_that_its_pair_changed_and_an_unknown_key_is_refused() {
         let hub = Arc::new(LiveHub::new("https://portal.example", None));
-        let mut stations = hub.watch("p", "bikes", "Station");
-        let mut roads = hub.watch("p", "bikes", "Road");
-        let mut elsewhere = hub.watch("q", "bikes", "Station");
+        let mut stations = hub.watch("p", "bikes", "p-bikes", "Station");
+        let mut roads = hub.watch("p", "bikes", "p-bikes", "Road");
+        let mut elsewhere = hub.watch("q", "bikes", "q-bikes", "Station");
         assert!(hub.deliver(&hub.key("p", "bikes", "Station")));
         let changed = stations.recv().await.expect("a change");
         assert_eq!(

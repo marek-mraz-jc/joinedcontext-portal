@@ -162,25 +162,36 @@ fn same_origin() -> Value {
     json!({ "project": "helsinki", "space": "ilma", "name": "air", "version": "1.0.0", "commit": "abcdef1" })
 }
 
-/// Every file the forge was asked to write, by path, decoded.
+/// Every file the forge was asked to write, by path, decoded: one per-file write or each file
+/// of a `POST /contents` commit.
 async fn written(gitea: &MockServer) -> Vec<(String, String)> {
-    gitea
-        .received_requests()
-        .await
-        .expect("recorded")
-        .iter()
-        .filter(|request| request.method.as_str() == "PUT")
-        .filter_map(|request| {
-            let file = request
-                .url
-                .path()
-                .strip_prefix(&format!("{REPO}/contents/"))?
-                .to_owned();
-            let body: Value = serde_json::from_slice(&request.body).ok()?;
-            let bytes = STANDARD.decode(body["content"].as_str()?).ok()?;
-            Some((file, String::from_utf8(bytes).ok()?))
-        })
-        .collect()
+    let decode = |content: &Value| {
+        let bytes = STANDARD.decode(content.as_str()?).ok()?;
+        String::from_utf8(bytes).ok()
+    };
+    let mut files = Vec::new();
+    for request in gitea.received_requests().await.expect("recorded") {
+        let Ok(body) = serde_json::from_slice::<Value>(&request.body) else {
+            continue;
+        };
+        let at = request.url.path();
+        if request.method.as_str() == "POST" && at == format!("{REPO}/contents") {
+            for file in body["files"].as_array().into_iter().flatten() {
+                if let (Some(path), Some(text)) = (file["path"].as_str(), decode(&file["content"]))
+                {
+                    files.push((path.to_owned(), text));
+                }
+            }
+        } else if request.method.as_str() == "PUT" {
+            if let (Some(path), Some(text)) = (
+                at.strip_prefix(&format!("{REPO}/contents/")),
+                decode(&body["content"]),
+            ) {
+                files.push((path.to_owned(), text));
+            }
+        }
+    }
+    files
 }
 
 fn file<'a>(files: &'a [(String, String)], wanted: &str) -> &'a str {
