@@ -10,11 +10,13 @@ import { axeViolations } from "./axe";
 const TYPE = "BikeHireDockingStation";
 const SLUG = "scsd2eehkx42n53z2zyd6vshfh7s7irf";
 const ID = `urn:ngsi-ld:${TYPE}:hel.fi:mobility:001`;
-const ROW = { id: ID, type: TYPE, name: { type: "Property", value: "Dock 1" } };
+const ROW = { id: ID, type: TYPE, name: { type: "Property", value: "Dock 1" }, availableBikeNumber: { type: "Property", value: 7, observedAt: "2026-10-24T08:00:00Z" } };
+/** Three readings of the bike count, for the History tab. */
+const READINGS = [5, 6, 7].map((value, i) => ({ type: "Property", value, observedAt: `2026-10-24T0${6 + i}:00:00Z` }));
 const list = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
-const LINKML = ["id: https://hel.fi/models/mobility", "name: helsinki-mobility", "classes:", `  ${TYPE}:`, "    slots: [id, name]", "slots:", "  id: {}", "  name: { range: string }", ""].join("\n");
+const LINKML = ["id: https://hel.fi/models/mobility", "name: helsinki-mobility", "classes:", `  ${TYPE}:`, "    slots: [id, name, availableBikeNumber]", "slots:", "  id: {}", "  name: { range: string }", "  availableBikeNumber: { range: integer }", ""].join("\n");
 
-async function stub(page: Page): Promise<(string | null)[]> {
+async function stub(page: Page, mayDelete = true): Promise<(string | null)[]> {
   const reasons: (string | null)[] = [];
   await page.route("**/{api,cs}/**", async (route) => {
     const request = route.request();
@@ -27,7 +29,12 @@ async function stub(page: Page): Promise<(string | null)[]> {
     if (path.endsWith("/auth/me")) return json({ subject: "s1", username: "jana", name: "Jana Kováčová", roles: [] });
     if (path.endsWith("/access/check")) return json({ decision: true });
     if (path.endsWith("/access")) {
-      return json({ permissions: [{ action: "queryEntity", resource: { type: TYPE }, attributes: "*" }, { actions: ["deleteEntity"], resource: { type: TYPE } }], prohibitions: [] });
+      const read = { actions: ["queryEntity", "retrieveEntity", "queryTemporal", "retrieveTemporal"], resource: { type: TYPE }, attributes: "*" };
+      return json({ permissions: mayDelete ? [read, { actions: ["deleteEntity"], resource: { type: TYPE } }] : [read], prohibitions: [] });
+    }
+    if (path.includes("/temporal/entities/")) {
+      const attr = new URL(request.url()).searchParams.get("attrs") ?? "";
+      return json({ id: ID, type: TYPE, [attr]: attr === "availableBikeNumber" ? READINGS : [] });
     }
     if (path.endsWith(`/entities/${encodeURIComponent(ID)}`)) return json(ROW);
     if (path.endsWith("/entities")) return json([ROW]);
@@ -54,9 +61,9 @@ for (const width of [1440, 400]) {
     await page.setViewportSize({ width, height: 900 });
     const reasons = await stub(page);
     await page.goto(`/projects/helsinki/explore?endpoint=helsinki-bikes&type=${TYPE}&lang=en`);
-    await page.getByRole("button", { name: ID }).click();
-    await page.getByTestId("explore-delete").click();
+    await page.getByRole("button", { name: "Open: Dock 1" }).first().click();
     const dialog = page.getByRole("dialog");
+    await dialog.getByTestId("explore-delete").click();
     const reason = dialog.getByLabel(/^Reason/);
     await expect(reason).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/delete-reason-empty-${width}.png` });
@@ -72,5 +79,48 @@ for (const width of [1440, 400]) {
     await page.getByTestId("explore-delete-confirm").click();
     await expect(dialog).toBeHidden();
     expect(reasons).toEqual([encodeURIComponent("Duplikát, ďalší je 12")]);
+  });
+}
+
+// T-5619: a row of the explorer opens in the grid's own detail, its fields drawn by type, a History
+// tab, the removal as the page's action and the JSON-LD folded away; Escape gives the grid back.
+for (const width of [1440, 400]) {
+  test(`a row opens its detail, its history and a refused delete, at ${width} px`, async ({ page }) => {
+    mkdirSync(SHOTS, { recursive: true });
+    await page.setViewportSize({ width, height: 900 });
+    const reasons = await stub(page, false);
+    await page.goto(`/projects/helsinki/explore?endpoint=helsinki-bikes&type=${TYPE}&lang=en`);
+    const open = page.getByRole("button", { name: "Open: Dock 1" }).first();
+    await open.focus();
+    await page.keyboard.press("Enter");
+    const dialog = page.getByRole("dialog", { name: "Details: Dock 1" });
+    await expect(dialog.getByRole("tab", { name: "Fields" })).toHaveAttribute("aria-selected", "true");
+    await expect(dialog).not.toContainText("@context");
+    await expect(dialog).not.toContainText(ID);
+    await expect(dialog.getByTestId("explore-technical")).not.toHaveAttribute("open");
+    // Refused with its reason, reachable by keyboard (UI-44).
+    await expect(dialog.getByTestId("explore-delete")).toHaveAttribute("aria-disabled", "true");
+    await expect(dialog.getByText("This endpoint's grant does not let you delete a BikeHireDockingStation").first()).toBeAttached();
+    expect(await axeViolations(page)).toEqual([]);
+    await page.screenshot({ path: `${SHOTS}/row-detail-${width}.png` });
+    await dialog.getByTestId("explore-delete").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${SHOTS}/row-delete-refused-${width}.png` });
+
+    await dialog.getByRole("tab", { name: "History" }).click();
+    await dialog.getByLabel("Attribute").selectOption("availableBikeNumber");
+    await expect(dialog.getByText("6").first()).toBeVisible();
+    await page.screenshot({ path: `${SHOTS}/row-history-${width}.png` });
+
+    await dialog.getByRole("tab", { name: "Fields" }).click();
+    await dialog.getByText("Technical details (JSON-LD)").click();
+    await expect(dialog.getByRole("group", { name: "Entity" })).toContainText(ID);
+    await page.screenshot({ path: `${SHOTS}/row-technical-${width}.png` });
+
+    await dialog.getByRole("tab", { name: "Fields" }).focus();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    // The focus is back on the grid, its active cell the one that opened the row.
+    await expect(page.getByRole("grid")).toBeFocused();
+    expect(reasons).toEqual([]);
   });
 }

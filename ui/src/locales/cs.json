@@ -5507,12 +5507,9 @@
     "endpoint": "Číst přes endpoint",
     "noEndpoint": "Tento prostor nemá endpoint, přes který lze číst.",
     "noType": "Vyberte typ entity, aby se načetly entity.",
-    "detail": "Entita",
-    "close": "Zavřít",
     "loadFailed": "Entity se nepodařilo načíst. Zkuste to znovu nebo čtěte přes jiný endpoint.",
     "delete": "Smazat entitu",
     "removeTitle": "Smazat tuto entitu?",
-    "removeLead": "{id} se odstraní z prostoru přes tento endpoint.",
     "removeConfirm": "Smazat",
     "removeNote": "Rozhoduje Policy endpointu: smazání běží s vaším přihlášením, ne se servisní identitou, a nelze je vrátit.",
     "removeReason": "Důvod",
@@ -5630,7 +5627,9 @@
       "pickEntity": "Vyberte entitu, jejíž průběh se má zobrazit."
     },
     "pickSpaceFirst": "Nejprve vyberte prostor.",
-    "noMatch": "Dotazu nic neodpovídá; změňte nebo odstraňte filtr."
+    "noMatch": "Dotazu nic neodpovídá; změňte nebo odstraňte filtr.",
+    "technical": "Technické podrobnosti (JSON-LD)",
+    "copyJson": "Kopírovat JSON-LD"
   },
   "agentRun": {
     "title": "Běh aplikace",
