@@ -396,7 +396,7 @@ pub fn operations() -> Vec<Operation> {
             verb: None,
             lane: Lane::Green,
             validate: |val| parse_input::<ActivityInput>(val.clone()).map(|_| ()),
-            run: |_, state, project, val| {
+            run: |caller, state, project, val| {
                 Box::pin(async move {
                     let input: ActivityInput = parse_input(val)?;
                     let query = crate::api::activity::ActivityQuery {
@@ -409,7 +409,12 @@ pub fn operations() -> Vec<Operation> {
                         limit: input.limit,
                         cursor: input.cursor,
                     };
-                    let filter = query.into_filter()?;
+                    let mut filter = query.into_filter()?;
+                    // A space's events reach only the readers bound to it, as the REST list
+                    // shows them (T-4876, T-5698).
+                    filter.reach =
+                        crate::permissions::for_request(state, &caller.identity, project)
+                            .spaces_reached();
                     let page = state
                         .activity
                         .list(project, &filter)
@@ -434,11 +439,13 @@ pub fn operations() -> Vec<Operation> {
             verb: None,
             lane: Lane::Green,
             validate: |val| parse_input::<EmptyInput>(val.clone()).map(|_| ()),
-            run: |_, state, project, val| {
+            run: |caller, state, project, val| {
                 Box::pin(async move {
                     let _: EmptyInput = parse_input(val)?;
+                    let effective =
+                        crate::permissions::for_request(state, &caller.identity, project);
                     Ok(serde_json::to_value(crate::api::federation::graph_of(
-                        state, project,
+                        state, project, &effective,
                     ))?)
                 })
             },
@@ -462,11 +469,22 @@ pub fn operations() -> Vec<Operation> {
                 Box::pin(async move {
                     let input: NamedInput = parse_input(val)?;
                     readable(caller, state, project, "DataModel")?;
-                    // A manifest that carries its LinkML is read from the manifest, as every
-                    // editor reads it; one that names a file is read from the repository.
-                    let inline = state
+                    // A model of a space the caller is not bound to is not there (T-5698).
+                    let effective =
+                        crate::permissions::for_request(state, &caller.identity, project);
+                    let manifest = state
                         .mirror
                         .get(project, "DataModel", &input.name)
+                        .filter(|envelope| effective.may_read_envelope("DataModel", envelope))
+                        .ok_or_else(|| {
+                            crate::error::ApiError::NotFound(format!(
+                                "DataModel '{}' not found in project '{project}'",
+                                input.name
+                            ))
+                        })?;
+                    // A manifest that carries its LinkML is read from the manifest, as every
+                    // editor reads it; one that names a file is read from the repository.
+                    let inline = Some(manifest)
                         .and_then(|envelope| {
                             envelope
                                 .spec

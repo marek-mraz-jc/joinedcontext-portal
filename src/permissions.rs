@@ -264,8 +264,19 @@ impl Effective {
     /// Whether the caller may read this one manifest (PF-59, PF-60): a grant that reads the
     /// kind, and — when the binding is scoped to one context space — a manifest of that space.
     /// This is what an organization-level list filters with, item by item.
+    ///
+    /// A ContextSpace is in its own space: a reader bound to `air` reads the `air` manifest and
+    /// no other space's (T-5698).
     pub fn may_read_manifest(&self, kind: &str, manifest: &Value) -> bool {
-        self.may_read_in(kind, space_ref(manifest).as_deref())
+        let space = if kind == "ContextSpace" {
+            manifest
+                .pointer("/metadata/name")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        } else {
+            space_ref(manifest)
+        };
+        self.may_read_in(kind, space.as_deref())
             || self.grants.iter().any(|grant| {
                 grant.organization.is_some()
                     && grant.rule.grants(kind, Verb::Read)
@@ -275,6 +286,25 @@ impl Effective {
                         .iter()
                         .all(|c| satisfied(c, Some(manifest)))
             })
+    }
+
+    /// [`Self::may_read_manifest`] for a stored envelope (T-5698): every door that hands out a
+    /// manifest of a kind asks this per item, since [`Self::may_read`] is true for a grant bound
+    /// to one space and says nothing about the others. A grant that reads the kind in the whole
+    /// project answers without serializing the envelope.
+    pub fn may_read_envelope(
+        &self,
+        kind: &str,
+        envelope: &crate::resource::ResourceEnvelope,
+    ) -> bool {
+        self.bootstrap
+            || self.grants.iter().any(|grant| {
+                grant.space.is_none()
+                    && grant.organization.is_none()
+                    && grant.rule.grants(kind, Verb::Read)
+            })
+            || serde_json::to_value(envelope)
+                .is_ok_and(|manifest| self.may_read_manifest(kind, &manifest))
     }
 
     /// The context spaces this caller's grants reach: `None` when one grant is the project's or

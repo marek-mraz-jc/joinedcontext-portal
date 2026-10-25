@@ -126,10 +126,17 @@ pub async fn restore_change_for(
                     ))
                 })?,
         };
-        if !effective.may(&kind, Verb::Propose) {
-            return Err(ApiError::Denied(format!(
-                "restoring '{path}' needs `propose` on {kind} in project '{project}'"
-            )));
+        // The manifest put back is judged as a proposal of it is, its space and constraints
+        // included; a native file by the kind its folder names (T-5698).
+        match &manifest {
+            Some(envelope) => crate::api::import::authorize_manifest(
+                state, identity, project, &effective, envelope,
+            )?,
+            None => effective.check(&kind, Verb::Propose, None).map_err(|_| {
+                ApiError::Denied(format!(
+                    "restoring '{path}' needs `propose` on {kind} in project '{project}'"
+                ))
+            })?,
         }
         if let Some(envelope) = manifest {
             restored.push(envelope);
@@ -292,10 +299,17 @@ pub async fn undo_change_for(
                     ))
                 })?,
         };
-        if !effective.may(&kind, Verb::Propose) {
-            return Err(ApiError::Denied(format!(
-                "undoing '{path}' needs `propose` on {kind} in project '{project}'"
-            )));
+        // The manifest put back is judged as a proposal of it is, its space and constraints
+        // included; a native file by the kind its folder names (T-5698).
+        match &manifest {
+            Some(envelope) => crate::api::import::authorize_manifest(
+                state, identity, project, &effective, envelope,
+            )?,
+            None => effective.check(&kind, Verb::Propose, None).map_err(|_| {
+                ApiError::Denied(format!(
+                    "undoing '{path}' needs `propose` on {kind} in project '{project}'"
+                ))
+            })?,
         }
         if let Some(envelope) = manifest {
             put_back.push(envelope);
@@ -429,7 +443,8 @@ pub async fn change_manifests_for(
         let Ok(envelope) = serde_norway::from_str::<ResourceEnvelope>(&read.content) else {
             continue;
         };
-        if effective.may_read(&envelope.kind) {
+        // A grant bound to one context space reads that space's manifests alone (T-5698).
+        if effective.may_read_envelope(&envelope.kind, &envelope) {
             items.push(envelope);
         }
     }

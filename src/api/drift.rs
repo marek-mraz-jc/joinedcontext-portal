@@ -11,7 +11,7 @@
 //! renders without waiting on a broker.
 
 use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -94,7 +94,17 @@ pub async fn list_drift(
     Path(project): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     member_of(&state, &user, &project)?;
-    let found = state.drift.of(&project);
+    let mut found = state.drift.of(&project);
+    // A space's drift (its declared and live values) reaches only the readers bound to that
+    // space, as its activity does (T-4876, T-5698).
+    if let (Some(found), Some(reach)) = (
+        found.as_mut(),
+        crate::permissions::for_request(&state, &user.0.identity, &project).spaces_reached(),
+    ) {
+        found
+            .entities
+            .retain(|entity| reach.contains(&entity.space));
+    }
     // `observedAt` absent means no scan has run, which is a different answer from "nothing
     // drifted" and the page says so rather than showing an empty clean list.
     let metadata = match &found {
@@ -170,7 +180,7 @@ pub async fn revert_drift(
     post,
     path = "/api/v1/projects/{project}/drift/{space}/{id}/adopt",
     summary = "Adopt Drift",
-    description = "Proposes the live entity as the seed file's content, as a change a person approves. Needs `propose` on Entity; refused when the entity is no longer in the space.",
+    description = "Proposes the live entity as the seed file's content, as a change a person approves. Needs `propose` on Entity; the live entity is read with the caller's own access token, so it holds what their Policy shows; refused when the entity is no longer in the space.",
     tag = "drift",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -181,7 +191,7 @@ pub async fn revert_drift(
         (status = 202, description = "The live entity proposed as the seed file's content"),
         (status = 401, description = "No session", body = ProblemDetails),
         (status = 403, description = "The caller may not propose an Entity in this project", body = ProblemDetails),
-        (status = 404, description = "No such project, or the last scan reported no such drift", body = ProblemDetails),
+        (status = 404, description = "No such project, the last scan reported no such drift, or no live entity the caller may read (also when the session carries no access token of the person)", body = ProblemDetails),
         (status = 409, description = "The entity is not in the space, so there is nothing to adopt", body = ProblemDetails),
         (status = 503, description = "The space or the repository cannot be reached now", body = ProblemDetails),
     ),
@@ -189,6 +199,7 @@ pub async fn revert_drift(
 pub async fn adopt_drift(
     State(state): State<AppState>,
     user: CurrentUser,
+    headers: HeaderMap,
     Path((project, space, id)): Path<(String, String, String)>,
 ) -> Result<impl IntoResponse, ApiError> {
     may_resolve(&state, &user, &project)?;
@@ -201,20 +212,9 @@ pub async fn adopt_drift(
              revert writes it back, and removing it from the repository is an explicit deletion"
         )));
     }
-    let watch = state.drift_watch.as_ref().ok_or_else(|| {
-        ApiError::Unavailable(
-            "no space surface is configured, so the live entity cannot be read".to_owned(),
-        )
-    })?;
-    let live = watch
-        .read(&space, &id)
-        .await
-        .map_err(ApiError::Unavailable)?
-        .ok_or_else(|| {
-            ApiError::Conflict(format!(
-                "'{id}' is no longer in the space, so there is nothing to adopt"
-            ))
-        })?;
+    // Read as the person, never with the Portal's own account: what their Policy hides of the
+    // entity stays out of the answer and out of the file it proposes (T-5698).
+    let live = crate::api::entity_comments::read_as_person(&state, &headers, &space, &id).await?;
     Ok((
         StatusCode::ACCEPTED,
         Json(json!({
