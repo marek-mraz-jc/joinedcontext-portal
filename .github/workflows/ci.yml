@@ -99,6 +99,10 @@ jobs:
       # Every route is an operation or says why not (AG-59). It left the lib tests with the table
       # (T-1499), so it runs here by name to stay in the gate it was in.
       - run: cargo test --test route_coverage_tests
+      # Wiremock and pure-data binaries that reached main red while only ci-full ran them: a
+      # duplicated authz_matrix.yaml row after a merge (T-4863), a problem slug without its locale
+      # text (T-5208), the gitea shared-writer put_file tests (T-5151). No Postgres, no browser (T-5574).
+      - run: cargo test --locked --test authz_matrix_tests --test problem_types_tests --test gitea_client_tests
       # A doc link to a private item passed every fast check and broke the hourly lane (T-1453);
       # rustdoc reuses clippy's metadata, so it costs seconds here.
       - run: cargo doc --workspace --no-deps
