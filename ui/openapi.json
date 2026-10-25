@@ -2708,8 +2708,8 @@
           {
             "name": "ids",
             "in": "query",
-            "description": "Comma-separated Keycloak user ids, at most 100.",
-            "required": true,
+            "description": "Comma-separated Keycloak user ids, at most 100. Optional so the right is checked first.",
+            "required": false,
             "schema": {
               "type": "string"
             }

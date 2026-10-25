@@ -13,6 +13,12 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+} from "@tanstack/react-router";
 import { I18nextProvider } from "react-i18next";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -90,7 +96,14 @@ function wrap(element: ReactElement) {
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <I18nextProvider i18n={i18n}>{element}</I18nextProvider>
+      <I18nextProvider i18n={i18n}>
+        <RouterProvider
+          router={createRouter({
+            routeTree: createRootRoute({ component: () => element }),
+            history: createMemoryHistory({ initialEntries: ["/organization/people"] }),
+          })}
+        />
+      </I18nextProvider>
     </QueryClientProvider>,
   );
 }
@@ -138,7 +151,7 @@ describe("naming people by id (ADR-N-061)", () => {
     expect(within(section).getByText(/nobody@hel\.fi/)).toBeInTheDocument();
     await user.click(propose);
     expect(
-      await within(section).findByText(/Change chg-00000042/),
+      await within(section).findByRole("link", { name: "Change chg-00000042" }),
     ).toBeInTheDocument();
     expect(sent.filter((s) => s.method === "POST").map((s) => s.url)).toEqual([
       "/api/v1/organization/people/name-by-id?dryRun=true",

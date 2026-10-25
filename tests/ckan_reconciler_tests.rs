@@ -17,8 +17,8 @@ use jcctl::loader::{RawManifest, RawMetadata, ResourceId};
 use jcctl::publish::ckan::{InMemoryCkan, Outcome, Settings};
 use joinedcontext_portal::reconciler::ckan::{
     fingerprint, publish_with, publish_without_models, sweep_with, withdrawn, CkanSync,
-    Organizations, Paced, Pacing, Publication, Report, CALL_GAP, MOST_BACKOFF, RECORD_READS,
-    MODELS_READS, REFRESH,
+    Organizations, Paced, Pacing, Publication, Report, CALL_GAP, MODELS_READS, MOST_BACKOFF,
+    RECORD_READS, REFRESH,
 };
 use joinedcontext_portal::resource::ResourceEnvelope;
 use joinedcontext_portal::store::Mirror;
@@ -137,14 +137,8 @@ fn an_endpoint_becomes_a_dataset() {
     let mut api = InMemoryCkan::new().with_token(TOKEN);
     let target = target("helsinki-bikes", "public", licensed());
 
-    let published = publish_with(
-        &mut api,
-        &target,
-        &record(),
-        Some(&models()),
-        &settings(),
-    )
-    .expect("the endpoint publishes");
+    let published = publish_with(&mut api, &target, &record(), Some(&models()), &settings())
+        .expect("the endpoint publishes");
     let Publication::Published {
         dataset, outcome, ..
     } = published
@@ -207,14 +201,8 @@ fn the_token_is_in_nothing_a_run_writes_or_reports() {
     // EP-67: the token travels in the Authorization header of the transport and nowhere else.
     let mut api = InMemoryCkan::new().with_token(TOKEN);
     let target = target("helsinki-bikes", "public", licensed());
-    let published = publish_with(
-        &mut api,
-        &target,
-        &record(),
-        Some(&models()),
-        &settings(),
-    )
-    .expect("it publishes");
+    let published = publish_with(&mut api, &target, &record(), Some(&models()), &settings())
+        .expect("it publishes");
 
     let written = api
         .calls()
@@ -307,14 +295,7 @@ fn withdrawing_removes_the_dataset_and_can_be_repeated() {
         .with_organization("hel-fi")
         .with_token(TOKEN);
     let target = target("helsinki-bikes", "public", licensed());
-    publish_with(
-        &mut api,
-        &target,
-        &record(),
-        Some(&models()),
-        &settings(),
-    )
-    .expect("it publishes");
+    publish_with(&mut api, &target, &record(), Some(&models()), &settings()).expect("it publishes");
     assert!(api.package("helsinki-bikes").is_some());
 
     let gone = joinedcontext_portal::reconciler::ckan::withdraw_one(&mut api, &target)

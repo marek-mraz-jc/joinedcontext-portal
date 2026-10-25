@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, unwrap } from "../../api/client";
 import { ORG_NAMESPACE } from "../../api/manifest";
@@ -83,9 +84,27 @@ export function NameById(): JSX.Element | null {
                     <span className="font-medium">{repository.repository}</span>
                     {": "}
                     {repository.manifests.join(", ")}
-                    {repository.change
-                      ? ` (${t("organization.people.nameById.change", { change: repository.change })})`
-                      : null}
+                    {repository.change ? (
+                      <>
+                        {" ("}
+                        <Link
+                          to="/projects/$project/approvals/$id"
+                          params={{
+                            project:
+                              repository.repository === "organization"
+                                ? ORG_NAMESPACE
+                                : repository.repository,
+                            id: repository.change,
+                          }}
+                          className="underline"
+                        >
+                          {t("organization.people.nameById.change", {
+                            change: repository.change,
+                          })}
+                        </Link>
+                        {")"}
+                      </>
+                    ) : null}
                   </li>
                 ))}
               </ul>

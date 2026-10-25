@@ -11501,9 +11501,9 @@ export interface operations {
     };
     person_names: {
         parameters: {
-            query: {
-                /** @description Comma-separated Keycloak user ids, at most 100. */
-                ids: string;
+            query?: {
+                /** @description Comma-separated Keycloak user ids, at most 100. Optional so the right is checked first. */
+                ids?: string;
             };
             header?: never;
             path?: never;
