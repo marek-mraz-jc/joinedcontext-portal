@@ -49,14 +49,26 @@ export function parsePolicyUrn(urn: string): PolicyUrn | undefined {
 /** What every role an Endpoint gives starts with (`jc_core::kinds::ENDPOINT_ROLE_PREFIX`). */
 const ENDPOINT_ROLE_PREFIX = "endpoint:";
 
-/** Whether a caller of this Endpoint can ever hold the role a policy is assigned to. */
+/**
+ * The grants a Policy holds, each once: `rules[]` when it lists them, else the spec itself, the
+ * single-rule shape that means a `rules[]` of one (ADR-N-057).
+ */
+export function policyRules(policy: Manifest): Record<string, unknown>[] {
+  const spec = (policy.spec ?? {}) as Record<string, unknown> & { rules?: unknown };
+  return Array.isArray(spec.rules) && spec.rules.length > 0 ? (spec.rules as Record<string, unknown>[]) : [spec];
+}
+
+/**
+ * Whether a caller of this Endpoint can ever hold a role one of the policy's rules is assigned
+ * to: a rule for another Endpoint's role decides nothing here, a policy whose every rule is one
+ * decides nothing either (F-UI1-018).
+ */
 function reachable(policy: Manifest, project: string, endpoint: string): boolean {
-  const id = (policy.spec as { assignee?: { id?: unknown } }).assignee?.id;
-  if (typeof id !== "string" || !id.startsWith(ENDPOINT_ROLE_PREFIX)) {
-    return true;
-  }
   const own = `${ENDPOINT_ROLE_PREFIX}${project}/${endpoint}`;
-  return id === own || id.startsWith(`${own}/`);
+  return policyRules(policy).some((rule) => {
+    const id = (rule.assignee as { id?: unknown } | undefined)?.id;
+    return typeof id !== "string" || !id.startsWith(ENDPOINT_ROLE_PREFIX) || id === own || id.startsWith(`${own}/`);
+  });
 }
 
 export type Binding =
