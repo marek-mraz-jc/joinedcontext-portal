@@ -458,8 +458,11 @@ async function walk(
       page.locator("main").getByRole("columnheader").first(),
     ).toBeVisible({ timeout: 60_000 });
     const endpointPicked = await page.locator("#explore-endpoint").inputValue();
+    // The address names the Endpoint read, so the other persona opening the link reads
+    // through the same one or is told why not (T-5604).
+    const endpointInAddress = new URL(page.url()).searchParams.get("endpoint");
     w.done("same type from Explore", {
-      note: `endpoint picked for the person: ${endpointPicked}`,
+      note: `endpoint picked for the person: ${endpointPicked}; in the address: ${endpointInAddress ?? "none"}`,
     });
     links.push({
       persona,
