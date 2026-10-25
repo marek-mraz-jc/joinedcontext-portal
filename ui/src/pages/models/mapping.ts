@@ -266,6 +266,18 @@ function coerce(value: unknown, range: string): unknown {
   }
 }
 
+/** YAML words that read as a boolean or null rather than as the text. */
+const YAML_WORDS = /^(true|false|yes|no|on|off|y|n|null|~)$/i;
+
+/**
+ * One value as YAML reads it back: plain when it is a plain name, else double-quoted (JSON's
+ * quoting is YAML's). A UCUM unit such as `[degF]`, or an enum value holding ": " or "#",
+ * would otherwise read as another shape (F-UI2-012).
+ */
+function scalar(text: string): string {
+  return /^[A-Za-z0-9_][A-Za-z0-9_.\/-]*$/.test(text) && !YAML_WORDS.test(text) ? text : JSON.stringify(text);
+}
+
 /**
  * The derivations as the `spec.transformation` of a `Mapping` manifest (DM-33).
  *
@@ -278,7 +290,7 @@ export function toTransformationSpec(
   sourceClass: string,
   targetClass: string,
 ): string {
-  const lines = ["class_derivations:", `  ${targetClass}:`, `    populated_from: ${sourceClass}`];
+  const lines = ["class_derivations:", `  ${scalar(targetClass)}:`, `    populated_from: ${scalar(sourceClass)}`];
   const filled = derivations.filter(
     (derivation) => derivation.populatedFrom || derivation.native,
   );
@@ -287,22 +299,22 @@ export function toTransformationSpec(
   }
   lines.push("    slot_derivations:");
   for (const derivation of filled) {
-    lines.push(`      ${derivation.target}:`);
+    lines.push(`      ${scalar(derivation.target)}:`);
     if (derivation.native?.trim()) {
       // The block itself lives in `spec.native[]`, attached to this one target slot; the
       // derivation only records that something else fills it (DM-38).
       lines.push(`        # native: bloblang, unchecked (DM-38)`);
       continue;
     }
-    lines.push(`        populated_from: ${derivation.populatedFrom}`);
+    lines.push(`        populated_from: ${scalar(derivation.populatedFrom ?? "")}`);
     if (derivation.unitConversion) {
       const { factor, offset, fromUnit, toUnit } = derivation.unitConversion;
       lines.push("        unit_conversion:");
       if (fromUnit) {
-        lines.push(`          source_unit: ${fromUnit}`);
+        lines.push(`          source_unit: ${scalar(fromUnit)}`);
       }
       if (toUnit) {
-        lines.push(`          target_unit: ${toUnit}`);
+        lines.push(`          target_unit: ${scalar(toUnit)}`);
       }
       lines.push(`          factor: ${factor}`);
       if (offset) {
@@ -312,11 +324,11 @@ export function toTransformationSpec(
     if (derivation.valueMappings && Object.keys(derivation.valueMappings).length > 0) {
       lines.push("        value_mappings:");
       for (const [from, to] of Object.entries(derivation.valueMappings)) {
-        lines.push(`          ${from}: ${to}`);
+        lines.push(`          ${scalar(from)}: ${scalar(String(to))}`);
       }
     }
     if (derivation.cast) {
-      lines.push(`        range: ${derivation.cast}`);
+      lines.push(`        range: ${scalar(derivation.cast)}`);
     }
   }
   return `${lines.join("\n")}\n`;
