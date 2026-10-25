@@ -34,6 +34,7 @@ vi.mock("maplibre-gl", () => {
     }
     removeLayer() {}
     removeSource() {}
+    off() {}
     fitBounds() {}
     getBounds() {
       return { getWest: () => 24.9, getSouth: () => 60.1, getEast: () => 25, getNorth: () => 60.2 };

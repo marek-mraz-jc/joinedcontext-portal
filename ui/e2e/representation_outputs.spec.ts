@@ -201,3 +201,37 @@ for (const width of [1440, 400]) {
     });
   });
 }
+
+const TWO_CLASSES = LINKML.replace("classes:\n", "classes:\n  Place:\n    slots: [name, address]\n");
+
+for (const width of [1440, 400]) {
+  test(`two writable classes with their own scopes write one rule each (F-UI3-003, ${width})`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await stubApi(page, "accept");
+    await page.route(
+      (url) => url.pathname.endsWith("/datamodels"),
+      (route) =>
+        route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify(list([{ apiVersion: "joinedcontext.com/v1alpha1", kind: "DataModel", metadata: { name: "events", namespace: "bbsk" }, spec: { contextSpaceRef: "podujatia", version: "1.0.0", lifecycle: "published", linkml: TWO_CLASSES } }])),
+        }),
+    );
+    await page.goto("/projects/bbsk/endpoints/new?lang=en");
+    await page.getByRole("textbox", { name: "Name", exact: true }).fill("podujatia");
+    for (const [cls, scope] of [["Event", "/bbsk/events"], ["Place", "/bbsk/places"]]) {
+      await page.getByRole("checkbox", { name: cls, exact: true }).check();
+      await page.getByRole("checkbox", { name: `${cls} Writable` }).check();
+      await page.getByRole("textbox", { name: `${cls} Scope` }).fill(scope);
+    }
+    await page.getByText("Show the manifests this proposes").click();
+    const preview = page.getByTestId("endpoint-preview");
+    await expect(preview).toContainText('"rules"');
+    const manifests = JSON.parse((await preview.textContent()) ?? "[]") as { kind: string; metadata: { name: string }; spec: Record<string, unknown> }[];
+    const write = manifests.find((m) => m.metadata.name === "podujatia-write")!;
+    expect((write.spec.rules as { scopeQ: string }[]).map((rule) => rule.scopeQ)).toEqual(["/bbsk/events", "/bbsk/places"]);
+    expect(write.spec).not.toHaveProperty("scopeQ");
+    await preview.scrollIntoViewIfNeeded();
+    await shot(page, "write-policy-rules");
+  });
+}
+

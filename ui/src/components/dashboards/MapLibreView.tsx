@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
 import { Map as MapLibreMap, NavigationControl, Popup, setWorkerUrl } from "maplibre-gl";
-import type { MapGeoJSONFeature, StyleSpecification } from "maplibre-gl";
+import type { MapGeoJSONFeature, MapLayerMouseEvent, StyleSpecification } from "maplibre-gl";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { useTranslation } from "react-i18next";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -212,6 +212,8 @@ export function MapLibreView({
   }, [onMoveEnd]);
   // The layers on the map, by name, to diff the next render against.
   const drawn = useRef(new Map<string, MapLayer>());
+  /** The click handlers each drawn layer added, so its removal takes them along (F-UI1-016). */
+  const handlers = useRef(new Map<string, [string, "click", (event: MapLayerMouseEvent) => void][]>());
   const fitted = useRef(false);
 
   useEffect(() => {
@@ -265,6 +267,7 @@ export function MapLibreView({
       instance.remove();
       map.current = null;
       drawn.current.clear();
+      handlers.current.clear();
       setLoaded(null);
     };
   }, [center, zoom, project, onReady]);
@@ -286,6 +289,10 @@ export function MapLibreView({
         instance.removeLayer(name);
         instance.removeSource(name);
         drawn.current.delete(name);
+        // A layer's click handlers leave with it, or one that comes back opens a popup for each
+        // time it was added (F-UI1-016).
+        for (const [id, type, handler] of handlers.current.get(name) ?? []) instance.off(type, id, handler);
+        handlers.current.delete(name);
       }
     }
     for (const layer of layers) {
@@ -299,6 +306,10 @@ export function MapLibreView({
         continue;
       }
       const clustered = layer.cluster === true && layer.style === "circle";
+      const listen = (id: string, type: "click", handler: (event: MapLayerMouseEvent) => void) => {
+        instance.on(type, id, handler);
+        handlers.current.set(layer.name, [...(handlers.current.get(layer.name) ?? []), [id, type, handler]]);
+      };
       instance.addSource(layer.name, {
         type: "geojson",
         data,
@@ -326,7 +337,7 @@ export function MapLibreView({
             "circle-stroke-color": outlineColour(),
           },
         });
-        instance.on("click", circles, (event) => {
+        listen(circles, "click", (event) => {
           const feature = event.features?.[0];
           const id = feature?.properties?.cluster_id;
           const source = instance.getSource(layer.name) as { getClusterExpansionZoom?: (id: number) => Promise<number> } | undefined;
@@ -337,7 +348,7 @@ export function MapLibreView({
           void source.getClusterExpansionZoom(id).then((next) => instance.easeTo({ center: at, zoom: next }));
         });
       }
-      instance.on("click", layer.name, (event) => {
+      listen(layer.name, "click", (event) => {
         const feature = event.features?.[0];
         if (!feature) {
           return;

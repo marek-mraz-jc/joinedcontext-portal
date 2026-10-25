@@ -19,6 +19,7 @@ import {
   EXPIRES_AT,
   EXPORTS,
   ID,
+  MAX_ROWS,
   createInBatches,
   exportUrl,
   readTable,
@@ -201,6 +202,8 @@ function MapStep({
       <p className="text-body text-fg-muted">
         {t("spaces.import.read", { name: step.name, rows: table.rows.length, columns: table.columns.length })}
       </p>
+      {/* A file cut at MAX_ROWS says so: the count above is not the whole file (F-UI3-011). */}
+      {table.total !== undefined ? <Alert tone="warning">{t("spaces.import.cut", { total: table.total, max: MAX_ROWS })}</Alert> : null}
       {table.detected ? (
         <p className="text-caption text-fg-muted" data-testid="import-detected">
           {[
@@ -408,8 +411,9 @@ function ImportExpiry({
 
 function RefusedList({ rejected }: { rejected: Rejected[] }): JSX.Element {
   const { t } = useTranslation();
+  // Focusable, so a keyboard reaches every refused row of a long list (WCAG 2.1.1).
   return (
-    <ul className="flex max-h-48 flex-col gap-1 overflow-y-auto text-body" aria-label={t("spaces.import.refusedList")}>
+    <ul tabIndex={0} className="focus-ring flex max-h-48 flex-col gap-1 overflow-y-auto rounded-md text-body" aria-label={t("spaces.import.refusedList")}>
       {rejected.slice(0, LISTED).map((item, at) => (
         <li key={`${item.row}-${at}`}>
           <span className="font-medium">{t("spaces.import.row", { row: item.row })}</span> {item.reason}

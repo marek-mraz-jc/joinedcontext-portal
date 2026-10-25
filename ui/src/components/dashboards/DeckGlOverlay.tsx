@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { JSX } from "react";
 import { HeatmapLayer, HexagonLayer } from "@deck.gl/aggregation-layers";
 import { GeoJsonLayer, ScatterplotLayer } from "@deck.gl/layers";
@@ -148,16 +148,25 @@ export function DeckGlOverlay({
   label,
   project,
 }: DeckGlOverlayProps): JSX.Element {
-  const attach = useCallback(
-    (map: MapLibreMap) => {
-      const overlay = new MapboxOverlay({ layers: dense.map(deckLayerFor) });
-      map.addControl(overlay as unknown as IControl);
-      return () => {
-        map.removeControl(overlay as unknown as IControl);
-      };
-    },
-    [dense],
-  );
+  // One overlay for the map's life: new dense features are handed to it, never a new map. A
+  // callback that changed with `dense` rebuilt the whole map on every refetch after a pan and lost
+  // the viewport the reader chose (UI-22, F-UI1-015).
+  const overlay = useRef<MapboxOverlay | null>(null);
+  const latest = useRef(dense);
+  const attach = useCallback((map: MapLibreMap) => {
+    const made = new MapboxOverlay({ layers: latest.current.map(deckLayerFor) });
+    overlay.current = made;
+    map.addControl(made as unknown as IControl);
+    return () => {
+      map.removeControl(made as unknown as IControl);
+      overlay.current = null;
+    };
+  }, []);
+  useEffect(() => {
+    if (latest.current === dense) return;
+    latest.current = dense;
+    overlay.current?.setProps({ layers: dense.map(deckLayerFor) });
+  }, [dense]);
 
   return (
     <MapLibreView

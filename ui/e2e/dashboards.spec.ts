@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { chromium, expect, test } from "@playwright/test";
 import { axeViolations } from "./axe";
 
 // The basemap style is stubbed as well as the API: a journey must not depend on a tile
@@ -272,3 +272,54 @@ test.describe("a page with the map and a grid", () => {
     expect(maplibre).toHaveLength(1);
   });
 });
+
+for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
+  test(`a pan keeps the map the reader moved while the layer refetches (F-UI3-017, ${label})`, async ({ baseURL }) => {
+    // Software WebGL, so a headless runner draws the map instead of skipping.
+    const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
+    const page = await (await browser.newContext({ baseURL })).newPage();
+    test.info().attach("browser", { body: browser.version() });
+    const reads: string[] = [];
+    await page.setViewportSize({ width, height });
+    await page.route("https://demotiles.maplibre.org/**", (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ version: 8, sources: {}, layers: [] }) }),
+    );
+    await page.route("**/api/endpoint/**", async (route) => {
+      reads.push(route.request().url());
+      // A refetch slower than a frame: before F-UI3-017 the map gave way to the placeholder here.
+      if (reads.length > 1) await new Promise((resolve) => setTimeout(resolve, 400));
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify(FEATURES) });
+    });
+    await page.route("**/api/v1/**", (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const json = (body: unknown) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+      const list = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
+      if (path.endsWith("/auth/me")) return json(IDENTITY);
+      if (path.endsWith("/dashboards")) return json(list([DASHBOARD]));
+      if (path.endsWith("/layers")) return json(list([LAYER]));
+      if (path.endsWith("/endpoints")) return json(list([ENDPOINT]));
+      return json(list([]));
+    });
+    await page.goto("/projects/banskabystrica/dashboards?lang=en");
+    const map = page.getByRole("application", { name: "Air quality" });
+    await map.or(page.getByText("The map needs WebGL")).first().waitFor();
+    test.skip(!(await map.isVisible()), "no WebGL in this browser");
+    await expect(map.locator("canvas")).toBeVisible();
+    await map.evaluate((node) => node.setAttribute("data-first-mount", "yes"));
+    const before = reads.length;
+
+    const box = (await map.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 - 120, box.y + box.height / 2 - 60, { steps: 8 });
+    await page.mouse.up();
+    await expect.poll(() => reads.length).toBeGreaterThan(before);
+    // While the refetch is in flight, and after it: the same map element, never the placeholder.
+    await expect(page.getByRole("application", { name: "Air quality" })).toHaveAttribute("data-first-mount", "yes");
+    await page.waitForTimeout(600);
+    await expect(page.getByRole("application", { name: "Air quality" })).toHaveAttribute("data-first-mount", "yes");
+    await page.screenshot({ path: test.info().outputPath(`dashboard-after-pan-${label}.png`), fullPage: true });
+    if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/dashboard-after-pan-${label}.png`, fullPage: true });
+    await browser.close();
+  });
+}

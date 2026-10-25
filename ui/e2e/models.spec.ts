@@ -424,3 +424,41 @@ test.describe("removing a model from its page (T-5066)", () => {
     });
   }
 });
+
+for (const width of [1440, 400]) {
+  test(`a project of the second Organization writes titles in that Organization's languages (F-UI1-011, ${width} px)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+    await stubKpi(page, ["read", "propose"]);
+    const org = (name: string, domain: string, locales: string[]) => ({
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "Organization",
+      metadata: { name },
+      spec: { domain, locales, defaultLocale: locales[0] },
+    });
+    await page.route(
+      (url) => url.pathname === "/api/v1/projects" || url.pathname.endsWith("/organizations"),
+      (route) =>
+        route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify(
+            route.request().url().endsWith("/organizations")
+              ? list([org("hel", "hel.fi", ["en", "fi"]), org("zilina", "zilina.sk", ["sk", "en"])])
+              : {
+                  apiVersion: "joinedcontext.com/v1alpha1",
+                  kind: "ProjectList",
+                  items: [{ name: "helsinki", organization: "zilina" }],
+                  organizations: [{ name: "hel" }, { name: "zilina" }],
+                },
+          ),
+        }),
+    );
+    await page.goto("/projects/helsinki/models?new=blank&lang=en");
+    const types = page.getByRole("region", { name: "Types" });
+    await types.getByRole("textbox", { name: "New type" }).fill("School");
+    await types.getByRole("button", { name: "Add type" }).click();
+    await expect(page.getByLabel("Title (sk)")).toBeVisible();
+    await expect(page.getByLabel("Title (fi)")).toHaveCount(0);
+    await shot(page, `model-editor-second-organization-${width}`);
+  });
+}
+

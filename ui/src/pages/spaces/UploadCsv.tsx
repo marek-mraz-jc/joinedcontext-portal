@@ -19,7 +19,7 @@ import { usePermissions } from "../../api/permissions";
 import { CodeBlock, Alert, Button, Card, Field, FilePicker, Input, PageHeader, RadioGroup } from "../../components/ui";
 import { CITY_SUBJECTS, SAMPLE_BYTES, modelsOf, rankModels, sampleOf, uploadInput } from "./csvUpload";
 import type { SdmMatch } from "./csvUpload";
-import { createInBatches, importSlotsOf, readTable, rejectedCsv, suggestMapping, toEntities, unreadableText } from "./importRows";
+import { createInBatches, decodeAs, importSlotsOf, MAX_ROWS, readTable, rejectedCsv, suggestMapping, toEntities, unreadableText } from "./importRows";
 import type { Rejected, Table } from "./importRows";
 
 /** How many entities the preview shows as NGSI-LD before they are written. */
@@ -73,7 +73,9 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
         setProblem(t("spaces.import.empty"));
         return;
       }
-      const sample = sampleOf(await file.slice(0, SAMPLE_BYTES).text());
+      // The sample is read in the encoding the table was, or a Windows-1250 header reaches the
+      // model inference garbled and its slots no longer match the columns (F-UI3-013).
+      const sample = sampleOf(decodeAs(new Uint8Array(await file.slice(0, SAMPLE_BYTES).arrayBuffer()), table.detected?.encoding));
       // The catalogue is a help, not a gate: unreachable, the file still gets its own model.
       let matches: SdmMatch[] = [];
       try {
@@ -177,6 +179,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
             {t("spaces.import.read", { name: read.name, rows: read.table.rows.length, columns: read.table.columns.length })}
           </p>
         ) : null}
+        {read?.table.total !== undefined ? <Alert tone="warning">{t("spaces.import.cut", { total: read.table.total, max: MAX_ROWS })}</Alert> : null}
       </Card>
       {read && !proposed ? (
         <Card className="flex flex-col gap-4">

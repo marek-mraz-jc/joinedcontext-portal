@@ -1058,6 +1058,7 @@
       "tooLarge": "Die Datei hat {size} MB; ein Import liest höchstens {limit} MB. Teilen Sie sie in kleinere Dateien auf oder entfernen Sie nicht benötigte Spalten und importieren Sie jeden Teil.",
       "denied": "Nichts wurde geschrieben: Der Raum {space} erlaubt Ihrer Rolle nicht, {type}-Entitäten anzulegen ({reason}). Bitten Sie einen Projektverantwortlichen um eine Policy auf diesem Raum, die Ihrer Rolle das Anlegen von {type} im Stapel erlaubt, und importieren Sie die Datei dann erneut.",
       "read": "{name}: {rows, plural, one {# Zeile} other {# Zeilen}}, {columns, plural, one {# Spalte} other {# Spalten}}.",
+      "cut": "Die Datei hat {total} Zeilen; nur die ersten {max} werden gelesen. Teilen Sie sie in Dateien mit höchstens {max} Zeilen.",
       "mapping": "Welches Feld jede Spalte füllt",
       "column": "Spalte",
       "field": "Feld",
@@ -6803,7 +6804,8 @@
       "lastChange": "Letzte Änderung",
       "notRecorded": "Nicht erfasst",
       "changed": "{at}, vorgeschlagen von {author}",
-      "changedApproved": "{at}, vorgeschlagen von {author}, genehmigt von {approver}"
+      "changedApproved": "{at}, vorgeschlagen von {author}, genehmigt von {approver}",
+      "rules": "Diese Policy gewährt über {n, plural, one {# Regel} other {# Regeln}}, oben je ein Satz. Die Felder unten halten, was die Regeln teilen; Empfänger, Operationen oder Entitäten einer Regel ändern Sie in der YAML-Ansicht."
     },
     "sentence": {
       "title": "In Worten",

@@ -110,3 +110,35 @@ test("the person answers the assistant's question by clicking two endpoints", as
   await expect.poll(() => answers).toEqual([{ questionId: "q-endpoints", answers: { answer: ["bikes", "air"] } }]);
   expect(await axeViolations(page)).toEqual([]);
 });
+
+for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
+  test(`an app-build frame on the stream shows the Build card (F-UI2-010, ${label})`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await stubApi(page, []);
+    const build = { seq: 2, endpoints: ["bikes"], access: "read", visibility: "project", prompt: "A map of the city bikes" };
+    await page.route(
+      (url) => url.pathname.endsWith(`/agent-runs/${RUN.id}/events`),
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          headers: { "cache-control": "no-cache" },
+          body: `id: 1\nevent: message\ndata: ${JSON.stringify({ seq: 1, text: "Here is what the app will do." })}\n\nid: 2\nevent: app-build\ndata: ${JSON.stringify(build)}\n\n`,
+        }),
+    );
+    await page.route(
+      (url) => url.pathname === `/api/v1/projects/${PROJECT}/endpoints`,
+      (route) =>
+        route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify(list([{ apiVersion: "joinedcontext.com/v1alpha1", kind: "Endpoint", metadata: { name: "bikes", namespace: PROJECT, title: "City bikes" }, spec: { contextSpaceRef: "helsinki", slug: "k7m2qz4tv6xh3n5jb2ryd3wcfa", audience: "organization" }, status: { phase: "Live" } }])),
+        }),
+    );
+    await page.goto(`/projects/${PROJECT}/apps/${RUN.appName}?lang=en`, { waitUntil: "networkidle" });
+    const bubble = page.getByRole("button", { name: "Open the assistant" });
+    if (await bubble.count()) await bubble.first().click();
+    await expect(page.getByText("Build a-map-of-the-city-bikes", { exact: false }).or(page.getByRole("heading", { name: /^Build / })).first()).toBeVisible();
+    if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/app-build-card-${label}.png`, fullPage: true });
+  });
+}
+

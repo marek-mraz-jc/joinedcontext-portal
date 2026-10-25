@@ -112,6 +112,29 @@ describe("a Policy reads as what it allows (T-5591)", () => {
   });
 });
 
+describe("a Policy with rules[] (F-UI3-015)", () => {
+  it("says each rule and sends the person to the YAML view for them", async () => {
+    const ruled = policy("parking-grants", "Who reads and who writes parking", {
+      assigner: "did:web:hel.fi",
+      rules: [
+        { assignee: { kind: "role", id: "helsinki-readers" }, operations: ["retrieveOps"] },
+        { assignee: { kind: "group", id: "stewards" }, operations: ["updateOps"] },
+      ],
+    });
+    await renderRoute({
+      path: "/projects/helsinki/policies/parking-grants/edit?lang=en",
+      answer: answering(ruled, () => jsonResponse({ ...list([]), next: null })),
+    });
+    const summary = await screen.findByTestId("policy-summary");
+    const sentence = within(summary).getByTestId("policy-summary-sentence").textContent ?? "";
+    expect(sentence).toContain("helsinki-readers");
+    expect(sentence).toContain("stewards");
+    expect(within(summary).getByTestId("policy-summary-rules")).toHaveTextContent(
+      "This Policy grants through 2 rules, one sentence each above.",
+    );
+  });
+});
+
 describe("the summary alone", () => {
   it("dates a bounded validity and reads an empty Policy as a request for choices", async () => {
     await i18n.changeLanguage("en");
