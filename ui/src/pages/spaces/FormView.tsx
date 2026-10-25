@@ -40,7 +40,7 @@ import {
   visibleFields,
 } from "./formView";
 import type { Answers, Condition, FieldOption, FieldSetting, FormField, FormSettings, Problem } from "./formView";
-import { publicName } from "./PublicView";
+import { publicName } from "./publicName";
 
 /** The answers a form holds and what changing one does. */
 function useAnswers(initial: Answers) {

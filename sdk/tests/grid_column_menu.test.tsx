@@ -4,7 +4,7 @@ import { useState } from "react";
 import { EntityGrid, moveTo } from "../src/grid/EntityGrid";
 import { parseGridConfig } from "../src/grid/config";
 import { fixtureSource } from "../src/grid/source";
-import { readableName } from "../src/grid/useEntityGrid";
+import { readableName } from "../src/grid/readableName";
 import type { ColumnLayout } from "../src/grid/useEntityGrid";
 
 const entities = [

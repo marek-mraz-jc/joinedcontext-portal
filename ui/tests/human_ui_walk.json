@@ -1885,6 +1885,17 @@
         "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
       ]
     },
+    "src/pages/spaces/SharePanel.tsx": {
+      "walkedBy": "deployer",
+      "date": "2026-10-20",
+      "screenshots": [
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-view-data-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-dialog-remove-banskabystrica-app-banskabystrica-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
+        "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
     "src/pages/spaces/SpaceComplete.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
