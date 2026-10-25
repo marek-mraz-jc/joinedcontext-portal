@@ -19,7 +19,9 @@ import { Alert, Badge, Button, Field, Input, RadioGroup, Textarea } from "../../
 
 export interface AccessRequestView {
   id: string;
-  pipeline: { project: string; name: string };
+  /** The pipeline that asks, or `null` when a person asks for themself (T-5615). */
+  pipeline: { project: string; name: string } | null;
+  person?: string | null;
   account: string;
   endpoint: { project: string; name: string };
   /** Only on the owners' side: the pipeline's side never learns whether a typed name exists. */
@@ -83,13 +85,13 @@ function problem(err: unknown, fallback: string): string {
   return err instanceof ApiError ? (err.problem?.detail ?? err.message) : err instanceof Error ? err.message : fallback;
 }
 
-function StateBadge({ state }: { state: AccessRequestView["state"] }): JSX.Element {
+export function StateBadge({ state }: { state: AccessRequestView["state"] }): JSX.Element {
   const { t } = useTranslation();
   const tone = state === "approved" ? "success" : state === "pending" ? "warning" : "neutral";
   return <Badge tone={tone}>{t(`pipelines.access.state.${state}`)}</Badge>;
 }
 
-function Grant({ request }: { request: AccessRequestView }): JSX.Element {
+export function Grant({ request }: { request: AccessRequestView }): JSX.Element {
   const { t, i18n } = useTranslation();
   const day = new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" });
   return (
@@ -97,7 +99,9 @@ function Grant({ request }: { request: AccessRequestView }): JSX.Element {
       <span>
         {t(`pipelines.access.operations.${request.operations}`)}
         {" · "}
-        {request.types.map((row) => `${row.type} (${row.attrs.join(", ")})`).join("; ")}
+        {request.types
+          .map((row) => `${row.type} (${row.attrs.length > 0 ? row.attrs.join(", ") : t("pipelines.access.allAttrs")})`)
+          .join("; ")}
       </span>
       <span>
         {request.until ? t("pipelines.access.until", { date: day.format(new Date(request.until)) }) : t("pipelines.access.noEnd")}

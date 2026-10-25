@@ -285,6 +285,15 @@ routes:
     expect: [403, 403, 403, allow, 403, allow, 403, 403]
     body: {"index": 0, "role": "space-reader"}
     note: "removes one grant at once (API/01 §52, AG-132); a steward or an administrator meets the fixture's 409 (its account has an empty spec), the 202 allow path is tests/agent_access_tests.rs an_administrators_revoke_proposes_the_account_without_the_grant; a bearer token is 403"
+  - route: GET /projects/{project}/endpoints/{name}/access-requests
+    rule: "project-read and read on the Endpoint in its space; the caller's own requests only (EP-55)"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "a reader's 404 is the fixture's: its Endpoint names no Context Space, so no grant could be asked for on it; the 200 path and the 404 of a person who cannot read the Endpoint are tests/access_requests_tests.rs"
+  - route: POST /projects/{project}/endpoints/{name}/access-requests
+    rule: "a person's session, then project-read and read on the Endpoint in its space (EP-55, PF-58)"
+    expect: [403, 404, 404, 404, 404, 404, 404, 403]
+    body: {"types": ["AirQualityObserved"], "reason": "weekly air report"}
+    note: "a reader's 404 is the fixture's: its Endpoint names no Context Space; the 201 path and every field's 422 are tests/access_requests_tests.rs, the token's 403 tests/attack_person_only_operations_tests.rs"
   - route: GET /projects/{project}/endpoints/{name}/quality
     rule: "project-read and read on the Endpoint in its space; the fixes for space-read (T-5112)"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

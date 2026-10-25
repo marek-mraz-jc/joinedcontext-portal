@@ -1696,6 +1696,18 @@
           "POST /api/v1/projects/{project}/access-requests/{id}/decline"
         ]
       }
+    },
+    "endpoint-access": {
+      "request-access": {
+        "live": {
+          "spec": "endpoint-access.spec.ts",
+          "test": "a viewer asks on the Endpoint's page, an owner approves it and revokes it"
+        },
+        "personOnly": "a person asks for a grant to themself with a reason, and another person, an owner of the space, decides it (PL-115, CC-34); no assistant tool files or decides access",
+        "routes": [
+          "POST /api/v1/projects/{project}/endpoints/{name}/access-requests"
+        ]
+      }
     }
   },
   "unclaimed": {

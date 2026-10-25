@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Playground } from "./Playground";
+import { EndpointAccessRequest } from "./AccessRequest";
 import { ShareFlow } from "./ShareFlow";
 import { AccessRequestInbox } from "../pipelines/AccessRequests";
 import { EndpointDocs } from "./EndpointDocs";
@@ -623,6 +624,11 @@ export function EndpointPage({
         >
           {t("endpoints.page.openPolicies")}
         </Link>
+      </Section>
+
+      {/* A person's own ask for a read here, decided by the space's owners (EP-55, T-5615). */}
+      <Section title={t("endpoints.request.section")} lead={t("endpoints.request.sectionLead")}>
+        <EndpointAccessRequest project={project} name={name} />
       </Section>
 
       {/* Who may do what, for every principal at once, as the gateway answers it (T-5531). */}

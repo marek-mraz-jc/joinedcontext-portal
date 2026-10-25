@@ -78,6 +78,7 @@ async function stubApi(page: Page, items: unknown[], refuseFile = false, offered
     if (path.endsWith("/auth/me")) return json(IDENTITY);
     if (path.endsWith("/permissions/me")) return json(PERMISSIONS);
     if (path.endsWith("/access-requests/endpoints")) return json({ items: offered });
+    if (path.includes("/endpoints/") && path.endsWith("/access-requests")) return json({ types: [], refusal: null, items: [] });
     if (path.endsWith("/access-requests")) {
       if (req.method() === "POST") return refuseFile ? json(CONFLICT, 409) : json(items[0], 201);
       return json({ items });
@@ -215,7 +216,7 @@ for (const [width, height] of [[1440, 900], [400, 860]] as const) {
     test("an owner with nothing to decide reads that", async ({ page }) => {
       await stubApi(page, []);
       await page.goto("/projects/helsinki/endpoints/air-internal?lang=en");
-      const empty = page.getByText("No pipeline has asked for access to this space.");
+      const empty = page.getByText("Nobody has asked for access to this space.");
       await expect(empty).toBeVisible();
       await empty.scrollIntoViewIfNeeded();
       await shot(page, "inbox-empty", width);

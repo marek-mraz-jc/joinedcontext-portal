@@ -1935,7 +1935,7 @@
     "playground": {
       "title": "Ausprobieren",
       "reading": "Lese, was Sie aufrufen dürfen…",
-      "nothing": "Ihr Zugriff erlaubt über diesen Endpunkt keinen Aufruf.",
+      "nothing": "Ihr Zugriff erlaubt über diesen Endpunkt keinen Aufruf. Zum Lesen fragen Sie seine Eigentümer unten unter Zugriff anfragen.",
       "operation": "Was lesen",
       "operations": {
         "list": "Entitäten eines Typs",
@@ -2276,6 +2276,33 @@
         "policy": "Richtlinie",
         "endpoint": "Endpoint",
         "type": "Typ"
+      }
+    },
+    "request": {
+      "section": "Zugriff anfragen",
+      "sectionLead": "Bitten Sie die Eigentümer des Bereichs dieses Endpunkts, seine Daten lesen zu dürfen. Die Berechtigung gilt nur für Sie; ein Eigentümer entscheidet, und die Antwort sehen Sie hier.",
+      "reading": "Ihre Anfragen werden gelesen…",
+      "retry": "Erneut versuchen",
+      "yours": "Ihre Zugriffsanfragen",
+      "yourRequest": "Ihre Anfrage",
+      "approvedHint": "Genehmigt: die Berechtigung gilt, sobald ihre Änderung zusammengeführt ist. Dann beantwortet Ausprobieren oben Ihre Lesezugriffe.",
+      "sent": "Anfrage gesendet. Die Eigentümer des Bereichs entscheiden; ihr Stand erscheint hier.",
+      "noTypes": "Der Bereich dieses Endpunkts hat kein kompiliertes Datenmodell, daher kann noch kein Typ angefragt werden. Bitten Sie die Eigentümer, eines hinzuzufügen.",
+      "title": "Lesezugriff anfragen",
+      "lead": "Wählen Sie die benötigten Typen, nennen Sie den Grund und setzen Sie ein Ende, wenn Sie sie nur zeitweise brauchen.",
+      "types": "Entitätstypen",
+      "until": "Bis (optional)",
+      "reason": "Grund",
+      "send": "Anfrage senden",
+      "missing": {
+        "types": "Wählen Sie mindestens einen Typ.",
+        "until": "Wählen Sie einen späteren Tag.",
+        "reason": "Nennen Sie, wofür Sie die Daten brauchen."
+      },
+      "hint": {
+        "types": "Die Arten von Daten dieses Endpunkts, die Sie brauchen, z. B. Parkplätze.",
+        "until": "Der letzte Tag der Berechtigung, z. B. 2027-01-31. Leer bedeutet ohne Ende.",
+        "reason": "Wofür Sie die Daten brauchen, z. B. Wöchentlicher Luftbericht für das Bezirksamt."
       }
     }
   },
@@ -3301,9 +3328,9 @@
       "until": "Bis {date}",
       "noEnd": "Kein Enddatum",
       "decided": "{who}: {reason}",
-      "inbox": "Pipelines, die Zugriff anfragen",
-      "inboxLead": "Pipelines anderer Räume und Projekte, die diesen Raum lesen oder beschreiben wollen. Eine Genehmigung schlägt den Zugriff als Änderung dieses Projekts vor.",
-      "inboxEmpty": "Keine Pipeline hat Zugriff auf diesen Raum angefragt.",
+      "inbox": "Zugriffsanfragen",
+      "inboxLead": "Personen, die einen Endpunkt dieses Bereichs lesen möchten, und Pipelines anderer Bereiche, die ihn lesen oder schreiben möchten. Eine Genehmigung schlägt die Berechtigung als Änderung dieses Projekts vor; eine andere Person genehmigt diese Änderung.",
+      "inboxEmpty": "Noch niemand hat Zugriff auf diesen Bereich angefragt.",
       "on": "auf {endpoint}, angefragt von {who}",
       "decisionReason": "Begründung für den Anfragenden",
       "approve": "Genehmigen",
@@ -3325,7 +3352,8 @@
       "noTypes": "Der Raum des Endpunkts hat kein kompiliertes Datenmodell, daher kann noch kein Typ angefragt werden. Bitten Sie seine Besitzer, eines hinzuzufügen.",
       "endpointFirst": "Wählen Sie zuerst den Endpunkt.",
       "noAttrs": "Das Modell deklariert kein Attribut von {type}.",
-      "typeFirst": "Wählen Sie zuerst den Entitätstyp."
+      "typeFirst": "Wählen Sie zuerst den Entitätstyp.",
+      "allAttrs": "alle Attribute"
     },
     "map": {
       "views": "Pipeline-Ansichten",
