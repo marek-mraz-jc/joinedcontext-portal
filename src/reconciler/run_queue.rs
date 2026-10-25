@@ -513,7 +513,7 @@ impl RunQueue {
             let mut waiting: Vec<(DateTime<Utc>, Key)> = self
                 .entries
                 .iter()
-                .filter(|(_, e)| in_lane(e) && e.running.is_none() && !e.sweep && !e.stuck)
+                .filter(|(_, e)| in_lane(e) && e.running.is_none() && !e.sweep)
                 .filter_map(|(k, e)| Some((e.queued?, k.clone())))
                 .collect();
             waiting.sort();
@@ -557,11 +557,15 @@ impl RunQueue {
     }
 
     /// Queues one run of `key` now, outside its clock (T-4349), and names it: an entry already
-    /// queued keeps its place and its run.
+    /// queued keeps its place and its run. A held pipeline (T-5370) stays held: another run
+    /// would loop in the runner again.
     pub fn run_now(&mut self, key: &Key, now: DateTime<Utc>) -> Result<String, RunNow> {
         let entry = self.entries.get_mut(key).ok_or(RunNow::NotQueued)?;
         if entry.running.is_some() {
             return Err(RunNow::Running(entry.run.clone().unwrap_or_default()));
+        }
+        if entry.stuck {
+            return Err(RunNow::Held);
         }
         Ok(stamp(*entry.queued.get_or_insert(now)))
     }
@@ -629,6 +633,9 @@ pub enum RunNow {
     NotQueued,
     /// Its run with this id is in the runner.
     Running(String),
+    /// Its last run ran past its cap and the runner could not stop it: it waits for its steps
+    /// to change (T-5370).
+    Held,
 }
 
 /// The stream of one run with its run id written in, in place of the clock's time, so the
@@ -1176,6 +1183,14 @@ mod tests {
         };
         assert!(said.contains("could not stop it"), "{said}");
         assert!(said.contains("no further run until it changes"), "{said}");
+        assert_eq!(
+            queue
+                .lock()
+                .unwrap()
+                .run_now(&key("loop"), now + Span::minutes(15)),
+            Err(RunNow::Held),
+            "Run now on a held pipeline is refused, not queued for a start that never comes"
+        );
 
         step(&queue, &fake, now + Span::hours(1)).await;
         assert_eq!(
@@ -1195,6 +1210,41 @@ mod tests {
         queue.lock().unwrap().plan(changed, now + Span::hours(1));
         step(&queue, &fake, now + Span::hours(1)).await;
         assert_eq!(fake.log(), ["start loop"], "a changed stream runs again");
+    }
+
+    /// A due time that passes while a pipeline is held does not queue it, so a changed stream
+    /// on the same clock waits for its next due time instead of starting a stale run (T-5370).
+    #[tokio::test]
+    async fn a_held_pipeline_misses_its_due_times_and_runs_at_the_next_after_a_change() {
+        let queue = Mutex::new(RunQueue::new(1, 1));
+        let fake = Fake::default();
+        let now = at("2026-10-17T05:00:00Z");
+        let hourly = |count: u64| Planned {
+            stream: serde_json::json!({"input": {"generate": {"count": count}}}),
+            clock: Clock::Every(Duration::from_secs(3600)),
+        };
+        let wanted = |count| [(key("loop"), hourly(count))].into_iter().collect();
+        queue.lock().unwrap().plan(wanted(1), now);
+        queue.lock().unwrap().run_now(&key("loop"), now).unwrap();
+        fake.stuck.lock().unwrap().insert("loop".to_owned());
+        step(&queue, &fake, now).await;
+        step(&queue, &fake, now + Span::minutes(15)).await;
+        fake.log();
+
+        step(&queue, &fake, now + Span::minutes(70)).await;
+        queue
+            .lock()
+            .unwrap()
+            .plan(wanted(2), now + Span::minutes(70));
+        step(&queue, &fake, now + Span::minutes(70)).await;
+        assert_eq!(
+            fake.log(),
+            Vec::<String>::new(),
+            "the due time passed while held queued nothing"
+        );
+        step(&queue, &fake, now + Span::minutes(131)).await;
+        step(&queue, &fake, now + Span::minutes(131)).await;
+        assert_eq!(fake.log(), ["start loop"], "it runs at its next due time");
     }
 
     /// A poll every 30 s is capped at two minutes and one every 5 min at the batch cap, so a
