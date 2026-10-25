@@ -1400,3 +1400,19 @@ a.jc-cell--link:focus-visible {
   inset-block-start: 0.25rem;
   inset-inline-end: 0.25rem;
 }
+
+/* The Metadata tab (T-5529): a hidden field reads as withheld, never as an empty value. */
+.jc-grid-meta-hidden {
+  color: var(--jc-color-muted, #57606a);
+  font-style: italic;
+}
+
+.jc-grid-meta-absolute {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--jc-color-muted, #57606a);
+}
+
+.jc-grid-meta-error {
+  color: var(--jc-color-danger, #cf222e);
+}

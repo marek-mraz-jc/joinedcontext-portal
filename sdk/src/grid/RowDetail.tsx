@@ -11,6 +11,8 @@ export interface RowDetailLabels {
   /** The tab with one attribute's history at a time: "History", and its attribute picker. */
   rowHistory: string;
   historyAttr: string;
+  /** The tab with who changed one attribute, when and through what (T-5529): "Metadata". */
+  rowMetadata?: string;
 }
 
 /** A tab the host adds after Fields and History, such as the row's comments (T-4828). */
@@ -32,6 +34,8 @@ export interface RowDetailProps {
   onClose: () => void;
   /** One attribute's history, where the source reads history and the config allows it. */
   history?: (attr: string, label: string) => React.ReactNode;
+  /** One attribute's created and changed times and its last writer, with the History tab's picker. */
+  metadata?: (attr: string) => React.ReactNode;
   /** The host's own tabs after Fields and History. */
   tabs?: RowDetailTab[];
   /** What the host adds under the attributes, in the Fields tab. */
@@ -46,7 +50,7 @@ export interface RowDetailProps {
  * browser's modal dialog keeps focus inside and the page behind inert; the heading takes focus when
  * it opens and Escape outside a text box closes it.
  */
-export function RowDetail({ row, name, columns, renderValue, labels, onClose, history, tabs = [], children }: RowDetailProps): React.JSX.Element {
+export function RowDetail({ row, name, columns, renderValue, labels, onClose, history, metadata, tabs = [], children }: RowDetailProps): React.JSX.Element {
   const headingId = useId();
   const tabsId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
@@ -76,7 +80,8 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
 
   const [attr, setAttr] = useState<string>(all[0]?.attr ?? "");
   const historyTab = history && all.length > 0 ? [{ id: "history", label: labels.rowHistory }] : [];
-  const list = [{ id: "fields", label: labels.rowFields }, ...historyTab, ...tabs.map(({ id, label }) => ({ id, label }))];
+  const metadataTab = metadata && all.length > 0 ? [{ id: "metadata", label: labels.rowMetadata ?? "Metadata" }] : [];
+  const list = [{ id: "fields", label: labels.rowFields }, ...historyTab, ...metadataTab, ...tabs.map(({ id, label }) => ({ id, label }))];
   const current = list.some((one) => one.id === tab) ? tab : "fields";
   const tabId = (id: string) => `${tabsId}-tab-${id}`;
   const panelId = (id: string) => `${tabsId}-panel-${id}`;
@@ -147,7 +152,7 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
             {children}
           </>
         ) : null}
-        {current === "history" && history ? (
+        {(current === "history" && history) || (current === "metadata" && metadata) ? (
           <>
             <label className="jc-grid-detail-attr">
               {labels.historyAttr}
@@ -160,7 +165,7 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
               </select>
             </label>
             {/* A new attribute is a new read: nothing of the last one's window or answer carries over. */}
-            <React.Fragment key={attr}>{history(attr, label)}</React.Fragment>
+            <React.Fragment key={attr}>{current === "history" ? history?.(attr, label) : metadata?.(attr)}</React.Fragment>
           </>
         ) : null}
         {tabs.find((one) => one.id === current)?.content}
