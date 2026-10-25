@@ -51,33 +51,47 @@ function refusalOf(err: unknown, generic: string): string {
   return err instanceof Error ? err.message : generic;
 }
 
-/**
- * The draft a form edits (PF-57, MF-24): loaded on open, written 600 ms after a change that moved
- * its digest, reloaded when another window writes it, and the verdict it carries.
- */
-export function useResourceDraft<T>(options: ResourceDraftOptions<T>): ResourceDraft<T> {
-  const { open, project, draftKind, draftName, formData, source, currentDigest, onVerdictChange, onChange } =
-    options;
-  const { t } = useTranslation();
-  const [currentDraft, setCurrentDraft] = useState<Draft | null>(null);
-  // The draft name whose load has answered, with or without a draft: the write below waits
-  // for it, and a name that has no draft yet must not wait forever (T-0631).
-  const [loadedName, setLoadedName] = useState<string | undefined>(undefined);
-  const [ownVerdict, setOwnVerdict] = useState<Verdict | null>(null);
-  const verdict = options.verdict !== undefined ? options.verdict : ownVerdict;
-  const [conflict, setConflict] = useState<string | null>(null);
-  const [saveRefused, setSaveRefused] = useState<string | null>(null);
-  const lastVersionRef = useRef<number | undefined>(undefined);
-  const lastTypedRef = useRef<number>(0);
+/** The refs the draft's hooks share: what the store last answered and when the person typed. */
+interface DraftRefs {
+  lastVersion: number | undefined;
+  lastTyped: number;
   /** The digest of the manifest the draft last held: an unchanged form writes nothing. */
-  const syncedDigestRef = useRef<string | undefined>(undefined);
+  syncedDigest: string | undefined;
+}
+
+/** The verdict a form shows: the page's own when it holds one, else the hook's. */
+interface HeldVerdict {
+  verdict: Verdict | null;
+  updateVerdict: (verdict: Verdict | null) => void;
+  adoptVerdict: (incoming: Verdict | null | undefined) => void;
+}
+
+/** What the draft's hooks share: its address, its refs, its setters and its verdict. */
+interface DraftCore<T> {
+  project?: string;
+  draftKind?: string;
+  draftName?: string;
+  activeName?: string;
+  source?: ManifestSource<T>;
+  onChange?: (data: T | undefined) => void;
+  loadedName: string | undefined;
+  setLoadedName: (name: string | undefined) => void;
+  setCurrentDraft: (draft: Draft | null) => void;
+  setConflict: (conflict: string | null) => void;
+  setSaveRefused: (refused: string | null) => void;
+  draftRef: { current: DraftRefs };
+  held: HeldVerdict;
+}
+
+function useHeldVerdict(
+  pageVerdict: Verdict | null | undefined,
+  onVerdictChange?: (verdict: Verdict | null) => void,
+): HeldVerdict {
+  const [ownVerdict, setOwnVerdict] = useState<Verdict | null>(null);
   /** The verdict on screen, for the answers below that arrive after a newer one (T-2624). */
-  const heldVerdictRef = useRef<Verdict | null>(null);
-
-  const activeName = draftName || extractName(formData);
-
+  const heldRef = useRef<Verdict | null>(null);
   const updateVerdict = (next: Verdict | null) => {
-    heldVerdictRef.current = next;
+    heldRef.current = next;
     setOwnVerdict(next);
     onVerdictChange?.(next);
   };
@@ -92,44 +106,67 @@ export function useResourceDraft<T>(options: ResourceDraftOptions<T>): ResourceD
     if (incoming === undefined) {
       return;
     }
-    const held = heldVerdictRef.current;
+    const held = heldRef.current;
     if (held !== null && (incoming === null || Date.parse(incoming.checkedAt) < Date.parse(held.checkedAt))) {
       return;
     }
     updateVerdict(incoming);
   };
+  return { verdict: pageVerdict !== undefined ? pageVerdict : ownVerdict, updateVerdict, adoptVerdict };
+}
 
-  /**
-   * A draft opened is not the person's edit: what the form would write from it counts as synced,
-   * so a draft holding a field the form has no control for is not rewritten without it on open.
-   * Measured by the stored manifest instead, that write-back waited only on a re-render clearing
-   * the debounce first (T-2754).
-   */
-  const showManifest = (manifest: unknown) => {
-    const loaded = source ? source.fromManifest(manifest) : (manifest as T);
-    syncedDigestRef.current = digestOf(source ? source.toManifest(loaded) : manifest);
-    onChange?.(loaded);
-  };
-  /** A draft another hand wrote, read back: its version, its verdict and its manifest. */
-  const takeReloaded = (reloaded: Draft | null) => {
-    if (!reloaded) return;
-    setCurrentDraft(reloaded);
-    lastVersionRef.current = reloaded.version;
-    adoptVerdict(reloaded.verdict);
-    if (reloaded.manifest) showManifest(reloaded.manifest);
-  };
+/**
+ * A draft opened is not the person's edit: what the form would write from it counts as synced,
+ * so a draft holding a field the form has no control for is not rewritten without it on open.
+ * Measured by the stored manifest instead, that write-back waited only on a re-render clearing
+ * the debounce first (T-2754).
+ */
+function showManifest<T>(core: DraftCore<T>, manifest: unknown) {
+  const { source } = core;
+  const loaded = source ? source.fromManifest(manifest) : (manifest as T);
+  core.draftRef.current.syncedDigest = digestOf(source ? source.toManifest(loaded) : manifest);
+  core.onChange?.(loaded);
+}
 
+function takeDraft<T>(core: DraftCore<T>, draft: Draft) {
+  core.setCurrentDraft(draft);
+  core.draftRef.current.lastVersion = draft.version;
+}
+
+/** A draft another hand wrote, read back: its version, its verdict and its manifest. */
+function takeReloaded<T>(core: DraftCore<T>, reloaded: Draft | null) {
+  if (!reloaded) return;
+  takeDraft(core, reloaded);
+  core.held.adoptVerdict(reloaded.verdict);
+  if (reloaded.manifest) showManifest(core, reloaded.manifest);
+}
+
+/** The store's answer to this form's own write of `digest`. */
+function takeSaved<T>(core: DraftCore<T>, saved: Draft, digest: string) {
+  core.draftRef.current.syncedDigest = digest;
+  takeDraft(core, saved);
+  core.held.adoptVerdict(saved.verdict);
+  core.setSaveRefused(null);
+}
+
+/** The address a draft is read and written at, once the form names one. */
+function addressOf<T>(core: DraftCore<T>, open: boolean): { project: string; kind: string; name: string } | null {
+  const { project, draftKind, activeName } = core;
+  return open && project && draftKind && activeName ? { project, kind: draftKind, name: activeName } : null;
+}
+
+// Load existing draft on open if draftName is set
+function useDraftLoad<T>(core: DraftCore<T>, open: boolean) {
+  const { project, draftKind, draftName } = core;
   const onLoaded = useEffectEvent((d: Draft | null) => {
-    setLoadedName(draftName);
+    core.setLoadedName(draftName);
     if (!d) return;
-    setCurrentDraft(d);
-    lastVersionRef.current = d.version;
+    takeDraft(core, d);
     if (d.verdict !== undefined) {
-      updateVerdict(d.verdict ?? null);
+      core.held.updateVerdict(d.verdict ?? null);
     }
-    if (d.manifest) showManifest(d.manifest);
+    if (d.manifest) showManifest(core, d.manifest);
   });
-  // Load existing draft on open if draftName is set
   useEffect(() => {
     if (!open || !draftKind || !project || !draftName) {
       return;
@@ -142,129 +179,170 @@ export function useResourceDraft<T>(options: ResourceDraftOptions<T>): ResourceD
       active = false;
     };
   }, [open, draftKind, project, draftName]);
+}
 
-  const scheduleWrite = useEffectEvent((form: T | undefined): (() => void) | undefined => {
-    if (!open || !draftKind || !project || !activeName || !form) {
-      return undefined;
+// Debounced write of the draft on a form change. `currentDigest` stands for the manifest a page
+// builds around the form, which `formData` alone does not move.
+function useDraftWrite<T>(core: DraftCore<T>, open: boolean, formData: T | undefined, currentDigest: string) {
+  const { t } = useTranslation();
+  const { draftName, loadedName, draftRef } = core;
+  const write = (at: { project: string; kind: string; name: string }, manifest: unknown, digest: string) => {
+    // A proposal may have written this manifest already (see `draftRefFor`).
+    if (digest === draftRef.current.syncedDigest) {
+      return;
     }
+    void putDraft(at.project, at.kind, at.name, manifest, draftRef.current.lastVersion)
+      .then((d) => {
+        takeSaved(core, d, digest);
+        core.setConflict(null);
+      })
+      .catch((err: unknown) => {
+        if ((err as { status?: number } | null)?.status !== 409) {
+          core.setSaveRefused(refusalOf(err, t("app.error.generic")));
+          return;
+        }
+        core.setConflict(t("drafts.conflict"));
+        void getDraft(at.project, at.kind, at.name).then((d) => takeReloaded(core, d));
+      });
+  };
+  const scheduleWrite = useEffectEvent((form: T | undefined): (() => void) | undefined => {
+    const at = addressOf(core, open);
     // A named draft is loaded before anything is written back: the form's first, empty
     // data must not overwrite what another window typed.
-    if (draftName && loadedName !== draftName) {
+    if (!at || !form || (draftName && loadedName !== draftName)) {
       return undefined;
     }
-    const manifest = manifestOf(form, source);
+    const manifest = manifestOf(form, core.source);
     const digest = digestOf(manifest);
-    if (digest === syncedDigestRef.current) {
+    if (digest === draftRef.current.syncedDigest) {
       return undefined;
     }
-    lastTypedRef.current = Date.now();
-    const timer = setTimeout(() => {
-      // A proposal may have written this manifest already (see `draftRefFor`).
-      if (digest === syncedDigestRef.current) {
-        return;
-      }
-      void putDraft(project, draftKind, activeName, manifest, lastVersionRef.current)
-        .then((d) => {
-          syncedDigestRef.current = digest;
-          setCurrentDraft(d);
-          lastVersionRef.current = d.version;
-          adoptVerdict(d.verdict);
-          setConflict(null);
-          setSaveRefused(null);
-        })
-        .catch((err: unknown) => {
-          if ((err as { status?: number } | null)?.status !== 409) {
-            setSaveRefused(refusalOf(err, t("app.error.generic")));
-            return;
-          }
-          setConflict(t("drafts.conflict"));
-          void getDraft(project, draftKind, activeName).then(takeReloaded);
-        });
-    }, DRAFT_WRITE_MS);
+    draftRef.current.lastTyped = Date.now();
+    const timer = setTimeout(() => write(at, manifest, digest), DRAFT_WRITE_MS);
     return () => clearTimeout(timer);
   });
-  // Debounced write of the draft on a form change. `currentDigest` stands for the manifest a page
-  // builds around the form, which `formData` alone does not move.
+  const { project, draftKind, activeName } = core;
   useEffect(
     () => scheduleWrite(formData),
     [formData, currentDigest, open, draftKind, project, activeName, draftName, loadedName],
   );
+}
 
+// Subscribe to project draft events
+function useDraftEvents<T>(core: DraftCore<T>, open: boolean, hasDraft: boolean) {
+  const { draftRef } = core;
   const onDraftEvent = useEffectEvent((event: DraftEvent) => {
-    if (!project || !draftKind || event.kind !== draftKind || event.name !== activeName) {
+    const at = addressOf(core, true);
+    if (!at || event.kind !== at.kind || event.name !== at.name) {
       return;
     }
     if (event.event === "drop") {
-      setCurrentDraft(null);
-      updateVerdict(null);
+      core.setCurrentDraft(null);
+      core.held.updateVerdict(null);
       return;
     }
     if (event.event === "verdict") {
-      void getDraft(project, draftKind, activeName).then((d) => {
+      void getDraft(at.project, at.kind, at.name).then((d) => {
         if (d) {
-          setCurrentDraft(d);
-          adoptVerdict(d.verdict ?? null);
+          core.setCurrentDraft(d);
+          core.held.adoptVerdict(d.verdict ?? null);
         }
       });
       return;
     }
-    if (event.version > (lastVersionRef.current ?? 0) && Date.now() - lastTypedRef.current >= OWN_ECHO_MS) {
-      void getDraft(project, draftKind, activeName).then(takeReloaded);
+    if (event.version > (draftRef.current.lastVersion ?? 0) && Date.now() - draftRef.current.lastTyped >= OWN_ECHO_MS) {
+      void getDraft(at.project, at.kind, at.name).then((d) => takeReloaded(core, d));
     }
   });
-  // Subscribe to project draft events
-  const hasDraft = currentDraft !== null;
+  const { project, draftKind, activeName } = core;
   useEffect(() => {
     if (!open || !draftKind || !project || !hasDraft) {
       return;
     }
     return subscribeDrafts(project, (event) => onDraftEvent(event));
   }, [open, draftKind, project, activeName, hasDraft]);
+}
 
-  async function draftRefFor(form: T): Promise<{ kind: string; name: string } | undefined> {
-    const active = draftName || extractName(form);
-    if (!draftKind || !active) {
-      return undefined;
-    }
-    const manifest = manifestOf(form, source);
-    const digest = digestOf(manifest);
-    const loaded = !draftName || loadedName === draftName;
-    if (project && loaded && digest !== syncedDigestRef.current) {
-      try {
-        const saved = await putDraft(project, draftKind, active, manifest, lastVersionRef.current);
-        syncedDigestRef.current = digest;
-        lastVersionRef.current = saved.version;
-        setCurrentDraft(saved);
-        adoptVerdict(saved.verdict);
-        setSaveRefused(null);
-      } catch (err) {
-        // Another window changed the draft: the person sees it before anything is proposed. Any
-        // other failure leaves the proposal to the server's check, which says what to do.
-        if ((err as { status?: number }).status === 409) {
-          throw err;
-        }
-        setSaveRefused(refusalOf(err, t("app.error.generic")));
-      }
-    }
-    return { kind: draftKind, name: active };
+/**
+ * The draft a proposal names, holding what the form shows: the save the debounce has not sent
+ * yet goes first (T-0769, AG-61).
+ */
+async function draftRefOf<T>(
+  core: DraftCore<T>,
+  form: T,
+  generic: string,
+): Promise<{ kind: string; name: string } | undefined> {
+  const { project, draftKind, draftName, draftRef } = core;
+  const active = draftName || extractName(form);
+  if (!draftKind || !active) {
+    return undefined;
   }
+  const manifest = manifestOf(form, core.source);
+  const digest = digestOf(manifest);
+  const loaded = !draftName || core.loadedName === draftName;
+  if (project && loaded && digest !== draftRef.current.syncedDigest) {
+    try {
+      takeSaved(core, await putDraft(project, draftKind, active, manifest, draftRef.current.lastVersion), digest);
+    } catch (err) {
+      // Another window changed the draft: the person sees it before anything is proposed. Any
+      // other failure leaves the proposal to the server's check, which says what to do.
+      if ((err as { status?: number }).status === 409) {
+        throw err;
+      }
+      core.setSaveRefused(refusalOf(err, generic));
+    }
+  }
+  return { kind: draftKind, name: active };
+}
+
+/**
+ * The draft a form edits (PF-57, MF-24): loaded on open, written 600 ms after a change that moved
+ * its digest, reloaded when another window writes it, and the verdict it carries.
+ */
+export function useResourceDraft<T>(options: ResourceDraftOptions<T>): ResourceDraft<T> {
+  const { open, draftName, formData } = options;
+  const { t } = useTranslation();
+  const [currentDraft, setCurrentDraft] = useState<Draft | null>(null);
+  // The draft name whose load has answered, with or without a draft: the write below waits
+  // for it, and a name that has no draft yet must not wait forever (T-0631).
+  const [loadedName, setLoadedName] = useState<string | undefined>(undefined);
+  const [conflict, setConflict] = useState<string | null>(null);
+  const [saveRefused, setSaveRefused] = useState<string | null>(null);
+  const draftRef = useRef<DraftRefs>({ lastVersion: undefined, lastTyped: 0, syncedDigest: undefined });
+  const held = useHeldVerdict(options.verdict, options.onVerdictChange);
+  const activeName = draftName || extractName(formData);
+  const core: DraftCore<T> = {
+    ...options,
+    activeName,
+    loadedName,
+    setLoadedName,
+    setCurrentDraft,
+    setConflict,
+    setSaveRefused,
+    draftRef,
+    held,
+  };
+
+  useDraftLoad(core, open);
+  useDraftWrite(core, open, formData, options.currentDigest);
+  useDraftEvents(core, open, currentDraft !== null);
 
   function reset() {
     setConflict(null);
     setCurrentDraft(null);
     setLoadedName(undefined);
-    lastVersionRef.current = undefined;
+    draftRef.current.lastVersion = undefined;
   }
 
   return {
     activeName,
     currentDraft,
-    verdict,
-    updateVerdict,
+    verdict: held.verdict,
+    updateVerdict: held.updateVerdict,
     conflict,
     setConflict,
     saveRefused,
-    draftRefFor,
+    draftRefFor: (form) => draftRefOf(core, form, t("app.error.generic")),
     reset,
   };
 }

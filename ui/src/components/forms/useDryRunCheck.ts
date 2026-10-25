@@ -132,32 +132,12 @@ function checkErrorOf(error: Error | null): string | null {
 }
 
 /**
- * The Check of a form (PF-57): the browser's schema first, the server's dry run after it, the
- * findings on the fields they name and the first empty required field brought into view.
+ * The check a dialog runs for itself: the same dry run the pages with their own `onCheck`
+ * send, on the manifest the form holds and the draft the proposal will name (T-0779).
  */
-export function useDryRunCheck<T>(options: DryRunCheckOptions<T>): DryRunCheck {
-  const { kind, schema, formData, formView, currentDigest, verdict, updateVerdict, canCheck, checkRefusal } = options;
-  const { t } = useTranslation();
-  /** What the browser's own check refused, keyed by field, until the form changes (T-1491). */
-  const [schemaErrors, setSchemaErrors] = useState<ErrorSchema | undefined>(undefined);
-  // Why the last Check stopped before asking the server, and the field to bring into view: a
-  // count of filled fields beside the button left a person searching a long form (T-3970).
-  // It holds the form it judged, so any change to the draft, from a field or from a workbench
-  // beside the form, retires it.
-  const [stopped, setStopped] = useState<{ message: string; field?: string; form?: T } | null>(null);
-  const [restartsStream, setRestartsStream] = useState(false);
-  /**
-   * What the form held when Check was last pressed: a check the server refused outright (an
-   * invalid manifest answers with a problem, not a verdict) leaves no verdict, and the chip says
-   * the check failed rather than "not checked yet" until the form changes (T-4824).
-   */
-  const [checkedDigest, setCheckedDigest] = useState<string | null>(null);
-
-  /**
-   * The check a dialog runs for itself: the same dry run the pages with their own `onCheck`
-   * send, on the manifest the form holds and the draft the proposal will name (T-0779).
-   */
-  const ownCheck = useMutation({
+function useOwnCheck<T>(options: DryRunCheckOptions<T>, setRestartsStream: (restarts: boolean) => void) {
+  const { updateVerdict } = options;
+  return useMutation({
     mutationFn: async (form: T) => {
       const name = options.draftName || extractName(form);
       // What a page's `toManifest` builds is a manifest the API checks; its type is the API's.
@@ -186,23 +166,95 @@ export function useDryRunCheck<T>(options: DryRunCheckOptions<T>): DryRunCheck {
       updateVerdict(null);
     },
   });
-  const check = options.onCheck ?? ((form: T) => ownCheck.mutate(form));
+}
 
+/**
+ * The server's findings used to be dropped whenever the browser marked any field at all, so a
+ * name another project holds went unsaid on the name while the space picker was marked (T-2731,
+ * UI-45); a field both judge shows both sentences.
+ */
+function useShownErrors(
+  verdict: Verdict | null,
+  schema: JsonSchema,
+  schemaErrors: ErrorSchema | undefined,
+): ErrorSchema | undefined {
+  const { t } = useTranslation();
   const findingErrors = useMemo(
     () => findingErrorsOf(verdict, schema, (message) => findingSentence(message, t)),
     [verdict, schema, t],
   );
-  /**
-   * The server's findings used to be dropped whenever the browser marked any field at all, so a
-   * name another project holds went unsaid on the name while the space picker was marked (T-2731,
-   * UI-45); a field both judge shows both sentences.
-   */
-  const shownErrors = useMemo<ErrorSchema | undefined>(() => {
+  return useMemo<ErrorSchema | undefined>(() => {
     if (schemaErrors === undefined || findingErrors === undefined) {
       return schemaErrors ?? findingErrors;
     }
     return mergeObjects(findingErrors, schemaErrors, "preventDuplicates") as ErrorSchema;
   }, [schemaErrors, findingErrors]);
+}
+
+// The automatic check reads what the latest render holds; it is keyed on the form alone, so a
+// verdict arriving re-renders without sending the same form again.
+function useAutoCheck<T>(options: DryRunCheckOptions<T>, check: (form: T) => void) {
+  const { t } = useTranslation();
+  const { autoCheck, formView, formData } = options;
+  const autoChecked = useRef<T | undefined>(undefined);
+  const autoRun = useEffectEvent((form: T) => {
+    const { kind, schema } = options;
+    if (!options.canCheck || options.disabled || options.checkRefusal || schemaRefusals(kind, form, schema, t)?.missing) {
+      return;
+    }
+    autoChecked.current = form;
+    check(form);
+  });
+  useEffect(() => {
+    if (!autoCheck || !formView || formData === undefined || autoChecked.current === formData) {
+      return;
+    }
+    const timer = setTimeout(() => autoRun(formData), AUTO_CHECK_MS);
+    return () => clearTimeout(timer);
+  }, [autoCheck, formView, formData]);
+}
+
+// The field a stopped check names is opened, scrolled to and focused once it is on screen,
+// with every fold around it opened (T-3970); `advanced` reruns it once those fields show.
+function useFocusStopped(stopped: { field?: string } | null, formView: boolean, advanced: boolean) {
+  useEffect(() => {
+    const target = formView && stopped?.field ? controlOf(stopped.field) : null;
+    if (!target) {
+      return;
+    }
+    for (let fold = target.closest("details"); fold; fold = fold.parentElement?.closest("details") ?? null) {
+      fold.open = true;
+    }
+    target.scrollIntoView?.({ block: "center" });
+    target.focus();
+  }, [stopped, formView, advanced]);
+}
+
+/**
+ * The Check of a form (PF-57): the browser's schema first, the server's dry run after it, the
+ * findings on the fields they name and the first empty required field brought into view.
+ */
+export function useDryRunCheck<T>(options: DryRunCheckOptions<T>): DryRunCheck {
+  const { kind, schema, formData, formView, currentDigest, canCheck, checkRefusal } = options;
+  const { t } = useTranslation();
+  /** What the browser's own check refused, keyed by field, until the form changes (T-1491). */
+  const [schemaErrors, setSchemaErrors] = useState<ErrorSchema | undefined>(undefined);
+  // Why the last Check stopped before asking the server, and the field to bring into view: a
+  // count of filled fields beside the button left a person searching a long form (T-3970).
+  // It holds the form it judged, so any change to the draft, from a field or from a workbench
+  // beside the form, retires it.
+  const [stopped, setStopped] = useState<{ message: string; field?: string; form?: T } | null>(null);
+  const [restartsStream, setRestartsStream] = useState(false);
+  /**
+   * What the form held when Check was last pressed: a check the server refused outright (an
+   * invalid manifest answers with a problem, not a verdict) leaves no verdict, and the chip says
+   * the check failed rather than "not checked yet" until the form changes (T-4824).
+   */
+  const [checkedDigest, setCheckedDigest] = useState<string | null>(null);
+
+  const ownCheck = useOwnCheck(options, setRestartsStream);
+  const check = options.onCheck ?? ((form: T) => ownCheck.mutate(form));
+  const shownErrors = useShownErrors(options.verdict, schema, schemaErrors);
 
   function checkForm(form: T) {
     // What the browser already knows goes onto the fields at once, in words (T-1491); the
@@ -225,6 +277,19 @@ export function useDryRunCheck<T>(options: DryRunCheckOptions<T>): DryRunCheck {
     }
   }
 
+  function checkYaml() {
+    const form = options.readYaml();
+    if (form === null) return;
+    // The YAML view is checked by the server alone, on purpose: it is where a value the form's
+    // own schema cannot express is typed — a rate limit outside the offered classes, a field the
+    // kind has no control for — and the parent widens the schema only one render later (T-0890).
+    // Refusing it here would refuse what the REST route accepts.
+    options.onChange?.(form);
+    setSchemaErrors(undefined);
+    options.onYamlChecked();
+    check(form);
+  }
+
   function runCheck() {
     if (!canCheck) {
       return;
@@ -233,58 +298,15 @@ export function useDryRunCheck<T>(options: DryRunCheckOptions<T>): DryRunCheck {
     setCheckedDigest(currentDigest);
     if (checkRefusal) {
       setStopped({ ...checkRefusal, form: formData });
-      return;
-    }
-    if (formView) {
-      if (formData) checkForm(formData);
-      return;
-    }
-    const form = options.readYaml();
-    if (form !== null) {
-      // The YAML view is checked by the server alone, on purpose: it is where a value the form's
-      // own schema cannot express is typed — a rate limit outside the offered classes, a field the
-      // kind has no control for — and the parent widens the schema only one render later (T-0890).
-      // Refusing it here would refuse what the REST route accepts.
-      options.onChange?.(form);
-      setSchemaErrors(undefined);
-      options.onYamlChecked();
-      check(form);
+    } else if (!formView) {
+      checkYaml();
+    } else if (formData) {
+      checkForm(formData);
     }
   }
 
-  // The automatic check reads what the latest render holds; it is keyed on the form alone, so a
-  // verdict arriving re-renders without sending the same form again.
-  const autoChecked = useRef<T | undefined>(undefined);
-  const autoRun = useEffectEvent((form: T) => {
-    if (!canCheck || options.disabled || checkRefusal || schemaRefusals(kind, form, schema, t)?.missing) {
-      return;
-    }
-    autoChecked.current = form;
-    check(form);
-  });
-  const { autoCheck } = options;
-  useEffect(() => {
-    if (!autoCheck || !formView || formData === undefined || autoChecked.current === formData) {
-      return;
-    }
-    const timer = setTimeout(() => autoRun(formData), AUTO_CHECK_MS);
-    return () => clearTimeout(timer);
-  }, [autoCheck, formView, formData]);
-
-  // The field a stopped check names is opened, scrolled to and focused once it is on screen,
-  // with every fold around it opened (T-3970); `advanced` reruns it once those fields show.
-  const { advanced } = options;
-  useEffect(() => {
-    const target = formView && stopped?.field ? controlOf(stopped.field) : null;
-    if (!target) {
-      return;
-    }
-    for (let fold = target.closest("details"); fold; fold = fold.parentElement?.closest("details") ?? null) {
-      fold.open = true;
-    }
-    target.scrollIntoView?.({ block: "center" });
-    target.focus();
-  }, [stopped, formView, advanced]);
+  useAutoCheck(options, check);
+  useFocusStopped(stopped, formView, options.advanced);
 
   return {
     runCheck,
