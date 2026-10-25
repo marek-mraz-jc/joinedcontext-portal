@@ -158,6 +158,8 @@ function addressOf<T>(core: DraftCore<T>, open: boolean): { project: string; kin
 // Load existing draft on open if draftName is set
 function useDraftLoad<T>(core: DraftCore<T>, open: boolean) {
   const { project, draftKind, draftName } = core;
+  const { t } = useTranslation();
+  const onFailed = useEffectEvent((err: unknown) => core.setSaveRefused(refusalOf(err, t("app.error.generic"))));
   const onLoaded = useEffectEvent((d: Draft | null) => {
     core.setLoadedName(draftName);
     if (!d) return;
@@ -172,9 +174,16 @@ function useDraftLoad<T>(core: DraftCore<T>, open: boolean) {
       return;
     }
     let active = true;
-    void getDraft(project, draftKind, draftName).then((d) => {
-      if (active) onLoaded(d);
-    });
+    void getDraft(project, draftKind, draftName).then(
+      (d) => {
+        if (active) onLoaded(d);
+      },
+      // Unread is not empty: the name stays unloaded, so nothing is written over the draft
+      // another window may hold, and the person is told why (F-UI1-013).
+      (err: unknown) => {
+        if (active) onFailed(err);
+      },
+    );
     return () => {
       active = false;
     };
@@ -202,7 +211,8 @@ function useDraftWrite<T>(core: DraftCore<T>, open: boolean, formData: T | undef
           return;
         }
         core.setConflict(t("drafts.conflict"));
-        void getDraft(at.project, at.kind, at.name).then((d) => takeReloaded(core, d));
+        // A read-back that fails leaves the conflict said; the next save tries again.
+        void getDraft(at.project, at.kind, at.name).then((d) => takeReloaded(core, d), () => undefined);
       });
   };
   const scheduleWrite = useEffectEvent((form: T | undefined): (() => void) | undefined => {
@@ -242,16 +252,20 @@ function useDraftEvents<T>(core: DraftCore<T>, open: boolean, hasDraft: boolean)
       return;
     }
     if (event.event === "verdict") {
-      void getDraft(at.project, at.kind, at.name).then((d) => {
-        if (d) {
-          core.setCurrentDraft(d);
-          core.held.adoptVerdict(d.verdict ?? null);
-        }
-      });
+      void getDraft(at.project, at.kind, at.name).then(
+        (d) => {
+          if (d) {
+            core.setCurrentDraft(d);
+            core.held.adoptVerdict(d.verdict ?? null);
+          }
+        },
+        // A refresh another window prompted: one that fails keeps what the form shows.
+        () => undefined,
+      );
       return;
     }
     if (event.version > (draftRef.current.lastVersion ?? 0) && Date.now() - draftRef.current.lastTyped >= OWN_ECHO_MS) {
-      void getDraft(at.project, at.kind, at.name).then((d) => takeReloaded(core, d));
+      void getDraft(at.project, at.kind, at.name).then((d) => takeReloaded(core, d), () => undefined);
     }
   });
   const { project, draftKind, activeName } = core;
