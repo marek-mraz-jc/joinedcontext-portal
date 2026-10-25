@@ -112,4 +112,19 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     expect(await axeViolations(page)).toEqual([]);
     await shot(page, `import-refused-${label}`);
   });
+
+  test(`import rows: a file longer than one import says how much is read (${label})`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await stubApi(page);
+    await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
+    await page.locator("summary", { hasText: /^More$/ }).click();
+    await page.getByRole("button", { name: "Import rows" }).click();
+    const dialog = page.getByRole("dialog", { name: `Import rows into ${TYPE}` });
+    const input = dialog.locator("input[type=file]");
+    // A file longer than one import says so beside the count it read (F-UI3-011).
+    const rows = ["name,serviceCategory", ...Array.from({ length: 10_001 }, (_, n) => `Place ${n},library`)].join("\n");
+    await input.setInputFiles({ name: "places.csv", mimeType: "text/csv", buffer: Buffer.from(rows) });
+    await expect(dialog.getByText("The file holds 10001 rows; only the first 10000 are read.", { exact: false })).toBeVisible();
+    await shot(page, `import-cut-${label}`);
+  });
 }

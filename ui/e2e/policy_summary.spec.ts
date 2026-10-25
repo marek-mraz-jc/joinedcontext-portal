@@ -27,6 +27,22 @@ const POLICY = {
   status: { phase: "Live" },
 };
 
+/** A Policy written with rules[] (ADR-N-057): the list names each rule's grantee (F-UI3-015). */
+const RULED = {
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "Policy",
+  metadata: { name: "bikes-two-rules", namespace: "helsinki", title: { en: "Readers read, stewards set the status" } },
+  spec: {
+    contextSpaceRef: { kind: "ContextSpace", name: "helsinki" },
+    assigner: "did:web:hel.fi",
+    rules: [
+      { assignee: { kind: "role", id: "helsinki-readers" }, operations: ["retrieveOps"] },
+      { assignee: { kind: "role", id: "steward" }, operations: ["updateOps"], information: [{ entities: [{ type: "BikeHireDockingStation" }], propertyNames: ["status"] }] },
+    ],
+  },
+  status: { phase: "Live" },
+};
+
 const MERGED = {
   apiVersion: "joinedcontext.com/v1alpha1",
   kind: "Change",
@@ -52,7 +68,7 @@ async function stubApi(page: Page, persona: keyof typeof PERSONAS): Promise<void
     if (path.endsWith("/auth/me")) return json({ subject: "s1", username: `demo.${persona}`, name: `Demo ${persona}`, roles: who.roles });
     if (path.endsWith("/permissions/me")) return json({ project: "helsinki", bootstrap: false, grants: who.grants });
     if (path === "/api/v1/projects") return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "helsinki" }] });
-    if (path.endsWith("/policies")) return json(list([POLICY]));
+    if (path.endsWith("/policies")) return json(list([POLICY, RULED]));
     if (path.endsWith("/policies/bikes-ops-steward")) return json(POLICY);
     if (path.endsWith("/changes/history")) return json({ ...list([MERGED]), next: null });
     return json(list([]));
@@ -87,3 +103,24 @@ for (const persona of ["viewer", "editor"] as const) {
     }
   });
 }
+
+test("the list says every rule of a rules[] Policy, and a broken address keeps the shell (F-UI3-015, F-UI1-002)", async ({ page }) => {
+  mkdirSync(DIR, { recursive: true });
+  await stubApi(page, "viewer");
+  for (const width of [1440, 400]) {
+    await page.setViewportSize({ width, height: width === 400 ? 860 : 900 });
+    await page.goto("/projects/helsinki/policies?lang=en");
+    const row = page.getByRole("row").filter({ hasText: "Readers read, stewards set the status" });
+    await expect(row).toContainText("helsinki-readers");
+    await expect(row).toContainText("steward");
+    await page.screenshot({ path: join(DIR, `rules-policy-list-${width}.png`), fullPage: true });
+    // vite preview's static server 404s a malformed escape before the app loads; the Portal's
+    // own fallback serves the app, so the address is reached from inside it, as a pasted link would.
+    await page.evaluate(() => {
+      window.history.pushState(null, "", "/projects/helsinki/spaces/%E0%A4%A?lang=en");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    await expect(page.locator("main#main")).toBeAttached();
+    await page.screenshot({ path: join(DIR, `broken-address-${width}.png`), fullPage: true });
+  }
+});
