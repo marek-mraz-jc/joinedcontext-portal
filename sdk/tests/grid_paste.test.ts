@@ -27,7 +27,14 @@ describe("pasting a range (T-3097)", () => {
     expect(plan.tooLarge).toBe(false);
 
     const refused = planPaste([["maybe"]], () => ({ id: "e1", attr: "status", current: "open", allowed: ["open", "closed"] }));
-    expect(refused).toEqual({ edits: [], skipped: 1, tooLarge: false });
+    expect(refused).toEqual({ edits: [], skipped: 1, refused: 0, tooLarge: false });
+  });
+
+  it("counts a cell the server refuses the person apart from the skipped ones (T-5530)", () => {
+    const plan = planPaste([["1", "2", "3"]], (_r, c) =>
+      c === 0 ? { id: "e1", attr: "a", current: "0" } : c === 1 ? { id: "e1", attr: undefined, current: null, refused: true } : { id: undefined, attr: undefined, current: null },
+    );
+    expect(plan).toEqual({ edits: [{ id: "e1", attr: "a", text: "1" }], skipped: 1, refused: 1, tooLarge: false });
   });
 
   it("plans nothing for a range past the bound", () => {
@@ -37,6 +44,7 @@ describe("pasting a range (T-3097)", () => {
     expect(planPaste(wide, () => ({ id: "e1", attr: "a", current: "0" }))).toEqual({
       edits: [],
       skipped: MAX_PASTE_CELLS + 1,
+      refused: 0,
       tooLarge: true,
     });
   });

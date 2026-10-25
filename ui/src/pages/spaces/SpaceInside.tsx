@@ -27,8 +27,10 @@ import {
 import { useBranding } from "../../branding";
 import { SharedWithBadge } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
-import { accessQuery, deniedAttributes, editableAttributes, mayDelete } from "../../components/entities/AccessPanel";
-import type { GrantDocument } from "../../components/entities/AccessPanel";
+import { accessQuery, mayDelete } from "../../components/entities/AccessPanel";
+import { attributeAccessQuery, writableOf } from "../../api/access";
+import type { AttributeAccess } from "../../api/access";
+import type { GrantDocument } from "../../api/access";
 import { PortalEntityGrid, rememberedSort } from "../../components/entities/PortalEntityGrid";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { enumsOfModel, filterSlotsOf, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
@@ -315,17 +317,23 @@ function grantsOf(results: UseQueryResult<GrantDocument>[]): (GrantDocument | un
   return results.map((result) => result.data);
 }
 
-/** The first endpoint whose grant lets the person correct attributes of `type`, with those attributes. */
+/** Each endpoint's decisions per attribute, as one value `useQueries` keeps while none of them changes. */
+function tablesOf(results: UseQueryResult<AttributeAccess[]>[]): (AttributeAccess[] | undefined)[] {
+  return results.map((result) => result.data);
+}
+
+/**
+ * The first endpoint whose decisions let the person correct attributes of the type, with those
+ * attributes (T-5528): the gateway's answer, less the formula fields a pipeline writes (DM-80).
+ */
 function writerOf(
-  grants: (GrantDocument | undefined)[],
+  tables: (AttributeAccess[] | undefined)[],
   endpoints: Manifest[],
-  type: string,
   slots: FilterSlot[],
-  t: (key: string) => string,
 ): { slug: string; attrs: string[] } | null {
-  for (const [at, doc] of grants.entries()) {
+  for (const [at, rows] of tables.entries()) {
     const slug = slugOf(endpoints[at]);
-    const attrs = editableAttributes(doc, type, slots, deniedAttributes(doc, type, slots, t));
+    const attrs = writableOf(rows).filter((attr) => slots.some((slot) => slot.name === attr && !slot.formula));
     if (slug && attrs.length > 0) return { slug, attrs };
   }
   return null;
@@ -582,12 +590,16 @@ function SpaceData({
     queries: endpoints.slice(0, MAX_ACCESS_READS).map((endpoint) => accessQuery(slugOf(endpoint))),
     combine: grantsOf,
   });
+  const tables = useQueries({
+    queries: endpoints.slice(0, MAX_ACCESS_READS).map((endpoint) => attributeAccessQuery(slugOf(endpoint), type || undefined)),
+    combine: tablesOf,
+  });
   // Entities are not part of a copy (T-4868): inside one the grid reads the live space, so it
   // offers no write at all; the copy's own data lives in its preview (Try it).
   const { name: copy } = useWorkspace();
   const writer = useMemo(
-    () => (copy ? null : writerOf(grants, endpoints, type, slots, t)),
-    [copy, grants, endpoints, type, slots, t],
+    () => (copy ? null : writerOf(tables, endpoints, slots)),
+    [copy, tables, endpoints, slots],
   );
   const gridSource = useMemo(
     () => (writer ? { ...source, patch: endpointSource(writer.slug, originTransport(), i18n.language).patch } : source),

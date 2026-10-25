@@ -12,7 +12,7 @@ import type { PublishedType } from "../endpoints/SchemaProjectionPanel";
 import { EndpointPreview } from "./EndpointPreview";
 import { NewEndpointPanel } from "./NewEndpointPanel";
 import { useAccess } from "../../components/entities/AccessPanel";
-import type { GrantDocument } from "../../components/entities/AccessPanel";
+import type { GrantDocument } from "../../api/access";
 import {
   Alert,
   Button,

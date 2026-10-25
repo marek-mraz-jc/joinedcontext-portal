@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { attributeTable } from "./attributeAccess";
 import type { Page } from "@playwright/test";
 import { axeViolations } from "./axe";
 import { smallTouchTargets } from "./touch";
@@ -123,6 +124,10 @@ async function stubApi(page: Page, asked: string[], deleted: string[], extra?: {
       );
       const total = q.endsWith(";audience") || q === "audience" ? 18 : 24;
       return json(rows, 200, { "NGSILD-Results-Count": String(total) });
+    }
+    if (path.endsWith("/access/attributes")) {
+      const slots = ["name", "address", "description", "startDate", "audience", "status"];
+      return json(attributeTable(TYPE, slots, slots));
     }
     if (path.endsWith("/access")) {
       return json({ permissions: [{ resource: { type: TYPE }, actions: ["queryEntity", "updateAttrs", "deleteEntity"], attributes: "*" }] });
