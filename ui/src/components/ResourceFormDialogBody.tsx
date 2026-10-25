@@ -1404,7 +1404,7 @@ export function ResourceFormDialogBody<T>({
                 </ul>
               </Alert>
             ) : null}
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div data-testid="form-footer" className="flex flex-wrap items-center justify-end gap-2">
               <Button variant="ghost" onClick={() => handleOpenChange(false)}>
                 {t("form.cancel")}
               </Button>
