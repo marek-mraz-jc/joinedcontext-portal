@@ -27,22 +27,6 @@ const POLICY = {
   status: { phase: "Live" },
 };
 
-/** A Policy written with rules[] (ADR-N-057): the list names each rule's grantee (F-UI3-015). */
-const RULED = {
-  apiVersion: "joinedcontext.com/v1alpha1",
-  kind: "Policy",
-  metadata: { name: "bikes-two-rules", namespace: "helsinki", title: { en: "Readers read, stewards set the status" } },
-  spec: {
-    contextSpaceRef: { kind: "ContextSpace", name: "helsinki" },
-    assigner: "did:web:hel.fi",
-    rules: [
-      { assignee: { kind: "role", id: "helsinki-readers" }, operations: ["retrieveOps"] },
-      { assignee: { kind: "role", id: "steward" }, operations: ["updateOps"], information: [{ entities: [{ type: "BikeHireDockingStation" }], propertyNames: ["status"] }] },
-    ],
-  },
-  status: { phase: "Live" },
-};
-
 const MERGED = {
   apiVersion: "joinedcontext.com/v1alpha1",
   kind: "Change",
@@ -68,7 +52,7 @@ async function stubApi(page: Page, persona: keyof typeof PERSONAS): Promise<void
     if (path.endsWith("/auth/me")) return json({ subject: "s1", username: `demo.${persona}`, name: `Demo ${persona}`, roles: who.roles });
     if (path.endsWith("/permissions/me")) return json({ project: "helsinki", bootstrap: false, grants: who.grants });
     if (path === "/api/v1/projects") return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "helsinki" }] });
-    if (path.endsWith("/policies")) return json(list([POLICY, RULED]));
+    if (path.endsWith("/policies")) return json(list([POLICY]));
     if (path.endsWith("/policies/bikes-ops-steward")) return json(POLICY);
     if (path.endsWith("/changes/history")) return json({ ...list([MERGED]), next: null });
     return json(list([]));
