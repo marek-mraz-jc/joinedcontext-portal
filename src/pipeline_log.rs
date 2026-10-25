@@ -165,6 +165,15 @@ enum Inner {
     Memory(RwLock<HashMap<Key, Memory>>),
 }
 
+/// The words of a log line whose cause lies outside the pipeline's source and may clear by itself
+/// (T-5687): the space's model refused the record (DM-61), a policy refused the write, or the
+/// write failed past its retries on 401, 403, 429 or a 5xx. One pattern for Postgres (`~`) and
+/// the `regex` crate.
+pub const OUTSIDE_CAUSE: &str = r"\(DM-61\)|Access Denied by Policy|^the write failed: .*unexpected response code \((401|403|429|5[0-9][0-9])\)";
+
+static OUTSIDE: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(OUTSIDE_CAUSE).expect("a valid pattern"));
+
 /// Lines a pipeline writes after its last trim before the database trims it again. Each trim
 /// walks the newest [`LINES_KEPT`] ids; per batch it took 1.1-1.8 s on dev (T-5292).
 pub const TRIM_EVERY_LINES: usize = 500;
@@ -852,6 +861,42 @@ impl LogStore {
         }
     }
 
+    /// The pipelines whose newest run has a failed or rejected line for a cause outside its source
+    /// ([`OUTSIDE_CAUSE`]), with that run and the newest such line's words (T-5687): the run queue
+    /// retries them with backoff.
+    pub async fn outside_failures(&self) -> Result<BTreeMap<Key, (String, String)>, sqlx::Error> {
+        match &self.inner {
+            Inner::Postgres(pool) => Ok(sqlx::query_as::<_, (String, String, String, String)>(
+                "WITH newest AS (SELECT DISTINCT ON (project, pipeline) project, pipeline, run, \
+                 rejected + failed AS problems FROM pipeline_runs ORDER BY project, pipeline, last_at DESC) \
+                 SELECT n.project, n.pipeline, n.run, m.message FROM newest n \
+                 JOIN LATERAL (SELECT message FROM pipeline_log g WHERE g.project = n.project \
+                 AND g.pipeline = n.pipeline AND g.run = n.run AND g.outcome <> 'sent' \
+                 AND g.message ~ $1 ORDER BY g.id DESC LIMIT 1) m ON true WHERE n.problems > 0",
+            )
+            .bind(OUTSIDE_CAUSE)
+            .fetch_all(pool)
+            .await?
+            .into_iter()
+            .map(|(project, pipeline, run, message)| ((project, pipeline), (run, message)))
+            .collect()),
+            Inner::Memory(map) => Ok(map
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .iter()
+                .filter_map(|(key, memory)| {
+                    let run = memory.runs.iter().max_by(|a, b| a.last_at.cmp(&b.last_at))?;
+                    let line = memory.lines.iter().rev().find(|l| {
+                        l.run == run.run
+                            && l.outcome != Outcome::Sent
+                            && OUTSIDE.is_match(&l.message)
+                    })?;
+                    Some((key.clone(), (run.run.clone(), line.message.clone())))
+                })
+                .collect()),
+        }
+    }
+
     /// The newest failed or rejected line of the pipeline's log, with when it was taken (T-5048).
     pub async fn last_problem(
         &self,
@@ -950,6 +995,77 @@ mod tests {
             outcome,
             message: message.to_owned(),
         }
+    }
+
+    /// T-5687: a refusal by the model, a policy, the gateway or the broker may clear by itself; a
+    /// source that refused, a malformed record or a step that threw does not.
+    #[test]
+    fn only_causes_outside_the_source_count_as_outside() {
+        for outside in [
+            "entity type `Tree` is not a class of the space's data model `praha-mesto` (DM-61)",
+            "Access Denied by Policy",
+            "the write failed: HTTP request returned unexpected response code (403): 403 Forbidden",
+            "the write failed: HTTP request returned unexpected response code (503): 503 Service Unavailable",
+            "the write failed: HTTP request returned unexpected response code (429): 429 Too Many Requests",
+        ] {
+            assert!(OUTSIDE.is_match(outside), "{outside}");
+        }
+        for source in [
+            "HTTP request returned unexpected response code (404): 404 Not Found",
+            "HTTP request returned unexpected response code (503): 503 Service Unavailable",
+            "the write failed: HTTP request returned unexpected response code (400): 400 Bad Request",
+            "attribute `height` is not a number",
+            "access revoked by city.example on 2026-10-20",
+        ] {
+            assert!(!OUTSIDE.is_match(source), "{source}");
+        }
+    }
+
+    /// Only the newest run counts: a pipeline whose later run wrote clean, or failed at its
+    /// source, is not listed.
+    #[tokio::test]
+    async fn outside_failures_lists_the_newest_run_refused_for_an_outside_cause() {
+        let store = LogStore::new(None);
+        let dm61 = "entity type `Tree` is not a class of the space's data model `m` (DM-61)";
+        for (pipeline, runs) in [
+            (
+                "trees",
+                vec![("2026-10-25T10:00Z", "ok"), ("2026-10-25T11:00Z", dm61)],
+            ),
+            (
+                "healed",
+                vec![("2026-10-25T10:00Z", dm61), ("2026-10-25T11:00Z", "ok")],
+            ),
+            (
+                "source",
+                vec![(
+                    "2026-10-25T11:00Z",
+                    "HTTP request returned unexpected response code (404)",
+                )],
+            ),
+        ] {
+            for (run, said) in runs {
+                let outcome = if said == "ok" {
+                    Outcome::Sent
+                } else {
+                    Outcome::Failed
+                };
+                let said = if said == "ok" { "" } else { said };
+                store
+                    .append("praha", pipeline, run, &[line("urn:a", outcome, said)])
+                    .await
+                    .expect("append");
+            }
+        }
+        let failed = store.outside_failures().await.expect("read");
+        assert_eq!(
+            failed,
+            [(
+                ("praha".to_owned(), "trees".to_owned()),
+                ("2026-10-25T11:00Z".to_owned(), dm61.to_owned())
+            )]
+            .into()
+        );
     }
 
     /// T-3001, PL-62: a clocked stream reports each pass before it reads, and a report that

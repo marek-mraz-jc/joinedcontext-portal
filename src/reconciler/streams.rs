@@ -179,6 +179,22 @@ fn held_as_rendered(rendered: &Value, held: &Value) -> bool {
     }
 }
 
+/// A fingerprint of the project's spaces, data models and policies: what decides whether its
+/// pipelines' writes are taken (T-5687). Statuses are left out, they change on every pass.
+fn rules_fingerprint(mirror: &Mirror, ns: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    for kind in ["ContextSpace", "DataModel", "Policy"] {
+        for envelope in mirror
+            .list(ns, kind, &crate::store::ListOptions::default())
+            .items
+        {
+            (kind, &envelope.metadata.name, envelope.spec.to_string()).hash(&mut hasher);
+        }
+    }
+    hasher.finish()
+}
+
 /// Whether `held` is `rendered` with each environment reference replaced by some value.
 fn interpolated(rendered: &str, held: &str) -> bool {
     static REFERENCE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
@@ -261,6 +277,15 @@ impl StreamDeployer {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .ran(ran);
+    }
+
+    /// Tells the run queue which pipelines' newest run failed for a cause outside their source,
+    /// with that run and the cause, so each is retried with backoff (T-5687).
+    pub fn failed(&self, failed: std::collections::BTreeMap<(String, String), (String, String)>) {
+        self.queue
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .failed(failed);
     }
 
     /// Tells the run queue which workload accounts (`project/name`) have no Keycloak client
@@ -750,7 +775,16 @@ impl StreamDeployer {
         self.send_all(sends, &mut outcomes, &mut current_live).await;
         let queued_keys: HashSet<(String, String)> = queued.keys().cloned().collect();
         {
+            let rules = mirror
+                .namespaces()
+                .into_iter()
+                .map(|ns| {
+                    let fingerprint = rules_fingerprint(mirror, &ns);
+                    (ns, fingerprint)
+                })
+                .collect();
             let mut queue = self.queue.lock().unwrap_or_else(|p| p.into_inner());
+            queue.rules(rules);
             queue.plan(queued, chrono::Utc::now());
             for (ns, name, outcome) in outcomes.iter_mut() {
                 let key = (ns.clone(), name.clone());

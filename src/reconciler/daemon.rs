@@ -1674,6 +1674,13 @@ impl Syncer {
                         tracing::warn!(%error, "the run log was not read: new scheduled pipelines wait for their clock")
                     }
                 }
+                // A run that failed for a cause outside its source is retried with backoff (T-5687).
+                match log.outside_failures().await {
+                    Ok(failed) => deployer.failed(failed),
+                    Err(error) => {
+                        tracing::warn!(%error, "the run log was not read: failed runs wait for their clock")
+                    }
+                }
             }
             let outcomes = deployer.converge(fresh_mirror, bentos, refused).await;
             // A Live stream that reads nothing is the failure nobody sees: the runner keeps the
