@@ -35,6 +35,6 @@ spec:
         kind: ContextSpace
         name: bbsk-registre
       types: [PointOfInterest, Bridge, PublicOrganization, AdministrativeArea]
-      attrs: [name, category, hospitalKind, operatorName, medicalSpecialties, address, legalId, serviceKind, serviceForm, targetGroup, capacity, providerKind, districtName, url, bridgeCode, roadClass, roadNumber, yearBuilt, spanCount, bridgedLength, structureMaterial, heritageStatus, managerName, alternateName, organizationCategory, areaCode, divisionLevel, surfaceArea]
+      attrs: [name, category, hospitalKind, operatorName, medicalSpecialties, address, legalId, serviceKind, serviceForm, targetGroup, capacity, providerKind, districtName, url, bridgeCode, roadClass, roadNumber, yearBuilt, spanCount, bridgedLength, structureMaterial, heritageStatus, managerName, alternateName, organizationCategory, areaCode, divisionLevel, surfaceArea, location]
       operations: [queryEntity, retrieveEntity]
       representations: [ngsi-ld, csv, ogc-features]

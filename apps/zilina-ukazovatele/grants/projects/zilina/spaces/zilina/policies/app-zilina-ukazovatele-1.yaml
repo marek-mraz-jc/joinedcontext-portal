@@ -22,12 +22,14 @@ spec:
     - calculationPeriod
     - calculationFormula
     - updatedAt
+    - location
     relationshipNames:
     - name
     - currentValue
     - calculationPeriod
     - calculationFormula
     - updatedAt
+    - location
   operations:
   - queryEntity
   - retrieveEntity

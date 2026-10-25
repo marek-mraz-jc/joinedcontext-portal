@@ -35,6 +35,7 @@ spec:
     - o3
     - co
     - dateObserved
+    - location
     relationshipNames:
     - name
     - monumentKind
@@ -52,6 +53,7 @@ spec:
     - o3
     - co
     - dateObserved
+    - location
   operations:
   - queryEntity
   - retrieveEntity

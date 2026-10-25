@@ -24,6 +24,7 @@ spec:
     - derivedFrom
     - computedBy
     - updatedAt
+    - location
     relationshipNames:
     - name
     - currentValue
@@ -32,6 +33,7 @@ spec:
     - derivedFrom
     - computedBy
     - updatedAt
+    - location
   operations:
   - queryEntity
   - retrieveEntity

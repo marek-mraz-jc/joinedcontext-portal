@@ -24,6 +24,7 @@ spec:
     - collectionName
     - license
     - url
+    - location
     relationshipNames:
     - name
     - workType
@@ -32,6 +33,7 @@ spec:
     - collectionName
     - license
     - url
+    - location
   operations:
   - queryEntity
   - retrieveEntity

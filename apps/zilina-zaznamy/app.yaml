@@ -35,7 +35,7 @@ spec:
         kind: ContextSpace
         name: zilina-verejne
       types: [PointOfInterest, GtfsStop, AirQualityObserved]
-      attrs: [name, monumentKind, architecturalStyle, constructionPeriod, cadastralArea, ownershipForm, monumentNumber, address, dailyDepartures, stopCode, pm10, pm25, no2, o3, co, dateObserved]
+      attrs: [name, monumentKind, architecturalStyle, constructionPeriod, cadastralArea, ownershipForm, monumentNumber, address, dailyDepartures, stopCode, pm10, pm25, no2, o3, co, dateObserved, location]
       operations: [queryEntity, retrieveEntity]
       representations: [ngsi-ld, ogc-features]
     - contextSpaceRef:

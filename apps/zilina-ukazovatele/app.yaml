@@ -34,6 +34,6 @@ spec:
         kind: ContextSpace
         name: zilina-kpi
       types: [KeyPerformanceIndicator]
-      attrs: [name, currentValue, calculationPeriod, calculationFormula, updatedAt]
+      attrs: [name, currentValue, calculationPeriod, calculationFormula, updatedAt, location]
       operations: [queryEntity, retrieveEntity]
       representations: [ngsi-ld, ogc-features]
