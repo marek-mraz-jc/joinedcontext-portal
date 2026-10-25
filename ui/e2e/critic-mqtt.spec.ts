@@ -154,6 +154,10 @@ async function stubApi(page: Page, world: World): Promise<void> {
     }
     const measuredPath = /\/mqttbrokers\/([^/]+)\/measured$/.exec(path);
     if (measuredPath) return json(measured(world, measuredPath[1]));
+    const capturedPath = /\/mqttbrokers\/([^/]+)\/captured$/.exec(path);
+    if (capturedPath) {
+      return json({ broker: capturedPath[1], mode: "ingest", window: "PT1H", messagesPerTopic: 20, messages: [], truncated: false });
+    }
     const draft = /\/drafts\/([^/]+)\/([^/]+)$/.exec(path);
     if (draft) {
       // The form saves its draft before it checks (T-0769); the draft is not the change.
@@ -217,8 +221,10 @@ async function record(
   ms?: number,
 ): Promise<void> {
   const axe = await axeViolations(page);
+  // Only an enabled New counts: off and full keep it closed with the reason (T-5589).
   const newButtons = await page
     .getByRole("button", { name: /^New MQTT broker/ })
+    .and(page.locator(':not([aria-disabled="true"])'))
     .count();
   if (SHOTS) {
     mkdirSync(SHOTS, { recursive: true });
@@ -254,7 +260,7 @@ test.describe("UI critic: MQTT publishing", () => {
     await stubApi(page, world);
 
     await record(page, "off", "editor", await open(page, PAGE));
-    await expect(page.getByText("MQTT is off for this project")).toBeVisible();
+    await expect(page.getByText("MQTT is off for this project", { exact: true })).toBeVisible();
 
     world.enabled = true;
     await record(page, "empty", "editor", await open(page, PAGE));
@@ -299,10 +305,14 @@ test.describe("UI critic: MQTT publishing", () => {
 
     world.brokers = [...world.brokers, broker("gates", "Ready")];
     await open(page, PAGE);
+    await expect(page.locator("[data-allowance='full']")).toContainText(
+      /All 2 brokers are in use: a new one is refused\./,
+    );
+    // New is closed at the limit; the form's own address still reaches the API's refusal.
     await expect(
-      page.getByText(/All 2 brokers are in use: a new one is refused\./),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "New MQTT broker" }).first().click();
+      page.getByRole("button", { name: "New MQTT broker" }).first(),
+    ).toHaveAttribute("aria-disabled", "true");
+    await open(page, `${PAGE}/new`);
     await page.getByRole("textbox", { name: /^Name/ }).first().fill("vents");
     await page.getByRole("textbox", { name: /^Role/ }).first().fill("vents");
     await page

@@ -632,6 +632,11 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
     expect(screen.getByTestId("propose-reason")).toHaveTextContent(
       en.drafts.proposeReason.none,
     );
+    // Said once where one reads it; the button's own description is for a screen reader (T-5589).
+    const seen = screen
+      .getAllByText(en.drafts.proposeReason.none)
+      .filter((element) => !element.classList.contains("sr-only"));
+    expect(seen).toHaveLength(1);
   });
 
   it("says the check is missing before the first draft save, and the check enables Propose (T-0779)", async () => {

@@ -1280,6 +1280,8 @@ export function ResourceFormDialogBody<T>({
               disabled={disabled}
               submitLabel={submitLabel}
               submitDisabledReason={effectiveSubmitDisabledReason}
+              // The verdict's reason is already in the actions, in red: once is enough (T-5589).
+              submitReasonShown={Boolean(draftKind && activeName && proposeReason && !isLax && proposeReason === effectiveSubmitDisabledReason)}
               submitting={submitting || saving}
               extraErrors={shownErrors}
               onSubmit={handleSubmit}
