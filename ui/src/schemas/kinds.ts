@@ -2583,8 +2583,13 @@ export const APP_SOURCES = ["path", "git"] as const;
 /** Every representation an Endpoint may serve (EP-05), in jc-core's spelling; CSV the one file (T-4600). */
 export const APP_REPRESENTATIONS = ["ngsi-ld", "csv", "ogc-features", "sta", "mcp"] as const;
 
-/** A CSP source jc-core admits: `self`, `none`, or an https origin with no wildcard (AP-12). */
-export const CSP_SOURCE_PATTERN = "^(self|none|https://[^*\\s]+)$";
+/**
+ * A CSP source jc-core admits: `self`, `none`, or an https origin with no wildcard (AP-12), in
+ * jc-core's own characters (app.rs `CSP_SOURCE`), so a `;` or a space that would open a directive
+ * is refused in the form rather than by the Check (F-UI3-008).
+ */
+export const CSP_SOURCE_PATTERN =
+  "^(self|none|https://[A-Za-z0-9](?:[A-Za-z0-9.-]{0,252}[A-Za-z0-9])?(?::[0-9]{1,5})?(?:/[A-Za-z0-9._~%/-]*)?)$";
 
 /** An IPv4 or IPv6 network with a prefix of at least 1: never a host name, never `/0` (AP-134). */
 export const EGRESS_CIDR_PATTERN = "^(?:\\d{1,3}(?:\\.\\d{1,3}){3}/(?:[1-9]|[12]\\d|3[0-2])|[0-9a-fA-F:]*:[0-9a-fA-F:.]*/(?:[1-9]|[1-9]\\d|1[01]\\d|12[0-8]))$";

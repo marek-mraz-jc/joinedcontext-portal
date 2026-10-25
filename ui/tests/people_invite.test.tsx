@@ -113,7 +113,7 @@ async function invite(user: ReturnType<typeof userEvent.setup>, project?: string
 
 describe("the invitation's rules", () => {
   it("proposes the role in the project, for the address as the realm keeps it", () => {
-    const binding = inviteBinding(" Viera@Example.org ", "editor", "helsinki", "hel.fi");
+    const binding = inviteBinding(" Viera@Example.org ", "editor", "helsinki");
     expect(binding.kind).toBe("RoleBinding");
     expect(binding.metadata.namespace).toBe("org");
     expect(binding.spec).toEqual({ subjects: [{ user: "viera@example.org" }], role: "editor", scope: { project: "helsinki" } });

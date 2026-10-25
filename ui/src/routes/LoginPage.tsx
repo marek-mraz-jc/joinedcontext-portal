@@ -7,11 +7,12 @@ import { useBranding } from "../branding";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { BrandMark } from "../components/layout/BrandMark";
 import { Button, Card, Icon } from "../components/ui";
+import { sameOriginPath } from "../components/ui/safeHref";
 
 /** Where to land after the login: the location the session ran out on, never another origin. */
 export function redirectTarget(search: string): string {
   const candidate = new URLSearchParams(search).get("redirect_to");
-  return candidate && candidate.startsWith("/") && !candidate.startsWith("//") ? candidate : "/";
+  return (candidate?.startsWith("/") && sameOriginPath(candidate)) || "/";
 }
 
 export function LoginPage(): JSX.Element {

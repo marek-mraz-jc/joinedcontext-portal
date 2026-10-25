@@ -73,6 +73,14 @@ describe("drafts through the typed client", () => {
     expect(await getDraft("helsinki", "Endpoint", "bikes")).toBeNull();
   });
 
+  it("refuses, never answers no draft, when the read fails (F-UI1-013)", async () => {
+    // A null here lets the form write with no expectedVersion over another window's draft.
+    answer(500, { detail: "the forge did not answer" });
+    await expect(getDraft("helsinki", "Endpoint", "bikes")).rejects.toMatchObject({ status: 500, detail: "the forge did not answer" });
+    answer(403, { detail: "no read" });
+    await expect(getDraft("helsinki", "Endpoint", "bikes")).rejects.toMatchObject({ status: 403 });
+  });
+
   it("names the version it lost to on a conflict", async () => {
     answer(409, { type: "https://joinedcontext.com/errors/draft-conflict", current: 7 });
     await expect(putDraft("helsinki", "Endpoint", "bikes", {}, 3)).rejects.toMatchObject({

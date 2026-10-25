@@ -415,6 +415,30 @@ function PageStopped({
   );
 }
 
+/**
+ * `useMatchRoute`, answering "no match" where the router cannot decode the address: a fuzzy match
+ * of a broken escape throws, and the Shell sits above every page's error boundary (F-UI1-002).
+ */
+function useSafeMatchRoute(): ReturnType<typeof useMatchRoute> {
+  const matchRoute = useMatchRoute();
+  return ((options: Parameters<typeof matchRoute>[0]) => {
+    try {
+      return matchRoute(options);
+    } catch {
+      return false;
+    }
+  }) as ReturnType<typeof useMatchRoute>;
+}
+
+/** One segment of the address as a person reads it; a broken escape stays as typed (F-UI1-002). */
+function decodedSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 export function Shell({
   project,
   fill = false,
@@ -440,7 +464,7 @@ export function Shell({
   const branding = useBranding();
   const projectTitle = useProjectTitles();
   const hiddenSections = useHiddenSections();
-  const matchRoute = useMatchRoute();
+  const matchRoute = useSafeMatchRoute();
   // The organization's tabs, every endpoint and `/` open on this project next (T-2753).
   useEffect(() => {
     rememberProject(project);
@@ -493,7 +517,7 @@ export function Shell({
     matchRoute({ to: "/projects/$project/workspaces/$name/try-it" });
   // The one thing the page is about, from the address (T-3239): an approval, a copy, or any
   // item of a section at `/projects/{project}/{plural}/{name}…`, whose own address opens it.
-  const segments = pathname.split("/").filter(Boolean).map(decodeURIComponent);
+  const segments = pathname.split("/").filter(Boolean).map(decodedSegment);
   const itemName = segments[0] === "projects" && segments.length >= 4 && segments[3] !== "new" ? segments[3] : undefined;
   const detail = approvalDetail
     ? { to: "/projects/$project/approvals" as const, name: approvalDetail.id }

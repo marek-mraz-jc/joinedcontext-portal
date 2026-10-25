@@ -19,8 +19,11 @@ export async function searchEntities(params: {
 
   const trimmedQ = params.q?.trim();
   if (trimmedQ) {
-    // NGSI-LD quotes the pattern, so a quote or backslash in the term would end it early.
-    const escaped = trimmedQ.replace(/[\\"]/g, (c) => `\\${c}`);
+    // `~=` is a regular expression: the typed text is searched as written, so its metacharacters
+    // are escaped first (F-UI1-020). NGSI-LD then quotes the pattern, so a quote or backslash in
+    // it would end the string early.
+    const literal = trimmedQ.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escaped = literal.replace(/[\\"]/g, (c) => `\\${c}`);
     query.set("q", `name~="${escaped}"`);
   }
 

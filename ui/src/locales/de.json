@@ -1274,6 +1274,7 @@
       "aggregateNone": "Nicht gezählt",
       "selection": "Ausgewählte Zeilen",
       "selected": "{n} ausgewählt",
+      "selectedNotLoaded": "{loaded} von {n} sind geladen: Auswahl löschen und Feld setzen wirken nur auf diese {loaded}. Scrollen Sie die Tabelle, um den Rest zuerst zu laden.",
       "deleteSelected": "Auswahl löschen",
       "deleteNotGranted": "Kein Endpoint dieses Raums erlaubt Ihnen, diesen Typ zu löschen.",
       "clearSelection": "Auswahl aufheben",

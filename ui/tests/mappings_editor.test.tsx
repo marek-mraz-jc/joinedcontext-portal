@@ -14,6 +14,7 @@ import { I18nextProvider } from "react-i18next";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Change } from "../src/api/manifest";
 import { beforeEach, describe, expect, it } from "vitest";
+import { parse as parseYaml } from "yaml";
 import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
 import { MappingsEditor } from "../src/pages/models/MappingsEditor";
 import type { MappingModel } from "../src/pages/models/MappingsEditor";
@@ -285,6 +286,32 @@ describe("the specification that gets saved", () => {
     expect(spec).toContain("range: float");
     // A slot nothing fills is not written as filled by nothing.
     expect(spec).not.toContain("unmapped:");
+  });
+});
+
+describe("the specification's text", () => {
+  it("reads back as the strings it was written from (F-UI2-012)", () => {
+    // `[degF]` is a UCUM unit and a YAML sequence when unquoted; ": " and "#" break a line.
+    const spec = toTransformationSpec(
+      [
+        {
+          target: "temperature",
+          populatedFrom: "temp",
+          origin: "manual",
+          unitConversion: { factor: 1, fromUnit: "[degF]", toUnit: "Cel" },
+          valueMappings: { "a: b": "c #d", yes: "no" },
+        },
+      ],
+      "Reading",
+      "Weather",
+    );
+    const read = parseYaml(spec) as {
+      class_derivations: { Weather: { slot_derivations: Record<string, { unit_conversion: Record<string, unknown>; value_mappings: Record<string, unknown> }> } };
+    };
+    const slot = read.class_derivations.Weather.slot_derivations.temperature;
+    expect(slot.unit_conversion.source_unit).toBe("[degF]");
+    expect(slot.unit_conversion.target_unit).toBe("Cel");
+    expect(slot.value_mappings).toEqual({ "a: b": "c #d", yes: "no" });
   });
 });
 

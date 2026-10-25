@@ -68,6 +68,19 @@ const PAGE = {
 
 type Sent = { method: string; url: URL; body: unknown };
 
+describe("applyFields", () => {
+  it("never walks into the prototype of every object", () => {
+    // F-UI2-002: a Change field path is data; `__proto__` must not reach Object.prototype.
+    const out = applyFields({}, [
+      { path: "metadata.__proto__.polluted", to: true },
+      { path: "constructor.prototype.polluted", to: true },
+      { path: "metadata.name", to: "kept" },
+    ] as Parameters<typeof applyFields>[1]);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect(out).toEqual({ metadata: { name: "kept" } });
+  });
+});
+
 describe("publish a dataset in one step (EP-83)", () => {
   let sent: Sent[];
   let draftAnswer: { status: number; body: unknown };

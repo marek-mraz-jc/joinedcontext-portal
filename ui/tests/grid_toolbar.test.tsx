@@ -142,7 +142,7 @@ function countingSource(totals: (q: string | undefined) => number | Error): { so
 
 function Footer({ source, start }: { source: EntitySource; start: Aggregation }) {
   const [value, setValue] = useState<Aggregation>(start);
-  return <FooterAggregate source={source} type="Event" attr="seats" label="Seats" q={'category=="music"'} value={value} onChange={setValue} />;
+  return <FooterAggregate scope="helsinki/events" source={source} type="Event" attr="seats" label="Seats" q={'category=="music"'} value={value} onChange={setValue} />;
 }
 
 describe("FooterAggregate", () => {

@@ -8,7 +8,6 @@ import { proposeChecked } from "../../api/proposal";
 import { asManifests, isChange, localized, ORG_NAMESPACE } from "../../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 import { takePrefill } from "../../assistant/state";
-import { useBranding } from "../../branding";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { FormRecordLink } from "../../components/RecordLink";
@@ -36,6 +35,7 @@ import {
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { useReadableList } from "../../api/permissions";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
+import { useOrganizationName } from "../../api/projects";
 import { PersonPicker } from "../../components/pickers/PersonPicker";
 
 interface Scope {
@@ -76,9 +76,12 @@ function placeOf(scope: Scope | undefined, project: string): Place {
   return scope?.project === project ? "project" : "organization";
 }
 
-/** The RoleBinding a filled form asks for; an organization scope names the domain's first label. */
-export function bindingOf(form: GrantForm, project: string, orgDomain: string): Manifest {
-  const organization = orgDomain.split(".")[0] || ORG_NAMESPACE;
+/**
+ * The RoleBinding a filled form asks for. An organization scope names the Organization by its own
+ * name, the project's `organizationRef` (ADR-N-058), never a guess from the domain (F-UI1-010).
+ */
+export function bindingOf(form: GrantForm, project: string, organizationName: string | undefined): Manifest {
+  const organization = organizationName ?? ORG_NAMESPACE;
   const scope: Scope =
     form.place === "organization"
       ? { organization }
@@ -163,7 +166,7 @@ export function GrantRoleDialog({
   const formRoute = useFormRoute();
   const ids = useId();
   const queryClient = useQueryClient();
-  const branding = useBranding();
+  const organizationName = useOrganizationName(project);
   const [form, setForm] = useState<GrantForm>(() => formOf(prefill, project, scope));
   const [change, setChange] = useState<Change | null>(null);
   // The fields an empty Propose marked, so the person is told which one is missing instead of
@@ -182,7 +185,7 @@ export function GrantRoleDialog({
       proposeChecked(
         ORG_NAMESPACE,
         "rolebindings",
-        bindingOf(form, project, branding.orgDomain) as ResourceProposal,
+        bindingOf(form, project, organizationName) as ResourceProposal,
         true,
       ),
     onSuccess: (result) => {

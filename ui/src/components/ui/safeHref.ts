@@ -5,6 +5,23 @@
  */
 const SCHEMES = new Set(["http:", "https:", "mailto:"]);
 
+/** A host no address of this page can name: what a relative path resolves against. */
+const BASE = "https://portal.invalid";
+
+/**
+ * `path` when it is a path on this origin, `undefined` when it is not. A browser reads `/\\host`
+ * and `/<tab>/host` as `//host`, another origin (F-UI1-001, F-UI3-007), so the path is resolved
+ * the way the browser resolves it and kept only when it stays on the base.
+ */
+export function sameOriginPath(path: string): string | undefined {
+  if (!/^[./?#]/.test(path)) return undefined;
+  try {
+    return new URL(path, `${BASE}/`).origin === BASE ? path : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * `href` when it is safe to put in a link, `undefined` when it is not (PF-50).
  *
@@ -18,11 +35,11 @@ export function safeHref(href: string | undefined | null): string | undefined {
   const trimmed = href.trim();
   if (trimmed === "") return undefined;
   // A relative path, a query or a fragment: no scheme, no authority, nothing to mistake.
-  if (/^[./?#]/.test(trimmed) && !trimmed.startsWith("//")) return trimmed;
+  if (/^[./?#\\]/.test(trimmed)) return sameOriginPath(trimmed);
   try {
     // `URL` resolves the escapes and the control characters a hand-written check misses:
     // `java\tscript:alert(1)` parses as the `javascript:` it is.
-    const parsed = new URL(trimmed, "https://portal.invalid");
+    const parsed = new URL(trimmed, BASE);
     if (!SCHEMES.has(parsed.protocol)) return undefined;
     return trimmed;
   } catch {

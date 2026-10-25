@@ -258,6 +258,11 @@ export function checkFormulas(slots: ClassSlot[]): Checked {
   const problems: Record<string, string> = {};
   for (const slot of slots) {
     if (slot.equals_expression === undefined) continue;
+    // The name is spliced into the mapping as `v_{slot}` and `root.{slot}` (F-UI1-022).
+    if (!NAME.test(slot.name)) {
+      problems[slot.name] = "a formula slot's name is letters, digits and _, such as free_places";
+      continue;
+    }
     try {
       const formula = parseFormula(slot.equals_expression);
       for (const ref of refsOf(formula)) {
