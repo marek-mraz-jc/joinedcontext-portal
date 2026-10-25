@@ -5120,3 +5120,37 @@ mod held {
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
     }
 }
+
+/// F-POR1-018: two creates of one application's run at once on Postgres: the store's unique
+/// index lets one start, the other is 409.
+#[tokio::test]
+async fn two_concurrent_creates_of_one_apps_run_start_one() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let pool = joinedcontext_portal::db::connect(&url)
+        .await
+        .expect("connect + migrate");
+    let (_state, app, cookie, _api, _) = ending_world(200, Some(pool)).await;
+    let mut body = create_body();
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or_default();
+    body["appName"] = json!(format!("twice-{nanos}"));
+    let uri = format!("/api/v1/projects/{PROJECT}/agent-runs");
+    let (one, two) = tokio::join!(
+        call(&app, &cookie, Method::POST, &uri, Some(body.clone())),
+        call(&app, &cookie, Method::POST, &uri, Some(body.clone()))
+    );
+    let mut statuses = [one.0, two.0];
+    statuses.sort();
+    assert_eq!(
+        statuses,
+        [StatusCode::ACCEPTED, StatusCode::CONFLICT],
+        "{} / {}",
+        one.1,
+        two.1
+    );
+}
