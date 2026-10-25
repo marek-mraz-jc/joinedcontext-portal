@@ -773,6 +773,22 @@
       "date": "2026-10-20",
       "screenshots": []
     },
+    "src/pages/apps/UseTemplate.tsx": {
+      "walkedBy": "worker-t5617 (e2e stub walk, read by integrator-2)",
+      "date": "2026-10-25",
+      "screenshots": [
+        "evidence/T-5617/1-gallery-key-out-1440.png",
+        "evidence/T-5617/1-gallery-key-out-400.png",
+        "evidence/T-5617/2-dialog-empty-1440.png",
+        "evidence/T-5617/2-dialog-empty-400.png",
+        "evidence/T-5617/3-dialog-filled-1440.png",
+        "evidence/T-5617/3-dialog-filled-400.png",
+        "evidence/T-5617/4-dialog-refused-1440.png",
+        "evidence/T-5617/4-dialog-refused-400.png",
+        "evidence/T-5617/5-change-proposed-1440.png",
+        "evidence/T-5617/5-change-proposed-400.png"
+      ]
+    },
     "src/pages/apps/AppBuildPanel.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",

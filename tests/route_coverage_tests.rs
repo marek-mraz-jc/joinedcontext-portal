@@ -145,6 +145,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/projects/{project}/drift/{space}/{id}/adopt", "a resolution a person picks, held to propose on Entity"),
 ("GET", "/projects/{project}/agent-runs", "jc_run_list"),
 ("POST", "/projects/{project}/agent-runs", "jc_run_create"),
+("POST", "/projects/{project}/app-templates/{name}/apps", "a person starts an App from a gallery template as it ships, held to propose on App and reviewed as a Change; an agent builds an App with jc_run_create (T-5617)"),
 ("GET", "/projects/{project}/agent-runs/{id}", "jc_run_get"),
 ("POST", "/projects/{project}/agent-runs/{id}/answers", "jc_run_answer"),
 ("POST", "/projects/{project}/agent-runs/{id}/cancel", "jc_run_cancel"),

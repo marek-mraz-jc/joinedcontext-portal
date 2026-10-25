@@ -23,6 +23,27 @@ use serde::Deserialize;
 #[exclude = "*/src/design-tokens.json"]
 struct Gallery;
 
+/// A sample's whole overlay, its tests and fixtures included: what an App started from the
+/// template without the model lands as, over the template (T-5617). The build lane runs those
+/// tests, so they travel with the source.
+#[derive(RustEmbed)]
+#[folder = "sdk/samples"]
+#[include = "*/src/*"]
+struct Overlay;
+
+/// The files `sdk/samples/<name>/src/` holds, by their path in the App's repository
+/// (`src/App.tsx`); empty for a name the gallery does not hold.
+pub fn overlay(name: &str) -> BTreeMap<String, String> {
+    let prefix = format!("{name}/");
+    Overlay::iter()
+        .filter_map(|path| {
+            let inside = path.strip_prefix(&prefix)?.to_owned();
+            let file = Overlay::get(&path)?;
+            Some((inside, String::from_utf8_lossy(&file.data).into_owned()))
+        })
+        .collect()
+}
+
 #[derive(Deserialize)]
 struct Card {
     name: String,

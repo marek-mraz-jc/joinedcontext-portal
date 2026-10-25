@@ -930,10 +930,19 @@
     },
     "src/pages/apps/AppTemplates.tsx": {
       "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "app_templates.test.tsx",
+        "use_template.test.tsx"
+      ]
+    },
+    "src/pages/apps/UseTemplate.tsx": {
+      "controls": {
         "Button": 1
       },
       "tests": [
-        "app_templates.test.tsx"
+        "use_template.test.tsx"
       ]
     },
     "src/pages/apps/AppsCatalog.tsx": {

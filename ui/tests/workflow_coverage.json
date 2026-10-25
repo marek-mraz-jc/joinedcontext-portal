@@ -1164,6 +1164,16 @@
           "POST /api/v1/projects/{project}/agent-runs"
         ]
       },
+      "build-from-template": {
+        "live": {
+          "spec": "app-templates.spec.ts",
+          "test": "use as is asks a name and a readable endpoint, and the server names a refused field"
+        },
+        "personOnly": "the model-free door a person takes from the template gallery; an agent builds an App with jc_run_create (T-5617)",
+        "routes": [
+          "POST /api/v1/projects/{project}/app-templates/{name}/apps"
+        ]
+      },
       "answer-question": {
         "live": {
           "spec": "readiness-app.spec.ts",

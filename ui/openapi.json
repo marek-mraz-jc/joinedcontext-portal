@@ -5686,6 +5686,118 @@
         }
       }
     },
+    "/api/v1/projects/{project}/app-templates/{name}/apps": {
+      "post": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Create App From Template",
+        "description": "Lands the template's source in a new repository `{project}_{app}` and proposes the App building from it, reading the chosen Endpoint; no model is asked (T-5617).",
+        "operationId": "create_from_template",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "A template's name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateApp"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The Change that proposes the App",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not propose an App in the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project or template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A repository of that name is already in the forge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The name or the Endpoint is refused; errors names the field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No forge configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/apps/rename-shapes": {
       "post": {
         "tags": [
@@ -22093,9 +22205,14 @@
       "AppTemplates": {
         "type": "object",
         "required": [
-          "templates"
+          "templates",
+          "modelAvailable"
         ],
         "properties": {
+          "modelAvailable": {
+            "type": "boolean",
+            "description": "Whether \"Generate\" can answer now: an agent runner is configured and the model key was\nnot last reported refused or out of credit (AG-96). When it is `false`, a template is\nstill used as is (T-5617)."
+          },
           "templates": {
             "type": "array",
             "items": {
@@ -32700,6 +32817,29 @@
           "title": {
             "type": "string"
           }
+        }
+      },
+      "TemplateApp": {
+        "type": "object",
+        "description": "What the person chooses: the App's name and the Endpoint it reads.",
+        "required": [
+          "name",
+          "endpointName"
+        ],
+        "properties": {
+          "endpointName": {
+            "type": "string",
+            "description": "The project's Endpoint the App reads, one the caller may read."
+          },
+          "name": {
+            "type": "string",
+            "description": "The App's name, a DNS-1123 label: `kpi-board`."
+          }
+        },
+        "additionalProperties": false,
+        "example": {
+          "endpointName": "bikes",
+          "name": "bike-finder"
         }
       },
       "TemplateList": {

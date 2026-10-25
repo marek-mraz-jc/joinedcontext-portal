@@ -4944,7 +4944,19 @@
       "createTitle": "Aus {title} erstellen",
       "createHint": "Wählen Sie den Endpunkt, dessen Daten die App zeigt; der Rest kommt aus der Vorlage.",
       "screenshot": "{title}, wie die Vorschau sie zeigt",
-      "demo": "Vorschau öffnen"
+      "demo": "Vorschau öffnen",
+      "useAsIs": "Unverändert verwenden",
+      "modelOut": "Generieren ist nicht verfügbar: Der Modellschlüssel des Portals wird abgelehnt oder hat kein Guthaben mehr, daher antwortet der App-Builder erst, wenn eine Administratorin oder ein Administrator ihn ersetzt oder auflädt. Unverändert verwenden funktioniert trotzdem: Es legt Ihre App unverändert aus der Vorlage an und fragt kein Modell.",
+      "modelOutShort": "Der App-Builder antwortet nicht: Der Modellschlüssel wird abgelehnt oder hat kein Guthaben. Verwenden Sie stattdessen Unverändert verwenden.",
+      "useTitle": "{title} unverändert verwenden",
+      "useHint": "Die Vorlage landet unverändert in einem eigenen Repository, und die App wird zur Freigabe vorgeschlagen; kein Modell wird gefragt.",
+      "useLead": "Benennen Sie die App und wählen Sie den Endpunkt, den sie liest. Nach der Freigabe wird sie im Repository gebaut und öffnet sich wie jede andere App.",
+      "name": "App-Name",
+      "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche, zum Beispiel bike-finder. Er benennt die App und ihr Repository.",
+      "endpointHint": "Es erscheinen nur Endpunkte, die Sie lesen dürfen; die App zeigt die Daten des gewählten Endpunkts.",
+      "noEndpoints": "In diesem Projekt gibt es noch keinen Endpunkt, den Sie lesen dürfen. Bitten Sie eine verantwortliche Person, einen anzulegen oder für Sie freizugeben.",
+      "chooseFirst": "Geben Sie zuerst einen Namen ein und wählen Sie einen Endpunkt.",
+      "useSubmit": "App erstellen"
     },
     "jobs": {
       "title": "Geplante Aufgaben",
