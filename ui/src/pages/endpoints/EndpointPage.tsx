@@ -45,6 +45,7 @@ import { grantWrites, groupOf } from "../../components/endpoints/operationGroups
 import { CatalogSection } from "./CatalogSection";
 import { VisualizationsSection } from "./VisualizationsSection";
 import { EndpointUsageSection } from "../../components/endpoints/UsageSection";
+import { AccessMatrix } from "../../components/endpoints/AccessMatrix";
 import { FilterProof, classesWithSlots } from "./FilterProof";
 import { filterSlotsOf, useModelSource } from "../../components/entities/filters";
 import { parseModel } from "../models/linkml";
@@ -610,6 +611,11 @@ export function EndpointPage({
         >
           {t("endpoints.page.openPolicies")}
         </Link>
+      </Section>
+
+      {/* Who may do what, for every principal at once, as the gateway answers it (T-5531). */}
+      <Section title={t("endpoints.accessMatrix.title")} lead={t("endpoints.accessMatrix.lead")}>
+        <AccessMatrix project={project} name={name} />
       </Section>
 
       {/* Sharing with another project, guided, with an end and a revoke (T-3275). */}

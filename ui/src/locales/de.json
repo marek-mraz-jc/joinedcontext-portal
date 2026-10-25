@@ -2198,6 +2198,58 @@
           "full": "Höchstens {max} Spalten; entfernen Sie ein Kreuz, um eine andere zu wählen."
         }
       }
+    },
+    "accessMatrix": {
+      "title": "Wer darf was",
+      "lead": "Jede Person, Gruppe, Rolle, jedes Dienstkonto und die Öffentlichkeit, die die Richtlinien dieses Endpoints nennen, und was das Gateway ihnen erlaubt. Wählen Sie eine Zelle, um Attribute, Bedingung und Richtlinie dahinter zu sehen.",
+      "kind": "Anzeigen",
+      "kindHint": "Grenzen Sie die Liste auf eine Art ein, zum Beispiel Gruppen.",
+      "everyKind": "Alle",
+      "views": "Ansicht",
+      "matrix": "Matrix",
+      "graph": "Graph",
+      "who": "Wer",
+      "caption": "Wer darf was auf {name}",
+      "everyType": "Jeder Typ",
+      "cellLabel": "{who}, {action} {type}: {state}",
+      "pickHint": "Wählen Sie eine Zelle, um zu sehen, welche Attribute sie abdeckt und welche Richtlinie entscheidet.",
+      "detailTitle": "{who}: {action} {type}",
+      "noGrant": "Keine Richtlinie erlaubt das; das Gateway lehnt es ab.",
+      "permits": "Erlaubt",
+      "prohibits": "Durch ein Verbot entzogen",
+      "everyAttribute": "Alle Attribute",
+      "attributes": "Nur diese Attribute: {names}",
+      "constraint": "Nur Zeilen, die passen auf",
+      "decidedBy": "Entschieden von der Richtlinie",
+      "empty": "Noch nennt keine Richtlinie jemanden auf diesem Endpoint",
+      "emptyHint": "Nur das Gateway selbst erreicht ihn. Schreiben Sie auf der Seite Richtlinien eine Richtlinie für den Raum dieses Endpoints, um einer Gruppe oder der Öffentlichkeit Zugang zu geben.",
+      "graphLabel": "Wie jeder {name} erreicht",
+      "graphList": "Wer, Richtlinien, der Endpoint und seine Typen",
+      "reaches": "erreicht {names}",
+      "kinds": {
+        "person": "Person",
+        "group": "Gruppe",
+        "role": "Rolle",
+        "serviceAccount": "Dienstkonto",
+        "public": "Öffentlichkeit"
+      },
+      "action": {
+        "read": "Lesen",
+        "write": "Schreiben",
+        "delete": "Löschen",
+        "history": "Verlauf"
+      },
+      "state": {
+        "allow": "Erlaubt",
+        "partial": "Teilweise",
+        "deny": "Abgelehnt"
+      },
+      "step": {
+        "principal": "Wer",
+        "policy": "Richtlinie",
+        "endpoint": "Endpoint",
+        "type": "Typ"
+      }
     }
   },
   "datasources": {

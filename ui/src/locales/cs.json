@@ -2198,6 +2198,58 @@
           "full": "Nejvýše {max} sloupců; chcete-li jiný, jeden odškrtněte."
         }
       }
+    },
+    "accessMatrix": {
+      "title": "Kdo smí co dělat",
+      "lead": "Každá osoba, skupina, role, servisní účet a veřejnost, které jmenují politiky tohoto Endpointu, a co jim brána dovolí. Vyberte buňku a uvidíte atributy, podmínku a politiku za ní.",
+      "kind": "Zobrazit",
+      "kindHint": "Zužte seznam na jeden druh, například Skupiny.",
+      "everyKind": "Všechny",
+      "views": "Pohled",
+      "matrix": "Matice",
+      "graph": "Graf",
+      "who": "Kdo",
+      "caption": "Kdo smí co dělat na {name}",
+      "everyType": "Každý typ",
+      "cellLabel": "{who}, {action} {type}: {state}",
+      "pickHint": "Vyberte buňku a uvidíte, které atributy pokrývá a která politika rozhoduje.",
+      "detailTitle": "{who}: {action} {type}",
+      "noGrant": "Žádná politika to nepovoluje; brána to odmítne.",
+      "permits": "Povoleno",
+      "prohibits": "Odebráno zákazem",
+      "everyAttribute": "Všechny atributy",
+      "attributes": "Jen tyto atributy: {names}",
+      "constraint": "Jen řádky, které splňují",
+      "decidedBy": "Rozhoduje politika",
+      "empty": "Žádná politika zatím na tomto Endpointu nikoho nejmenuje",
+      "emptyHint": "Dostane se k němu jen brána sama. Napište politiku pro prostor tohoto Endpointu na stránce Politiky a dejte přístup skupině nebo veřejnosti.",
+      "graphLabel": "Jak se k {name} dostane každý",
+      "graphList": "Kdo, politiky, Endpoint a jeho typy",
+      "reaches": "dostane se k {names}",
+      "kinds": {
+        "person": "Osoba",
+        "group": "Skupina",
+        "role": "Role",
+        "serviceAccount": "Servisní účet",
+        "public": "Veřejnost"
+      },
+      "action": {
+        "read": "Číst",
+        "write": "Zapisovat",
+        "delete": "Mazat",
+        "history": "Historie"
+      },
+      "state": {
+        "allow": "Povoleno",
+        "partial": "Částečně",
+        "deny": "Odmítnuto"
+      },
+      "step": {
+        "principal": "Kdo",
+        "policy": "Politika",
+        "endpoint": "Endpoint",
+        "type": "Typ"
+      }
     }
   },
   "datasources": {

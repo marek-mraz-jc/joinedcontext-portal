@@ -2198,6 +2198,58 @@
           "full": "At most {max} columns; untick one to pick another."
         }
       }
+    },
+    "accessMatrix": {
+      "title": "Who may do what",
+      "lead": "Every person, group, role, service account and the public this Endpoint's Policies name, with what the gateway lets each of them do. Pick a cell to see the attributes, the condition and the Policy behind it.",
+      "kind": "Show",
+      "kindHint": "Narrow the list to one kind of principal, for example Groups.",
+      "everyKind": "Everyone",
+      "views": "View",
+      "matrix": "Matrix",
+      "graph": "Graph",
+      "who": "Who",
+      "caption": "Who may do what on {name}",
+      "everyType": "Every type",
+      "cellLabel": "{who}, {action} {type}: {state}",
+      "pickHint": "Pick a cell to see which attributes it covers and which Policy decides it.",
+      "detailTitle": "{who}: {action} {type}",
+      "noGrant": "No Policy grants this; the gateway refuses it.",
+      "permits": "Allowed",
+      "prohibits": "Taken away by a prohibition",
+      "everyAttribute": "Every attribute",
+      "attributes": "Only these attributes: {names}",
+      "constraint": "Only rows matching",
+      "decidedBy": "Decided by the Policy",
+      "empty": "No Policy names anyone on this Endpoint yet",
+      "emptyHint": "Nobody but the gateway's own checks reaches it. Write a Policy for this Endpoint's space on the Policies page to give a group or the public access.",
+      "graphLabel": "How each principal reaches {name}",
+      "graphList": "Principals, Policies, the Endpoint and its types",
+      "reaches": "reaches {names}",
+      "kinds": {
+        "person": "Person",
+        "group": "Group",
+        "role": "Role",
+        "serviceAccount": "Service account",
+        "public": "The public"
+      },
+      "action": {
+        "read": "Read",
+        "write": "Write",
+        "delete": "Delete",
+        "history": "History"
+      },
+      "state": {
+        "allow": "Allowed",
+        "partial": "In part",
+        "deny": "Refused"
+      },
+      "step": {
+        "principal": "Who",
+        "policy": "Policy",
+        "endpoint": "Endpoint",
+        "type": "Type"
+      }
     }
   },
   "datasources": {
