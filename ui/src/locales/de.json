@@ -7179,6 +7179,26 @@
           "title": "Einladung von {email} widerrufen?",
           "body": "Das Konto wird gelöscht und der Link funktioniert nicht mehr. Nennt eine Bindung die Person schon, nimmt eine Änderung sie zuerst heraus."
         }
+      },
+      "bulk": {
+        "hint": "Haken Sie Personen an, um mehrere auf einmal zu deaktivieren oder zu löschen, z. B. alle einer Abteilung, die geht.",
+        "selectAll": "Alle auf dieser Seite auswählen",
+        "select": "{name} auswählen",
+        "selected": "{count} ausgewählt",
+        "disable": "Deaktivieren",
+        "delete": "Löschen",
+        "clear": "Auswahl aufheben",
+        "confirmDisable": {
+          "title": "{count} Personen deaktivieren?",
+          "body": "Jede von ihnen wird sofort abgemeldet und kann sich erst wieder anmelden, wenn eine Administratorin oder ein Administrator sie aktiviert."
+        },
+        "confirmDelete": {
+          "title": "{count} Personen löschen?",
+          "body": "Sie werden sofort deaktiviert. Eine Änderung nimmt alle aus jeder Gruppe und Rollenbindung; ihre Konten werden gelöscht, sobald sie genehmigt ist. Personen, die nichts nennt, werden sofort gelöscht."
+        },
+        "disabled": "{count} Personen deaktiviert.",
+        "deleted": "{count} Personen gelöscht.",
+        "partly": "{done} von {count} deaktiviert. Nicht deaktiviert: {failed}."
       }
     },
     "setup": {
