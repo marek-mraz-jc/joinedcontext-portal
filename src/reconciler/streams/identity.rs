@@ -135,7 +135,9 @@ pub(super) fn cache_label(project: &str, name: &str) -> String {
 /// Puts every cache a stream names, the platform's own [`CHANGE_CACHE`] among them, under its
 /// project's prefix (PL-50, T-5337). One runner may carry every project's streams, and the
 /// caches its resources file declares are visible to each of them: under the bare name one
-/// project's step read and overwrote what another's cached.
+/// project's step read and overwrote what another's cached. A label already under the prefix
+/// stays as it is: the reconciler owns a stream when it renders its reporting and again before it
+/// sends it, and the second pass named `helsinki__helsinki__departures`, which no runner declares.
 fn own_caches(value: &mut Value, project: &str) {
     match value {
         Value::Array(items) => items.iter_mut().for_each(|item| own_caches(item, project)),
@@ -146,7 +148,9 @@ fn own_caches(value: &mut Value, project: &str) {
                     .find(|(processor, _)| processor == key)
                     .map(|(_, at)| *at);
                 if let Some(Value::String(name)) = field.and_then(|at| inner.get_mut(at)) {
-                    *name = cache_label(project, name);
+                    if !name.starts_with(&cache_label(project, "")) {
+                        *name = cache_label(project, name);
+                    }
                 }
                 own_caches(inner, project);
             }
