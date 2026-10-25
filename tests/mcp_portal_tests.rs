@@ -546,6 +546,45 @@ async fn mcp_tools_list_filtered_by_caller() {
         !v_names.contains(&"jc_change_approve"),
         "viewer must not see approve tools"
     );
+    // T-5608, AG-63: a viewer is offered no writing tool at all.
+    let writing: Vec<&str> = v_tools
+        .iter()
+        .filter(|t| t["annotations"]["readOnlyHint"] != json!(true))
+        .filter_map(|t| t["name"].as_str())
+        .collect();
+    assert_eq!(writing, Vec::<&str>::new());
+}
+
+/// T-5608, AG-63: a viewer asking to delete the project is refused with the right they miss,
+/// before anybody is asked to confirm it.
+#[tokio::test]
+async fn a_viewer_is_refused_before_the_question() {
+    let (app, issuer, signer, kid) = setup_app_and_keys().await;
+    let token = sign_token(
+        &signer,
+        &kid,
+        &issuer,
+        PORTAL_AUDIENCE,
+        "viewer.user",
+        &[],
+        &["city-viewers"],
+    );
+    let body = json!({
+        "jsonrpc": "2.0",
+        "id": 11,
+        "method": "tools/call",
+        "params": { "name": "jc_project_delete", "arguments": { "project": "ovzdusie" } }
+    });
+    let answer = rpc(app, &token, body).await;
+    assert_eq!(answer["result"]["isError"], json!(true), "{answer}");
+    assert!(answer["result"]["status"].is_null(), "{answer}");
+    assert!(
+        answer["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("delete on Project"),
+        "{answer}"
+    );
 }
 
 #[tokio::test]
@@ -1243,8 +1282,8 @@ async fn a_red_call_asks_the_person_before_it_runs_and_a_refusal_runs_nothing() 
         elicitation["url"]
             .as_str()
             .unwrap_or_default()
-            .contains("/projects/ovzdusie/endpoints"),
-        "{asked}"
+            .ends_with("/projects/ovzdusie/endpoints/public-air"),
+        "the question points at the Endpoint it would delete: {asked}"
     );
 
     // 2. An answer to a question nobody asked is refused, and still nothing runs.

@@ -188,7 +188,7 @@ fn people(state: &AppState) -> Result<&People, ApiError> {
 }
 
 /// The caller holds `verb` on `Person` in a binding at organization scope (PF-91).
-fn allow(state: &AppState, identity: &Identity, verb: Verb) -> Result<(), ApiError> {
+pub(crate) fn allow(state: &AppState, identity: &Identity, verb: Verb) -> Result<(), ApiError> {
     crate::permissions::for_request(state, identity, ORG_NAMESPACE).check(PERSON, verb, None)
 }
 

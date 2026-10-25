@@ -654,7 +654,7 @@ async fn tools_call(
     // rather than asked to confirm something that would be refused after they answered.
     if let Err(refused) = caller
         .may_run(op)
-        .and_then(|()| crate::ops::permitted(op, &caller.identity, state, project))
+        .and_then(|()| crate::ops::may_try(op, &caller.identity, state, project, Some(&input)))
     {
         return result(id, failure_result(&refused.to_string()));
     }
@@ -982,7 +982,8 @@ fn lane_word(lane: crate::change::Lane) -> &'static str {
     }
 }
 
-/// Where the person looks at what the call would do: the project's page for that kind.
+/// Where the person looks at what the call would do: the resource the arguments name, else the
+/// project's page for that kind.
 ///
 /// An operation of one kind names it; `jc_resource_*` takes any kind, so the arguments name it
 /// and the page is the one holding the resource the call is about.
@@ -997,9 +998,18 @@ fn confirm_url(state: &AppState, project: &str, kind: &str, input: &Value) -> St
         "*" => named.unwrap_or(kind),
         named_by_operation => named_by_operation,
     };
-    match crate::resource::by_kind(kind) {
-        Some(info) => format!("{base}/projects/{project}/{}", info.plural),
-        None => format!("{base}/projects/{project}"),
+    // The resource itself when the arguments name one (AG-63: the person looks at what the call
+    // would change); a name that is no resource name keeps the kind's page, so the arguments
+    // never shape the address beyond one path segment.
+    let name = input
+        .get("name")
+        .or_else(|| input.pointer("/manifest/metadata/name"))
+        .and_then(Value::as_str)
+        .filter(|name| crate::resource::is_dns1123(name));
+    match (crate::resource::by_kind(kind), name) {
+        (Some(info), Some(name)) => format!("{base}/projects/{project}/{}/{name}", info.plural),
+        (Some(info), None) => format!("{base}/projects/{project}/{}", info.plural),
+        (None, _) => format!("{base}/projects/{project}"),
     }
 }
 

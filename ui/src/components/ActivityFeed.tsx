@@ -118,6 +118,7 @@ export function ActivityFeed({
   fixed,
   compact,
   limit = 50,
+  initialKind,
 }: {
   project: string;
   /** What this feed never leaves: an object page shows only its own object's events. */
@@ -125,11 +126,15 @@ export function ActivityFeed({
   /** An object page's panel: no filters, no tail toggle, just the last events. */
   compact?: boolean;
   limit?: number;
+  /** The kind filter a link opened the page with (`?kind=mcp.tool`); an unknown kind is ignored. */
+  initialKind?: string;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const ids = useId();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
-  const [kind, setKind] = useState("");
+  const [kind, setKind] = useState(
+    (ACTIVITY_KINDS as readonly string[]).includes(initialKind ?? "") ? (initialKind ?? "") : "",
+  );
   const [source, setSource] = useState("");
   const [severity, setSeverity] = useState("");
   const [tailing, setTailing] = useState(!compact);

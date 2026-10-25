@@ -168,6 +168,24 @@ test.describe("activity", () => {
       .toBe(true);
   });
 
+  // T-5608: a link to the page with `?kind=mcp.tool` (the MCP door's own pointer at its calls)
+  // opens it filtered to that kind, and asks the server for that kind alone.
+  for (const width of [1440, 400]) {
+    test(`a kind in the address opens the feed filtered at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const asked: string[] = [];
+      await stubApi(page);
+      page.on("request", (request) => {
+        if (request.url().includes("/activity?")) asked.push(request.url());
+      });
+
+      await page.goto("/projects/helsinki/activity?kind=mcp.tool&lang=en");
+      await expect(page.getByLabel("Kind")).toHaveValue("mcp.tool");
+      await expect.poll(() => asked.some((url) => url.includes("kind=mcp.tool"))).toBe(true);
+      if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/activity-kind-from-address-${width}.png`, fullPage: true });
+    });
+  }
+
   test("the activity page has no axe violations", async ({ page }) => {
     await stubApi(page);
 

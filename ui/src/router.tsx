@@ -482,11 +482,15 @@ const indexRoute = createRoute({
 const activityRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/projects/$project/activity",
+  validateSearch: (search: Record<string, unknown>): { kind?: string } => ({
+    kind: typeof search.kind === "string" && search.kind !== "" ? search.kind : undefined,
+  }),
   component: function ActivityRoute() {
     const { project } = activityRoute.useParams();
+    const { kind } = activityRoute.useSearch();
     return (
       <Shell project={project}>
-        <ActivityPage project={project} />
+        <ActivityPage project={project} kind={kind} />
       </Shell>
     );
   },
