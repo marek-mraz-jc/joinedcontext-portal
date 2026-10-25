@@ -1265,7 +1265,7 @@ function readAggregations(raw: unknown): Record<string, Aggregation> {
  * space surface with their session, so the Policy decides every one; each deleted row keeps the
  * person's copy in the trash first (T-3107). A refused row stays, named with the reason.
  */
-function BulkBar({
+export function BulkBar({
   project,
   space,
   source,
@@ -1342,6 +1342,10 @@ function BulkBar({
           {t("spaces.toolbar.setField")}
         </Button>
         {tooManyToExport ? <span className="text-caption text-fg-muted">{t("spaces.toolbar.exportTooMany", { n: MAX_EXPORT_IDS })}</span> : exportLinks}
+        {/* Delete and Set act on loaded rows only: said, so no checked row is skipped unseen (F-UI3-014). */}
+        {rows.length < count ? (
+          <span className="basis-full text-caption text-fg-muted">{t("spaces.toolbar.selectedNotLoaded", { loaded: rows.length, n: count })}</span>
+        ) : null}
         <Button size="sm" variant="ghost" onClick={onClear}>
           {t("spaces.toolbar.clearSelection")}
         </Button>

@@ -1274,6 +1274,7 @@
       "aggregateNone": "Nespočteno",
       "selection": "Vybrané řádky",
       "selected": "Vybráno: {n}",
+      "selectedNotLoaded": "Načteno je {loaded} z {n}: Smazat vybrané a Nastavit pole působí jen na těchto {loaded}. Zbytek nejprve načtěte posunutím tabulky.",
       "deleteSelected": "Smazat vybrané",
       "deleteNotGranted": "Žádný endpoint tohoto prostoru vám nedovoluje mazat tento typ.",
       "clearSelection": "Zrušit výběr",
