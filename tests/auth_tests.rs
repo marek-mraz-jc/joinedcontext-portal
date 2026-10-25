@@ -932,6 +932,88 @@ async fn an_edge_session_is_a_person_and_a_bearer_keeps_its_client() {
     );
 }
 
+/// T-5610 (AG-63, AG-82): the token an MCP connector holds for a person writes nothing over REST,
+/// one request per write family, and the refusal names the MCP route; it still reads, and the
+/// same request with a ServiceAccount's token is not refused for its client.
+#[tokio::test]
+async fn a_connector_token_is_refused_on_rest_writes_and_pointed_at_the_mcp_route() {
+    let realm = realm().await;
+    let app = app_with_realm(&realm).await;
+    let bearer = |azp: &str| {
+        format!(
+            "Bearer {}",
+            keys::token_of_client(
+                jsonwebtoken::Algorithm::ES256,
+                &issuer_of(&realm),
+                "demo.editor",
+                300,
+                Some(azp),
+            )
+        )
+    };
+    let send = |method: &'static str, uri: &'static str, authorization: String| {
+        let app = app.clone();
+        async move {
+            let response = app
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(uri)
+                        .header(header::AUTHORIZATION, authorization)
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .body(Body::from("{}"))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            let status = response.status();
+            let body = response.into_body().collect().await.unwrap().to_bytes();
+            (status, String::from_utf8_lossy(&body).into_owned())
+        }
+    };
+    let writes = [
+        ("POST", "/api/v1/projects/helsinki/workspaces"),
+        (
+            "POST",
+            "/api/v1/projects/helsinki/workspaces/bike-lanes/propose",
+        ),
+        ("DELETE", "/api/v1/projects/helsinki/workspaces/bike-lanes"),
+        ("POST", "/api/v1/projects/helsinki/endpoints"),
+        ("PUT", "/api/v1/projects/helsinki/endpoints/air"),
+        ("PATCH", "/api/v1/projects/helsinki/endpoints/air"),
+        ("DELETE", "/api/v1/projects/helsinki/endpoints/air"),
+        ("POST", "/api/v1/projects/helsinki/ops/jc_change_approve"),
+        (
+            "POST",
+            "/api/v1/projects/helsinki/access-requests/ar-1/approve",
+        ),
+    ];
+    for client in ["mcp-mobile", "mcp-hub"] {
+        for (method, uri) in writes {
+            let (status, body) = send(method, uri, bearer(client)).await;
+            assert_eq!(
+                status,
+                StatusCode::FORBIDDEN,
+                "{method} {uri} as {client}: {body}"
+            );
+            assert!(body.contains("/api/v1/mcp"), "{method} {uri}: {body}");
+        }
+    }
+    for (method, uri) in writes {
+        let (status, body) = send(method, uri, bearer("pipeline-runner")).await;
+        assert!(
+            !body.contains("/api/v1/mcp"),
+            "{method} {uri} refused a ServiceAccount as a connector: {status} {body}"
+        );
+    }
+    let (status, body) = send("GET", "/api/v1/projects", bearer("mcp-mobile")).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "a connector token still reads: {body}"
+    );
+}
+
 /// ADR-N-019 §3.4: a Portal without APISIX in front never trusts the header, whatever it says.
 #[tokio::test]
 async fn the_edge_header_is_ignored_when_the_deployment_does_not_trust_the_edge() {
