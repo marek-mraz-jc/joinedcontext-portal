@@ -362,6 +362,45 @@ pub fn mask(record: &Value) -> Value {
     }
 }
 
+/// Free text with every JSON object in it (an HTTP answer's body a runner quotes, such as the
+/// gateway's Problem Details after `unexpected response code (403): 403 Forbidden, Error:`) told
+/// in its own words: its `detail`, `title`, `message` or `error`, else left out. A body the log
+/// cut short is left out from its `{` on (T-5734).
+pub fn json_in_words(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(at) = rest.find('{') {
+        let (before, body) = rest.split_at(at);
+        let mut values = serde_json::Deserializer::from_str(body).into_iter::<Value>();
+        let words = match values.next() {
+            Some(Ok(Value::Object(object))) => ["detail", "title", "message", "error"]
+                .iter()
+                .find_map(|key| object.get(*key).and_then(Value::as_str))
+                .map(str::to_owned),
+            Some(Err(error)) if error.is_eof() => {
+                out.push_str(before.trim_end_matches([' ', ',', ':']));
+                return out;
+            }
+            _ => {
+                out.push_str(before);
+                out.push('{');
+                rest = &body[1..];
+                continue;
+            }
+        };
+        match words {
+            Some(words) => {
+                out.push_str(before);
+                out.push_str(&words);
+            }
+            None => out.push_str(before.trim_end_matches([' ', ',', ':'])),
+        }
+        rest = &body[values.byte_offset()..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// Free text with every word shaped like a credential masked, and the word after a `Bearer` or
 /// `Basic` scheme too: a runner's error or a record id can quote whatever the source held.
 pub fn mask_text(text: &str) -> String {
@@ -452,6 +491,26 @@ pub fn credential_shaped(text: &str) -> bool {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// T-5734: a runner's error quoting the gateway's Problem Details reads as its words.
+    #[test]
+    fn a_json_body_in_a_message_reads_as_its_words() {
+        let refused = r#"the write failed: unexpected response code (403): 403 Forbidden, Error: {"type":"about:blank","title":"Forbidden","status":403,"detail":"Access Denied by Policy"}"#;
+        assert_eq!(
+            json_in_words(refused),
+            "the write failed: unexpected response code (403): 403 Forbidden, Error: Access Denied by Policy"
+        );
+        assert_eq!(
+            json_in_words(r#"refused: {"status":403}; next try 22:30"#),
+            "refused; next try 22:30"
+        );
+        assert_eq!(
+            json_in_words(r#"403 Forbidden, Error: {"type":"about:blank","detai"#),
+            "403 Forbidden, Error"
+        );
+        assert_eq!(json_in_words("a {brace} stays"), "a {brace} stays");
+        assert_eq!(json_in_words("{"), "");
+    }
 
     /// Built from parts, so no literal in this file reads as a credential to a scanner.
     fn jwt() -> String {
