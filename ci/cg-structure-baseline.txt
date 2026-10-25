@@ -1,7 +1,7 @@
 # package | functions with cc >= 25 | pub functions of 20+ lines no test reaches in 3 hops
 # (dev/cg-structure.py, T-4607); only ever lowered. An axum handler that only an HTTP test
 # reaches has no CALLS edge from it, so the Rust untested column counts those too.
-joinedcontext-portal | 68 | 194
+joinedcontext-portal | 68 | 193
 portal-ui | 66 | 16
 # package edges: every app and the UI build on the SDK
 edge | air-weather-explorer -> @joinedcontext/sdk
