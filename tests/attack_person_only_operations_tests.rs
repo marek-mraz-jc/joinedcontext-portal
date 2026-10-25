@@ -710,6 +710,12 @@ fn decision_doors() -> Vec<(&'static str, String, Option<Value>, Identity)> {
             "DELETE",
             "/api/v1/organization/people/u-1".into(),
             None,
+            admin.clone(),
+        ),
+        (
+            "POST",
+            "/api/v1/organization/people/remove".into(),
+            Some(json!({ "ids": ["u-1", "u-2"] })),
             admin,
         ),
     ]

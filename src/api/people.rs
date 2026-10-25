@@ -1286,7 +1286,15 @@ pub async fn remove_people(
     let identity = &user.0.identity;
     refuse_bearer(identity)?;
     allow(&state, identity, Verb::Delete)?;
-    let RemovePeople { mut ids } = parse(&body)?;
+    let ids = removal_ids(&body)?;
+    let admin = people(&state)?.admin().await?;
+    let found = removable(&state, identity, &admin, &ids).await?;
+    remove(&state, identity, &admin, &found).await
+}
+
+/// The ids a bulk removal names, sorted and deduplicated: 1 to [`REMOVE_AT_ONCE`] of them.
+fn removal_ids(body: &[u8]) -> Result<Vec<String>, ApiError> {
+    let RemovePeople { mut ids } = parse(body)?;
     ids.sort();
     ids.dedup();
     if ids.is_empty() || ids.len() > REMOVE_AT_ONCE {
@@ -1298,20 +1306,30 @@ pub async fn remove_people(
             errors: vec![format!("/ids: 1 to {REMOVE_AT_ONCE} ids, e.g. [\"6f1c…\"]")],
         });
     }
-    let admin = people(&state)?.admin().await?;
+    Ok(ids)
+}
+
+/// Every named person, each held to the single route's rules: an unknown id 404s, a right
+/// the caller lacks 403s, the caller or the last administrator 409s.
+async fn removable(
+    state: &AppState,
+    identity: &Identity,
+    admin: &Admin<'_>,
+    ids: &[String],
+) -> Result<Vec<KcUser>, ApiError> {
     let mut found = Vec::with_capacity(ids.len());
-    for id in &ids {
+    for id in ids {
         let user = admin.get(id).await.map_err(|err| match err {
             crate::people::PeopleError::NotFound => {
                 ApiError::NotFound(format!("the realm has no person {id}"))
             }
             other => other.into(),
         })?;
-        holds_what_they_hold(&state, identity, &admin, &user).await?;
-        not_self_nor_last(&state, identity, &user)?;
+        holds_what_they_hold(state, identity, admin, &user).await?;
+        not_self_nor_last(state, identity, &user)?;
         found.push(user);
     }
-    remove(&state, identity, &admin, &found).await
+    Ok(found)
 }
 
 /// The branch a removal's Change is proposed on: one per person, or one per set of people.
@@ -1606,6 +1624,23 @@ pub fn router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_bulk_removal_names_one_to_two_hundred_distinct_ids() {
+        let ids = removal_ids(br#"{"ids":["b","a","b"]}"#).expect("two distinct ids");
+        assert_eq!(ids, vec!["a".to_owned(), "b".to_owned()]);
+        assert!(matches!(
+            removal_ids(br#"{"ids":[]}"#),
+            Err(ApiError::Unprocessable { .. })
+        ));
+        let many: Vec<String> = (0..=REMOVE_AT_ONCE).map(|n| format!("p{n}")).collect();
+        let body = serde_json::to_vec(&serde_json::json!({ "ids": many })).expect("json");
+        assert!(matches!(
+            removal_ids(&body),
+            Err(ApiError::Unprocessable { .. })
+        ));
+        assert!(matches!(removal_ids(b"{}"), Err(ApiError::BadRequest(_))));
+    }
 
     #[test]
     fn a_created_person_and_a_reset_never_show_the_temporary_password() {
