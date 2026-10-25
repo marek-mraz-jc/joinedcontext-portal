@@ -284,6 +284,10 @@
       "title": "{count, plural, one {# merge request in the forge is not a Change} other {# merge requests in the forge are not Changes}}",
       "item": "#{number} by {author}"
     },
+    "proposedVia": {
+      "badge": "Proposed through {client} (MCP)",
+      "hint": "An AI client ({client}) wrote this proposal over MCP and {author} confirmed it. Read what it changes as you would any other."
+    },
     "workspace": "From a copy",
     "fromWorkspace": "From the copy {name} by {author}, brought back on {date}: worked on apart from the live project, checked again before it was proposed.",
     "emptyHint": "Every change to this project waits here for a person to read it and decide. Nothing waits right now; propose a change and it appears in this list.",
@@ -559,6 +563,9 @@
       "addRowTitle": "New {type}",
       "dataFailed": "The space's data did not answer",
       "dataFailedHint": "The endpoint answered HTTP {status}: {detail}. Nothing was changed; try again in a minute, and if it keeps failing tell the space's steward.",
+      "dataBusy": "The Portal is busy right now; nothing was changed. Try again in a minute.",
+      "dataBusyWait": "The Portal is busy right now; nothing was changed. Try again in {count, plural, one {# second} other {# seconds}}.",
+      "dataBusyWaiting": "The Portal asked to wait a moment before the next read.",
       "dataThroughEndpoints": "You can see this space through its endpoints:",
       "dataNoTypes": "This space names no data model, so there is no type to read.",
       "back": "← Context Spaces",
@@ -872,6 +879,12 @@
       "publish": "Propose the public link",
       "link": "Once the Change is merged and applied, the link is {url}",
       "notPublished": "This view is not published, or not any more.",
+      "heading": "Public data view",
+      "publicLead": "Open data anyone can read without signing in; its publisher decides what it shows.",
+      "closed": "This view is not open to the public.",
+      "busy": "Too many visits just now. Try again in {seconds} s.",
+      "busyLater": "Too many visits just now. Try again in a minute.",
+      "down": "The data service did not answer. Try again.",
       "types": "Types",
       "first": "The first {count} entities.",
       "count": "{count, plural, one {# entity} other {# entities}}.",
@@ -1932,7 +1945,7 @@
     "playground": {
       "title": "Try it",
       "reading": "Reading what you may call…",
-      "nothing": "Your access lets you call nothing through this endpoint.",
+      "nothing": "Your access lets you call nothing through this endpoint. To read it, ask its owners under Request access below.",
       "operation": "What to read",
       "operations": {
         "list": "Entities of a type",
@@ -2273,6 +2286,33 @@
         "policy": "Policy",
         "endpoint": "Endpoint",
         "type": "Type"
+      }
+    },
+    "request": {
+      "section": "Request access",
+      "sectionLead": "Ask the owners of this endpoint's space for a read of its data. The grant is for you alone; an owner decides it and you see the answer here.",
+      "reading": "Reading your requests…",
+      "retry": "Try again",
+      "yours": "Your access requests",
+      "yourRequest": "Your request",
+      "approvedHint": "Approved: the grant applies once its change is merged. Then Try it above answers your reads.",
+      "sent": "Request sent. The space's owners decide it; its state shows here.",
+      "noTypes": "This endpoint's space has no compiled data model, so no type can be asked for yet. Ask its owners to add one.",
+      "title": "Ask for a read",
+      "lead": "Choose the types you need, say why, and set an end if you need it only for a while.",
+      "types": "Entity types",
+      "until": "Until (optional)",
+      "reason": "Reason",
+      "send": "Send request",
+      "missing": {
+        "types": "Choose at least one type.",
+        "until": "Choose a later day.",
+        "reason": "Say what you need the data for."
+      },
+      "hint": {
+        "types": "The kinds of data this endpoint serves that you need, e.g. parking spots.",
+        "until": "The last day of the grant, e.g. 2027-01-31. Leave empty for no end.",
+        "reason": "What you need the data for, e.g. Weekly air report for the district office."
       }
     }
   },
@@ -3298,9 +3338,9 @@
       "until": "Until {date}",
       "noEnd": "No end date",
       "decided": "{who}: {reason}",
-      "inbox": "Pipelines asking for access",
-      "inboxLead": "Pipelines of other spaces and projects asking to read or write this space. Approving proposes the grant as a change of this project.",
-      "inboxEmpty": "No pipeline has asked for access to this space.",
+      "inbox": "Access requests",
+      "inboxLead": "People asking to read an Endpoint of this space, and pipelines of other spaces asking to read or write it. Approving proposes the grant as a change of this project; another person approves that change.",
+      "inboxEmpty": "Nobody has asked for access to this space.",
       "on": "on {endpoint}, asked by {who}",
       "decisionReason": "Reason for the requester",
       "approve": "Approve",
@@ -3322,7 +3362,8 @@
       "noTypes": "The Endpoint's space has no compiled data model, so no type can be asked for yet. Ask its owners to add one.",
       "endpointFirst": "Choose the Endpoint first.",
       "noAttrs": "The model declares no attribute of {type}.",
-      "typeFirst": "Choose the entity type first."
+      "typeFirst": "Choose the entity type first.",
+      "allAttrs": "all attributes"
     },
     "map": {
       "views": "Pipeline views",
@@ -3763,7 +3804,11 @@
       "unconstrained": "no constraint",
       "prohibitions": "Explicitly denied",
       "forbidden": "This endpoint does not answer you; sign in with an account that has a grant.",
-      "unavailable": "The access document could not be read. Try again in a moment."
+      "unavailable": "The access document could not be read. Try again in a moment.",
+      "source": "From",
+      "grants": "{count, plural, one {# grant} other {# grants}}",
+      "noSource": "a grant of this space",
+      "noSourceHint": "No Policy you can read matches this grant."
     },
     "panel": {
       "title": "Your access",
@@ -4020,6 +4065,19 @@
       "nothing": "Nothing granted yet",
       "endpointRole": "Every caller of endpoint {endpoint}",
       "endpointTier": "App role {tier} on endpoint {endpoint}"
+    },
+    "constraint": {
+      "back": "history up to {duration} back",
+      "older": "history older than {duration}",
+      "since": "history since {at}",
+      "until": "history before {at}",
+      "between": "history from {from} to {to}",
+      "scopeBelow": "within the scope {scope} and everything under it",
+      "point": "the point {lat}, {lon}",
+      "area": "a drawn area",
+      "near": "within {distance} of {where}",
+      "within": "inside {where}",
+      "intersects": "touching {where}"
     }
   },
   "flows": {
@@ -4944,7 +5002,19 @@
       "createTitle": "Create from {title}",
       "createHint": "Choose the endpoint whose data the app shows; the rest is the template's.",
       "screenshot": "{title} as its demo shows it",
-      "demo": "Open the demo"
+      "demo": "Open the demo",
+      "useAsIs": "Use as is",
+      "modelOut": "Generate is unavailable: the Portal's model key is refused or out of credit, so the app builder cannot answer until an administrator replaces or tops it up. Use as is still works: it starts your App from the template unchanged and asks no model.",
+      "modelOutShort": "The app builder cannot answer: the model key is refused or out of credit. Use as is instead.",
+      "useTitle": "Use {title} as is",
+      "useHint": "The template lands unchanged in a repository of its own and the App is proposed for approval; no model is asked.",
+      "useLead": "Name the App and choose the endpoint it reads. After approval it builds on the forge and opens like any other App.",
+      "name": "App name",
+      "nameHint": "Lowercase letters, digits and hyphens, such as bike-finder. It names the App and its repository.",
+      "endpointHint": "Only endpoints you may read are listed; the App shows that endpoint's data.",
+      "noEndpoints": "No endpoint you may read is in this project yet. Ask a steward to create one or to share one with you.",
+      "chooseFirst": "Enter a name and choose an endpoint first.",
+      "useSubmit": "Create the App"
     },
     "jobs": {
       "title": "Scheduled jobs",
@@ -6272,7 +6342,8 @@
         "drifted": "Drift from the repository"
       },
       "change": {
-        "merged": "Change merged"
+        "merged": "Change merged",
+        "rejected": "Change rejected"
       },
       "pipeline": {
         "throughput": "Pipeline throughput",
@@ -7737,7 +7808,8 @@
       "allows": "Allows",
       "from": "From",
       "none": "No binding gives you anything here.",
-      "binding": "binding {binding}, {scope}"
+      "binding": "binding {binding}, {scope}",
+      "approveOthers": "You approve changes other people propose; your own changes wait for another approver, because you do not also hold delete on these kinds."
     },
     "danger": {
       "title": "Delete project",

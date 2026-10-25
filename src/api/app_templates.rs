@@ -2,7 +2,7 @@
 //! AP-141). The same samples the build run adapts (SDK-24), each with its purpose and the data it
 //! needs; a run started from one names it in its prompt as `(template: {name})`.
 
-use axum::extract::Path;
+use axum::extract::{Path, State};
 use axum::http::{header, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -17,9 +17,14 @@ use crate::error::ProblemDetails;
 use crate::state::AppState;
 
 #[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct AppTemplates {
     /// Every template, by name.
     pub templates: Vec<Template>,
+    /// Whether "Generate" can answer now: an agent runner is configured and the model key was
+    /// not last reported refused or out of credit (AG-96). When it is `false`, a template is
+    /// still used as is (T-5617).
+    pub model_available: bool,
 }
 
 #[utoipa::path(
@@ -33,9 +38,14 @@ pub struct AppTemplates {
         (status = 401, description = "Unauthorized", body = ProblemDetails)
     )
 )]
-pub async fn list_templates(_user: CurrentUser) -> Json<AppTemplates> {
+pub async fn list_templates(
+    _user: CurrentUser,
+    State(state): State<AppState>,
+) -> Json<AppTemplates> {
     Json(AppTemplates {
         templates: samples::templates(),
+        model_available: state.config.agent_settings.is_some()
+            && crate::api::internal::model_key::builder_answers(),
     })
 }
 

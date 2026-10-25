@@ -230,7 +230,8 @@ pub fn operations() -> Vec<Operation> {
                             crate::change::ChangePhase::PendingApproval,
                             crate::change::PlanSummary::new(0, 0, 1),
                         )
-                        .in_repository(&pull.repository).with_merge_request(pull.url),
+                        .in_repository(&pull.repository)
+        .proposed_through(&pull.body).with_merge_request(pull.url),
                     );
                     Ok(crate::api::mutate::ProposeOutcome::Change(change).into_value())
                 })

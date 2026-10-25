@@ -193,13 +193,19 @@ impl Effective {
     /// Whether some grant here lets the caller propose anything: what opening a workspace
     /// asks for (API/01 §22). Each write into it is still checked on its own kind (PF-82).
     pub fn may_propose_anything(&self) -> bool {
+        self.may_anything(Verb::Propose)
+    }
+
+    /// Whether some grant here lets the caller `verb` on some kind: what a tool that names its
+    /// kind only in its input asks before the input is read (AG-63).
+    pub fn may_anything(&self, verb: Verb) -> bool {
         self.bootstrap
             || self.grants.iter().any(|grant| {
                 grant
                     .rule
                     .kinds
                     .iter()
-                    .any(|kind| grant.rule.grants(kind, Verb::Propose))
+                    .any(|kind| grant.rule.grants(kind, verb))
             })
     }
 

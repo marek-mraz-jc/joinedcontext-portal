@@ -1549,6 +1549,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/app-templates/{name}/apps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create App From Template
+         * @description Lands the template's source in a new repository `{project}_{app}` and proposes the App building from it, reading the chosen Endpoint; no model is asked (T-5617).
+         */
+        post: operations["create_from_template"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/apps/rename-shapes": {
         parameters: {
             query?: never;
@@ -2235,6 +2255,30 @@ export interface paths {
          * @description Copies the project's repository with its history under a new slug and proposes its registry entry and the caller's steward binding; the copy's endpoints get slugs of their own.
          */
         post: operations["duplicate_project"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/endpoints/{name}/access-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Access Requests On An Endpoint
+         * @description The caller's own requests on this Endpoint and the types they may ask for (EP-55): the types its space's model serves through it. `refusal` says why no request can be granted here, when that is so.
+         */
+        get: operations["list_mine"];
+        put?: never;
+        /**
+         * Request Access To An Endpoint
+         * @description Asks the owners of the Endpoint's space for a read of named types for the caller (EP-55, PF-58). Grants nothing until another person, an owner of the space, approves it; the approval proposes one Policy for the caller.
+         */
+        post: operations["file_person_request"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4946,6 +4990,12 @@ export interface components {
             via: Record<string, never>;
         };
         AppTemplates: {
+            /**
+             * @description Whether "Generate" can answer now: an agent runner is configured and the model key was
+             *     not last reported refused or out of credit (AG-96). When it is `false`, a template is
+             *     still used as is (T-5617).
+             */
+            modelAvailable: boolean;
             /** @description Every template, by name. */
             templates: components["schemas"]["Template"][];
         };
@@ -5640,6 +5690,7 @@ export interface components {
             mergeRequest?: string | null;
             phase: components["schemas"]["ChangePhase"];
             plan: components["schemas"]["PlanSummary"];
+            proposedVia?: null | components["schemas"]["ProposedVia"];
             /**
              * @description The one repository the Change targets (CC-87): the organization's, or in layout 2 a
              *     project's own.
@@ -7358,6 +7409,17 @@ export interface components {
             next?: number | null;
         };
         /**
+         * @description The body a person sends on an Endpoint's page (EP-55, T-5615). It names no grantee: the grant
+         *     is always for the person who files it.
+         */
+        PersonRequest: {
+            reason: string;
+            /** @description Entity types the Endpoint serves, e.g. `["AirQualityObserved"]`. */
+            types: string[];
+            /** @description The grant's end, RFC 3339; none is no end. */
+            until?: string | null;
+        };
+        /**
          * Phase
          * @description Lifecycle phase enumeration.
          */
@@ -7983,6 +8045,13 @@ export interface components {
             endpoints: components["schemas"]["EndpointTotal"][];
             from: string;
             to: string;
+        };
+        /** @description The channel a Change came through and the OAuth client that sent it (AG-17, AG-137). */
+        ProposedVia: {
+            /** @description `mcp`: a person's AI client over the Portal's MCP server. */
+            channel: string;
+            /** @description The token's `azp`, at most 64 characters of `[A-Za-z0-9._:-]`. */
+            client: string;
         };
         /** @description What one endpoint publishes, and where. */
         PublicationStatus: {
@@ -8782,6 +8851,19 @@ export interface components {
             name: string;
             purpose: string;
             title: string;
+        };
+        /**
+         * @description What the person chooses: the App's name and the Endpoint it reads.
+         * @example {
+         *       "endpointName": "bikes",
+         *       "name": "bike-finder"
+         *     }
+         */
+        TemplateApp: {
+            /** @description The project's Endpoint the App reads, one the caller may read. */
+            endpointName: string;
+            /** @description The App's name, a DNS-1123 label: `kpi-board`. */
+            name: string;
         };
         TemplateList: {
             /** @description The project's templates, newest first. */
@@ -13485,6 +13567,89 @@ export interface operations {
             };
         };
     };
+    create_from_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description A template's name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateApp"];
+            };
+        };
+        responses: {
+            /** @description The Change that proposes the App */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not propose an App in the project */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project or template */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A repository of that name is already in the forge */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The name or the Endpoint is refused; errors names the field */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No forge configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     rename_shapes: {
         parameters: {
             query?: never;
@@ -15890,6 +16055,141 @@ export interface operations {
                 };
             };
             /** @description No git forge configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_mine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Endpoint's project */
+                project: string;
+                /** @description The Endpoint */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description `{ types, refusal, items }` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description No such Endpoint the caller reads */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No database */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    file_person_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Endpoint's project */
+                project: string;
+                /** @description The Endpoint */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "reason": "Weekly air report for the district office",
+                 *       "types": [
+                 *         "AirQualityObserved"
+                 *       ],
+                 *       "until": "2027-01-31T23:59:59Z"
+                 *     }
+                 */
+                "application/json": components["schemas"]["PersonRequest"];
+            };
+        };
+        responses: {
+            /** @description The request, pending */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description The body is no request (an unknown member, such as a grantee) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A service account's or an agent's token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such Endpoint the caller reads */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Already asked or granted, or no grant could reach this Endpoint */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A field names what the Endpoint does not serve, or an end that passed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No database */
             503: {
                 headers: {
                     [name: string]: unknown;

@@ -319,6 +319,7 @@ impl FromRequestParts<AppState> for CurrentUser {
                 return Err(ApiError::Unauthorized);
             }
             if let (Front::Bearer, Some(client)) = (front, client) {
+                refuse_connector_write(&state.config.connector_clients, &client, &parts.method)?;
                 parts
                     .extensions
                     .insert(crate::auth::bearer::TokenClient(client));
@@ -338,11 +339,54 @@ impl FromRequestParts<AppState> for CurrentUser {
     }
 }
 
+/// A connector's token (AG-63, AG-82, T-5610) is the person's, held by an AI client: it changes
+/// the platform only through `/api/v1/mcp`, which asks the person before a write and never
+/// brings a workspace back or discards one. A REST write with it would skip both, so REST
+/// answers 403 naming the MCP route; reads and every other client's token pass.
+fn refuse_connector_write(
+    connectors: &[String],
+    client: &str,
+    method: &axum::http::Method,
+) -> Result<(), ApiError> {
+    if method.is_safe() || !connectors.iter().any(|c| c == client) {
+        return Ok(());
+    }
+    Err(ApiError::Denied(format!(
+        "this token belongs to the MCP connector `{client}`: an AI client changes the platform \
+         through /api/v1/mcp, which asks you first (AG-63, AG-82). Make this change in the \
+         Portal, or call the REST API with a ServiceAccount token"
+    )))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use axum::http::HeaderMap;
     use axum_extra::extract::cookie::Key;
+
+    /// T-5610: a connector's token writes nothing over REST, whatever the method; it still
+    /// reads, and a ServiceAccount's or any other client's token writes as before.
+    #[test]
+    fn a_connector_token_is_refused_rest_writes_and_names_the_mcp_route() {
+        use axum::http::Method;
+        let connectors = crate::config::Config::for_tests().connector_clients;
+        for method in [Method::POST, Method::PUT, Method::PATCH, Method::DELETE] {
+            for client in ["mcp-mobile", "mcp-hub"] {
+                match refuse_connector_write(&connectors, client, &method) {
+                    Err(ApiError::Denied(message)) => {
+                        assert!(message.contains("/api/v1/mcp"), "{message}");
+                        assert!(message.contains(client), "{message}");
+                    }
+                    other => panic!("{method} with {client} gave {other:?}"),
+                }
+            }
+            assert!(refuse_connector_write(&connectors, "pipeline-runner", &method).is_ok());
+            assert!(refuse_connector_write(&connectors, "mcp-mobile-x", &method).is_ok());
+        }
+        for method in [Method::GET, Method::HEAD, Method::OPTIONS] {
+            assert!(refuse_connector_write(&connectors, "mcp-mobile", &method).is_ok());
+        }
+    }
 
     // ---------------------------------------------------------------------------------------
     // T-2100 `Front::of`, T-2101 `secure_cookie`.

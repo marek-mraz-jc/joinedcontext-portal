@@ -930,10 +930,19 @@
     },
     "src/pages/apps/AppTemplates.tsx": {
       "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "app_templates.test.tsx",
+        "use_template.test.tsx"
+      ]
+    },
+    "src/pages/apps/UseTemplate.tsx": {
+      "controls": {
         "Button": 1
       },
       "tests": [
-        "app_templates.test.tsx"
+        "use_template.test.tsx"
       ]
     },
     "src/pages/apps/AppsCatalog.tsx": {
@@ -1181,6 +1190,14 @@
       },
       "tests": [
         "datasource_templates.test.tsx"
+      ]
+    },
+    "src/pages/endpoints/AccessRequest.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "endpoint_access_request.test.tsx"
       ]
     },
     "src/pages/endpoints/CatalogSection.tsx": {
@@ -1681,7 +1698,8 @@
         "RadioGroup": 1
       },
       "tests": [
-        "access_requests.test.tsx"
+        "access_requests.test.tsx",
+        "endpoint_access_request.test.tsx"
       ]
     },
     "src/pages/pipelines/DebugPanel.tsx": {
@@ -1922,7 +1940,7 @@
     },
     "src/pages/spaces/PublicView.tsx": {
       "controls": {
-        "Button": 2,
+        "Button": 3,
         "Checkbox": 1
       },
       "tests": [

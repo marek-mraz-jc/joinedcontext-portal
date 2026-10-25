@@ -546,6 +546,45 @@ async fn mcp_tools_list_filtered_by_caller() {
         !v_names.contains(&"jc_change_approve"),
         "viewer must not see approve tools"
     );
+    // T-5608, AG-63: a viewer is offered no writing tool at all.
+    let writing: Vec<&str> = v_tools
+        .iter()
+        .filter(|t| t["annotations"]["readOnlyHint"] != json!(true))
+        .filter_map(|t| t["name"].as_str())
+        .collect();
+    assert_eq!(writing, Vec::<&str>::new());
+}
+
+/// T-5608, AG-63: a viewer asking to delete the project is refused with the right they miss,
+/// before anybody is asked to confirm it.
+#[tokio::test]
+async fn a_viewer_is_refused_before_the_question() {
+    let (app, issuer, signer, kid) = setup_app_and_keys().await;
+    let token = sign_token(
+        &signer,
+        &kid,
+        &issuer,
+        PORTAL_AUDIENCE,
+        "viewer.user",
+        &[],
+        &["city-viewers"],
+    );
+    let body = json!({
+        "jsonrpc": "2.0",
+        "id": 11,
+        "method": "tools/call",
+        "params": { "name": "jc_project_delete", "arguments": { "project": "ovzdusie" } }
+    });
+    let answer = rpc(app, &token, body).await;
+    assert_eq!(answer["result"]["isError"], json!(true), "{answer}");
+    assert!(answer["result"]["status"].is_null(), "{answer}");
+    assert!(
+        answer["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("delete on Project"),
+        "{answer}"
+    );
 }
 
 #[tokio::test]
@@ -1243,8 +1282,8 @@ async fn a_red_call_asks_the_person_before_it_runs_and_a_refusal_runs_nothing() 
         elicitation["url"]
             .as_str()
             .unwrap_or_default()
-            .contains("/projects/ovzdusie/endpoints"),
-        "{asked}"
+            .ends_with("/projects/ovzdusie/endpoints/public-air"),
+        "the question points at the Endpoint it would delete: {asked}"
     );
 
     // 2. An answer to a question nobody asked is refused, and still nothing runs.
@@ -1995,4 +2034,116 @@ async fn a_service_account_token_audienced_to_the_portal_reaches_the_mcp_door_an
         .await
         .unwrap();
     assert_eq!(refused.status(), StatusCode::UNAUTHORIZED);
+}
+
+/// A person's token from an MCP connector client: `azp` names the client, the user is the person.
+fn sign_connector_token(
+    signer: &EncodingKey,
+    kid: &str,
+    issuer: &str,
+    subject: &str,
+    groups: &[&str],
+) -> String {
+    let mut header = Header::new(Algorithm::ES256);
+    header.kid = Some(kid.to_string());
+    let now = joinedcontext_portal::auth::session::now_unix();
+    let claims = json!({
+        "iss": issuer,
+        "aud": PORTAL_AUDIENCE,
+        "azp": "mcp-mobile",
+        "sub": subject,
+        "preferred_username": subject,
+        "exp": now + 3600,
+        "iat": now,
+        "groups": groups,
+    });
+    encode(&header, &claims, signer).expect("sign token")
+}
+
+/// AG-56, AG-137, T-5609: every `tools/call` is one activity row of the person, with channel
+/// `mcp` and the client, and what came of it; no argument value reaches the row, and a call
+/// about a project the caller may not read writes nothing into that project's activity.
+#[tokio::test]
+async fn every_tools_call_is_one_activity_row_of_the_person_through_mcp() {
+    let (app, issuer, signer, kid) = setup_app_and_keys().await;
+    let steward =
+        sign_connector_token(&signer, &kid, &issuer, "steward.user", &["platform-admins"]);
+    let viewer = sign_connector_token(&signer, &kid, &issuer, "city.viewer", &["city-viewers"]);
+    let call = |token: &str, name: &str, arguments: Value| {
+        let body = json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                           "params": { "name": name, "arguments": arguments } });
+        let (app, token) = (app.clone(), token.to_owned());
+        async move { rpc(app, &token, body).await }
+    };
+
+    let read = call(
+        &steward,
+        "jc_catalog_search",
+        json!({ "project": "ovzdusie", "q": "needle-7f3a" }),
+    )
+    .await;
+    assert!(read["result"]["structuredContent"].is_object(), "{read}");
+    let asked = call(
+        &steward,
+        "jc_resource_delete",
+        json!({ "project": "ovzdusie", "kind": "Endpoint", "name": "public-air", "confirm": "public-air" }),
+    )
+    .await;
+    assert_eq!(
+        asked["result"]["status"],
+        json!("input_required"),
+        "{asked}"
+    );
+    call(
+        &viewer,
+        "jc_catalog_search",
+        json!({ "project": "elsewhere", "q": "x" }),
+    )
+    .await;
+
+    let rows = call(
+        &steward,
+        "jc_activity_list",
+        json!({ "project": "ovzdusie", "kind": "mcp.tool" }),
+    )
+    .await;
+    let items = rows["result"]["structuredContent"]["items"]
+        .as_array()
+        .cloned()
+        .unwrap_or_else(|| panic!("{rows}"));
+    let row_of = |operation: &str| {
+        items
+            .iter()
+            .find(|row| row["details"]["operation"] == operation)
+            .unwrap_or_else(|| panic!("no row for {operation}: {items:?}"))
+            .clone()
+    };
+    let ran = row_of("jc_catalog_search");
+    assert_eq!(ran["details"]["decision"], json!("ran"));
+    assert_eq!(ran["details"]["channel"], json!("mcp"));
+    assert_eq!(ran["details"]["client"], json!("mcp-mobile"));
+    assert_eq!(ran["details"]["subject"], json!("steward.user"));
+    assert_eq!(ran["details"]["username"], json!("steward.user"));
+    assert_eq!(
+        row_of("jc_resource_delete")["details"]["decision"],
+        json!("asked")
+    );
+    assert!(
+        !serde_json::to_string(&items)
+            .unwrap()
+            .contains("needle-7f3a"),
+        "{items:?}"
+    );
+
+    let elsewhere = call(
+        &steward,
+        "jc_activity_list",
+        json!({ "project": "elsewhere", "kind": "mcp.tool" }),
+    )
+    .await;
+    assert_eq!(
+        elsewhere["result"]["structuredContent"]["items"],
+        json!([]),
+        "a refused stranger wrote into the project: {elsewhere}"
+    );
 }

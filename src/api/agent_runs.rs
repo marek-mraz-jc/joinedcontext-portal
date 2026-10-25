@@ -1566,7 +1566,7 @@ pub(crate) fn is_function_name(name: &str) -> bool {
 
 /// The access token the request was authenticated with: a bearer or the edge's. A Portal cookie
 /// session keeps none, so its function calls reach the endpoint anonymously (API/04 §5).
-fn caller_token(state: &AppState, headers: &HeaderMap) -> Option<String> {
+pub(crate) fn caller_token(state: &AppState, headers: &HeaderMap) -> Option<String> {
     let token = match Front::of(headers, state.config.trust_edge_token) {
         Front::Bearer => headers
             .get(header::AUTHORIZATION)?
@@ -2442,7 +2442,7 @@ fn app_manifest(run: &AgentRun, source: serde_json::Value) -> serde_json::Value 
 
 /// The toolchains CI pins for a generated application (AP-11). A `ui` application is a Vite
 /// build and nothing else; a `ui-rust` one carries a Rust binary with the build embedded.
-fn build_toolchains(app_class: &str) -> serde_json::Value {
+pub(crate) fn build_toolchains(app_class: &str) -> serde_json::Value {
     if jc_core::kinds::AppClass::parse(app_class) == Ok(jc_core::kinds::AppClass::Ui) {
         serde_json::json!({ "node": NODE_TOOLCHAIN })
     } else {

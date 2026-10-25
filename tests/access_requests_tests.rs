@@ -700,6 +700,214 @@ async fn the_door_refuses_what_the_form_would_not_offer() {
     }
 }
 
+fn person_ask(types: &[&str]) -> Value {
+    json!({ "types": types, "until": "2099-01-31T23:59:59Z", "reason": "weekly air report for the district office" })
+}
+
+const MINE: &str = "/api/v1/projects/helsinki/endpoints/air-quality/access-requests";
+
+/// PL-115, EP-55, PF-58 (T-5615): a reader of an Endpoint who gets nothing through it asks for a read of
+/// one of its types; an owner approves it as a Change; the grant is one Policy for that reader.
+#[tokio::test]
+async fn a_person_asks_on_the_endpoint_and_an_owner_approves() {
+    let Some(pool) = pool().await else { return };
+    let state = state(pool, &unique("air"), true).await;
+    modelled(&state);
+    // Its own owner: the import check is kept per person and project, and the other tests'
+    // owner proposes into Helsinki at the same time.
+    let owner = ["ContextSpace", "Endpoint", "Policy", "Group"];
+    role(
+        &state,
+        "air-owner",
+        "otto",
+        HELSINKI,
+        &owner,
+        &["read", "propose", "approve"],
+    );
+    // Its own Endpoint, so a request left in the database by an earlier run is no second one.
+    let name = unique("air-person");
+    state.mirror.upsert(common::envelope(
+        "Endpoint",
+        &name,
+        HELSINKI,
+        json!({ "contextSpaceRef": "air", "slug": "zt4qm7ge2xdv6ksb3ncf5arw2y", "audience": "project-list" }),
+    ));
+    let mine_uri = format!("/api/v1/projects/{HELSINKI}/endpoints/{name}/access-requests");
+    let mine = mine_uri.as_str();
+    let offer = send(&state, "eve", "GET", mine, None).await;
+    assert_eq!(offer.status, StatusCode::OK, "{}", offer.text);
+    let offer: Value = serde_json::from_str(&offer.text).expect("json");
+    assert_eq!(offer["types"], json!(["AirQualityObserved"]));
+    assert_eq!(offer["refusal"], Value::Null);
+
+    let filed = send(
+        &state,
+        "eve",
+        "POST",
+        mine,
+        Some(person_ask(&["AirQualityObserved"])),
+    )
+    .await;
+    assert_eq!(filed.status, StatusCode::CREATED, "{}", filed.text);
+    let request: Value = serde_json::from_str(&filed.text).expect("json");
+    let id = request["id"].as_str().expect("an id").to_owned();
+    assert_eq!(request["person"], "eve");
+    assert_eq!(request["pipeline"], Value::Null);
+    assert_eq!(request["account"], "eve");
+    assert_eq!(request["state"], "pending");
+    let again = send(
+        &state,
+        "eve",
+        "POST",
+        mine,
+        Some(person_ask(&["AirQualityObserved"])),
+    )
+    .await;
+    assert_eq!(again.status, StatusCode::CONFLICT, "{}", again.text);
+
+    // Another person's requests stay theirs: otto sees none of eve's on the page.
+    let otto = send(&state, "otto", "GET", mine, None).await;
+    assert!(!otto.text.contains(&id), "{}", otto.text);
+    let inbox = send(
+        &state,
+        "otto",
+        "GET",
+        "/api/v1/projects/helsinki/access-requests",
+        None,
+    )
+    .await;
+    assert!(inbox.text.contains(&id), "{}", inbox.text);
+    let approved = send(
+        &state,
+        "otto",
+        "POST",
+        &format!("/api/v1/projects/{HELSINKI}/access-requests/{id}/approve"),
+        None,
+    )
+    .await;
+    assert_eq!(approved.status, StatusCode::ACCEPTED, "{}", approved.text);
+    let answer = send(&state, "eve", "GET", mine, None).await;
+    let answer: Value = serde_json::from_str(&answer.text).expect("json");
+    assert_eq!(answer["items"][0]["state"], "approved");
+    assert_eq!(answer["items"][0]["decidedBy"], "otto");
+
+    // What the approval proposed: one Policy, for eve alone, on the one type she named.
+    let stored =
+        joinedcontext_portal::access_requests::get(state.db.as_ref().expect("db"), HELSINKI, &id)
+            .await
+            .expect("read")
+            .expect("there");
+    let endpoint = serde_json::to_value(
+        state
+            .mirror
+            .get(HELSINKI, "Endpoint", &name)
+            .expect("endpoint"),
+    )
+    .expect("json");
+    let bundle = joinedcontext_portal::access_requests::grant_bundle(&stored, &endpoint);
+    assert_eq!(bundle.len(), 1, "{bundle:?}");
+    assert_eq!(
+        bundle[0]["spec"]["assignee"],
+        json!({ "kind": "user", "id": "eve" })
+    );
+    assert_eq!(
+        bundle[0]["spec"]["information"],
+        json!([{ "entities": [{ "type": "AirQualityObserved" }] }])
+    );
+
+    // The owner who asks for themself does not approve their own request (CC-34).
+    let own = send(
+        &state,
+        "otto",
+        "POST",
+        mine,
+        Some(person_ask(&["AirQualityObserved"])),
+    )
+    .await;
+    assert_eq!(own.status, StatusCode::CREATED, "{}", own.text);
+    let own: Value = serde_json::from_str(&own.text).expect("json");
+    let selfie = send(
+        &state,
+        "otto",
+        "POST",
+        &format!(
+            "/api/v1/projects/{HELSINKI}/access-requests/{}/approve",
+            own["id"].as_str().unwrap_or_default()
+        ),
+        None,
+    )
+    .await;
+    assert_eq!(selfie.status, StatusCode::FORBIDDEN, "{}", selfie.text);
+}
+
+/// PL-115: each field is checked before anything is stored, and the refusal names the field; a
+/// body naming a grantee is no request; who cannot read the Endpoint learns nothing of it.
+#[tokio::test]
+async fn a_persons_request_is_refused_field_by_field() {
+    let state = world(&unique("air"), true).await;
+    modelled(&state);
+    for (body, field) in [
+        (
+            person_ask(&["Vehicle"]),
+            "types[0]: 'Vehicle' is no type this endpoint serves",
+        ),
+        (person_ask(&[]), "types: choose one"),
+        (
+            json!({ "types": ["AirQualityObserved"], "until": "2020-01-01T00:00:00Z", "reason": "r" }),
+            "until: until has passed",
+        ),
+        (
+            json!({ "types": ["AirQualityObserved"], "reason": "  " }),
+            "reason: reason is required",
+        ),
+    ] {
+        let refused = send(&state, "eve", "POST", MINE, Some(body)).await;
+        assert_eq!(
+            refused.status,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "{field}: {}",
+            refused.text
+        );
+        assert!(refused.text.contains(field), "{field}: {}", refused.text);
+    }
+    let grantee = json!({ "types": ["AirQualityObserved"], "reason": "r", "person": "olli" });
+    let refused = send(&state, "eve", "POST", MINE, Some(grantee)).await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.text);
+    for verb in ["GET", "POST"] {
+        let hidden = send(
+            &state,
+            "jana",
+            verb,
+            MINE,
+            Some(person_ask(&["AirQualityObserved"])),
+        )
+        .await;
+        assert_eq!(
+            hidden.status,
+            StatusCode::NOT_FOUND,
+            "{verb}: {}",
+            hidden.text
+        );
+    }
+    // An Endpoint serving only the Policies it names cannot carry a new grant: said, not stored.
+    state.mirror.upsert(common::envelope(
+        "Endpoint",
+        "air-quality",
+        HELSINKI,
+        json!({ "contextSpaceRef": "air", "slug": "zt4qm7ge2xdv6ksb3ncf5arw2y", "policyRefs": ["urn:ngsi-ld:Policy:air:read"] }),
+    ));
+    let fixed = send(
+        &state,
+        "eve",
+        "POST",
+        MINE,
+        Some(person_ask(&["AirQualityObserved"])),
+    )
+    .await;
+    assert_eq!(fixed.status, StatusCode::CONFLICT, "{}", fixed.text);
+    assert!(fixed.text.contains("policy list"), "{}", fixed.text);
+}
+
 /// T-5567, AUT-2: approving, declining and revoking an access request are decisions; an owner
 /// whose session proved no second factor is refused at each, the request stays as it was, and
 /// the same owner after a step-up login decides it.

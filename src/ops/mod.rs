@@ -387,12 +387,103 @@ pub fn permitted(
     Ok(())
 }
 
-/// The operations this caller may run in the project: the ones [`permitted`] lets through.
+/// What is asked before a call is offered or turned into a question (AG-63): [`permitted`], and
+/// for a writing operation without a verb the cheap half of its route's own check, so whoever
+/// holds none of what the route asks for is not offered the tool and is refused before the person
+/// is asked to confirm. `input` is the call's, when there is one: a kind it names is checked by
+/// name. The route keeps its own check; [`call`] leaves the answer to it.
+pub fn may_try(
+    op: &Operation,
+    identity: &crate::auth::session::Identity,
+    state: &AppState,
+    project: &str,
+    input: Option<&Value>,
+) -> Result<(), OpError> {
+    permitted(op, identity, state, project)?;
+    if op.verb.is_some() || op.annotations.read_only_hint {
+        return Ok(());
+    }
+    if let Some(decided) = organization_right(op.name, state, identity) {
+        return Ok(decided?);
+    }
+    let effective = crate::permissions::for_request(state, identity, project);
+    // A project the caller may not read is one that is not there, as its route answers (R20).
+    if !effective.may_read_project() {
+        return Err(OpError::Api(ApiError::NotFound(format!(
+            "project '{project}' not found"
+        ))));
+    }
+    match missing_right(op.name, &effective, input.and_then(named_kind)) {
+        None => Ok(()),
+        Some(what) => Err(OpError::Api(ApiError::Denied(format!(
+            "{} needs a role with {what} in project {project} (PF-50)",
+            op.title
+        )))),
+    }
+}
+
+/// The route's check of an operation on the organization's people or projects (PF-91, PF-65),
+/// or `None` for an operation inside one project.
+fn organization_right(
+    name: &str,
+    state: &AppState,
+    identity: &crate::auth::session::Identity,
+) -> Option<Result<(), ApiError>> {
+    use jc_core::kinds::Verb;
+    let person = |verb| Some(crate::api::people::allow(state, identity, verb));
+    match name {
+        "jc_person_create" => person(Verb::Create),
+        "jc_person_edit" => person(Verb::Update),
+        "jc_person_disable" | "jc_person_enable" | "jc_person_sign_out" => person(Verb::Disable),
+        "jc_project_create" => Some(crate::api::projects::may_open(state, identity)),
+        _ => None,
+    }
+}
+
+/// What a writing operation inside a project needs and the caller lacks, as "<verb> on <kind>":
+/// a delete deletes, anything else (a draft, a proposal, a blueprint flow, an import, a workspace,
+/// which answers only to who opened it with propose, API/01 §22) proposes; on the kind the input
+/// names, on Project for the project's own delete, else on some kind.
+fn missing_right(
+    name: &str,
+    effective: &crate::permissions::Effective,
+    named: Option<&str>,
+) -> Option<String> {
+    use jc_core::kinds::Verb;
+    let verb = if name.ends_with("_delete") {
+        Verb::Delete
+    } else {
+        Verb::Propose
+    };
+    let kind = if name == "jc_project_delete" {
+        Some("Project")
+    } else {
+        named
+    };
+    let held = match kind {
+        Some(kind) => effective.may(kind, verb),
+        None => effective.may_anything(verb),
+    };
+    let verb = crate::permissions::verb_name(verb);
+    (!held).then(|| format!("{verb} on {}", kind.unwrap_or("some kind")))
+}
+
+/// The kind a call's input names, when this Portal has it: an unknown one is the input's 422,
+/// which the call answers.
+fn named_kind(input: &Value) -> Option<&str> {
+    input
+        .get("kind")
+        .or_else(|| input.pointer("/manifest/kind"))
+        .and_then(Value::as_str)
+        .filter(|kind| crate::resource::by_kind(kind).is_some())
+}
+
+/// The operations this caller may run in the project: the ones [`may_try`] lets through.
 pub fn listing(caller: &Caller, state: &AppState, project: &str) -> Vec<OperationSummary> {
     registry()
         .iter()
         .filter(|op| caller.may_run(op).is_ok())
-        .filter(|op| permitted(op, &caller.identity, state, project).is_ok())
+        .filter(|op| may_try(op, &caller.identity, state, project, None).is_ok())
         .map(|op| OperationSummary {
             name: op.name.to_string(),
             title: op.title.to_string(),
@@ -684,10 +775,16 @@ mod tests {
         };
         let viewer_caller = Caller::new(viewer_id, Via::Session);
 
-        // Without a binding: the resource operations, which check the caller as their routes do.
+        // Without a binding: the reads among the resource operations, which check the caller as
+        // their routes do; a write their route would refuse is not offered (AG-63, T-5608).
         let list = listing(&viewer_caller, &state, "ovzdusie");
         let names: Vec<_> = list.iter().map(|o| o.name.as_str()).collect();
-        assert_eq!(names, resources::CHECKED_BY_THE_ROUTE);
+        let reads: Vec<_> = resources::CHECKED_BY_THE_ROUTE
+            .iter()
+            .copied()
+            .filter(|name| find(name).is_some_and(|op| op.annotations.read_only_hint))
+            .collect();
+        assert_eq!(names, reads);
 
         // Add role & binding for pipeline-developer
         let role = ResourceEnvelope {
@@ -737,6 +834,145 @@ mod tests {
         // Should NOT include propose ops for kinds not granted
         assert!(!names.contains(&"jc_space_propose"));
         assert!(!names.contains(&"jc_change_approve"));
+    }
+
+    /// The writing operations without a verb of one family, as `listing` offers them.
+    fn offered(caller: &Caller, state: &AppState, family: &[&str]) -> Vec<String> {
+        listing(caller, state, "ovzdusie")
+            .into_iter()
+            .map(|op| op.name)
+            .filter(|name| family.contains(&name.as_str()))
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
+
+    /// T-5608, AG-63: each writing operation without a verb is offered, and its call let through
+    /// to the question, only to a caller holding what its route checks: a viewer gets none, an
+    /// editor the ones that write what they propose, an organization administrator all of them.
+    #[test]
+    fn a_writing_operation_without_a_verb_is_offered_by_what_its_route_checks() {
+        use crate::config::Config;
+        use crate::permissions::ORG_NAMESPACE;
+        use crate::resource::ResourceEnvelope;
+
+        const PROPOSING: &[&str] = &[
+            "jc_draft_put",
+            "jc_draft_drop",
+            "jc_resource_propose",
+            "jc_flow_start",
+            "jc_project_import",
+            "jc_workspace_open",
+            "jc_workspace_update_from_main",
+            "jc_workspace_preview_start",
+            "jc_workspace_preview_stop",
+        ];
+        const DELETING: &[&str] = &["jc_resource_delete", "jc_project_delete"];
+        const ORGANIZATION: &[&str] = &[
+            "jc_project_create",
+            "jc_person_create",
+            "jc_person_edit",
+            "jc_person_disable",
+            "jc_person_enable",
+            "jc_person_sign_out",
+        ];
+        let all: Vec<&str> = [PROPOSING, DELETING, ORGANIZATION].concat();
+        // Every writing operation without a verb is in one family, so a new one gets a test.
+        let unlisted: Vec<&str> = registry()
+            .iter()
+            .filter(|op| op.verb.is_none() && !op.annotations.read_only_hint)
+            .map(|op| op.name)
+            .filter(|name| !all.contains(name))
+            .filter(|name| !["jc_workspace_propose", "jc_workspace_discard"].contains(name))
+            .collect();
+        assert_eq!(unlisted, Vec::<&str>::new());
+
+        let state = AppState::new(Config::for_tests(), None);
+        let role = |name: &str, rules: Value| ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.into(),
+            kind: "Role".into(),
+            metadata: crate::resource::ObjectMeta::new(name, ORG_NAMESPACE),
+            spec: json!({ "rules": rules }),
+            status: None,
+        };
+        let binding = |name: &str, group: &str, scope: Value| ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.into(),
+            kind: "RoleBinding".into(),
+            metadata: crate::resource::ObjectMeta::new(name, ORG_NAMESPACE),
+            spec: json!({ "role": name, "subjects": [{ "group": group }], "scope": scope }),
+            status: None,
+        };
+        state.mirror.upsert(role(
+            "viewer",
+            json!([{ "kinds": ["*"], "verbs": ["read"] }]),
+        ));
+        state.mirror.upsert(binding(
+            "viewer",
+            "viewers",
+            json!({ "project": "ovzdusie" }),
+        ));
+        state.mirror.upsert(role(
+            "editor",
+            json!([{ "kinds": ["Endpoint", "Pipeline"], "verbs": ["propose"] }]),
+        ));
+        state.mirror.upsert(binding(
+            "editor",
+            "editors",
+            json!({ "project": "ovzdusie" }),
+        ));
+        let caller = |group: &str| {
+            Caller::new(
+                Identity {
+                    client: None,
+                    subject: format!("f:1:{group}"),
+                    username: group.into(),
+                    email: None,
+                    name: None,
+                    roles: vec![],
+                    groups: vec![group.into()],
+                    second_factor: true,
+                },
+                Via::Session,
+            )
+        };
+        let viewer = caller("viewers");
+        let editor = caller("editors");
+        let admin = caller(&state.config.bootstrap_admins);
+
+        assert_eq!(offered(&viewer, &state, &all), Vec::<String>::new());
+        let mut proposing = PROPOSING.to_vec();
+        proposing.sort_unstable();
+        assert_eq!(offered(&editor, &state, &all), proposing);
+        assert_eq!(offered(&admin, &state, &all).len(), all.len());
+
+        // The call is refused before the question, with the right it misses.
+        let refusal = |name: &str| {
+            let op = find(name).expect("registered");
+            may_try(op, &viewer.identity, &state, "ovzdusie", None)
+                .expect_err("refused")
+                .to_string()
+        };
+        assert!(refusal("jc_project_delete").contains("delete on Project"));
+        assert!(refusal("jc_resource_delete").contains("delete"));
+        assert!(refusal("jc_draft_put").contains("propose"));
+        assert!(refusal("jc_person_create").contains("Person"));
+        assert!(refusal("jc_project_create").contains("Project"));
+
+        // A kind the call names is checked by name: the editor proposes Endpoints, not Spaces,
+        // and a stranger to the project is refused there.
+        let named = |caller: &Caller, kind: &str, project: &str| {
+            let op = find("jc_draft_put").expect("registered");
+            let input = json!({ "kind": kind, "name": "air", "manifest": {} });
+            may_try(op, &caller.identity, &state, project, Some(&input)).map_err(|e| e.to_string())
+        };
+        assert_eq!(named(&editor, "Endpoint", "ovzdusie"), Ok(()));
+        let space = named(&editor, "ContextSpace", "ovzdusie").expect_err("refused");
+        assert!(space.contains("propose on ContextSpace"), "{space}");
+        let stranger = named(&editor, "Endpoint", "doprava").expect_err("refused");
+        assert!(stranger.contains("doprava"), "{stranger}");
+        // The call itself leaves the answer to the route (T-5608 keeps PF-50's own sentences).
+        let op = find("jc_draft_put").expect("registered");
+        assert!(permitted(op, &viewer.identity, &state, "ovzdusie").is_ok());
     }
 
     // ---------------------------------------------------------------------------------------------

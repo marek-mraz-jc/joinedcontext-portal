@@ -9,6 +9,7 @@ pub mod agent_registry;
 pub mod agent_runs;
 pub mod alerts;
 pub mod app_build;
+pub mod app_from_template;
 pub mod app_me;
 pub mod app_shapes;
 pub mod app_share;
@@ -104,6 +105,7 @@ pub fn router() -> Router<AppState> {
         .merge(agent_runs::router())
         .merge(app_build::router())
         .merge(app_templates::router())
+        .merge(app_from_template::router())
         .merge(app_shapes::router())
         .merge(app_me::router())
         .merge(app_share::router())
