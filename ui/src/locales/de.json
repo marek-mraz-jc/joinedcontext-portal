@@ -5498,12 +5498,9 @@
     "endpoint": "Über Endpunkt lesen",
     "noEndpoint": "Dieser Raum hat keinen Endpunkt zum Lesen.",
     "noType": "Wählen Sie einen Entitätstyp, um Entitäten zu laden.",
-    "detail": "Entität",
-    "close": "Schließen",
     "loadFailed": "Die Entitäten konnten nicht geladen werden. Versuchen Sie es erneut oder lesen Sie über einen anderen Endpunkt.",
     "delete": "Entität löschen",
     "removeTitle": "Diese Entität löschen?",
-    "removeLead": "{id} wird über diesen Endpunkt aus dem Raum entfernt.",
     "removeConfirm": "Löschen",
     "removeNote": "Die Policy des Endpunkts entscheidet: Die Löschung läuft mit Ihrer Anmeldung, nicht mit einer Dienstidentität, und lässt sich nicht rückgängig machen.",
     "removeReason": "Grund",
@@ -5621,7 +5618,9 @@
       "pickEntity": "Wählen Sie die Entität für den zeitlichen Verlauf."
     },
     "pickSpaceFirst": "Wählen Sie zuerst einen Raum.",
-    "noMatch": "Nichts passt zu dieser Abfrage; ändern oder entfernen Sie einen Filter."
+    "noMatch": "Nichts passt zu dieser Abfrage; ändern oder entfernen Sie einen Filter.",
+    "technical": "Technische Details (JSON-LD)",
+    "copyJson": "JSON-LD kopieren"
   },
   "agentRun": {
     "title": "Anwendungslauf",

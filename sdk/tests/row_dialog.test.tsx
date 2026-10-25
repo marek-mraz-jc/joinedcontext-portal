@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { EntityGrid } from "../src/grid/EntityGrid";
+import { RowDetail } from "../src/grid/RowDetail";
 import { parseGridConfig } from "../src/grid/config";
 import { fixtureSource, historyOf, SourceError } from "../src/grid/source";
 import type { EntitySource, HistoryPoint, HistoryWindow } from "../src/grid/source";
@@ -185,7 +186,7 @@ describe("row dialog values (T-5599)", () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.assign(navigator, { clipboard: { writeText } });
     render(<EntityGrid config={config} source={fixtureSource(events)} enums={enums} openRow={openRow} />);
-    if (!openRow) fireEvent.click(await screen.findByRole("button", { name: `Open: ${EVENT}` }));
+    if (!openRow) fireEvent.click(await screen.findByRole("button", { name: `Open: ${EVENT.split(":").at(-1)}` }));
     const dialog = await screen.findByRole("dialog", { name: `Details: ${id.split(":").at(-1)}` });
     expect(dialog.textContent).not.toMatch(/urn:/);
     const status = within(dialog).getByText("Status").nextElementSibling;
@@ -220,5 +221,30 @@ describe("versions in a temporal answer (DM-114)", () => {
       },
       { at: "2026-10-20T10:00:00Z", value: 41 },
     ]);
+  });
+});
+
+// T-5619: the host gives the focus back to the grid on close, which a still-modal dialog makes inert
+// in a browser; the dialog leaves its modal state before it tells the host.
+describe("closing the row dialog (T-5619)", () => {
+  it.each(["Escape", "Close"])("is out of its modal state when the host hears of %s", async (how) => {
+    const row = { id: "urn:ngsi-ld:Event:hel.fi:helsinki:elo-1", type: "Event", cells: {}, raw: {} };
+    let openAtClose: boolean | null = null;
+    render(
+      <RowDetail
+        row={row}
+        name="Elo"
+        columns={[]}
+        renderValue={() => null}
+        labels={{ rowDetail: "Details", close: "Close", rowFields: "Fields", rowHistory: "History", historyAttr: "Attribute" }}
+        onClose={() => {
+          openAtClose = document.querySelector("dialog")?.hasAttribute("open") ?? null;
+        }}
+      />,
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Details: Elo" });
+    if (how === "Escape") fireEvent.keyDown(dialog, { key: "Escape" });
+    else fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    expect(openAtClose).toBe(false);
   });
 });

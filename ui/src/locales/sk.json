@@ -5498,12 +5498,9 @@
     "endpoint": "Čítať cez endpoint",
     "noEndpoint": "Tento priestor nemá endpoint, cez ktorý sa dá čítať.",
     "noType": "Vyberte typ entity, aby sa načítali entity.",
-    "detail": "Entita",
-    "close": "Zavrieť",
     "loadFailed": "Entity sa nepodarilo načítať. Skúste to znova alebo čítajte cez iný endpoint.",
     "delete": "Zmazať entitu",
     "removeTitle": "Zmazať túto entitu?",
-    "removeLead": "{id} sa odstráni z priestoru cez tento endpoint.",
     "removeConfirm": "Zmazať",
     "removeNote": "Rozhoduje Policy endpointu: zmazanie beží s vaším prihlásením, nie so servisnou identitou, a nedá sa vrátiť.",
     "removeReason": "Dôvod",
@@ -5621,7 +5618,9 @@
       "pickEntity": "Vyberte entitu, ktorej priebeh sa má zobraziť."
     },
     "pickSpaceFirst": "Najprv vyberte priestor.",
-    "noMatch": "Dopytu nič nezodpovedá; zmeňte alebo odstráňte filter."
+    "noMatch": "Dopytu nič nezodpovedá; zmeňte alebo odstráňte filter.",
+    "technical": "Technické podrobnosti (JSON-LD)",
+    "copyJson": "Kopírovať JSON-LD"
   },
   "agentRun": {
     "title": "Beh aplikácie",

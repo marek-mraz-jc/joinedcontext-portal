@@ -734,7 +734,7 @@ describe("the space's own data", () => {
     window.history.pushState({}, "", "/projects/banskabystrica/spaces/ovzdusie?row=javascript%3Aalert(1)");
     renderInside({ status: 200, count: 1 });
     const urn = SPACE_ROWS[0].id;
-    await userEvent.click(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: ${urn}` }));
+    await userEvent.click(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: ${urn.split(":").at(-1)}` }));
     expect(await screen.findByRole("dialog", { name: `${en.entityGrid.rowDetail}: ${urn.split(":").at(-1)}` })).toBeInTheDocument();
     expect(new URLSearchParams(window.location.search).get("row")).toBe(urn);
   });

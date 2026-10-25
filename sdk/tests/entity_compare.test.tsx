@@ -87,7 +87,8 @@ describe("the space beside an endpoint", () => {
     const rows = within(sideOf(L.left)).getAllByRole("row");
     const struck = rows.filter((row) => row.getAttribute("data-mark") === "row");
     expect(struck).toHaveLength(1);
-    expect(struck[0].textContent).toContain(SASOVA);
+    // The row reads by its URN's end, the whole id its opener's tooltip (T-5619).
+    expect(within(struck[0]).getByRole("button", { name: `Open: ${SASOVA.split(":").at(-1)}` })).toHaveAttribute("title", SASOVA);
     expect(struck[0]).toHaveAttribute("title", L.missingRow);
     // The endpoint's own side holds one row and says nothing about the other.
     expect(within(sideOf(L.right)).queryByText(SASOVA)).toBeNull();

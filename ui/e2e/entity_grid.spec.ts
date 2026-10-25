@@ -259,8 +259,8 @@ test.describe("the entity grid", () => {
 
     await expect(page.getByLabel("Context space")).toHaveValue("mobility");
     await expect(page.getByLabel("Read through endpoint")).toHaveValue("helsinki-bikes");
-    await expect(page.getByRole("button", { name: EMPTY_DOCK })).toBeVisible();
-    await expect(page.getByRole("button", { name: FULL_DOCK })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Open: Rautatientori" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open: Kamppi" })).toHaveCount(0);
     expect(reads.some((search) => search.includes("q=availableBikeNumber%3D%3D0"))).toBe(true);
   });
 
@@ -268,13 +268,13 @@ test.describe("the entity grid", () => {
     const { reads } = await stubApi(page);
 
     await page.goto(`${EXPLORE}?endpoint=helsinki-bikes&type=${TYPE}&lang=en`);
-    await expect(page.getByRole("button", { name: FULL_DOCK })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open: Kamppi" }).first()).toBeVisible();
 
     // The grid's own filter row, on the column: the operator and then the value.
     await page.getByLabel("Filter: availableBikeNumber").selectOption("equals");
     await page.getByLabel("Value: availableBikeNumber").fill("0");
 
-    await expect(page.getByRole("button", { name: FULL_DOCK })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Open: Kamppi" })).toHaveCount(0);
     await expect
       .poll(() => reads.filter((search) => search.includes("availableBikeNumber%3D%3D0")).length)
       .toBeGreaterThan(0);
@@ -293,10 +293,10 @@ test.describe("the entity grid", () => {
     const { reads } = await stubApi(page);
 
     await page.goto(`${EXPLORE}?endpoint=helsinki-bikes&type=${TYPE}&lang=en`);
-    await expect(page.getByRole("button", { name: FULL_DOCK })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open: Kamppi" }).first()).toBeVisible();
     await page.getByLabel("Filter: availableBikeNumber").selectOption("equals");
     await page.getByLabel("Value: availableBikeNumber").fill("0");
-    await expect(page.getByRole("button", { name: FULL_DOCK })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Open: Kamppi" })).toHaveCount(0);
 
     await page.getByLabel("Export format").selectOption("csv-excel");
     await page.getByRole("button", { name: "Export the view" }).click();
@@ -348,7 +348,7 @@ test.describe("the entity grid", () => {
     await stubApi(page);
 
     await page.goto(`${EXPLORE}?endpoint=helsinki-bikes&type=${TYPE}&lang=en`);
-    await expect(page.getByRole("button", { name: EMPTY_DOCK })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open: Rautatientori" }).first()).toBeVisible();
 
     // The attribute's metadata sits under Details in the column's own menu (T-4827).
     await openColumnDetails(page, "availableBikeNumber");
@@ -381,7 +381,7 @@ test.describe("the entity grid", () => {
     const { writes } = await stubApi(page, { write: false });
 
     await page.goto(`${EXPLORE}?endpoint=helsinki-bikes&type=${TYPE}&lang=en`);
-    await expect(page.getByRole("button", { name: EMPTY_DOCK })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open: Rautatientori" }).first()).toBeVisible();
 
     await expect(page.getByLabel("Edit availableBikeNumber")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Review the changes" })).toHaveCount(0);
