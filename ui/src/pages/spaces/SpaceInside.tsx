@@ -110,7 +110,7 @@ import {
 import { ConfirmDialog, Field, Input, RadioGroup, Select } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { SourceRemovalsPanel } from "../pipelines/PipelineSourceReport";
-import { useUrlParam, useUrlUrn } from "../../navigation/urlState";
+import { useUrlParam, useUrlText, useUrlUrn } from "../../navigation/urlState";
 import { policyRefsOf } from "../../components/endpoints/policyBinding";
 
 const SAMPLE_LIMIT = 3;
@@ -364,8 +364,19 @@ function SpaceData({
   const { t, i18n } = useTranslation();
   // The type is in the address like the view, so back, reload and a sent link open it (T-4825).
   const [type, setType] = useUrlParam<string>("type", types[0] ?? "", types);
-  // The open row is in the address too, so a link opens it in its dialog (T-4828).
-  const [openRow, setOpenRow] = useUrlUrn("row");
+  // The open row is in the address too, so a link opens it in its dialog (T-4828), with its tab and
+  // History attribute (T-5602); the dialog reads a tab or attribute it does not know as its default.
+  const [openRow, setOpenRow] = useUrlUrn("row", ["tab", "attr"]);
+  const [rowTab, setRowTab] = useUrlText("tab");
+  const [rowAttr, setRowAttr] = useUrlText("attr");
+  const detailPlace = useMemo(() => ({ tab: rowTab, attr: rowAttr }), [rowTab, rowAttr]);
+  const onDetailPlace = useCallback(
+    (next: { tab: string; attr: string }) => {
+      setRowTab(next.tab === "fields" ? null : next.tab);
+      setRowAttr(next.tab === "history" || next.tab === "metadata" ? next.attr : null);
+    },
+    [setRowTab, setRowAttr],
+  );
   // "+ Row": the type's form in a dialog, creating through the space surface (T-4828).
   const [creating, setCreating] = useState(false);
   // The type's alerts are being chosen (T-3261).
@@ -412,8 +423,10 @@ function SpaceData({
   // column's footer, all but the search kept in the view's settings.
   const [filters, setFilters] = useState<FilterGroup>(EMPTY_GROUP);
   const [filterColumns, setFilterColumns] = useState<FilterColumn[]>([]);
-  const [searchText, setSearchText] = useState("");
-  const [search, setSearch] = useState("");
+  // The search is in the address in place (T-5602), so a reload or a sent link asks it again.
+  const [urlSearch, setUrlSearch] = useUrlText("q");
+  const [searchText, setSearchText] = useState(urlSearch ?? "");
+  const [search, setSearch] = useState(urlSearch ?? "");
   const [rowSize, setRowSize] = useState<RowSize>("small");
   const [aggregations, setAggregations] = useState<Record<string, Aggregation>>({});
   // The Sort and Group panels (T-5188): the keys after the header's own sort, and the fields the
@@ -487,6 +500,7 @@ function SpaceData({
     const wait = setTimeout(() => setSearch(searchText), 400);
     return () => clearTimeout(wait);
   }, [searchText]);
+  useEffect(() => setUrlSearch(search), [search, setUrlSearch]);
   const panelQ = useMemo(() => queryFromGroup(filterColumns, filters), [filterColumns, filters]);
   // The search asks the type's text fields at the endpoint, at most eight of them per query.
   const searchQ = useMemo(
@@ -1084,6 +1098,8 @@ function SpaceData({
           ]}
           openRow={openRow}
           onOpenRow={setOpenRow}
+          detailPlace={detailPlace}
+          onDetailPlace={onDetailPlace}
           project={project}
           config={config}
           source={gridSource}

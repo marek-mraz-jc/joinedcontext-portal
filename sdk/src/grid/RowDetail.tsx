@@ -40,6 +40,23 @@ export interface RowDetailProps {
   tabs?: RowDetailTab[];
   /** What the host adds under the attributes, in the Fields tab. */
   children?: React.ReactNode;
+  /** The tab and attribute to open on, such as a host's address names them (T-5602); unknown ones read as the defaults. */
+  place?: { tab?: string | null; attr?: string | null };
+  /** Each change of tab or attribute, for a host that keeps them in the address. */
+  onPlace?: (place: { tab: string; attr: string }) => void;
+}
+
+/**
+ * The attribute History opens on (T-5602): the first one that holds a number or carries an
+ * `observedAt`, what a person reads history for, else the first one. A name does not change.
+ */
+export function measuredAttr(row: RichRow, attrs: string[]): string {
+  const measured = attrs.find((attr) => {
+    const cell = row.cells[attr];
+    const one = Array.isArray(cell) ? cell[0] : cell;
+    return one !== undefined && one.kind === "property" && (typeof one.value === "number" || one.observedAt !== undefined);
+  });
+  return measured ?? attrs[0] ?? "";
 }
 
 /**
@@ -50,12 +67,12 @@ export interface RowDetailProps {
  * browser's modal dialog keeps focus inside and the page behind inert; the heading takes focus when
  * it opens and Escape outside a text box closes it.
  */
-export function RowDetail({ row, name, columns, renderValue, labels, onClose, history, metadata, tabs = [], children }: RowDetailProps): React.JSX.Element {
+export function RowDetail({ row, name, columns, renderValue, labels, onClose, history, metadata, tabs = [], children, place, onPlace }: RowDetailProps): React.JSX.Element {
   const headingId = useId();
   const tabsId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
-  const [tab, setTab] = useState("fields");
+  const [tab, setOwnTab] = useState(place?.tab ?? "fields");
   useEffect(() => {
     const element = dialog.current;
     if (element && !element.open) element.showModal();
@@ -78,7 +95,18 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
     .map((attr) => ({ key: attr, attr, meta: null, label: attr, pinned: false }));
   const all = [...shown, ...rest];
 
-  const [attr, setAttr] = useState<string>(all[0]?.attr ?? "");
+  const attrs = all.map((column) => column.attr ?? "");
+  const [attr, setOwnAttr] = useState<string>(() =>
+    place?.attr && attrs.includes(place.attr) ? place.attr : measuredAttr(row, attrs),
+  );
+  const setTab = (next: string) => {
+    setOwnTab(next);
+    onPlace?.({ tab: next, attr });
+  };
+  const setAttr = (next: string) => {
+    setOwnAttr(next);
+    onPlace?.({ tab, attr: next });
+  };
   const historyTab = history && all.length > 0 ? [{ id: "history", label: labels.rowHistory }] : [];
   const metadataTab = metadata && all.length > 0 ? [{ id: "metadata", label: labels.rowMetadata ?? "Metadata" }] : [];
   const list = [{ id: "fields", label: labels.rowFields }, ...historyTab, ...metadataTab, ...tabs.map(({ id, label }) => ({ id, label }))];
