@@ -1,6 +1,6 @@
 /** T-0497: a Pipeline from a form or its YAML, proposed through the change flow (PL-04, PL-31, PL-33, PL-39, UI-01, AP-13). */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -28,6 +28,13 @@ function MockEditor({ value, onChange }: { value: string; onChange?: (value: str
 }
 
 vi.mock("../src/pages/models/MonacoSourceView", () => ({ default: MockEditor }));
+
+// One user per case, without the zero-delay timer userEvent waits between keys by default: the
+// typed names and mappings are many keystrokes, each a render of the whole form (T-5520).
+let user: UserEvent;
+beforeEach(() => {
+  user = userEvent.setup({ delay: null });
+});
 
 const { App } = await import("../src/App");
 const { canvasLoss, completeOutput, endpointUrn, expiryWindow, firstShape, fromManifest, toEnvelope, toForm } = await import(
@@ -257,12 +264,41 @@ function writes(fetchMock: ReturnType<typeof vi.fn>): Request[] {
     );
 }
 
+/**
+ * A part of the studio or the workbench, by the id its heading carries (`studio-entities`,
+ * `workbench-target-title`). The dialog holds about a thousand elements, and a label or role
+ * query over all of them costs seconds in jsdom; over its own part, milliseconds (T-5520).
+ */
+function section(scope: HTMLElement, labelledBy: string): HTMLElement {
+  const found = scope.querySelector<HTMLElement>(`section[aria-labelledby="${labelledBy}"]`);
+  if (!found) {
+    throw new Error(`no section labelled by ${labelledBy}`);
+  }
+  return found;
+}
+
+/**
+ * The control a visible `<label>` names, found by reading the labels alone: getByLabelText
+ * weighs every element of the dialog for a label, seconds per lookup (T-5520).
+ */
+function labelled(scope: HTMLElement, text: string | RegExp): HTMLElement {
+  const label = within(scope).getByText(text, { selector: "label" }) as HTMLLabelElement;
+  const control = label.htmlFor ? document.getElementById(label.htmlFor) : label.control;
+  if (!control) {
+    throw new Error(`the label ${String(text)} names no control`);
+  }
+  return control;
+}
+
+const targetPick = (dialog: HTMLElement) =>
+  within(section(dialog, "workbench-target-title")).getByLabelText(en.pipelines.field.targetEndpoint);
+
 async function openNew() {
-  await userEvent.click(await screen.findByRole("button", { name: en.pipelines.add }));
+  await user.click(await screen.findByRole("button", { name: en.pipelines.add }));
   const dialog = await findFormPage();
   // The selects are filled from the project's lists once they arrive: the target is the
   // workbench's last step, the source its first (T-2754, T-2709).
-  const target = within(dialog).getByLabelText(en.pipelines.field.targetEndpoint);
+  const target = targetPick(dialog);
   await within(target).findByRole("option", { name: "public-air" });
   return dialog;
 }
@@ -270,10 +306,15 @@ async function openNew() {
 /** The source is picked where a person picks it: the studio above the form (T-2754). */
 async function pickDataSource(dialog: HTMLElement, name: string) {
   const studio = within(dialog).getByTestId("pipeline-studio");
-  await userEvent.selectOptions(within(studio).getByLabelText(en.pipelines.studio.sourceKind), "datasource");
-  await userEvent.selectOptions(within(studio).getByLabelText(en.pipelines.field.dataSource), name);
+  await user.selectOptions(within(section(studio, "studio-source")).getByLabelText(en.pipelines.studio.sourceKind), "datasource");
+  await user.selectOptions(within(section(studio, "studio-source")).getByLabelText(en.pipelines.field.dataSource), name);
 }
 
+/**
+ * The form's footer, where Check and Propose sit. A role query over the whole dialog computes the
+ * accessible name and visibility of every control in it, seconds per lookup in jsdom (T-5520).
+ */
+const footer = (dialog: HTMLElement) => within(dialog).getByTestId("form-footer");
 const yamlTab = (dialog: HTMLElement) => within(dialog).getByRole("tab", { name: en.form.view.yaml });
 const formTab = (dialog: HTMLElement) => within(dialog).getByRole("tab", { name: en.form.view.form });
 // Awaited: the editor is loaded lazily, so it is behind a Suspense boundary for a moment.
@@ -282,10 +323,10 @@ const editor = (dialog: HTMLElement) =>
 
 async function replaceYaml(dialog: HTMLElement, text: string) {
   const area = await editor(dialog);
-  await userEvent.clear(area);
+  await user.clear(area);
   // `paste`, not `type`: userEvent would take `{` and `[` in the text as key descriptors.
-  await userEvent.click(area);
-  await userEvent.paste(text);
+  await user.click(area);
+  await user.paste(text);
 }
 
 describe("pipeline editor", () => {
@@ -405,14 +446,14 @@ describe("pipeline editor", () => {
     renderPipelines();
     const dialog = await openNew();
 
-    await userEvent.type(within(dialog).getByLabelText(/^Name/), "aq-derived");
+    await user.type(labelled(dialog, /^Name/), "aq-derived");
     await pickDataSource(dialog, "mqtt-mesto");
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText(/^Target endpoint/),
+    await user.selectOptions(
+      targetPick(dialog),
       "public-air",
     );
 
-    await userEvent.click(yamlTab(dialog));
+    await user.click(yamlTab(dialog));
     const shown = parseYaml((await editor(dialog)).value) as ReturnType<typeof toEnvelope>;
     expect(shown.kind).toBe("Pipeline");
     expect(shown.metadata.name).toBe("aq-derived");
@@ -428,11 +469,11 @@ describe("pipeline editor", () => {
       dialog,
       (await editor(dialog)).value.replace("class: auto", "class: auto\n  period: 15s"),
     );
-    await userEvent.click(formTab(dialog));
-    expect(within(dialog).getByLabelText(/^Period/)).toHaveValue("15s");
-    expect(within(dialog).getByLabelText(/^Name/)).toHaveValue("aq-derived");
+    await user.click(formTab(dialog));
+    expect(labelled(dialog, /^Period/)).toHaveValue("15s");
+    expect(labelled(dialog, /^Name/)).toHaveValue("aq-derived");
 
-    await userEvent.click(yamlTab(dialog));
+    await user.click(yamlTab(dialog));
     expect(parseYaml((await editor(dialog)).value)).toEqual({
       ...shown,
       spec: { ...shown.spec, period: "15s" },
@@ -443,21 +484,21 @@ describe("pipeline editor", () => {
     const fetchMock = renderPipelines();
     const dialog = await openNew();
 
-    await userEvent.click(yamlTab(dialog));
+    await user.click(yamlTab(dialog));
     await replaceYaml(dialog, "metadata: [unclosed");
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
-    await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
+    await user.click(within(footer(dialog)).getByRole("button", { name: en.form.check }));
     await waitFor(() =>
-      expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })),
+      expectOpen(within(footer(dialog)).getByRole("button", { name: en.pipelines.propose })),
     );
-    await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
+    await user.click(within(footer(dialog)).getByRole("button", { name: en.pipelines.propose }));
 
     const alert = await within(dialog).findByRole("alert");
     expect(alert).toHaveTextContent(/Correct the YAML/);
     expect(writes(fetchMock)).toHaveLength(0);
 
     // The form tab is refused too: the text stays where the problem is.
-    await userEvent.click(formTab(dialog));
+    await user.click(formTab(dialog));
     expect(await editor(dialog)).toHaveValue("metadata: [unclosed");
   });
 
@@ -465,7 +506,7 @@ describe("pipeline editor", () => {
     const fetchMock = renderPipelines();
     const dialog = await openNew();
 
-    await userEvent.click(yamlTab(dialog));
+    await user.click(yamlTab(dialog));
     // A scheduled pipeline without a schedule, and a source naming both inputs (PL-39).
     await replaceYaml(
       dialog,
@@ -483,11 +524,11 @@ describe("pipeline editor", () => {
       ].join("\n"),
     );
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
-    await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
+    await user.click(within(footer(dialog)).getByRole("button", { name: en.form.check }));
     await waitFor(() =>
-      expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })),
+      expectOpen(within(footer(dialog)).getByRole("button", { name: en.pipelines.propose })),
     );
-    await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
+    await user.click(within(footer(dialog)).getByRole("button", { name: en.pipelines.propose }));
 
     const alert = await within(dialog).findByRole("alert");
     expect(alert).toHaveTextContent(en.form.schemaErrors);
@@ -500,22 +541,22 @@ describe("pipeline editor", () => {
     const fetchMock = renderPipelines();
     const dialog = await openNew();
 
-    await userEvent.type(within(dialog).getByLabelText(/^Name/), "aq-derived");
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText(/^Execution/),
+    await user.type(labelled(dialog, /^Name/), "aq-derived");
+    await user.selectOptions(
+      labelled(dialog, /^Execution/),
       en.pipelines.field.classChoice.resident,
     );
     await pickDataSource(dialog, "mqtt-mesto");
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText(/^Target endpoint/),
+    await user.selectOptions(
+      targetPick(dialog),
       "public-air",
     );
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
-    await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
+    await user.click(within(footer(dialog)).getByRole("button", { name: en.form.check }));
     await waitFor(() =>
-      expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })),
+      expectOpen(within(footer(dialog)).getByRole("button", { name: en.pipelines.propose })),
     );
-    await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
+    await user.click(within(footer(dialog)).getByRole("button", { name: en.pipelines.propose }));
 
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
     const request = writes(fetchMock)[0];
@@ -650,21 +691,21 @@ describe("pipeline editor", () => {
     const dialog = await openNew();
 
     expect(within(dialog).queryByText(en.pipelines.bloblangHint)).not.toBeInTheDocument();
-    await userEvent.selectOptions(within(dialog).getByLabelText(/^Kind/), en.pipelines.field.computeChoice.bloblang);
+    await user.selectOptions(labelled(dialog, /^Kind/), en.pipelines.field.computeChoice.bloblang);
     expect(within(dialog).getByText(en.pipelines.bloblangHint)).toBeInTheDocument();
     // A textarea, not a one-line input: a mapping is several lines of Bloblang (PL-41).
-    expect(within(dialog).getByLabelText(/^Bloblang mapping/).tagName).toBe("TEXTAREA");
+    expect(labelled(dialog, /^Bloblang mapping/).tagName).toBe("TEXTAREA");
 
-    await userEvent.selectOptions(within(dialog).getByLabelText(/^Kind/), en.pipelines.field.computeChoice.wasm);
+    await user.selectOptions(labelled(dialog, /^Kind/), en.pipelines.field.computeChoice.wasm);
     expect(within(dialog).queryByText(en.pipelines.bloblangHint)).not.toBeInTheDocument();
-    await userEvent.type(within(dialog).getByLabelText(/^Name/), "aq-index");
+    await user.type(labelled(dialog, /^Name/), "aq-index");
     // wasm needs module and function (PL-33): Check names both required fields on the compute
     // group and sends nothing, so no verdict opens Propose (AG-62, T-0779, T-2634).
-    await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
+    await user.click(within(footer(dialog)).getByRole("button", { name: en.form.check }));
     const alerts = await within(dialog).findAllByRole("alert");
     expect(alerts.filter((alert) => alert.textContent?.includes(en.form.required)).length)
       .toBeGreaterThanOrEqual(2);
-    expect(within(dialog).getByRole("button", { name: en.pipelines.propose })).toHaveAttribute(
+    expect(within(footer(dialog)).getByRole("button", { name: en.pipelines.propose })).toHaveAttribute(
       "aria-disabled",
       "true",
     );
@@ -712,18 +753,18 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     const dialog = await openNew();
     const studio = within(dialog).getByTestId("pipeline-studio");
 
-    await userEvent.selectOptions(within(studio).getByLabelText(en.pipelines.studio.sourceKind), "space");
-    await userEvent.selectOptions(within(studio).getByLabelText(en.pipelines.studio.space), "ovzdusie");
+    await user.selectOptions(within(section(studio, "studio-source")).getByLabelText(en.pipelines.studio.sourceKind), "space");
+    await user.selectOptions(within(section(studio, "studio-source")).getByLabelText(en.pipelines.studio.space), "ovzdusie");
     // The read endpoint of the space is picked for the author, and stays a choice.
-    expect(within(studio).getByLabelText(en.pipelines.studio.readThrough)).toHaveValue("public-air");
-    await userEvent.selectOptions(within(studio).getByLabelText(en.entities.type), "AirQualityObserved");
+    expect(within(section(studio, "studio-source")).getByLabelText(en.pipelines.studio.readThrough)).toHaveValue("public-air");
+    await user.selectOptions(within(section(studio, "studio-entities")).getByLabelText(en.entities.type), "AirQualityObserved");
     // The class's attributes come from the inline model.
-    await userEvent.click(within(studio).getByLabelText("pm10"));
+    await user.click(within(section(studio, "studio-entities")).getByLabelText("pm10"));
 
-    await userEvent.click(within(studio).getByRole("button", { name: en.pipelines.studio.loadSample }));
-    const first = await within(studio).findByLabelText(SAMPLE[0].id);
-    await userEvent.click(first);
-    await userEvent.click(within(studio).getByLabelText(SAMPLE[2].id));
+    await user.click(within(section(studio, "studio-entities")).getByRole("button", { name: en.pipelines.studio.loadSample }));
+    const first = await within(section(studio, "studio-entities")).findByLabelText(SAMPLE[0].id);
+    await user.click(first);
+    await user.click(within(section(studio, "studio-entities")).getByLabelText(SAMPLE[2].id));
     expect(within(studio).getByText(/2 entities ticked/)).toBeInTheDocument();
     const gatewayCalls = fetchMock.mock.calls
       .map((call) => new URL((call[0] as Request).url))
@@ -736,28 +777,28 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     expect(gatewayCalls[0].searchParams.get("options")).toBe("keyValues");
     expect(gatewayCalls[0].searchParams.get("attrs")).toBe("pm10");
 
-    await userEvent.click(within(studio).getByRole("button", { name: en.pipelines.studio.aggregate.sum }));
+    await user.click(within(section(studio, "studio-process")).getByRole("button", { name: en.pipelines.studio.aggregate.sum }));
 
     // A Bloblang mapping proposes only after a green test (PL-49): the studio offers the
     // endpoint's own page as the sample, the way the reconciler will read it.
-    await userEvent.click(within(studio).getByRole("button", { name: en.pipelines.test.useUrl }));
-    await userEvent.click(within(studio).getByRole("button", { name: en.pipelines.test.run }));
+    await user.click(within(section(studio, "studio-test")).getByRole("button", { name: en.pipelines.test.useUrl }));
+    await user.click(within(section(studio, "studio-test")).getByRole("button", { name: en.pipelines.test.run }));
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.some((call) => String((call[0] as Request).url ?? call[0]).endsWith("/pipelines/test")),
       ).toBe(true),
     );
 
-    await userEvent.type(within(dialog).getByLabelText(/^Name/), "pm10-sum");
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText(/^Target endpoint/),
+    await user.type(labelled(dialog, /^Name/), "pm10-sum");
+    await user.selectOptions(
+      targetPick(dialog),
       "public-air",
     );
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
-    await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
-    const propose = within(dialog).getByRole("button", { name: en.pipelines.propose });
+    await user.click(within(footer(dialog)).getByRole("button", { name: en.form.check }));
+    const propose = within(footer(dialog)).getByRole("button", { name: en.pipelines.propose });
     await waitFor(() => expect(propose).toBeEnabled());
-    await userEvent.click(propose);
+    await user.click(propose);
 
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
     const body = (await writes(fetchMock)[0].clone().json()) as { spec: Record<string, unknown> };
@@ -773,13 +814,7 @@ it("tells a feed from a space and reads the attributes of a class from an inline
       targetEndpoint: "urn:ngsi-ld:Endpoint:banskabystrica.sk:ovzdusie:public-air",
     });
     expect((firstShape(body.spec).compute as { bloblang: string }).bloblang).toContain("pm10Sum");
-  }, // The whole guided flow in one case: seven steps, a sample fetched and a sum typed. It runs
-  // in 9 s here and in 20.5 s under `--coverage`, which is the file's own `testTimeout` to the
-  // millisecond, so `ci-full` failed on the instrumentation and nothing else (T-2449). Raised
-  // for this case alone: the 20 s ceiling is what catches a test that really has hung, and it
-  // stays where it is for the other 31. T-4027: the dialog grew, and each dialog-wide role query
-  // now costs up to 3.5 s in jsdom: 23 s plain, 40 s under coverage here, past 45 s on ci-full.
-  90_000);
+  });
 
   it("shows only the fields of the chosen source, compute and execution (T-2754)", async () => {
     renderPipelines();
@@ -793,7 +828,7 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     const summary = [...dialog.querySelectorAll("summary")].find((one) => one.textContent?.startsWith("More options"));
     const more = summary?.closest("details");
     expect(more).not.toHaveAttribute("open");
-    await userEvent.click(summary as HTMLElement);
+    await user.click(summary as HTMLElement);
     expect(more).toHaveAttribute("open");
 
     // Nothing chosen: no source fields, no compute fields, no schedule.
@@ -811,8 +846,8 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     expect(formField("source_endpointRef")).not.toBeVisible();
 
     // A space: the ways of reading the studio does not offer, and not the feed's picker.
-    await userEvent.selectOptions(within(studio).getByLabelText(en.pipelines.studio.sourceKind), "space");
-    await userEvent.selectOptions(within(studio).getByLabelText(en.pipelines.studio.space), "ovzdusie");
+    await user.selectOptions(within(section(studio, "studio-source")).getByLabelText(en.pipelines.studio.sourceKind), "space");
+    await user.selectOptions(within(section(studio, "studio-source")).getByLabelText(en.pipelines.studio.space), "ovzdusie");
     expect(geo()).toBeVisible();
     expect(trigger()).toBeVisible();
     expect(formField("source_dataSourceRef")).not.toBeVisible();
@@ -824,19 +859,19 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     expect(geo()).not.toBeVisible();
 
     // The compute kind shows its own fields only.
-    const kind = within(dialog).getByLabelText(/^Kind/);
-    await userEvent.selectOptions(kind, en.pipelines.field.computeChoice.wasm);
+    const kind = labelled(dialog, /^Kind/);
+    await user.selectOptions(kind, en.pipelines.field.computeChoice.wasm);
     expect(formField("compute_module")).toBeVisible();
     expect(formField("compute_function")).toBeVisible();
     expect(formField("compute_bloblang")).not.toBeVisible();
     expect(formField("compute_mappingRef")).not.toBeVisible();
-    await userEvent.selectOptions(kind, en.pipelines.field.computeChoice.mapping);
+    await user.selectOptions(kind, en.pipelines.field.computeChoice.mapping);
     expect(formField("compute_mappingRef")).toBeVisible();
     expect(formField("compute_module")).not.toBeVisible();
 
     // The schedule belongs to a scheduled pipeline.
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText(/^Execution/),
+    await user.selectOptions(
+      labelled(dialog, /^Execution/),
       en.pipelines.field.classChoice.scheduled,
     );
     expect(formField("schedule")).toBeVisible();
@@ -845,7 +880,7 @@ it("tells a feed from a space and reads the attributes of a class from an inline
   it("reads its choices as words and chooses no target for the author (T-2754)", async () => {
     renderPipelines();
     const dialog = await openNew();
-    const execution = within(dialog).getByLabelText(/^Execution/);
+    const execution = labelled(dialog, /^Execution/);
     expect(within(execution).getByRole("option", { selected: true })).toHaveTextContent(
       en.pipelines.field.classChoice.auto,
     );
@@ -854,9 +889,9 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     for (const raw of ["auto", "resident", "scheduled"]) {
       expect(words(execution)).not.toContain(raw);
     }
-    expect(words(within(dialog).getByLabelText(/^Kind/))).not.toContain("wasm");
+    expect(words(labelled(dialog, /^Kind/))).not.toContain("wasm");
     // A write target is the author's choice, never the first endpoint of the list.
-    const target = within(dialog).getByLabelText(/^Target endpoint/);
+    const target = targetPick(dialog);
     expect(within(target).getByRole("option", { selected: true })).toHaveTextContent(en.form.choose);
     // One sentence per checkbox, not one above and one under it.
     expect(within(dialog).queryAllByText(en.pipelines.field.allowFeedbackHint).length).toBeLessThanOrEqual(1);
@@ -872,7 +907,7 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     expect(open).toHaveLength(2);
     expect(open[1].textContent).toBe("\u22ef");
 
-    await userEvent.click(open[1]);
+    await user.click(open[1]);
     const menu = await screen.findByRole("menu");
     expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
       en.pipelines.runs.open,
@@ -891,24 +926,24 @@ it("tells a feed from a space and reads the attributes of a class from an inline
 
     const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
     // Edit lives in the row's menu now (T-2287).
-    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
+    await user.click(within(row).getByRole("button", { name: /More actions/ }));
+    await user.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
     const dialog = await findFormPage();
-    expect(within(dialog).getByLabelText(/^Name/)).toHaveValue("aq-mqtt-ingest");
-    expect(within(dialog).getByLabelText(/^Name/)).toHaveAttribute("readonly");
+    expect(labelled(dialog, /^Name/)).toHaveValue("aq-mqtt-ingest");
+    expect(labelled(dialog, /^Name/)).toHaveAttribute("readonly");
     expect(within(dialog).getByText(en.pipelines.bloblangHint)).toBeInTheDocument();
     expect(within(dialog).getByRole("link", { name: /bento\.yaml/ })).toHaveAttribute(
       "href",
       expect.stringMatching(/pipelines\/aq-mqtt-ingest\/bento\.yaml$/),
     );
 
-    await userEvent.type(within(dialog).getByLabelText(/^Period/), "10s");
+    await user.type(labelled(dialog, /^Period/), "10s");
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
-    await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
+    await user.click(within(footer(dialog)).getByRole("button", { name: en.form.check }));
     await waitFor(() =>
-      expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })),
+      expectOpen(within(footer(dialog)).getByRole("button", { name: en.pipelines.propose })),
     );
-    await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
+    await user.click(within(footer(dialog)).getByRole("button", { name: en.pipelines.propose }));
 
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
     const request = writes(fetchMock)[0];
@@ -927,19 +962,19 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     const fetchMock = renderPipelines([running]);
     const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
     // Edit lives in the row's menu now (T-2287).
-    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
+    await user.click(within(row).getByRole("button", { name: /More actions/ }));
+    await user.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
     const dialog = await findFormPage();
-    await userEvent.click(within(dialog).getByRole("tab", { name: "YAML" }));
+    await user.click(within(dialog).getByRole("tab", { name: "YAML" }));
     const editor = await within(dialog).findByRole("textbox", { name: "YAML" });
     const pasted = { ...running, status: undefined, spec: { ...running.spec, enabled: false } };
     fireEvent.change(editor, { target: { value: stringifyYaml(pasted) } });
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
-    await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
+    await user.click(within(footer(dialog)).getByRole("button", { name: en.form.check }));
     await waitFor(() =>
-      expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })),
+      expectOpen(within(footer(dialog)).getByRole("button", { name: en.pipelines.propose })),
     );
-    await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
+    await user.click(within(footer(dialog)).getByRole("button", { name: en.pipelines.propose }));
 
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
     const body = (await writes(fetchMock)[0].clone().json()) as { spec: Record<string, unknown> };
@@ -954,16 +989,16 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     const fetchMock = renderPipelines();
 
     const dialog = await findFormPage();
-    expect(within(dialog).getByLabelText(/^Name/)).toHaveValue("aq-mqtt-ingest");
-    expect(within(dialog).getByLabelText(/^Period/)).toHaveValue("5m");
+    expect(labelled(dialog, /^Name/)).toHaveValue("aq-mqtt-ingest");
+    expect(labelled(dialog, /^Period/)).toHaveValue("5m");
     expect(writes(fetchMock)).toHaveLength(0);
 
     // Strict validation proposes nothing without a fresh green verdict (AG-62, T-0779).
-    await userEvent.click(within(dialog).getByRole("button", { name: en.form.check }));
+    await user.click(within(footer(dialog)).getByRole("button", { name: en.form.check }));
     await waitFor(() =>
-      expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })),
+      expectOpen(within(footer(dialog)).getByRole("button", { name: en.pipelines.propose })),
     );
-    await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
+    await user.click(within(footer(dialog)).getByRole("button", { name: en.pipelines.propose }));
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
     const request = writes(fetchMock)[0];
     expect(request.method).toBe("PUT");
@@ -979,7 +1014,7 @@ it("tells a feed from a space and reads the attributes of a class from an inline
 
     // The address named a draft, so the editor is open on it without a click.
     const dialog = await findFormPage();
-    await userEvent.type(within(dialog).getByLabelText(/^Name/), "aq-derived");
+    await user.type(labelled(dialog, /^Name/), "aq-derived");
 
     await waitFor(() => {
       const drafted = fetchMock.mock.calls
@@ -1016,8 +1051,8 @@ describe("the pipeline editor against the UI contract", () => {
     renderPipelines();
 
     const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
-    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
+    await user.click(within(row).getByRole("button", { name: /More actions/ }));
+    await user.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
     const dialog = await findFormPage();
     await within(dialog).findByRole("link", { name: /bento\.yaml/ });
 
@@ -1028,7 +1063,7 @@ describe("the pipeline editor against the UI contract", () => {
     renderPipelines();
     const dialog = await openNew();
 
-    const name = within(dialog).getByLabelText(/^Name/);
+    const name = labelled(dialog, /^Name/);
     const step = name.closest("section, form, div[class*=grid]") as HTMLElement;
     await expectTabOrder(userEvent, step);
   });
@@ -1043,8 +1078,8 @@ describe("the pipeline editor against the UI contract", () => {
     ]);
 
     const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
-    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
+    await user.click(within(row).getByRole("button", { name: /More actions/ }));
+    await user.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
     const dialog = await findFormPage();
 
     // The hint about the Bloblang file stays; only the address is refused.
@@ -1061,23 +1096,23 @@ describe("the pipeline editor against the UI contract", () => {
     const file = 'pipeline:\n  processors:\n    - mapping: |\n        root = { "type": "AirQualityObserved" }\n';
     const fetchMock = renderPipelines([{ ...EXISTING, spec } as Manifest], file);
     const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
-    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
+    await user.click(within(row).getByRole("button", { name: /More actions/ }));
+    await user.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
     const dialog = await findFormPage();
-    const box = await within(dialog).findByLabelText(en.pipelines.workbench.mapping.file);
+    const box = await within(section(dialog, "workbench-mapping-title")).findByLabelText(en.pipelines.workbench.mapping.file);
     await waitFor(() => expect(box).toHaveValue(file));
     expect(box).toHaveAttribute("readonly");
     expect(within(dialog).queryByLabelText(en.pipelines.field.bloblang)).toBeNull();
 
-    await userEvent.click(within(dialog).getByLabelText(en.pipelines.workbench.mapping.fileEdit));
+    await user.click(within(section(dialog, "workbench-mapping-title")).getByLabelText(en.pipelines.workbench.mapping.fileEdit));
     expect(box).not.toHaveAttribute("readonly");
     fireEvent.change(box, { target: { value: `${file}# checked\n` } });
     // Basics first: the name and execution sit above the six steps (T-4818).
-    const name = within(dialog).getByLabelText(/^Name/);
+    const name = labelled(dialog, /^Name/);
     expect(name.compareDocumentPosition(within(dialog).getByTestId("pipeline-workbench")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // No Check is pressed: the dialog checks by itself once the form rests, and Propose opens.
-    await waitFor(() => expectOpen(within(dialog).getByRole("button", { name: en.pipelines.propose })));
-    await userEvent.click(within(dialog).getByRole("button", { name: en.pipelines.propose }));
+    await waitFor(() => expectOpen(within(footer(dialog)).getByRole("button", { name: en.pipelines.propose })));
+    await user.click(within(footer(dialog)).getByRole("button", { name: en.pipelines.propose }));
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
     const sent = (await writes(fetchMock)[0].clone().json()) as Record<string, unknown>;
     expect(sent.files).toEqual({ "bento.yaml": `${file}# checked\n` });
@@ -1089,10 +1124,10 @@ describe("the pipeline editor against the UI contract", () => {
     const { compute: _dropped, ...spec } = EXISTING.spec as Record<string, unknown>;
     renderPipelines([{ ...EXISTING, spec } as Manifest]);
     const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
-    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
+    await user.click(within(row).getByRole("button", { name: /More actions/ }));
+    await user.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
     const dialog = await findFormPage();
-    expect(await within(dialog).findByLabelText(en.pipelines.field.bloblang)).toHaveValue("");
+    expect(await within(section(dialog, "workbench-mapping-title")).findByLabelText(en.pipelines.field.bloblang)).toHaveValue("");
     expect(within(dialog).queryByTestId("pipeline-mapping-file")).toBeNull();
   });
 
@@ -1100,23 +1135,23 @@ describe("the pipeline editor against the UI contract", () => {
     const { compute: _dropped, ...spec } = EXISTING.spec as Record<string, unknown>;
     renderPipelines([{ ...EXISTING, spec } as Manifest], 503);
     const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
-    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
+    await user.click(within(row).getByRole("button", { name: /More actions/ }));
+    await user.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
     const dialog = await findFormPage();
     const file = await within(dialog).findByTestId("pipeline-mapping-file");
     expect(await within(file).findByRole("button", { name: /retry|try again/i })).toBeInTheDocument();
-    const edit = within(dialog).getByLabelText(en.pipelines.workbench.mapping.fileEdit);
+    const edit = within(section(dialog, "workbench-mapping-title")).getByLabelText(en.pipelines.workbench.mapping.fileEdit);
     expect(edit).toHaveAttribute("aria-disabled", "true");
     expect(edit).toHaveAccessibleDescription(en.pipelines.workbench.mapping.fileEditDisabled);
-    await userEvent.click(edit);
+    await user.click(edit);
     expect(edit).not.toBeChecked();
   });
 
   it("asks for no bento.yaml for a pipeline that maps in its own compute step", async () => {
     const fetchMock = renderPipelines();
     const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
-    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
+    await user.click(within(row).getByRole("button", { name: /More actions/ }));
+    await user.click(await screen.findByRole("menuitem", { name: en.resourceEdit.button }));
     const dialog = await findFormPage();
     expect(within(dialog).queryByTestId("pipeline-mapping-file")).toBeNull();
     const asked = fetchMock.mock.calls.map((call) => String((call[0] as Request).url ?? call[0]));
@@ -1130,21 +1165,21 @@ describe("the pipeline editor against the UI contract", () => {
     const dialog = await openNew();
     const studio = within(dialog).getByTestId("pipeline-studio");
 
-    await userEvent.selectOptions(within(studio).getByLabelText(en.pipelines.studio.sourceKind), "space");
-    await userEvent.selectOptions(within(studio).getByLabelText(en.pipelines.studio.space), "ovzdusie");
-    await userEvent.selectOptions(within(studio).getByLabelText(en.entities.type), "AirQualityObserved");
-    await userEvent.click(within(studio).getByRole("button", { name: en.pipelines.studio.loadSample }));
+    await user.selectOptions(within(section(studio, "studio-source")).getByLabelText(en.pipelines.studio.sourceKind), "space");
+    await user.selectOptions(within(section(studio, "studio-source")).getByLabelText(en.pipelines.studio.space), "ovzdusie");
+    await user.selectOptions(within(section(studio, "studio-entities")).getByLabelText(en.entities.type), "AirQualityObserved");
+    await user.click(within(section(studio, "studio-entities")).getByRole("button", { name: en.pipelines.studio.loadSample }));
 
-    const table = await within(studio).findByRole("table", { name: en.pipelines.studio.sample });
+    const table = await within(section(studio, "studio-entities")).findByRole("table", { name: en.pipelines.studio.sample });
     // A long sample scrolls in its own frame instead of growing the studio (T-1775).
-    const frame = within(studio).getByRole("group", { name: en.pipelines.studio.sample });
+    const frame = within(section(studio, "studio-entities")).getByRole("group", { name: en.pipelines.studio.sample });
     expect(frame.className).toContain("max-h-64");
     const headers = within(table).getAllByRole("columnheader");
     expect(headers.every((header) => header.getAttribute("scope") === "col")).toBe(true);
     expect(headers[0]).toHaveTextContent(en.pipelines.studio.tick);
 
     const tick = within(table).getByRole("checkbox", { name: SAMPLE[0].id });
-    await userEvent.click(tick);
+    await user.click(tick);
     expect(tick).toBeChecked();
     expect(within(studio).getByText(/1 entity ticked|1 entities ticked/)).toBeInTheDocument();
   });
@@ -1153,9 +1188,9 @@ describe("the pipeline editor against the UI contract", () => {
     await i18n.changeLanguage(locale);
     renderPipelines();
 
-    await userEvent.click(await screen.findByRole("button", { name: i18n.t("pipelines.add") }));
+    await user.click(await screen.findByRole("button", { name: i18n.t("pipelines.add") }));
     const dialog = await findFormPage();
-    await within(within(dialog).getByLabelText(i18n.t("pipelines.field.targetEndpoint"))).findByRole("option", {
+    await within(within(section(dialog, "workbench-target-title")).getByLabelText(i18n.t("pipelines.field.targetEndpoint"))).findByRole("option", {
       name: "public-air",
     });
 

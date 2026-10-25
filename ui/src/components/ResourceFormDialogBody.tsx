@@ -480,7 +480,7 @@ export function ResourceFormDialogBody<T>({
             disabled={disabled}
             downloadName={extractName(formData) ?? kind?.toLowerCase() ?? "manifest"}
             footer={
-              <ResourceFormFooter {...footer} className="justify-end">
+              <ResourceFormFooter {...footer} className="justify-end" testId="form-footer">
                 {effectiveSubmitDisabledReason && !proposeReason ? (
                   <span role="status" className="text-caption text-fg-muted">
                     {effectiveSubmitDisabledReason}
