@@ -275,7 +275,7 @@ const YAML_WORDS = /^(true|false|yes|no|on|off|y|n|null|~)$/i;
  * would otherwise read as another shape (F-UI2-012).
  */
 function scalar(text: string): string {
-  return /^[A-Za-z0-9_][A-Za-z0-9_.\/-]*$/.test(text) && !YAML_WORDS.test(text) ? text : JSON.stringify(text);
+  return /^[A-Za-z0-9_][A-Za-z0-9_./-]*$/.test(text) && !YAML_WORDS.test(text) ? text : JSON.stringify(text);
 }
 
 /**
