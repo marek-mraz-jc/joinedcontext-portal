@@ -7,8 +7,8 @@ import type { JSX } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, readCsrfToken, unwrap, whilePending } from "../api/client";
-import { proposeChecked } from "../api/proposal";
+import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
+import { importManifests, proposeChecked } from "../api/proposal";
 import { asManifests, isChange, localized, ORG_NAMESPACE, overlay, plainTitle, refName } from "../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import type { Verdict } from "../api/drafts";
@@ -919,32 +919,10 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
     if (tickedClassNames.length === 0) {
       throw new Error(t("endpoints.picker.nothingTicked"));
     }
-    const res = await globalThis.fetch(
-      new Request(
-        `${window.location.origin}/api/v1/projects/${encodeURIComponent(project)}/import${dryRun ? "?dryRun=All" : ""}`,
-        {
-          method: "POST",
-          credentials: "same-origin",
-          // The import door mutates, so the session's double-submit token travels with it;
-          // without the header every Check and Propose of a projected endpoint is a bare 403
-          // and the dialog only says "not checked yet" (T-0898).
-          headers: {
-            "Content-Type": "application/json",
-            "x-csrf-token": readCsrfToken() ?? "",
-          },
-          // The bundle is the form's own endpoint, its projection and its policies, not a
-          // foreign import, so a projection an earlier proposal already drew is updated by this
-          // one instead of refusing the whole check (MF-23, T-1227). Every manifest still lands
-          // as a Change an approver reads, and "Show the manifests this proposes" says what.
-          body: JSON.stringify({ manifests: buildManifests(form), conflictPolicy: "replace" }),
-        },
-      ),
-    );
-    if (!res.ok) {
-      const problem = (await res.json().catch(() => null)) as { detail?: string } | null;
-      throw new ApiError(res.status, problem?.detail || `HTTP ${res.status}`);
-    }
-    return res.json();
+    // The bundle is the form's own endpoint, its projection and its policies, not a foreign
+    // import, so a projection an earlier proposal already drew is updated by this one instead
+    // of refusing the whole check (MF-23, T-1227).
+    return importManifests(project, buildManifests(form), dryRun);
   };
 
   // A bundle is checked whole, and the endpoint is always checked with its draft too, so the

@@ -13,7 +13,6 @@ export interface Rule {
   verbs?: string[];
 }
 
-/** A grant allows a verb on a kind when its rule names both; `*` matches any kind. */
 /**
  * Whether the person administers the organization (PF-03): `approve` and `delete` on
  * `RoleBinding` in the organization's permissions, the question the server asks before the
@@ -44,6 +43,7 @@ export function ownOrganizationOf(effective: Effective | undefined): string | un
   return effective.grants.find((grant) => grant.organization)?.organization ?? undefined;
 }
 
+/** A grant allows a verb on a kind when its rule names both; `*` matches any kind. */
 export function allows(effective: Effective | undefined, kind: string, verb: Verb): boolean {
   // Not (yet) a permissions document: the control shows and the API decides (PF-51 says the
   // UI is never the point of enforcement). Only a document that lists no grant hides it.
@@ -139,7 +139,6 @@ export function usePermissions(project: string) {
   };
 }
 
-/** One rule of a `Role` as the form holds it: the verbs it grants on the kinds it names. */
 /**
  * Whether the caller administers the organization (PF-03, UI-75): `approve` and `delete` on
  * `RoleBinding` in the organization's permissions, as the seeded `org-admin` holds them and the
@@ -154,6 +153,7 @@ export function useAdministers(): { known: boolean; administers: boolean; own?: 
   return { known: !permissions.isLoading, administers, own, opensAdministration: administers || own !== undefined };
 }
 
+/** One rule of a `Role` as the form holds it: the verbs it grants on the kinds it names. */
 export interface GrantedRule {
   kinds?: string[];
   verbs?: string[];

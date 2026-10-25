@@ -96,7 +96,6 @@ export function SecretRefWidget(props: WidgetProps): JSX.Element {
       const envVar = `DS_${sanitizePart(trimmedName)}_${sanitizePart(trimmedKey)}`;
       const interpolation = `\${${envVar}}`;
       onChange(interpolation);
-      onSecretRef?.(envVar, { name: trimmedName, key: trimmedKey, envVar });
     } else {
       onChange(undefined);
     }

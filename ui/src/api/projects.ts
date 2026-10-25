@@ -1,16 +1,21 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import { api, queryKeys, unwrap } from "./client";
 import { asManifests, localized } from "./manifest";
 import { useTranslation } from "react-i18next";
 import { offeredLocales, useBranding } from "../branding";
 
+/** The one `GET /api/v1/projects` query every project picker reads, each through its own `select`. */
+export const projectsQuery = queryOptions({
+  queryKey: queryKeys.projects(),
+  queryFn: async () => unwrap(await api.GET("/api/v1/projects")),
+});
+
 /** The projects the configuration repository holds, as `GET /api/v1/projects` lists them (PF-05). */
 export function useProjects() {
   return useQuery({
-    queryKey: queryKeys.projects(),
-    queryFn: async () => unwrap(await api.GET("/api/v1/projects")),
+    ...projectsQuery,
     select: (list) => list.items.map((item) => item.name),
   });
 }
@@ -22,8 +27,7 @@ export function useProjects() {
  */
 export function useOrganizations() {
   return useQuery({
-    queryKey: queryKeys.projects(),
-    queryFn: async () => unwrap(await api.GET("/api/v1/projects")),
+    ...projectsQuery,
     select: (list) => ({
       organizations: list.organizations ?? [],
       ownerOf: new Map(list.items.map((item) => [item.name, item.organization])),
@@ -50,8 +54,7 @@ export function useChosenOrganizationName(): string | undefined {
  */
 export function useSampleProjects() {
   return useQuery({
-    queryKey: queryKeys.projects(),
-    queryFn: async () => unwrap(await api.GET("/api/v1/projects")),
+    ...projectsQuery,
     select: (list) => list.items.filter((item) => item.sample).map((item) => item.name),
   });
 }
@@ -63,8 +66,7 @@ export function useSampleProjects() {
 export function useProjectTitles(): (project: string) => string {
   const { i18n } = useTranslation();
   const titles = useQuery({
-    queryKey: queryKeys.projects(),
-    queryFn: async () => unwrap(await api.GET("/api/v1/projects")),
+    ...projectsQuery,
     select: (list) => new Map(list.items.map((item) => [item.name, item.title])),
   }).data;
   return (project) => localized(titles?.get(project), i18n.language, project);

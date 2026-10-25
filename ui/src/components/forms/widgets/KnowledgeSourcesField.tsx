@@ -4,6 +4,7 @@ import type { FieldProps } from "@rjsf/utils";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../../api/client";
+import { projectsQuery } from "../../../api/projects";
 import { asManifests, localized } from "../../../api/manifest";
 import { Badge, Checkbox } from "../../ui";
 import { useShownErrors } from "../touched";
@@ -40,8 +41,7 @@ export function KnowledgeSourcesField(props: FieldProps): JSX.Element {
   const chosen: string[] = Array.isArray(formData) ? (formData as unknown[]).filter((v): v is string => typeof v === "string") : [];
 
   const projects = useQuery({
-    queryKey: queryKeys.projects(),
-    queryFn: async () => unwrap(await api.GET("/api/v1/projects")),
+    ...projectsQuery,
     select: (list) => list.items.map((item) => item.name),
   });
   // The own project first, then the others as the server lists them.

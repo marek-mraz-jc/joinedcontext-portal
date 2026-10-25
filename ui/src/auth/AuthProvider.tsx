@@ -37,16 +37,20 @@ async function fetchIdentity(): Promise<Identity | null> {
   return unwrap(result);
 }
 
+const sessionOptions = {
+  queryKey: queryKeys.session(),
+  queryFn: fetchIdentity,
+  retry: false,
+  staleTime: 60_000,
+};
+
 /**
  * The signed-in identity from the same session query the provider reads, for a component that
  * may render without the provider around it (a run page inside a test, a dock).
  */
 export function useIdentity(): Identity | null {
   const session = useQuery({
-    queryKey: queryKeys.session(),
-    queryFn: fetchIdentity,
-    retry: false,
-    staleTime: 60_000,
+    ...sessionOptions,
   });
   return session.data ?? null;
 }
@@ -56,10 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
   // A public form's page asks nobody who is signed in: it is anonymous for everyone (EP-102).
   const anonymousPage = isPublicFormPath(window.location.pathname);
   const session = useQuery({
-    queryKey: queryKeys.session(),
-    queryFn: fetchIdentity,
-    retry: false,
-    staleTime: 60_000,
+    ...sessionOptions,
     enabled: !anonymousPage,
   });
 

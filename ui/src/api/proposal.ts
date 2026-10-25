@@ -51,6 +51,25 @@ export async function proposeChecked(
   return unwrap(await send(false));
 }
 
+/**
+ * One import of manifests the form drew, replacing what an earlier proposal already drew
+ * (MF-23, T-1227); `dryRun` checks without proposing. Every manifest still lands as a Change.
+ */
+export async function importManifests(project: string, manifests: unknown[], dryRun: boolean): Promise<unknown> {
+  return unwrap<unknown>(
+    await api.POST("/api/v1/projects/{project}/import", {
+      params: { path: { project }, query: dryRun ? { dryRun: "All" } : undefined },
+      body: { manifests: manifests as ResourceProposal[], conflictPolicy: "replace" },
+    }),
+  );
+}
+
+/** Proposes manifests as one checked import, the way the endpoint form proposes a projection (PF-57). */
+export async function proposeBundle(project: string, manifests: unknown[]): Promise<unknown> {
+  await importManifests(project, manifests, true);
+  return importManifests(project, manifests, false);
+}
+
 /** One PUT or POST of a manifest, as the endpoints page does it; the result is a Change. */
 export function useProposal(project: string, plural: string, onChange: (change: Change) => void) {
   const { t } = useTranslation();

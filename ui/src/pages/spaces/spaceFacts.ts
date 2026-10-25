@@ -6,8 +6,8 @@ import type { Manifest } from "../../api/manifest";
 import { refName } from "../../api/manifest";
 import { admitsPerson } from "../../components/endpoints/sharing";
 import { policyRefsOf } from "../../components/endpoints/policyBinding";
+import { SPACE_LABEL } from "../../schemas/modelprojection";
 
-const SPACE_LABEL = "joinedcontext.com/space";
 const RESULTS_COUNT_HEADER = "NGSILD-Results-Count";
 
 /** The space a manifest belongs to: `spec.contextSpaceRef` first, the space label second. */
