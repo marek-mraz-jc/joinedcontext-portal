@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useId, useMemo, useState } from "react";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
 import type { JSX } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import type { Feature, FeatureCollection } from "geojson";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
@@ -351,6 +351,9 @@ export function DashboardsPage({ project }: { project: string }): JSX.Element {
     // window regains focus is not what the reader came for.
     staleTime: 60_000,
     retry: false,
+    // A pan moves the bbox and with it the key: the last features stay on the map while the next
+    // arrive, so the map is never swapped for a placeholder and the viewport stays (F-UI3-017).
+    placeholderData: keepPreviousData,
   });
 
   const { native, dense } = useMemo(() => {
