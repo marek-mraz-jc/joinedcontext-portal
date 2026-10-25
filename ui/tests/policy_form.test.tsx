@@ -21,6 +21,7 @@ import validator from "../src/components/forms/validator";
 import { OPERATION_GROUPS } from "../src/components/endpoints/operationGroups";
 import { policySchema, policyUiSchema } from "../src/schemas/kinds";
 import { fromPolicyEnvelope, toPolicyEnvelope } from "../src/routes/PoliciesPage";
+import { policySentence } from "../src/pages/policies/policySentence";
 import type { PolicyForm } from "../src/routes/PoliciesPage";
 import en from "../src/locales/en.json";
 
@@ -52,6 +53,35 @@ function box(name: string): HTMLInputElement {
   expect(found, `the picker offers ${name}`).not.toBeNull();
   return found as HTMLInputElement;
 }
+
+describe("a Policy with rules[] (ADR-N-057, F-UI3-015)", () => {
+  const ruled = {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "Policy",
+    metadata: { name: "parking-grants", namespace: PROJECT },
+    spec: {
+      contextSpaceRef: { kind: "ContextSpace", name: "parking" },
+      assigner: "did:web:hel.fi",
+      rules: [
+        { assignee: { kind: "role", id: "helsinki-readers" }, operations: ["retrieveOps"] },
+        { assignee: { kind: "group", id: "stewards" }, operations: ["updateOps"] },
+      ],
+    },
+  };
+
+  it("saves back without a single-rule assignee beside its rules", () => {
+    const spec = (toPolicyEnvelope(PROJECT, DOMAIN, fromPolicyEnvelope(ruled)) as { spec: Record<string, unknown> }).spec;
+    expect(spec.rules).toEqual(ruled.spec.rules);
+    expect(spec).not.toHaveProperty("assignee");
+    expect(spec).not.toHaveProperty("operations");
+  });
+
+  it("is said as one sentence per rule, each naming its grantee", () => {
+    const sentence = policySentence(fromPolicyEnvelope(ruled), i18n.t.bind(i18n), "en");
+    expect(sentence).toContain("helsinki-readers");
+    expect(sentence).toContain("stewards");
+  });
+});
 
 describe("the Policy form", () => {
   beforeEach(async () => {

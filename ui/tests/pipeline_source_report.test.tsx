@@ -168,6 +168,15 @@ describe("the report's CSV", () => {
       "",
     ]);
   });
+
+  it("writes an id a spreadsheet would run as a formula as text (F-UI3-009)", () => {
+    const csv = sourceCsv({ ...released, orphanIds: ['=HYPERLINK("https://evil.example","x")', "@SUM(1)"], missingIds: ["-1+2"], removed: [] });
+    expect(csv.split("\r\n").slice(1, 4)).toEqual([
+      `orphan,"'=HYPERLINK(""https://evil.example"",""x"")",,,`,
+      "orphan,'@SUM(1),,,",
+      "missing,'-1+2,r3,,",
+    ]);
+  });
 });
 
 describe("the space's tombstones from source deletes", () => {

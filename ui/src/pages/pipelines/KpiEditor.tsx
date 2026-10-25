@@ -12,6 +12,7 @@ import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { usePermissions } from "../../api/permissions";
+import { useProjectOrganization } from "../../api/projects";
 import { useBranding } from "../../branding";
 import type { components } from "../../api/schema";
 import { AttributePicker } from "../../components/pickers/AttributePicker";
@@ -89,7 +90,11 @@ function useReadableEndpoints(project: string): Manifest[] {
 
 export function KpiEditorDialog({ project, initial, pending, error, onClose, onPropose }: KpiEditorProps): JSX.Element {
   const { t } = useTranslation();
-  const { orgDomain } = useBranding();
+  const branding = useBranding();
+  // The project's own Organization's domain; none at all until it is known, so no target URN is
+  // minted under a stand-in and fixed into the draft (F-UI3-016).
+  const { organization, settled } = useProjectOrganization(project);
+  const orgDomain = (organization?.spec as { domain?: string } | undefined)?.domain || (settled ? branding.orgDomain : "");
   const endpoints = useReadableEndpoints(project);
   const targets = useMemo(() => kpiTargets(endpoints, spaceOf, orgDomain), [endpoints, orgDomain]);
   const sourceEndpoints = useMemo(() => endpoints.filter((e) => !spaceOf(e)?.endsWith("-kpi")), [endpoints]);

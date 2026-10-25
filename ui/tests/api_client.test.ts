@@ -274,6 +274,16 @@ describe("searchEntities", () => {
     ]);
   });
 
+  it("searches the typed text as a literal, never as a pattern", async () => {
+    // F-UI1-020: `~=` is a regular expression; a typed `a.*(b+)+` must reach the broker escaped.
+    fetchMock.mockResolvedValue(new Response("[]", { status: 200, headers: { "Content-Type": "application/ld+json" } }));
+    await searchEntities({ space: "city-iot", type: "Sensor", q: 'a.*(b+)+ "x"' });
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(new URL(url, "https://portal.invalid").searchParams.get("q")).toBe(
+      String.raw`name~="a\\.\\*\\(b\\+\\)\\+ \"x\""`,
+    );
+  });
+
   it("throws ApiError on non-2xx response", async () => {
     fetchMock.mockResolvedValue(
       new Response(

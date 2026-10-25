@@ -47,6 +47,7 @@ vi.mock("maplibre-gl", () => {
     }
     removeLayer() {}
     removeSource() {}
+    off() {}
     fitBounds() {}
     getBounds() {
       return { getWest: () => 0, getSouth: () => 0, getEast: () => 1, getNorth: () => 1 };
@@ -77,8 +78,11 @@ vi.mock("maplibre-gl", () => {
 // The layers it is given are real, so the assertions below are about real deck.gl classes.
 vi.mock("@deck.gl/mapbox", () => ({
   MapboxOverlay: class {
-    readonly layers: unknown[];
+    layers: unknown[];
     constructor(props: { layers: unknown[] }) {
+      this.layers = props.layers;
+    }
+    setProps(props: { layers: unknown[] }) {
       this.layers = props.layers;
     }
   },

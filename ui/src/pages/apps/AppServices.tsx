@@ -3,8 +3,9 @@ import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
-import { asManifests, isChange, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
+import { isChange, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
+import { useProjectOrganization } from "../../api/projects";
 import { proposeChecked } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { Alert, Button, Checkbox } from "../../components/ui";
@@ -69,16 +70,8 @@ export function AppServices({ project, name }: { project: string; name: string }
       ),
     retry: false,
   });
-  const organizations = useQuery({
-    queryKey: queryKeys.list(ORG_NAMESPACE, "organizations"),
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/{plural}", {
-          params: { path: { project: ORG_NAMESPACE, plural: "organizations" } },
-        }),
-      ),
-    retry: false,
-  });
+  // The project's own Organization, whose locks bind this App (ADR-N-058, F-UI1-012).
+  const { organization: owner } = useProjectOrganization(project);
   const propose = useMutation({
     mutationFn: (manifest: Manifest) => proposeChecked(project, "apps", manifest as ResourceProposal, false),
     onMutate: () => {
@@ -99,7 +92,7 @@ export function AppServices({ project, name }: { project: string; name: string }
   const stored = spec.services ?? [];
   const services = picked ?? stored;
   const organization = (
-    asManifests(organizations.data?.items ?? [])[0]?.spec as { policies?: { apps?: { services?: string[] } } } | undefined
+    owner?.spec as { policies?: { apps?: { services?: string[] } } } | undefined
   )?.policies?.apps?.services;
   const projectServices = (projectManifest.data as { spec?: { apps?: { services?: string[] } } } | undefined)?.spec
     ?.apps?.services;

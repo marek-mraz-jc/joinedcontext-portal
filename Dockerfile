@@ -32,7 +32,7 @@ RUN printf '{"commit":"%s","openapi":"%s"}\n' "$JC_PORTAL_COMMIT" "$(sha256sum o
 # `portal-ui`: the bundle behind the static server the deployment already pins (components/basemap),
 # uid 101 on port 8080. Its default site serves the files and answers 404 for the rest; the
 # binary decides which paths are pages of the SPA.
-FROM docker.io/nginxinc/nginx-unprivileged:1.30.4-alpine-slim@sha256:7bbe8940bc478e5618e6d4cfbeda406e5b4217cacc06faacd665aca5e468595e AS ui-bundle
+FROM docker.io/nginxinc/nginx-unprivileged:1.30.6-alpine-slim@sha256:5d8bb9437d74a600ec5dbf90c035451c724dc33eac8d3a71078f6f8612c345f6 AS ui-bundle
 # The pinned base lags Alpine's security fixes (pcre2 CVE-2026-103111, T-4707): take them at
 # build time, so a fix never waits for upstream to rebuild the tag.
 USER 0

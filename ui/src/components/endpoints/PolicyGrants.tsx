@@ -19,6 +19,7 @@ import { granteeName, operationAreas } from "../AccessWords";
 import { Alert, Badge, Button } from "../ui";
 import { PageFailed } from "../ui/PageState";
 import { expandOperations, grantChanges, groupOf } from "./operationGroups";
+import { policyRules } from "./policyBinding";
 import type { Binding } from "./policyBinding";
 
 /** How many policies "Who may call it" shows before "Show all" (T-5015). */
@@ -40,8 +41,7 @@ interface Rule {
 
 /** The grants a Policy holds, each once: `rules[]` when it lists them, else the spec itself. */
 export function rulesOf(policy: Manifest): Rule[] {
-  const spec = (policy.spec ?? {}) as Rule & { rules?: Rule[] };
-  return Array.isArray(spec.rules) && spec.rules.length > 0 ? spec.rules : [spec];
+  return policyRules(policy) as Rule[];
 }
 
 /** Title by name, for one kind the caller may list; empty when the list is refused or absent. */

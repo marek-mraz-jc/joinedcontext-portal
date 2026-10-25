@@ -351,6 +351,7 @@
         "Button": 2
       },
       "tests": [
+        "count_scope.test.tsx",
         "grid_sort_group.test.tsx",
         "grid_toolbar.test.tsx"
       ]
@@ -361,6 +362,7 @@
         "Checkbox": 1
       },
       "tests": [
+        "count_scope.test.tsx",
         "grid_toolbar.test.tsx",
         "view_options.test.tsx"
       ]
@@ -855,7 +857,8 @@
         "Button": 5
       },
       "tests": [
-        "form_role_bindings.test.tsx"
+        "form_role_bindings.test.tsx",
+        "project_organization.test.tsx"
       ]
     },
     "src/pages/access/Roles.tsx": {
@@ -2019,6 +2022,7 @@
         "RadioGroup": 1
       },
       "tests": [
+        "bulk_bar_loaded.test.tsx",
         "grid_toolbar.test.tsx",
         "part_space_inside.test.tsx",
         "space_inside.test.tsx"
@@ -2064,7 +2068,8 @@
       },
       "tests": [
         "form_errors_after_touch.test.tsx",
-        "page_sync_sources_page.test.tsx"
+        "page_sync_sources_page.test.tsx",
+        "sync_source_round_trip.test.ts"
       ]
     },
     "src/pages/workspaces/BringBackPage.tsx": {
@@ -2137,6 +2142,7 @@
         "endpoint_catalog.test.tsx",
         "endpoint_open_data.test.tsx",
         "endpoint_representations.test.ts",
+        "endpoint_write_policy.test.ts",
         "representation_outputs_field.test.tsx"
       ]
     },

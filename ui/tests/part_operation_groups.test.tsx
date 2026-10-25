@@ -263,6 +263,15 @@ describe("which policies decide an endpoint's calls", () => {
     expect(all).toEqual({ kind: "all", policies: [READERS, own, ownRole] });
   });
 
+  it("reads every rule of a rules[] policy for its assignee (F-UI1-018)", () => {
+    const rules = (name: string, ids: string[]) =>
+      manifest("Policy", name, { contextSpaceRef: "ovzdusie", rules: ids.map((id) => ({ assignee: { kind: "role", id }, operations: ["queryEntity"] })) });
+    const elsewhere = rules("elsewhere", [`endpoint:${PROJECT}/app-hsl-transport`, `endpoint:${PROJECT}/app-hsl-transport/steward`]);
+    const mixed = rules("mixed", [`endpoint:${PROJECT}/app-hsl-transport`, `endpoint:${PROJECT}/${NAME}`]);
+    const noRef = manifest("Endpoint", NAME, { contextSpaceRef: "ovzdusie", slug: SLUG });
+    expect(bindingOf(noRef, PROJECT, "ovzdusie", [READERS, elsewhere, mixed], [SPACE])).toEqual({ kind: "all", policies: [READERS, mixed] });
+  });
+
   it("binds nothing when the reference names a policy of another space, as the gateway does", () => {
     // Same manifest name, another space: `bound_policy` requires the URN's space segment to be
     // the endpoint's own, so this endpoint grants nothing at all.

@@ -139,6 +139,21 @@ describe("Button", () => {
     expect(button, "and it stays reachable, or the reason is never read").toHaveFocus();
   });
 
+  it("a_caller_s_own_description_and_title_keep_the_reason", () => {
+    // F-UI1-014: a caller's `aria-describedby` or `title` replaced the reason's link and tooltip.
+    wrap(
+      <>
+        <p id="publish-hint">Publishing makes the app public.</p>
+        <Button disabled disabledReason="Check the app first." aria-describedby="publish-hint" title="Publish">
+          Publish
+        </Button>
+      </>,
+    );
+    const button = screen.getByRole("button", { name: /Publish/ });
+    expect(button).toHaveAccessibleDescription("Check the app first. Publishing makes the app public.");
+    expect(button).toHaveAttribute("title", "Check the app first.");
+  });
+
   it("a_reason_on_its_own_changes_nothing_because_disabled_is_what_refuses", async () => {
     // The pair is `disabled` beside the reason, and this case pins why it may not be loosened:
     // a call site may hand one constant reason to a list and compute `disabled` per row

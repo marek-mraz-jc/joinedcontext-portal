@@ -8,7 +8,6 @@ import { asManifests, isChange, ORG_NAMESPACE, storedMetadata } from "../../api/
 import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 import { useProjects } from "../../api/projects";
 import { proposeChecked } from "../../api/proposal";
-import { useBranding } from "../../branding";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { Alert, Button, Field, PageHeader, Select } from "../../components/ui";
@@ -27,6 +26,7 @@ import {
   withGroupMembers,
 } from "./groupRoles";
 import type { Place, RoleChoice } from "./groupRoles";
+import { useOrganizationName } from "../../api/projects";
 import { instancesReachedBy } from "../ckan/ckanAccess";
 
 interface GroupSpec {
@@ -401,7 +401,8 @@ function PlatformRoles({
   const { t } = useTranslation();
   const heading = useId();
   const ids = useId();
-  const branding = useBranding();
+  // An organization place names the Organization the Access page is on (ADR-N-058, F-UI1-010).
+  const organization = useOrganizationName(ORG_NAMESPACE);
   const projects = useProjects();
   const orgRoles = useList(ORG_NAMESPACE, "roles");
   const [target, setTarget] = useState(""); // "" = organization, else a project name
@@ -504,7 +505,7 @@ function PlatformRoles({
         onSubmit={(event) => {
           event.preventDefault();
           if (chosen && !refusal) {
-            onAdd(groupBinding(group, chosen.name, place, branding.orgDomain));
+            onAdd(groupBinding(group, chosen.name, place, organization));
             setRole("");
           }
         }}

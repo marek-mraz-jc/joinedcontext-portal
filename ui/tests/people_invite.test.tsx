@@ -113,7 +113,7 @@ async function invite(user: ReturnType<typeof userEvent.setup>, project?: string
 
 describe("the invitation's rules", () => {
   it("proposes the role in the project, for the person's Keycloak id and never the address (ADR-N-061)", () => {
-    const binding = inviteBinding("00000000-0000-4000-8000-0000000000aa", "editor", "helsinki", "hel.fi");
+    const binding = inviteBinding("00000000-0000-4000-8000-0000000000aa", "editor", "helsinki");
     expect(binding.kind).toBe("RoleBinding");
     expect(binding.metadata.namespace).toBe("org");
     expect(binding.spec).toEqual({ subjects: [{ user: "00000000-0000-4000-8000-0000000000aa" }], role: "editor", scope: { project: "helsinki" } });

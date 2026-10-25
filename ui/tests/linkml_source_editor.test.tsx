@@ -13,6 +13,7 @@ import { expectNoRawKeys, expectNoViolations, focusables } from "./checks";
 const monaco = vi.hoisted(() => ({
   setModelMarkers: vi.fn(),
   registerCompletionItemProvider: vi.fn(),
+  dispose: vi.fn(),
 }));
 
 function MockEditor({
@@ -85,12 +86,13 @@ function Harness({ initial = SOURCE }: { initial?: string }) {
 }
 
 function renderEditor(initial?: string) {
-  render(
+  const view = render(
     <I18nextProvider i18n={i18n}>
       <Harness initial={initial} />
     </I18nextProvider>,
   );
   return {
+    unmount: view.unmount,
     area: () => screen.getByLabelText("LinkML source") as HTMLTextAreaElement,
     user: userEvent.setup(),
   };
@@ -101,6 +103,7 @@ describe("LinkML source editor", () => {
     await i18n.changeLanguage("en");
     monaco.setModelMarkers.mockClear();
     monaco.registerCompletionItemProvider.mockClear();
+    monaco.dispose.mockClear();
   });
 
   it("turns diagnostics into markers on the line they are about", () => {
@@ -151,6 +154,16 @@ describe("LinkML source editor", () => {
     );
     const markers = monaco.setModelMarkers.mock.calls.at(-1)?.[2] as { message: string }[];
     expect(markers.some((marker) => marker.message.includes("class_uri"))).toBe(true);
+  });
+
+  it("withdraws its completions when it closes, so a reopened editor offers each once", async () => {
+    // F-UI2-014: the provider is registered for every YAML editor of the page, not this one.
+    monaco.registerCompletionItemProvider.mockImplementation(() => ({ dispose: monaco.dispose }));
+    const first = renderEditor(SOURCE);
+    await waitFor(() => expect(monaco.registerCompletionItemProvider).toHaveBeenCalled());
+    const registered = monaco.registerCompletionItemProvider.mock.calls.length;
+    first.unmount();
+    expect(monaco.dispose).toHaveBeenCalledTimes(registered);
   });
 
   it("shows a YAML syntax error with the line it is on", async () => {

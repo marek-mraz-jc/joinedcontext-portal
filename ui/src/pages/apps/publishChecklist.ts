@@ -5,6 +5,7 @@
  */
 import type { Manifest } from "../../api/manifest";
 import { refName } from "../../api/manifest";
+import { grantChanges } from "../../components/endpoints/operationGroups";
 import type { AppCheck } from "./AppCheckChip";
 
 export type ItemState = "ok" | "warning" | "problem";
@@ -22,9 +23,6 @@ export interface ChecklistItem {
 /** Where an App's licence and contact are written, beside its title (AP-140). */
 export const LICENCE_ANNOTATION = "joinedcontext.com/licence";
 export const CONTACT_ANNOTATION = "joinedcontext.com/contact";
-
-/** The operations a data need may name that write (CIM 009 §4.20); a public app must not write. */
-const WRITES = /^(create|update|append|replace|delete|merge|upsert|batch)/i;
 
 /**
  * Attribute names that are a person's own data. ponytail: a name list, not a model property; a
@@ -86,7 +84,9 @@ export function publishChecklist(
       const space = refName(need.contextSpaceRef) ?? "";
       const operations = Array.isArray(need.operations) ? need.operations.filter((op): op is string => typeof op === "string") : [];
       const attrs = Array.isArray(need.attrs) ? need.attrs.filter((a): a is string => typeof a === "string") : [];
-      if (operations.some((op) => WRITES.test(op))) problems.push({ key: "privacy", state: "problem", reason: "writes", detail: space });
+      // A public app must not write: jc-core's own list of writing operations and groups decides,
+      // not a name prefix (F-UI2-015).
+      if (grantChanges(operations) !== "nothing") problems.push({ key: "privacy", state: "problem", reason: "writes", detail: space });
       if (space && !publicSpaces.has(space)) problems.push({ key: "privacy", state: "problem", reason: "unpublished", detail: space });
       for (const attr of attrs.filter((a) => PERSONAL.test(a))) {
         problems.push({ key: "privacy", state: "problem", reason: "personal", detail: attr });

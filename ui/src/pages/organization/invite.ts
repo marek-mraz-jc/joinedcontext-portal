@@ -15,8 +15,9 @@ export type InviteRole = (typeof INVITE_ROLES)[number];
  * user id the invitation created, never their e-mail (ADR-N-061). It is proposed like every other
  * grant and holds once approved: the invitation itself grants nothing (PF-95, PF-108).
  */
-export function inviteBinding(id: string, role: InviteRole, project: string, orgDomain: string): Manifest {
-  return bindingOf({ subjectKind: "user", subject: id, role, place: "project", until: "" }, project, orgDomain);
+export function inviteBinding(id: string, role: InviteRole, project: string): Manifest {
+  // A project place: no Organization is named.
+  return bindingOf({ subjectKind: "user", subject: id, role, place: "project", until: "" }, project, undefined);
 }
 
 export type InvitationState =

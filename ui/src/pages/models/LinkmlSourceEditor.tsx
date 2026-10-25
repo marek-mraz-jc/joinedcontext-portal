@@ -143,6 +143,15 @@ export function LinkmlSourceEditor({
     paint(markersFrom(diagnostics));
   }, [diagnostics, paint]);
 
+  const completions = useRef<{ dispose(): void } | null>(null);
+  useEffect(
+    () => () => {
+      completions.current?.dispose();
+      completions.current = null;
+    },
+    [],
+  );
+
   const onMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
@@ -172,7 +181,10 @@ export function LinkmlSourceEditor({
         };
       },
     };
-    monaco.languages.registerCompletionItemProvider("yaml", provider);
+    // A language's providers are the whole page's: the one this editor added leaves with it, or
+    // each reopening would offer every completion once more (F-UI2-014).
+    completions.current?.dispose();
+    completions.current = monaco.languages.registerCompletionItemProvider("yaml", provider);
     paint(markersFrom(diagnostics));
   };
 

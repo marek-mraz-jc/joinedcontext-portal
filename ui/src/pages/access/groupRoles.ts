@@ -75,7 +75,7 @@ export function refusedPlace(role: RoleChoice, place: Place): "projectRoleAtOrga
 }
 
 /** The RoleBinding that gives `group` the role at `place`, as the Access page writes one. */
-export function groupBinding(group: string, role: string, place: Place, orgDomain: string): Manifest {
+export function groupBinding(group: string, role: string, place: Place, organization: string | undefined): Manifest {
   const project = place.kind === "organization" ? ORG_NAMESPACE : place.project;
   return bindingOf(
     {
@@ -86,7 +86,7 @@ export function groupBinding(group: string, role: string, place: Place, orgDomai
       until: "",
     },
     project,
-    orgDomain,
+    organization,
   );
 }
 

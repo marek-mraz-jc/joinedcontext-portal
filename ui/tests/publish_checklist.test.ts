@@ -53,6 +53,21 @@ describe("the publish checklist (T-3267)", () => {
     expect(mayPublish(items)).toBe(false);
   });
 
+  it("holds a public app for every operation and group jc-core counts as a write (F-UI2-015)", () => {
+    for (const operation of ["purgeEntity", "redirectionOps", "updateOps", "deleteEntity", "mergeBatch", "upsertTemporal", "createSubscription"]) {
+      const items = publishChecklist(
+        app({}, { visibility: "public", dataNeeds: [{ contextSpaceRef: "events", operations: [operation] }] }),
+        { endpoints: [endpoint("events", "public")] },
+      );
+      expect(items.filter((i) => i.key === "privacy").map((i) => i.reason), operation).toEqual(["writes"]);
+    }
+    const reads = publishChecklist(
+      app({}, { visibility: "public", dataNeeds: [{ contextSpaceRef: "events", operations: ["retrieveOps", "queryEntity", "retrieveTemporal"] }] }),
+      { endpoints: [endpoint("events", "public")] },
+    );
+    expect(reads.find((i) => i.key === "privacy")).toEqual({ key: "privacy", state: "ok" });
+  });
+
   it("finds no privacy problem in a public app reading a published space, and none to look for in a project app", () => {
     const published = publishChecklist(app({}, { visibility: "public", dataNeeds: [{ contextSpaceRef: "events", attrs: ["name", "address"] }] }), {
       endpoints: [endpoint("events", "public")],

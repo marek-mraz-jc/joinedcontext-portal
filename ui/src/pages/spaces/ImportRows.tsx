@@ -19,6 +19,7 @@ import {
   EXPIRES_AT,
   EXPORTS,
   ID,
+  MAX_ROWS,
   createInBatches,
   exportUrl,
   readTable,
@@ -201,6 +202,8 @@ function MapStep({
       <p className="text-body text-fg-muted">
         {t("spaces.import.read", { name: step.name, rows: table.rows.length, columns: table.columns.length })}
       </p>
+      {/* A file cut at MAX_ROWS says so: the count above is not the whole file (F-UI3-011). */}
+      {table.total !== undefined ? <Alert tone="warning">{t("spaces.import.cut", { total: table.total, max: MAX_ROWS })}</Alert> : null}
       {table.detected ? (
         <p className="text-caption text-fg-muted" data-testid="import-detected">
           {[

@@ -44,6 +44,8 @@ interface SyncSourceSpec {
   };
   schedule?: { interval?: string; webhook?: boolean };
   mode?: string;
+  prune?: boolean;
+  autoMerge?: boolean;
 }
 
 /** What the Add source dialog holds: a name, one origin, and how the run behaves (MF-27, MF-28). */
@@ -81,16 +83,20 @@ export function syncSourceToManifest(project: string, form: SyncSourceForm) {
 
 /** The form a manifest read back as YAML fills, so the dialog's two views stay one resource. */
 export function syncSourceFromManifest(document: unknown): SyncSourceForm {
-  const manifest = (document ?? {}) as { metadata?: { name?: string }; spec?: SyncSourceSpec };
+  const manifest = (document ?? {}) as { metadata?: { name?: string; title?: string }; spec?: SyncSourceSpec };
   const spec = manifest.spec ?? {};
   return {
     name: manifest.metadata?.name ?? "",
+    // Every field the form writes comes back, or a switch between the views changes the red lane (F-UI3-018).
+    ...(manifest.metadata?.title ? { title: manifest.metadata.title } : {}),
     git: spec.source?.git as SyncSourceForm["git"],
     bundle: spec.source?.bundle as SyncSourceForm["bundle"],
     platformApi: spec.source?.platformApi as SyncSourceForm["platformApi"],
     interval: spec.schedule?.interval ?? "6h",
     mode: spec.mode ?? "mirror",
     conflictPolicy: (spec as { conflictPolicy?: string }).conflictPolicy ?? "fail",
+    ...(spec.prune !== undefined ? { prune: spec.prune } : {}),
+    ...(spec.autoMerge !== undefined ? { autoMerge: spec.autoMerge } : {}),
   };
 }
 
