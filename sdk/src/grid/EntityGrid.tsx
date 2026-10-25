@@ -80,6 +80,9 @@ export interface EntityGridProps extends UseEntityGridOptions {
    */
   openRow?: string | null;
   onOpenRow?: (id: string | null) => void;
+  /** The open row's tab and History attribute, for a host that keeps them in the address (T-5602). */
+  detailPlace?: { tab?: string | null; attr?: string | null };
+  onDetailPlace?: (place: { tab: string; attr: string }) => void;
   toolbar?: React.ReactNode;
   /** The bounds the "Draw area" action asks about; the host owns the map's viewport. */
   mapBounds?: () => [number, number, number, number] | null;
@@ -200,6 +203,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     detailTabs,
     openRow,
     onOpenRow,
+    detailPlace,
+    onDetailPlace,
     mapEngine,
     mapAllowed,
     mapLabels,
@@ -1470,6 +1475,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
             />
           )}
           tabs={detailTabs?.(detailRow)}
+          place={detailPlace}
+          onPlace={onDetailPlace}
           onClose={() => {
             setDetailId(null);
             tableRef.current?.focus();
