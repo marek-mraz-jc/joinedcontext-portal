@@ -65,17 +65,16 @@ afterEach(() => {
 });
 
 describe("the explorer for a new user (T-3218)", () => {
-  it("offers the types the endpoint grants first, and says of the rest that they are not granted", async () => {
+  it("offers the types the endpoint grants first, and groups the rest as not readable", async () => {
     open({ permissions: [{ resource: { type: "WeatherObserved" }, actions: ["queryEntity", "retrieveEntity"] }] });
     const select = await screen.findByLabelText(/Entity type/i);
     await waitFor(() =>
-      expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
-        "—",
-        "WeatherObserved",
-        "BikeHireDockingStation (not granted through this endpoint)",
-        "Event (not granted through this endpoint)",
-      ]),
+      expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual(["—", "WeatherObserved", "BikeHireDockingStation", "Event"]),
     );
+    // The ungranted ones stand apart, in a group that says why (T-5622).
+    const group = select.querySelector("optgroup");
+    expect(group?.getAttribute("label")).toBe("Not readable through this endpoint");
+    expect([...(group?.querySelectorAll("option") ?? [])].map((o) => o.textContent)).toEqual(["BikeHireDockingStation", "Event"]);
     // The values stay the type names: a pick is the same type whatever the label says.
     expect([...select.querySelectorAll("option")].map((o) => o.getAttribute("value"))).toEqual(["", "WeatherObserved", "BikeHireDockingStation", "Event"]);
   });
@@ -85,6 +84,7 @@ describe("the explorer for a new user (T-3218)", () => {
     const select = await screen.findByLabelText(/Entity type/i);
     await waitFor(() => expect(select.querySelectorAll("option")).toHaveLength(4));
     expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual(["—", "BikeHireDockingStation", "Event", "WeatherObserved"]);
+    expect(select.querySelector("optgroup")).toBeNull();
   });
 
   it("tells two endpoints of one title apart by their names, and leaves a unique title alone", async () => {

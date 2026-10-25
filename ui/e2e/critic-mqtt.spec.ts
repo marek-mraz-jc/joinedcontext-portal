@@ -315,10 +315,11 @@ test.describe("UI critic: MQTT publishing", () => {
     await open(page, `${PAGE}/new`);
     await page.getByRole("textbox", { name: /^Name/ }).first().fill("vents");
     await page.getByRole("textbox", { name: /^Role/ }).first().fill("vents");
+    // The role's device is picked from the project's accounts (T-5590).
     await page
-      .getByRole("textbox", { name: /Service accounts/ })
+      .getByRole("combobox", { name: /Service accounts/ })
       .first()
-      .fill("vent-1");
+      .selectOption("sensor-1");
     await page.getByRole("button", { name: "Check", exact: true }).click();
     await expect(
       page.getByText(/MQTT allowance: brokers 2 reached/),

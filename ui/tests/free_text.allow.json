@@ -29,9 +29,9 @@
       "class": "FREE",
       "reason": "the value of a filter row (a number, a date, a text) compared against an attribute"
     },
-    "src/components/entities/EntityFilters.tsx :: Scope": {
+    "src/components/entities/EntityFilters.tsx :: Area": {
       "class": "FREE",
-      "reason": "an NGSI-LD scopeQ expression (/city/#)"
+      "reason": "an NGSI-LD scopeQ expression (/city/#), shown as the area code"
     },
     "src/components/forms/theme.tsx :: (no label)": {
       "class": "FREE",
