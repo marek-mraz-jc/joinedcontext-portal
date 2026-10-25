@@ -268,7 +268,12 @@ test.describe("pipeline flow canvas", () => {
     await expect(compute).toContainText("expected number, got string");
     await expect(page.getByTestId("flow-wire-count-step-0>compute")).toHaveText("2");
     await page.getByTestId("flow-wire-step-0>compute").click({ force: true });
-    await expect(page.getByTestId("flow-breaking-input")).toContainText('"pm10": "many"');
-    await expect(page.getByTestId("flow-debug").getByRole("listitem").first()).toContainText('"pm10": "many"');
+    // The breaking input reads as a record, field beside value (T-5516), not as JSON text.
+    const input = page.getByTestId("flow-breaking-input");
+    await expect(input.getByRole("term").filter({ hasText: /^pm10$/ })).toBeVisible();
+    await expect(input.getByRole("definition").filter({ hasText: /^many$/ })).toBeVisible();
+    const logged = page.getByTestId("flow-debug").getByRole("listitem").first();
+    await expect(logged.getByRole("term").filter({ hasText: /^pm10$/ })).toBeVisible();
+    await expect(logged.getByRole("definition").filter({ hasText: /^many$/ })).toBeVisible();
   });
 });

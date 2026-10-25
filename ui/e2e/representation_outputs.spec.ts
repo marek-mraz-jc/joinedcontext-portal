@@ -195,7 +195,7 @@ for (const width of [1440, 400]) {
     test("the Endpoint page offers the feed and its webcal address", async ({ page }) => {
       await stubApi(page, "accept");
       await page.goto("/projects/bbsk/endpoints/podujatia?lang=en");
-      await expect(page.getByText("Calendar subscription")).toBeVisible();
+      await expect(page.getByText("Calendar subscription", { exact: true })).toBeVisible();
       await expect(page.getByText(`webcal://`, { exact: false }).first()).toBeVisible();
       await shot(page, "6-detail");
     });
