@@ -460,6 +460,12 @@ impl Reach {
     }
 }
 
+/// Whether the repository holds more than one Organization (ADR-N-058): with one, every person
+/// of the realm is that Organization's.
+pub fn several_organizations(mirror: &Mirror) -> bool {
+    organizations(mirror).len() > 1
+}
+
 /// The Organizations of the repository by name (PF-121).
 fn organizations(mirror: &Mirror) -> Vec<(String, Value)> {
     mirror
