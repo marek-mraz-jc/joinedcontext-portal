@@ -165,6 +165,11 @@ pub async fn device_options(
     let effective = crate::permissions::for_request(&state, identity, &project);
     let (env, spec) = broker(&state, &effective, &project, &name)?;
     let may_add = may_add(identity, &effective, &as_value(&env)?);
+    Ok(Json(options(spec, may_add, issuer(&state))))
+}
+
+/// The form's options: the broker's roles only for a caller who may add a device.
+fn options(spec: MqttBrokerSpec, may_add: bool, issuer: Option<String>) -> DeviceOptions {
     let roles = if may_add {
         spec.roles
             .into_iter()
@@ -176,15 +181,14 @@ pub async fn device_options(
     } else {
         Vec::new()
     };
-    let issuer = issuer(&state);
-    Ok(Json(DeviceOptions {
+    DeviceOptions {
         may_add,
         roles,
         token_url: issuer
             .as_ref()
             .map(|issuer| format!("{issuer}/protocol/openid-connect/token")),
         issuer,
-    }))
+    }
 }
 
 fn unprocessable(detail: &str, error: String) -> ApiError {
@@ -323,25 +327,60 @@ pub async fn add_device(
     Path((project, broker_name)): Path<(String, String)>,
     body: Result<Json<AddDevice>, JsonRejection>,
 ) -> Result<Response, ApiError> {
-    let identity = &user.0.identity;
-    let effective = crate::permissions::for_request(&state, identity, &project);
-    let (mut env, spec) = broker(&state, &effective, &project, &broker_name)?;
+    let change = add(&state, &user.0.identity, &project, &broker_name, body).await?;
+    Ok((StatusCode::ACCEPTED, Json(change)).into_response())
+}
+
+/// A person who may propose a ServiceAccount and this broker; an agent is refused.
+fn may_add_here(
+    identity: &crate::auth::Identity,
+    effective: &crate::permissions::Effective,
+    env: &ResourceEnvelope,
+) -> Result<(), ApiError> {
     if identity.client.is_some() {
         return Err(ApiError::Denied(
             "a person adds a device at the Portal; an agent proposes the manifests with jc_resource_propose".into(),
         ));
     }
     effective.check(ACCOUNT, Verb::Propose, None)?;
-    effective.check(BROKER, Verb::Propose, Some(&as_value(&env)?))?;
-    let Json(request) = body.map_err(|e| ApiError::BadRequest(e.body_text()))?;
+    effective.check(BROKER, Verb::Propose, Some(&as_value(env)?))?;
+    Ok(())
+}
 
+/// The checked request proposed as one Change: the caller's rights first, then the body.
+async fn add(
+    state: &AppState,
+    identity: &crate::auth::Identity,
+    project: &str,
+    broker_name: &str,
+    body: Result<Json<AddDevice>, JsonRejection>,
+) -> Result<crate::change::Change, ApiError> {
+    let effective = crate::permissions::for_request(state, identity, project);
+    let (env, spec) = broker(state, &effective, project, broker_name)?;
+    may_add_here(identity, &effective, &env)?;
+    let Json(request) = body.map_err(|e| ApiError::BadRequest(e.body_text()))?;
+    let jwks = valid_request(state, project, broker_name, &spec, &request)?;
+    let change =
+        propose_device(state, identity, project, broker_name, &request, &jwks, env).await?;
+    tracing::info!(project = %project, broker = %broker_name, device = %request.name, by = %identity.username, "MQTT device proposed");
+    Ok(change)
+}
+
+/// The request's name, role, topic and key set checked against the broker; the public keys.
+fn valid_request(
+    state: &AppState,
+    project: &str,
+    broker_name: &str,
+    spec: &MqttBrokerSpec,
+    request: &AddDevice,
+) -> Result<Jwks, ApiError> {
     if !resource::is_dns1123(&request.name) {
         return Err(unprocessable(
             "the device's name is not a DNS label",
             format!("name: '{}' is not a DNS label of lowercase letters, digits and '-', such as sensor-001", request.name),
         ));
     }
-    if state.mirror.get(&project, ACCOUNT, &request.name).is_some() {
+    if state.mirror.get(project, ACCOUNT, &request.name).is_some() {
         return Err(ApiError::Conflict(format!(
             "a ServiceAccount '{}' exists in project '{project}'; pick another name, or rotate its key on its own page",
             request.name
@@ -379,9 +418,20 @@ pub async fn add_device(
         }
         _ => {}
     }
-    let jwks = public_jwks(&request.jwks)?;
+    public_jwks(&request.jwks)
+}
 
-    let account = device_account(&project, &request, &jwks, &identity.username, &broker_name);
+/// The one Change that writes the device's account and adds it to its role of the broker.
+async fn propose_device(
+    state: &AppState,
+    identity: &crate::auth::Identity,
+    project: &str,
+    broker_name: &str,
+    request: &AddDevice,
+    jwks: &Jwks,
+    mut env: ResourceEnvelope,
+) -> Result<crate::change::Change, ApiError> {
+    let account = device_account(project, request, jwks, &identity.username, broker_name);
     if let Some(roles) = env.spec.get_mut("roles").and_then(Value::as_array_mut) {
         for entry in roles
             .iter_mut()
@@ -402,8 +452,8 @@ pub async fn add_device(
     let lane = riskiest(
         checked(
             identity,
-            &state,
-            &project,
+            state,
+            project,
             "serviceaccounts",
             &request.name,
             Operation::Create,
@@ -412,18 +462,18 @@ pub async fn add_device(
         .await?,
         checked(
             identity,
-            &state,
-            &project,
+            state,
+            project,
             "mqttbrokers",
-            &broker_name,
+            broker_name,
             Operation::Update,
             broker_manifest.clone(),
         )
         .await?,
     );
     let files = vec![
-        file(ACCOUNT, &project, &account)?,
-        file(BROKER, &project, &broker_manifest)?,
+        file(ACCOUNT, project, &account)?,
+        file(BROKER, project, &broker_manifest)?,
     ];
     let branch = format!(
         "portal/add-device-{project}-{}-{:08x}",
@@ -442,10 +492,10 @@ pub async fn add_device(
         kids = jwks.keys.iter().map(|k| format!("kid `{}`", k.kid)).collect::<Vec<_>>().join(", "),
         topic = request.topic.as_deref().map(|t| format!(" and publishes to `{t}`")).unwrap_or_default(),
     );
-    let change = propose_files(
-        &state,
+    propose_files(
+        state,
         identity,
-        &project,
+        project,
         Proposal {
             files,
             verb: "add",
@@ -456,7 +506,33 @@ pub async fn add_device(
             summary: PlanSummary::new(1, 1, 0),
         },
     )
-    .await?;
-    tracing::info!(project = %project, broker = %broker_name, device = %request.name, by = %identity.username, "MQTT device proposed");
-    Ok((StatusCode::ACCEPTED, Json(change)).into_response())
+    .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn key() -> Value {
+        json!({ "kty": "EC", "crv": "P-256", "kid": "k1",
+            "x": "f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU",
+            "y": "x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0" })
+    }
+
+    fn refusal(value: Value) -> String {
+        match public_jwks(&value) {
+            Err(ApiError::Unprocessable { errors, .. }) => errors.join("; "),
+            other => panic!("not a 422: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_public_key_set_passes_and_a_private_member_or_no_set_is_named() {
+        let jwks = public_jwks(&json!({ "keys": [key()] })).expect("a public key set");
+        assert_eq!(jwks.keys.len(), 1);
+        let mut private = key();
+        private["d"] = json!("ZGVtbw");
+        assert!(refusal(json!({ "keys": [private] })).starts_with("jwks.keys[0].d:"));
+        assert!(refusal(json!([key()])).starts_with("jwks:"));
+    }
 }
