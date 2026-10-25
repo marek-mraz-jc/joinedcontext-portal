@@ -1,5 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+import { attributeTable } from "./attributeAccess";
 import type { Page } from "@playwright/test";
 import { axeViolations } from "./axe";
 
@@ -91,6 +92,7 @@ async function stub(page: Page, data: Data = "points"): Promise<string[]> {
     if (path.includes("/basemap/")) return route.fulfill({ status: 404, body: "" });
     if (path.endsWith("/auth/me")) return json({ subject: "s1", username: "jana", name: "Jana Kováčová", roles: [] });
     if (path.endsWith("/access/check")) return json({ decision: false });
+    if (path.endsWith("/access/attributes")) return json(attributeTable(TYPE, ["availableBikeNumber", "name", "location"]));
     if (path.endsWith("/access")) return json({ permissions: [{ action: "queryEntity", resource: { type: TYPE }, attributes: "*" }], prohibitions: [] });
     if (path.endsWith("/entities")) {
       reads.push(url.search);

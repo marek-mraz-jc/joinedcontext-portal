@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { EndpointLink, ENDPOINT_LINKS, endpointUrl } from "../../components/endpoints/links";
 import { useAccess } from "../../components/entities/AccessPanel";
-import type { GrantDocument } from "../../components/entities/AccessPanel";
+import type { GrantDocument } from "../../api/access";
 import { writesOf } from "../access/EffectivePermissions";
 import { fetchJson } from "../endpoints/SchemaProjectionPanel";
 import {

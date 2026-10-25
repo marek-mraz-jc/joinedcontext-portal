@@ -12,6 +12,8 @@ import { useEndpointSchema } from "../../components/entities/EndpointDataView";
 import { classSlots } from "../models/linkml";
 import { constraintInWords } from "../policies/constraintWords";
 import type { ConstraintName } from "../policies/constraintWords";
+import { constraintText } from "../../api/access";
+import type { GrantDocument, GrantEntry } from "../../api/access";
 import {
   Badge,
   Field,
@@ -24,26 +26,6 @@ import {
   TableRow,
   Term,
 } from "../../components/ui";
-
-/**
- * The AuthZEN grant document as the Context Gateway serves it today (EP-55, EP-56): one entry
- * per entity type a policy names, with the operations, the attribute projection and the residual
- * the gateway would add to any request. A type no grant names is absent, never listed as denied
- * (EP-59), so an empty matrix means "nothing here for you", not "nothing exists".
- */
-interface GrantEntry {
-  resource?: { type?: string; id?: string; idPatterns?: string[] };
-  actions?: string[];
-  attributes?: string[] | "*";
-  constraints?: { q?: string; scopeQ?: string; geoQ?: string; temporalQ?: string };
-}
-
-interface GrantDocument {
-  subject?: { type?: string; id?: string };
-  resource?: { type?: string; id?: string; space?: string };
-  permissions?: GrantEntry[];
-  prohibitions?: GrantEntry[];
-}
 
 /** The actions that change context data, by the Portal's one list of them (R8, T-5592). */
 export function writesOf(actions: string[]): string[] {
@@ -60,7 +42,7 @@ function ConstraintList({ entry, labels }: { entry: GrantEntry; labels: Record<s
   const { t, i18n } = useTranslation();
   const residual = CONSTRAINT_NAMES.flatMap((name) => {
     const value = entry.constraints?.[name];
-    return value ? [[name, value] as const] : [];
+    return value ? [[name, constraintText(value)] as const] : [];
   });
   if (residual.length === 0) {
     return <span className="text-body text-fg-muted">{t("access.matrix.unconstrained")}</span>;
@@ -115,7 +97,7 @@ export function sourcesOf(entry: GrantEntry, policies: readonly PolicySource[], 
         if ((rule.effect === "prohibition" ? "prohibition" : "permission") !== effect) return false;
         const info = rule.information ?? policy.spec.information ?? [];
         const holding = info.length === 0 ? (type === "*" ? [{}] : []) : info.filter((item) => (item.entities ?? []).some((one) => one.type === type));
-        const filters = CONSTRAINT_NAMES.every((name) => (rule[name] ?? policy.spec[name] ?? "") === (entry.constraints?.[name] ?? ""));
+        const filters = CONSTRAINT_NAMES.every((name) => (rule[name] ?? policy.spec[name] ?? "") === constraintText(entry.constraints?.[name] ?? ""));
         return filters && holding.some((item) => sameAttributes(entry, [...(item.propertyNames ?? []), ...(item.relationshipNames ?? [])]));
       });
     })

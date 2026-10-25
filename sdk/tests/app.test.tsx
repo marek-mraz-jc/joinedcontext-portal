@@ -61,7 +61,8 @@ describe("App", () => {
     // alone is ambiguous since T-1440.
     const counter = () => document.querySelector(".status") as HTMLElement;
     await waitFor(() => expect(counter()).toHaveTextContent("3 entities"));
-    expect(calls[0]).toContain("/api/endpoint/demo/ngsi-ld/v1/entities?type=BikeHireDockingStation");
+    // The person's decisions are asked first (T-5530), so the read never names an attribute they may not see.
+    expect(calls.find((call) => call.includes("/ngsi-ld/v1/entities"))).toContain("/api/endpoint/demo/ngsi-ld/v1/entities?type=BikeHireDockingStation");
     // The tiles: count and sum over every row.
     expect(screen.getByText("Stations").previousSibling).toHaveTextContent("3");
     expect(screen.getByText("Bikes available").previousSibling).toHaveTextContent("15");

@@ -296,7 +296,7 @@ describe("writing the note", () => {
     const review = screen.getByRole("region", { name: sk.grid.review });
     // The review says in Slovak what each column holds, and "Uložiť" is only the button.
     expect(within(review).getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
-      "Identifikátor",
+      "Záznam",
       "Atribút",
       "Pred zmenou",
       "Po zmene",

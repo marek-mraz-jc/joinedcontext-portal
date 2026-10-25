@@ -1,3 +1,4 @@
+pub mod access_attributes;
 pub mod access_explore;
 pub mod access_matrix;
 pub mod access_requests;
@@ -135,6 +136,7 @@ pub fn router() -> Router<AppState> {
         .merge(ops::router())
         .merge(permissions::router())
         .merge(people::router())
+        .merge(access_attributes::router())
         .merge(access_simulate::router())
         .merge(access_explore::router())
         .merge(access_matrix::router())

@@ -1,5 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+import { attributeTable } from "./attributeAccess";
 import type { Page } from "@playwright/test";
 import { axeViolations } from "./axe";
 
@@ -28,6 +29,7 @@ async function stub(page: Page, mayDelete = true): Promise<(string | null)[]> {
     }
     if (path.endsWith("/auth/me")) return json({ subject: "s1", username: "jana", name: "Jana Kováčová", roles: [] });
     if (path.endsWith("/access/check")) return json({ decision: true });
+    if (path.endsWith("/access/attributes")) return json(attributeTable(TYPE, ["name"]));
     if (path.endsWith("/access")) {
       const read = { actions: ["queryEntity", "retrieveEntity", "queryTemporal", "retrieveTemporal"], resource: { type: TYPE }, attributes: "*" };
       return json({ permissions: mayDelete ? [read, { actions: ["deleteEntity"], resource: { type: TYPE } }] : [read], prohibitions: [] });
