@@ -102,7 +102,38 @@ describe("the project's MQTT page (T-4860)", () => {
 
   it("warns at the limit that a new broker is refused", async () => {
     showPage({ ...ON, brokers: meter(2, 2) });
-    expect(await screen.findByText(/All 2 brokers are in use: a new one is refused\./)).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector("[data-allowance='full']")).toHaveTextContent(/All 2 brokers are in use: a new one is refused\./));
+  });
+
+  // T-5589: New is closed before the form when the allowance already refuses it, with the
+  // allowance's own words as its description and as the empty list's next step.
+  const newBrokers = () => screen.queryAllByRole("button", { name: en.kinds.MqttBroker.new });
+
+  it("closes New MQTT broker while MQTT is off, and the empty list says who can turn it on", async () => {
+    showPage(OFF, []);
+    const reason = `${en.mqttAllowance.project.offTitle}. An organization administrator can turn it on in Administration › Projects › helsinki › MQTT.`;
+    await waitFor(() => expect(newBrokers()[0]).toHaveAttribute("aria-disabled", "true"));
+    expect(newBrokers()).toHaveLength(1);
+    expect(newBrokers()[0]).toHaveAccessibleDescription(reason);
+    const said = (await screen.findAllByText(reason)).filter((element) => !element.classList.contains("sr-only"));
+    expect(said).toHaveLength(1);
+    expect(document.body.textContent).not.toMatch(/opens the form/);
+  });
+
+  it("closes New MQTT broker when every allowed broker is in use", async () => {
+    showPage({ ...ON, brokers: meter(2, 2) });
+    await waitFor(() => expect(newBrokers()[0]).toHaveAttribute("aria-disabled", "true"));
+    expect(newBrokers()[0]).toHaveAccessibleDescription(
+      "All 2 brokers are in use: a new one is refused. An organization administrator can raise the limit in Administration › Projects.",
+    );
+  });
+
+  it("offers New MQTT broker while a broker is left", async () => {
+    showPage(ON);
+    await screen.findByText("1 of 2 brokers in use, 400 of 1,000 connections left, 4,000 messages per second left.");
+    expect(newBrokers()).toHaveLength(1);
+    expect(newBrokers()[0]).not.toHaveAttribute("aria-disabled");
+    expect(newBrokers()[0]).toBeEnabled();
   });
 
   it("shows the broker's mode and what a capture broker keeps", async () => {

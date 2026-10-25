@@ -30,6 +30,8 @@ export interface SchemaFormProps<T> {
   submitLabel?: string;
   /** Why the submit is closed right now (PL-49): disables the button and says so beside it. */
   submitDisabledReason?: string;
+  /** `actions` already print `submitDisabledReason`: the submit line does not say it a second time. */
+  submitReasonShown?: boolean;
   /** A submit is in flight: the button says so and stays pressed-proof (UI-01, T-0962). */
   submitting?: boolean;
   /** Rendered beside the submit, on its left: a cancel, a secondary action. */
@@ -83,6 +85,7 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
     disabled,
     submitLabel,
     submitDisabledReason,
+    submitReasonShown,
     submitting,
     actions,
     afterFields,
@@ -136,8 +139,8 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
   );
 
   const submitState = React.useMemo(
-    () => ({ loading: Boolean(submitting), reason: submitDisabledReason }),
-    [submitting, submitDisabledReason],
+    () => ({ loading: Boolean(submitting), reason: submitDisabledReason, reasonShown: submitReasonShown }),
+    [submitting, submitDisabledReason, submitReasonShown],
   );
 
   const transformErrors = React.useCallback(
