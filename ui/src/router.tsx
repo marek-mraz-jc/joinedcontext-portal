@@ -482,11 +482,15 @@ const indexRoute = createRoute({
 const activityRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/projects/$project/activity",
+  validateSearch: (search: Record<string, unknown>): { kind?: string } => ({
+    kind: typeof search.kind === "string" && search.kind !== "" ? search.kind : undefined,
+  }),
   component: function ActivityRoute() {
     const { project } = activityRoute.useParams();
+    const { kind } = activityRoute.useSearch();
     return (
       <Shell project={project}>
-        <ActivityPage project={project} />
+        <ActivityPage project={project} kind={kind} />
       </Shell>
     );
   },
@@ -599,10 +603,12 @@ function ProjectSettingsView({
   project,
   tab,
   form,
+  endpoint,
 }: {
   project: string;
   tab: string;
   form: FormTarget | null;
+  endpoint?: string;
 }): React.JSX.Element {
   if (!isProjectSettingsTab(tab)) {
     return <NotFound />;
@@ -616,20 +622,31 @@ function ProjectSettingsView({
           base={`/projects/${encodeURIComponent(project)}/settings/${tab}`}
           form={form}
         >
-          <ProjectSettingsPage project={project} tab={tab} />
+          <ProjectSettingsPage project={project} tab={tab} endpoint={endpoint} />
         </FormRouteHost>
       </HandOff>
     </Shell>
   );
 }
 
+/**
+ * `?endpoint=<name>` opens Your access on that Endpoint's Data access table (T-5593); a name the
+ * caller's list does not hold is ignored there, and one that is no resource name is dropped here.
+ */
+export function settingsSearch(search: Record<string, unknown>): { endpoint?: string } {
+  const endpoint = search.endpoint;
+  return { endpoint: typeof endpoint === "string" && /^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/.test(endpoint) ? endpoint : undefined };
+}
+
 /** Project settings, one tab per address (T-2606, UI-76). */
 const projectSettingsTabRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/projects/$project/settings/$tab",
+  validateSearch: settingsSearch,
   component: function ProjectSettingsTabRoute() {
     const { project, tab } = projectSettingsTabRoute.useParams();
-    return <ProjectSettingsView project={project} tab={tab} form={null} />;
+    const { endpoint } = projectSettingsTabRoute.useSearch();
+    return <ProjectSettingsView project={project} tab={tab} form={null} endpoint={endpoint} />;
   },
 });
 
@@ -637,12 +654,14 @@ const projectSettingsTabRoute = createRoute({
 const projectSettingsFormRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/projects/$project/settings/$tab/$",
+  validateSearch: settingsSearch,
   component: function ProjectSettingsFormRoute() {
     const { project, tab, _splat: rest = "" } = projectSettingsFormRoute.useParams();
+    const { endpoint } = projectSettingsFormRoute.useSearch();
     // The splat matches an empty rest too, and the router may pick it for the tab's own address.
     const form = formOfRest(rest);
     return rest === "" || form !== null ? (
-      <ProjectSettingsView project={project} tab={tab} form={form} />
+      <ProjectSettingsView project={project} tab={tab} form={form} endpoint={endpoint} />
     ) : (
       <NotFound />
     );

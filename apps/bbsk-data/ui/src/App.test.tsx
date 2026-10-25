@@ -146,10 +146,10 @@ describe("the region's registers", () => {
       expect(kept).toHaveBeenCalledTimes(1);
     }
     for (const row of answer(keyOf(new URL(exportUrl(SLUG, dataset), "http://portal.test"))) as { id: string; name?: { languageMap: { sk: string } } }[]) {
-      // A row without a name opens by its identifier, and the panel names it by its last part.
-      const name = row.name?.languageMap.sk ?? row.id;
+      // A row without a name opens by its identifier's last part, and the panel names it the same (T-5619).
+      const name = row.name?.languageMap.sk ?? row.id.slice(row.id.lastIndexOf(":") + 1);
       fireEvent.click(await within(panel).findByRole("button", { name: `${s.grid.openRow}: ${name}` }));
-      const dialog = await screen.findByRole("dialog", { name: row.name?.languageMap.sk ?? row.id.slice(row.id.lastIndexOf(":") + 1) });
+      const dialog = await screen.findByRole("dialog", { name });
       fireEvent.click(within(dialog).getByRole("button", { name: "Zavrieť" }));
     }
   });

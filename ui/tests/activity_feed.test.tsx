@@ -206,6 +206,36 @@ describe("the activity feed (UI-31)", () => {
     expect(within(shown[1]).queryByRole("link")).toBeNull();
   });
 
+  it("shows a rejected change with its rejecter, its reason and a link to it (T-5613)", async () => {
+    renderFeed([
+      event({
+        kind: "change.rejected",
+        source: "portal",
+        severity: "info",
+        summary:
+          "Change chg-0000001d rejected: create Endpoint public-air, by eva: The notes are private",
+        details: {
+          change: "chg-0000001d",
+          object: "endpoints/public-air",
+          rejectedBy: "eva",
+          reason: "The notes are private",
+        },
+      }),
+    ]);
+    const [row] = await rows();
+    expect(within(row).getByTestId("activity-kind")).toHaveTextContent(
+      en.activity.kinds.change.rejected,
+    );
+    // The approver's words stay in the row, not behind the technical disclosure.
+    expect(within(row).getByTestId("activity-sentence")).toHaveTextContent(
+      "Change chg-0000001d rejected: create Endpoint public-air, by eva: The notes are private",
+    );
+    expect(within(row).queryByTestId("activity-reason")).toBeNull();
+    expect(
+      within(row).getByRole("link", { name: "chg-0000001d" }),
+    ).toHaveAttribute("href", "/projects/helsinki/approvals/chg-0000001d");
+  });
+
   it("puts a filter into the request the list makes", async () => {
     const urls = renderFeed([event()]);
     await rows();

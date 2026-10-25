@@ -284,6 +284,10 @@
       "title": "{count, plural, one {# Merge-Request in der Forge ist keine Änderung} other {# Merge-Requests in der Forge sind keine Änderungen}}",
       "item": "#{number} von {author}"
     },
+    "proposedVia": {
+      "badge": "Vorgeschlagen über {client} (MCP)",
+      "hint": "Ein KI-Client ({client}) hat diesen Vorschlag über MCP geschrieben, {author} hat ihn bestätigt. Prüfen Sie die Änderungen wie bei jedem anderen."
+    },
     "workspace": "Aus einer Kopie",
     "fromWorkspace": "Aus der Kopie {name} von {author}, zurückgebracht am {date}: getrennt vom Live-Projekt bearbeitet und vor dem Vorschlag erneut geprüft.",
     "emptyHint": "Jede Änderung an diesem Projekt wartet hier darauf, dass eine Person sie liest und entscheidet. Gerade wartet nichts; schlagen Sie eine Änderung vor, und sie erscheint in dieser Liste.",
@@ -559,6 +563,9 @@
       "addRowTitle": "Neu: {type}",
       "dataFailed": "Die Daten des Raums haben nicht geantwortet",
       "dataFailedHint": "Der Endpunkt antwortete mit HTTP {status}: {detail}. Nichts wurde geändert; versuchen Sie es in einer Minute erneut und wenden Sie sich an die verwaltende Person des Raums, wenn es weiter fehlschlägt.",
+      "dataBusy": "Das Portal ist gerade ausgelastet; nichts wurde geändert. Versuchen Sie es in einer Minute erneut.",
+      "dataBusyWait": "Das Portal ist gerade ausgelastet; nichts wurde geändert. Versuchen Sie es in {count, plural, one {# Sekunde} other {# Sekunden}} erneut.",
+      "dataBusyWaiting": "Das Portal hat gebeten, vor dem nächsten Lesen kurz zu warten.",
       "dataThroughEndpoints": "Sie können diesen Raum über seine Endpunkte sehen:",
       "dataNoTypes": "Dieser Raum nennt kein Datenmodell, also gibt es keinen Typ zu lesen.",
       "back": "← Kontexträume",
@@ -872,6 +879,12 @@
       "publish": "Öffentlichen Link vorschlagen",
       "link": "Sobald der Change übernommen und ausgerollt ist, lautet der Link {url}",
       "notPublished": "Diese Ansicht ist nicht oder nicht mehr veröffentlicht.",
+      "heading": "Öffentliche Datenansicht",
+      "publicLead": "Offene Daten, die jeder ohne Anmeldung lesen kann; was sie zeigen, entscheidet ihr Herausgeber.",
+      "closed": "Diese Ansicht ist nicht öffentlich zugänglich.",
+      "busy": "Gerade gibt es zu viele Besuche. Versuchen Sie es in {seconds} s erneut.",
+      "busyLater": "Gerade gibt es zu viele Besuche. Versuchen Sie es in einer Minute erneut.",
+      "down": "Der Datendienst hat nicht geantwortet. Versuchen Sie es erneut.",
       "types": "Typen",
       "first": "Die ersten {count} Entitäten.",
       "count": "{count, plural, one {# Entität} other {# Entitäten}}.",
@@ -1932,7 +1945,7 @@
     "playground": {
       "title": "Ausprobieren",
       "reading": "Lese, was Sie aufrufen dürfen…",
-      "nothing": "Ihr Zugriff erlaubt über diesen Endpunkt keinen Aufruf.",
+      "nothing": "Ihr Zugriff erlaubt über diesen Endpunkt keinen Aufruf. Zum Lesen fragen Sie seine Eigentümer unten unter Zugriff anfragen.",
       "operation": "Was lesen",
       "operations": {
         "list": "Entitäten eines Typs",
@@ -2273,6 +2286,33 @@
         "policy": "Richtlinie",
         "endpoint": "Endpoint",
         "type": "Typ"
+      }
+    },
+    "request": {
+      "section": "Zugriff anfragen",
+      "sectionLead": "Bitten Sie die Eigentümer des Bereichs dieses Endpunkts, seine Daten lesen zu dürfen. Die Berechtigung gilt nur für Sie; ein Eigentümer entscheidet, und die Antwort sehen Sie hier.",
+      "reading": "Ihre Anfragen werden gelesen…",
+      "retry": "Erneut versuchen",
+      "yours": "Ihre Zugriffsanfragen",
+      "yourRequest": "Ihre Anfrage",
+      "approvedHint": "Genehmigt: die Berechtigung gilt, sobald ihre Änderung zusammengeführt ist. Dann beantwortet Ausprobieren oben Ihre Lesezugriffe.",
+      "sent": "Anfrage gesendet. Die Eigentümer des Bereichs entscheiden; ihr Stand erscheint hier.",
+      "noTypes": "Der Bereich dieses Endpunkts hat kein kompiliertes Datenmodell, daher kann noch kein Typ angefragt werden. Bitten Sie die Eigentümer, eines hinzuzufügen.",
+      "title": "Lesezugriff anfragen",
+      "lead": "Wählen Sie die benötigten Typen, nennen Sie den Grund und setzen Sie ein Ende, wenn Sie sie nur zeitweise brauchen.",
+      "types": "Entitätstypen",
+      "until": "Bis (optional)",
+      "reason": "Grund",
+      "send": "Anfrage senden",
+      "missing": {
+        "types": "Wählen Sie mindestens einen Typ.",
+        "until": "Wählen Sie einen späteren Tag.",
+        "reason": "Nennen Sie, wofür Sie die Daten brauchen."
+      },
+      "hint": {
+        "types": "Die Arten von Daten dieses Endpunkts, die Sie brauchen, z. B. Parkplätze.",
+        "until": "Der letzte Tag der Berechtigung, z. B. 2027-01-31. Leer bedeutet ohne Ende.",
+        "reason": "Wofür Sie die Daten brauchen, z. B. Wöchentlicher Luftbericht für das Bezirksamt."
       }
     }
   },
@@ -3298,9 +3338,9 @@
       "until": "Bis {date}",
       "noEnd": "Kein Enddatum",
       "decided": "{who}: {reason}",
-      "inbox": "Pipelines, die Zugriff anfragen",
-      "inboxLead": "Pipelines anderer Räume und Projekte, die diesen Raum lesen oder beschreiben wollen. Eine Genehmigung schlägt den Zugriff als Änderung dieses Projekts vor.",
-      "inboxEmpty": "Keine Pipeline hat Zugriff auf diesen Raum angefragt.",
+      "inbox": "Zugriffsanfragen",
+      "inboxLead": "Personen, die einen Endpunkt dieses Bereichs lesen möchten, und Pipelines anderer Bereiche, die ihn lesen oder schreiben möchten. Eine Genehmigung schlägt die Berechtigung als Änderung dieses Projekts vor; eine andere Person genehmigt diese Änderung.",
+      "inboxEmpty": "Noch niemand hat Zugriff auf diesen Bereich angefragt.",
       "on": "auf {endpoint}, angefragt von {who}",
       "decisionReason": "Begründung für den Anfragenden",
       "approve": "Genehmigen",
@@ -3322,7 +3362,8 @@
       "noTypes": "Der Raum des Endpunkts hat kein kompiliertes Datenmodell, daher kann noch kein Typ angefragt werden. Bitten Sie seine Besitzer, eines hinzuzufügen.",
       "endpointFirst": "Wählen Sie zuerst den Endpunkt.",
       "noAttrs": "Das Modell deklariert kein Attribut von {type}.",
-      "typeFirst": "Wählen Sie zuerst den Entitätstyp."
+      "typeFirst": "Wählen Sie zuerst den Entitätstyp.",
+      "allAttrs": "alle Attribute"
     },
     "map": {
       "views": "Pipeline-Ansichten",
@@ -3763,7 +3804,11 @@
       "unconstrained": "keine Einschränkung",
       "prohibitions": "Ausdrücklich verboten",
       "forbidden": "Dieser Endpunkt antwortet Ihnen nicht; melden Sie sich mit einem berechtigten Konto an.",
-      "unavailable": "Das Zugriffsdokument konnte nicht gelesen werden. Versuchen Sie es gleich noch einmal."
+      "unavailable": "Das Zugriffsdokument konnte nicht gelesen werden. Versuchen Sie es gleich noch einmal.",
+      "source": "Woher",
+      "grants": "{count, plural, one {# Berechtigung} other {# Berechtigungen}}",
+      "noSource": "eine Berechtigung dieses Raums",
+      "noSourceHint": "Keine Policy, die Sie lesen dürfen, passt zu dieser Berechtigung."
     },
     "panel": {
       "title": "Ihr Zugriff",
@@ -4020,6 +4065,19 @@
       "nothing": "Noch nichts gewährt",
       "endpointRole": "Jeder Aufrufer des Endpoints {endpoint}",
       "endpointTier": "App-Rolle {tier} auf dem Endpoint {endpoint}"
+    },
+    "constraint": {
+      "back": "Verlauf höchstens {duration} zurück",
+      "older": "Verlauf älter als {duration}",
+      "since": "Verlauf seit {at}",
+      "until": "Verlauf vor {at}",
+      "between": "Verlauf von {from} bis {to}",
+      "scopeBelow": "im Bereich {scope} und allem darunter",
+      "point": "dem Punkt {lat}, {lon}",
+      "area": "einem gezeichneten Gebiet",
+      "near": "höchstens {distance} von {where}",
+      "within": "innerhalb von {where}",
+      "intersects": "berührend {where}"
     }
   },
   "flows": {
@@ -4944,7 +5002,19 @@
       "createTitle": "Aus {title} erstellen",
       "createHint": "Wählen Sie den Endpunkt, dessen Daten die App zeigt; der Rest kommt aus der Vorlage.",
       "screenshot": "{title}, wie die Vorschau sie zeigt",
-      "demo": "Vorschau öffnen"
+      "demo": "Vorschau öffnen",
+      "useAsIs": "Unverändert verwenden",
+      "modelOut": "Generieren ist nicht verfügbar: Der Modellschlüssel des Portals wird abgelehnt oder hat kein Guthaben mehr, daher antwortet der App-Builder erst, wenn eine Administratorin oder ein Administrator ihn ersetzt oder auflädt. Unverändert verwenden funktioniert trotzdem: Es legt Ihre App unverändert aus der Vorlage an und fragt kein Modell.",
+      "modelOutShort": "Der App-Builder antwortet nicht: Der Modellschlüssel wird abgelehnt oder hat kein Guthaben. Verwenden Sie stattdessen Unverändert verwenden.",
+      "useTitle": "{title} unverändert verwenden",
+      "useHint": "Die Vorlage landet unverändert in einem eigenen Repository, und die App wird zur Freigabe vorgeschlagen; kein Modell wird gefragt.",
+      "useLead": "Benennen Sie die App und wählen Sie den Endpunkt, den sie liest. Nach der Freigabe wird sie im Repository gebaut und öffnet sich wie jede andere App.",
+      "name": "App-Name",
+      "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche, zum Beispiel bike-finder. Er benennt die App und ihr Repository.",
+      "endpointHint": "Es erscheinen nur Endpunkte, die Sie lesen dürfen; die App zeigt die Daten des gewählten Endpunkts.",
+      "noEndpoints": "In diesem Projekt gibt es noch keinen Endpunkt, den Sie lesen dürfen. Bitten Sie eine verantwortliche Person, einen anzulegen oder für Sie freizugeben.",
+      "chooseFirst": "Geben Sie zuerst einen Namen ein und wählen Sie einen Endpunkt.",
+      "useSubmit": "App erstellen"
     },
     "jobs": {
       "title": "Geplante Aufgaben",
@@ -5301,6 +5371,7 @@
     "datasetId": "Datensatz",
     "empty": "Keine Entitäten.",
     "loading": "Lädt…",
+    "filtering": "Filtert…",
     "previous": "Zurück",
     "next": "Weiter",
     "page": "Seite",
@@ -5471,6 +5542,9 @@
     "sortDesc": "Absteigend sortieren",
     "filterColumn": "Filtern",
     "hideColumn": "Feld ausblenden",
+    "hiddenFields": "Ausgeblendete Felder",
+    "showColumn": "Feld einblenden",
+    "showAllColumns": "Alle einblenden",
     "renameColumn": "Bezeichnung in dieser Ansicht",
     "renameReset": "Bezeichnung des Modells verwenden",
     "columnWidth": "Breite",
@@ -5507,12 +5581,9 @@
     "endpoint": "Über Endpunkt lesen",
     "noEndpoint": "Dieser Raum hat keinen Endpunkt zum Lesen.",
     "noType": "Wählen Sie einen Entitätstyp, um Entitäten zu laden.",
-    "detail": "Entität",
-    "close": "Schließen",
     "loadFailed": "Die Entitäten konnten nicht geladen werden. Versuchen Sie es erneut oder lesen Sie über einen anderen Endpunkt.",
     "delete": "Entität löschen",
     "removeTitle": "Diese Entität löschen?",
-    "removeLead": "{id} wird über diesen Endpunkt aus dem Raum entfernt.",
     "removeConfirm": "Löschen",
     "removeNote": "Die Policy des Endpunkts entscheidet: Die Löschung läuft mit Ihrer Anmeldung, nicht mit einer Dienstidentität, und lässt sich nicht rückgängig machen.",
     "removeReason": "Grund",
@@ -5630,7 +5701,9 @@
       "pickEntity": "Wählen Sie die Entität für den zeitlichen Verlauf."
     },
     "pickSpaceFirst": "Wählen Sie zuerst einen Raum.",
-    "noMatch": "Nichts passt zu dieser Abfrage; ändern oder entfernen Sie einen Filter."
+    "noMatch": "Nichts passt zu dieser Abfrage; ändern oder entfernen Sie einen Filter.",
+    "technical": "Technische Details (JSON-LD)",
+    "copyJson": "JSON-LD kopieren"
   },
   "agentRun": {
     "title": "Anwendungslauf",
@@ -6270,7 +6343,8 @@
         "drifted": "Abweichung vom Repository"
       },
       "change": {
-        "merged": "Änderung übernommen"
+        "merged": "Änderung übernommen",
+        "rejected": "Änderung abgelehnt"
       },
       "pipeline": {
         "throughput": "Pipeline-Durchsatz",
@@ -6280,6 +6354,7 @@
         "source-delete": "Gelöscht, weil die Quelle sie entfernte"
       },
       "endpoint": {
+        "rate-limited": "Ratenlimit erreicht",
         "traffic": "Endpunkt-Verkehr"
       },
       "access": {
@@ -7109,6 +7184,26 @@
           "title": "Einladung von {email} widerrufen?",
           "body": "Das Konto wird gelöscht und der Link funktioniert nicht mehr. Nennt eine Bindung die Person schon, nimmt eine Änderung sie zuerst heraus."
         }
+      },
+      "bulk": {
+        "hint": "Haken Sie Personen an, um mehrere auf einmal zu deaktivieren oder zu löschen, z. B. alle einer Abteilung, die geht.",
+        "selectAll": "Alle auf dieser Seite auswählen",
+        "select": "{name} auswählen",
+        "selected": "{count} ausgewählt",
+        "disable": "Deaktivieren",
+        "delete": "Löschen",
+        "clear": "Auswahl aufheben",
+        "confirmDisable": {
+          "title": "{count} Personen deaktivieren?",
+          "body": "Jede von ihnen wird sofort abgemeldet und kann sich erst wieder anmelden, wenn eine Administratorin oder ein Administrator sie aktiviert."
+        },
+        "confirmDelete": {
+          "title": "{count} Personen löschen?",
+          "body": "Sie werden sofort deaktiviert. Eine Änderung nimmt alle aus jeder Gruppe und Rollenbindung; ihre Konten werden gelöscht, sobald sie genehmigt ist. Personen, die nichts nennt, werden sofort gelöscht."
+        },
+        "disabled": "{count} Personen deaktiviert.",
+        "deleted": "{count} Personen gelöscht.",
+        "partly": "{done} von {count} deaktiviert. Nicht deaktiviert: {failed}."
       }
     },
     "setup": {
@@ -7735,7 +7830,8 @@
       "allows": "Erlaubt",
       "from": "Woher",
       "none": "Keine Bindung gibt Ihnen hier etwas.",
-      "binding": "Bindung {binding}, {scope}"
+      "binding": "Bindung {binding}, {scope}",
+      "approveOthers": "Sie genehmigen Änderungen, die andere vorschlagen; Ihre eigenen warten auf eine andere genehmigende Person, weil Sie für diese Arten nicht auch löschen dürfen."
     },
     "danger": {
       "title": "Projekt löschen",

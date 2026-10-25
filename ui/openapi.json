@@ -2643,6 +2643,107 @@
         }
       }
     },
+    "/api/v1/organization/people/remove": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Remove People",
+        "description": "Removes up to 200 people at once, a department leaving: proposes ONE Change taking all of them out of every Group and RoleBinding and disables each of them; their Keycloak users are deleted once it is merged. When nothing names any of them they are deleted at once. The same rules as Delete Person hold for each one: `delete` on Person and every right the person holds, never the caller nor the last Organization Administrator (T-5606).",
+        "operationId": "remove_people",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemovePeople"
+              },
+              "example": {
+                "ids": [
+                  "7d1f0c9e-4b8a-4f63-9a51-2c0d8e3b6f14",
+                  "0b6f0e4c-1d2e-4f00-9a7b-3c4d5e6f7a8b"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The one Change the removals wait for",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Deleted: no manifest named any of them"
+          },
+          "400": {
+            "description": "The body is not a list of ids",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks delete on Person, or a right one of the people holds (named)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such person (named)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The caller, the last Organization Administrator, a removal already pending, or a reference in a project's own repository",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No id, or more than 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client, forge or database",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/people/{id}": {
       "get": {
         "tags": [
@@ -5750,6 +5851,118 @@
           },
           "404": {
             "description": "No such project the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/app-templates/{name}/apps": {
+      "post": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Create App From Template",
+        "description": "Lands the template's source in a new repository `{project}_{app}` and proposes the App building from it, reading the chosen Endpoint; no model is asked (T-5617).",
+        "operationId": "create_from_template",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "A template's name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateApp"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The Change that proposes the App",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not propose an App in the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project or template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A repository of that name is already in the forge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The name or the Endpoint is refused; errors names the field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No forge configured",
             "content": {
               "application/json": {
                 "schema": {
@@ -9052,6 +9265,185 @@
           },
           "503": {
             "description": "No git forge configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/endpoints/{name}/access-requests": {
+      "get": {
+        "tags": [
+          "endpoints"
+        ],
+        "summary": "List My Access Requests On An Endpoint",
+        "description": "The caller's own requests on this Endpoint and the types they may ask for (EP-55): the types its space's model serves through it. `refusal` says why no request can be granted here, when that is so.",
+        "operationId": "list_mine",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "The Endpoint's project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "The Endpoint",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{ types, refusal, items }`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such Endpoint the caller reads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No database",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "endpoints"
+        ],
+        "summary": "Request Access To An Endpoint",
+        "description": "Asks the owners of the Endpoint's space for a read of named types for the caller (EP-55, PF-58). Grants nothing until another person, an owner of the space, approves it; the approval proposes one Policy for the caller.",
+        "operationId": "file_person_request",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "The Endpoint's project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "The Endpoint",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonRequest"
+              },
+              "example": {
+                "reason": "Weekly air report for the district office",
+                "types": [
+                  "AirQualityObserved"
+                ],
+                "until": "2027-01-31T23:59:59Z"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The request, pending",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is no request (an unknown member, such as a grantee)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A service account's or an agent's token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such Endpoint the caller reads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already asked or granted, or no grant could reach this Endpoint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A field names what the Endpoint does not serve, or an end that passed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No database",
             "content": {
               "application/json": {
                 "schema": {
@@ -22168,9 +22560,14 @@
       "AppTemplates": {
         "type": "object",
         "required": [
-          "templates"
+          "templates",
+          "modelAvailable"
         ],
         "properties": {
+          "modelAvailable": {
+            "type": "boolean",
+            "description": "Whether \"Generate\" can answer now: an agent runner is configured and the model key was\nnot last reported refused or out of credit (AG-96). When it is `false`, a template is\nstill used as is (T-5617)."
+          },
           "templates": {
             "type": "array",
             "items": {
@@ -24157,6 +24554,17 @@
           },
           "plan": {
             "$ref": "#/components/schemas/PlanSummary"
+          },
+          "proposedVia": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProposedVia",
+                "description": "The channel the Change was proposed through when it was not the person at the Portal\n(AG-137, ADR-N-060 §2.2): read back from the merge request's `Proposed-Via` line."
+              }
+            ]
           },
           "repository": {
             "type": [
@@ -28993,6 +29401,34 @@
           }
         }
       },
+      "PersonRequest": {
+        "type": "object",
+        "description": "The body a person sends on an Endpoint's page (EP-55, T-5615). It names no grantee: the grant\nis always for the person who files it.",
+        "required": [
+          "types",
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Entity types the Endpoint serves, e.g. `[\"AirQualityObserved\"]`."
+          },
+          "until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The grant's end, RFC 3339; none is no end."
+          }
+        },
+        "additionalProperties": false
+      },
       "Phase": {
         "oneOf": [
           {
@@ -30671,6 +31107,24 @@
           }
         }
       },
+      "ProposedVia": {
+        "type": "object",
+        "description": "The channel a Change came through and the OAuth client that sent it (AG-17, AG-137).",
+        "required": [
+          "channel",
+          "client"
+        ],
+        "properties": {
+          "channel": {
+            "type": "string",
+            "description": "`mcp`: a person's AI client over the Portal's MCP server."
+          },
+          "client": {
+            "type": "string",
+            "description": "The token's `azp`, at most 64 characters of `[A-Za-z0-9._:-]`."
+          }
+        }
+      },
       "PublicationStatus": {
         "type": "object",
         "description": "What one endpoint publishes, and where.",
@@ -31142,6 +31596,22 @@
           "payload": {},
           "runId": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RemovePeople": {
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The Keycloak user ids of the people to remove, 1 to 200."
           }
         },
         "additionalProperties": false
@@ -32861,6 +33331,29 @@
           "title": {
             "type": "string"
           }
+        }
+      },
+      "TemplateApp": {
+        "type": "object",
+        "description": "What the person chooses: the App's name and the Endpoint it reads.",
+        "required": [
+          "name",
+          "endpointName"
+        ],
+        "properties": {
+          "endpointName": {
+            "type": "string",
+            "description": "The project's Endpoint the App reads, one the caller may read."
+          },
+          "name": {
+            "type": "string",
+            "description": "The App's name, a DNS-1123 label: `kpi-board`."
+          }
+        },
+        "additionalProperties": false,
+        "example": {
+          "endpointName": "bikes",
+          "name": "bike-finder"
         }
       },
       "TemplateList": {

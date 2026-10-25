@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { RichRow, RichCell } from "./model";
 import { cellText } from "./model";
 import type { ColumnLayout, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
-import { MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, useEntityGrid } from "./useEntityGrid";
-import { CellView, cellDisplayText, columnKind, formatDate } from "./cells";
+import { MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, readableName, useEntityGrid } from "./useEntityGrid";
+import { CellView, cellDisplayText, columnKind, formatDate, targetName } from "./cells";
 import type { CellLabels, ColumnKind } from "./cells";
 import { ColumnMenu } from "./ColumnMenu";
 import { opsForKind, valuesNeeded } from "./filters";
@@ -578,7 +578,10 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     // panel (T-3097): the person reads the row by its name and opens it from there. Inside an
     // App's shell that is the shell's one entity panel (SDK-40, T-3396), else the grid's own.
     if (column.key === "id" || isPrimary(column)) {
-      const name = rowName(row);
+      // A row named by nothing but its id is called by the id's last part, as its detail heading
+      // and its chips are: every id of a type starts `urn:ngsi-ld:Type:…` (T-4265, T-5619).
+      const named = rowName(row);
+      const name = named === row.id ? targetName(row.id).name : named;
       return (
         <button
           type="button"
@@ -590,7 +593,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
             openDetail(row);
           }}
         >
-          {column.key === "id" ? text : text || row.id}
+          {column.key === "id" ? targetName(text).name : text || row.id}
         </button>
       );
     }
@@ -773,6 +776,22 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     if (onHide) onHide(attr);
     else setOwnHidden((before) => [...before, attr]);
   }, [onHide]);
+  // The way back from "Hide field" where the grid holds the hide itself (T-5620); a host that holds
+  // `hidden` offers its own, and the host's own `hidden` (an Endpoint's projection) is not the person's.
+  const [shownAgain, setShownAgain] = useState<string | null>(null);
+  const showColumns = (attrs: readonly string[]) => {
+    const left = ownHidden.filter((attr) => !attrs.includes(attr));
+    setOwnHidden(left);
+    // With none left the control goes: focus moves to the restored column's menu button once drawn.
+    if (left.length === 0) setShownAgain(attrs[0] ?? null);
+  };
+  useEffect(() => {
+    if (shownAgain === null) return;
+    setShownAgain(null);
+    tableRef.current?.querySelector<HTMLElement>(`th[data-col-attr="${shownAgain.replace(/["\\]/g, "\\$&")}"] .jc-grid-meta-btn`)?.focus();
+  }, [shownAgain]);
+  const hiddenLabel = (attr: string): string =>
+    layout.labels?.[attr] ?? hookOptions.config.columns.find((column) => column.attr === attr)?.label ?? readableName(attr);
   const renameColumn = useCallback((attr: string, text: string | undefined) => {
     const { [attr]: _gone, ...rest } = layout.labels ?? {};
     setLayout({ ...layout, labels: text === undefined ? rest : { ...rest, [attr]: text } });
@@ -1030,7 +1049,11 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     [editing, state.activeCell, state.edits, rows, columns, editable, relations, hookOptions.enums, labels.pasteTooLarge, labels.pasted, labels.skipped, setEdits, rules],
   );
 
-  /** The window of rows in sight, read off the scroll position; past its end the next page loads. */
+  /**
+   * The window of rows in sight, read off the scroll position. Once its end passes 60 % of the
+   * loaded rows the next page is asked for, so it is there before the person reaches the end
+   * (T-5623).
+   */
   const onScroll = useCallback(() => {
     const box = scrollRef.current;
     if (!virtual || !box) return;
@@ -1041,15 +1064,23 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     const start = Math.max(0, Math.floor(box.scrollTop / height) - OVERSCAN);
     setWindowStart(start);
     setWindowSize(inSight + 2 * OVERSCAN);
-    if (grid.more && start + inSight + 2 * OVERSCAN >= rows.length - OVERSCAN) {
+    if (grid.more && start + inSight + 2 * OVERSCAN >= rows.length * PREFETCH_AT) {
       grid.loadMore();
     }
   }, [virtual, grid, rows.length]);
+  // A page that lands while the window is still past the mark asks for the next one: a person who
+  // scrolled to the end waits for no further scroll event, which a scroll box at its end never sends.
+  React.useEffect(() => {
+    if (virtual && !grid.loadingMore) onScroll();
+  }, [virtual, grid.loadingMore, rows.length, onScroll]);
   // A key that moves the active cell out of the window scrolls to it; the scroll moves the window.
+  // Only a move of the cell does: a person scrolling away from it is not pulled back (T-5623).
+  const scrolledTo = useRef<number | undefined>(undefined);
   React.useEffect(() => {
     const row = state.activeCell?.row;
     const box = scrollRef.current;
-    if (!virtual || row === undefined || !box) return;
+    if (!virtual || row === undefined || !box || row === scrolledTo.current) return;
+    scrolledTo.current = row;
     if (row < windowStart || row >= windowStart + windowSize) {
       box.scrollTop = row * rowHeight.current;
       onScroll();
@@ -1109,12 +1140,15 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           {activeFilters > 0 ? `${labels.filterRow} (${activeFilters})` : labels.filterRow}
         </button>
       )}
+      {!onHide && ownHidden.length > 0 && <HiddenFields attrs={ownHidden} labels={labels} labelOf={hiddenLabel} onShow={showColumns} />}
       {overflows && <p className="jc-grid-scroll-hint">{labels.scrollHint}</p>}
       <div className="jc-grid-scroll" ref={scrollRef} onScroll={virtual ? onScroll : undefined}>
         <table
           ref={tableRef}
           className={`jc-grid-table${classNames?.table ? ` ${classNames.table}` : ""}`}
           {...gridProps}
+          // The rows of the last answer stay, dimmed, while the next question is read (T-5623).
+          aria-busy={loading && rows.length > 0 ? true : undefined}
           onKeyDown={onGridKeyDown}
           onFocus={onGridFocus}
           onPaste={onGridPaste}
@@ -1428,7 +1462,11 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         <div className="jc-grid-empty">{emptySlot ?? labels.empty}</div>
       )}
 
-      {loading && <div className="jc-grid-loading">{labels.loading}</div>}
+      {loading && (
+        <div className="jc-grid-loading" role="status">
+          {rows.length > 0 && grid.narrowed ? labels.filtering : labels.loading}
+        </div>
+      )}
 
       {error && <div className="jc-grid-error">{labels.error}: {error}</div>}
 
@@ -1707,6 +1745,8 @@ const FALLBACK_ROW_HEIGHT = 36;
 const FALLBACK_VIEWPORT_ROWS = 30;
 /** Rows drawn beyond the window on each side, so a scroll shows rows rather than blank space. */
 const OVERSCAN = 10;
+/** The share of the loaded rows the window's end passes before the next page is asked for. */
+const PREFETCH_AT = 0.6;
 
 /** The query as a person reads and copies it: the `q`, and the id pattern when one is asked. */
 function queryText(asked: { q?: string; idPattern?: string }): string {
@@ -1978,4 +2018,44 @@ function EditableCell({
 function unitHover(cell: RichCell | RichCell[] | undefined, meta: string | null): string | undefined {
   if (meta || !cell || Array.isArray(cell) || cell.kind !== "property" || !cell.unitCode) return undefined;
   return unitTitle(cell.unitCode);
+}
+
+/**
+ * "Hidden fields (2)" above the rows (T-5620): the fields hidden from the header menu, each with
+ * "Show field", and "Show all" for more than one. Focus stays on the count while fields remain.
+ */
+function HiddenFields({ attrs, labels, labelOf, onShow }: { attrs: readonly string[]; labels: GridLabelsAll; labelOf: (attr: string) => string; onShow: (attrs: readonly string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const listId = React.useId();
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const show = (which: readonly string[]) => {
+    onShow(which);
+    toggleRef.current?.focus();
+  };
+  return (
+    <div className="jc-grid-hidden">
+      <button ref={toggleRef} type="button" className="jc-grid-filter-toggle jc-grid-hidden-toggle" aria-expanded={open} aria-controls={listId} onClick={() => setOpen((was) => !was)}>
+        {`${labels.hiddenFields} (${attrs.length})`}
+      </button>
+      {open && (
+        <ul id={listId} className="jc-grid-hidden-list" aria-label={labels.hiddenFields}>
+          {attrs.map((attr) => (
+            <li key={attr}>
+              <span>{labelOf(attr)}</span>
+              <button type="button" aria-label={`${labels.showColumn}: ${labelOf(attr)}`} onClick={() => show([attr])}>
+                {labels.showColumn}
+              </button>
+            </li>
+          ))}
+          {attrs.length > 1 && (
+            <li>
+              <button type="button" onClick={() => show(attrs)}>
+                {labels.showAllColumns}
+              </button>
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
 }

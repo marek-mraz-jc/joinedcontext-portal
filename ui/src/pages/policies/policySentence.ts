@@ -6,6 +6,10 @@
 import { granteeName } from "../../components/AccessWords";
 import { groupOf } from "../../components/endpoints/operationGroups";
 import type { PolicyForm } from "../../routes/PoliciesPage";
+import { constraintInWords } from "./constraintWords";
+import type { ConstraintName } from "./constraintWords";
+
+const CONSTRAINTS: ConstraintName[] = ["q", "scopeQ", "geoQ", "temporalQ"];
 
 type T = (key: string, options?: Record<string, unknown>) => string;
 
@@ -58,10 +62,10 @@ export function policySentence(policy: Partial<PolicyForm>, t: T, language: stri
     }),
   ];
   if (attributes.length > 0) parts.push(t("policies.sentence.attributes", { attributes: listed(attributes, language) }));
-  if (policy.q) parts.push(t("policies.sentence.q", { q: policy.q }));
-  if (policy.scopeQ) parts.push(t("policies.sentence.scope", { scope: policy.scopeQ }));
-  if (policy.geoQ) parts.push(t("policies.sentence.geo", { geo: policy.geoQ }));
-  if (policy.temporalQ) parts.push(t("policies.sentence.temporal", { temporal: policy.temporalQ }));
+  for (const name of CONSTRAINTS) {
+    const value = policy[name];
+    if (value) parts.push(constraintInWords(name, value, t, language));
+  }
   const from = day(policy.validity?.from, language);
   const to = day(policy.validity?.to, language);
   if (from && to) parts.push(t("policies.sentence.between", { from, to }));

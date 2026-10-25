@@ -930,10 +930,19 @@
     },
     "src/pages/apps/AppTemplates.tsx": {
       "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "app_templates.test.tsx",
+        "use_template.test.tsx"
+      ]
+    },
+    "src/pages/apps/UseTemplate.tsx": {
+      "controls": {
         "Button": 1
       },
       "tests": [
-        "app_templates.test.tsx"
+        "use_template.test.tsx"
       ]
     },
     "src/pages/apps/AppsCatalog.tsx": {
@@ -1191,6 +1200,14 @@
         "datasource_templates.test.tsx"
       ]
     },
+    "src/pages/endpoints/AccessRequest.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "endpoint_access_request.test.tsx"
+      ]
+    },
     "src/pages/endpoints/CatalogSection.tsx": {
       "controls": {
         "Button": 1
@@ -1283,7 +1300,7 @@
     },
     "src/pages/explore/ExplorePage.tsx": {
       "controls": {
-        "Button": 6
+        "Button": 1
       },
       "tests": [
         "explore_enum_pick.test.tsx",
@@ -1292,6 +1309,14 @@
         "explore_quality.test.tsx",
         "form_explore_page.test.tsx",
         "list_failed_says_why.test.tsx"
+      ]
+    },
+    "src/pages/explore/ExploreRowActions.tsx": {
+      "controls": {
+        "Button": 4
+      },
+      "tests": [
+        "explore_row_actions.test.tsx"
       ]
     },
     "src/pages/explore/ExportView.tsx": {
@@ -1659,7 +1684,8 @@
     },
     "src/pages/organization/People.tsx": {
       "controls": {
-        "Button": 14,
+        "Button": 17,
+        "Checkbox": 2,
         "RadioGroup": 1
       },
       "tests": [
@@ -1681,7 +1707,8 @@
         "RadioGroup": 1
       },
       "tests": [
-        "access_requests.test.tsx"
+        "access_requests.test.tsx",
+        "endpoint_access_request.test.tsx"
       ]
     },
     "src/pages/pipelines/DebugPanel.tsx": {
@@ -1922,7 +1949,7 @@
     },
     "src/pages/spaces/PublicView.tsx": {
       "controls": {
-        "Button": 2,
+        "Button": 3,
         "Checkbox": 1
       },
       "tests": [

@@ -126,6 +126,34 @@ describe("approval actions", () => {
     vi.restoreAllMocks();
   });
 
+  // AG-137 (T-5609): a Change an AI client proposed over MCP says so to the approver, and one a
+  // person proposed carries no such badge.
+  it("tells the approver a change came through an AI client over MCP", async () => {
+    renderDetail({
+      change: proposal({
+        status: {
+          ...proposal().status,
+          proposedVia: { channel: "mcp", client: "mcp-mobile" },
+        },
+      }),
+    });
+    const badge = await screen.findByTestId("change-proposed-via");
+    expect(badge).toHaveTextContent("Proposed through mcp-mobile (MCP)");
+    expect(
+      screen.getByText(
+        en.approvals.proposedVia.hint
+          .replace("{client}", "mcp-mobile")
+          .replace("{author}", "Marek Mráz"),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no channel badge on a change the person proposed", async () => {
+    renderDetail();
+    await screen.findByText("Marek Mráz");
+    expect(screen.queryByTestId("change-proposed-via")).toBeNull();
+  });
+
   // MF-48: a change that names what another creates says which, and a rejected one flags it.
   it("says which change it waits on, and flags one that was rejected", async () => {
     renderDetail({

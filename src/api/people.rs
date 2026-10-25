@@ -190,7 +190,7 @@ fn people(state: &AppState) -> Result<&People, ApiError> {
 /// The caller holds `verb` on `Person` in a binding at organization scope (PF-91).
 /// The verb on Person; administering anyone (every verb but read) is a decision door that
 /// also wants a second factor in the session (T-5567).
-fn allow(state: &AppState, identity: &Identity, verb: Verb) -> Result<(), ApiError> {
+pub(crate) fn allow(state: &AppState, identity: &Identity, verb: Verb) -> Result<(), ApiError> {
     crate::permissions::for_request(state, identity, ORG_NAMESPACE).check(PERSON, verb, None)?;
     if verb == Verb::Read {
         return Ok(());
@@ -1170,7 +1170,7 @@ struct Removal {
     removed: Vec<ResourceEnvelope>,
 }
 
-fn removal(state: &AppState, email: &str) -> Result<Removal, ApiError> {
+fn removal(state: &AppState, emails: &[String]) -> Result<Removal, ApiError> {
     let mut removal = Removal::default();
     let mut elsewhere = Vec::new();
     for mut envelope in state
@@ -1191,7 +1191,7 @@ fn removal(state: &AppState, email: &str) -> Result<Removal, ApiError> {
             !entry
                 .get("user")
                 .and_then(Value::as_str)
-                .is_some_and(|user| user.eq_ignore_ascii_case(email))
+                .is_some_and(|user| emails.iter().any(|email| user.eq_ignore_ascii_case(email)))
         });
         if list.len() == before {
             continue;
@@ -1214,8 +1214,8 @@ fn removal(state: &AppState, email: &str) -> Result<Removal, ApiError> {
     if !elsewhere.is_empty() {
         elsewhere.sort();
         return Err(ApiError::Conflict(format!(
-            "the person is still named by {}, which live in their project's own repository; take \
-             them out there first (PF-93)",
+            "the people to remove are still named by {}, which live in their project's own \
+             repository; take them out there first (PF-93)",
             elsewhere.join(", ")
         )));
     }
@@ -1247,13 +1247,152 @@ pub async fn delete_person(
     refuse_bearer(identity)?;
     let (admin, found) = target(&state, identity, Verb::Delete, &id).await?;
     not_self_nor_last(&state, identity, &found)?;
-    let email = email_of(&found);
-    let removal = removal(&state, &email)?;
+    remove(&state, identity, &admin, &[found]).await
+}
+
+/// The most people one removal takes: each one is a few realm calls in a row (T-5606).
+const REMOVE_AT_ONCE: usize = 200;
+
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RemovePeople {
+    /// The Keycloak user ids of the people to remove, 1 to 200.
+    pub ids: Vec<String>,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/organization/people/remove",
+    summary = "Remove People",
+    description = "Removes up to 200 people at once, a department leaving: proposes ONE Change taking all of them out of every Group and RoleBinding and disables each of them; their Keycloak users are deleted once it is merged. When nothing names any of them they are deleted at once. The same rules as Delete Person hold for each one: `delete` on Person and every right the person holds, never the caller nor the last Organization Administrator (T-5606).",
+    tag = "people",
+    request_body(content = RemovePeople, example = json!({ "ids": ["7d1f0c9e-4b8a-4f63-9a51-2c0d8e3b6f14", "0b6f0e4c-1d2e-4f00-9a7b-3c4d5e6f7a8b"] })),
+    responses(
+        (status = 202, description = "The one Change the removals wait for", body = Change),
+        (status = 204, description = "Deleted: no manifest named any of them"),
+        (status = 400, description = "The body is not a list of ids", body = ProblemDetails),
+        (status = 403, description = "The caller lacks delete on Person, or a right one of the people holds (named)", body = ProblemDetails),
+        (status = 404, description = "No such person (named)", body = ProblemDetails),
+        (status = 409, description = "The caller, the last Organization Administrator, a removal already pending, or a reference in a project's own repository", body = ProblemDetails),
+        (status = 422, description = "No id, or more than 200", body = ProblemDetails),
+        (status = 503, description = "No Keycloak admin client, forge or database", body = ProblemDetails),
+    )
+)]
+pub async fn remove_people(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let identity = &user.0.identity;
+    refuse_bearer(identity)?;
+    allow(&state, identity, Verb::Delete)?;
+    let ids = removal_ids(&body)?;
+    let admin = people(&state)?.admin().await?;
+    let found = removable(&state, identity, &admin, &ids).await?;
+    remove(&state, identity, &admin, &found).await
+}
+
+/// The ids a bulk removal names, sorted and deduplicated: 1 to [`REMOVE_AT_ONCE`] of them.
+fn removal_ids(body: &[u8]) -> Result<Vec<String>, ApiError> {
+    let RemovePeople { mut ids } = parse(body)?;
+    ids.sort();
+    ids.dedup();
+    if ids.is_empty() || ids.len() > REMOVE_AT_ONCE {
+        return Err(ApiError::Unprocessable {
+            detail: format!(
+                "a removal takes 1 to {REMOVE_AT_ONCE} people, and this one names {}",
+                ids.len()
+            ),
+            errors: vec![format!("/ids: 1 to {REMOVE_AT_ONCE} ids, e.g. [\"6f1c…\"]")],
+        });
+    }
+    Ok(ids)
+}
+
+/// Every named person, each held to the single route's rules: an unknown id 404s, a right
+/// the caller lacks 403s, the caller or the last administrator 409s.
+async fn removable(
+    state: &AppState,
+    identity: &Identity,
+    admin: &Admin<'_>,
+    ids: &[String],
+) -> Result<Vec<KcUser>, ApiError> {
+    let mut found = Vec::with_capacity(ids.len());
+    for id in ids {
+        let user = admin.get(id).await.map_err(|err| match err {
+            crate::people::PeopleError::NotFound => {
+                ApiError::NotFound(format!("the realm has no person {id}"))
+            }
+            other => other.into(),
+        })?;
+        holds_what_they_hold(state, identity, admin, &user).await?;
+        not_self_nor_last(state, identity, &user)?;
+        found.push(user);
+    }
+    not_every_administrator(state, &found)?;
+    Ok(found)
+}
+
+/// A removal of several people never takes every Organization Administrator at once, though
+/// none of them is the last one alone (PF-03).
+fn not_every_administrator(state: &AppState, people: &[KcUser]) -> Result<(), ApiError> {
+    let administrators = crate::permissions::administrator_people(&state.mirror);
+    let removed: Vec<String> = people.iter().map(email_of).collect();
+    if !administrators.is_empty()
+        && administrators.iter().all(|admin| {
+            removed
+                .iter()
+                .any(|email| email.eq_ignore_ascii_case(admin))
+        })
+    {
+        return Err(ApiError::Conflict(
+            "this removal takes every Organization Administrator; keep one or bind another \
+             person to an administrator role first (PF-03)"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+/// The branch a removal's Change is proposed on: one per person, or one per set of people.
+fn removal_branch(people: &[KcUser]) -> String {
+    use sha2::Digest as _;
+    let short: String = match people {
+        [one] => one
+            .id
+            .chars()
+            .filter(char::is_ascii_alphanumeric)
+            .take(12)
+            .collect(),
+        many => {
+            let mut ids: Vec<&str> = many.iter().map(|user| user.id.as_str()).collect();
+            ids.sort_unstable();
+            let digest = sha2::Sha256::digest(ids.join("\n"));
+            let hex: String = digest.iter().take(6).map(|b| format!("{b:02x}")).collect();
+            return format!("portal/remove-{}-people-{hex}", many.len());
+        }
+    };
+    format!("portal/remove-person-{short}")
+}
+
+/// Removes `people`, each one already checked (PF-93): deleted at once when no manifest names any
+/// of them, else ONE Change takes all of them out of every Group and RoleBinding, and each one is
+/// disabled, signed out and held as a pending removal until it is merged (T-5606).
+async fn remove(
+    state: &AppState,
+    identity: &Identity,
+    admin: &Admin<'_>,
+    people: &[KcUser],
+) -> Result<Response, ApiError> {
+    let emails: Vec<String> = people.iter().map(email_of).collect();
+    let removal = removal(state, &emails)?;
     if removal.edited.is_empty() && removal.removed.is_empty() {
-        admin.delete(&found.id).await?;
-        revoke(&state, &found.id).await;
-        forget_invitation(&state, &found.id).await;
-        record(&state, identity, "deleted", &found.id).await;
+        for found in people {
+            admin.delete(&found.id).await?;
+            revoke(state, &found.id).await;
+            forget_invitation(state, &found.id).await;
+            record(state, identity, "deleted", &found.id).await;
+        }
         return Ok(StatusCode::NO_CONTENT.into_response());
     }
 
@@ -1264,14 +1403,16 @@ pub async fn delete_person(
                 .into(),
         )
     })?;
-    if let Some(open) = crate::db::person_deletion(pool, &found.id)
-        .await
-        .map_err(db_error)?
-    {
-        return Err(ApiError::Conflict(format!(
-            "a removal of this person is already open: {}; approve or reject it first",
-            open.change_name
-        )));
+    for found in people {
+        if let Some(open) = crate::db::person_deletion(pool, &found.id)
+            .await
+            .map_err(db_error)?
+        {
+            return Err(ApiError::Conflict(format!(
+                "a removal of person {} is already open: {}; approve or reject it first",
+                found.id, open.change_name
+            )));
+        }
     }
     let manifests: Vec<Value> = removal
         .edited
@@ -1300,15 +1441,9 @@ pub async fn delete_person(
         .forge_for(ORG_NAMESPACE)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
     let default_branch = gitea.default_branch().await?;
-    let short: String = found
-        .id
-        .chars()
-        .filter(char::is_ascii_alphanumeric)
-        .take(12)
-        .collect();
     let branch = crate::api::mutate::create_or_reuse_branch(
         &gitea,
-        &format!("portal/remove-person-{short}"),
+        &removal_branch(people),
         &default_branch,
     )
     .await?;
@@ -1338,7 +1473,18 @@ pub async fn delete_person(
     }
     let (author_name, author_email) =
         crate::api::mutate::author_credentials(identity, ORG_NAMESPACE);
-    let title = format!("remove person {} from every group and binding", found.id);
+    // Ids only, never the e-mails: the title and the body are read by everyone with the repository.
+    let ids: Vec<&str> = people.iter().map(|found| found.id.as_str()).collect();
+    let (title, whom) = match ids.as_slice() {
+        [one] => (
+            format!("remove person {one} from every group and binding"),
+            format!("person {one}"),
+        ),
+        many => (
+            format!("remove {} people from every group and binding", many.len()),
+            format!("{} people ({})", many.len(), many.join(", ")),
+        ),
+    };
     gitea
         .change_files(
             &branch,
@@ -1352,17 +1498,16 @@ pub async fn delete_person(
         )
         .await?;
     let body = format!(
-        "Proposed via joinedcontext Portal. Takes person {} out of {} manifest(s) and removes {} \
-         binding(s) left naming nobody; the person's Keycloak user is deleted once this is merged \
+        "Proposed via joinedcontext Portal. Takes {whom} out of {} manifest(s) and removes {} \
+         binding(s) left naming nobody; each Keycloak user is deleted once this is merged \
          (PF-93).",
-        found.id,
         removal.edited.len(),
         removal.removed.len()
     );
     let pr = gitea
         .create_pull_request(&branch, &default_branch, &title, &body)
         .await?;
-    let meta = crate::api::changes::change_meta(&state, &gitea, pr.number, ORG_NAMESPACE);
+    let meta = crate::api::changes::change_meta(state, &gitea, pr.number, ORG_NAMESPACE);
     let change = Change::new(
         meta,
         ChangeStatus::new(
@@ -1371,23 +1516,28 @@ pub async fn delete_person(
             PlanSummary::new(0, removal.edited.len(), removal.removed.len()),
         )
         .in_repository(&pr.repository)
+        .proposed_through(&pr.body)
         .with_merge_request(pr.url.clone()),
     );
-    crate::db::insert_person_deletion(
-        pool,
-        &found.id,
-        pr.number,
-        &change.metadata.name,
-        &identity.username,
-    )
-    .await
-    .map_err(db_error)?;
+    for found in people {
+        crate::db::insert_person_deletion(
+            pool,
+            &found.id,
+            pr.number,
+            &change.metadata.name,
+            &identity.username,
+        )
+        .await
+        .map_err(db_error)?;
+    }
     // Disabled at once: a person on the way out keeps no session while the Change waits.
-    admin
-        .update(&found.id, |rep| rep["enabled"] = json!(false))
-        .await?;
-    end_access(&state, &admin, &found.id).await?;
-    record(&state, identity, "proposed the removal of", &found.id).await;
+    for found in people {
+        admin
+            .update(&found.id, |rep| rep["enabled"] = json!(false))
+            .await?;
+        end_access(state, admin, &found.id).await?;
+        record(state, identity, "proposed the removal of", &found.id).await;
+    }
     Ok((StatusCode::ACCEPTED, Json(change)).into_response())
 }
 
@@ -1420,18 +1570,25 @@ pub async fn finish_deletions(
         }
     };
     let mut decided: BTreeMap<String, &str> = BTreeMap::new();
+    // A department's removal is one Change for many rows: each pull request is read once.
+    let mut read: HashMap<u64, (bool, bool)> = HashMap::new();
     for row in rows {
         let Ok(number) = u64::try_from(row.pull_request) else {
             continue;
         };
-        let pr = match gitea.pull_request(number).await {
-            Ok(pr) => pr,
-            Err(err) => {
-                tracing::warn!(change = %row.change_name, error = %err, "the removal's Change could not be read");
-                continue;
-            }
+        let (merged, closed) = match read.get(&number) {
+            Some(known) => *known,
+            None => match gitea.pull_request(number).await {
+                Ok(pr) => *read
+                    .entry(number)
+                    .or_insert((pr.merged, pr.state == "closed")),
+                Err(err) => {
+                    tracing::warn!(change = %row.change_name, error = %err, "the removal's Change could not be read");
+                    continue;
+                }
+            },
         };
-        if pr.merged {
+        if merged {
             match admin.delete(&row.person_id).await {
                 Ok(()) | Err(crate::people::PeopleError::NotFound) => {
                     decided.insert(row.person_id, "deleted");
@@ -1440,7 +1597,7 @@ pub async fn finish_deletions(
                     tracing::warn!(person = %row.person_id, error = ?err, "the merged removal did not delete the person yet");
                 }
             }
-        } else if pr.state == "closed" {
+        } else if closed {
             decided.insert(row.person_id, "kept");
         }
     }
@@ -1465,6 +1622,7 @@ pub fn router() -> Router<AppState> {
             "/organization/people/{id}",
             get(get_person).patch(edit_person).delete(delete_person),
         )
+        .route("/organization/people/remove", post(remove_people))
         .route("/organization/people/{id}/disable", post(disable_person))
         .route("/organization/people/{id}/enable", post(enable_person))
         .route(
@@ -1489,6 +1647,23 @@ pub fn router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_bulk_removal_names_one_to_two_hundred_distinct_ids() {
+        let ids = removal_ids(br#"{"ids":["b","a","b"]}"#).expect("two distinct ids");
+        assert_eq!(ids, vec!["a".to_owned(), "b".to_owned()]);
+        assert!(matches!(
+            removal_ids(br#"{"ids":[]}"#),
+            Err(ApiError::Unprocessable { .. })
+        ));
+        let many: Vec<String> = (0..=REMOVE_AT_ONCE).map(|n| format!("p{n}")).collect();
+        let body = serde_json::to_vec(&serde_json::json!({ "ids": many })).expect("json");
+        assert!(matches!(
+            removal_ids(&body),
+            Err(ApiError::Unprocessable { .. })
+        ));
+        assert!(matches!(removal_ids(b"{}"), Err(ApiError::BadRequest(_))));
+    }
 
     #[test]
     fn a_created_person_and_a_reset_never_show_the_temporary_password() {

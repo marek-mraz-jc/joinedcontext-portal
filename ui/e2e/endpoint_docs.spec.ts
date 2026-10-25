@@ -115,3 +115,32 @@ test.describe("an endpoint's developer page", () => {
     expect(cookies.every((cookie) => cookie === undefined), "try-it sends no cookie").toBe(true);
   });
 });
+
+// T-5630: the page asks the gateway in its own language, so a Slovak visitor reads a Slovak heading.
+test.describe("an endpoint's developer page in the visitor's language", () => {
+  test("the sk page heads in Slovak and the en page in English", async ({ page }, info) => {
+    await page.route("**/api/v1/**", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname.endsWith("/standards")) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(STANDARDS) });
+      const unauthorized = url.pathname.endsWith("/auth/me");
+      return route.fulfill({ status: unauthorized ? 401 : 404, contentType: "application/problem+json", body: JSON.stringify({ title: "Not Found", status: 404 }) });
+    });
+    await page.route("**/api/endpoint/**", async (route) => {
+      const slovak = (await route.request().headerValue("accept-language")) === "sk";
+      const title = slovak ? { title: "Mestské bicykle v Helsinkách", description: "Stanice a voľné bicykle." } : {};
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...DOC, info: { ...DOC.info, ...title } }) });
+    });
+    for (const width of [1440, 400]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const [language, title, lead] of [
+        ["sk", "Mestské bicykle v Helsinkách", "Stanice a voľné bicykle."],
+        ["en", "Helsinki city bikes", "Stations and free bikes."],
+      ]) {
+        await page.goto(`/d/${SLUG}?lang=${language}`);
+        await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+        await expect(page.getByText(lead)).toBeVisible();
+        await page.screenshot({ path: info.outputPath(`developer-${language}-${width}.png`) });
+      }
+    }
+  });
+});

@@ -114,6 +114,34 @@ describe("an endpoint's documentation (T-3265)", () => {
     expect(screen.getByRole("region", { name: "AirQualityObserved" })).toHaveTextContent("Particles under 10 µm");
   });
 
+  it("asks the gateway in the page's language and heads with the title it answers (T-5630)", async () => {
+    for (const [language, title] of [
+      ["sk", "Kvalita ovzdušia v Banskej Bystrici"],
+      ["en", "Air quality in Banská Bystrica"],
+    ]) {
+      await i18n.changeLanguage(language);
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: RequestInfo | URL) => {
+          const request = input instanceof Request ? input : new Request(String(input));
+          if (new URL(request.url).pathname.endsWith("/standards")) return json(STANDARDS);
+          const slovak = request.headers.get("Accept-Language") === "sk";
+          return json({ ...DOC, info: { ...DOC.info, title: slovak ? "Kvalita ovzdušia v Banskej Bystrici" : DOC.info.title } });
+        }),
+      );
+      const { unmount } = render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <I18nextProvider i18n={i18n}>
+            <EndpointDocs slug={SLUG} open />
+          </I18nextProvider>
+        </QueryClientProvider>,
+      );
+      expect(await screen.findByRole("heading", { level: 1, name: title })).toBeInTheDocument();
+      unmount();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("says it cannot be read when the gateway refuses, revealing nothing", async () => {
     show(new Response("{}", { status: 404 }));
     expect(await screen.findByText(en.endpoints.docs.unavailable)).toBeInTheDocument();

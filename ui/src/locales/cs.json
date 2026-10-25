@@ -284,6 +284,10 @@
       "title": "{count, plural, one {# žádost o sloučení ve forge není změnou} few {# žádosti o sloučení ve forge nejsou změnami} other {# žádostí o sloučení ve forge není změnami}}",
       "item": "#{number} od {author}"
     },
+    "proposedVia": {
+      "badge": "Navrženo přes {client} (MCP)",
+      "hint": "Tento návrh napsal AI klient ({client}) přes MCP a {author} ho potvrdil(a). Přečtěte si, co mění, jako u každého jiného."
+    },
     "workspace": "Z kopie",
     "fromWorkspace": "Z kopie {name}, kterou připravil(a) {author}, vráceno {date}: upraveno mimo živý projekt a před návrhem znovu zkontrolováno.",
     "emptyHint": "Každá změna tohoto projektu tu čeká, dokud ji člověk nepřečte a nerozhodne. Teď nic nečeká; podejte změnu a objeví se v tomto seznamu.",
@@ -559,6 +563,9 @@
       "addRowTitle": "Nový záznam: {type}",
       "dataFailed": "Data prostoru neodpověděla",
       "dataFailedHint": "Endpoint odpověděl HTTP {status}: {detail}. Nic se nezměnilo; zkuste to znovu za minutu, a pokud to dál selhává, řekněte to správci prostoru.",
+      "dataBusy": "Portál je právě zaneprázdněný; nic se nezměnilo. Zkuste to znovu za minutu.",
+      "dataBusyWait": "Portál je právě zaneprázdněný; nic se nezměnilo. Zkuste to znovu za {count, plural, one {# sekundu} few {# sekundy} other {# sekund}}.",
+      "dataBusyWaiting": "Portál požádal o chvíli strpení před dalším čtením.",
       "dataThroughEndpoints": "Tento prostor můžete vidět přes jeho endpointy:",
       "dataNoTypes": "Tento prostor nepojmenovává datový model, takže není co číst.",
       "back": "← Kontextové prostory",
@@ -872,6 +879,12 @@
       "publish": "Navrhnout veřejný odkaz",
       "link": "Po sloučení a nasazení změny je odkaz {url}",
       "notPublished": "Tento pohled není zveřejněn nebo už není.",
+      "heading": "Veřejný pohled na data",
+      "publicLead": "Otevřená data, která si může přečíst kdokoli bez přihlášení; co ukazují, určuje jejich vydavatel.",
+      "closed": "Tento pohled není otevřen veřejnosti.",
+      "busy": "Právě je tu příliš mnoho návštěv. Zkuste to znovu za {seconds} s.",
+      "busyLater": "Právě je tu příliš mnoho návštěv. Zkuste to znovu za minutu.",
+      "down": "Datová služba neodpověděla. Zkuste to znovu.",
       "types": "Typy",
       "first": "Prvních {count} entit.",
       "count": "{count, plural, one {# entita} few {# entity} other {# entit}}.",
@@ -1932,7 +1945,7 @@
     "playground": {
       "title": "Vyzkoušet",
       "reading": "Zjišťuji, co smíte volat…",
-      "nothing": "Váš přístup vám přes tento endpoint nedovoluje nic volat.",
+      "nothing": "Váš přístup vám přes tento endpoint nedovoluje nic volat. Ke čtení požádejte jeho vlastníky v části Požádat o přístup níže.",
       "operation": "Co číst",
       "operations": {
         "list": "Entity typu",
@@ -2273,6 +2286,33 @@
         "policy": "Politika",
         "endpoint": "Endpoint",
         "type": "Typ"
+      }
+    },
+    "request": {
+      "section": "Požádat o přístup",
+      "sectionLead": "Požádejte vlastníky prostoru tohoto endpointu o čtení jeho dat. Oprávnění bude jen pro vás; rozhodne o něm vlastník a odpověď uvidíte zde.",
+      "reading": "Načítají se vaše žádosti…",
+      "retry": "Zkusit znovu",
+      "yours": "Vaše žádosti o přístup",
+      "yourRequest": "Vaše žádost",
+      "approvedHint": "Schváleno: oprávnění platí po sloučení jeho změny. Potom vám Vyzkoušet výše odpoví na čtení.",
+      "sent": "Žádost odeslána. Rozhodnou o ní vlastníci prostoru; její stav uvidíte zde.",
+      "noTypes": "Prostor tohoto endpointu nemá zkompilovaný datový model, proto zatím nelze žádat o žádný typ. Požádejte vlastníky, aby ho přidali.",
+      "title": "Požádat o čtení",
+      "lead": "Vyberte typy, které potřebujete, uveďte důvod a nastavte konec, pokud je potřebujete jen na čas.",
+      "types": "Typy entit",
+      "until": "Do (nepovinné)",
+      "reason": "Důvod",
+      "send": "Odeslat žádost",
+      "missing": {
+        "types": "Vyberte alespoň jeden typ.",
+        "until": "Vyberte pozdější den.",
+        "reason": "Uveďte, k čemu data potřebujete."
+      },
+      "hint": {
+        "types": "Druhy dat, které tento endpoint poskytuje a které potřebujete, např. parkovací místa.",
+        "until": "Poslední den oprávnění, např. 2027-01-31. Prázdné znamená bez konce.",
+        "reason": "K čemu data potřebujete, např. Týdenní zpráva o ovzduší pro okresní úřad."
       }
     }
   },
@@ -3298,9 +3338,9 @@
       "until": "Do {date}",
       "noEnd": "Bez data konce",
       "decided": "{who}: {reason}",
-      "inbox": "Pipeline žádající o přístup",
-      "inboxLead": "Pipeline jiných prostorů a projektů, které žádají číst nebo zapisovat do tohoto prostoru. Schválení navrhne přístup jako změnu tohoto projektu.",
-      "inboxEmpty": "Žádná pipeline nežádala o přístup k tomuto prostoru.",
+      "inbox": "Žádosti o přístup",
+      "inboxLead": "Lidé, kteří žádají o čtení endpointu tohoto prostoru, a pipeline jiných prostorů, které žádají o jeho čtení nebo zápis. Schválení navrhne oprávnění jako změnu tohoto projektu; tuto změnu schválí jiná osoba.",
+      "inboxEmpty": "O přístup k tomuto prostoru zatím nikdo nepožádal.",
       "on": "na {endpoint}, žádá {who}",
       "decisionReason": "Důvod pro žadatele",
       "approve": "Schválit",
@@ -3322,7 +3362,8 @@
       "noTypes": "Prostor endpointu nemá zkompilovaný datový model, takže zatím nelze žádat o typ. Požádejte vlastníky, aby ho přidali.",
       "endpointFirst": "Nejprve vyberte endpoint.",
       "noAttrs": "Model nedeklaruje žádný atribut typu {type}.",
-      "typeFirst": "Nejprve vyberte typ entity."
+      "typeFirst": "Nejprve vyberte typ entity.",
+      "allAttrs": "všechny atributy"
     },
     "map": {
       "views": "Zobrazení pipeline",
@@ -3763,7 +3804,11 @@
       "unconstrained": "bez omezení",
       "prohibitions": "Výslovně zakázáno",
       "forbidden": "Tento endpoint vám neodpovídá; přihlaste se účtem, který má oprávnění.",
-      "unavailable": "Dokument o přístupu se nepodařilo přečíst. Zkuste to za chvíli znovu."
+      "unavailable": "Dokument o přístupu se nepodařilo přečíst. Zkuste to za chvíli znovu.",
+      "source": "Odkud",
+      "grants": "{count, plural, one {# oprávnění} few {# oprávnění} other {# oprávnění}}",
+      "noSource": "oprávnění tohoto prostoru",
+      "noSourceHint": "Tomuto oprávnění neodpovídá žádná politika, kterou smíte číst."
     },
     "panel": {
       "title": "Váš přístup",
@@ -4020,6 +4065,19 @@
       "nothing": "Zatím nic nepovoleno",
       "endpointRole": "Každý volající endpointu {endpoint}",
       "endpointTier": "Role aplikace {tier} na endpointu {endpoint}"
+    },
+    "constraint": {
+      "back": "historie nejvýše {duration} zpět",
+      "older": "historie starší než {duration}",
+      "since": "historie od {at}",
+      "until": "historie před {at}",
+      "between": "historie od {from} do {to}",
+      "scopeBelow": "v rámci rozsahu {scope} a všeho pod ním",
+      "point": "bodu {lat}, {lon}",
+      "area": "nakreslené oblasti",
+      "near": "do {distance} od {where}",
+      "within": "uvnitř {where}",
+      "intersects": "dotýkající se {where}"
     }
   },
   "flows": {
@@ -4944,7 +5002,19 @@
       "createTitle": "Vytvořit ze šablony {title}",
       "createHint": "Zvolte endpoint, jehož data aplikace ukazuje; zbytek je ze šablony.",
       "screenshot": "{title}, jak ji ukazuje ukázka",
-      "demo": "Otevřít ukázku"
+      "demo": "Otevřít ukázku",
+      "useAsIs": "Použít beze změn",
+      "modelOut": "Generování není dostupné: klíč modelu Portálu je odmítnut nebo bez kreditu, takže tvůrce aplikací neodpoví, dokud ho administrátor nevymění nebo nedobije. Použít beze změn funguje i tak: aplikaci založí ze šablony beze změn a model se neptá.",
+      "modelOutShort": "Tvůrce aplikací neodpovídá: klíč modelu je odmítnut nebo bez kreditu. Použijte raději Použít beze změn.",
+      "useTitle": "Použít {title} beze změn",
+      "useHint": "Šablona se beze změn uloží do vlastního repozitáře a aplikace se navrhne ke schválení; model se neptá.",
+      "useLead": "Pojmenujte aplikaci a zvolte endpoint, který čte. Po schválení se sestaví v repozitáři a otevře se jako každá jiná aplikace.",
+      "name": "Název aplikace",
+      "nameHint": "Malá písmena, číslice a pomlčky, například bike-finder. Pojmenuje aplikaci i její repozitář.",
+      "endpointHint": "Zobrazují se jen endpointy, které smíte číst; aplikace ukazuje data zvoleného endpointu.",
+      "noEndpoints": "V tomto projektu zatím není endpoint, který smíte číst. Požádejte správce, aby ho vytvořil nebo vám ho zpřístupnil.",
+      "chooseFirst": "Nejprve zadejte název a zvolte endpoint.",
+      "useSubmit": "Vytvořit aplikaci"
     },
     "jobs": {
       "title": "Plánované úlohy",
@@ -5301,6 +5371,7 @@
     "datasetId": "Dataset",
     "empty": "Žádné entity.",
     "loading": "Načítám…",
+    "filtering": "Filtruji…",
     "previous": "Předchozí",
     "next": "Následující",
     "page": "Strana",
@@ -5471,6 +5542,9 @@
     "sortDesc": "Seřadit sestupně",
     "filterColumn": "Filtrovat",
     "hideColumn": "Skrýt pole",
+    "hiddenFields": "Skrytá pole",
+    "showColumn": "Zobrazit pole",
+    "showAllColumns": "Zobrazit vše",
     "renameColumn": "Název v tomto pohledu",
     "renameReset": "Použít název z modelu",
     "columnWidth": "Šířka",
@@ -5507,12 +5581,9 @@
     "endpoint": "Číst přes endpoint",
     "noEndpoint": "Tento prostor nemá endpoint, přes který lze číst.",
     "noType": "Vyberte typ entity, aby se načetly entity.",
-    "detail": "Entita",
-    "close": "Zavřít",
     "loadFailed": "Entity se nepodařilo načíst. Zkuste to znovu nebo čtěte přes jiný endpoint.",
     "delete": "Smazat entitu",
     "removeTitle": "Smazat tuto entitu?",
-    "removeLead": "{id} se odstraní z prostoru přes tento endpoint.",
     "removeConfirm": "Smazat",
     "removeNote": "Rozhoduje Policy endpointu: smazání běží s vaším přihlášením, ne se servisní identitou, a nelze je vrátit.",
     "removeReason": "Důvod",
@@ -5630,7 +5701,9 @@
       "pickEntity": "Vyberte entitu, jejíž průběh se má zobrazit."
     },
     "pickSpaceFirst": "Nejprve vyberte prostor.",
-    "noMatch": "Dotazu nic neodpovídá; změňte nebo odstraňte filtr."
+    "noMatch": "Dotazu nic neodpovídá; změňte nebo odstraňte filtr.",
+    "technical": "Technické podrobnosti (JSON-LD)",
+    "copyJson": "Kopírovat JSON-LD"
   },
   "agentRun": {
     "title": "Běh aplikace",
@@ -6270,7 +6343,8 @@
         "drifted": "Odchylka od repozitáře"
       },
       "change": {
-        "merged": "Změna sloučena"
+        "merged": "Změna sloučena",
+        "rejected": "Změna zamítnuta"
       },
       "pipeline": {
         "throughput": "Propustnost pipeline",
@@ -6280,6 +6354,7 @@
         "source-delete": "Smazané, protože je zdroj vypustil"
       },
       "endpoint": {
+        "rate-limited": "Překročený limit požadavků",
         "traffic": "Provoz endpointu"
       },
       "access": {
@@ -7109,6 +7184,26 @@
           "title": "Zrušit pozvánku pro {email}?",
           "body": "Účet se smaže a odkaz přestane fungovat. Pokud člověka už jmenuje vazba, nejprve ho z ní vyjme změna."
         }
+      },
+      "bulk": {
+        "hint": "Zaškrtněte lidi, které chcete zakázat nebo odstranit najednou, např. všechny z odcházejícího oddělení.",
+        "selectAll": "Vybrat všechny na této stránce",
+        "select": "Vybrat {name}",
+        "selected": "Vybráno: {count}",
+        "disable": "Zakázat",
+        "delete": "Odstranit",
+        "clear": "Zrušit výběr",
+        "confirmDisable": {
+          "title": "Zakázat {count} lidí?",
+          "body": "Každý z nich je ihned odhlášen a nemůže se přihlásit, dokud ho administrátor znovu nepovolí."
+        },
+        "confirmDelete": {
+          "title": "Odstranit {count} lidí?",
+          "body": "Ihned se zakážou. Jedna změna je vyjme ze všech skupin a vazeb rolí; jejich účty se odstraní po jejím schválení. Lidé, které nic neuvádí, se odstraní ihned."
+        },
+        "disabled": "Zakázaných lidí: {count}.",
+        "deleted": "Odstraněných lidí: {count}.",
+        "partly": "Zakázáno {done} z {count}. Nezakázáni: {failed}."
       }
     },
     "setup": {
@@ -7735,7 +7830,8 @@
       "allows": "Dovoluje",
       "from": "Odkud",
       "none": "Žádná vazba vám zde nic nedává.",
-      "binding": "vazba {binding}, {scope}"
+      "binding": "vazba {binding}, {scope}",
+      "approveOthers": "Schvalujete změny, které navrhnou jiní; vaše vlastní změny čekají na jiného schvalovatele, protože na tyto druhy nemáte také právo mazat."
     },
     "danger": {
       "title": "Smazat projekt",

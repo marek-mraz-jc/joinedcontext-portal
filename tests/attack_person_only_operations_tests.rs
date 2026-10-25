@@ -631,6 +631,21 @@ async fn a_bearer_token_never_declines_an_access_request() {
     }
 }
 
+/// PF-58, EP-55 (T-5615): a grant asked for on an Endpoint's page goes to the person who asks;
+/// no service account's or agent's token files one for itself.
+#[tokio::test]
+async fn a_bearer_token_never_asks_for_access_to_an_endpoint() {
+    let gitea = MockServer::start().await;
+    let state = state_for_tokens(&gitea);
+    let uri = format!("/api/v1/projects/{PROJECT}/endpoints/air/access-requests");
+    for (who, token) in tokens() {
+        let body = json!({ "types": ["AirQualityObserved"], "reason": "weekly report" });
+        let (status, text) = with_token(&state, &token, "POST", &uri, body).await;
+        assert_eq!(StatusCode::FORBIDDEN, status, "{who}: {text}");
+        assert!(text.contains("a person asks for access"), "{who}: {text}");
+    }
+}
+
 /// AG-133, PF-58: a person's account, a consent of theirs and their second factor are removed
 /// only by a person in a Portal session; the token is refused before the realm is asked.
 #[tokio::test]
@@ -642,6 +657,7 @@ async fn a_bearer_token_never_deletes_a_person_or_removes_their_second_factor() 
         ("DELETE", person.to_owned()),
         ("POST", format!("{person}/remove-second-factor")),
         ("DELETE", format!("{person}/consents/jc-hub")),
+        ("POST", "/api/v1/organization/people/remove".to_owned()),
     ];
     for (who, token) in tokens() {
         for (http, uri) in &doors {
@@ -709,6 +725,12 @@ fn decision_doors() -> Vec<(&'static str, String, Option<Value>, Identity)> {
             "DELETE",
             "/api/v1/organization/people/u-1".into(),
             None,
+            admin.clone(),
+        ),
+        (
+            "POST",
+            "/api/v1/organization/people/remove".into(),
+            Some(json!({ "ids": ["u-1", "u-2"] })),
             admin,
         ),
     ]

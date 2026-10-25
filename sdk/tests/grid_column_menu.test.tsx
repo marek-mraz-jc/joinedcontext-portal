@@ -84,6 +84,47 @@ describe("the column header menu (T-4827)", () => {
     await waitFor(() => expect(screen.queryByRole("button", { name: "Column options: Count" })).toBeNull());
   });
 
+  it("names the fields it hid by count, and one click brings each back (T-5620)", async () => {
+    render(<EntityGrid config={config} source={fixtureSource(entities)} />);
+    await screen.findByText("Alpha");
+    expect(screen.queryByRole("button", { name: /^Hidden fields/ })).toBeNull();
+    openMenu("Count");
+    fireEvent.click(screen.getByRole("button", { name: "Hide field" }));
+    openMenu("status");
+    fireEvent.click(screen.getByRole("button", { name: "Hide field" }));
+    const toggle = await screen.findByRole("button", { name: "Hidden fields (2)" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    const list = screen.getByRole("list", { name: "Hidden fields" });
+    fireEvent.click(within(list).getByRole("button", { name: "Show field: Count" }));
+    await screen.findByRole("button", { name: "Column options: Count" });
+    expect(screen.getByRole("button", { name: "Hidden fields (1)" })).toBe(document.activeElement);
+    expect(screen.queryByRole("button", { name: "Show all" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show field: status" }));
+    const status = await screen.findByRole("button", { name: "Column options: status" });
+    expect(screen.queryByRole("button", { name: /^Hidden fields/ })).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(status));
+  });
+
+  it("Show all brings every hidden field back; a host's own hidden fields are not offered", async () => {
+    const { unmount } = render(<EntityGrid config={config} source={fixtureSource(entities)} />);
+    await screen.findByText("Alpha");
+    openMenu("Count");
+    fireEvent.click(screen.getByRole("button", { name: "Hide field" }));
+    openMenu("status");
+    fireEvent.click(screen.getByRole("button", { name: "Hide field" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Hidden fields (2)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show all" }));
+    await screen.findByRole("button", { name: "Column options: Count" });
+    expect(screen.getByRole("button", { name: "Column options: status" })).toBeTruthy();
+    unmount();
+    // An Endpoint's projection hides `count` for everyone: that is not the person's to undo here.
+    render(<EntityGrid config={config} source={fixtureSource(entities)} hidden={["count"]} />);
+    await screen.findByText("Alpha");
+    expect(screen.queryByRole("button", { name: /^Hidden fields/ })).toBeNull();
+  });
+
   it("renames a column for this view and goes back to the model's label", async () => {
     const onLayout = vi.fn();
     render(<Kept onLayout={onLayout} />);

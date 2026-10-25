@@ -10,12 +10,14 @@ export const ACTIVITY_KINDS = [
   "config.applied",
   "config.drifted",
   "change.merged",
+  "change.rejected",
   "pipeline.throughput",
   "pipeline.error",
   "pipeline.restarted",
   "pipeline.run",
   "pipeline.source-delete",
   "endpoint.traffic",
+  "endpoint.rate-limited",
   "access.denied",
   "access.simulated",
   "access.explored",
@@ -169,11 +171,11 @@ function identity(event: ActivityEvent): string {
 const LABEL = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
 
 /** The object page an event opens, as `{plural}/{name}`, or nothing when it is not one. */
-/** The Change a `change.merged` event names (T-3292), when it is a change id. */
+/** The Change a `change.merged` or `change.rejected` event names (T-3292, T-5613), when it is a change id. */
 export function changeOf(event: ActivityEvent): string | undefined {
   const details = event.details as Record<string, unknown> | undefined;
   const change = details?.change;
-  return event.kind === "change.merged" &&
+  return (event.kind === "change.merged" || event.kind === "change.rejected") &&
     typeof change === "string" &&
     /^chg-(org-)?[0-9a-f]{8}$/.test(change)
     ? change

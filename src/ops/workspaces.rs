@@ -1441,6 +1441,7 @@ pub async fn propose(
         .map_err(ApiError::from)?;
     let status = ChangeStatus::new(lane, ChangePhase::PendingApproval, summary)
         .in_repository(&pr.repository)
+        .proposed_through(&pr.body)
         .with_merge_request(pr.url);
     Ok(Change::new(
         crate::api::changes::change_meta(state, gitea, pr.number, project),

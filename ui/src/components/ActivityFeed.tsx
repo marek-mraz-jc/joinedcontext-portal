@@ -54,13 +54,15 @@ export function kindLabel(
  * The event's sentence and, apart, the cause it was glued to (T-4200). A publisher writes "Endpoint
  * x was not published: <reason>" and keeps the reason in `details.reason`, which may be a CKAN API
  * name, a URL or a problem body: the row says the sentence, the cause waits behind a disclosure.
+ * A rejection's reason is what the approver wrote to a person (T-5613): it stays in the sentence.
  */
-export function sentenceOf(event: Pick<ActivityEvent, "summary" | "details">): {
+export function sentenceOf(event: Pick<ActivityEvent, "summary" | "details" | "kind">): {
   sentence: string;
   reason?: string;
 } {
   const reason = (event.details as { reason?: unknown } | undefined)?.reason;
-  if (typeof reason !== "string" || !reason) return { sentence: event.summary };
+  if (typeof reason !== "string" || !reason || event.kind === "change.rejected")
+    return { sentence: event.summary };
   const at = event.summary.lastIndexOf(`: ${reason}`);
   if (at <= 0 || at + reason.length + 2 !== event.summary.length)
     return { sentence: event.summary };
@@ -118,6 +120,7 @@ export function ActivityFeed({
   fixed,
   compact,
   limit = 50,
+  initialKind,
 }: {
   project: string;
   /** What this feed never leaves: an object page shows only its own object's events. */
@@ -125,11 +128,15 @@ export function ActivityFeed({
   /** An object page's panel: no filters, no tail toggle, just the last events. */
   compact?: boolean;
   limit?: number;
+  /** The kind filter a link opened the page with (`?kind=mcp.tool`); an unknown kind is ignored. */
+  initialKind?: string;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const ids = useId();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
-  const [kind, setKind] = useState("");
+  const [kind, setKind] = useState(
+    (ACTIVITY_KINDS as readonly string[]).includes(initialKind ?? "") ? (initialKind ?? "") : "",
+  );
   const [source, setSource] = useState("");
   const [severity, setSeverity] = useState("");
   const [tailing, setTailing] = useState(!compact);
