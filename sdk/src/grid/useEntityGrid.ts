@@ -128,6 +128,10 @@ export interface GridLabels {
   rowDetail: string;
   /** The detail's first tab, with the row's values (T-4828). */
   rowFields: string;
+  /** The detail's button that copies the row's identifier, kept off the screen as text (T-5599). */
+  rowCopyId: string;
+  /** What the detail shows for an attribute with no value (T-5599). */
+  rowNotSet: string;
   close: string;
   /** What a paste of a range did (T-3097): cells it set, cells it left, and a range too large. */
   pasted: string;
@@ -274,6 +278,8 @@ export const DEFAULT_LABELS: GridLabels = {
   groupNoValue: "(no value)",
   rowDetail: "Details",
   rowFields: "Fields",
+  rowCopyId: "Copy identifier",
+  rowNotSet: "not set",
   close: "Close",
   pasted: "cells pasted",
   skipped: "skipped (not editable, off the page or not a listed value)",

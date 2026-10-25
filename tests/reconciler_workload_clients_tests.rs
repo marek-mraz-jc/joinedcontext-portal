@@ -573,6 +573,64 @@ async fn a_client_whose_account_lost_its_workload_is_deleted() {
     assert_eq!(outcomes[0].error, None);
 }
 
+/// T-5568, AR-6: the removed client's service-account user is revoked before the client goes, so
+/// its unexpired tokens stop opening the gateway at its next poll; a failed lookup is a warning
+/// and the client still goes.
+#[tokio::test]
+async fn a_removed_accounts_tokens_are_revoked_with_its_client() {
+    let listed = json!([managed_client(
+        "uuid-air",
+        "helsinki",
+        "air-adapter",
+        "env-dept",
+        "adapter"
+    )]);
+    let gone = mirror_with(vec![account(
+        "helsinki",
+        "air-adapter",
+        None,
+        "space-writer",
+    )]);
+    let revoked = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let into = std::sync::Arc::clone(&revoked);
+    let revoke: joinedcontext_portal::reconciler::workload_clients::Revoke =
+        std::sync::Arc::new(move |subject: String| {
+            let into = std::sync::Arc::clone(&into);
+            Box::pin(async move { into.lock().expect("the list").push(subject) })
+        });
+
+    let keycloak = realm(listed.clone()).await;
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "{REALM}/clients/uuid-air/service-account-user"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "id": "sa-user-air" })))
+        .mount(&keycloak)
+        .await;
+    let outcomes = sync(&keycloak)
+        .with_revoke(std::sync::Arc::clone(&revoke))
+        .converge(&gone)
+        .await;
+    assert_eq!(*revoked.lock().expect("the list"), ["sa-user-air"]);
+    assert_eq!(
+        wrote(&keycloak).await,
+        vec![format!("DELETE {REALM}/clients/uuid-air")]
+    );
+    assert!(outcomes[0].warnings.is_empty(), "{outcomes:?}");
+
+    // No service-account user to read: the client is removed all the same, and the outcome says
+    // its tokens outlive it.
+    let keycloak = realm(listed).await;
+    let outcomes = sync(&keycloak).with_revoke(revoke).converge(&gone).await;
+    assert_eq!(
+        wrote(&keycloak).await,
+        vec![format!("DELETE {REALM}/clients/uuid-air")]
+    );
+    assert_eq!(outcomes[0].error, None);
+    assert_eq!(outcomes[0].warnings.len(), 1, "{outcomes:?}");
+    assert_eq!(revoked.lock().expect("the list").len(), 1);
+}
+
 /// PF-47: a second account binding a subject another account's client already holds gets no
 /// client, so a later proposal can never take a pod's identity from the account that had it.
 #[tokio::test]

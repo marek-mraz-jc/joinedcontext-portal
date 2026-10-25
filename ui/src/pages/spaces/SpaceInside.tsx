@@ -8,7 +8,7 @@ import { andQ, applyChanges, attributesOf, cellText, endpointSource, matchesQ, M
 import type { FilterColumn, FilterGroup, GridState, RichRow } from "@joinedcontext/sdk";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { ApiError } from "../../api/client";
 import { bytesOfType, exactBytes, sizeText, spaceUsageQuery, usageRefusal } from "../../api/spaceUsage";
 import type { SpaceUsage } from "../../api/spaceUsage";
 import { asManifests, localized, refName } from "../../api/manifest";
@@ -117,6 +117,7 @@ import { policyRefsOf } from "../../components/endpoints/policyBinding";
 
 const SAMPLE_LIMIT = 3;
 
+import { projectListQuery, spaceQuery } from "./preload";
 import { entityTypesOf, modelsOfSpace, parseResultsCount, pickReadEndpoint, spaceOf } from "./spaceFacts";
 
 
@@ -295,16 +296,7 @@ function TypeRow({
 }
 
 function useProjectList(project: string, plural: string) {
-  return useQuery({
-    queryKey: queryKeys.list(project, plural),
-    retry: false,
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/{plural}", {
-          params: { path: { project, plural } },
-        }),
-      ),
-  });
+  return useQuery(projectListQuery(project, plural));
 }
 
 /**
@@ -609,6 +601,9 @@ function SpaceData({
       return true;
     },
   });
+  // The views are drawn while the probe is under way (T-5598): waiting for it put one more round
+  // trip before the grid's own read, 0.6 s on a phone's network. A refusal still replaces them.
+  const readable = type !== "" && !probe.isError;
 
   // The type and its attributes as the model titles them, the key where it gives no title; an
   // entity is led by its name, its URN the open button's tooltip (T-4264, T-4160 #6).
@@ -784,7 +779,6 @@ function SpaceData({
         </div>
       ) : null}
 
-      {probe.isPending ? <p role="status">{t("app.loading")}</p> : null}
       {/* An Endpoint that failed (a 502 behind the gateway) is a failure to retry, not a space
           this person reads only through its endpoints (T-5093). */}
       {probe.isError && probe.error instanceof SourceError && probe.error.status >= 500 ? (
@@ -818,7 +812,7 @@ function SpaceData({
           </ul>
         </div>
       ) : null}
-      {probe.isSuccess ? (
+      {readable ? (
         <Tabs
           id="space-data-view"
           label={t("spaces.views.label")}
@@ -828,7 +822,7 @@ function SpaceData({
           onChange={setView}
         />
       ) : null}
-      {probe.isSuccess && view !== "api" ? (
+      {readable && view !== "api" ? (
         <>
           <Dialog
             open={creating}
@@ -870,8 +864,8 @@ function SpaceData({
           />
         </>
       ) : null}
-      {probe.isSuccess && !copy ? <SourceRemovalsPanel project={project} space={space} /> : null}
-      {probe.isSuccess && !copy ? (
+      {readable && !copy ? <SourceRemovalsPanel project={project} space={space} /> : null}
+      {readable && !copy ? (
         <TrashPanel
           project={project}
           space={space}
@@ -891,7 +885,7 @@ function SpaceData({
       ) : null}
       {/* One toolbar row for every view, as Baserow keeps it (T-5093): the grid's own tools first,
           the row, share and the rest of the type's actions at its end. */}
-      {probe.isSuccess && view !== "api" ? (
+      {readable && view !== "api" ? (
         <div className="flex flex-wrap items-center gap-1 border-b border-border pb-2" data-testid="grid-toolbar">
           <span className="mr-2 max-w-48 truncate text-body font-semibold" title={saved?.title}>
             {saved?.title ?? t("spaces.inside.allRows")}
@@ -993,7 +987,7 @@ function SpaceData({
           </div>
         </div>
       ) : null}
-      {probe.isSuccess && config && view === "grid" && selectedRows.length > 0 ? (
+      {readable && config && view === "grid" && selectedRows.length > 0 ? (
         <BulkBar
           project={project}
           space={space}
@@ -1023,8 +1017,8 @@ function SpaceData({
           }}
         />
       ) : null}
-      {probe.isSuccess && config && view === "grid" ? <LiveNotice change={live} /> : null}
-      {probe.isSuccess && config && view === "grid" && groupBy[0] !== undefined && enums[groupBy[0]] ? (
+      {readable && config && view === "grid" ? <LiveNotice change={live} /> : null}
+      {readable && config && view === "grid" && groupBy[0] !== undefined && enums[groupBy[0]] ? (
         <GroupCounts
           source={source}
           type={type}
@@ -1035,7 +1029,7 @@ function SpaceData({
           onChoose={setGroup}
         />
       ) : null}
-      {probe.isSuccess && view === "api" ? (
+      {readable && view === "api" ? (
         <div {...tabPanelProps("space-data-view", view)}>
           <TypeApi
             project={project}
@@ -1047,7 +1041,7 @@ function SpaceData({
           <SharePanel key={type} project={project} space={space} type={type} attributes={slots.map((slot) => slot.name)} />
         </div>
       ) : null}
-      {probe.isSuccess && view === "form" ? (
+      {readable && view === "form" ? (
         <div {...tabPanelProps("space-data-view", view)} className="flex flex-col gap-3">
           <FormSettingsEditor slots={typeSlots} value={formSettings} onChange={setFormSettings} />
           {copy ? null : <FormView space={space} type={type} slots={typeSlots} enums={enums} settings={formSettings} />}
@@ -1062,7 +1056,7 @@ function SpaceData({
           />
         </div>
       ) : null}
-      {probe.isSuccess && view !== "grid" && view !== "api" && view !== "form" ? (
+      {readable && view !== "grid" && view !== "api" && view !== "form" ? (
         <div {...tabPanelProps("space-data-view", view)} className="flex flex-col gap-3">
           <EntityFilters
             id="space-view-filter"
@@ -1085,7 +1079,7 @@ function SpaceData({
         </div>
       ) : null}
       {/* The grid is a view like the others: its tab names this panel (axe aria-valid-attr-value, T-3851). */}
-      {probe.isSuccess && config && view === "grid" ? (
+      {readable && config && view === "grid" ? (
         <div {...tabPanelProps("space-data-view", view)}>
         <PortalEntityGrid
           // A new key after an import, or a view applied, reads the type again: nothing typed under
@@ -1794,16 +1788,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   // helsinki and put "the count did not come" under a grid that had its count.
   const usage = useQuery({ ...spaceUsageQuery(project, name), enabled: tab === "model" });
 
-  const space = useQuery({
-    queryKey: queryKeys.resource(project, "spaces", name),
-    retry: false,
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/{plural}/{name}", {
-          params: { path: { project, plural: "spaces", name } },
-        }),
-      ),
-  });
+  const space = useQuery(spaceQuery(project, name));
   const models = useProjectList(project, "datamodels");
   const endpoints = useProjectList(project, "endpoints");
   const policies = useProjectList(project, "policies");

@@ -45,6 +45,10 @@ export interface HistoryLabels {
   close: string;
   loading: string;
   error: string;
+  /** The button that reads again after an error the server may not repeat (5xx, a timeout). */
+  retry: string;
+  /** What a 403 on the history read means: the role reads current values, not their history. */
+  refused: string;
   /** The switch that asks for every version of each value, with who changed it and why (DM-114). */
   versions: string;
   /** What a 403 on that read means: the space's Policy grants this role no `readVersions`. */
@@ -68,6 +72,8 @@ export const DEFAULT_HISTORY_LABELS: HistoryLabels = {
   close: "Close",
   loading: "Loading…",
   error: "Error",
+  retry: "Try again",
+  refused: "Your role may read current values but not their history; ask a steward of this space.",
   versions: "Every version, with who changed it and why",
   versionsRefused: "Your role may not read earlier versions in this space.",
   supersededAt: "Replaced",
@@ -277,7 +283,7 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
   const [choice, setChoice] = useState<Window>("day");
   const [custom, setCustom] = useState({ from: "", to: "" });
   const [points, setPoints] = useState<HistoryPoint[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ text: string; retry: boolean } | null>(null);
   const [allVersions, setAllVersions] = useState(false);
 
   const read = useCallback(async () => {
@@ -291,10 +297,16 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
       const got = await source.history(id, attr, allVersions ? { ...window, versions: true } : window);
       setPoints(got);
     } catch (err) {
-      if (allVersions && err instanceof SourceError && err.status === 403) setError(labels.versionsRefused);
-      else setError(err instanceof Error && err.message ? err.message : labels.error);
+      // A refusal names the missing right and offers no retry: reading again cannot change it.
+      const text = err instanceof Error && err.message ? err.message : "";
+      if (err instanceof SourceError && err.status === 403) {
+        const refused = allVersions ? labels.versionsRefused : text ? `${labels.refused} (${text})` : labels.refused;
+        setError({ text: refused, retry: false });
+      } else {
+        setError({ text: text ? `${labels.error}: ${text}` : labels.error, retry: true });
+      }
     }
-  }, [source, id, attr, choice, custom, maxPoints, now, allVersions, labels.error, labels.versionsRefused]);
+  }, [source, id, attr, choice, custom, maxPoints, now, allVersions, labels.error, labels.refused, labels.versionsRefused]);
 
   useEffect(() => {
     void read();
@@ -376,7 +388,16 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
         </fieldset>
       )}
 
-      {error && <p className="jc-grid-error">{`${labels.error}: ${error}`}</p>}
+      {error && (
+        <p className="jc-grid-error" role="alert">
+          {error.text}
+          {error.retry && (
+            <button type="button" onClick={() => void read()}>
+              {labels.retry}
+            </button>
+          )}
+        </p>
+      )}
       {!error && points === null && <p>{labels.loading}</p>}
       {points !== null && points.length === 0 && <p>{labels.empty}</p>}
 
