@@ -543,6 +543,21 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     return Math.floor(state.offset / hookOptions.config.pageSize) + 1;
   }, [state.offset, hookOptions.config.pageSize]);
 
+  // A value as it reads, without an editor: the grid's cells and a row opened by its id alone (T-5600).
+  const readValue = useCallback((row: RichRow, column: VisibleColumn): React.ReactNode => {
+    const { text, cell } = cellOf(row, column);
+    // An enum's value reads as its label, the one its filter and its editor already offer (T-4200).
+    const options = column.attr ? hookOptions.enums?.[column.attr] : undefined;
+    const one = Array.isArray(cell) ? undefined : cell;
+    const option = options && one?.kind !== "relationship" ? options.find((o) => o.value === String(one?.value)) : undefined;
+    if (option) return <>{optionLabel(option)}</>;
+    // The value by what it holds: a number with its unit, a local date, a point, a chip (T-4827).
+    if (column.attr !== null && column.meta === null) {
+      return <CellView cell={cell} locale={where} labels={cellLabels} onOpen={onOpenRelationship} />;
+    }
+    // A timestamp column (observed, created, modified) in the reader's own time.
+    return <>{ISO_TIMESTAMP.test(text) ? formatDate(text, where) : text}</>;
+  }, [where, cellLabels, cellOf, onOpenRelationship, hookOptions.enums]);
   const renderCellContent = useCallback((row: RichRow, column: VisibleColumn): React.ReactNode => {
     const { text, cell } = cellOf(row, column);
 
@@ -690,18 +705,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       );
     }
 
-    // An enum's value reads as its label, the one its filter and its editor already offer (T-4200).
-    const options = column.attr ? hookOptions.enums?.[column.attr] : undefined;
-    const one = Array.isArray(cell) ? undefined : cell;
-    const option = options && one?.kind !== "relationship" ? options.find((o) => o.value === String(one?.value)) : undefined;
-    if (option) return <>{optionLabel(option)}</>;
-    // The value by what it holds: a number with its unit, a local date, a point, a chip (T-4827).
-    if (column.attr !== null && column.meta === null) {
-      return <CellView cell={cell} locale={where} labels={cellLabels} onOpen={onOpenRelationship} />;
-    }
-    // A timestamp column (observed, created, modified) in the reader's own time.
-    return <>{ISO_TIMESTAMP.test(text) ? formatDate(text, where) : text}</>;
-  }, [where, cellLabels, cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, isPrimary, rowName, openDetail, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell, ruleProblems, rules, labels.yes, labels.no]);
+    return readValue(row, column);
+  }, [readValue, where, cellLabels, cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, isPrimary, rowName, openDetail, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell, ruleProblems, rules, labels.yes, labels.no]);
 
   // Metadata menu toggle
   const toggleMenu = useCallback((attr: string) => {
@@ -1408,7 +1413,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           columns={columns}
           // An edit is written against the row as the page loaded it, so a row read on its own shows
           // its values without editors.
-          renderValue={listedRow ? renderCellContent : (row, column) => cellText(column.attr ? row.cells[column.attr] : undefined)}
+          renderValue={listedRow ? renderCellContent : readValue}
           labels={{
             rowDetail: labels.rowDetail,
             close: labels.close,

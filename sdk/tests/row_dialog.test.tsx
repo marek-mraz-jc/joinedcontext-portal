@@ -106,6 +106,30 @@ describe("row dialog (T-4828)", () => {
     expect(onOpenRow).toHaveBeenLastCalledWith(null);
   });
 
+  // T-5600: a row read by its id showed "6.7" without its unit, an ISO time and "Point".
+  it("shows a row read by its id as the loaded page shows it", async () => {
+    const measured = kpis.map((kpi) => ({
+      ...kpi,
+      kpiValue: { ...(kpi.kpiValue as object), unitCode: "GQ" },
+      location: { type: "GeoProperty", value: { type: "Point", coordinates: [24.94, 60.17] } },
+    }));
+    const config = parseGridConfig({
+      source: { kind: "fixture", name: "test" },
+      type: "KeyPerformanceIndicator",
+      columns: [{ attr: "name", label: "Name", pinned: true }, { attr: "kpiValue", label: "Value" }, { attr: "location", label: "Place" }],
+      pageSize: 10,
+    }).config!;
+    const fields = async (pageSize: number) => {
+      const { unmount } = render(<EntityGrid config={{ ...config, pageSize }} source={fixtureSource(measured)} openRow={OTHER} onOpenRow={vi.fn()} />);
+      const text = (await screen.findByRole("dialog", { name: "Details: Bus punctuality" })).textContent;
+      unmount();
+      return text;
+    };
+    const listed = await fields(10);
+    expect(listed).toContain("µg/m³");
+    expect(await fields(1)).toBe(listed);
+  });
+
   it("closes a link to a row that is gone or not readable", async () => {
     const onOpenRow = vi.fn();
     render(<EntityGrid config={configOf("edit")} source={sourceWith()} openRow="urn:ngsi-ld:KeyPerformanceIndicator:none" onOpenRow={onOpenRow} />);

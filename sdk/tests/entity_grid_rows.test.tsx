@@ -81,6 +81,21 @@ describe("EntityGrid rows (T-4883)", () => {
   });
 });
 
+describe("EntityGrid filter columns after an empty answer (T-5600)", () => {
+  it("keeps the kinds of the last rows and marks a LanguageProperty", async () => {
+    const named = entities.map((e) => ({ ...e, name: { type: "LanguageProperty", languageMap: { fi: e.name.value } } }));
+    const seen: FilterColumn[][] = [];
+    const { rerender } = render(<EntityGrid config={config} source={fixtureSource(named)} onFilterColumns={(c) => seen.push(c)} />);
+    await waitFor(() => expect(seen.at(-1)?.find((c) => c.attr === "bikes")?.kind).toBe("number"));
+    expect(seen.at(-1)?.find((c) => c.attr === "name")?.language).toBe(true);
+    // A search that matches nothing: the page is empty, and bikes is still a number, not text a search would ask.
+    rerender(<EntityGrid config={config} source={{ ...fixtureSource(named), query: async () => ({ rows: [], total: 0 }) }} onFilterColumns={(c) => seen.push(c)} />);
+    await waitFor(() => expect(screen.queryByText("Kamppi")).toBeNull());
+    expect(seen.at(-1)?.find((c) => c.attr === "bikes")?.kind).toBe("number");
+    expect(seen.at(-1)?.find((c) => c.attr === "name")?.language).toBe(true);
+  });
+});
+
 describe("EntityGrid reloadKey (T-5186)", () => {
   it("reads the rows again on a new key and keeps the checked rows", async () => {
     const source = fixtureSource(entities);

@@ -138,7 +138,7 @@ const SPACE_ROWS = [
 
 function renderInside(
   gateway: { status: number; count?: number },
-  surface: { status: number; rows?: unknown[] } = { status: 200 },
+  surface: { status: number; rows?: unknown[]; answer?: (url: URL) => unknown[] } = { status: 200 },
   seed: {
     space?: unknown;
     models?: unknown;
@@ -183,9 +183,8 @@ function renderInside(
       if (surface.status !== 200) {
         return json({ title: "Not Found" }, surface.status);
       }
-      return json(surface.rows ?? SPACE_ROWS, 200, {
-        "NGSILD-Results-Count": String((surface.rows ?? SPACE_ROWS).length),
-      });
+      const answered = surface.answer?.(url) ?? surface.rows ?? SPACE_ROWS;
+      return json(answered, 200, { "NGSILD-Results-Count": String(answered.length) });
     }
     if (path.endsWith("/spaces/ovzdusie/usage")) {
       const usage = seed.usage ?? { status: 200, body: { entities: 0, broker: "main", observedAt: "2026-09-25T11:40:00Z" } };
@@ -993,6 +992,35 @@ describe("the space's own data", () => {
       expect(within(grid).queryByRole("spinbutton")).toBeNull();
       expect(within(grid).queryByRole("textbox", { name: /pm10|name/ })).toBeNull();
     });
+  });
+
+  // T-5600: a search that matched nothing said nothing had been written to the space.
+  it("searches a name in any language, never a number, and says a search matched no row", async () => {
+    const named = [{ ...SPACE_ROWS[0], name: { type: "LanguageProperty", languageMap: { fi: "Helsinki Herttoniemi 2" } } }];
+    const asked: string[] = [];
+    renderInside({ status: 200, count: 1 }, {
+      status: 200,
+      answer: (url) => {
+        const q = url.searchParams.get("q");
+        if (q) asked.push(q);
+        return q?.includes("Nowhere") ? [] : named;
+      },
+    });
+    await screen.findByRole("button", { name: `${en.entityGrid.openRow}: Helsinki Herttoniemi 2` });
+
+    await userEvent.type(screen.getByRole("searchbox", { name: en.spaces.toolbar.search }), "Nowhere");
+    const status = await screen.findByText(
+      en.spaces.inside.searchNoMatch.replace("{type}", "AirQualityObserved").replace("{text}", "Nowhere"),
+    );
+    expect(screen.queryByText(en.spaces.inside.dataEmpty)).toBeNull();
+    // Every search asked the name through its languages and left the number out, the empty page included.
+    const searches = asked.filter((q) => q.includes("Nowhere"));
+    expect(searches.length).toBeGreaterThan(0);
+    expect(searches.every((q) => q.includes('name[*]~="(?i)Nowhere"') && !q.includes("pm10"))).toBe(true);
+
+    await userEvent.click(within(status.closest("[role=status]") as HTMLElement).getByRole("button", { name: en.spaces.inside.clearSearch }));
+    expect(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: Helsinki Herttoniemi 2` })).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: en.spaces.toolbar.search })).toHaveValue("");
   });
 
   it("says nothing has been written to an empty space", async () => {

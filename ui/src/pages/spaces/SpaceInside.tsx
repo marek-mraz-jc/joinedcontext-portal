@@ -488,9 +488,9 @@ function SpaceData({
     return () => clearTimeout(wait);
   }, [searchText]);
   const panelQ = useMemo(() => queryFromGroup(filterColumns, filters), [filterColumns, filters]);
-  // The search asks the type's text fields at the endpoint, at most eight of them per query.
+  // The search asks the type's text fields at the endpoint, a name in any of its languages.
   const searchQ = useMemo(
-    () => searchQuery(search, filterColumns.filter((c) => c.kind === "text" && c.attr && !c.meta).slice(0, 8).map((c) => c.attr!)),
+    () => searchQuery(search, filterColumns),
     [search, filterColumns],
   );
   const onFilterColumns = useCallback(
@@ -1129,7 +1129,27 @@ function SpaceData({
               />
             ) : null
           }
-          empty={<p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>}
+          empty={
+            // An empty answer to a search or a filter is no match, not an empty space (T-5600).
+            search.trim() !== "" ? (
+              <NoMatch
+                text={t("spaces.inside.searchNoMatch", { type: typeTitle, text: search.trim() })}
+                clear={t("spaces.inside.clearSearch")}
+                onClear={() => {
+                  setSearchText("");
+                  setSearch("");
+                }}
+              />
+            ) : panelQ ? (
+              <NoMatch
+                text={t("spaces.inside.filterNoMatch", { type: typeTitle })}
+                clear={t("spaces.inside.clearFilters")}
+                onClear={() => setFilters(EMPTY_GROUP)}
+              />
+            ) : (
+              <p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>
+            )
+          }
         />
         </div>
       ) : null}
@@ -1139,6 +1159,18 @@ function SpaceData({
 }
 
 /** The fields a saved view groups by (`settings.groupBy`), `null` where it names none. */
+/** What a search or filter that matched no row says, and the way back to every row. */
+function NoMatch({ text, clear, onClear }: { text: string; clear: string; onClear: () => void }): JSX.Element {
+  return (
+    <div role="status" className="flex flex-wrap items-center gap-2">
+      <p className="text-body text-fg-muted">{text}</p>
+      <Button variant="secondary" size="sm" onClick={onClear}>
+        {clear}
+      </Button>
+    </div>
+  );
+}
+
 function readGroupBy(raw: unknown): string[] | null {
   if (!Array.isArray(raw)) return null;
   return raw.filter((each): each is string => typeof each === "string").slice(0, MAX_GROUP_FIELDS);
