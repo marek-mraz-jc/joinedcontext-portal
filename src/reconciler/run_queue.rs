@@ -258,7 +258,24 @@ struct Entry {
     /// Its stream is removed from the runner once before its first run: one an older Portal
     /// loaded as resident, or a run a restarted Portal no longer knows.
     sweep: bool,
+    /// Its last run outlived its cap and the runner did not let go of it on delete (T-5370):
+    /// a step that never returns. It starts again only once its stream changes.
+    stuck: bool,
     last: Option<Last>,
+}
+
+impl Entry {
+    /// How long one run may take: [`RUN_TIMEOUT`], and for a pipeline polled every few
+    /// minutes three periods (two minutes at least), so a looping poll frees its short lane
+    /// long before a batch run's cap (T-5370).
+    fn cap(&self, timeout: Duration) -> Duration {
+        match self.clock {
+            Clock::Every(every) if every < SHORT_BELOW => {
+                timeout.min((every * 3).max(Duration::from_secs(120)))
+            }
+            _ => timeout,
+        }
+    }
 }
 
 /// What the runner says of one run.
@@ -278,8 +295,9 @@ pub(crate) trait Runner {
     async fn start(&self, key: &Key, stream: &Value) -> Result<(), String>;
     /// How the run stands.
     async fn state(&self, key: &Key) -> RunState;
-    /// Removes the stream; a stream that is not there is fine.
-    async fn delete(&self, key: &Key);
+    /// Removes the stream; a stream that is not there is fine. False when the runner did not
+    /// let go of it in time: its stop hangs on a step that never returns (T-5370).
+    async fn delete(&self, key: &Key) -> bool;
     /// Hears that the run `run` of `key` ended, `finished` or not (T-4891).
     async fn ended(&self, _key: &Key, _run: &str, _finished: bool) {}
 }
@@ -373,6 +391,7 @@ impl RunQueue {
             match self.entries.get_mut(&key) {
                 Some(entry) if entry.stream == planned.stream && entry.clock == planned.clock => {}
                 Some(entry) => {
+                    entry.stuck = false;
                     entry.stream = planned.stream;
                     entry.clock = planned.clock;
                     entry.lane = lane;
@@ -392,6 +411,7 @@ impl RunQueue {
                             running: None,
                             run: None,
                             sweep: true,
+                            stuck: false,
                             last: None,
                         },
                     );
@@ -437,23 +457,20 @@ impl RunQueue {
                 continue;
             };
             let seconds = (now - started).num_seconds().max(0);
+            let cap = entry.cap(self.timeout);
             let outcome = match state {
                 RunState::Finished => Some(("finished", None)),
                 RunState::Gone => Some((
                     "failed",
                     Some("the runner no longer holds the run".to_owned()),
                 )),
-                RunState::Running
-                    if (now - started).to_std().unwrap_or_default() >= self.timeout =>
-                {
-                    Some((
-                        "timeout",
-                        Some(format!(
-                            "it ran past {} min and was stopped",
-                            self.timeout.as_secs() / 60
-                        )),
-                    ))
-                }
+                RunState::Running if (now - started).to_std().unwrap_or_default() >= cap => Some((
+                    "timeout",
+                    Some(format!(
+                        "it ran past {} min and was stopped",
+                        cap.as_secs() / 60
+                    )),
+                )),
                 RunState::Running => None,
             };
             let Some((label, failure)) = outcome else {
@@ -476,7 +493,7 @@ impl RunQueue {
             let Some(due) = entry.next.filter(|due| *due <= now) else {
                 continue;
             };
-            if entry.queued.is_none() && entry.running.is_none() {
+            if entry.queued.is_none() && entry.running.is_none() && !entry.stuck {
                 entry.queued = Some(due);
             }
             entry.next = entry.clock.next_after(now);
@@ -496,7 +513,7 @@ impl RunQueue {
             let mut waiting: Vec<(DateTime<Utc>, Key)> = self
                 .entries
                 .iter()
-                .filter(|(_, e)| in_lane(e) && e.running.is_none() && !e.sweep)
+                .filter(|(_, e)| in_lane(e) && e.running.is_none() && !e.sweep && !e.stuck)
                 .filter_map(|(k, e)| Some((e.queued?, k.clone())))
                 .collect();
             waiting.sort();
@@ -549,6 +566,23 @@ impl RunQueue {
         Ok(stamp(*entry.queued.get_or_insert(now)))
     }
 
+    /// The runner did not let go of `key`'s run past its cap (T-5370): the reason says what
+    /// to change, and the pipeline does not start again until its stream does.
+    fn stuck(&mut self, key: &Key, now: DateTime<Utc>) {
+        if let Some(entry) = self.entries.get_mut(key) {
+            entry.stuck = true;
+            entry.queued = None;
+            entry.last = Some(Last::Failed {
+                at: now,
+                reason: "it ran past its cap and the runner could not stop it: a step loops or \
+                         never returns (a recursive jq def, a range over millions of items), so \
+                         the runner restarts to free it; change the step and push again, the \
+                         pipeline runs once its steps change"
+                    .to_owned(),
+            });
+        }
+    }
+
     fn failed_to_start(&mut self, key: &Key, reason: String, now: DateTime<Utc>) {
         if let Some(entry) = self.entries.get_mut(key) {
             entry.running = None;
@@ -563,8 +597,8 @@ impl RunQueue {
     pub fn outcome(&self, key: &Key) -> Option<StreamOutcome> {
         let entry = self.entries.get(key)?;
         let next = match entry.next {
-            Some(next) => format!("next run {}", stamp(next)),
-            None => "no further run until it changes".to_owned(),
+            Some(next) if !entry.stuck => format!("next run {}", stamp(next)),
+            _ => "no further run until it changes".to_owned(),
         };
         if let Some(Last::Failed { at, reason }) = &entry.last {
             return Some(StreamOutcome::Error(format!(
@@ -633,7 +667,7 @@ pub(crate) async fn tick<R: Runner>(queue: &Mutex<RunQueue>, runner: &R, now: Da
         (q.sweeps(), q.running())
     };
     for key in &sweeps {
-        runner.delete(key).await;
+        let _ = runner.delete(key).await;
     }
     let mut states = Vec::with_capacity(running.len());
     for key in running {
@@ -642,7 +676,9 @@ pub(crate) async fn tick<R: Runner>(queue: &Mutex<RunQueue>, runner: &R, now: Da
     }
     let (ended, starts) = lock().settle(states, now);
     for key in &ended {
-        runner.delete(key).await;
+        if !runner.delete(key).await {
+            lock().stuck(key, now);
+        }
     }
     let ends = std::mem::take(&mut lock().ends);
     for (key, run, finished) in ends {
@@ -651,7 +687,7 @@ pub(crate) async fn tick<R: Runner>(queue: &Mutex<RunQueue>, runner: &R, now: Da
     for (key, stream) in starts {
         if let Err(reason) = runner.start(&key, &stream).await {
             lock().failed_to_start(&key, reason, now);
-            runner.delete(&key).await;
+            let _ = runner.delete(&key).await;
         }
     }
 }
@@ -781,6 +817,8 @@ mod tests {
         held: Mutex<HashMap<Key, RunState>>,
         log: Mutex<Vec<String>>,
         refuse: Mutex<BTreeSet<String>>,
+        /// Runs whose stop hangs: a step that never returns.
+        stuck: Mutex<BTreeSet<String>>,
         sent: Mutex<HashMap<String, Value>>,
         ends: Mutex<Vec<(String, String, bool)>>,
     }
@@ -829,9 +867,13 @@ mod tests {
                 .copied()
                 .unwrap_or(RunState::Gone)
         }
-        async fn delete(&self, key: &Key) {
+        async fn delete(&self, key: &Key) -> bool {
             self.log.lock().unwrap().push(format!("delete {}", key.1));
+            if self.stuck.lock().unwrap().contains(&key.1) {
+                return false;
+            }
             self.held.lock().unwrap().remove(key);
+            true
         }
         async fn ended(&self, key: &Key, run: &str, finished: bool) {
             let end = (key.1.clone(), run.to_owned(), finished);
@@ -1103,6 +1145,80 @@ mod tests {
         assert!(
             matches!(queue.lock().unwrap().outcome(&key("c")), Some(StreamOutcome::Error(e)) if e.contains("no longer holds"))
         );
+    }
+
+    /// A run past its cap whose stop hangs (a step that loops, T-5370) is reported with what to
+    /// change and never started again until its stream changes; the other pipeline goes on.
+    #[tokio::test]
+    async fn a_run_the_runner_cannot_stop_is_reported_and_held_until_it_changes() {
+        let queue = Mutex::new(RunQueue::new(2, 1));
+        let fake = Fake::default();
+        let now = at("2026-10-17T05:00:00Z");
+        let hourly = || planned(Clock::Every(Duration::from_secs(3600)));
+        let wanted = || {
+            ["loop", "ok"]
+                .map(|n| (key(n), hourly()))
+                .into_iter()
+                .collect()
+        };
+        queue.lock().unwrap().plan(wanted(), now);
+        queue.lock().unwrap().run_now(&key("loop"), now).unwrap();
+        queue.lock().unwrap().run_now(&key("ok"), now).unwrap();
+        fake.stuck.lock().unwrap().insert("loop".to_owned());
+        step(&queue, &fake, now).await;
+        fake.log();
+        fake.end("ok", RunState::Finished);
+        step(&queue, &fake, now + Span::minutes(15)).await;
+        assert_eq!(fake.log(), ["delete loop", "delete ok"]);
+        let outcome = queue.lock().unwrap().outcome(&key("loop"));
+        let Some(StreamOutcome::Error(said)) = outcome else {
+            panic!("a stuck run is an error, got {outcome:?}");
+        };
+        assert!(said.contains("could not stop it"), "{said}");
+        assert!(said.contains("no further run until it changes"), "{said}");
+
+        step(&queue, &fake, now + Span::hours(1)).await;
+        assert_eq!(
+            fake.log(),
+            ["start ok"],
+            "the stuck pipeline is not started again"
+        );
+
+        let mut changed: BTreeMap<Key, Planned> = wanted();
+        changed.insert(
+            key("loop"),
+            Planned {
+                stream: serde_json::json!({"input": {"generate": {"count": 2}}}),
+                clock: Clock::Once,
+            },
+        );
+        queue.lock().unwrap().plan(changed, now + Span::hours(1));
+        step(&queue, &fake, now + Span::hours(1)).await;
+        assert_eq!(fake.log(), ["start loop"], "a changed stream runs again");
+    }
+
+    /// A poll every 30 s is capped at two minutes and one every 5 min at the batch cap, so a
+    /// looping poll frees its short lane long before 15 min (T-5370).
+    #[test]
+    fn a_short_poll_is_capped_at_three_periods_and_two_minutes_at_least() {
+        let entry = |clock| Entry {
+            stream: Value::Null,
+            clock,
+            lane: Lane::Short,
+            next: None,
+            queued: None,
+            running: None,
+            run: None,
+            sweep: false,
+            stuck: false,
+            last: None,
+        };
+        let cap = |clock| entry(clock).cap(RUN_TIMEOUT).as_secs();
+        assert_eq!(cap(Clock::Every(Duration::from_secs(30))), 120);
+        assert_eq!(cap(Clock::Every(Duration::from_secs(60))), 180);
+        assert_eq!(cap(Clock::Every(Duration::from_secs(240))), 720);
+        assert_eq!(cap(Clock::Every(Duration::from_secs(300))), 900);
+        assert_eq!(cap(Clock::Once), 900);
     }
 
     #[tokio::test]

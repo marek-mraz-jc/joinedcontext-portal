@@ -1076,8 +1076,10 @@ impl StreamDeployer {
         }
     }
 
-    /// DELETE one stream, a stream that is not there included, and forget it.
-    async fn remove(&self, runner: &str, project: &str, name: &str, why: &str) {
+    /// DELETE one stream, a stream that is not there included, and forget it. False when the
+    /// runner gave no answer within [`REPLACE_TIMEOUT`]: a stream whose step never returns
+    /// never stops, and the hang-up leaves it held, stopped in name only (T-5370).
+    async fn remove(&self, runner: &str, project: &str, name: &str, why: &str) -> bool {
         {
             let url = format!("{runner}/streams/{}", stream_id(project, name));
             tracing::info!(
@@ -1085,7 +1087,7 @@ impl StreamDeployer {
                 pipeline = %name,
                 "removing the stream from the runner: {why}"
             );
-            match self
+            let answered = match self
                 .http
                 .delete(&url)
                 .timeout(self.replace_timeout)
@@ -1103,6 +1105,7 @@ impl StreamDeployer {
                             "failed to delete stream from runner"
                         );
                     }
+                    true
                 }
                 Err(err) => {
                     tracing::warn!(
@@ -1111,8 +1114,9 @@ impl StreamDeployer {
                         error = %err,
                         "failed to delete stream from runner"
                     );
+                    !err.is_timeout()
                 }
-            }
+            };
             let key = (project.to_string(), name.to_string());
             if let Ok(mut deployed) = self.deployed.lock() {
                 deployed.remove(&key);
@@ -1123,6 +1127,7 @@ impl StreamDeployer {
             if let Ok(mut backoff) = self.backoff.lock() {
                 backoff.remove(&key);
             }
+            answered
         }
     }
 
@@ -1319,16 +1324,17 @@ impl Runner for StreamDeployer {
         }
     }
 
-    async fn delete(&self, key: &run_queue::Key) {
-        if let Some(runner) = self.runner_for(&key.0) {
-            self.remove(
-                &runner,
-                &key.0,
-                &key.1,
-                "its run ended or it is new to this Portal (PL-78)",
-            )
-            .await;
-        }
+    async fn delete(&self, key: &run_queue::Key) -> bool {
+        let Some(runner) = self.runner_for(&key.0) else {
+            return true;
+        };
+        self.remove(
+            &runner,
+            &key.0,
+            &key.1,
+            "its run ended or it is new to this Portal (PL-78)",
+        )
+        .await
     }
 }
 
@@ -3357,6 +3363,30 @@ output:
             .find(|request| request.method.as_str() == "PUT")
             .expect("the stream was PUT");
         serde_json::from_slice(&put.body).expect("a JSON stream")
+    }
+
+    /// A run's DELETE the runner does not answer in time is a stop that never came (a looping
+    /// step holds it, T-5370): the queue hears false; a stop that answers, 404 included, is true.
+    #[tokio::test]
+    async fn a_delete_the_runner_does_not_answer_in_time_says_the_run_is_held() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("DELETE"))
+            .and(wiremock::matchers::path("/streams/helsinki.loop"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_delay(Duration::from_millis(1500)),
+            )
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("DELETE"))
+            .and(wiremock::matchers::path("/streams/helsinki.done"))
+            .respond_with(wiremock::ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        let deployer = StreamDeployer::new(server.uri())
+            .with_timeouts(Duration::from_secs(5), Duration::from_millis(300));
+        let key = |name: &str| ("helsinki".to_owned(), name.to_owned());
+        assert!(!Runner::delete(&deployer, &key("loop")).await);
+        assert!(Runner::delete(&deployer, &key("done")).await);
     }
 
     /// A runner whose `GET /streams/citybikes-free` answers `held`, and which counts every PUT.
