@@ -22,11 +22,29 @@ const PEOPLE = [
   { id: "3", email: "marek.bily@example.org", firstName: "Marek", lastName: "Biely", enabled: true, emailVerified: true, requiredActions: [] },
 ];
 
-async function mock(page: Page, people = PEOPLE): Promise<void> {
+// A Change on the group that waits for approval, as the changes list names it (T-5605).
+const OPEN = {
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind: "Change",
+  author: { name: "Petra Kráľ", email: "petra.kral@example.org" },
+  createdAt: "2026-10-25T08:00:00Z",
+  metadata: { name: "chg-0000001f", namespace: "org" },
+  status: { lane: "red", phase: "PendingApproval", plan: { create: 0, update: 1, delete: 0 } },
+  summary: { key: "change.summary.update", params: { kind: "Group", name: "stewards", fields: 1 } },
+};
+
+async function mock(page: Page, people = PEOPLE, open: unknown[] = []): Promise<unknown[]> {
+  const proposed: unknown[] = [];
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
-    const json = (body: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+    const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    if (route.request().method() === "PUT") {
+      if (url.searchParams.get("dryRun") === "All") return json({ valid: true, verdict: { ok: true } });
+      proposed.push(route.request().postDataJSON());
+      return json({ ...OPEN, metadata: { name: "chg-0000002a", namespace: "org" } }, 202);
+    }
+    if (path === "/api/v1/projects/org/changes") return json(LIST(open));
     if (path.endsWith("/auth/me")) return json({ subject: "s1", username: "admin", name: "Ada Admin", email: "admin@example.org", roles: [] });
     if (path === "/api/v1/projects") return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "helsinki" }] });
     if (path.endsWith("/permissions/me")) {
@@ -48,6 +66,18 @@ async function mock(page: Page, people = PEOPLE): Promise<void> {
     if (path.endsWith("/datamodels/air-quality/source")) return route.fulfill({ status: 200, contentType: "text/yaml", body: "classes: {}\n" });
     return json(LIST([]));
   });
+  return proposed;
+}
+
+/** What a person's paste of a copied column of e-mails hands the field. */
+async function paste(page: Page, label: string, text: string): Promise<void> {
+  const field = page.getByRole("combobox", { name: label });
+  await field.click();
+  await field.evaluate((input, pasted) => {
+    const data = new DataTransfer();
+    data.setData("text/plain", pasted);
+    input.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  }, text);
 }
 
 /** Screenshots for the task, where `JC_EVIDENCE_DIR` asks for them. */
@@ -106,6 +136,37 @@ for (const width of [1440, 400]) {
       await expect(page.getByRole("option", { name: /Petra Kráľ/ })).toBeVisible();
       await expect(page.getByRole("option", { name: /Jana Novák/ })).toHaveCount(0);
       await shot(page, `group-member-open-${width}`);
+    });
+
+    test("a group takes a pasted list of people in one Change, and names what is not an e-mail", async ({ page }) => {
+      const proposed = await mock(page);
+      await page.goto("/organization/groups/stewards?lang=en");
+      await shot(page, `group-members-empty-${width}`);
+      await paste(page, "E-mail of the person", "petra.kral@example.org\nmarek.bily@example.org\njana.novak@example.org\njan.horak@example.org\njana.novak");
+      await page.getByRole("option", { name: "Add the e-mails of the list (4)" }).click();
+      await expect(page.getByText("Not added, these are not e-mail addresses: jana.novak.", { exact: false })).toBeVisible();
+      await shot(page, `group-members-pasted-${width}`);
+      await page.getByRole("button", { name: "Add members (3)" }).click();
+      await expect(page.getByRole("link", { name: "Review it in Approvals" })).toBeVisible();
+      expect(proposed).toHaveLength(1);
+      expect((proposed[0] as { spec: { members: unknown[] } }).spec.members).toEqual([
+        { user: "jana.novak@example.org" },
+        { user: "petra.kral@example.org" },
+        { user: "marek.bily@example.org" },
+        { user: "jan.horak@example.org" },
+      ]);
+      await shot(page, `group-members-proposed-${width}`);
+      expect(await axeViolations(page)).toEqual([]);
+    });
+
+    test("a group with a Change waiting holds its member edits and links the change", async ({ page }) => {
+      const proposed = await mock(page, PEOPLE, [OPEN]);
+      await page.goto("/organization/groups/stewards?lang=en");
+      await expect(page.getByRole("link", { name: "Open change chg-0000001f" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Add member" })).toHaveAttribute("aria-disabled", "true");
+      await expect(page.getByRole("button", { name: "Remove jana.novak@example.org from the group" })).toHaveAttribute("aria-disabled", "true");
+      await shot(page, `group-members-waiting-${width}`);
+      expect(proposed).toEqual([]);
     });
 
     test("try a person: the group and the entity type are picked", async ({ page }) => {

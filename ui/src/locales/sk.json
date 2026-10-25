@@ -3879,14 +3879,19 @@
       "ckanVia": "cez rolu {role}",
       "appNotLoaded": "Aplikácia sa ešte načítava alebo ju nemôžete čítať.",
       "hint": {
-        "email": "Vyberte osobu z organizácie alebo zadajte celý e-mail niekoho, kto sa ešte neprihlásil, napr. jana.novak@example.org.",
+        "email": "Vyberte jednu alebo viac osôb z organizácie, alebo zadajte či vložte celé e-maily oddelené čiarkou alebo novým riadkom, napr. jana.novak@example.org, peter.horak@example.org.",
         "where": "Kde rola platí: celá organizácia alebo jeden projekt, napr. helsinki.",
         "space": "Ponechajte celý projekt alebo zúžte rolu na jeden kontextový priestor, napr. air-quality.",
         "role": "Čo môžu členovia robiť, napr. viewer číta, steward aj navrhuje zmeny.",
         "project": "Projekt, do ktorého aplikácia patrí, napr. helsinki.",
         "app": "Aplikácia, ktorej rolu skupina dostane, napr. air-quality-dashboard.",
         "appRole": "Jedna z rolí, ktoré aplikácia definuje, napr. reader."
-      }
+      },
+      "addMembers": "Pridať členov ({count})",
+      "waitingTitle": "Zmena tejto skupiny čaká na rozhodnutie",
+      "waiting": "Zmena {change} upravuje členov tejto skupiny a čaká na schválenie. Členov pridajte alebo odoberte po jej rozhodnutí, aby zostali ľudia, ktorých pridáva.",
+      "openChange": "Otvoriť zmenu {change}",
+      "notEmails": "Nepridané, toto nie sú e-mailové adresy: {words}. Opravte ich a zadajte znova."
     },
     "explorer": {
       "title": "Pozrite, k čomu má niekto prístup",
@@ -8100,7 +8105,8 @@
       "none": "Nikto nezodpovedá. Zadajte celý e-mail osoby, ktorá sa ešte neprihlásila.",
       "unlisted": "Ľudí organizácie nemôžete zobraziť. Zadajte celý e-mail osoby, napr. jana.novak@example.org.",
       "invite": "Použiť {email} (ešte sa neprihlásil/a)",
-      "needEmail": "Zadajte celú e-mailovú adresu osoby."
+      "needEmail": "Zadajte celú e-mailovú adresu osoby.",
+      "addList": "Pridať e-maily zo zoznamu ({count})"
     }
   },
   "units": {
