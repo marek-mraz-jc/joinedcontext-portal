@@ -25,9 +25,10 @@ function text(map: Record<string, string> | undefined): string | undefined {
 
 function Fact({ label, children }: { label: string; children: ReactNode }): JSX.Element {
   return (
-    <div className="rounded-md border border-border p-3">
+    // min-w-0 and anywhere: a code-list IRI in a fact made the page 409 px wide at 400 (T-5592).
+    <div className="min-w-0 rounded-md border border-border p-3">
       <dt className="text-caption font-medium text-fg-muted">{label}</dt>
-      <dd className="mt-1 text-sm text-fg">{children}</dd>
+      <dd className="mt-1 text-sm text-fg [overflow-wrap:anywhere]">{children}</dd>
     </div>
   );
 }

@@ -8,8 +8,9 @@ export type ButtonSize = "xs" | "sm" | "md" | "lg";
 // No `whitespace-nowrap`: a German label is half again as long as its English original
 // ("Eine Änderung mit dem Assistenten vorschlagen"), and with `shrink-0` beside it the label ran
 // past its container instead of wrapping (UI-30).
+// `touch-size`: a `Link` that wears these classes is a finger's 44 px like the buttons (T-5596).
 const BASE =
-  "focus-ring inline-flex shrink-0 select-none items-center justify-center gap-1.5 rounded-md font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed";
+  "focus-ring touch-size inline-flex shrink-0 select-none items-center justify-center gap-1.5 rounded-md font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed";
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary: "bg-primary text-primary-fg shadow-1 hover:bg-primary-hover active:bg-primary-active",

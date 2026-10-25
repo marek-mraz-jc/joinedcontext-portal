@@ -117,6 +117,27 @@
   }
 }
 
+/* A link that is a control on a touch screen (a crumb, the brand, a back or export link, a table's
+   name link, the footer's address) grows to the finger's 44 px like a button (WCAG 2.5.8, T-5596).
+   A link inside a sentence stays on its line: it never wears this. */
+@utility touch-target {
+  @media (pointer: coarse) {
+    display: inline-flex;
+    align-items: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* The same 44 px without a display of its own, for a class list that already sets one and may hide
+   the control at some width (`max-sm:hidden`): a `Link` drawn as a button (`buttonClass`). */
+@utility touch-size {
+  @media (pointer: coarse) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 /* Same ring, drawn inside the element: for rows and cells that must not grow. */
 @utility focus-ring-inset {
   outline: none;

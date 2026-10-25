@@ -69,6 +69,8 @@ export interface SubmitState {
   loading?: boolean;
   /** Why the submit is closed right now; the button carries it as `disabledReason`. */
   reason?: string;
+  /** The caller's actions already print `reason`, so the line beside the button would repeat it (T-5589). */
+  reasonShown?: boolean;
 }
 export const FormSubmitStateContext = createContext<SubmitState>({});
 
@@ -723,7 +725,7 @@ export function SubmitButton(props: SubmitButtonProps): React.JSX.Element | null
     <>
       {after ? <div className="mt-4 flex flex-col gap-3">{after}</div> : null}
       <div className="mt-6 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
-        {gate.disabled && gate.title ? (
+        {gate.disabled && gate.title && !live.reasonShown ? (
           <span role="status" className="text-caption text-fg-muted">
             {gate.title}
           </span>
