@@ -3859,14 +3859,19 @@
       "ckanVia": "über die Rolle {role}",
       "appNotLoaded": "Die App wird noch geladen, oder Sie dürfen sie nicht lesen.",
       "hint": {
-        "email": "Wählen Sie eine Person der Organisation oder geben Sie die vollständige E-Mail einer Person ein, die sich noch nicht angemeldet hat, z. B. jana.novak@example.org.",
+        "email": "Wählen Sie eine oder mehrere Personen der Organisation, oder geben Sie vollständige E-Mails ein bzw. fügen Sie sie ein, getrennt durch Kommas oder Zeilenumbrüche, z. B. jana.novak@example.org, peter.horak@example.org.",
         "where": "Wo die Rolle gilt: die ganze Organisation oder ein Projekt, z. B. helsinki.",
         "space": "Das ganze Projekt behalten oder die Rolle auf einen Kontextraum begrenzen, z. B. air-quality.",
         "role": "Was die Mitglieder dort dürfen, z. B. viewer liest, steward schlägt auch Änderungen vor.",
         "project": "Das Projekt, zu dem die Anwendung gehört, z. B. helsinki.",
         "app": "Die Anwendung, deren Rolle die Gruppe erhält, z. B. air-quality-dashboard.",
         "appRole": "Eine der Rollen, die die Anwendung festlegt, z. B. reader."
-      }
+      },
+      "addMembers": "Mitglieder hinzufügen ({count})",
+      "waitingTitle": "Eine Änderung dieser Gruppe wartet auf eine Entscheidung",
+      "waiting": "Änderung {change} bearbeitet die Mitglieder dieser Gruppe und wartet auf Freigabe. Fügen Sie Mitglieder hinzu oder entfernen Sie sie, sobald sie entschieden ist, damit die Personen erhalten bleiben, die sie hinzufügt.",
+      "openChange": "Änderung {change} öffnen",
+      "notEmails": "Nicht hinzugefügt, das sind keine E-Mail-Adressen: {words}. Korrigieren Sie sie und geben Sie sie erneut ein."
     },
     "explorer": {
       "title": "Sehen, worauf jemand zugreifen kann",
@@ -8059,7 +8064,8 @@
       "none": "Niemand passt. Geben Sie die vollständige E-Mail einer Person ein, die sich noch nicht angemeldet hat.",
       "unlisted": "Sie dürfen die Personen der Organisation nicht auflisten. Geben Sie die vollständige E-Mail ein, z. B. jana.novak@example.org.",
       "invite": "{email} verwenden (noch nicht angemeldet)",
-      "needEmail": "Geben Sie die vollständige E-Mail-Adresse der Person ein."
+      "needEmail": "Geben Sie die vollständige E-Mail-Adresse der Person ein.",
+      "addList": "E-Mails der Liste hinzufügen ({count})"
     }
   },
   "units": {
