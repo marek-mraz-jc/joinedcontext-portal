@@ -340,6 +340,14 @@ The endpoint has no broker view, because its slug is longer than a view id may b
 
 What to do: The endpoint has no context broker view (its slug is longer than a view id can be); its status in the Portal says so. Give it a shorter slug.
 
+### `query-timeout` {#query-timeout}
+
+**Query Timeout**, status 504.
+
+The context broker did not finish the query in time: its database cancelled it at the statement timeout. Asking the same query again times out again; a temporal query over a long window or a whole type is the usual case.
+
+What to do: Ask for less at once: a shorter time window, a smaller limit or lastN, or only the attributes you need.
+
 ### `delivery-timeout` {#delivery-timeout}
 
 **Delivery Timeout**, status 504.
@@ -359,6 +367,14 @@ Only the Portal answers with these.
 A request to the Portal is not valid; `errors` lists every violation, so a form can mark them all at once.
 
 What to do: Correct the request as the detail says; errors lists every violation at once.
+
+### `second-factor-required` {#second-factor-required}
+
+**Second Factor Required**, status 403.
+
+A decision (approve, reject, revoke, an erasure, people administration) needs a second factor proven in this session, and the person signed in with a password alone; whatever gave them the right does not change that (PF-128).
+
+What to do: Sign in again with your one-time code (GET /api/v1/auth/login?step_up=true), then repeat the decision.
 
 ### `self-approval` {#self-approval}
 
