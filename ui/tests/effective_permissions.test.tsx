@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
-import { Operations, readsOf, sourcesOf, writesOf } from "../src/pages/access/EffectivePermissions";
+import { ConstraintList, Operations, readsOf, sourcesOf, writesOf } from "../src/pages/access/EffectivePermissions";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -191,6 +191,27 @@ describe("effective permissions", () => {
       </I18nextProvider>,
     );
     expect(container).toHaveTextContent(en.access.matrix.none);
+  });
+
+  it("lists each filter of a grant with the Policy's own text, or says it has none", () => {
+    const { container, rerender } = render(
+      <I18nextProvider i18n={i18n}>
+        <ConstraintList entry={{ constraints: { q: "pm10>40", scopeQ: "/city/#" } }} labels={{}} />
+      </I18nextProvider>,
+    );
+    const items = container.querySelectorAll("li");
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveAttribute("title", "q=pm10>40");
+    expect(items[0]).toHaveTextContent("(q=pm10>40)");
+    expect(items[1]).toHaveAttribute("title", "scopeQ=/city/#");
+
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <ConstraintList entry={{ constraints: { q: "" } }} labels={{}} />
+      </I18nextProvider>,
+    );
+    expect(container.querySelector("li")).toBeNull();
+    expect(container).toHaveTextContent(en.access.matrix.unconstrained);
   });
 
   it("renders one row group per entity type with its operations, attributes and filters in words", async () => {
