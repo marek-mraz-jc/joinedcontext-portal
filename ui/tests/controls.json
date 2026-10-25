@@ -2134,6 +2134,7 @@
         "endpoint_catalog.test.tsx",
         "endpoint_open_data.test.tsx",
         "endpoint_representations.test.ts",
+        "endpoint_write_policy.test.ts",
         "representation_outputs_field.test.tsx"
       ]
     },
