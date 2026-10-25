@@ -16190,6 +16190,98 @@
         }
       }
     },
+    "/api/v1/projects/{project}/serviceaccounts/{name}/secret": {
+      "post": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Issue A New Client Secret",
+        "description": "Has Keycloak generate a new secret for the ServiceAccount's client `{project}-{name}` and answers it once (PF-37, API/01 §52): the Portal keeps no copy and no route reads it again. The previous secret is refused at once, the tokens the account holds are refused at the gateway's next revocation poll, and an `access.revoked` activity event records it. Only a person in a Portal session with `approve` on ServiceAccount; a token of a service account or an agent is refused. The account needs an `oauth-client` credential without `jwks` and no `workload`, and its client must be the one the Portal manages.",
+        "operationId": "issue_secret",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "ServiceAccount name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The new secret, shown once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedSecret"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A bearer token, or no `approve` on ServiceAccount here",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such ServiceAccount",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The account has no secret (a workload, a key pair, no credential), or its client is not the Portal's (not created yet, or the platform's own)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Keycloak cannot be reached, or the Portal manages no client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/spaces/{space}/comments": {
       "get": {
         "tags": [
@@ -21299,7 +21391,8 @@
           "delegates",
           "grants",
           "mayPropose",
-          "mayRevoke"
+          "mayRevoke",
+          "mayIssueSecret"
         ],
         "properties": {
           "account": {
@@ -21315,6 +21408,10 @@
               "$ref": "#/components/schemas/AccountGrant"
             }
           },
+          "mayIssueSecret": {
+            "type": "boolean",
+            "description": "Whether the caller may issue a new secret: a Portal session with `approve` (T-5626)."
+          },
           "mayPropose": {
             "type": "boolean",
             "description": "Whether the caller may propose a change of this account (a widening waits for a second\nperson, PF-58)."
@@ -21322,6 +21419,13 @@
           "mayRevoke": {
             "type": "boolean",
             "description": "Whether the caller may revoke a grant at once (AG-132)."
+          },
+          "noSecret": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the account has no client secret the Portal can issue, `workload`, `key-pair` or\n`no-credential`, or `None` when it has one (PF-37, T-5626)."
           },
           "project": {
             "type": "string"
@@ -27850,6 +27954,29 @@
           "url": {
             "type": "string",
             "description": "Base URL of the catalogue."
+          }
+        }
+      },
+      "IssuedSecret": {
+        "type": "object",
+        "description": "A new client secret, in this answer and nowhere else.",
+        "required": [
+          "clientId",
+          "clientSecret",
+          "tokenUrl"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "description": "The Keycloak client the external system signs in as, `{project}-{name}`."
+          },
+          "clientSecret": {
+            "type": "string",
+            "description": "The secret, shown once: the Portal keeps no copy."
+          },
+          "tokenUrl": {
+            "type": "string",
+            "description": "Where the external system posts `grant_type=client_credentials`."
           }
         }
       },

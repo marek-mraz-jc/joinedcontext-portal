@@ -2154,6 +2154,22 @@
       ]
     },
     "src/pages/access/AccountAccess.tsx": null,
+    "src/pages/access/AccountSecret.tsx": {
+      "walkedBy": "worker-t5626",
+      "date": "2026-10-25",
+      "screenshots": [
+        "evidence/worker-t5626/T-5626/account-secret-ready-desktop.png",
+        "evidence/worker-t5626/T-5626/account-secret-ready-phone.png",
+        "evidence/worker-t5626/T-5626/account-secret-confirm-desktop.png",
+        "evidence/worker-t5626/T-5626/account-secret-confirm-phone.png",
+        "evidence/worker-t5626/T-5626/account-secret-issued-desktop.png",
+        "evidence/worker-t5626/T-5626/account-secret-issued-phone.png",
+        "evidence/worker-t5626/T-5626/account-secret-reader-desktop.png",
+        "evidence/worker-t5626/T-5626/account-secret-reader-phone.png",
+        "evidence/worker-t5626/T-5626/account-secret-key-pair-desktop.png",
+        "evidence/worker-t5626/T-5626/account-secret-key-pair-phone.png"
+      ]
+    },
     "src/pages/mqttbrokers/AddDevice.tsx": {
       "walkedBy": "worker-t5532",
       "date": "2026-10-24",

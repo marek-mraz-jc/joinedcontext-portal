@@ -1,4 +1,5 @@
-//! The Keycloak client of every `ServiceAccount` bound to a cluster workload (PF-47, T-1513).
+//! The Keycloak client of every `ServiceAccount` bound to a cluster workload (PF-47, T-1513), and
+//! of every one that signs in from outside the cluster (PF-37, T-5626).
 //!
 //! An account with `spec.workload.kubernetes: { namespace, serviceAccount }` gets its derived
 //! client `{project}-{name}` with federated client authentication: Keycloak accepts the pod's
@@ -14,6 +15,12 @@
 //! doors the roles are for and no other. An App's job principal `appjob-{app}` (AP-159) is bound
 //! the same way to `appjob-{project}-{app}` in the identities namespace, and its one audience is
 //! the App's own Endpoint.
+//!
+//! An account without a workload whose `oauth-client` credential is used from outside the cluster
+//! (an external system, a device) gets the same client id with `client-secret` authentication, or
+//! `client-jwt` against the public keys its credentials list (T-4015, T-5626): the same audiences,
+//! `client_credentials` only. Keycloak generates the secret; the Portal shows a new one once to a
+//! person who may approve ServiceAccounts (`api::account_secret`) and never stores it.
 //!
 //! This wave is the only writer of such a client, as the App wave is of an App's: the client
 //! carries `managed-by: joinedcontext` and the account it belongs to, a change made in the
@@ -72,6 +79,71 @@ pub fn desired(project: &str, name: &str, binding: &KubernetesBinding) -> Value 
     })
 }
 
+/// How an account outside the cluster proves itself (PF-37, PF-47): by the secret Keycloak keeps,
+/// which a person issues once through the Portal (`api::account_secret`), or by the public keys
+/// its credentials list, with which a device signs its assertion (T-4015).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ClientCredential {
+    /// `client-secret`: Keycloak generates it; the Portal never reads or stores it here.
+    Secret,
+    /// `client-jwt` against these keys, as the JWKS string Keycloak keeps.
+    Keys(String),
+}
+
+impl ClientCredential {
+    /// What the account's `oauth-client` credentials ask for, or `None` when it has none or is
+    /// bound to a workload (whose client is [`desired`]). Keys win over a bare credential: one
+    /// client has one authenticator, and a key pair never travels as a secret does.
+    pub fn of(spec: &ServiceAccountSpec) -> Option<Self> {
+        if spec.workload.is_some() || spec.credentials.is_empty() {
+            return None;
+        }
+        let mut kids = BTreeSet::new();
+        let keys: Vec<&jc_core::kinds::service_account::PublicJwk> = spec
+            .credentials
+            .iter()
+            .filter_map(|credential| credential.jwks.as_ref())
+            .flat_map(|jwks| &jwks.keys)
+            .filter(|key| kids.insert(key.kid.as_str()))
+            .collect();
+        if keys.is_empty() {
+            return Some(Self::Secret);
+        }
+        Some(Self::Keys(json!({ "keys": keys }).to_string()))
+    }
+}
+
+/// The client of an account that signs in from outside the cluster (PF-37, T-5626): confidential,
+/// `client_credentials` only, its authenticator what [`ClientCredential`] says. No secret is in
+/// it: Keycloak generates one for a `client-secret` client, and the Portal shows a new one once.
+pub fn desired_external(project: &str, name: &str, credential: &ClientCredential) -> Value {
+    let mut want = json!({
+        "clientId": keycloak_client_id(project, name),
+        "name": format!("ServiceAccount {project}/{name}"),
+        "protocol": "openid-connect",
+        "enabled": true,
+        "publicClient": false,
+        "bearerOnly": false,
+        "standardFlowEnabled": false,
+        "implicitFlowEnabled": false,
+        "directAccessGrantsEnabled": false,
+        "serviceAccountsEnabled": true,
+        "clientAuthenticatorType": "client-secret",
+        "attributes": {
+            "oauth2.device.authorization.grant.enabled": "false",
+            MANAGED_BY: MANAGED_VALUE,
+            ACCOUNT_ATTRIBUTE: format!("{project}/{name}"),
+        },
+    });
+    if let ClientCredential::Keys(jwks) = credential {
+        want["clientAuthenticatorType"] = json!("client-jwt");
+        want["attributes"]["use.jwks.url"] = json!("false");
+        want["attributes"]["use.jwks.string"] = json!("true");
+        want["attributes"]["jwks.string"] = json!(jwks);
+    }
+    want
+}
+
 /// The audiences an account's token carries (PF-47): the slug of every Endpoint of `project` on
 /// a space one of its roles scopes, and `portal` when it acts on the Portal. Sorted, no repeats.
 pub fn audiences(
@@ -123,19 +195,36 @@ enum Reach {
     Internal,
 }
 
-/// One account bound to a workload, as this wave needs it.
+/// One account bound to a workload, or signing in from outside (`binding` `None`), as this wave
+/// needs it.
 #[derive(Debug, Clone)]
 struct BoundAccount {
     project: String,
     name: String,
     reach: Reach,
-    binding: KubernetesBinding,
+    auth: Auth,
     /// A pipeline identity (the project's `pipelines` account or a Pipeline's own), whose
     /// streams report their outcomes to the Portal's internal listener (T-4038).
     reports: bool,
 }
 
+/// What opens an account's client.
+#[derive(Debug, Clone)]
+enum Auth {
+    /// A pod's projected token for this Kubernetes ServiceAccount: [`desired`].
+    Workload(KubernetesBinding),
+    /// A secret or a key pair held outside the cluster: [`desired_external`].
+    External(ClientCredential),
+}
+
 impl BoundAccount {
+    fn binding(&self) -> Option<&KubernetesBinding> {
+        match &self.auth {
+            Auth::Workload(binding) => Some(binding),
+            Auth::External(_) => None,
+        }
+    }
+
     fn label(&self) -> String {
         format!("{}/{}", self.project, self.name)
     }
@@ -154,14 +243,17 @@ fn bound(mirror: &Mirror) -> Vec<BoundAccount> {
                 .into_iter()
                 .filter_map(move |envelope| {
                     let spec: ServiceAccountSpec = serde_json::from_value(envelope.spec).ok()?;
-                    let binding = spec.workload.as_ref()?.kubernetes.clone();
+                    let auth = match &spec.workload {
+                        Some(workload) => Auth::Workload(workload.kubernetes.clone()),
+                        None => Auth::External(ClientCredential::of(&spec)?),
+                    };
                     Some(BoundAccount {
                         project: project.clone(),
                         reports: envelope.metadata.name
                             == crate::reconciler::streams::PIPELINE_ACCOUNT,
                         name: envelope.metadata.name,
                         reach: Reach::Roles(spec),
-                        binding,
+                        auth,
                     })
                 })
         })
@@ -221,7 +313,7 @@ fn pipeline_accounts(mirror: &Mirror, namespace: &str) -> Vec<BoundAccount> {
                 project: project.clone(),
                 name: derived.name,
                 reach: Reach::Roles(derived.account),
-                binding,
+                auth: Auth::Workload(binding),
                 reports: true,
             });
         }
@@ -241,10 +333,10 @@ fn harness_account(project: &str, namespace: &str) -> BoundAccount {
         project: project.to_owned(),
         name: account_name(HARNESS),
         reach: Reach::Internal,
-        binding: KubernetesBinding {
+        auth: Auth::Workload(KubernetesBinding {
             namespace: namespace.to_owned(),
             service_account: kubernetes_service_account(project, HARNESS),
-        },
+        }),
         reports: false,
     }
 }
@@ -272,7 +364,7 @@ fn app_job_accounts(mirror: &Mirror, namespace: &str) -> Vec<BoundAccount> {
             project: app.project,
             reach: Reach::Endpoint(slug),
             reports: false,
-            binding,
+            auth: Auth::Workload(binding),
         })
     })
     .collect();
@@ -291,14 +383,15 @@ pub const APP_JOB_IDENTITY_LABEL: &str = "joinedcontext.com/app-job-identity";
 /// service mints its tokens (Architecture/12 §3), so its own token is never automounted anywhere.
 fn service_accounts(accounts: Vec<BoundAccount>, label: &str) -> Vec<Value> {
     accounts
-        .into_iter()
-        .map(|account| {
-            json!({
+        .iter()
+        .filter_map(|account| {
+            let binding = account.binding()?;
+            Some(json!({
                 "apiVersion": "v1",
                 "kind": "ServiceAccount",
                 "metadata": {
-                    "name": account.binding.service_account,
-                    "namespace": account.binding.namespace,
+                    "name": binding.service_account,
+                    "namespace": binding.namespace,
                     "labels": {
                         label: "true",
                         "app.kubernetes.io/managed-by": "joinedcontext-portal",
@@ -306,7 +399,7 @@ fn service_accounts(accounts: Vec<BoundAccount>, label: &str) -> Vec<Value> {
                     "annotations": { ACCOUNT_ATTRIBUTE: account.label() },
                 },
                 "automountServiceAccountToken": false,
-            })
+            }))
         })
         .collect()
 }
@@ -408,9 +501,9 @@ pub async fn converge_app_job_service_accounts(
 /// a subject from the account that had it first.
 fn contested(accounts: &[BoundAccount], listed: &Value) -> BTreeMap<String, String> {
     let mut by_subject: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for account in accounts {
+    for (account, binding) in accounts.iter().filter_map(|a| Some((a, a.binding()?))) {
         by_subject
-            .entry(subject(&account.binding))
+            .entry(subject(binding))
             .or_default()
             .push(account.label());
     }
@@ -665,7 +758,12 @@ impl WorkloadClientSync {
     ) -> ClientOutcome {
         let mut outcome = ClientOutcome::of(&account.label());
         let id = keycloak_client_id(&account.project, &account.name);
-        let want = desired(&account.project, &account.name, &account.binding);
+        let want = match &account.auth {
+            Auth::External(credential) => {
+                desired_external(&account.project, &account.name, credential)
+            }
+            Auth::Workload(binding) => desired(&account.project, &account.name, binding),
+        };
 
         let held = match self.admin.find(token, &id).await {
             Ok(held) => held,
@@ -680,6 +778,9 @@ impl WorkloadClientSync {
             .and_then(|a| a.get(ACCOUNT_ATTRIBUTE))
             .and_then(Value::as_str);
         let uuid = match held.as_ref() {
+            // The platform's own client of an external account (`keycloak-clients.yaml`) serves
+            // it as it is: its owner rotates it, so there is nothing to report.
+            Some(client) if account.binding().is_none() && !managed(client) => return outcome,
             Some(client) if !managed(client) || owner != Some(account.label().as_str()) => {
                 outcome.error = Some(format!(
                     "the realm holds a client {id} this wave did not create for this account; it \
