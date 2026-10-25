@@ -5581,7 +5581,28 @@
       "filterOther": "Vyberte test, např. má hodnotu nebo prázdné.",
       "editAsText": "Zapište filtr jako text, např. pm10>40"
     },
-    "groupNoValue": "(bez hodnoty)"
+    "groupNoValue": "(bez hodnoty)",
+    "inspector": {
+      "title": "Váš přístup",
+      "close": "Zavřít",
+      "read": "Číst",
+      "write": "Zapisovat",
+      "delete": "Mazat",
+      "allowed": "povoleno",
+      "notAllowed": "nepovoleno",
+      "loading": "Ověřuje se váš přístup…",
+      "failed": "Váš přístup se nepodařilo načíst ({reason}). Obnovte stránku a zkuste to znovu.",
+      "grant": "Váš přístup to povoluje.",
+      "notInGrant": "Není ve vašem přístupu.",
+      "noGrant": "Váš přístup nepokrývá tento typ.",
+      "formula": "Počítá ho pipeline, proto se zde neupravuje.",
+      "prohibited": "Výslovně zakázáno politikou.",
+      "prohibitedBy": "Výslovně zakázáno politikou „{policy}“.",
+      "prohibitedHidden": "Skryto politikou, kterou nemůžete číst.",
+      "naming": "Hledá se politika…",
+      "namingFailed": "Politiku se nepodařilo pojmenovat; zkuste to za chvíli.",
+      "askAccess": "Požádat o přístup"
+    }
   },
   "explore": {
     "title": "Procházet data",

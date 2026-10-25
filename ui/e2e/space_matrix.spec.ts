@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { attributeTable } from "./attributeAccess";
 import type { Page } from "@playwright/test";
 import { axeViolations } from "./axe";
 
@@ -114,6 +115,9 @@ async function stubApi(page: Page, stub: Stub): Promise<void> {
         return n === 1 && changedNow && stub.changed ? event(n, stub.changed.audience) : event(n);
       });
       return json(rows, 200, { "NGSILD-Results-Count": String(total) });
+    }
+    if (path.endsWith("/access/attributes")) {
+      return json(attributeTable(TYPE, ["name", "startDate", "eventStatus", "audience"], stub.writer ? ["audience"] : []));
     }
     if (path.endsWith("/access")) {
       return json({
