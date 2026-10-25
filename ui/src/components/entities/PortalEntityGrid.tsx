@@ -95,6 +95,7 @@ export function gridLabels(t: (key: string) => string): GridLabels {
     datasetId: t("entityGrid.datasetId"),
     empty: t("entityGrid.empty"),
     loading: t("entityGrid.loading"),
+    filtering: t("entityGrid.filtering"),
     previous: t("entityGrid.previous"),
     next: t("entityGrid.next"),
     page: t("entityGrid.page"),
@@ -349,16 +350,20 @@ export function PortalEntityGrid({ project, config, source, view, onGridState, e
   const mapLabels = useMemo(() => gridMapLabels(t), [t]);
   const geoLabels = useMemo(() => geoEditorLabels(t), [t]);
 
+  // Keyed by what the source names, not by the config object: a page rebuilds its config when the
+  // person's grant arrives (the editable attributes), and a new source would read the first page
+  // again, twice more for an editor before the first row showed (T-5623).
+  const sourceKey = JSON.stringify(config.source);
   const built = useMemo(() => {
     if (source) {
       return source;
     }
-    const where = config.source as GridSource;
+    const where = JSON.parse(sourceKey) as GridSource;
     if (where.kind === "fixture") {
       throw new Error("a fixture source is for the SDK's own examples; pass `source` instead");
     }
     return sourceFor(where, originTransport(), i18n.language);
-  }, [source, config.source, i18n.language]);
+  }, [source, sourceKey, i18n.language]);
 
   const [layout, setLayout] = useState<Layout>(
     () => readLayout(project, config.type) ?? { shown: {}, sort: null },
