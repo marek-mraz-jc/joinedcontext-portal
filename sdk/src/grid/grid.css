@@ -675,7 +675,7 @@
   max-height: calc(100dvh - 2rem);
   overflow: auto;
   padding: 1rem;
-  border: 1px solid var(--jc-color-border, #d0d7de);
+  border: 1px solid var(--jc-color-line, #d0d7de);
   border-radius: 0.5rem;
   background: var(--jc-color-surface, #fff);
   color: inherit;
@@ -702,7 +702,7 @@
   flex-wrap: wrap;
   gap: 0.25rem;
   margin-top: 0.75rem;
-  border-bottom: 1px solid var(--jc-color-border, #d0d7de);
+  border-bottom: 1px solid var(--jc-color-line, #d0d7de);
 }
 
 .jc-grid-detail-tabs [role="tab"] {
@@ -1242,6 +1242,191 @@ a.jc-cell--link:focus-visible {
   .jc-grid-pages button { min-width: 2.75rem; min-height: 2.75rem; }
   .jc-grid:not([data-filters="open"]) .jc-grid-filter-row { display: none; }
   .jc-grid :is(th, td).jc-grid-pinned { min-width: min(58vw, 15rem); }
+}
+
+/* T-5530: the review's copy button beside a row's name holds the URN the table no longer prints. */
+.jc-grid-copy {
+  border: 1px solid var(--jc-color-line, #d0d7de);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0.125rem 0.25rem;
+  vertical-align: middle;
+}
+
+/* The cell inspector (T-5528): what the person may do with one attribute. A panel on the right
+   from 1024 px, a bottom sheet below; the table behind stays usable, so it is not modal. */
+.jc-grid-inspector {
+  box-sizing: border-box;
+  position: fixed;
+  z-index: 40;
+  top: 0;
+  right: 0;
+  width: min(22rem, 100vw);
+  height: 100dvh;
+  overflow: auto;
+  padding: var(--jc-space-4, 1rem);
+  border-left: 1px solid var(--jc-color-line, #d0d7de);
+  background: var(--jc-color-surface, #fff);
+  box-shadow: -4px 0 16px rgb(0 0 0 / 0.12);
+}
+
+@media (max-width: 1023px) {
+  .jc-grid-inspector {
+    top: auto;
+    bottom: 0;
+    width: 100vw;
+    height: auto;
+    max-height: 60dvh;
+    border-left: 0;
+    border-top: 1px solid var(--jc-color-line, #d0d7de);
+    border-radius: var(--jc-radius-md, 0.5rem) var(--jc-radius-md, 0.5rem) 0 0;
+    box-shadow: 0 -4px 16px rgb(0 0 0 / 0.12);
+  }
+}
+
+.jc-grid-inspector-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--jc-space-2, 0.5rem);
+}
+
+.jc-grid-inspector-head h3 {
+  margin: 0;
+  font-size: var(--jc-font-size-md, 1rem);
+}
+
+.jc-grid-inspector-head h3:focus-visible,
+.jc-grid-inspector-close:focus-visible,
+.jc-grid-inspector-ask:focus-visible,
+.jc-grid-info:focus-visible {
+  outline: 2px solid var(--jc-color-accent, #0066cc);
+  outline-offset: 2px;
+}
+
+.jc-grid-inspector-close {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border: 0;
+  background: transparent;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.jc-grid-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jc-space-2, 0.5rem);
+  margin: var(--jc-space-3, 0.75rem) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jc-grid-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: var(--jc-font-size-sm, 0.875rem);
+  color: #fff;
+}
+
+/* Each tone is dark enough for white text (WCAG AA 4.5:1); the word says it too. */
+.jc-grid-chip--read { background: var(--jc-color-success, #15803d); }
+.jc-grid-chip--write { background: var(--jc-color-info, #1d4ed8); }
+.jc-grid-chip--delete { background: var(--jc-color-warning, #b45309); }
+.jc-grid-chip--none {
+  background: var(--jc-color-card, #f3f4f6);
+  color: var(--jc-color-muted, #4b5563);
+  border: 1px solid var(--jc-color-line, #d0d7de);
+}
+
+.jc-grid-inspector-reason { margin: 0 0 var(--jc-space-3, 0.75rem); }
+.jc-grid-inspector-failed { color: var(--jc-color-danger, #b91c1c); }
+.jc-grid-inspector-ask { color: var(--jc-color-accent, #0066cc); }
+
+/* The small "i" beside a cell's value: seen on hover and on the active cell, always clickable. */
+.jc-grid-info {
+  float: right;
+  margin-inline-start: 0.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  border: 1px solid var(--jc-color-line, #d0d7de);
+  border-radius: 999px;
+  background: var(--jc-color-surface, #fff);
+  color: var(--jc-color-muted, #4b5563);
+  font: italic 600 0.75rem/1 Georgia, serif;
+  cursor: pointer;
+  opacity: 0;
+}
+.jc-grid-td:hover .jc-grid-info,
+.jc-grid-td[data-active] .jc-grid-info,
+.jc-grid-info:focus-visible { opacity: 1; }
+@media (hover: none) {
+  .jc-grid-info { opacity: 1; }
+}
+
+/* T-5530: a column the person cannot change wears a lock in its header (the reason is its name and
+   tooltip), and its cells a muted ground, so a value without an editor reads as read-only. */
+.jc-grid-lock {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-inline-start: var(--jc-space-1, 4px);
+  vertical-align: -0.0625rem;
+  background: var(--jc-color-muted, #4b5563);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 7V5a4 4 0 1 1 8 0v2h1v8H3V7h1zm2 0h4V5a2 2 0 1 0-4 0v2z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.jc-grid-td--locked {
+  background: var(--jc-color-card, #f6f7f9);
+  color: var(--jc-color-muted, #4b5563);
+}
+
+/* An attribute the person may not read: a narrow grey column that says so and holds no value. */
+.jc-grid-th--no-access,
+.jc-grid-td--no-access {
+  width: 7rem;
+  min-width: 7rem;
+  max-width: 7rem;
+  background: var(--jc-color-card, #f3f4f6);
+  color: var(--jc-color-muted, #4b5563);
+}
+
+.jc-grid-td--no-access {
+  background-image: repeating-linear-gradient(135deg, transparent 0 6px, var(--jc-color-line, #d0d7de) 6px 7px);
+}
+
+.jc-grid-th--no-access {
+  padding-inline-end: 1.75rem;
+}
+
+.jc-grid-no-access-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The note wraps rather than cut: "hidden: no access" is the whole message of the column. */
+.jc-grid-no-access-note {
+  display: block;
+  white-space: normal;
+  font-size: var(--jc-font-size-sm, 12px);
+  font-weight: normal;
+  font-style: italic;
+}
+
+.jc-grid-th--no-access .jc-grid-meta-btn {
+  position: absolute;
+  inset-block-start: 0.25rem;
+  inset-inline-end: 0.25rem;
 }
 
 /* The Metadata tab (T-5529): a hidden field reads as withheld, never as an empty value. */

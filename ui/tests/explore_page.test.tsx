@@ -121,6 +121,13 @@ async function openDetail(remove: () => Response, access?: unknown, entity: unkn
           }),
         );
       }
+      // The endpoint's own decision on deleteEntity (T-5530): yes unless the grant given reads only.
+      if (url.includes("/access/check")) {
+        const failing = (access as { checkStatus?: number } | undefined)?.checkStatus;
+        if (failing) return Promise.resolve(new Response(JSON.stringify({ title: "Bad Gateway" }), { status: failing }));
+        const allows = access === undefined || JSON.stringify(access).includes("deleteEntity");
+        return Promise.resolve(new Response(JSON.stringify({ decision: allows }), { status: 200, headers: { "Content-Type": "application/json" } }));
+      }
       if (access !== undefined && url.includes("/access")) {
         return Promise.resolve(
           new Response(JSON.stringify(access), {
@@ -369,6 +376,18 @@ it("disables the delete button, with a reason, when the grant allows only reads"
   await waitFor(() => expectDenied(remove, /delete/));
 });
 
+/** T-5530: a decision the endpoint could not give offers no delete either, and says to reload. */
+it("disables the delete button, with a reason, when the endpoint's decision cannot be read", async () => {
+  await i18n.changeLanguage("en");
+  await openDetail(() => new Response("", { status: 204 }), {
+    checkStatus: 502,
+    permissions: [{ resource: { type: "BikeHireDockingStation" }, actions: ["queryEntity", "deleteEntity"] }],
+  });
+  const remove = await screen.findByTestId("explore-delete");
+  await waitFor(() => expect(remove).toHaveAccessibleDescription(en.explore.deleteUnchecked));
+  expect(remove).toHaveAttribute("aria-disabled", "true");
+});
+
 /**
  * T-1432, UI-64: the explorer is the one entity grid of the product, so what the grid knows about
  * a value is on the explorer too — the unit beside the number, and when it was observed, from the
@@ -416,6 +435,25 @@ describe("correcting a value from the explorer", () => {
               status: 200,
               headers: { "Content-Type": "application/json", "NGSILD-Results-Count": "1" },
             }),
+          );
+        }
+        // The gateway's own decisions per attribute (T-5528), as the grant says them.
+        if (url.includes("/access/attributes")) {
+          const write = actions.includes("updateAttrs");
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                type: "BikeHireDockingStation",
+                attributes: ["availableBikeNumber", "name"].map((name) => ({
+                  name,
+                  read: true,
+                  write,
+                  delete: false,
+                  reason: write ? "grant" : "not_in_grant",
+                })),
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
           );
         }
         if (url.includes("/access")) {

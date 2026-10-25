@@ -7,7 +7,8 @@ import { parseGridConfig } from "@joinedcontext/sdk";
 import type { GridState, ResolvedGridConfig, RichRow } from "@joinedcontext/sdk";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized, refName } from "../../api/manifest";
-import { AccessPanel, deniedAttributes, editableAttributes, useAccess } from "../../components/entities/AccessPanel";
+import { AccessPanel, useAccess } from "../../components/entities/AccessPanel";
+import { deniedOf, explainAttribute, useAttributeAccess, useDecision, writableOf } from "../../api/access";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { deleteEntity, enumsOfModel, MAX_REASON, reasonProblem, fetchEntity, filterSlotsOf, qProblem, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
@@ -172,25 +173,31 @@ export function ExplorePage({
     }
     return [...new Set(grants.map((entry) => entry.resource?.type).filter((type): type is string => Boolean(type)))];
   }, [access.data]);
-  const denied = useMemo(
-    () => deniedAttributes(access.data, query.type, slots, t),
-    [access.data, query.type, slots, t],
-  );
+  // What the person may do with each attribute, as the endpoint decides it (T-5528): the grid's
+  // editors, the filters' hidden marks and the cell inspector all render this one answer.
+  const attributeAccess = useAttributeAccess(slug, query.type);
+  const denied = useMemo(() => deniedOf(attributeAccess.data, t), [attributeAccess.data, t]);
   // UI-44, EP-55: a control the grant denies stays visible and says why, rather than working
   // until the gateway refuses it. The grant is the endpoint's own `/access` document, already
   // read above for the attributes it hides (T-1021).
-  const mayDelete =
-    access.data === undefined ||
-    (access.data.permissions ?? []).some(
-      (entry) =>
-        (entry.resource?.type === undefined || entry.resource.type === query.type) &&
-        (entry.actions ?? []).some((action) => action === "deleteEntity" || action === "deleteBatch"),
-    );
+  // Delete is offered on the endpoint's own decision (T-5530), never on a grant read in the browser.
+  const deleteDecision = useDecision(slug, query.type, "deleteEntity");
+  const mayDelete = deleteDecision.data === true;
+  const deleteRefusal = deleteDecision.isPending
+    ? t("entityGrid.inspector.loading")
+    : deleteDecision.isError
+      ? t("explore.deleteUnchecked")
+      : t("explore.deleteDenied", { type: query.type ?? "" });
   // The attributes this person may correct in place, by the endpoint's own grant (UI-67).
+  // A formula field is its pipeline's to write (DM-80): shown, never edited in place.
   const editableAttrs = useMemo(
-    () => editableAttributes(access.data, query.type, slots, denied),
-    [access.data, query.type, slots, denied],
+    () => writableOf(attributeAccess.data).filter((attr) => slots.some((slot) => slot.name === attr && !slot.formula)),
+    [attributeAccess.data, slots],
   );
+  const endpointName = endpoint?.metadata.name;
+  // The React Compiler memoizes this; a manual useCallback over `endpoint` could not be preserved.
+  const explainAccess = (attribute: string, action: "read" | "write" | "delete") =>
+    explainAttribute(project, endpointName ?? "", query.type ?? "", attribute, action);
 
   /**
    * What the grid is told to show. The endpoint is a slug and never a URL (EP-55), and the filters
@@ -200,6 +207,11 @@ export function ExplorePage({
   const config: ResolvedGridConfig | null = useMemo(() => {
     // A q the broker would refuse is not sent: the field says how to fix it (T-4264, T-4160 #22).
     if (!slug || !query.type || qProblem(query.q)) {
+      return null;
+    }
+    // The grid waits for the person's decisions (T-5530): an attribute they may not read is then
+    // never asked for, and no editor opens before the server said it may.
+    if (attributeAccess.isPending) {
       return null;
     }
     const parsed = parseGridConfig({
@@ -213,7 +225,7 @@ export function ExplorePage({
       ...(editableAttrs.length > 0 ? { mode: "edit" as const, editableAttrs } : {}),
     });
     return parsed.config ?? null;
-  }, [slug, query.type, query.q, query.attrs, query.scopeQ, editableAttrs]);
+  }, [slug, query.type, query.q, query.attrs, query.scopeQ, editableAttrs, attributeAccess.isPending]);
 
   // A stable callback and the same object back when nothing moved: the grid hands its page over
   // from an effect, so a new function or a new object on every render would read and re-render
@@ -407,6 +419,11 @@ export function ExplorePage({
           />
         </div>
       ) : null}
+      {slug && query.type && !qProblem(query.q) && attributeAccess.isPending ? (
+        <p role="status" className="text-caption text-fg-muted">
+          {t("entityGrid.inspector.loading")}
+        </p>
+      ) : null}
       {config ? (
         // The table stays mounted under the other views: its filter row is the map's filter too,
         // and coming back finds it as it was left (T-3256).
@@ -426,6 +443,9 @@ export function ExplorePage({
             // A filter that excludes everything says so, and how to get rows back (T-4160 #22).
             emptyText={query.q ? t("explore.noMatch") : undefined}
             renderers={renderers}
+            access={attributeAccess.isError ? null : attributeAccess.data}
+            explainAccess={endpointName ? explainAccess : undefined}
+            accessRequestHref={`/projects/${encodeURIComponent(project)}/access`}
             toolbar={
               slug ? (
                 <div className="flex flex-wrap items-center gap-2">
@@ -509,9 +529,7 @@ export function ExplorePage({
                 // `title` on a hard-disabled button is unreachable twice over: the control is
                 // out of the tab order and `disabled:pointer-events-none` swallows the tooltip,
                 // so the grant's refusal was written and could never be read (UI-44, T-1768).
-                disabledReason={
-                  mayDelete ? undefined : t("explore.deleteDenied", { type: query.type ?? "" })
-                }
+                disabledReason={mayDelete ? undefined : deleteRefusal}
                 onClick={() => {
                   remove.reset();
                   setReason("");

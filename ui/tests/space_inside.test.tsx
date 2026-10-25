@@ -150,6 +150,8 @@ function renderInside(
     views?: unknown[];
     /** What the endpoint's gateway answers for the caller's grants (EP-55). */
     access?: unknown;
+    /** Its decisions per attribute (T-5528). */
+    attributes?: unknown;
   } = {},
 ) {
   const fetchMock = vi.fn((input: RequestInfo | URL, _init?: RequestInit) => {
@@ -165,6 +167,9 @@ function renderInside(
 
     if (path.endsWith("/auth/me")) {
       return json(IDENTITY);
+    }
+    if (path === `/api/endpoint/${SLUG}/access/attributes`) {
+      return json(seed.attributes ?? { type: url.searchParams.get("type"), attributes: [] });
     }
     if (path === `/api/endpoint/${SLUG}/access`) {
       return json(seed.access ?? { permissions: [] });
@@ -960,9 +965,17 @@ describe("the space's own data", () => {
         { resource: { type: "AirQualityObserved" }, actions: ["updateAttrs"], attributes: ["pm10"] },
       ],
     };
+    /** The same grant as the gateway decides it per attribute (T-5528). */
+    const stewardWrites = {
+      type: "AirQualityObserved",
+      attributes: [
+        { name: "name", read: true, write: false, delete: false, reason: "not_in_grant" },
+        { name: "pm10", read: true, write: true, delete: false, reason: "grant" },
+      ],
+    };
 
     it("offers an editor for the attributes the grant lets the steward write, and sends the reason", async () => {
-      const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200, rows }, { source, access: steward });
+      const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200, rows }, { source, access: steward, attributes: stewardWrites });
       const cell = await screen.findByRole("spinbutton", { name: /pm10/ });
       // The grant names pm10 only: the name stays text, with no editor.
       expect(screen.queryByDisplayValue("Námestie SNP")).toBeNull();
