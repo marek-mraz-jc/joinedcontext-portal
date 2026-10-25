@@ -72,17 +72,19 @@ export function typesOf(doc: OpenApi): { name: string; attributes: { name: strin
  * An Endpoint's API documentation (EP-99, T-3265): the gateway's generated OpenAPI document, read
  * as the person (or an anonymous visitor on a public Endpoint) may read it, each operation with
  * its parameters and an example call as curl, Python and JavaScript. On a public Endpoint it is
- * the developer page (T-5111): licence, rate limit, a sample per surface and try-it.
+ * the developer page (T-5111): licence, rate limit, a sample per surface and try-it. The gateway
+ * answers the title and description in the page's language (T-5630).
  */
 export function EndpointDocs({ slug, open, heading = true }: { slug: string; open: boolean; heading?: boolean }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const language = i18n.resolvedLanguage ?? i18n.language;
   const doc = useQuery({
-    queryKey: ["endpoint-openapi", slug],
+    queryKey: ["endpoint-openapi", slug, language],
     retry: false,
     gcTime: 0,
     queryFn: async () => {
       const answer = await globalThis.fetch(
-        new Request(endpointUrl(slug, "/openapi.json"), { credentials: "same-origin", headers: { Accept: "application/json" } }),
+        new Request(endpointUrl(slug, "/openapi.json"), { credentials: "same-origin", headers: { Accept: "application/json", "Accept-Language": language } }),
       );
       if (!answer.ok) throw new Error(String(answer.status));
       return (await answer.json()) as OpenApi;
