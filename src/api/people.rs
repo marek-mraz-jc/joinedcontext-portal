@@ -1329,7 +1329,29 @@ async fn removable(
         not_self_nor_last(state, identity, &user)?;
         found.push(user);
     }
+    not_every_administrator(state, &found)?;
     Ok(found)
+}
+
+/// A removal of several people never takes every Organization Administrator at once, though
+/// none of them is the last one alone (PF-03).
+fn not_every_administrator(state: &AppState, people: &[KcUser]) -> Result<(), ApiError> {
+    let administrators = crate::permissions::administrator_people(&state.mirror);
+    let removed: Vec<String> = people.iter().map(email_of).collect();
+    if !administrators.is_empty()
+        && administrators.iter().all(|admin| {
+            removed
+                .iter()
+                .any(|email| email.eq_ignore_ascii_case(admin))
+        })
+    {
+        return Err(ApiError::Conflict(
+            "this removal takes every Organization Administrator; keep one or bind another \
+             person to an administrator role first (PF-03)"
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 /// The branch a removal's Change is proposed on: one per person, or one per set of people.

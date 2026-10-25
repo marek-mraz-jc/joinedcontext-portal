@@ -418,6 +418,38 @@ async fn the_last_administrator_is_not_disabled_or_deleted() {
     assert!(received(&kc, "PUT", "/users/ada-id").await.is_empty());
 }
 
+/// PF-03 (integrator's review): a bulk removal naming every Organization Administrator is
+/// refused, though none of them is the last one alone; the realm hears nothing.
+#[tokio::test]
+async fn a_bulk_removal_never_takes_every_administrator() {
+    let (kc, gitea) = (realm(true).await, forge().await);
+    let state = state_with(&kc, &gitea);
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "admins-two",
+        ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": "pia@hel.fi" }], "role": "org-admin", "scope": { "organization": "hel" } }),
+    ));
+    let mut root = person("root");
+    root.groups = vec![state.config.bootstrap_admins.clone()];
+    let refused = send(
+        &state,
+        root,
+        "POST",
+        &format!("{PEOPLE}/remove"),
+        Some(json!({ "ids": ["ada-id", "pia-id"] })),
+    )
+    .await;
+    assert_eq!(refused.status, StatusCode::CONFLICT, "{}", refused.text);
+    assert!(
+        refused.text.contains("every Organization Administrator"),
+        "{}",
+        refused.text
+    );
+    assert!(received(&kc, "PUT", "/users/ada-id").await.is_empty());
+    assert!(received(&kc, "PUT", "/users/pia-id").await.is_empty());
+}
+
 /// PF-91: every route refuses a caller whose role grants nothing on Person, with 403.
 #[tokio::test]
 async fn a_caller_without_people_admin_is_refused_on_every_route() {
