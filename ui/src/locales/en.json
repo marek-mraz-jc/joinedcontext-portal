@@ -4020,6 +4020,29 @@
       "nothing": "Nothing granted yet",
       "endpointRole": "Every caller of endpoint {endpoint}",
       "endpointTier": "App role {tier} on endpoint {endpoint}"
+    },
+    "secret": {
+      "title": "Sign-in secret",
+      "hint": "An external system signs in as client {clientId} with this secret, using the OAuth client_credentials grant (for example: curl -u {clientId}:<secret> -d grant_type=client_credentials <token URL>). The Portal shows a new secret once and keeps no copy.",
+      "issue": "Issue new secret",
+      "confirmTitle": "Issue a new secret for {account}?",
+      "confirmHelp": "The current secret stops working at once and the tokens it got are refused. Give the new secret to the system that signs in as this account, then remove the old one there.",
+      "onceTitle": "Copy the secret now",
+      "once": "It is shown only this once. The Portal keeps no copy; if it is lost, issue a new one.",
+      "clientId": "Client ID",
+      "secret": "Client secret",
+      "tokenUrl": "Token URL",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyNamed": "Copy {what}",
+      "done": "Hide the secret",
+      "failed": "No secret was issued. Try again in a minute.",
+      "whoIssues": "A person who may approve service accounts issues its secret.",
+      "none": {
+        "workload": "Its cluster workload signs in with the pod's own token, so it has no secret to issue.",
+        "key-pair": "It signs in with its own key pair, so it has no secret. To rotate a key, change the public key of its credential.",
+        "no-credential": "It has no oauth-client credential yet. Edit the account and add one, for example named main; then its secret can be issued here."
+      }
     }
   },
   "flows": {

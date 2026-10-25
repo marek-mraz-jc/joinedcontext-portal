@@ -667,6 +667,7 @@ async fn a_decision_without_a_second_factor_is_refused_at_every_door() {
         "POST /projects/{project}/changes/{id}/approve",
         "POST /projects/{project}/changes/{id}/reject",
         "POST /projects/{project}/serviceaccounts/{name}/revoke",
+        "POST /projects/{project}/serviceaccounts/{name}/secret",
         "POST /projects/{project}/spaces/{space}/erasures/{id}/approve",
         "POST /projects/{project}/spaces/{space}/erasures/{id}/decline",
     ];

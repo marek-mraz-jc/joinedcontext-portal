@@ -4020,6 +4020,29 @@
       "nothing": "Zatím nic nepovoleno",
       "endpointRole": "Každý volající endpointu {endpoint}",
       "endpointTier": "Role aplikace {tier} na endpointu {endpoint}"
+    },
+    "secret": {
+      "title": "Přihlašovací tajemství",
+      "hint": "Externí systém se přihlašuje jako klient {clientId} s tímto tajemstvím přes OAuth client_credentials (například: curl -u {clientId}:<tajemství> -d grant_type=client_credentials <URL tokenu>). Portál ukáže nové tajemství jednou a neuchovává jeho kopii.",
+      "issue": "Vydat nové tajemství",
+      "confirmTitle": "Vydat nové tajemství pro {account}?",
+      "confirmHelp": "Současné tajemství okamžitě přestane platit a tokeny, které jím byly získány, budou odmítnuty. Předejte nové tajemství systému, který se přihlašuje jako tento účet, a staré tam odstraňte.",
+      "onceTitle": "Zkopírujte tajemství nyní",
+      "once": "Zobrazí se pouze tentokrát. Portál neuchovává kopii; pokud ho ztratíte, vydejte nové.",
+      "clientId": "ID klienta",
+      "secret": "Tajemství klienta",
+      "tokenUrl": "URL tokenu",
+      "copy": "Kopírovat",
+      "copied": "Zkopírováno",
+      "copyNamed": "Kopírovat {what}",
+      "done": "Skrýt tajemství",
+      "failed": "Tajemství nebylo vydáno. Zkuste to znovu za minutu.",
+      "whoIssues": "Tajemství vydává osoba, která smí schvalovat servisní účty.",
+      "none": {
+        "workload": "Jeho úloha v clusteru se přihlašuje vlastním tokenem podu, proto nemá tajemství k vydání.",
+        "key-pair": "Přihlašuje se vlastním párem klíčů, proto nemá tajemství. Klíč vyměníte změnou veřejného klíče v jeho přihlašovacím údaji.",
+        "no-credential": "Zatím nemá přihlašovací údaj oauth-client. Upravte účet a přidejte ho, například se jménem main; pak zde můžete vydat jeho tajemství."
+      }
     }
   },
   "flows": {

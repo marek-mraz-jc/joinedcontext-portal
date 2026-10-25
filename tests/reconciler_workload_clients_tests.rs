@@ -8,13 +8,18 @@
 //! this platform did not create is never touched; a managed client whose account lost its
 //! workload is deleted; and one Kubernetes subject opens one account at most, the first to hold
 //! it. A `wasm` App with jobs gets its job principal's client, its one audience the App's own
-//! Endpoint, and a Kubernetes ServiceAccount in the identities namespace (AP-159, T-3539).
+//! Endpoint, and a Kubernetes ServiceAccount in the identities namespace (AP-159, T-3539). An
+//! account without a workload whose `oauth-client` credential is used from outside gets the same
+//! client with `client-secret`, or `client-jwt` against its device keys (T-4015, T-5626); the
+//! platform's own client of such an account is left alone without a failure.
 
 use jc_core::kinds::service_account::KubernetesBinding;
 use joinedcontext_portal::config::ClientAuth;
 use joinedcontext_portal::reconciler::app_clients::{audience_mapper, groups_mapper};
 use joinedcontext_portal::reconciler::groups::{MANAGED_BY, MANAGED_VALUE};
-use joinedcontext_portal::reconciler::workload_clients::{desired, WorkloadClientSync};
+use joinedcontext_portal::reconciler::workload_clients::{
+    desired, desired_external, ClientCredential, WorkloadClientSync,
+};
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
 use joinedcontext_portal::store::Mirror;
 use serde_json::{json, Value};
@@ -1151,4 +1156,170 @@ async fn the_apps_job_accounts_follow_the_apps_jobs() {
         app_job_accounts_run(&without_jobs, &["appjob-zilina-kpi", "token-service"]).await;
     assert!(applied.is_empty(), "{applied:?}");
     assert_eq!(deleted, vec!["appjob-zilina-kpi".to_owned()]);
+}
+
+/// An account with no workload whose credentials are `credentials`.
+fn external(project: &str, name: &str, credentials: Value) -> ResourceEnvelope {
+    let mut env = account(project, name, None, "space-writer");
+    env.spec["credentials"] = credentials;
+    env
+}
+
+/// One P-256 public key, as a device's credential lists it.
+fn device_key(kid: &str) -> Value {
+    json!({ "kty": "EC", "crv": "P-256", "kid": kid, "alg": "ES256", "use": "sig",
+            "x": "f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU",
+            "y": "x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0" })
+}
+
+/// Creates `id` on the first lookup and answers `created` from then on, as the realm would.
+async fn creates(keycloak: &MockServer, id: &str, created: Value) {
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/clients")))
+        .and(query_param("clientId", id))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .up_to_n_times(1)
+        .mount(keycloak)
+        .await;
+    client_lookup(keycloak, id, json!([created])).await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REALM}/clients")))
+        .respond_with(ResponseTemplate::new(201))
+        .mount(keycloak)
+        .await;
+}
+
+/// T-5626: an account an external system signs in as gets a confidential `client-secret` client,
+/// `client_credentials` only, with its roles' audiences; the wave never reads its secret.
+#[tokio::test]
+async fn an_external_account_gets_a_secret_client_and_no_secret_is_read() {
+    let keycloak = realm(json!([])).await;
+    let mut held = desired_external("helsinki", "vendor", &ClientCredential::Secret);
+    held["id"] = json!("uuid-vendor");
+    creates(&keycloak, "helsinki-vendor", held).await;
+    mappers(&keycloak, "uuid-vendor", json!([])).await;
+
+    let outcomes = sync(&keycloak)
+        .converge(&mirror_with(vec![
+            external(
+                "helsinki",
+                "vendor",
+                json!([{ "kind": "oauth-client", "name": "main" }]),
+            ),
+            endpoint("helsinki", "air-all", "air", SLUG),
+        ]))
+        .await;
+
+    assert_eq!(outcomes.len(), 1, "{outcomes:?}");
+    assert_eq!(outcomes[0].app, "helsinki/vendor");
+    assert_eq!(outcomes[0].error, None, "{outcomes:?}");
+    let created = &bodies(&keycloak, "POST", &format!("{REALM}/clients")).await[0];
+    assert_eq!(created["clientId"], "helsinki-vendor");
+    assert_eq!(created["clientAuthenticatorType"], "client-secret");
+    assert_eq!(created["serviceAccountsEnabled"], true);
+    assert_eq!(created["directAccessGrantsEnabled"], false);
+    assert_eq!(created["standardFlowEnabled"], false);
+    assert_eq!(created["attributes"][MANAGED_BY], MANAGED_VALUE);
+    assert_eq!(
+        created["attributes"]["joinedcontext.serviceaccount"],
+        "helsinki/vendor"
+    );
+    assert_eq!(created.get("secret"), None, "the wave sets no secret");
+    let mapper = &bodies(
+        &keycloak,
+        "POST",
+        &format!("{REALM}/clients/uuid-vendor/protocol-mappers/models"),
+    )
+    .await[0];
+    assert_eq!(mapper["config"]["included.custom.audience"], SLUG);
+    let asked: Vec<String> = keycloak
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .map(|r| r.url.path().to_owned())
+        .collect();
+    assert!(
+        !asked.iter().any(|p| p.ends_with("/client-secret")),
+        "no secret is read: {asked:?}"
+    );
+}
+
+/// T-4015, T-5626: a device's account gets `client-jwt` against the public keys its credentials
+/// list, each kid once, and no secret.
+#[tokio::test]
+async fn a_device_account_gets_a_key_pair_client() {
+    let keycloak = realm(json!([])).await;
+    let credential = ClientCredential::Keys(json!({ "keys": [device_key("k1")] }).to_string());
+    let mut held = desired_external("helsinki", "sensor", &credential);
+    held["id"] = json!("uuid-sensor");
+    creates(&keycloak, "helsinki-sensor", held).await;
+    mappers(&keycloak, "uuid-sensor", json!([])).await;
+
+    let outcomes = sync(&keycloak)
+        .converge(&mirror_with(vec![external(
+            "helsinki",
+            "sensor",
+            json!([
+                { "kind": "oauth-client", "name": "device-key", "jwks": { "keys": [device_key("k1")] } },
+                { "kind": "oauth-client", "name": "spare", "jwks": { "keys": [device_key("k1")] } },
+            ]),
+        )]))
+        .await;
+
+    assert_eq!(outcomes[0].error, None, "{outcomes:?}");
+    let created = &bodies(&keycloak, "POST", &format!("{REALM}/clients")).await[0];
+    assert_eq!(created["clientAuthenticatorType"], "client-jwt");
+    assert_eq!(created["attributes"]["use.jwks.string"], "true");
+    assert_eq!(created["attributes"]["use.jwks.url"], "false");
+    let jwks: Value = serde_json::from_str(
+        created["attributes"]["jwks.string"]
+            .as_str()
+            .expect("a JWKS string"),
+    )
+    .expect("json");
+    assert_eq!(jwks, json!({ "keys": [device_key("k1")] }));
+}
+
+/// T-5626: the platform's own client of an external account (`keycloak-clients.yaml`) serves it
+/// as it is: nothing is written and nothing fails; one without a credential gets no client.
+#[tokio::test]
+async fn an_external_accounts_platform_client_is_left_alone_quietly() {
+    let foreign =
+        json!({ "id": "uuid-hand", "clientId": "banskabystrica-conformance", "attributes": {} });
+    let keycloak = realm(json!([foreign.clone()])).await;
+    client_lookup(&keycloak, "banskabystrica-conformance", json!([foreign])).await;
+
+    let outcomes = sync(&keycloak)
+        .converge(&mirror_with(vec![
+            external(
+                "banskabystrica",
+                "conformance",
+                json!([{ "kind": "oauth-client", "name": "main" }]),
+            ),
+            external("banskabystrica", "nothing", json!([])),
+        ]))
+        .await;
+
+    assert_eq!(outcomes.len(), 1, "{outcomes:?}");
+    assert_eq!(outcomes[0].error, None, "{outcomes:?}");
+    assert!(outcomes[0].drift.is_empty(), "{outcomes:?}");
+    assert!(wrote(&keycloak).await.is_empty());
+}
+
+/// T-5626: an external account's managed client goes with the account, its tokens revoked first.
+#[tokio::test]
+async fn an_external_accounts_client_is_deleted_with_the_account() {
+    let mut held = desired_external("helsinki", "vendor", &ClientCredential::Secret);
+    held["id"] = json!("uuid-vendor");
+    let keycloak = realm(json!([held])).await;
+
+    let outcomes = sync(&keycloak).converge(&mirror_with(vec![])).await;
+
+    assert_eq!(
+        wrote(&keycloak).await,
+        vec![format!("DELETE {REALM}/clients/uuid-vendor")]
+    );
+    assert_eq!(outcomes[0].app, "helsinki/vendor");
+    assert_eq!(outcomes[0].error, None);
 }

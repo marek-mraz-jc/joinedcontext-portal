@@ -2156,6 +2156,14 @@
         "agent_access_matrix.test.tsx"
       ]
     },
+    "src/pages/access/AccountSecret.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "account_secret.test.tsx"
+      ]
+    },
     "src/components/forms/widgets/RepresentationOutputsField.tsx": {
       "controls": {
         "Button": 4

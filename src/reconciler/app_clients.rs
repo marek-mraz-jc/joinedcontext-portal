@@ -497,6 +497,26 @@ impl Admin {
         Ok(None)
     }
 
+    /// A POST whose answer is the value asked for, a regenerated client secret say: the body is
+    /// handed back and never echoed into an error or a log line.
+    pub(crate) async fn post_for(&self, token: &str, path: &str) -> Result<Value, String> {
+        let response = crate::auth::client_auth::paced(|| {
+            let request = self
+                .http
+                .post(format!("{}{path}", self.admin))
+                .bearer_auth(token);
+            async { request.send().await.map_err(|err| err.to_string()) }
+        })
+        .await?;
+        if !response.status().is_success() {
+            return Err(format!("POST {path}: {}", response.status()));
+        }
+        response
+            .json()
+            .await
+            .map_err(|_| format!("POST {path}: the realm's answer is not JSON"))
+    }
+
     pub(crate) async fn get<T: serde::de::DeserializeOwned>(
         &self,
         token: &str,

@@ -683,6 +683,12 @@ fn decision_doors() -> Vec<(&'static str, String, Option<Value>, Identity)> {
         ),
         (
             "POST",
+            format!("/api/v1/projects/{project}/serviceaccounts/robot/secret"),
+            None,
+            steward(),
+        ),
+        (
+            "POST",
             format!("/api/v1/projects/{project}/spaces/air/erasures/e-1/approve"),
             Some(json!({ "subject": "someone" })),
             steward(),

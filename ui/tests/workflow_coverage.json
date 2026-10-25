@@ -884,9 +884,10 @@
           "spec": "agent-access.spec.ts",
           "test": "an agent account's token is refused an approval and a revoke, and the steward reads its access"
         },
-        "personOnly": "revoking an agent's grant is a person's decision in the Portal; an agent never changes access (PF-58, AG-132)",
+        "personOnly": "revoking an agent's grant and issuing an account's client secret are a person's decisions in the Portal; an agent never changes access nor sees a secret (PF-58, AG-132, PF-37)",
         "routes": [
-          "POST /api/v1/projects/{project}/serviceaccounts/{name}/revoke"
+          "POST /api/v1/projects/{project}/serviceaccounts/{name}/revoke",
+          "POST /api/v1/projects/{project}/serviceaccounts/{name}/secret"
         ]
       }
     },

@@ -216,6 +216,10 @@
     "src/pages/pipelines/KpiEditor.tsx :: Unit code": {
       "class": "FREE",
       "reason": "a UN/CEFACT common code from a list of thousands; the KPI check refuses any code but the formula's own unit (PL-103) and says which one it is"
+    },
+    "src/pages/access/AccountSecret.tsx :: (no label)": {
+      "class": "FREE",
+      "reason": "a read-only value the Portal issued (client id, the secret shown once, the token URL), shown for copying; nobody types into it"
     }
   }
 }

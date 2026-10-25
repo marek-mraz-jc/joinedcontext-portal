@@ -285,6 +285,10 @@ routes:
     expect: [403, 403, 403, allow, 403, allow, 403, 403]
     body: {"index": 0, "role": "space-reader"}
     note: "removes one grant at once (API/01 §52, AG-132); a steward or an administrator meets the fixture's 409 (its account has an empty spec), the 202 allow path is tests/agent_access_tests.rs an_administrators_revoke_proposes_the_account_without_the_grant; a bearer token is 403"
+  - route: POST /projects/{project}/serviceaccounts/{name}/secret
+    rule: "approve on ServiceAccount, from a person's session"
+    expect: [403, 403, 403, allow, allow, allow, 403, 403]
+    note: "issues the account's client secret once (PF-37, T-5626); an allowed caller meets the fixture's 409 (its account has an empty spec), the 200 allow path is tests/account_secret_tests.rs an_approver_gets_the_secret_once_and_no_read_shows_it_again; a bearer token is 403"
   - route: GET /projects/{project}/endpoints/{name}/quality
     rule: "project-read and read on the Endpoint in its space; the fixes for space-read (T-5112)"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
