@@ -155,15 +155,15 @@ describe("the Group form", () => {
 
   it("refuses at the field what the API refuses at the door", () => {
     const schema = groupSchema(t);
-    const good = { name: "mestski-spravcovia", members: [{ user: "jana@banskabystrica.sk" }] };
+    const good = { name: "mestski-spravcovia", members: [{ user: "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e" }] };
     expect(validator.validateFormData(good, schema).errors).toEqual([]);
-    // A name that is not a name, and a member who is not an address: both said at the field,
-    // where the person is, instead of as a 400 after the change was proposed.
+    // A name that is not a name, and a member who is not a Keycloak id (an e-mail above all,
+    // ADR-N-061): both said at the field, instead of as a 400 after the change was proposed.
     expect(validator.validateFormData({ ...good, name: "Mestskí Správcovia" }, schema).errors).not.toEqual([]);
-    for (const user of ["jana", "jana@localhost", "jana mrazova@mesto.sk", ""]) {
+    for (const user of ["jana", "jana@mesto.sk", "2F1C6B1E-7A4D-4C55-9E0E-3B8F1A2D4C6E", ""]) {
       expect(
         validator.validateFormData({ ...good, members: [{ user }] }, schema).errors,
-        `${user} is not an address`,
+        `${user} is not a person id`,
       ).not.toEqual([]);
     }
   });
@@ -172,17 +172,17 @@ describe("the Group form", () => {
     const manifest = toGroupEnvelope({
       name: "mestski-spravcovia",
       description: "   ",
-      members: [{ user: "jana@banskabystrica.sk" }, { user: "  " }],
+      members: [{ user: "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e" }, { user: "  " }],
     }) as { spec: { description?: string; members: unknown[] } };
     expect(manifest.spec.description).toBeUndefined();
-    expect(manifest.spec.members).toEqual([{ user: "jana@banskabystrica.sk" }]);
+    expect(manifest.spec.members).toEqual([{ user: "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e" }]);
   });
 
   it("is the same group in both directions", () => {
     const written: GroupForm = {
       name: "mestski-spravcovia",
       description: "The people who lead the city's projects",
-      members: [{ user: "jana@banskabystrica.sk" }],
+      members: [{ user: "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e" }],
     };
     const back = fromGroupEnvelope(toGroupEnvelope(written));
     expect(back).toEqual(written);
@@ -208,7 +208,7 @@ describe("the Group form", () => {
   it("has no axe violations", async () => {
     const { container } = form(groupSchema(t), {
       name: "mestski-spravcovia",
-      members: [{ user: "jana@banskabystrica.sk" }],
+      members: [{ user: "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e" }],
     });
     const results = await axe.run(container);
     expect(results.violations.map((violation) => violation.id)).toEqual([]);
@@ -472,7 +472,7 @@ describe("the Role form", () => {
     const schema = groupSchema(t);
     const twice = {
       name: "mestski-spravcovia",
-      members: [{ user: "jana@banskabystrica.sk" }, { user: "jana@banskabystrica.sk" }],
+      members: [{ user: "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e" }, { user: "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e" }],
     };
     expect(validator.validateFormData(twice, schema).errors).not.toEqual([]);
   });

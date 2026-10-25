@@ -11,8 +11,9 @@ import { proposeChecked } from "../../api/proposal";
 import type { components } from "../../api/schema";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
-import { Alert, Button, Field, Input, Select } from "../../components/ui";
-import { asUser } from "../apps/members";
+import { Alert, Button, Field, Select } from "../../components/ui";
+import { PersonPicker } from "../../components/pickers/PersonPicker";
+import { isPersonId, personLabel, usePersonNames } from "../../api/personNames";
 import type { Subject } from "../apps/members";
 import { ckanAdminName, grantManifests, holdersOf, RefusedAccess, revokeManifest } from "./ckanAccess";
 
@@ -135,8 +136,9 @@ export function CkanAccessPanel({
     setRefused(null);
     setChange(null);
     const typed = who.trim();
-    const subject: Subject = kind === "group" ? { group: typed } : { user: asUser(typed) ?? "" };
-    if (kind === "user" && typed !== "" && !asUser(typed)) {
+    // A person is their Keycloak user id, never their e-mail (ADR-N-061).
+    const subject: Subject = kind === "group" ? { group: typed } : { user: typed };
+    if (kind === "user" && typed !== "" && !isPersonId(typed)) {
       setRefused(t("ckan.access.refused.badEmail"));
       return;
     }
@@ -172,7 +174,8 @@ export function CkanAccessPanel({
   const listFailed = roles.isError || bindings.isError;
   const busy = grant.isPending || revoke.isPending;
   const heading = `${ids}-heading`;
-  const name = (subject: Subject) => subject.group ?? subject.user ?? "";
+  const names = usePersonNames(holders.flatMap((holder) => (holder.subject.user ? [holder.subject.user] : [])));
+  const name = (subject: Subject) => subject.group ?? personLabel(subject.user ?? "", names);
 
   return (
     <section aria-labelledby={heading} className="space-y-3 rounded border border-border p-4">
@@ -212,7 +215,7 @@ export function CkanAccessPanel({
           {holders.map((holder) => {
             const label = holder.subject.group
               ? t("ckan.access.group", { name: holder.subject.group })
-              : t("ckan.access.person", { name: holder.subject.user ?? "" });
+              : t("ckan.access.person", { name: personLabel(holder.subject.user ?? "", names) });
             const right =
               holder.role === own ? t("ckan.access.rightOwn") : t("ckan.access.rightVia", { role: holder.role });
             const last = holder.removable && (ownBinding?.spec as { subjects?: unknown[] } | undefined)?.subjects?.length === 1;
@@ -299,13 +302,7 @@ export function CkanAccessPanel({
           </Field>
         ) : (
           <Field id={`${ids}-who`} label={t("ckan.access.email")} help={t("ckan.access.emailHelp")}>
-            <Input
-              id={`${ids}-who`}
-              type="email"
-              autoComplete="off"
-              value={who}
-              onChange={(event) => setWho(event.target.value)}
-            />
+            <PersonPicker id={`${ids}-who`} label={t("ckan.access.email")} labelled value={who} onChange={setWho} />
           </Field>
         )}
         <Button

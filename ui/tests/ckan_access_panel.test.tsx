@@ -145,15 +145,16 @@ describe("a CKAN instance's Access panel", () => {
     });
   });
 
-  it("refuses an empty choice and a half-typed e-mail in words, and proposes nothing", async () => {
+  it("refuses an empty choice and a typed e-mail that names nobody in words, and proposes nothing", async () => {
     const { proposals } = renderPanel();
     const section = await panel();
     await userEvent.click(await addButton(section));
     expect(await within(section).findByRole("alert")).toHaveTextContent(en.ckan.access.refused.noSubject);
     await userEvent.selectOptions(within(section).getByLabelText(en.ckan.access.kind), "user");
-    await userEvent.type(within(section).getByLabelText(en.ckan.access.email), "jana@");
+    // An address is no subject (ADR-N-061): only a person picked, or a pasted id, is.
+    await userEvent.type(within(section).getByRole("combobox", { name: en.ckan.access.email }), "jana@hel.fi{Enter}");
     await userEvent.click(within(section).getByRole("button", { name: en.ckan.access.addShort }));
-    expect(await within(section).findByRole("alert")).toHaveTextContent(en.ckan.access.refused.badEmail);
+    expect(await within(section).findByRole("alert")).toHaveTextContent(en.ckan.access.refused.noSubject);
     expect(proposals()).toEqual([]);
   });
 

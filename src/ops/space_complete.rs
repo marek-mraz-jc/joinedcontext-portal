@@ -852,7 +852,7 @@ pub async fn run(
                 &name,
                 &class_name,
                 &audience,
-                &caller.identity.username,
+                &caller.identity.subject,
             ) {
                 // The Endpoint below binds these grants in the same Change (PL-111).
                 let mut bundle = bundle_of(&drafts);
@@ -873,7 +873,7 @@ pub async fn run(
         drafts.push(checked);
     }
     if input.upload && sample_bytes.is_some() {
-        let grant = upload_policy(project, &space_name, &class_name, &caller.identity.username);
+        let grant = upload_policy(project, &space_name, &class_name, &caller.identity.subject);
         let checked =
             checked_draft(caller, state, project, grant, true, bundle_of(&drafts)).await?;
         drafts.push(checked);
@@ -1489,6 +1489,7 @@ fn policies_for(
 
 /// The person's grant to write the uploaded type into the space by batch (DM-81, T-3840): upsert,
 /// so the same file uploaded again updates the same entities, and the read the upsert needs.
+/// `person` is the uploader's Keycloak user id; no name or address goes into Git (ADR-N-061).
 fn upload_policy(project: &str, space: &str, class: &str, person: &str) -> Value {
     json!({
         "apiVersion": API_VERSION,
@@ -1496,7 +1497,7 @@ fn upload_policy(project: &str, space: &str, class: &str, person: &str) -> Value
         "metadata": {
             "name": format!("{space}-upload"),
             "namespace": project,
-            "title": { "en": format!("{person} uploads {class} into {space}") }
+            "title": { "en": format!("The uploader writes {class} into {space}") }
         },
         "spec": {
             "contextSpaceRef": { "kind": "ContextSpace", "name": space },

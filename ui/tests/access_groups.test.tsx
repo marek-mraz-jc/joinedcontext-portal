@@ -160,7 +160,7 @@ describe("the groups of the organization on Organization → Groups", () => {
     await user.click(within(dialog).getByRole("button", { name: "Add" }));
     await user.type(
       within(dialog).getByLabelText(new RegExp(en.access.groups.field.memberUser)),
-      "jana.kovacova@example.org",
+      "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e",
     );
     // The verdict gate: a manifest is checked before it may be proposed (PF-57, T-0956), and the
     // form asks for that check by hand where the YAML view used to run it on the way out.

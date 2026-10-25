@@ -3852,7 +3852,7 @@
         "name": "Group name",
         "description": "What this group is",
         "members": "Members",
-        "memberUser": "Address"
+        "memberUser": "Person"
       },
       "propose": "Propose change",
       "reason": {
@@ -3893,11 +3893,11 @@
       "notFound": "There is no group {name} in the organization.",
       "deleteCascade": "Deleting this group also takes it out of {bindings} platform role binding(s) and {apps} application role(s), in the same change.",
       "members": "Members",
-      "email": "E-mail of the person",
+      "email": "Person",
       "addMember": "Add member",
       "removeMember": "Remove {member} from the group",
       "remove": "Remove",
-      "needEmail": "Type the person's e-mail address first.",
+      "needEmail": "Pick a person first.",
       "already": "Already there.",
       "platformRoles": "Platform roles",
       "platformLead": "The role bindings that name this group: which role, and where it holds.",
@@ -3936,7 +3936,7 @@
       "ckanVia": "through the role {role}",
       "appNotLoaded": "The app is still loading, or you may not read it.",
       "hint": {
-        "email": "Pick one or more of the organization's people, or type or paste full e-mails separated by commas or line breaks, e.g. jana.novak@example.org, peter.horak@example.org.",
+        "email": "Pick one or more of the organization's people by name, or paste e-mails separated by commas, e.g. jana.novak@example.org, peter.horak@example.org. The group records each person's id, not the address.",
         "where": "Where the role holds: the whole organization or one project, e.g. helsinki.",
         "space": "Keep the whole project, or narrow the role to one context space, e.g. air-quality.",
         "role": "What the members may do there, e.g. viewer reads, steward also proposes changes.",
@@ -3948,7 +3948,7 @@
       "waitingTitle": "A change to this group waits for a decision",
       "waiting": "Change {change} edits this group's members and waits for approval. Add or remove members once it is decided, so it keeps the people it adds.",
       "openChange": "Open change {change}",
-      "notEmails": "Not added, these are not e-mail addresses: {words}. Correct them and type them again."
+      "notEmails": "Not added, nobody in the organization has these addresses: {words}. Invite them on the People page first."
     },
     "explorer": {
       "title": "See what someone can access",
@@ -4940,10 +4940,10 @@
       "groupMember": "Group {group}",
       "remove": "Remove",
       "removeLabel": "Remove {member} from {role}",
-      "email": "E-mail",
+      "email": "Person",
       "group": "Group",
       "pickGroup": "Choose a group",
-      "needEmail": "Type the person's e-mail address.",
+      "needEmail": "Pick a person first.",
       "needGroup": "Choose a group.",
       "already": "Already holds this role.",
       "defaultGroup": "Default group {group}",
@@ -4952,7 +4952,8 @@
       "others": "Other groups and people with this role",
       "noOthers": "No other group holds this role.",
       "give": "Give this role to a group",
-      "groupsUnreadable": "Your role does not list the organization's groups."
+      "groupsUnreadable": "Your role does not list the organization's groups.",
+      "personHint": "Search by name or e-mail, e.g. Jana Nováková. The group records the person's id, not the address."
     },
     "check": {
       "green": "Working",
@@ -5190,7 +5191,7 @@
       "kindPerson": "A person",
       "whichGroup": "Group",
       "pickGroup": "Choose a group",
-      "email": "E-mail",
+      "email": "Person",
       "addShort": "Give the right",
       "attached": "Endpoints that publish here",
       "noneAttached": "No endpoint publishes to this catalogue.",
@@ -5198,15 +5199,15 @@
         "noInstance": "Choose a catalogue first.",
         "unknownInstance": "The project has no catalogue named {instance}; reload the page.",
         "nameTooLong": "The project and catalogue names together are too long for a role name (63 characters); a shorter catalogue name is needed.",
-        "noSubject": "Choose a group or type an e-mail first.",
+        "noSubject": "Choose a group or a person first.",
         "already": "They already manage {instance}.",
         "absent": "They do not manage {instance} through this catalogue's role.",
-        "badEmail": "Type a whole e-mail address, such as jana@example.org."
+        "badEmail": "Pick a person from the list; invite them on the People page first if they are missing."
       },
       "hidden": "Who manages this catalogue is visible to the organization's administrators.",
-      "kindHelp": "A whole group, or one person by their e-mail.",
+      "kindHelp": "A whole group, or one person of the organization.",
       "whichGroupHelp": "Everyone in the group manages this catalogue while they are in it.",
-      "emailHelp": "The e-mail the person signs in with, such as jana@example.org."
+      "emailHelp": "Search by name or e-mail, e.g. Jana Nováková; the role names the person's id, not the address."
     }
   },
   "mappings": {
@@ -7280,6 +7281,21 @@
         "disabled": "{count} people disabled.",
         "deleted": "{count} people deleted.",
         "partly": "{done} of {count} disabled. Not disabled: {failed}."
+      },
+      "id": "Id in manifests",
+      "nameById": {
+        "title": "Name people by id",
+        "help": "Groups, role bindings and policies name a person by their Keycloak id, never their e-mail. Check which manifests still hold an e-mail or a username, then propose one Change per repository that rewrites them; a second administrator approves it. Git history keeps the old text.",
+        "check": "Check the repositories",
+        "propose": "Propose the Changes",
+        "checkFirst": "Check the repositories first.",
+        "nothingToPropose": "Nothing to propose: the Changes are proposed or every manifest names people by id.",
+        "nothing": "Every manifest names people by id already.",
+        "preview": "{count} manifest(s) in {repositories} repository(ies) still name people by e-mail or username:",
+        "proposed": "Proposed {count} Change(s); each waits for approval:",
+        "change": "Change {change}",
+        "unresolvedTitle": "Addresses nobody in the organization has",
+        "unresolved": "These stay as they are, and a group naming one is not synchronised until it is fixed: {addresses}. Invite the person, or remove the address from the manifest."
       }
     },
     "setup": {
@@ -8277,12 +8293,14 @@
     },
     "person": {
       "group": "People of the organization",
-      "typed": "Typed e-mail",
-      "none": "Nobody matches. Type the person's full e-mail to name someone who has not signed in yet.",
-      "unlisted": "You may not list the organization's people. Type the person's full e-mail, e.g. jana.novak@example.org.",
-      "invite": "Use {email} (not signed in yet)",
-      "needEmail": "Type the person's full e-mail address.",
-      "addList": "Add the e-mails of the list ({count})"
+      "none": "Nobody matches. Invite the person on the People page first; then they can be named here.",
+      "unlisted": "You may not list the organization's people. Paste the person's id, shown on their page under People.",
+      "needEmail": "Type a name or the person's full e-mail address.",
+      "addList": "Add the e-mails of the list ({count})",
+      "chosen": "Chosen",
+      "useId": "Use the person with id {id}",
+      "notInvited": "Nobody with {email} is in the organization yet: invite them on the People page first",
+      "placeholder": "Jana Nováková or jana.novakova@example.org"
     }
   },
   "units": {

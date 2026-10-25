@@ -126,7 +126,7 @@ fn rfc3339(at: OffsetDateTime) -> String {
 
 impl AccessRequest {
     /// The account a grant names: the pipeline's own, qualified by its project (PL-19, PL-92),
-    /// or the person's username.
+    /// or the person's Keycloak user id (ADR-N-061; a request filed before it holds a username).
     pub fn account(&self) -> String {
         match &self.requester {
             Requester::Pipeline(pipeline) => format!("{}/pl-{pipeline}", self.project),
@@ -413,7 +413,8 @@ pub fn grant_bundle(request: &AccessRequest, endpoint: &Value) -> Vec<Value> {
         "metadata": {
             "name": request.policy_name(),
             "namespace": request.endpoint_project,
-            "description": { "en": format!("Access request {} by {}: {}", request.id, request.requested_by, request.reason) },
+            // Nobody's name or address goes into Git with the grant (ADR-N-061).
+            "description": { "en": format!("Access request {}: {}", request.id, request.reason) },
         },
         "spec": spec,
     }));
@@ -612,7 +613,7 @@ macro_rules! select {
 
 /// Stores a new request; `Ok(false)` when the pipeline or the person already has an open or
 /// granted one for that Endpoint (PL-90).
-pub(crate) async fn insert(pool: &PgPool, request: &AccessRequest) -> Result<bool, sqlx::Error> {
+pub async fn insert(pool: &PgPool, request: &AccessRequest) -> Result<bool, sqlx::Error> {
     let done = sqlx::query(
         "INSERT INTO access_requests (id, project, pipeline, person, endpoint_project, endpoint, space, \
            operations, types, until, reason, state, requested_by, requested_at) \
@@ -984,7 +985,7 @@ mod tests {
     fn person_request() -> AccessRequest {
         AccessRequest {
             project: "helsinki".into(),
-            requester: Requester::Person("demo.viewer".into()),
+            requester: Requester::Person("2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e".into()),
             types: vec![TypeGrant {
                 entity_type: "AirQualityObserved".into(),
                 attrs: Vec::new(),
@@ -1006,7 +1007,7 @@ mod tests {
         assert_eq!(policy["metadata"]["namespace"], "helsinki");
         assert_eq!(
             policy["spec"]["assignee"],
-            json!({ "kind": "user", "id": "demo.viewer" })
+            json!({ "kind": "user", "id": "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e" })
         );
         assert_eq!(policy["spec"]["operations"], json!(["retrieveOps"]));
         assert_eq!(
@@ -1014,9 +1015,12 @@ mod tests {
             json!([{ "entities": [{ "type": "AirQualityObserved" }] }])
         );
         assert_eq!(policy["spec"]["validity"]["to"], "2027-01-31T23:59:59Z");
-        assert_eq!(request.account(), "demo.viewer");
+        assert_eq!(request.account(), "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e");
         assert_eq!(request.view(request.requested_at)["pipeline"], Value::Null);
-        assert_eq!(request.view(request.requested_at)["person"], "demo.viewer");
+        assert_eq!(
+            request.view(request.requested_at)["person"],
+            "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e"
+        );
     }
 
     /// Revoking a person's grant ends the Policy and never takes a project off the Endpoint.

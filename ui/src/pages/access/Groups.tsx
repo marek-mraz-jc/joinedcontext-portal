@@ -13,6 +13,7 @@ import { EditResourceAction } from "../../components/EditResourceDialog";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import { FormFrame, useCreateForm, useFormRoute } from "../../components/forms/FormRoute";
 import { groupSchema } from "../../schemas/kinds";
+import { personLabel, usePersonNames } from "../../api/personNames";
 import {
   Badge,
   Button,
@@ -219,6 +220,7 @@ export function Groups({ project }: { project: string }): JSX.Element {
         : undefined,
     };
   });
+  const names = usePersonNames(rows.flatMap((row) => row.members));
 
   return (
     <section className="space-y-4" aria-labelledby="groups-heading">
@@ -289,8 +291,8 @@ export function Groups({ project }: { project: string }): JSX.Element {
                       ) : (
                         <ul className="flex flex-col gap-0.5">
                           {row.members.map((member) => (
-                            <li key={member} className="font-mono text-caption">
-                              {member}
+                            <li key={member} className="text-caption">
+                              {personLabel(member, names)}
                             </li>
                           ))}
                         </ul>

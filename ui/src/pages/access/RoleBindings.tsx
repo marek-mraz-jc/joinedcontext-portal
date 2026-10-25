@@ -37,6 +37,7 @@ import { useReadableList } from "../../api/permissions";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 import { useOrganizationName } from "../../api/projects";
 import { PersonPicker } from "../../components/pickers/PersonPicker";
+import { isPersonId, personLabel, usePersonNames } from "../../api/personNames";
 
 interface Scope {
   organization?: string;
@@ -101,7 +102,9 @@ export function bindingOf(form: GrantForm, project: string, organizationName: st
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "RoleBinding",
-    metadata: { name: dns1123(who.split("@")[0], form.role, where), namespace: ORG_NAMESPACE },
+    // A person's id is unique where a name or an address's local part is not (`jan@a.sk` and
+    // `jan@b.sk`); its first block keeps the name short.
+    metadata: { name: dns1123(isPersonId(who) ? who.slice(0, 8) : who.split("@")[0], form.role, where), namespace: ORG_NAMESPACE },
     spec,
   } as Manifest;
 }
@@ -491,6 +494,7 @@ export function RoleBindings({
       at?.project === project || (at?.contextSpace !== undefined && spaceNames.has(at.contextSpace));
     return scope === "organization" ? organizational : scope === "project" ? inProject : organizational || inProject;
   });
+  const names = usePersonNames(here.flatMap((binding) => ((binding.spec as BindingSpec).subjects ?? []).flatMap((s) => (s.user ? [s.user] : []))));
 
   const where = (scope: Scope | undefined) =>
     scope?.contextSpace
@@ -500,7 +504,7 @@ export function RoleBindings({
         : t("access.roles.organization");
   const who = (spec: BindingSpec) =>
     (spec.subjects ?? [])
-      .map((subject) => (subject.group ? t("access.roles.group", { name: subject.group }) : (subject.user ?? "")))
+      .map((subject) => (subject.group ? t("access.roles.group", { name: subject.group }) : personLabel(subject.user ?? "", names)))
       .join(", ");
 
   return (

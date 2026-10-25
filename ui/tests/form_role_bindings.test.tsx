@@ -80,7 +80,7 @@ function reads(over: { roles?: () => Response; spaces?: () => Response } = {}) {
 const spec: FormSpec = {
   fields: [
     // No ids: the dialog mints them with `useId`, and the contract reads them off the controls.
-    { label: /Username or e-mail/, value: "jana.kovacova@example.sk", required: true },
+    { label: /Username or e-mail/, value: "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e", required: true },
     { label: /^Role/, value: "steward", required: true },
     { label: /Where it applies/, value: "organization" },
   ],
@@ -116,7 +116,7 @@ describe("the grant dialog (T-1759)", () => {
         if (url.pathname === "/api/v1/organization/people") {
           return json({
             items: [
-              { id: "1", email: "jana.kovacova@example.sk", firstName: "Jana", lastName: "Kováčová", enabled: true, emailVerified: true, requiredActions: [] },
+              { id: "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e", email: "jana.kovacova@example.sk", firstName: "Jana", lastName: "Kováčová", enabled: true, emailVerified: true, requiredActions: [] },
               { id: "2", email: "gone@example.sk", firstName: "Gone", lastName: "", enabled: false, emailVerified: true, requiredActions: [] },
             ],
           });
@@ -179,7 +179,7 @@ describe("the grant dialog (T-1759)", () => {
         return undefined;
       },
     });
-    await user.type(await screen.findByLabelText(/Username or e-mail/), "jana.kovacova@example.sk");
+    await user.type(await screen.findByLabelText(/Username or e-mail/), "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e{Enter}");
     await user.selectOptions(screen.getByLabelText(/^Role/), "steward");
     await user.selectOptions(screen.getByLabelText(/Where it applies/), "space:citybikes");
     await user.click(screen.getByRole("button", { name: /Propose grant/ }));
@@ -188,7 +188,7 @@ describe("the grant dialog (T-1759)", () => {
     expect(bodies[0]).toMatchObject({
       kind: "RoleBinding",
       spec: {
-        subjects: [{ user: "jana.kovacova@example.sk" }],
+        subjects: [{ user: "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e" }],
         role: "steward",
         scope: { contextSpace: "citybikes" },
       },
@@ -216,7 +216,7 @@ describe("the grant dialog (T-1759)", () => {
         return undefined;
       },
     });
-    await user.type(await screen.findByLabelText(/Username or e-mail/), "jana.kovacova@example.sk");
+    await user.type(await screen.findByLabelText(/Username or e-mail/), "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e{Enter}");
     await user.selectOptions(screen.getByLabelText(/^Role/), "steward");
     await user.click(screen.getByRole("button", { name: /Propose grant/ }));
 

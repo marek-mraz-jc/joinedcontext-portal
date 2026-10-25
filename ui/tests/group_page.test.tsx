@@ -34,11 +34,17 @@ const CHANGE = {
   status: { lane: "red", phase: "PendingApproval", plan: { create: 0, update: 1, delete: 0 } },
 };
 
+/** The Keycloak id the stub realm gives a person (ADR-N-061): members are ids, never e-mails. */
+const PEOPLE = ["jana@hel.fi", "petra@hel.fi", "gone@hel.fi", ...Array.from({ length: 20 }, (_, index) => `person${index + 1}@hel.fi`)];
+function idOf(email: string): string {
+  return `00000000-0000-4000-8000-${String(PEOPLE.indexOf(email) + 1).padStart(12, "0")}`;
+}
+
 const GROUP = {
   apiVersion: V,
   kind: "Group",
   metadata: { name: "stewards", namespace: "org", labels: { team: "city" } },
-  spec: { description: "The city's data stewards", members: [{ user: "jana@hel.fi" }] },
+  spec: { description: "The city's data stewards", members: [{ user: idOf("jana@hel.fi") }] },
 };
 
 const binding = (name: string, subjects: unknown[], role: string, scope: unknown) => ({
@@ -125,8 +131,9 @@ function renderGroup({ verbs = ["read", "propose", "delete"], people = false, ck
         return reply(dryRun ? 200 : 202, dryRun ? { valid: true, verdict: { ok: true } } : CHANGE);
       }
       if (path === "/api/v1/organization/people") {
-        const someone = (email: string, enabled = true) => ({ id: email, email, firstName: "", lastName: "", enabled, emailVerified: true, requiredActions: [] });
-        return reply(200, { items: [someone("jana@hel.fi"), someone("petra@hel.fi"), someone("gone@hel.fi", false)] });
+        const someone = (email: string) => ({ id: idOf(email), email, firstName: "", lastName: "", enabled: email !== "gone@hel.fi", emailVerified: true, requiredActions: [] });
+        const search = url.searchParams.get("search") ?? "";
+        return reply(200, { items: PEOPLE.filter((email) => email.includes(search)).slice(0, 5).map(someone) });
       }
       if (path === "/api/v1/projects") return reply(200, list([{ name: "helsinki" }]));
       if (path === "/api/v1/projects/org/changes") return reply(200, list(open));
@@ -225,7 +232,7 @@ describe("a group's page", () => {
   it("shows the members, the platform roles and the application roles", async () => {
     renderGroup();
     const members = await section(en.access.groupPage.members);
-    expect(within(members).getByText("jana@hel.fi")).toBeInTheDocument();
+    expect(within(members).getByText(idOf("jana@hel.fi"))).toBeInTheDocument();
     const platform = await section(en.access.groupPage.platformRoles);
     expect(await within(platform).findByText("steward, Project helsinki")).toBeInTheDocument();
     expect(within(platform).getByText(en.access.groupPage.onlySubject)).toBeInTheDocument();
@@ -281,25 +288,25 @@ describe("a group's page", () => {
     expect(offered.some((text) => text.includes("jana@hel.fi"))).toBe(false);
   });
 
-  it("names a member by a full e-mail when the caller may not list people, and nothing else", async () => {
+  it("names a member by a pasted id when the caller may not list people, and never by an address", async () => {
     const user = userEvent.setup();
     renderGroup();
     const members = await section(en.access.groupPage.members);
     const box = within(members).getByRole("combobox", { name: en.access.groupPage.email });
     await user.click(box);
     expect(await screen.findByText(en.picker.person.unlisted)).toBeInTheDocument();
-    await user.type(box, "petra");
-    // Text that is not an e-mail is never offered as a person.
-    expect(await screen.findByText(en.picker.person.needEmail)).toBeInTheDocument();
-    await user.type(box, "@hel.fi");
-    expect(await screen.findByText(i18n.t("picker.person.invite", { email: "petra@hel.fi" }))).toBeInTheDocument();
+    await user.type(box, "petra@hel.fi");
+    expect(await screen.findByText(i18n.t("picker.person.notInvited", { email: "petra@hel.fi" }))).toBeInTheDocument();
+    await user.clear(box);
+    await user.type(box, idOf("petra@hel.fi"));
+    expect(await screen.findByText(i18n.t("picker.person.useId", { id: idOf("petra@hel.fi") }))).toBeInTheDocument();
   });
 
   it("adds a member as the Group manifest with that one member more, metadata kept", async () => {
     const user = userEvent.setup();
     const { proposals } = renderGroup();
     const members = await section(en.access.groupPage.members);
-    await user.type(within(members).getByLabelText(en.access.groupPage.email), " Petra@Hel.fi ");
+    await user.type(within(members).getByLabelText(en.access.groupPage.email), `${idOf("petra@hel.fi")}{Enter}`);
     await user.click(within(members).getByRole("button", { name: en.access.groupPage.addMember }));
 
     await vi.waitFor(() => expect(proposals()).toHaveLength(1));
@@ -307,14 +314,14 @@ describe("a group's page", () => {
     expect(`${method} ${path}`).toBe("PUT /api/v1/projects/org/groups/stewards");
     expect(body).toEqual({
       ...GROUP,
-      spec: { ...GROUP.spec, members: [{ user: "jana@hel.fi" }, { user: "petra@hel.fi" }] },
+      spec: { ...GROUP.spec, members: [{ user: idOf("jana@hel.fi") }, { user: idOf("petra@hel.fi") }] },
     });
   });
 
   // T-5605: a department of 20 is one Change, not 20.
   it("adds twenty pasted people as one Change naming every one of them", async () => {
     const user = userEvent.setup();
-    const { proposals } = renderGroup();
+    const { proposals } = renderGroup({ people: true });
     const members = await section(en.access.groupPage.members);
     const twenty = Array.from({ length: 20 }, (_, index) => `person${index + 1}@hel.fi`);
     const box = within(members).getByRole("combobox", { name: en.access.groupPage.email });
@@ -322,14 +329,18 @@ describe("a group's page", () => {
     await user.paste([...twenty.slice(0, 10), "Jana@hel.fi"].join(", ") + "\n" + twenty.slice(10).join("; "));
     await user.click(await screen.findByRole("option", { name: i18n.t("picker.person.addList", { count: 21 }) }));
     const chosen = within(members).getByRole("list", { name: i18n.t("picker.chosen", { label: en.access.groupPage.email }) });
-    // jana is a member already, so she is not chosen twice.
-    expect(within(chosen).getAllByRole("listitem")).toHaveLength(20);
+    // Each address is looked up and written as its person's id; jana is a member already, so
+    // she is not chosen twice.
+    await vi.waitFor(() => expect(within(chosen).getAllByRole("listitem")).toHaveLength(20));
     await user.click(within(members).getByRole("button", { name: i18n.t("access.groupPage.addMembers", { count: 20 }) }));
 
     await vi.waitFor(() => expect(proposals()).toHaveLength(1));
     const { method, path, body } = proposals()[0];
     expect(`${method} ${path}`).toBe("PUT /api/v1/projects/org/groups/stewards");
-    expect((body as { spec: GroupSpec }).spec.members).toEqual([{ user: "jana@hel.fi" }, ...twenty.map((user) => ({ user }))]);
+    expect((body as { spec: GroupSpec }).spec.members).toEqual([
+      { user: idOf("jana@hel.fi") },
+      ...twenty.map((email) => ({ user: idOf(email) })),
+    ]);
     expect((body as { metadata: unknown }).metadata).toEqual(GROUP.metadata);
   });
 
@@ -358,8 +369,8 @@ describe("a group's page", () => {
     const waiting = i18n.t("access.groupPage.waiting", { change: "chg-0000001f" });
     expect(await within(members).findByRole("link", { name: i18n.t("access.groupPage.openChange", { change: "chg-0000001f" }) }))
       .toHaveAttribute("href", "/projects/org/approvals/chg-0000001f");
-    await user.type(within(members).getByLabelText(en.access.groupPage.email), "petra@hel.fi{Enter}");
-    for (const name of [en.access.groupPage.addMember, i18n.t("access.groupPage.removeMember", { member: "jana@hel.fi" })]) {
+    await user.type(within(members).getByLabelText(en.access.groupPage.email), `${idOf("petra@hel.fi")}{Enter}`);
+    for (const name of [en.access.groupPage.addMember, i18n.t("access.groupPage.removeMember", { member: idOf("jana@hel.fi") })]) {
       const button = within(members).getByRole("button", { name });
       expect(button).toHaveAttribute("aria-disabled", "true");
       expect(button).toHaveAccessibleDescription(expect.stringContaining(waiting));
@@ -375,7 +386,7 @@ describe("a group's page", () => {
     const decided = { ...OPEN, status: { ...OPEN.status, phase: "Merged" } };
     const { proposals } = renderGroup({ open: [other, decided] });
     const members = await section(en.access.groupPage.members);
-    await user.type(within(members).getByLabelText(en.access.groupPage.email), "petra@hel.fi{Enter}");
+    await user.type(within(members).getByLabelText(en.access.groupPage.email), `${idOf("petra@hel.fi")}{Enter}`);
     await user.click(within(members).getByRole("button", { name: en.access.groupPage.addMember }));
     await vi.waitFor(() => expect(proposals()).toHaveLength(1));
   });
@@ -453,7 +464,7 @@ describe("a group's page", () => {
   it("keeps every write control reachable but refused for a caller who may only read", async () => {
     const { proposals } = renderGroup({ verbs: ["read"] });
     const members = await section(en.access.groupPage.members);
-    const remove = within(members).getByRole("button", { name: "Remove jana@hel.fi from the group" });
+    const remove = within(members).getByRole("button", { name: `Remove ${idOf("jana@hel.fi")} from the group` });
     await vi.waitFor(() => expectDenied(remove, "Only an organization administrator can add or change groups."));
     const platform = await section(en.access.groupPage.platformRoles);
     expectDenied(within(platform).getByRole("button", { name: en.access.groupPage.addRole }));

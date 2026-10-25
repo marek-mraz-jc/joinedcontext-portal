@@ -1964,21 +1964,16 @@ export function roleSchema(
 }
 
 /**
- * An address is `local@domain.tld`, the name Keycloak carries a person under (PF-04, PF-62).
- *
- * Wider than `jc-core`'s `is_address` on purpose: a pattern that refused an address the API
- * accepts would keep a colleague out of a group, and the API is what decides (PF-51).
+ * A member is the person's Keycloak user id, a lower-case UUID, never an e-mail (ADR-N-061): the
+ * picker offers the organization's people by name and writes their id.
  */
-export const MEMBER_ADDRESS_PATTERN = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$";
+export const PERSON_ID_PATTERN = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
 
 /**
- * The `Group` a person authors: what the group is, and who is in it (PF-62).
- *
- * `members` are addresses. Offered as a list of the people the organization already knows where
- * the page has them, and as free text otherwise, because somebody who has never signed in is
- * still a member a binding may name — the reconciler waits for their first login and says so.
+ * The `Group` a person authors: what the group is, and who is in it (PF-62). `members` are
+ * Keycloak user ids; a person invited and not signed in yet has one already.
  */
-export function groupSchema(t: (key: string) => string, users: string[] = []): JsonSchema {
+export function groupSchema(t: (key: string) => string): JsonSchema {
   return {
     type: "object",
     required: ["name"],
@@ -2005,9 +2000,8 @@ export function groupSchema(t: (key: string) => string, users: string[] = []): J
             user: {
               type: "string",
               title: t("access.groups.field.memberUser"),
-              maxLength: 253,
-              ...(users.length > 0 ? { examples: users } : {}),
-              pattern: MEMBER_ADDRESS_PATTERN,
+              maxLength: 36,
+              pattern: PERSON_ID_PATTERN,
             },
           },
         },

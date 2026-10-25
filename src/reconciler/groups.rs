@@ -17,7 +17,7 @@ use jc_core::kinds::GroupSpec;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::permissions::ORG_NAMESPACE;
+use crate::permissions::{is_person_id, ORG_NAMESPACE};
 use crate::store::{ListOptions, Mirror};
 
 /// The attribute that says a group is this platform's to write (PF-63).
@@ -68,8 +68,6 @@ impl KcGroup {
 #[derive(Debug, Deserialize)]
 struct KcUser {
     id: String,
-    #[serde(default)]
-    email: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -200,7 +198,7 @@ impl GroupSync {
     }
 
     /// [`Self::converge`], and besides the manifests the groups the platform derives, each
-    /// `(name, members by e-mail)`: a project's `{slug}-readers` and `{slug}-writers`, which
+    /// `(name, members by Keycloak user id)`: a project's `{slug}-readers` and `{slug}-writers`, which
     /// its bindings fill (PF-87). They are managed like a manifest's group and removed with the
     /// project; a `Group` manifest of the same name wins, and the clash is the outcome's error.
     pub async fn converge_with(
@@ -267,7 +265,7 @@ impl GroupSync {
             let members = spec
                 .members
                 .iter()
-                .map(|member| member.user.trim().to_lowercase())
+                .map(|member| member.user.trim().to_owned())
                 .collect();
             outcomes.push(self.converge_one(&token, &name, &members, held).await);
         }
@@ -374,28 +372,36 @@ impl GroupSync {
             }
         };
 
-        // Who is in the group now, by e-mail, against who the manifest says.
-        let members: Vec<KcUser> = match self
+        // A manifest written before ADR-N-061 names members by e-mail. Matching those against
+        // the realm's ids would take every such person out, so the group is left as the realm
+        // holds it until the repository's migration Change names them by id. No value is
+        // echoed: the outcome reaches the logs and the feed.
+        let unnamed = wanted.iter().filter(|member| !is_person_id(member)).count();
+        if unnamed > 0 {
+            outcome.error = Some(format!(
+                "{unnamed} member(s) of '{name}' are not named by their Keycloak user id \
+                 (ADR-N-061), so the group is left as the realm holds it; merge the migration \
+                 Change that names them by id (People, Name members by id)"
+            ));
+            return outcome;
+        }
+
+        // Who is in the group now, by Keycloak user id, against who the manifest says: a member
+        // without an e-mail is a member like any other (PF-62).
+        let held: BTreeSet<String> = match self
             .get(token, &format!("/groups/{id}/members?max=1000"))
             .await
-            .and_then(|v| serde_json::from_value(v).map_err(|e| e.to_string()))
+            .and_then(|v| serde_json::from_value::<Vec<KcUser>>(v).map_err(|e| e.to_string()))
         {
-            Ok(members) => members,
+            Ok(members) => members.into_iter().map(|user| user.id).collect(),
             Err(err) => {
                 outcome.error = Some(err);
                 return outcome;
             }
         };
-        let held_by_email: Vec<(String, String)> = members
-            .into_iter()
-            .filter_map(|user| Some((user.email?.to_lowercase(), user.id)))
-            .collect();
-        for email in wanted {
-            if held_by_email.iter().any(|(held, _)| held == email) {
-                continue;
-            }
-            match self.user_id(token, email).await {
-                Ok(Some(user)) => {
+        for user in wanted.difference(&held) {
+            match self.user_exists(token, user).await {
+                Ok(true) => {
                     match self
                         .write(
                             token,
@@ -407,22 +413,19 @@ impl GroupSync {
                     {
                         Ok(()) => outcome
                             .drift
-                            .push(format!("{email} belongs in the group and was added")),
+                            .push(format!("{user} belongs in the group and was added")),
                         Err(err) => outcome.error = Some(err),
                     }
                 }
-                // Not an error: the person joins the group the moment the realm knows them.
-                Ok(None) => outcome.warnings.push(format!(
-                    "{email} belongs in the group and the realm has no user with that address yet"
+                // Not an error: the account may come back, or the manifest is fixed next.
+                Ok(false) => outcome.warnings.push(format!(
+                    "{user} belongs in the group and the realm has no user with that id"
                 )),
                 Err(err) => outcome.error = Some(err),
             }
         }
 
-        for (email, user) in &held_by_email {
-            if wanted.contains(email) {
-                continue;
-            }
+        for user in held.difference(wanted) {
             match self
                 .write(
                     token,
@@ -433,7 +436,7 @@ impl GroupSync {
                 .await
             {
                 Ok(()) => outcome.drift.push(format!(
-                    "{email} was in the realm's group and does not belong in it; the \
+                    "{user} was in the realm's group and does not belong in it; the \
                      membership was removed"
                 )),
                 Err(err) => outcome.error = Some(err),
@@ -442,23 +445,21 @@ impl GroupSync {
         outcome
     }
 
-    /// The realm's user id for an address, or `None` when nobody has signed in under it yet.
-    async fn user_id(&self, token: &str, email: &str) -> Result<Option<String>, String> {
-        let users: Vec<KcUser> = self
-            .get(
-                token,
-                &format!("/users?exact=true&email={}", urlencoding(email)),
-            )
-            .await
-            .and_then(|v| serde_json::from_value(v).map_err(|e| e.to_string()))?;
-        Ok(users
-            .into_iter()
-            .find(|user| {
-                user.email
-                    .as_deref()
-                    .is_some_and(|held| held.eq_ignore_ascii_case(email))
-            })
-            .map(|user| user.id))
+    /// Whether the realm has a user with this id; a 404 is `false`, any other refusal an error.
+    async fn user_exists(&self, token: &str, user: &str) -> Result<bool, String> {
+        let response = crate::auth::client_auth::paced(|| {
+            let request = self
+                .http
+                .get(format!("{}/users/{user}", self.admin))
+                .bearer_auth(token);
+            async { request.send().await.map_err(|err| err.to_string()) }
+        })
+        .await?;
+        match response.status() {
+            status if status.is_success() => Ok(true),
+            reqwest::StatusCode::NOT_FOUND => Ok(false),
+            status => Err(format!("GET /users/{user}: {status}")),
+        }
     }
 }
 

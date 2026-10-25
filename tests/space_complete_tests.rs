@@ -1015,7 +1015,10 @@ async fn a_project_without_a_pipeline_account_gets_one_drafted_and_named() {
     assert_eq!(account["name"], "pipelines", "{account}");
     // A drafted account is a manifest a person approves, so it carries what the kind needs: an
     // accountable owner and a purpose, one OAuth client, and no platform role of its own.
-    assert_eq!(account["manifest"]["spec"]["owner"]["user"], "steward.user");
+    assert_eq!(
+        account["manifest"]["spec"]["owner"]["user"],
+        "sub-steward.user"
+    );
     assert!(
         account["manifest"]["spec"]["purpose"]
             .as_str()
@@ -1203,7 +1206,7 @@ async fn an_uploaded_csv_drafts_the_endpoint_and_the_persons_write_grant() {
     let grant = &named("room-bookings-upload")["manifest"]["spec"];
     assert_eq!(
         grant["assignee"],
-        json!({ "kind": "user", "id": "steward.user" })
+        json!({ "kind": "user", "id": "sub-steward.user" })
     );
     assert_eq!(
         grant["operations"],
