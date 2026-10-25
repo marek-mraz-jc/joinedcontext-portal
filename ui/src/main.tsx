@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { i18nReady, loadFullLocales } from "./i18n";
 import "./index.css";
-import { ErrorBoundary, mayReloadForChunk } from "./components/ErrorBoundary";
+import { ErrorBoundary, mayReloadForChunk, reloadForChunk } from "./components/ErrorBoundary";
 import { PublicApp } from "./PublicApp";
 import { isPublicPath } from "./publicRouter";
 import { preloadSpacePage } from "./pages/spaces/preload";
@@ -27,6 +27,9 @@ const portal = isPublicPath(window.location.pathname)
 if (!isPublicPath(window.location.pathname)) preloadSpacePage(queryClient, window.location.pathname);
 
 // The chosen language loads before the first paint, so nobody sees the page flip from English.
+// The App's own chunk is fetched before React exists, so no boundary sees it fail: a rollout swapped
+// the asset names, or the edge refused it with 429. The page loads again once, as a lazy page does
+// (T-4949, T-5731); a second miss within the minute leaves index.html's #boot-failed notice up.
 void Promise.all([portal, i18nReady]).then(([Portal]) =>
   createRoot(document.getElementById("root")!, {
     // React logs every error a boundary caught; a missing chunk after a rollout reloads the page
@@ -45,4 +48,7 @@ void Promise.all([portal, i18nReady]).then(([Portal]) =>
       </QueryClientProvider>
     </StrictMode>,
   ),
+  (error: unknown) => {
+    if (!mayReloadForChunk(error) || !reloadForChunk()) console.error(error);
+  },
 );
