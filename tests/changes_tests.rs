@@ -2646,12 +2646,13 @@ async fn an_agent_mcp_or_service_account_never_approves_a_public_publication() {
         (
             person(None),
             ApprovedBy::Operation,
-            "never by the assistant, an agent or MCP",
+            "never by the assistant, an agent or MCP (EP-142",
         ),
+        // Any bearer token is refused before the files are read (AG-133, T-5558).
         (
             person(Some("ckan-bot")),
             ApprovedBy::Person,
-            "never a service account",
+            "never with a service account's or an agent's token",
         ),
     ] {
         let (server, state) = change_of_file(
@@ -2676,7 +2677,7 @@ async fn an_agent_mcp_or_service_account_never_approves_a_public_publication() {
             "a 403: {refused:?}"
         );
         let said = refused.to_string();
-        assert!(said.contains(says) && said.contains("EP-142"), "{said}");
+        assert!(said.contains(says), "{said}");
         assert!(!merged_66(&server).await);
     }
 }
@@ -3037,7 +3038,12 @@ async fn an_agent_or_service_account_never_approves_making_an_app_public() {
     use joinedcontext_portal::api::changes::{approve_change_for, ApprovedBy};
     for (identity, by, says) in [
         (person(None), ApprovedBy::Operation, "AP-175"),
-        (person(Some("ckan-bot")), ApprovedBy::Person, "AP-175"),
+        // Any bearer token is refused before the files are read (AG-133, T-5558).
+        (
+            person(Some("ckan-bot")),
+            ApprovedBy::Person,
+            "never with a service account's or an agent's token",
+        ),
     ] {
         let (server, state) = change_of_file(
             PUBLIC_APP_BRANCH,

@@ -500,7 +500,9 @@ async fn a_service_account_or_an_agent_run_never_approves_a_share() {
     .await
     .expect_err("a service account approved an organization model");
     assert!(
-        refused.to_string().contains("never a service account"),
+        refused
+            .to_string()
+            .contains("never with a service account's or an agent's token"),
         "{refused}"
     );
 
