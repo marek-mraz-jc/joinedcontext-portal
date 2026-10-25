@@ -92,6 +92,12 @@ export function groupBinding(group: string, role: string, place: Place, orgDomai
 
 /** The members of a Group spec with `email` added, or `null` when it is already one. */
 export function withGroupMember(members: { user: string }[], email: string): { user: string }[] | null {
-  if (members.some((member) => member.user.toLowerCase() === email)) return null;
-  return [...members, { user: email }];
+  return withGroupMembers(members, [email]);
+}
+
+/** The members with every new e-mail of `emails` added once, or `null` when none is new (T-5605). */
+export function withGroupMembers(members: { user: string }[], emails: string[]): { user: string }[] | null {
+  const held = new Set(members.map((member) => member.user.toLowerCase()));
+  const added = [...new Set(emails)].filter((email) => !held.has(email));
+  return added.length === 0 ? null : [...members, ...added.map((user) => ({ user }))];
 }

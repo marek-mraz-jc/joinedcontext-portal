@@ -19,7 +19,7 @@ import { PageTools } from "../src/navigation/PageTools";
 import { isItem, placeOf, remember, reportRecent, resetPlaces, toggleFavourite } from "../src/navigation/places";
 import { act as shortcut, ASSISTANT_EVENT, available } from "../src/navigation/shortcuts";
 import { resetDocumentTitle, setPageTitle } from "../src/documentTitle";
-import { useUrlParam } from "../src/navigation/urlState";
+import { useUrlParam, useUrlText, useUrlUrn } from "../src/navigation/urlState";
 import { HandOff, replaceOwnSearch } from "../src/assistant/HandOff";
 import { useState } from "react";
 
@@ -385,6 +385,73 @@ describe("a page's choice in the address (T-3239)", () => {
   it("reads a value the page does not know as the default", async () => {
     show("/x?tab=%3Cscript%3E");
     expect(await screen.findByText("shown: pages")).toBeInTheDocument();
+  });
+});
+
+describe("an open row and its place in the address (T-5602)", () => {
+  const URN = "urn:ngsi-ld:AirQualityObserved:hel:1";
+  function Rows() {
+    const [row, setRow] = useUrlUrn("row", ["tab", "attr"]);
+    const [tab, setTab] = useUrlText("tab");
+    const [q, setQ] = useUrlText("q");
+    return (
+      <div>
+        <p>row: {row ?? "none"}, tab: {tab ?? "none"}, q: {q ?? "none"}</p>
+        <button type="button" onClick={() => setRow(URN)}>open</button>
+        <button type="button" onClick={() => setRow(null)}>close</button>
+        <button type="button" onClick={() => setTab("history")}>history</button>
+        <button type="button" onClick={() => setQ("Kallio")}>search</button>
+        <button type="button" onClick={() => setQ("x".repeat(300))}>long</button>
+      </div>
+    );
+  }
+  function show(path: string) {
+    window.history.pushState({}, "", path);
+    const router = createRouter({ routeTree: createRootRoute({ component: Rows }) });
+    render(<RouterProvider router={router} />);
+    return router;
+  }
+
+  it("opens with a new entry and closes back to the one before it, so Back leaves the page", async () => {
+    const router = show("/s?type=AirQualityObserved");
+    await screen.findByText(/row: none/);
+    const before = window.history.length;
+    await userEvent.click(screen.getByRole("button", { name: "open" }));
+    await screen.findByText(new RegExp(`row: ${URN}`));
+    expect(window.history.length).toBe(before + 1);
+    // The tab is written in place: the open entry stays the last one.
+    await userEvent.click(screen.getByRole("button", { name: "history" }));
+    await screen.findByText(/tab: history/);
+    expect(window.history.length).toBe(before + 1);
+    await userEvent.click(screen.getByRole("button", { name: "close" }));
+    await screen.findByText("row: none, tab: none, q: none");
+    expect(router.state.location.searchStr).toBe("?type=AirQualityObserved");
+    // Forward reopens the row: the close went back, it pushed nothing.
+    act(() => router.history.forward());
+    expect(await screen.findByText(new RegExp(`row: ${URN}, tab: history`))).toBeInTheDocument();
+  });
+
+  it("closes a row a link opened in place, its tab and attribute with it", async () => {
+    const router = show(`/s?type=AirQualityObserved&row=${encodeURIComponent(URN)}&tab=history&attr=pm10`);
+    await screen.findByText(new RegExp(`row: ${URN}, tab: history`));
+    const before = window.history.length;
+    await userEvent.click(screen.getByRole("button", { name: "close" }));
+    await screen.findByText(/row: none, tab: none/);
+    expect(router.state.location.searchStr).toBe("?type=AirQualityObserved");
+    expect(window.history.length).toBe(before);
+  });
+
+  it("keeps the search in place and refuses one longer than the address carries", async () => {
+    const router = show("/s");
+    await screen.findByText(/q: none/);
+    const before = window.history.length;
+    await userEvent.click(screen.getByRole("button", { name: "search" }));
+    await screen.findByText(/q: Kallio/);
+    expect(window.history.length).toBe(before);
+    await userEvent.click(screen.getByRole("button", { name: "long" }));
+    await waitFor(() => expect(router.state.location.searchStr).toBe(`?q=${"x".repeat(200)}`));
+    show(`/s?q=${"y".repeat(201)}`);
+    expect(await screen.findAllByText(/q: none/)).not.toHaveLength(0);
   });
 });
 

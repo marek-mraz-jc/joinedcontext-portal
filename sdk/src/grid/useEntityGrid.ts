@@ -651,6 +651,14 @@ export function filterKindOf(
   return "text";
 }
 
+/** Whether the rows hold the attribute as a LanguageProperty, a text per language. */
+function holdsLanguage(rows: RichRow[], attr: string): boolean {
+  return rows.some((row) => {
+    const cell = row.cells[attr];
+    return (Array.isArray(cell) ? cell[0] : cell)?.kind === "language";
+  });
+}
+
 export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   const { config, source, labels: labelsPartial, state: controlledState, onStateChange, query: queryPartial, enums, relations, virtual = false, hidden, layout } = options;
   // By content, as `hidden`: a host building new arrays each render does not ask again.
@@ -740,19 +748,28 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     });
   }, [rows, keys, serverOrder]);
 
+  // A search or filter that matches nothing leaves no row to read a column's kind from: the kinds
+  // stay those of the last page that had rows, so a number never turns into text (T-5600).
+  const typedRows = useRef<RichRow[]>([]);
+  useEffect(() => {
+    if (rows.length > 0) typedRows.current = rows;
+  }, [rows]);
   const filterColumns = useMemo(
-    (): FilterColumn[] =>
-      columns
+    (): FilterColumn[] => {
+      const sample = rows.length > 0 ? rows : typedRows.current;
+      return columns
         .map((column) => ({
           key: column.key,
           attr: column.attr,
           meta: column.meta,
-          kind: filterKindOf(column, config, rows, enums),
+          kind: filterKindOf(column, config, sample, enums),
           options: column.attr !== null && column.meta === null ? enums?.[column.attr] : undefined,
-          unit: column.attr !== null && column.meta === null ? unitSymbol(unitOfColumn(rows, column.attr)) : undefined,
+          unit: column.attr !== null && column.meta === null ? unitSymbol(unitOfColumn(sample, column.attr)) : undefined,
+          ...(column.attr !== null && column.meta === null && holdsLanguage(sample, column.attr) ? { language: true } : {}),
         }))
         // A computed end is not stored, so no `q` can ask about it.
-        .filter((column) => opsForKind(column.kind).length > 0 && !(column.attr !== null && relations?.[column.attr]?.inverseOf)),
+        .filter((column) => opsForKind(column.kind).length > 0 && !(column.attr !== null && relations?.[column.attr]?.inverseOf));
+    },
     [columns, config, rows, enums, relations],
   );
 

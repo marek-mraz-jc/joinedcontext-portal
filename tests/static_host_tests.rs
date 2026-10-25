@@ -1652,10 +1652,17 @@ async fn each_visibility_caches_for_its_readers_alone() {
             let (status, headers, _) = ask_held(&state, Some(&olga), uri, None).await;
             assert_eq!(status, StatusCode::OK, "{visibility} {uri}");
             assert_eq!(headers[header::CACHE_CONTROL], cache, "{visibility} {uri}");
+            // A public page is the same for every reader; only the compression varies (T-5598).
+            let vary: Vec<&str> = headers
+                .get_all(header::VARY)
+                .iter()
+                .flat_map(|v| v.to_str().unwrap().split(','))
+                .map(str::trim)
+                .collect();
             assert_eq!(
-                headers.get(header::VARY).map(|v| v.to_str().unwrap()),
-                (visibility != "public").then_some("Cookie"),
-                "{visibility} {uri}"
+                vary.iter().any(|v| v.eq_ignore_ascii_case("cookie")),
+                visibility != "public",
+                "{visibility} {uri}: {vary:?}"
             );
             // A file is revalidated by its digest; the index is the reader's own and has none.
             assert_eq!(
