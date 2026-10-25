@@ -156,6 +156,33 @@ async fn the_preview_list_refuses_a_call_without_the_gateways_token() {
     assert_eq!(previews(&app, Some(&gateway)).await, StatusCode::OK);
 }
 
+/// T-5568: the revoked subjects are the gateway's to read and nobody else's, even a workload of
+/// the same realm holding a token for this very listener.
+#[tokio::test]
+async fn the_revocation_list_answers_the_gateways_token_alone() {
+    let (app, signer, issuer) = listener(Some(GATEWAY_CLIENT)).await;
+    let uri = "/internal/revocations";
+    assert_eq!(
+        call(&app, "GET", uri, "", None).await,
+        StatusCode::UNAUTHORIZED
+    );
+    let other = token(&signer, &issuer, INTERNAL_AUDIENCE, PROXY_CLIENT);
+    assert_eq!(
+        call(&app, "GET", uri, "", Some(&other)).await,
+        StatusCode::UNAUTHORIZED
+    );
+    let for_api = token(&signer, &issuer, PORTAL_AUDIENCE, GATEWAY_CLIENT);
+    assert_eq!(
+        call(&app, "GET", uri, "", Some(&for_api)).await,
+        StatusCode::UNAUTHORIZED
+    );
+    let gateway = token(&signer, &issuer, INTERNAL_AUDIENCE, GATEWAY_CLIENT);
+    assert_eq!(
+        call(&app, "GET", uri, "", Some(&gateway)).await,
+        StatusCode::OK
+    );
+}
+
 /// A Portal that was not told whose token to expect refuses every call rather than falling back
 /// to the NetworkPolicy: configuration is fail-closed here as everywhere else.
 #[tokio::test]

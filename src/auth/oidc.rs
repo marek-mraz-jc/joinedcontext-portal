@@ -841,6 +841,9 @@ pub async fn logout(
         .into_response())
 }
 
+/// The Keycloak client of the APISIX login front (components/apisix/keycloak-clients.yaml).
+const EDGE_CLIENT: &str = "edge";
+
 /// The member an OpenID Provider puts in `events` to say the token ends a session
 /// (OpenID Connect Back-Channel Logout 1.0, Â§2.4).
 const LOGOUT_EVENT: &str = "http://schemas.openid.net/event/backchannel-logout";
@@ -908,19 +911,33 @@ pub async fn backchannel_logout(
         .logout_token
         .parse()
         .map_err(|_| ApiError::BadRequest("the logout token is not a JWT".into()))?;
-    let claims = token
-        .claims(&client.client.id_token_verifier(), |_: Option<&Nonce>| {
-            Ok(())
-        })
-        .map_err(|e| {
-            tracing::warn!(error = %e, "logout token verification failed");
-            ApiError::BadRequest("the logout token did not verify".into())
-        })?;
+    let subject = match token.claims(&client.client.id_token_verifier(), |_: Option<&Nonce>| {
+        Ok(())
+    }) {
+        Ok(claims) => claims.subject().as_str().to_owned(),
+        // The edge's sessions are the edge client's, so Keycloak addresses their logout token
+        // to it (T-5568): signature, issuer, expiry and that audience, and only where an edge
+        // is in front at all.
+        Err(e) => match (state.config.trust_edge_token, state.bearer.as_ref()) {
+            (true, Some(bearer)) => bearer
+                .verify_for_audience(&form.logout_token, EDGE_CLIENT)
+                .await
+                .map(|(session, _)| session.identity.subject)
+                .map_err(|_| {
+                    tracing::warn!(error = %e, "logout token verification failed");
+                    ApiError::BadRequest("the logout token did not verify".into())
+                })?,
+            _ => {
+                tracing::warn!(error = %e, "logout token verification failed");
+                return Err(ApiError::BadRequest(
+                    "the logout token did not verify".into(),
+                ));
+            }
+        },
+    };
 
-    state
-        .revoke_subject(claims.subject().as_str(), session::now_unix())
-        .await;
-    tracing::info!(subject = %claims.subject().as_str(), "back-channel logout");
+    state.revoke_subject(&subject, session::now_unix()).await;
+    tracing::info!(%subject, "back-channel logout");
     Ok(axum::http::StatusCode::NO_CONTENT.into_response())
 }
 
