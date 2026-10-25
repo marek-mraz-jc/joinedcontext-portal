@@ -183,6 +183,15 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await dialog.getByRole("tab", { name: "History" }).click();
     const attribute = dialog.getByRole("combobox", { name: "Attribute" });
 
+    // History opens on the measured value (T-5602): its first read is the one that fails.
+    await expect(attribute).toHaveValue("kpiValue");
+    await expect(dialog.getByRole("alert")).toContainText("Not loaded: the broker did not answer");
+    await shot(page, `row-history-failed-${label}`);
+    await dialog.getByRole("button", { name: "Try again" }).click();
+    await expect(dialog.getByRole("cell", { name: "30" }).first()).toBeVisible();
+    await expect(dialog.getByRole("alert")).toHaveCount(0);
+    await shot(page, `row-history-values-${label}`);
+
     await attribute.selectOption("name");
     await expect(dialog.getByText("Nothing was recorded in this window.")).toBeVisible();
     await expect(dialog.getByRole("alert")).toHaveCount(0);
@@ -193,13 +202,52 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await expect(dialog.getByRole("button", { name: "Try again" })).toHaveCount(0);
     expect(await axeViolations(page)).toEqual([]);
     await shot(page, `row-history-refused-${label}`);
+  });
+}
 
-    await attribute.selectOption("kpiValue");
-    await expect(dialog.getByRole("alert")).toContainText("Not loaded: the broker did not answer");
-    await shot(page, `row-history-failed-${label}`);
-    await dialog.getByRole("button", { name: "Try again" }).click();
-    await expect(dialog.getByRole("cell", { name: "30" }).first()).toBeVisible();
-    await expect(dialog.getByRole("alert")).toHaveCount(0);
-    await shot(page, `row-history-values-${label}`);
+// T-5602: Back after closing a row leaves the space at once, and a link names the row's History
+// tab and attribute.
+for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
+  test(`back after a closed row leaves the space, a link opens its history (${label})`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await stubApi(page);
+    await page.goto(`/projects/${PROJECT}/spaces?lang=en`);
+    await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
+    // The search is written in place: it adds no step to Back.
+    await page.getByRole("searchbox", { name: "Search the rows" }).fill("District");
+    await expect.poll(() => new URL(page.url()).searchParams.get("q")).toBe("District");
+    await page.getByRole("button", { name: "Open: District 3" }).click();
+    const dialog = page.getByRole("dialog", { name: "Details: District 3" });
+    await dialog.getByRole("tab", { name: "History" }).click();
+    // History opens on the measured value, not on the name.
+    await expect(dialog.getByRole("combobox", { name: "Attribute" })).toHaveValue("kpiValue");
+    await expect.poll(() => new URL(page.url()).searchParams.get("tab")).toBe("history");
+    // The close goes back to the entry before the open: the rows stay, nothing is read again.
+    const reads: string[] = [];
+    page.on("request", (request) => {
+      if (/\/entities(\?|$)/.test(new URL(request.url()).pathname + "?")) reads.push(request.url());
+    });
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect(new URL(page.url()).searchParams.get("row")).toBeNull();
+    expect(new URL(page.url()).searchParams.get("q")).toBe("District");
+    await page.waitForTimeout(500);
+    expect(reads).toEqual([]);
+
+    const started = Date.now();
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`/projects/${PROJECT}/spaces\\?lang=en$`));
+    const took = Date.now() - started;
+    console.log(`T-5602 back from a closed row (${label}): ${took} ms`);
+    expect(took).toBeLessThan(1000);
+
+    await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en&row=${encodeURIComponent(URN)}&tab=history&attr=kpiValue&q=District`);
+    const linked = page.getByRole("dialog", { name: "Details: District 3" });
+    await expect(linked.getByRole("tab", { name: "History" })).toHaveAttribute("aria-selected", "true");
+    await expect(linked.getByRole("combobox", { name: "Attribute" })).toHaveValue("kpiValue");
+    await shot(page, `row-history-link-${label}`);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("searchbox", { name: "Search the rows" })).toHaveValue("District");
+    await shot(page, `row-search-kept-${label}`);
   });
 }
