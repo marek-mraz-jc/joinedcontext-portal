@@ -30,6 +30,15 @@ const SHORT_BELOW: Duration = Duration::from_secs(5 * 60);
 /// A queue that no reconciler pass has planned for this long belongs to a Portal that lost its
 /// leadership: it finishes what runs and starts nothing.
 const STALE_PLAN: Duration = Duration::from_secs(10 * 60);
+/// How long a pipeline whose run failed for a cause outside its source waits before each retry
+/// (T-5687); past the last it waits for its clock, as it does when its clock comes sooner.
+const BACKOFF: [Duration; 3] = [
+    Duration::from_secs(15 * 60),
+    Duration::from_secs(60 * 60),
+    Duration::from_secs(4 * 60 * 60),
+];
+/// The most retries one pipeline is queued for in a day, whatever earned them (T-5687).
+const RETRIES_PER_DAY: usize = 6;
 
 /// The runner inputs that wait for pushes and so stay loaded: servers and broker subscribers.
 const RESIDENT_INPUTS: &[&str] = &[
@@ -242,6 +251,13 @@ enum Last {
     Failed { at: DateTime<Utc>, reason: String },
 }
 
+/// The run a pipeline earned when its last run failed for a cause outside its source (T-5687).
+#[derive(Debug, Clone)]
+struct Retry {
+    at: DateTime<Utc>,
+    cause: String,
+}
+
 #[derive(Debug)]
 struct Entry {
     stream: Value,
@@ -262,6 +278,14 @@ struct Entry {
     /// a step that never returns. It starts again only once its stream changes.
     stuck: bool,
     last: Option<Last>,
+    /// Its one pending retry (T-5687).
+    retry: Option<Retry>,
+    /// The failed run the last retry was armed for: one failure arms one retry.
+    armed_for: Option<String>,
+    /// Retries armed since its last run that did not fail for an outside cause.
+    attempts: usize,
+    /// When each retry of the last day was queued.
+    retried: Vec<DateTime<Utc>>,
 }
 
 impl Entry {
@@ -275,6 +299,35 @@ impl Entry {
             }
             _ => timeout,
         }
+    }
+
+    /// Arms the retry the failed run `run` earned: the next step of [`BACKOFF`], unless its clock
+    /// comes sooner, the backoff is spent or it had [`RETRIES_PER_DAY`] retries in the last day.
+    fn arm(&mut self, run: &str, cause: &str, now: DateTime<Utc>) {
+        if self.armed_for.as_deref() == Some(run) {
+            return;
+        }
+        self.armed_for = Some(run.to_owned());
+        self.retried.retain(|t| now - *t < Span::days(1));
+        let at = BACKOFF
+            .get(self.attempts)
+            .map(|wait| now + Span::from_std(*wait).unwrap_or_default());
+        self.attempts = self.attempts.saturating_add(1);
+        let next = self.next;
+        let room = self.retried.len() < RETRIES_PER_DAY;
+        self.retry = at
+            .filter(|at| room && next.is_none_or(|next| *at < next))
+            .map(|at| Retry {
+                at,
+                cause: cause.to_owned(),
+            });
+    }
+
+    /// Its last run did not fail for an outside cause: the backoff starts over.
+    fn clear_retry(&mut self) {
+        self.retry = None;
+        self.armed_for = None;
+        self.attempts = 0;
     }
 }
 
@@ -323,6 +376,14 @@ pub struct RunQueue {
     /// converge (T-4426): a pipeline of one is not started, since every write it made would be
     /// refused 401 and replayed until [`RUN_TIMEOUT`], holding its lane.
     unbound: HashSet<String>,
+    /// The pipelines whose newest logged run failed for a cause outside its source, with that
+    /// run and the cause (T-5687), read before each [`RunQueue::plan`]; `None` when the log was
+    /// not read.
+    failed: Option<BTreeMap<Key, (String, String)>>,
+    /// A fingerprint of each project's spaces, models and policies, and the projects whose
+    /// fingerprint changed since the pass before (T-5687).
+    rules: BTreeMap<String, u64>,
+    rules_changed: HashSet<String>,
 }
 
 impl RunQueue {
@@ -337,7 +398,32 @@ impl RunQueue {
             planned_at: None,
             ran: None,
             unbound: HashSet::new(),
+            failed: None,
+            rules: BTreeMap::new(),
+            rules_changed: HashSet::new(),
         }
+    }
+
+    /// The pipelines whose newest logged run failed for a cause outside its source (the model
+    /// refused a record, a policy, the gateway or the broker refused a write), with that run's id
+    /// and the cause (T-5687): each gets one retry with backoff on the next [`RunQueue::plan`].
+    pub fn failed(&mut self, failed: BTreeMap<Key, (String, String)>) {
+        self.failed = Some(failed);
+    }
+
+    /// A fingerprint of each project's spaces, data models and policies: a project whose
+    /// fingerprint changed runs its pending retries at once, its cause most likely cleared.
+    pub fn rules(&mut self, rules: BTreeMap<String, u64>) {
+        for (project, fingerprint) in &rules {
+            if self
+                .rules
+                .get(project)
+                .is_some_and(|old| old != fingerprint)
+            {
+                self.rules_changed.insert(project.clone());
+            }
+        }
+        self.rules = rules;
     }
 
     /// The workload accounts the last reconcile left without a client, as `project/name`
@@ -413,8 +499,38 @@ impl RunQueue {
                             sweep: true,
                             stuck: false,
                             last: None,
+                            retry: None,
+                            armed_for: None,
+                            attempts: 0,
+                            retried: Vec::new(),
                         },
                     );
+                }
+            }
+        }
+        self.retries(now);
+    }
+
+    /// Arms or clears each pipeline's retry from what the log says of its newest run, and brings
+    /// the retries of a project whose rules changed forward to now (T-5687). A run in the queue
+    /// or the runner is judged once it ended; a run the queue saw fail itself (the runner refused
+    /// or lost it) armed its retry when it failed.
+    fn retries(&mut self, now: DateTime<Utc>) {
+        let failed = self.failed.take();
+        let changed = std::mem::take(&mut self.rules_changed);
+        for (key, entry) in &mut self.entries {
+            if let Some(failed) = &failed {
+                let idle = entry.running.is_none() && entry.queued.is_none();
+                match (&entry.last, failed.get(key)) {
+                    _ if !idle => {}
+                    (Some(Last::Failed { .. }), _) => {}
+                    (_, Some((run, cause))) => entry.arm(run, cause, now),
+                    (_, None) => entry.clear_retry(),
+                }
+            }
+            if changed.contains(&key.0) {
+                if let Some(retry) = entry.retry.as_mut() {
+                    retry.at = retry.at.min(now);
                 }
             }
         }
@@ -478,6 +594,11 @@ impl RunQueue {
             };
             crate::telemetry::pipeline_run(label, seconds as f64);
             let finished = failure.is_none();
+            // A run the runner lost is retried; one past its cap would only run past it again.
+            if let (RunState::Gone, Some(reason), Some(run)) = (state, &failure, entry.run.clone())
+            {
+                entry.arm(&run, reason, now);
+            }
             self.ends
                 .extend(entry.run.clone().map(|run| (key.clone(), run, finished)));
             entry.running = None;
@@ -498,6 +619,7 @@ impl RunQueue {
             }
             entry.next = entry.clock.next_after(now);
         }
+        self.queue_retries(now);
 
         let mut starts = Vec::new();
         let fresh = self
@@ -556,6 +678,19 @@ impl RunQueue {
         (ended, starts)
     }
 
+    /// A retry that came due joins the queue under its own time (T-5687).
+    fn queue_retries(&mut self, now: DateTime<Utc>) {
+        for entry in self.entries.values_mut() {
+            let Some(retry) = entry.retry.take_if(|retry| retry.at <= now) else {
+                continue;
+            };
+            if entry.queued.is_none() && entry.running.is_none() && !entry.stuck {
+                entry.queued = Some(retry.at);
+                entry.retried.push(now);
+            }
+        }
+    }
+
     /// Queues one run of `key` now, outside its clock (T-4349), and names it: an entry already
     /// queued keeps its place and its run. A held pipeline (T-5370) stays held: another run
     /// would loop in the runner again.
@@ -590,18 +725,20 @@ impl RunQueue {
     fn failed_to_start(&mut self, key: &Key, reason: String, now: DateTime<Utc>) {
         if let Some(entry) = self.entries.get_mut(key) {
             entry.running = None;
-            entry.last = Some(Last::Failed {
-                at: now,
-                reason: format!("the runner refused the run: {reason}"),
-            });
+            let reason = format!("the runner refused the run: {reason}");
+            if let Some(run) = entry.run.clone() {
+                entry.arm(&run, &reason, now);
+            }
+            entry.last = Some(Last::Failed { at: now, reason });
         }
     }
 
     /// What the Pipeline's status says: `Error` while its last run failed, else where it stands.
     pub fn outcome(&self, key: &Key) -> Option<StreamOutcome> {
         let entry = self.entries.get(key)?;
-        let next = match entry.next {
-            Some(next) if !entry.stuck => format!("next run {}", stamp(next)),
+        let next = match (&entry.retry, entry.next) {
+            (Some(retry), _) if !entry.stuck => format!("next try {}", stamp(retry.at)),
+            (None, Some(next)) if !entry.stuck => format!("next run {}", stamp(next)),
             _ => "no further run until it changes".to_owned(),
         };
         if let Some(Last::Failed { at, reason }) = &entry.last {
@@ -613,7 +750,16 @@ impl RunQueue {
         let (reason, now) = match (entry.running, entry.queued) {
             (Some(since), _) => ("Running", format!("running since {}", stamp(since))),
             (None, Some(due)) => ("Queued", format!("queued, due {}", stamp(due))),
-            (None, None) => ("Waiting", next),
+            (None, None) => match &entry.retry {
+                Some(retry) => (
+                    "Retrying",
+                    format!(
+                        "the last run failed for a cause outside its source: {}; {next}",
+                        retry.cause
+                    ),
+                ),
+                None => ("Waiting", next),
+            },
         };
         let last = match &entry.last {
             Some(Last::Finished { at, seconds }) => {
@@ -918,6 +1064,216 @@ mod tests {
     async fn step(queue: &Mutex<RunQueue>, fake: &Fake, now: DateTime<Utc>) {
         queue.lock().unwrap().planned_at = Some(now);
         tick(queue, fake, now).await;
+    }
+
+    fn weekly() -> Clock {
+        Clock::Every(Duration::from_secs(168 * 3600))
+    }
+
+    const DM61: &str =
+        "entity type `Tree` is not a class of the space's data model `praha-mesto` (DM-61)";
+
+    /// One reconciler pass over pipeline `a` (weekly, run before) whose newest logged run, when
+    /// given, failed for a cause outside its source.
+    fn pass(queue: &Mutex<RunQueue>, failed: Option<&str>, rules: u64, now: DateTime<Utc>) {
+        let mut q = queue.lock().unwrap();
+        q.ran([key("a")].into_iter().collect());
+        q.rules([("p".to_owned(), rules)].into_iter().collect());
+        q.failed(
+            failed
+                .map(|run| (key("a"), (run.to_owned(), DM61.to_owned())))
+                .into_iter()
+                .collect(),
+        );
+        q.plan([(key("a"), planned(weekly()))].into_iter().collect(), now);
+    }
+
+    fn said(queue: &Mutex<RunQueue>) -> String {
+        match queue.lock().unwrap().outcome(&key("a")) {
+            Some(StreamOutcome::Scheduled(reason, said)) => format!("{reason}: {said}"),
+            other => format!("{other:?}"),
+        }
+    }
+
+    /// One run of `a` from start to delete at `due`.
+    async fn retried_at(queue: &Mutex<RunQueue>, fake: &Fake, due: DateTime<Utc>) {
+        step(queue, fake, due - Span::minutes(1)).await;
+        assert!(fake.log().is_empty(), "nothing runs before {due}");
+        step(queue, fake, due).await;
+        assert_eq!(fake.log(), ["start a"], "the retry runs at {due}");
+        fake.end("a", RunState::Finished);
+        step(queue, fake, due + Span::minutes(1)).await;
+        assert_eq!(fake.log(), ["delete a"]);
+    }
+
+    /// T-5687: 37 Praha pipelines failed DM-61 on a stale model and waited 168 h. A run the model,
+    /// a policy or the broker refused is retried at 15 min, 1 h and 4 h, and then waits for its
+    /// clock; seeing the same failed run on later passes arms nothing more.
+    #[tokio::test]
+    async fn a_run_the_model_refused_is_retried_with_backoff_then_waits_for_its_clock() {
+        let queue = Mutex::new(RunQueue::new(1, 1));
+        let fake = Fake::default();
+        let now = at("2026-10-25T16:00:00Z");
+        pass(&queue, Some("2026-10-25T14:00:00Z"), 1, now);
+        step(&queue, &fake, now).await;
+        assert_eq!(fake.log(), ["delete a"], "the leftover sweep, and no run");
+        let first = said(&queue);
+        assert!(first.starts_with("Retrying: "), "{first}");
+        assert!(
+            first.contains("(DM-61)") && first.contains("next try 2026-10-25T16:15:00Z"),
+            "{first}"
+        );
+        retried_at(&queue, &fake, at("2026-10-25T16:15:00Z")).await;
+
+        pass(
+            &queue,
+            Some("2026-10-25T16:15:00Z"),
+            1,
+            at("2026-10-25T16:20:00Z"),
+        );
+        pass(
+            &queue,
+            Some("2026-10-25T16:15:00Z"),
+            1,
+            at("2026-10-25T16:40:00Z"),
+        );
+        assert!(
+            said(&queue).contains("next try 2026-10-25T17:20:00Z"),
+            "{}",
+            said(&queue)
+        );
+        retried_at(&queue, &fake, at("2026-10-25T17:20:00Z")).await;
+
+        pass(
+            &queue,
+            Some("2026-10-25T17:20:00Z"),
+            1,
+            at("2026-10-25T17:30:00Z"),
+        );
+        assert!(
+            said(&queue).contains("next try 2026-10-25T21:30:00Z"),
+            "{}",
+            said(&queue)
+        );
+        retried_at(&queue, &fake, at("2026-10-25T21:30:00Z")).await;
+
+        pass(
+            &queue,
+            Some("2026-10-25T21:30:00Z"),
+            1,
+            at("2026-10-25T21:40:00Z"),
+        );
+        assert_eq!(said(&queue), "Waiting: next run 2026-10-29T00:00:00Z; the last run ended 2026-10-25T21:31:00Z after 60 s");
+    }
+
+    /// A retry never waits past the clock: a daily pipeline that failed at 04:30 runs at 05:00.
+    #[test]
+    fn a_retry_due_after_the_clock_is_left_to_the_clock() {
+        let mut queue = RunQueue::new(1, 1);
+        let now = at("2026-10-25T04:50:00Z");
+        queue.ran([key("a")].into_iter().collect());
+        queue.failed(
+            [(
+                key("a"),
+                ("2026-10-25T04:30:00Z".to_owned(), DM61.to_owned()),
+            )]
+            .into(),
+        );
+        queue.plan([(key("a"), planned(daily_at_5()))].into(), now);
+        assert!(
+            matches!(queue.outcome(&key("a")), Some(StreamOutcome::Scheduled("Waiting", said)) if said == "next run 2026-10-25T05:00:00Z")
+        );
+    }
+
+    /// A pass in which the project's spaces, models or policies changed runs its pending retries
+    /// at once; a run that then writes clean starts the backoff over, and a log that names no
+    /// outside failure (a source that answered 404) leaves the pipeline to its clock.
+    #[tokio::test]
+    async fn a_rules_change_runs_the_retry_at_once_and_a_clean_run_resets_the_backoff() {
+        let queue = Mutex::new(RunQueue::new(1, 1));
+        let fake = Fake::default();
+        let now = at("2026-10-25T16:00:00Z");
+        pass(&queue, Some("2026-10-25T14:00:00Z"), 1, now);
+        step(&queue, &fake, now).await;
+        fake.log();
+        pass(
+            &queue,
+            Some("2026-10-25T14:00:00Z"),
+            2,
+            now + Span::minutes(2),
+        );
+        assert!(
+            said(&queue).contains("next try 2026-10-25T16:02:00Z"),
+            "{}",
+            said(&queue)
+        );
+        step(&queue, &fake, now + Span::minutes(2)).await;
+        assert_eq!(fake.log(), ["start a"]);
+        fake.end("a", RunState::Finished);
+        step(&queue, &fake, now + Span::minutes(3)).await;
+        fake.log();
+
+        pass(&queue, None, 2, now + Span::minutes(4));
+        assert!(
+            said(&queue).starts_with("Waiting: next run 2026-10-29T00:00:00Z"),
+            "{}",
+            said(&queue)
+        );
+        pass(
+            &queue,
+            Some("2026-10-25T16:30:00Z"),
+            2,
+            now + Span::minutes(40),
+        );
+        assert!(
+            said(&queue).contains("next try 2026-10-25T16:55:00Z"),
+            "the backoff starts over: {}",
+            said(&queue)
+        );
+    }
+
+    /// However often its cause clears and comes back, a pipeline is retried at most
+    /// [`RETRIES_PER_DAY`] times a day.
+    #[tokio::test]
+    async fn retries_are_bounded_per_day() {
+        let queue = Mutex::new(RunQueue::new(1, 1));
+        let fake = Fake::default();
+        let mut now = at("2026-10-25T00:00:00Z");
+        pass(&queue, None, 1, now);
+        step(&queue, &fake, now).await;
+        fake.log();
+        for n in 0..RETRIES_PER_DAY {
+            pass(&queue, Some(&format!("failed-{n}")), 1, now);
+            retried_at(&queue, &fake, now + Span::minutes(15)).await;
+            now += Span::minutes(20);
+            pass(&queue, None, 1, now);
+        }
+        pass(&queue, Some("failed-again"), 1, now);
+        assert!(!said(&queue).contains("next try"), "{}", said(&queue));
+    }
+
+    /// A run the runner refused to load is retried like a refused write.
+    #[tokio::test]
+    async fn a_run_the_runner_refused_is_retried_in_15_minutes() {
+        let queue = Mutex::new(RunQueue::new(1, 1));
+        let fake = Fake::default();
+        let now = at("2026-10-25T16:00:00Z");
+        pass(&queue, None, 1, now);
+        queue
+            .lock()
+            .unwrap()
+            .run_now(&key("a"), now)
+            .expect("queued");
+        fake.refuse.lock().unwrap().insert("a".to_owned());
+        step(&queue, &fake, now).await;
+        assert_eq!(fake.log(), ["delete a", "start a", "delete a"]);
+        pass(&queue, None, 1, now + Span::minutes(1));
+        assert!(
+            matches!(queue.lock().unwrap().outcome(&key("a")), Some(StreamOutcome::Error(e)) if e.contains("400 bad config") && e.ends_with("next try 2026-10-25T16:15:00Z"))
+        );
+        fake.refuse.lock().unwrap().clear();
+        step(&queue, &fake, now + Span::minutes(15)).await;
+        assert_eq!(fake.log(), ["start a"]);
     }
 
     fn daily_at_5() -> Clock {
@@ -1262,6 +1618,10 @@ mod tests {
             sweep: false,
             stuck: false,
             last: None,
+            retry: None,
+            armed_for: None,
+            attempts: 0,
+            retried: Vec::new(),
         };
         let cap = |clock| entry(clock).cap(RUN_TIMEOUT).as_secs();
         assert_eq!(cap(Clock::Every(Duration::from_secs(30))), 120);
