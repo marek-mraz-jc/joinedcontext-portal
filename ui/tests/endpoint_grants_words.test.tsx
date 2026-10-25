@@ -16,7 +16,6 @@ import { PolicyGrants, rulesOf } from "../src/components/endpoints/PolicyGrants"
 import {
   DATA_WRITE_OPERATIONS,
   SUBSCRIPTION_WRITE_OPERATIONS,
-  WRITE_OPERATIONS,
   grantChanges,
 } from "../src/components/endpoints/operationGroups";
 import { readsOf, writesOf } from "../src/pages/access/EffectivePermissions";
@@ -178,7 +177,6 @@ describe("the one write list", () => {
     expect(writesOf([...DATA_WRITE_OPERATIONS])).toEqual([...DATA_WRITE_OPERATIONS]);
     expect(writesOf([...SUBSCRIPTION_WRITE_OPERATIONS])).toEqual([]);
     expect(readsOf(["retrieveEntity", "updateAttrs"])).toEqual(["retrieveEntity"]);
-    expect([...WRITE_OPERATIONS].sort()).toEqual([...DATA_WRITE_OPERATIONS, ...SUBSCRIPTION_WRITE_OPERATIONS].sort());
     // No second list of operation names beside it (T-5592 C7).
     const source = readFileSync(join(__dirname, "../src/pages/access/EffectivePermissions.tsx"), "utf8");
     expect(source).not.toMatch(/"(updateAttrs|createEntity|deleteEntity)"/);

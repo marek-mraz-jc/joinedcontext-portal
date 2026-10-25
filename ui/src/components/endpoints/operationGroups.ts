@@ -135,21 +135,13 @@ export function expandOperations(operations: readonly string[]): string[] {
   return [...expanded];
 }
 
-/** Whether a grant can change context data: any write operation, or a group that holds one. */
-export function grantWrites(operations: readonly string[]): boolean {
-  return operations.some((name) => {
-    const group = groupOf(name);
-    return group ? group.writes : WRITE_OPERATIONS.has(name);
-  });
-}
-
 /**
  * What a grant changes, in the words a person reads (T-5592): `data` when it can change
  * entities, `subscriptions` when the only state it changes is subscriptions, `nothing` for a read.
  *
- * `grantWrites` follows `Operation::is_write`, where a subscription write counts; a person who
- * reads "can change data" beside a grant that only lets the city's people subscribe to the bike
- * stations is told something false about the data, so the page asks this instead.
+ * `Operation::is_write` in `jc-core` counts a subscription write as a write; a person who reads
+ * "can change data" beside a grant that only lets the city's people subscribe to the bike
+ * stations is told something false about the data, so the page names the two apart.
  */
 export function grantChanges(operations: readonly string[]): "data" | "subscriptions" | "nothing" {
   const covered = expandOperations(operations);
@@ -192,18 +184,4 @@ export const DATA_WRITE_OPERATIONS: ReadonlySet<string> = new Set([
   "replaceAttrs",
   "mergeBatch",
   "purgeEntity",
-]);
-
-/**
- * The Table 4.20-1 operations that change context or subscription state, for a grant that names
- * operations one by one instead of by group (GW15, GW16; `Operation::is_write` in `jc-core`,
- * which this list is held against).
- *
- * A subscription write is in here and is deliberately *not* what makes `associationOps` or
- * `federationOps` a write: `OperationGroup::includes_write` counts only the groups that change
- * context data, and the Portal says what the platform decides, not what it would decide itself.
- */
-export const WRITE_OPERATIONS: ReadonlySet<string> = new Set([
-  ...DATA_WRITE_OPERATIONS,
-  ...SUBSCRIPTION_WRITE_OPERATIONS,
 ]);

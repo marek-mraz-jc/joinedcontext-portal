@@ -26,7 +26,7 @@ import {
   OPERATION_GROUPS,
   OPERATION_GROUP_NAMES,
   expandOperations,
-  grantWrites,
+  grantChanges,
   groupOf,
 } from "../src/components/endpoints/operationGroups";
 import { bindingOf, parsePolicyUrn, policyRefsOf, spaceSegment } from "../src/components/endpoints/policyBinding";
@@ -211,15 +211,14 @@ describe("the CIM 009 operation groups", () => {
     expect(groupOf("readOps")).toBeUndefined();
   });
 
-  it("say which grants can change data, groups and single operations alike", () => {
-    expect(grantWrites(["retrieveOps"])).toBe(false);
-    expect(grantWrites(["updateOps"])).toBe(true);
-    expect(grantWrites(["redirectionOps"])).toBe(true);
-    // A subscription write makes a single-operation grant a write, but never makes the
-    // consumption groups one: that is the platform's own line (OperationGroup::includes_write).
-    expect(grantWrites(["createSubscription"])).toBe(true);
-    expect(grantWrites(["federationOps"])).toBe(false);
-    expect(grantWrites(["retrieveEntity", "queryEntity"])).toBe(false);
+  it("say what a grant changes, groups and single operations alike", () => {
+    expect(grantChanges(["retrieveOps"])).toBe("nothing");
+    expect(grantChanges(["updateOps"])).toBe("data");
+    expect(grantChanges(["redirectionOps"])).toBe("data");
+    // A subscription write changes subscriptions, never the data the page talks about.
+    expect(grantChanges(["createSubscription"])).toBe("subscriptions");
+    expect(grantChanges(["retrieveEntity", "queryEntity"])).toBe("nothing");
+    expect(grantChanges(["createSubscription", "deleteEntity"])).toBe("data");
   });
 });
 
