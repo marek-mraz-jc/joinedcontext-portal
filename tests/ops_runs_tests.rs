@@ -28,6 +28,7 @@ fn lucia() -> Identity {
         name: Some("lucia".into()),
         roles: Vec::new(),
         groups: vec!["city-authors".into()],
+        second_factor: false,
     }
 }
 

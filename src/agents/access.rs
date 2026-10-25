@@ -184,6 +184,7 @@ mod tests {
                 name: None,
                 roles: vec![],
                 groups: vec![],
+                second_factor: false,
             },
             via: ops::Via::Agent,
             access: None,

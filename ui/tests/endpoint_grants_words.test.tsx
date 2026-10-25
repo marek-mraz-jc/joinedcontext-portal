@@ -12,11 +12,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { Manifest } from "../src/api/manifest";
-import { PolicyGrants, rulesOf } from "../src/components/endpoints/PolicyGrants";
+import { Covers, PolicyGrants, rulesOf } from "../src/components/endpoints/PolicyGrants";
 import {
   DATA_WRITE_OPERATIONS,
   SUBSCRIPTION_WRITE_OPERATIONS,
-  WRITE_OPERATIONS,
   grantChanges,
 } from "../src/components/endpoints/operationGroups";
 import { readsOf, writesOf } from "../src/pages/access/EffectivePermissions";
@@ -178,7 +177,6 @@ describe("the one write list", () => {
     expect(writesOf([...DATA_WRITE_OPERATIONS])).toEqual([...DATA_WRITE_OPERATIONS]);
     expect(writesOf([...SUBSCRIPTION_WRITE_OPERATIONS])).toEqual([]);
     expect(readsOf(["retrieveEntity", "updateAttrs"])).toEqual(["retrieveEntity"]);
-    expect([...WRITE_OPERATIONS].sort()).toEqual([...DATA_WRITE_OPERATIONS, ...SUBSCRIPTION_WRITE_OPERATIONS].sort());
     // No second list of operation names beside it (T-5592 C7).
     const source = readFileSync(join(__dirname, "../src/pages/access/EffectivePermissions.tsx"), "utf8");
     expect(source).not.toMatch(/"(updateAttrs|createEntity|deleteEntity)"/);
@@ -190,5 +188,34 @@ describe("the one write list", () => {
     expect(grantChanges(["retrieveOps", "updateAttrs"])).toBe("data");
     expect(grantChanges(["updateOps"])).toBe("data");
     expect(grantChanges(["retrieveOps"])).toBe("nothing");
+  });
+});
+
+describe("what a grant covers", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+  const covers = (information: Parameters<typeof Covers>[0]["information"]) =>
+    render(
+      <I18nextProvider i18n={i18n}>
+        <Covers information={information} />
+      </I18nextProvider>,
+    );
+
+  it("says every type when the grant names no information", () => {
+    covers([]);
+    expect(screen.getByText(en.endpoints.page.grantEveryType)).toBeTruthy();
+  });
+
+  it("names the types and the attributes, or all attributes, per entry", () => {
+    covers([
+      { entities: [{ type: "BikeHireDockingStation" }, { idPattern: "urn:ngsi-ld:Bike:.*" }], propertyNames: ["status"], relationshipNames: ["refDock"] },
+      { propertyNames: [] },
+    ]);
+    const items = screen.getAllByRole("listitem").map((item) => item.textContent);
+    expect(items).toEqual([
+      "BikeHireDockingStation and urn:ngsi-ld:Bike:.*: only status and refDock",
+      `${en.endpoints.page.grantAnyType}: ${en.endpoints.page.grantAllAttributes}`,
+    ]);
   });
 });

@@ -6690,6 +6690,12 @@ export interface components {
              *     the same boundaries independently.
              */
             roles?: string[];
+            /**
+             * @description The person proved a second factor when this session signed in: the token's `amr` names
+             *     `otp`, or its `acr` is the realm's step-up level `mfa`. Every decision door asks for it
+             *     (T-5567); `GET /api/v1/auth/me` reports it so the UI can offer the step-up.
+             */
+            second_factor?: boolean;
             /** @description Keycloak `sub`: stable, opaque, the only durable user key. */
             subject: string;
             username: string;
@@ -9746,6 +9752,8 @@ export interface operations {
                 redirect_to?: string;
                 /** @description The Portal's language (2-3 letters), handed to the realm as `ui_locales` */
                 lang?: string;
+                /** @description `true` asks the realm for the second factor a decision needs (`acr_values`, `prompt=login`) */
+                step_up?: boolean;
             };
             header?: never;
             path?: never;

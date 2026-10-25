@@ -68,6 +68,7 @@ const KINDS: &[&str] = &[
     "Subscription",
     "Dashboard",
     "App",
+    "MqttBroker",
 ];
 
 /// The fields of one kind that name a resource of this platform, in this project, with the kind a
@@ -117,6 +118,9 @@ fn fields(kind: &str) -> &'static [(&'static str, &'static str)] {
         // resolves the layers of a public dashboard together with their audience (UI-19).
         "Dashboard" => &[("spec.pages[].widgets[].endpointRef", "Endpoint")],
         "App" => &[("spec.dataNeeds[].contextSpaceRef", "ContextSpace")],
+        // The devices of a role sign in as these accounts (MF-54, T-5590): a name typed for an
+        // account that is not there was accepted and only drew a red edge on the broker's page.
+        "MqttBroker" => &[("spec.roles[].serviceAccounts[]", "ServiceAccount")],
         // A `DataSource` names no resource of this platform — its `secretRef`s are resolved by the
         // reconciler, not by the mirror. `SharedSpaceReference.endpointRef` names a resource of
         // another organization and is resolved by what the Endpoint admits (T-1448).
@@ -540,6 +544,24 @@ mod tests {
         assert_eq!(errors, vec!["spec.sources[1].dataSourceRef".to_owned()]);
     }
 
+    /// T-5590: a role's account typed by hand ("vent-1") was proposable and only drew a red edge
+    /// on the broker's page; the finding names the one element that is not an account here.
+    #[test]
+    fn a_broker_role_naming_an_account_that_is_not_there_is_refused_by_its_element() {
+        let mirror = mirror_with("ServiceAccount", "cam");
+        let role = |accounts: Value| {
+            json!({ "roles": [
+            { "name": "viewer", "serviceAccounts": ["cam"], "subscribe": ["v/${clientid}/#"] },
+            { "name": "camera", "serviceAccounts": accounts, "publish": ["c/#"] }
+        ] })
+        };
+        let (detail, errors) = refusal(&mirror, "MqttBroker", role(json!(["cam", "vent-1"])));
+        assert_eq!(errors, vec!["spec.roles[1].serviceAccounts[1]".to_owned()]);
+        assert!(detail.contains("ServiceAccount 'vent-1'"), "{detail}");
+        check(&mirror, "helsinki", "MqttBroker", &role(json!(["cam"])))
+            .expect("an account that is there resolves");
+    }
+
     /// A pipeline reads the platform's own spaces through an endpoint, and computes through a
     /// mapping: both are references and neither was resolved.
     #[test]
@@ -692,6 +714,7 @@ mod tests {
             "Dashboard" => schemars::schema_for!(DashboardSpec),
             "Layer" => schemars::schema_for!(LayerSpec),
             "App" => schemars::schema_for!(AppSpec),
+            "MqttBroker" => schemars::schema_for!(MqttBrokerSpec),
             other => panic!("{other} is in KINDS with no schema beside it"),
         }
     }

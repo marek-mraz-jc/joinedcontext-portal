@@ -5,6 +5,7 @@ import { workspaceMiddleware } from "../components/layout/WorkspaceContext";
 import type { Middleware } from "openapi-fetch";
 import type { components, paths } from "./schema";
 import { announceSessionEnded } from "./sessionEnded";
+import { announceStepUp, createStepUpMiddleware } from "./stepUp";
 import i18n from "../i18n";
 
 export type ProblemDetails = components["schemas"]["ProblemDetails"];
@@ -137,6 +138,8 @@ export function createSessionMiddleware(ended: (loginUrl: string) => void): Midd
 export const sessionMiddleware = createSessionMiddleware(announceSessionEnded);
 
 api.use(sessionMiddleware);
+// A decision without a second factor in the session opens the step-up dialog (T-5567).
+api.use(createStepUpMiddleware(announceStepUp));
 // Inside a workspace, resource reads and writes go to its branch (API/01 §22).
 api.use(workspaceMiddleware);
 

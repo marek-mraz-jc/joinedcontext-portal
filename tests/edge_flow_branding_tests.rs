@@ -106,6 +106,7 @@ fn cookie(config: &Config, roles: &[&str]) -> String {
             name: None,
             roles: roles.iter().map(|role| role.to_string()).collect(),
             groups: Vec::new(),
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,
