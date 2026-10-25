@@ -403,14 +403,16 @@ fn read_file(files: &BTreeMap<String, String>, input: &Value) -> (String, bool) 
     (out, true)
 }
 
-/// Whether one more file of `bytes` keeps the project inside SDK-11's limits.
+/// Whether one more file of `bytes` keeps the project inside SDK-11's limits, counted over the
+/// writable files as [`code::problems`] counts them: the template's own files are not the
+/// model's to fit (F-POR1-021).
 fn fits(files: &BTreeMap<String, String>, path: &str, bytes: usize) -> Result<(), String> {
-    let others: usize = files
-        .iter()
+    let writable = || files.iter().filter(|(p, _)| code::writable(p));
+    let others: usize = writable()
         .filter(|(p, _)| p.as_str() != path)
         .map(|(_, c)| c.len())
         .sum();
-    let count = files.len() + usize::from(!files.contains_key(path));
+    let count = writable().count() + usize::from(!files.contains_key(path));
     if count > code::MAX_FILES || others + bytes > code::MAX_BYTES {
         return Err(format!(
             "the application may hold at most {} files and {} bytes together",
@@ -1081,6 +1083,21 @@ fn own_count(answer: &ToolAnswer, input: u64) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// F-POR1-021: the template's own files (public/, package.json) are not counted against the
+    /// model's limit, as code::problems does not count them.
+    #[test]
+    fn a_template_full_of_files_still_fits_one_writable_file() {
+        let mut files: BTreeMap<String, String> = (0..code::MAX_FILES)
+            .map(|at| (format!("public/asset-{at}.svg"), "<svg/>".to_owned()))
+            .collect();
+        files.insert("package.json".to_owned(), "{}".to_owned());
+        assert_eq!(fits(&files, "src/App.tsx", 10), Ok(()));
+        for at in 0..code::MAX_FILES {
+            files.insert(format!("src/part-{at}.tsx"), String::new());
+        }
+        assert!(fits(&files, "src/App.tsx", 10).is_err());
+    }
 
     /// T-3044: a follow-up on dev ("Add a chart of stations by free slots") was cut at 8000
     /// output tokens and applied nothing: the system prompt asks for every edit in one answer,

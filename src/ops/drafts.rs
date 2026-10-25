@@ -1044,8 +1044,22 @@ pub fn operations() -> Vec<Operation> {
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     let input: DraftPutInput = parse_input(val)?;
+                    // A draft of one kind holding another's manifest would be judged by the
+                    // wrong kind's grants; the manifest itself is judged so a space-bound grant
+                    // admits it only in its own space (F-POR3-019).
+                    if let Some(written) = input.manifest.get("kind").and_then(Value::as_str) {
+                        if written != input.kind {
+                            return Err(OpError::InvalidInput {
+                                path: "manifest.kind".into(),
+                                message: format!(
+                                    "the manifest is a {written} and the draft a {}; draft it as {written}",
+                                    input.kind
+                                ),
+                            });
+                        }
+                    }
                     crate::permissions::for_request(state, &caller.identity, project)
-                        .check(&input.kind, Verb::Propose, None)?;
+                        .check(&input.kind, Verb::Propose, Some(&input.manifest))?;
                     draft_workspace_owned(state, caller, project, input.workspace.as_deref(), "write a draft into").await?;
                     let draft = draft_store(state)
                         .put_in(
@@ -1150,8 +1164,17 @@ pub fn operations() -> Vec<Operation> {
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     let d: DraftDropInput = parse_input(val)?;
-                    crate::permissions::for_request(state, &caller.identity, project)
-                        .check(&d.kind, Verb::Propose, None)?;
+                    // Judged by the stored draft, so a grant bound to one space drops only that
+                    // space's drafts (F-POR3-019).
+                    let stored = draft_store(state)
+                        .get_in(d.workspace.as_deref(), project, &d.kind, &d.name)
+                        .await
+                        .map_err(draft_error)?;
+                    crate::permissions::for_request(state, &caller.identity, project).check(
+                        &d.kind,
+                        Verb::Propose,
+                        stored.as_ref().map(|draft| &draft.manifest),
+                    )?;
                     draft_workspace_owned(state, caller, project, d.workspace.as_deref(), "drop a draft of").await?;
                     let dropped = draft_store(state)
                         .drop_in(d.workspace.as_deref(), project, &d.kind, &d.name)

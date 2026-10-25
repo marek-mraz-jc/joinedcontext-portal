@@ -19,7 +19,7 @@ use crate::auth::session::Identity;
 use crate::auth::CurrentUser;
 use crate::change::{Change, ChangePhase, ChangeStatus, Lane, Operation, PlanSummary};
 use crate::error::{ApiError, ProblemDetails};
-use crate::git::{Author, FileWrite};
+use crate::git::Author;
 use crate::state::AppState;
 use crate::store::ListOptions;
 use crate::tools::model_tools::{Artifacts, MAX_REQUEST_BYTES};
@@ -333,10 +333,92 @@ pub async fn read_source(state: &AppState, project: &str, name: &str) -> Result<
     Ok(file.content)
 }
 
+/// The document with each class's inline `attributes` as slots of their own, `{Class}.{name}`:
+/// an attribute is a slot the class alone holds, judged as one (F-POR1-015).
+fn attributes_as_slots(doc: &Value) -> Value {
+    let mut doc = doc.clone();
+    let mut inline = serde_json::Map::new();
+    if let Some(classes) = doc.get("classes").and_then(Value::as_object) {
+        for (class, definition) in classes {
+            for (name, slot) in definition
+                .get("attributes")
+                .and_then(Value::as_object)
+                .into_iter()
+                .flatten()
+            {
+                inline.insert(format!("{class}.{name}"), slot.clone());
+            }
+        }
+    }
+    if !inline.is_empty() {
+        if !doc.get("slots").is_some_and(Value::is_object) {
+            doc["slots"] = Value::Object(serde_json::Map::new());
+        }
+        if let Some(slots) = doc["slots"].as_object_mut() {
+            slots.extend(inline);
+        }
+    }
+    doc
+}
+
+/// A removed enum or permissible value breaks the records that hold it; an added one does not.
+fn enum_changes(prev: &Value, next: &Value, changes: &mut Vec<ModelChange>) {
+    let values = |doc: &Value, name: &str| -> Vec<String> {
+        doc.pointer(&format!("/enums/{name}/permissible_values"))
+            .and_then(Value::as_object)
+            .map(|values| values.keys().cloned().collect())
+            .unwrap_or_default()
+    };
+    let names = |doc: &Value| -> Vec<String> {
+        doc.get("enums")
+            .and_then(Value::as_object)
+            .map(|enums| enums.keys().cloned().collect())
+            .unwrap_or_default()
+    };
+    let next_names = names(next);
+    for name in names(prev) {
+        if !next_names.contains(&name) {
+            changes.push(ModelChange {
+                severity: "breaking".into(),
+                subject: name.clone(),
+                reason: format!("enum '{name}' was removed"),
+            });
+            continue;
+        }
+        let kept = values(next, &name);
+        for value in values(prev, &name) {
+            if !kept.contains(&value) {
+                changes.push(ModelChange {
+                    severity: "breaking".into(),
+                    subject: format!("{name}.{value}"),
+                    reason: format!("value '{value}' was removed from enum '{name}'"),
+                });
+            }
+        }
+    }
+    for name in next_names {
+        let had = values(prev, &name);
+        for value in values(next, &name) {
+            if !had.contains(&value) {
+                changes.push(ModelChange {
+                    severity: "additive".into(),
+                    subject: format!("{name}.{value}"),
+                    reason: format!("value '{value}' was added to enum '{name}'"),
+                });
+            }
+        }
+    }
+}
+
 /// Classifies changes between previous and next LinkML YAML documents.
 pub fn classify_linkml_changes(prev_val: &Value, next_val: &Value) -> Vec<ModelChange> {
     let mut changes = Vec::new();
     let empty_map = serde_json::Map::new();
+    let (prev_val, next_val) = (
+        &attributes_as_slots(prev_val),
+        &attributes_as_slots(next_val),
+    );
+    enum_changes(prev_val, next_val, &mut changes);
 
     let prev_classes = prev_val
         .get("classes")
@@ -786,10 +868,13 @@ pub async fn put_source(
         None => new_model_envelope(&state, &project, &name, query.space.as_deref())?,
     };
 
+    // The whole manifest: a space-bound grant reads `spec.contextSpaceRef`, a constraint may read
+    // `metadata` (F-POR1-002).
+    let target = serde_json::to_value(&envelope).map_err(|e| ApiError::Internal(e.to_string()))?;
     crate::permissions::for_request(&state, &user.0.identity, &project).check(
         "DataModel",
         jc_core::kinds::Verb::Propose,
-        Some(&envelope.spec),
+        Some(&target),
     )?;
 
     let source_str = std::str::from_utf8(&body)
@@ -921,11 +1006,8 @@ pub async fn share_model(
         .ok_or_else(|| {
             ApiError::NotFound(format!("project '{project}' has no data model '{name}'"))
         })?;
-    effective.check(
-        "DataModel",
-        jc_core::kinds::Verb::Propose,
-        Some(&model.spec),
-    )?;
+    let target = serde_json::to_value(&model).map_err(|e| ApiError::Internal(e.to_string()))?;
+    effective.check("DataModel", jc_core::kinds::Verb::Propose, Some(&target))?;
     let spec: DataModelSpec = serde_json::from_value(model.spec.clone())
         .map_err(|e| ApiError::Internal(format!("DataModel {name} does not read: {e}")))?;
     if spec.lifecycle != DataModelLifecycle::Published {
@@ -1165,27 +1247,29 @@ pub(crate) async fn propose_model(
             .map(|(file, content)| (format!("{folder}/{file}"), content)),
     );
 
-    for (file_p, content) in &writes {
+    // One commit: a forge failure halfway leaves no branch holding a manifest without its
+    // source or artifacts (F-POR1-023).
+    let mut files = Vec::with_capacity(writes.len());
+    for (file_p, content) in writes {
         let existing_sha = gitea
-            .get_file(file_p, &branch)
+            .get_file(&file_p, &branch)
             .await
             .ok()
             .flatten()
             .map(|f| f.sha);
-
-        let file_write = FileWrite {
-            path: file_p,
-            branch: &branch,
-            message: &commit_msg,
-            content,
-            sha: existing_sha.as_deref(),
-            author: Author {
+        files.push((file_p, content, existing_sha));
+    }
+    gitea
+        .write_files(
+            &branch,
+            &commit_msg,
+            Author {
                 name: &author_name,
                 email: &author_email,
             },
-        };
-        gitea.put_file(&file_write).await?;
-    }
+            &files,
+        )
+        .await?;
 
     crate::telemetry::proposed(lane, "DataModel");
 
@@ -1554,6 +1638,32 @@ mod tests {
             .into_iter()
             .map(|change| (change.severity, change.subject))
             .collect()
+    }
+
+    /// F-POR1-015: an inline class attribute and an enum value are part of the contract; removing
+    /// either is breaking, adding an optional one is not.
+    #[test]
+    fn inline_attributes_and_enum_values_are_classified() {
+        let prev = json!({
+            "classes": { "Air": { "attributes": { "pm10": { "range": "integer" } } } },
+            "enums": { "Level": { "permissible_values": { "low": {}, "high": {} } } },
+        });
+        let next = json!({
+            "classes": { "Air": { "attributes": { "no2": { "range": "integer" } } } },
+            "enums": { "Level": { "permissible_values": { "low": {}, "mid": {} } } },
+        });
+        let changes = classify_linkml_changes(&prev, &next);
+        let of = |subject: &str| {
+            changes
+                .iter()
+                .find(|c| c.subject == subject)
+                .map(|c| c.severity.as_str())
+        };
+        assert_eq!(of("Air.pm10"), Some("breaking"), "{changes:?}");
+        assert_eq!(of("Air.no2"), Some("additive"), "{changes:?}");
+        assert_eq!(of("Level.high"), Some("breaking"), "{changes:?}");
+        assert_eq!(of("Level.mid"), Some("additive"), "{changes:?}");
+        assert_eq!(overall_severity(&changes), "breaking");
     }
 
     /// DM-23, T-1484: removing is breaking, adding is additive, nothing changed is nothing.

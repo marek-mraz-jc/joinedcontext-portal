@@ -946,7 +946,7 @@ async fn propose_engine(
 
     // The same folder as the manifest, so a path is checked against where it will be written.
     let mut manifest_path = resolve_repo_path(&envelope, kind_info, project)?;
-    let mut sidecars = sidecars(sidecar_files, &manifest_path)?;
+    let mut sidecars = sidecars(sidecar_files, &manifest_path, &envelope.metadata.name)?;
     let folder = manifest_path.rsplit_once('/').map_or("", |(dir, _)| dir);
     for (relative, content) in space_model {
         let full = format!("{folder}/{relative}");
@@ -1797,7 +1797,7 @@ fn app_grants(
         out.uploads.push((path, yaml));
     }
 
-    for held in held_grants(state, project, name) {
+    for held in held_grants(&state.mirror, project, name) {
         if kept.contains(&(held.kind.clone(), held.metadata.name.clone())) {
             continue;
         }
@@ -1858,7 +1858,11 @@ fn group_files(
 ///
 /// A generated Policy is the App's when it is granted to the App's endpoint, one of its roles, or
 /// its service account: by name alone, `app-bikes-2-1` could be App `bikes-2`'s.
-pub(crate) fn held_grants(state: &AppState, project: &str, app: &str) -> Vec<ResourceEnvelope> {
+pub(crate) fn held_grants(
+    mirror: &crate::store::Mirror,
+    project: &str,
+    app: &str,
+) -> Vec<ResourceEnvelope> {
     use jc_core::annotations::GENERATED_BY;
     let endpoint_name = format!("app-{app}");
     let caller = jc_core::kinds::endpoint_role(project, &endpoint_name, None);
@@ -1871,7 +1875,7 @@ pub(crate) fn held_grants(state: &AppState, project: &str, app: &str) -> Vec<Res
             _ => false,
         }
     };
-    state.mirror.matching(|env| {
+    mirror.matching(|env| {
         env.metadata.namespace.as_deref() == Some(project)
             && env
                 .metadata
@@ -2261,7 +2265,11 @@ async fn check_projection(state: &AppState, project: &str, spec: &Value) -> Resu
         .map_err(|e| ApiError::BadRequest(format!("spec is not a valid ModelProjection: {e}")))
 }
 
-fn sidecars(files: Option<Value>, manifest_path: &str) -> Result<Vec<(String, String)>, ApiError> {
+fn sidecars(
+    files: Option<Value>,
+    manifest_path: &str,
+    name: &str,
+) -> Result<Vec<(String, String)>, ApiError> {
     let Some(files) = files else {
         return Ok(Vec::new());
     };
@@ -2300,6 +2308,15 @@ fn sidecars(files: Option<Value>, manifest_path: &str) -> Result<Vec<(String, St
             )));
         }
         let full = format!("{folder}/{relative}");
+        // The reconciler reads every YAML file of the repository as a manifest, so a YAML file
+        // beside this one is only the kind's own native file; anything else would land a second
+        // manifest no review names (F-POR2-004).
+        let yaml = relative.ends_with(".yaml") || relative.ends_with(".yml");
+        if yaml && !crate::api::import::owns_native(&full, manifest_path, name) {
+            return Err(ApiError::BadRequest(format!(
+                "files: '{path}' is a YAML file, and the only YAML file beside a manifest is its own native file named after it (for example ./{name}.linkml.yaml); propose another manifest on its own"
+            )));
+        }
         if written.iter().any(|(already, _)| already == &full) {
             return Err(ApiError::BadRequest(format!(
                 "file path '{path}' is sent twice"
@@ -2683,11 +2700,20 @@ pub async fn patch(
         ),
         None => state.mirror.clone(),
     };
-    let current = mirror.get(&project, kind_info.kind, &name).ok_or_else(|| {
-        ApiError::NotFound(format!(
-            "resource '{name}' not found in project '{project}'"
-        ))
-    })?;
+    // A manifest the caller may not read is answered as absent, so a patch tells nobody what
+    // exists (F-POR2-006).
+    let effective = crate::permissions::for_request(&state, &user.0.identity, &project);
+    let current = mirror
+        .get(&project, kind_info.kind, &name)
+        .filter(|current| {
+            serde_json::to_value(current)
+                .is_ok_and(|value| effective.may_read_manifest(kind_info.kind, &value))
+        })
+        .ok_or_else(|| {
+            ApiError::NotFound(format!(
+                "resource '{name}' not found in project '{project}'"
+            ))
+        })?;
 
     let mut curr_to_patch = current;
     curr_to_patch.strip_status();
@@ -2777,6 +2803,38 @@ fn keep_languages(sent: &mut Option<jc_core::i18n::Text>, stored: Option<&jc_cor
 mod tests {
     use super::*;
     use crate::auth::session::{Identity, Session};
+
+    /// F-POR2-004: a YAML file beside a manifest is only the kind's own native file; a second
+    /// manifest smuggled in as a sidecar is refused, a JSON test fixture in a subfolder is not.
+    #[test]
+    fn a_yaml_sidecar_is_only_the_kinds_own_native_file() {
+        let at = "projects/p/spaces/s/datamodels/air.yaml";
+        let refused = sidecars(
+            Some(serde_json::json!({ "other.yaml": "kind: Policy\n" })),
+            at,
+            "air",
+        );
+        assert!(
+            matches!(refused, Err(ApiError::BadRequest(ref m)) if m.starts_with("files:")),
+            "{refused:?}"
+        );
+        assert!(sidecars(
+            Some(serde_json::json!({ "./deep/x.yml": "a: 1\n" })),
+            at,
+            "air"
+        )
+        .is_err());
+        let kept = sidecars(
+            Some(serde_json::json!({
+                "./air.linkml.yaml": "id: x\n",
+                "./tests/air.input.json": "{}",
+            })),
+            at,
+            "air",
+        )
+        .expect("the model's own files");
+        assert_eq!(kept.len(), 2);
+    }
 
     /// PF-121: an Organization loaded from the legacy `org.yaml` is written back there; any other
     /// Organization at `organizations/{name}.yaml`, so the repository never holds one twice.
