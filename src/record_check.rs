@@ -179,8 +179,11 @@ impl Finding {
 struct Target {
     endpoint: String,
     space: Option<String>,
-    /// The pipeline's project when the Endpoint serves another Context Space than the
-    /// pipeline's own, so a missing grant there is one an access request can ask for (PL-90).
+    /// The pipeline's project when the Endpoint names a Context Space the request door counts as
+    /// another one (`space != permissions::space_ref(pipeline)`), so a missing grant there is one
+    /// an access request can ask for (PL-90). A Pipeline manifest carries no contextSpaceRef, so
+    /// space_ref is None today and every held output Endpoint is requestable, the pipeline's own
+    /// space included; that matches the door's rule.
     requestable: Option<String>,
     /// `None` when this Portal writes no views (no broker configured); `Some(None)` when it does
     /// but has not read the Endpoint yet.

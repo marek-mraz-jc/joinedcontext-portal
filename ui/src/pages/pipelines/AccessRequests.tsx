@@ -85,7 +85,7 @@ export function useRequestable(project: string, name: string | undefined, enable
 }
 
 /** The request form's frame: a `<form>`, or inside another form a `role="form"` region sent by its button. */
-function Shell({ nested, onSubmit, labelledBy, children }: { nested: boolean; onSubmit: (event: FormEvent) => void; labelledBy: string; children: ReactNode }): JSX.Element {
+function Shell({ nested, onSubmit, labelledBy, children }: { nested?: boolean; onSubmit: (event: FormEvent) => void; labelledBy: string; children: ReactNode }): JSX.Element {
   const className = "flex flex-col gap-3 rounded-md border border-border p-3";
   return nested ? (
     <div role="form" aria-labelledby={labelledBy} className={className}>
@@ -95,6 +95,32 @@ function Shell({ nested, onSubmit, labelledBy, children }: { nested: boolean; on
     <form onSubmit={onSubmit} noValidate aria-labelledby={labelledBy} className={className}>
       {children}
     </form>
+  );
+}
+
+/** The form's first state: closed and empty, or open with what the editor already knows. */
+function initialRequest(prefill: AccessPrefill | undefined) {
+  return {
+    open: prefill !== undefined,
+    endpoint: prefill?.endpoint ?? "",
+    operations: prefill?.operations ?? ("read" as const),
+    type: prefill?.type ?? "",
+    lead: prefill ? "pipelines.access.prefilled" : "pipelines.access.lead",
+  };
+}
+
+/** Send and Cancel; nested, Send is a plain button so it never submits the editor's form. */
+function FormActions({ nested, pending, onSend, onCancel }: { nested?: boolean; pending: boolean; onSend: () => void; onCancel: () => void }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button type={nested ? "button" : "submit"} disabled={pending} disabledReason={t("app.busyReason")} onClick={nested ? onSend : undefined}>
+        {t("pipelines.access.send")}
+      </Button>
+      <Button type="button" variant="secondary" onClick={onCancel}>
+        {t("pipelines.access.cancel")}
+      </Button>
+    </div>
   );
 }
 
@@ -164,7 +190,7 @@ export function PipelineAccessRequests({
   project,
   name,
   prefill,
-  nested = false,
+  nested,
 }: {
   project: string;
   name: string;
@@ -175,10 +201,11 @@ export function PipelineAccessRequests({
   const { t } = useTranslation();
   const ids = useId();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(prefill !== undefined);
-  const [chosen, setChosen] = useState(prefill?.endpoint ?? "");
-  const [operations, setOperations] = useState<"read" | "write">(prefill?.operations ?? "read");
-  const [rows, setRows] = useState<{ type: string; attrs: string[] }[]>([{ type: prefill?.type ?? "", attrs: [] }]);
+  const [initial] = useState(() => initialRequest(prefill));
+  const [open, setOpen] = useState(initial.open);
+  const [chosen, setChosen] = useState(initial.endpoint);
+  const [operations, setOperations] = useState<"read" | "write">(initial.operations);
+  const [rows, setRows] = useState<{ type: string; attrs: string[] }[]>([{ type: initial.type, attrs: [] }]);
   const [until, setUntil] = useState("");
   const [reason, setReason] = useState("");
   const [missing, setMissing] = useState<string | null>(null);
@@ -262,7 +289,7 @@ export function PipelineAccessRequests({
           <h3 id={`${ids}-title`} className="text-body font-semibold text-fg">
             {t("pipelines.access.request")}
           </h3>
-          <p className="text-caption text-fg-muted">{t(prefill ? "pipelines.access.prefilled" : "pipelines.access.lead")}</p>
+          <p className="text-caption text-fg-muted">{t(initial.lead)}</p>
           <Field
             id={`${ids}-endpoint`}
             label={t("pipelines.access.endpoint")}
@@ -409,19 +436,7 @@ export function PipelineAccessRequests({
               {problem(file.error, t("app.error.generic"))}
             </Alert>
           ) : null}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type={nested ? "button" : "submit"}
-              disabled={file.isPending}
-              disabledReason={t("app.busyReason")}
-              onClick={nested ? () => submit() : undefined}
-            >
-              {t("pipelines.access.send")}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              {t("pipelines.access.cancel")}
-            </Button>
-          </div>
+          <FormActions nested={nested} pending={file.isPending} onSend={() => submit()} onCancel={() => setOpen(false)} />
         </Shell>
       ) : (
         <div>
