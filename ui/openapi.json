@@ -2568,6 +2568,107 @@
         }
       }
     },
+    "/api/v1/organization/people/remove": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Remove People",
+        "description": "Removes up to 200 people at once, a department leaving: proposes ONE Change taking all of them out of every Group and RoleBinding and disables each of them; their Keycloak users are deleted once it is merged. When nothing names any of them they are deleted at once. The same rules as Delete Person hold for each one: `delete` on Person and every right the person holds, never the caller nor the last Organization Administrator (T-5606).",
+        "operationId": "remove_people",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemovePeople"
+              },
+              "example": {
+                "ids": [
+                  "7d1f0c9e-4b8a-4f63-9a51-2c0d8e3b6f14",
+                  "0b6f0e4c-1d2e-4f00-9a7b-3c4d5e6f7a8b"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The one Change the removals wait for",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Deleted: no manifest named any of them"
+          },
+          "400": {
+            "description": "The body is not a list of ids",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks delete on Person, or a right one of the people holds (named)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such person (named)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The caller, the last Organization Administrator, a removal already pending, or a reference in a project's own repository",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No id, or more than 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client, forge or database",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/people/{id}": {
       "get": {
         "tags": [
@@ -31505,6 +31606,22 @@
           "payload": {},
           "runId": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RemovePeople": {
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The Keycloak user ids of the people to remove, 1 to 200."
           }
         },
         "additionalProperties": false

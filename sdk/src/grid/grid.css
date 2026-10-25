@@ -800,6 +800,12 @@
 }
 
 /* A scrolling grid (T-3097): the box scrolls, its header stays in sight. */
+/* The last answer's rows while the next question is read (T-5623). */
+.jc-grid-table[aria-busy="true"] tbody {
+  opacity: 0.5;
+  transition: opacity 150ms;
+}
+
 .jc-grid--virtual .jc-grid-scroll {
   max-height: 70vh;
 }
@@ -1242,6 +1248,10 @@ a.jc-cell--link:focus-visible {
 }
 .jc-grid-filter-toggle { display: none; }
 .jc-grid-scroll-hint { margin: 0; padding: var(--jc-space-1, 4px) var(--jc-space-2, 8px); font-size: 0.8125rem; opacity: 0.75; }
+/* The order is of the loaded rows only: a view that also reads other brokers is never ordered whole (T-5618). */
+.jc-grid-sort-note { margin: 0; padding: var(--jc-space-1, 4px) var(--jc-space-2, 8px); font-size: 0.8125rem; }
+.jc-grid-error-detail { margin-top: var(--jc-space-2, 8px); font-size: 0.8125rem; color: var(--jc-color-muted, #666); }
+.jc-grid-error-detail summary { cursor: pointer; min-height: 2.75rem; display: inline-flex; align-items: center; }
 
 @media (width <= 640px) {
   .jc-grid-pager { flex-wrap: wrap; column-gap: var(--jc-space-1, 4px); }
@@ -1389,9 +1399,19 @@ a.jc-cell--link:focus-visible {
   cursor: pointer;
   opacity: 0;
 }
+/* The glyph is drawn, not text: a cell's text and a copied cell stay the value alone. */
+.jc-grid-info::before { content: "i"; }
 .jc-grid-td:hover .jc-grid-info,
 .jc-grid-td[data-active] .jc-grid-info,
 .jc-grid-info:focus-visible { opacity: 1; }
 @media (hover: none) {
   .jc-grid-info { opacity: 1; }
 }
+
+/* The way back from "Hide field" (T-5620): a count above the rows, and the hidden fields under it. */
+.jc-grid-hidden { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--jc-space-2, 8px); padding: var(--jc-space-2, 8px); }
+.jc-grid .jc-grid-hidden-toggle { display: inline-flex; align-items: center; }
+.jc-grid-hidden-list { display: flex; flex-wrap: wrap; gap: var(--jc-space-2, 8px); margin: 0; padding: 0; list-style: none; }
+.jc-grid-hidden-list li { display: inline-flex; align-items: center; gap: var(--jc-space-2, 8px); padding-inline-start: var(--jc-space-3, 12px); border: 1px solid var(--jc-color-line, #e0e0e0); border-radius: var(--jc-radius-sm, 4px); }
+.jc-grid-hidden-list li:has(> button:only-child) { padding: 0; border: 0; }
+.jc-grid-hidden-list button { min-height: 2.75rem; padding: var(--jc-space-1, 4px) var(--jc-space-3, 12px); border: 0; border-radius: var(--jc-radius-sm, 4px); background: transparent; color: var(--jc-color-accent, #0066cc); font: inherit; text-decoration: underline; cursor: pointer; }

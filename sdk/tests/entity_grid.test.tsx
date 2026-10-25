@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { EntityGrid } from "../src/grid/EntityGrid";
 import { parseGridConfig } from "../src/grid/config";
-import { fixtureSource } from "../src/grid/source";
-import { DEFAULT_LABELS, useEntityGrid } from "../src/grid/useEntityGrid";
+import { endpointSource, fixtureSource } from "../src/grid/source";
+import { DEFAULT_LABELS, VIRTUAL_PAGE_SIZE, useEntityGrid } from "../src/grid/useEntityGrid";
 import { formatDate } from "../src/grid/cells";
 
 const bikeEntities: Record<string, unknown>[] = [
@@ -370,9 +370,54 @@ describe("EntityGrid", () => {
 
   // T-3097: a scrolling grid draws the rows in sight and loads the next page as the person nears
   // the end; the footer counts what is loaded of the whole set, and the rows keep their places.
-  it("scrolls through more rows than a page, drawing only a window and loading as it goes", async () => {
-    const many = Array.from({ length: 120 }, (_, i) => ({
-      id: `urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:${String(i).padStart(3, "0")}`,
+  // T-5623: the next page is asked for once the window passes 60 % of the loaded rows, and it is
+  // VIRTUAL_PAGE_SIZE rows, so the first page stays small and the scroll needs few reads.
+  it("scrolls through more rows than a page, asking for the next page before the end", async () => {
+    const many = Array.from({ length: 1000 }, (_, i) => ({
+      id: `urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:${String(i).padStart(4, "0")}`,
+      type: "BikeHireDockingStation",
+      name: { type: "Property", value: `Station ${i}` },
+    }));
+    const scrolling = parseGridConfig({
+      source: { kind: "fixture", name: "many" },
+      type: "BikeHireDockingStation",
+      columns: [{ attr: "name", label: "Name" }],
+      pageSize: 50,
+    }).config!;
+    const fixture = fixtureSource(many);
+    const asked: { offset: number; limit: number }[] = [];
+    const logged = { ...fixture, query: (q: Parameters<typeof fixture.query>[0], page: Parameters<typeof fixture.query>[1]) => {
+      asked.push(page);
+      return fixture.query(q, page);
+    } };
+    const { container } = render(<EntityGrid config={scrolling} source={logged} virtual />);
+    await screen.findByText("Station 0");
+    // The first page is the config's size; the window of the first rows is past 60 % of 50, so
+    // the next, larger page is asked for at once, with no scroll.
+    await screen.findByText("250 of 1000 loaded");
+    expect(asked).toEqual([{ offset: 0, limit: 50 }, { offset: 50, limit: VIRTUAL_PAGE_SIZE }]);
+    expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
+    const drawn = () => container.querySelectorAll("tbody tr:not(.jc-grid-spacer)");
+    expect(drawn().length).toBeLessThanOrEqual(50);
+
+    // Row 140 of 250 loaded: the window (30 rows in sight, 10 more on each side) ends at row 170,
+    // past 60 % (150) and well before the end, and that asks for the rows after 250.
+    const box = container.querySelector<HTMLDivElement>(".jc-grid-scroll")!;
+    box.scrollTop = 140 * 36;
+    fireEvent.scroll(box);
+    await screen.findByText("450 of 1000 loaded");
+    expect(asked[2]).toEqual({ offset: 250, limit: VIRTUAL_PAGE_SIZE });
+    // The window moved: the first drawn row is 130 rows in, and says so to a screen reader.
+    expect(screen.queryByText("Station 0")).toBeNull();
+    expect(drawn()[0]).toHaveAttribute("aria-rowindex", "132");
+    expect(drawn().length).toBeLessThan(100);
+  });
+
+  // T-5623: the critic walk clicked a cell, then scrolled; every scroll was pulled back to the
+  // active cell, so 60 scrolls reached 400 rows. A scroll away from the cell stays where it went.
+  it("leaves the scroll where the person put it after a cell was made active", async () => {
+    const many = Array.from({ length: 300 }, (_, i) => ({
+      id: `urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:${String(i).padStart(4, "0")}`,
       type: "BikeHireDockingStation",
       name: { type: "Property", value: `Station ${i}` },
     }));
@@ -383,20 +428,102 @@ describe("EntityGrid", () => {
       pageSize: 50,
     }).config!;
     const { container } = render(<EntityGrid config={scrolling} source={fixtureSource(many)} virtual />);
-    await screen.findByText("Station 0");
-    expect(screen.getByText("50 of 120 loaded")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
-    const drawn = () => container.querySelectorAll("tbody tr:not(.jc-grid-spacer)");
-    expect(drawn().length).toBeLessThanOrEqual(50);
-
+    await screen.findByText("250 of 300 loaded");
+    const grid = screen.getByRole("grid");
+    fireEvent.keyDown(grid, { key: "ArrowDown" });
+    fireEvent.keyDown(grid, { key: "ArrowDown" });
+    await waitFor(() => expect(grid.getAttribute("aria-activedescendant")).toBeTruthy());
     const box = container.querySelector<HTMLDivElement>(".jc-grid-scroll")!;
-    box.scrollTop = 30 * 36;
+    box.scrollTop = 100 * 36;
     fireEvent.scroll(box);
-    await screen.findByText("100 of 120 loaded");
-    // The window moved: the first drawn row is twenty rows in, and says so to a screen reader.
-    expect(screen.queryByText("Station 0")).toBeNull();
-    expect(drawn()[0]).toHaveAttribute("aria-rowindex", "22");
-    expect(drawn().length).toBeLessThan(100);
+    await screen.findByText("Station 100");
+    expect(box.scrollTop).toBe(100 * 36);
+    expect(screen.queryByText("Station 1")).toBeNull();
+  });
+
+  // T-5623: on dev a name filter that matched nothing never showed the empty state: the columns
+  // came from the empty answer, the name filter lost its column, the grid asked again without it,
+  // got rows back, asked with it again, and so on every half second.
+  it("shows the empty state for a filter that matches nothing, and asks once", async () => {
+    const columnless = parseGridConfig({
+      source: { kind: "fixture", name: "few" },
+      type: "BikeHireDockingStation",
+      pageSize: 50,
+    }).config!;
+    const fixture = fixtureSource(bikeEntities);
+    const asked: (string | undefined)[] = [];
+    const nothingMatches = { ...fixture, query: (q: Parameters<typeof fixture.query>[0], page: Parameters<typeof fixture.query>[1]) => {
+      asked.push(q.q);
+      return q.q ? Promise.resolve({ rows: [], total: 0 }) : fixture.query(q, page);
+    } };
+    render(<EntityGrid config={columnless} source={nothingMatches} virtual />);
+    await screen.findByText("Kamppi");
+    fireEvent.change(screen.getByLabelText("Filter: name"), { target: { value: "contains" } });
+    fireEvent.change(screen.getByLabelText("Value: name"), { target: { value: "zz-no-such-station" } });
+    await screen.findByText(DEFAULT_LABELS.empty);
+    await new Promise((settle) => setTimeout(settle, 50));
+    expect(asked).toEqual([undefined, 'name[*]~="zz-no-such-station"']);
+    // The filter stays where the person can see and clear it.
+    expect(screen.getByLabelText("Value: name")).toHaveValue("zz-no-such-station");
+  });
+
+  // T-5623: a next page still on its way when the question changes is dropped, and the new
+  // question loads its own next pages.
+  it("loads more for a new question while a next page of the old one was on its way", async () => {
+    const many = Array.from({ length: 600 }, (_, i) => ({
+      id: `urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:${String(i).padStart(4, "0")}`,
+      type: "BikeHireDockingStation",
+      name: { type: "Property", value: `Station ${i}` },
+    }));
+    const scrolling = parseGridConfig({
+      source: { kind: "fixture", name: "many" },
+      type: "BikeHireDockingStation",
+      columns: [{ attr: "name", label: "Name" }],
+      pageSize: 50,
+    }).config!;
+    const fixture = fixtureSource(many);
+    const asked: { q?: string; offset: number }[] = [];
+    // The first question's next page never answers: it is the one in flight when the question moves.
+    const stalled = { ...fixture, query: (q: Parameters<typeof fixture.query>[0], page: Parameters<typeof fixture.query>[1]) => {
+      asked.push({ q: q.q, offset: page.offset });
+      return !q.q && page.offset > 0 ? new Promise<never>(() => undefined) : fixture.query(q, page);
+    } };
+    const { rerender } = render(<EntityGrid config={scrolling} source={stalled} virtual />);
+    await screen.findByText("Station 0");
+    await waitFor(() => expect(asked).toContainEqual({ q: undefined, offset: 50 }));
+    rerender(<EntityGrid config={scrolling} source={stalled} virtual query={{ q: "name~=\"Station\"" }} />);
+    await screen.findByText("250 of 600 loaded");
+    expect(asked).toContainEqual({ q: 'name~="Station"', offset: 50 });
+  });
+
+  // T-5623: a person who changed the question sees the last answer dimmed and the words for it,
+  // rather than the old rows as if they answered the new question.
+  it("dims the last rows and says Filtering… while a narrowed question is read", async () => {
+    const scrolling = parseGridConfig({
+      source: { kind: "fixture", name: "few" },
+      type: "BikeHireDockingStation",
+      columns: [{ attr: "name", label: "Name" }],
+      pageSize: 50,
+    }).config!;
+    const fixture = fixtureSource(bikeEntities);
+    let hold = false;
+    let release: () => void = () => undefined;
+    const slow = { ...fixture, query: (q: Parameters<typeof fixture.query>[0], page: Parameters<typeof fixture.query>[1]) =>
+      hold ? new Promise<Awaited<ReturnType<typeof fixture.query>>>((done) => { release = () => done({ rows: [], total: 0 }); }) : fixture.query(q, page) };
+    const { rerender } = render(<EntityGrid config={scrolling} source={slow} virtual />);
+    await screen.findByText("Kamppi");
+    expect(screen.getByRole("grid")).not.toHaveAttribute("aria-busy");
+
+    hold = true;
+    rerender(<EntityGrid config={scrolling} source={slow} virtual query={{ q: 'name=="nobody"' }} />);
+    expect(await screen.findByText(DEFAULT_LABELS.filtering)).toHaveAttribute("role", "status");
+    expect(screen.getByRole("grid")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByText("Kamppi")).toBeInTheDocument();
+
+    release();
+    await screen.findByText(DEFAULT_LABELS.empty);
+    expect(screen.queryByText(DEFAULT_LABELS.filtering)).toBeNull();
+    expect(screen.getByRole("grid")).not.toHaveAttribute("aria-busy");
   });
 
   it("has role grid with aria-rowcount and headers with aria-colindex", async () => {
@@ -846,6 +973,68 @@ describe("EntityGrid", () => {
       await waitFor(() => expect(asked.at(-1)).toEqual({ orderBy: "availableBikeNumber;desc", offset: 0 }));
       // The source's highest comes first: the one row of the page is the most bikes.
       await waitFor(() => expect(screen.getAllByRole("gridcell").map((c) => c.textContent)).toContain("5"));
+    });
+
+    // A view that also reads other brokers refuses `orderBy` (CIM 009 5.7.2.4, 4.23.1): the grid asks
+    // once more without it, sorts the loaded rows and says so, and never sends the refused order
+    // again for that source (T-5618).
+    const refusesOrder = () => {
+      const paths: string[] = [];
+      const transport = async (req: { path: string }) => {
+        paths.push(req.path);
+        if (req.path.includes("orderBy=")) {
+          return {
+            status: 400,
+            headers: {},
+            body: {
+              type: "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+              title: "BadRequestData",
+              detail: "orderBy requires local scope — ordering is never applied to distributed operations (5.7.2.4, 4.23.1)",
+            },
+          };
+        }
+        return { status: 200, headers: {}, body: bikeEntities };
+      };
+      return { paths, source: endpointSource("t5618-federating-view", transport as never) };
+    };
+    const names = () => screen.getAllByRole("gridcell").map((c) => c.textContent).filter((t) => t === "Kamppi" || t === "Kallio");
+
+    it("sorts the loaded rows when the source refuses the order, and asks for it only once", async () => {
+      const { paths, source } = refusesOrder();
+      const { unmount } = render(<EntityGrid config={config} source={source} />);
+      await waitFor(() => expect(names()).toEqual(["Kamppi", "Kallio"]));
+
+      fireEvent.click(screen.getByRole("button", { name: `${DEFAULT_LABELS.sortAll} Bikes` }));
+      await waitFor(() => expect(names()).toEqual(["Kallio", "Kamppi"]));
+      expect(screen.getByText(DEFAULT_LABELS.sortedLoaded.replace("{count}", "2"))).toHaveAttribute("role", "status");
+      expect(screen.queryByText(/local scope/)).toBeNull();
+      // The header no longer promises every row.
+      const header = screen.getByRole("button", { name: `${DEFAULT_LABELS.sortPage} Bikes` });
+      expect(paths.filter((path) => path.includes("orderBy=")).length).toBe(1);
+
+      fireEvent.click(header);
+      await waitFor(() => expect(names()).toEqual(["Kamppi", "Kallio"]));
+      expect(paths.filter((path) => path.includes("orderBy=")).length).toBe(1);
+
+      // The remembered sort reopens with rows, not the refusal.
+      unmount();
+      render(<EntityGrid config={config} source={source} state={{ sort: { attr: "availableBikeNumber", dir: "asc" } }} />);
+      await waitFor(() => expect(names()).toEqual(["Kallio", "Kamppi"]));
+      expect(paths.filter((path) => path.includes("orderBy=")).length).toBe(1);
+      expect(screen.queryByText(new RegExp(DEFAULT_LABELS.error))).toBeNull();
+    });
+
+    it("words any other refused query plainly and keeps the broker's sentence under a disclosure", async () => {
+      const transport = async () => ({
+        status: 400,
+        headers: {},
+        body: { type: "https://uri.etsi.org/ngsi-ld/errors/InvalidRequest", title: "InvalidRequest", detail: "q: unexpected token at 7 (4.9)" },
+      });
+      render(<EntityGrid config={config} source={endpointSource("t5618-bad-query", transport as never)} />);
+      expect(await screen.findByText(`${DEFAULT_LABELS.error}: ${DEFAULT_LABELS.queryRefused}: InvalidRequest`, { exact: false })).toBeInTheDocument();
+      const disclosure = screen.getByText(DEFAULT_LABELS.errorDetail);
+      expect(disclosure.tagName).toBe("SUMMARY");
+      expect(disclosure.closest("details")).toHaveTextContent("q: unexpected token at 7 (4.9)");
     });
   });
 

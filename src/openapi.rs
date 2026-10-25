@@ -160,6 +160,7 @@ use crate::tools::model_tools::{
         crate::api::people::sign_out_person,
         crate::api::people::revoke_consent,
         crate::api::people::delete_person,
+        crate::api::people::remove_people,
         crate::api::validation::get_health,
         crate::api::health_checks::list_project,
         crate::api::health_checks::list_all,

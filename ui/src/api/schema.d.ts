@@ -880,6 +880,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/people/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove People
+         * @description Removes up to 200 people at once, a department leaving: proposes ONE Change taking all of them out of every Group and RoleBinding and disables each of them; their Keycloak users are deleted once it is merged. When nothing names any of them they are deleted at once. The same rules as Delete Person hold for each one: `delete` on Person and every right the person holds, never the caller nor the last Organization Administrator (T-5606).
+         */
+        post: operations["remove_people"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/people/{id}": {
         parameters: {
             query?: never;
@@ -8268,6 +8288,10 @@ export interface components {
             payload: unknown;
             runId: string;
         };
+        RemovePeople: {
+            /** @description The Keycloak user ids of the people to remove, 1 to 200. */
+            ids: string[];
+        };
         /** @description Another ref to run, or another set of values (PF-86, CC-88). */
         Repoint: {
             /** @description The whole set of values; an empty object returns every parameter to its default. */
@@ -11229,6 +11253,99 @@ export interface operations {
                 };
             };
             /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    remove_people: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "ids": [
+                 *         "7d1f0c9e-4b8a-4f63-9a51-2c0d8e3b6f14",
+                 *         "0b6f0e4c-1d2e-4f00-9a7b-3c4d5e6f7a8b"
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["RemovePeople"];
+            };
+        };
+        responses: {
+            /** @description The one Change the removals wait for */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
+            };
+            /** @description Deleted: no manifest named any of them */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The body is not a list of ids */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller lacks delete on Person, or a right one of the people holds (named) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person (named) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller, the last Organization Administrator, a removal already pending, or a reference in a project's own repository */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No id, or more than 200 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client, forge or database */
             503: {
                 headers: {
                     [name: string]: unknown;

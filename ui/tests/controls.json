@@ -1292,9 +1292,10 @@
     },
     "src/pages/explore/ExplorePage.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
+        "explore_controls.test.tsx",
         "explore_enum_pick.test.tsx",
         "explore_new_user.test.tsx",
         "explore_page.test.tsx",
@@ -1676,7 +1677,8 @@
     },
     "src/pages/organization/People.tsx": {
       "controls": {
-        "Button": 14,
+        "Button": 17,
+        "Checkbox": 2,
         "RadioGroup": 1
       },
       "tests": [

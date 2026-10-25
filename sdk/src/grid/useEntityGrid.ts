@@ -3,6 +3,7 @@ import type { ResolvedGridConfig, GridColumn } from "./config";
 import type { GeoArea } from "./geoarea";
 import { areaQuery } from "./geoarea";
 import type { EntitySource, GridQuery } from "./source";
+import { SourceError } from "./source";
 import type { RichRow, RichCell } from "./model";
 import { attributesOf, cellText } from "./model";
 import { unitSymbol } from "../sdk/units";
@@ -38,6 +39,8 @@ export interface GridLabels {
   datasetId: string;
   empty: string;
   loading: string;
+  /** Said over the dimmed rows while a narrowed question is read again (T-5623). */
+  filtering: string;
   previous: string;
   next: string;
   page: string;
@@ -74,6 +77,15 @@ export interface GridLabels {
   sortPage: string;
   /** Said on a sortable header whose source orders the whole answer. */
   sortAll: string;
+  /**
+   * Under the table when the source refused to order the whole answer (a view that also reads
+   * other brokers, CIM 009 4.23.1): `{count}` is the number of loaded rows the order is of (T-5618).
+   */
+  sortedLoaded: string;
+  /** Before the problem's title when the broker refused the grid's query (a 400). */
+  queryRefused: string;
+  /** The disclosure holding the broker's own sentence about a refused query. */
+  errorDetail: string;
   /** What the footer calls the endpoint's own count of matching entities. */
   matching: string;
   /** Beside the loaded rows when the endpoint's answer carries no total (R22, T-4885). */
@@ -160,6 +172,10 @@ export interface GridLabels {
   sortDesc: string;
   filterColumn: string;
   hideColumn: string;
+  /** The control that lists the fields hidden from the header menu (T-5620), with its count after it. */
+  hiddenFields: string;
+  showColumn: string;
+  showAllColumns: string;
   renameColumn: string;
   renameReset: string;
   columnWidth: string;
@@ -206,6 +222,7 @@ export const DEFAULT_LABELS: GridLabels = {
   datasetId: "Dataset",
   empty: "No rows.",
   loading: "Loading…",
+  filtering: "Filtering…",
   previous: "Previous",
   next: "Next",
   page: "Page",
@@ -245,6 +262,9 @@ export const DEFAULT_LABELS: GridLabels = {
   scrollHint: "More columns to the right: scroll the table sideways.",
   sortPage: "Sort this page by",
   sortAll: "Sort all rows by",
+  sortedLoaded: "Sorted within the {count} loaded rows: this view also reads other brokers, which do not sort.",
+  queryRefused: "The broker refused this query",
+  errorDetail: "What the broker said",
   matching: "matching",
   noTotal: "the endpoint gives no total for this answer",
   history: "History",
@@ -303,6 +323,9 @@ export const DEFAULT_LABELS: GridLabels = {
   sortDesc: "Sort descending",
   filterColumn: "Filter",
   hideColumn: "Hide field",
+  hiddenFields: "Hidden fields",
+  showColumn: "Show field",
+  showAllColumns: "Show all",
   renameColumn: "Label in this view",
   renameReset: "Use the model's label",
   columnWidth: "Width",
@@ -415,6 +438,13 @@ export function orderKeys(groupBy: readonly string[], sort: SortKey | null, then
 /** Rows one scrolling grid holds at most; past it the grid says to narrow the filter. */
 export const MAX_VIRTUAL_ROWS = 50_000;
 
+/**
+ * Rows a scrolling grid asks for after its first page (T-5623): the first page stays the config's
+ * size, so the first row shows soon, and the next ones are larger, so a scroll through 2 000 rows
+ * takes ten reads rather than forty.
+ */
+export const VIRTUAL_PAGE_SIZE = 200;
+
 export interface EntityGrid {
   /** In scrolling mode: whether the source holds more rows than are loaded, and asking for them. */
   more: boolean;
@@ -427,6 +457,10 @@ export interface EntityGrid {
   total?: number;
   loading: boolean;
   error: string | null;
+  /** The broker's own sentence about the refusal in `error`, for a disclosure under it. */
+  errorDetail: string | null;
+  /** A sort is asked for that the source refused to apply to the whole answer: the page is sorted. */
+  sortedLoadedOnly: boolean;
   state: GridState;
   labels: GridLabels;
   cellOf(row: RichRow, column: VisibleColumn): { text: string; cell?: RichCell | RichCell[] };
@@ -654,6 +688,13 @@ function holdsLanguage(rows: RichRow[], attr: string): boolean {
   });
 }
 
+/**
+ * Sources that refused `orderBy` (a view that also reads other brokers, CIM 009 4.23.1): asked
+ * once, then their pages are sorted in the browser, so a sort never sends a refused read twice and
+ * a remembered sort reopens with rows instead of the refusal (T-5618).
+ */
+const refusesOrder = new WeakSet<EntitySource>();
+
 export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   const { config, source, labels: labelsPartial, state: controlledState, onStateChange, query: queryPartial, enums, relations, virtual = false, hidden, layout } = options;
   // By content, as `hidden`: a host building new arrays each render does not ask again.
@@ -707,12 +748,24 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
+  // Bumped when the source refuses an order, so the question is asked again without it.
+  const [, setOrderRefusals] = useState(0);
   const cancelledRef = useRef(false);
   const nonceRef = useRef(0);
 
+  // The rows the columns and the filters' kinds are read off: the last answer that held any, for
+  // this type. An empty answer named no attribute, so a filter that matched nothing lost its column,
+  // the grid asked again without it, got rows, found the column and asked with it, and on, every
+  // half second, never showing the empty state (T-5623).
+  const shapeRef = useRef<{ type: string; rows: RichRow[] }>({ type: config.type, rows: [] });
+  const shapeRows = useMemo(() => {
+    if (rows.length > 0 || shapeRef.current.type !== config.type) shapeRef.current = { type: config.type, rows };
+    return shapeRef.current.rows;
+  }, [rows, config.type]);
   const columns = useMemo(
-    () => buildColumns(config, rows, shown, labels, relations, hiddenKey === "" ? [] : hiddenKey.split("\u0000"), layout),
-    [config, rows, shown, labels, relations, hiddenKey, layout],
+    () => buildColumns(config, shapeRows, shown, labels, relations, hiddenKey === "" ? [] : hiddenKey.split("\u0000"), layout),
+    [config, shapeRows, shown, labels, relations, hiddenKey, layout],
   );
   // A source that orders the whole answer is asked to (`orderBy`, CIM 009 4.23), so the first page
   // holds the first rows of the set; elsewhere the order is of the loaded page only (UI-66).
@@ -721,7 +774,10 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     () => orderKeys(JSON.parse(groupByKey) as string[], sort, JSON.parse(thenByKey) as SortKey[]),
     [groupByKey, sort, thenByKey],
   );
-  const serverOrder = source.orders === true && keys.length > 0 && !keys.some((key) => key.attr.startsWith("entity:"))
+  const ordersAll = source.orders === true && !refusesOrder.has(source);
+  const sortedLoadedOnly =
+    source.orders === true && !ordersAll && keys.length > 0 && !keys.some((key) => key.attr.startsWith("entity:"));
+  const serverOrder = ordersAll && keys.length > 0 && !keys.some((key) => key.attr.startsWith("entity:"))
     ? keys.map((key) => (key.dir === "desc" ? `${key.attr};desc` : key.attr)).join(",")
     : undefined;
   const sortedRows = useMemo(() => {
@@ -745,27 +801,21 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
 
   // A search or filter that matches nothing leaves no row to read a column's kind from: the kinds
   // stay those of the last page that had rows, so a number never turns into text (T-5600).
-  const typedRows = useRef<RichRow[]>([]);
-  useEffect(() => {
-    if (rows.length > 0) typedRows.current = rows;
-  }, [rows]);
   const filterColumns = useMemo(
-    (): FilterColumn[] => {
-      const sample = rows.length > 0 ? rows : typedRows.current;
-      return columns
+    (): FilterColumn[] =>
+      columns
         .map((column) => ({
           key: column.key,
           attr: column.attr,
           meta: column.meta,
-          kind: filterKindOf(column, config, sample, enums),
+          kind: filterKindOf(column, config, shapeRows, enums),
           options: column.attr !== null && column.meta === null ? enums?.[column.attr] : undefined,
-          unit: column.attr !== null && column.meta === null ? unitSymbol(unitOfColumn(sample, column.attr)) : undefined,
-          ...(column.attr !== null && column.meta === null && holdsLanguage(sample, column.attr) ? { language: true } : {}),
+          unit: column.attr !== null && column.meta === null ? unitSymbol(unitOfColumn(shapeRows, column.attr)) : undefined,
+          ...(column.attr !== null && column.meta === null && holdsLanguage(shapeRows, column.attr) ? { language: true } : {}),
         }))
         // A computed end is not stored, so no `q` can ask about it.
-        .filter((column) => opsForKind(column.kind).length > 0 && !(column.attr !== null && relations?.[column.attr]?.inverseOf));
-    },
-    [columns, config, rows, enums, relations],
+        .filter((column) => opsForKind(column.kind).length > 0 && !(column.attr !== null && relations?.[column.attr]?.inverseOf)),
+    [columns, config, shapeRows, enums, relations],
   );
 
   // What the endpoint is asked for: the typed query when the person took it over, else the row's.
@@ -830,7 +880,11 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     const nonce = ++nonceRef.current;
     cancelledRef.current = false;
     setLoading(true);
+    // A next page of the last question still on its way is dropped when it lands, and leaves its
+    // flag behind unless it is cleared here: the new question could then never load more (T-5623).
+    setLoadingMore(false);
     setError(null);
+    setErrorDetail(null);
 
     const gridQuery = JSON.parse(gridQueryKey) as GridQuery;
 
@@ -846,10 +900,22 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
       })
       .catch((err) => {
         if (cancelledRef.current || nonceRef.current !== nonce) return;
-        setError(err instanceof Error ? err.message : String(err));
+        if (err instanceof SourceError && err.orderRefused && gridQuery.orderBy) {
+          // The same question without the order: the rows come back and the page is sorted here.
+          refusesOrder.add(source);
+          setOrderRefusals((n) => n + 1);
+          return;
+        }
+        if (err instanceof SourceError && err.status === 400 && err.problem) {
+          // The broker's sentence quotes clauses and parameters: plain words first, its own under a disclosure.
+          setError(err.problem.title ? `${labels.queryRefused}: ${err.problem.title}` : labels.queryRefused);
+          setErrorDetail(err.problem.detail ?? null);
+        } else {
+          setError(err instanceof Error ? err.message : String(err));
+        }
         setLoading(false);
       });
-  }, [source, config.pageSize, offset, gridQueryKey, virtual]);
+  }, [source, config.pageSize, offset, gridQueryKey, virtual, labels.queryRefused]);
 
   /**
    * The next page of a scrolling grid, appended to what is loaded. An answer to an older question
@@ -859,15 +925,16 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     if (!virtual || !more || loadingMore || loading) return;
     const nonce = nonceRef.current;
     const from = rows.length;
+    const limit = Math.max(config.pageSize, VIRTUAL_PAGE_SIZE);
     setLoadingMore(true);
     source
-      .query(JSON.parse(gridQueryKey) as GridQuery, { offset: from, limit: config.pageSize })
+      .query(JSON.parse(gridQueryKey) as GridQuery, { offset: from, limit })
       .then((page) => {
         if (nonceRef.current !== nonce) return;
         setRows((loaded) => {
           const seen = new Set(loaded.map((row) => row.id));
           const next = [...loaded, ...page.rows.filter((row) => !seen.has(row.id))].slice(0, MAX_VIRTUAL_ROWS);
-          setMore(next.length < MAX_VIRTUAL_ROWS && hasMore(next.length, page.total, page.rows.length, config.pageSize));
+          setMore(next.length < MAX_VIRTUAL_ROWS && hasMore(next.length, page.total, page.rows.length, limit));
           return next;
         });
         if (page.total !== undefined) setTotal(page.total);
@@ -959,7 +1026,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
       // A direction asked for is taken as it is; without one a second click turns the order round.
       const next = { attr, dir: dir ?? (sort?.attr === attr && sort.dir === "asc" ? ("desc" as const) : ("asc" as const)) };
       // A new order of the whole set starts at its first page, as a new filter does.
-      const from = source.orders === true ? 0 : offset;
+      const from = ordersAll ? 0 : offset;
       if (onStateChange) {
         onStateChange({ offset: from, activeCell, selected, shown, sort: next, filters, filterText, edits });
       }
@@ -970,7 +1037,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
         setInternalOffset(from);
       }
     },
-    [sort, offset, activeCell, selected, shown, onStateChange, controlledState, source.orders],
+    [sort, offset, activeCell, selected, shown, onStateChange, controlledState, ordersAll],
   );
 
   /**
@@ -1232,11 +1299,13 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     loadingMore,
     loadMore,
     rows: sortedRows,
-    sortsAll: source.orders === true,
+    sortsAll: ordersAll,
     columns,
     total,
     loading,
     error,
+    errorDetail,
+    sortedLoadedOnly,
     state: { offset, activeCell, selected, shown, sort, filters, filterText, edits },
     labels,
     cellOf,
