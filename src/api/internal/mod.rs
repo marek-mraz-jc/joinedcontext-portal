@@ -18,6 +18,7 @@ pub mod model_key;
 pub mod pipeline_rejected;
 pub mod pipeline_tests;
 pub mod previews;
+pub mod revocations;
 pub mod usage;
 
 pub fn router() -> Router<AppState> {
@@ -26,6 +27,7 @@ pub fn router() -> Router<AppState> {
         .merge(pipeline_tests::router())
         .merge(pipeline_rejected::router())
         .merge(previews::router())
+        .merge(revocations::router())
         .merge(domain_verifications::router())
         .merge(model_key::router())
         .merge(connectors::router())

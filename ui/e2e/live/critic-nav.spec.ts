@@ -176,6 +176,8 @@ async function walk(
     ms: Date.now() - t0,
     url: relative(page.url()),
   });
+  // A fresh browser opens the person's own project, never the sample listed first (T-5603).
+  expect.soft(relative(page.url()), "sign-in lands on").toMatch(new RegExp(`^/projects/${PROJECT}/`));
   try {
     stage = "rows";
     // 1. Sign-in to the rows of TYPE in SPACE, through the navigation a person sees.
@@ -378,6 +380,8 @@ async function walk(
     );
     await page.waitForURL(new RegExp(`/projects/${PROJECT}`));
     await expect(heading(page, /.+/)).toBeVisible();
+    // The switch back reopens the space and type the person left (T-5603).
+    expect.soft(page.url(), "switch project and come back").toContain(`type=${TYPE}`);
     w.done("switch project and come back", {
       kept: page.url().includes(`type=${TYPE}`)
         ? "space and type"
@@ -458,8 +462,11 @@ async function walk(
       page.locator("main").getByRole("columnheader").first(),
     ).toBeVisible({ timeout: 60_000 });
     const endpointPicked = await page.locator("#explore-endpoint").inputValue();
+    // The address names the Endpoint read, so the other persona opening the link reads
+    // through the same one or is told why not (T-5604).
+    const endpointInAddress = new URL(page.url()).searchParams.get("endpoint");
     w.done("same type from Explore", {
-      note: `endpoint picked for the person: ${endpointPicked}`,
+      note: `endpoint picked for the person: ${endpointPicked}; in the address: ${endpointInAddress ?? "none"}`,
     });
     links.push({
       persona,

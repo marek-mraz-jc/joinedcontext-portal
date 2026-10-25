@@ -2220,10 +2220,12 @@ output:
         }
     }
 
-    /// T-4069: a polled stream holds at most a few pages on a slow gateway; a resident one keeps
-    /// Bento's default, so a feed that arrives on its own (HSL's HFP) still drains.
+    /// T-4069: a polled stream holds at most a few pages on a slow gateway. T-5636: a resident
+    /// source read in batches (HSL's HFP over MQTT) writes one batch at a time, so two batches of
+    /// the same vehicles never wait on each other's row locks; an unbatched resident one keeps
+    /// Bento's window of single-record writes.
     #[test]
-    fn a_polled_stream_bounds_its_writes_in_flight_and_a_resident_one_does_not() {
+    fn a_stream_bounds_its_writes_in_flight_by_how_its_source_arrives() {
         let pipeline = helsinki_pipeline_spec();
         let polled = render_stream(
             &pipeline,
@@ -2251,7 +2253,21 @@ output:
         .expect("resident pipeline");
         let resident =
             render_stream(&hfp, "hfp", "helsinki", &mqtt, "hfp", "abc123", None).expect("resident");
-        assert_eq!(resident["pipeline"]["threads"], WRITES_IN_FLIGHT);
+        assert_eq!(resident["pipeline"]["threads"], 1);
+        assert_eq!(resident["pipeline"]["threads"], BATCHES_IN_FLIGHT);
+
+        let nats: DataSourceSpec = serde_json::from_value(serde_json::json!({
+            "type": "nats",
+            "input": { "urls": ["nats://nats.helsinki.fi:4222"], "subject": "city.bikes.updates" }
+        }))
+        .expect("nats");
+        let unbatched =
+            render_stream(&hfp, "hfp", "helsinki", &nats, "nats", "abc123", None).expect("nats");
+        assert_eq!(unbatched["pipeline"]["threads"], WRITES_IN_FLIGHT);
+        // Several sources: an unbatched resident one wins, then a batched one, then the clock.
+        assert_eq!(in_flight([None, Some(&mqtt)]), BATCHES_IN_FLIGHT);
+        assert_eq!(in_flight([Some(&mqtt), Some(&nats)]), WRITES_IN_FLIGHT);
+        assert_eq!(in_flight([None]), POLLED_IN_FLIGHT);
 
         let spec = endpoint_pipeline_spec(Some("BikeHireDockingStation"), vec![], None, None);
         let endpoint =
