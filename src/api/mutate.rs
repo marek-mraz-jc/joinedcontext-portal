@@ -258,11 +258,37 @@ fn path_taken(kind: &str, held: &str, name: &str, path: &str) -> ApiError {
     ))
 }
 
+/// Proposals by forge repository and branch name: one at a time from the open-change check
+/// to the pull request, so a second proposal of one resource finds the first one's pull request
+/// instead of deleting the branch the first is still writing (F-POR2-011).
+///
+/// ponytail: one Portal replica (owner 2026-10-23); a second replica needs a Postgres advisory
+/// lock keyed the same way.
+static BRANCHES: std::sync::LazyLock<crate::keyed::Keyed> =
+    std::sync::LazyLock::new(Default::default);
+
+/// A proposal's turn on its branch name: held from before the open-change check until the pull
+/// request is open, and the only way to reach [`create_or_reuse_branch`].
+pub(crate) struct Turn {
+    branch: String,
+    _held: tokio::sync::OwnedMutexGuard<()>,
+}
+
+/// Waits until no other proposal holds `branch` in this repository.
+pub(crate) async fn turn(gitea: &crate::git::GiteaClient, branch: &str) -> Turn {
+    let key = format!("{}/{}/{}\n{branch}", gitea.base, gitea.owner, gitea.repo);
+    Turn {
+        branch: branch.to_owned(),
+        _held: BRANCHES.lock(&key).await,
+    }
+}
+
 pub(crate) async fn create_or_reuse_branch(
     gitea: &crate::git::GiteaClient,
-    branch: &str,
+    turn: &Turn,
     default_branch: &str,
 ) -> Result<String, ApiError> {
+    let branch = turn.branch.as_str();
     match gitea.create_branch(branch, default_branch).await {
         Ok(()) => Ok(branch.to_string()),
         Err(GitError::Conflict(_)) => {
@@ -1085,7 +1111,7 @@ async fn propose_engine(
         Operation::Delete => "delete",
     };
 
-    let branch = match workspace {
+    let (branch, _turn) = match workspace {
         // A workspace is one branch for everything it holds (CC-76): no per-resource branch,
         // no pull request, and a change open on `main` does not stop an edit here.
         Some(name) => {
@@ -1106,10 +1132,11 @@ async fn propose_engine(
                 Ok(()) | Err(GitError::Conflict(_)) => {}
                 Err(err) => return Err(err.into()),
             }
-            branch
+            (branch, None)
         }
         None => {
             let branch = branch_name(project, kind_info.kind, &envelope.metadata.name, operation);
+            let held = turn(gitea, &branch).await;
             // One open change per resource (CC-34): the branch is one per resource and
             // operation, so a second proposal while one is pending would rewrite the open pull
             // request under its approver. Refused before anything is written, naming the change
@@ -1120,7 +1147,8 @@ async fn propose_engine(
                     kind_info.kind, envelope.metadata.name, pending.name
                 )));
             }
-            create_or_reuse_branch(gitea, &branch, &default_branch).await?
+            let branch = create_or_reuse_branch(gitea, &held, &default_branch).await?;
+            (branch, Some(held))
         }
     };
     let repo_path = manifest_path;

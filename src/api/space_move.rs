@@ -115,7 +115,13 @@ pub async fn start_move(
         source: source.trim_end_matches('/').to_owned(),
         target: target.trim_end_matches('/').to_owned(),
         token,
-        gateway: gateway.trim_end_matches('/').to_owned(),
+        gateways: vec![state
+            .config
+            .gateway_pods_url
+            .clone()
+            .unwrap_or(gateway)
+            .trim_end_matches('/')
+            .to_owned()],
         forge,
         path,
         by: user.0.identity.username.clone(),

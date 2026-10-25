@@ -1901,6 +1901,7 @@
       "hidden": "Hidden attributes",
       "hiddenHelp": "A ticked attribute is never served, in any format. A name is hidden in every type that has it.",
       "identityOnly": "Identity only: id and type.",
+      "nameTaken": "Reload the page to propose the filter under a name nobody holds yet.",
       "createsProjection": "This endpoint names no projection yet. A filter you propose creates the projection {name} from the space's model, together with the endpoint that names it."
     },
     "proof": {

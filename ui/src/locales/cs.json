@@ -1901,6 +1901,7 @@
       "hidden": "Skryté atributy",
       "hiddenHelp": "Zaškrtnutý atribut se nikdy neposkytne v žádném formátu. Název se skryje v každém typu, který ho má.",
       "identityOnly": "Pouze identita: id a type.",
+      "nameTaken": "Znovu načtěte stránku a filtr se navrhne pod názvem, který zatím nikdo nepoužívá.",
       "createsProjection": "Toto rozhraní zatím nemá projekci. Filtr, který navrhnete, vytvoří projekci {name} z modelu prostoru spolu s rozhraním, které ji používá."
     },
     "proof": {

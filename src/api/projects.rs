@@ -1191,6 +1191,7 @@ pub async fn repoint_project(
     }
 
     let branch = format!("portal/update-project-{project}-registry");
+    let held = crate::api::mutate::turn(&gitea, &branch).await;
     if let Some(pending) =
         crate::api::mutate::open_change_on(&state, &gitea, &branch, &project).await?
     {
@@ -1201,7 +1202,7 @@ pub async fn repoint_project(
     }
     let content = serde_norway::to_string(&manifest)
         .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))?;
-    let branch = crate::api::mutate::create_or_reuse_branch(&gitea, &branch, &base).await?;
+    let branch = crate::api::mutate::create_or_reuse_branch(&gitea, &held, &base).await?;
     let (author_name, author_email) = crate::api::mutate::author_credentials(identity, &project);
     gitea
         .put_file(&crate::git::FileWrite {
@@ -1637,6 +1638,7 @@ pub async fn delete_project_for(
     }
 
     let branch = format!("portal/delete-project-{project}");
+    let held = crate::api::mutate::turn(gitea, &branch).await;
     if let Some(pending) =
         crate::api::mutate::open_change_on(state, gitea, &branch, project).await?
     {
@@ -1645,8 +1647,7 @@ pub async fn delete_project_for(
             pending.name
         )));
     }
-    let branch =
-        crate::api::mutate::create_or_reuse_branch(gitea, &branch, &default_branch).await?;
+    let branch = crate::api::mutate::create_or_reuse_branch(gitea, &held, &default_branch).await?;
     let (author_name, author_email) = crate::api::mutate::author_credentials(identity, project);
     for path in &files {
         let Some(file) = gitea.get_file(path, &branch).await? else {
