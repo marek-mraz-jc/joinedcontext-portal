@@ -1,50 +1,32 @@
-import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { JSX, ReactNode } from "react";
-import type { TFunction } from "i18next";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import validator from "./forms/validator";
 import { useTranslation } from "react-i18next";
-import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import validator from "./forms/validator";
 import { errorMessageKey } from "./forms/errorMessages";
 import { SchemaForm } from "./forms/LazySchemaForm";
 import { namesOfRefs } from "../schemas/pickers";
-import { mergeObjects } from "@rjsf/utils";
-import type { ErrorSchema } from "@rjsf/utils";
-import type { JsonSchema, UiSchema } from "./forms/types";
-import { portalThemeWidgets } from "./forms/theme";
-import { arrange, index, mergeUi, paths, prefilled } from "./forms/uischema";
-import { PORTAL_WIDGET_NAMES } from "./forms/widgetNames";
-import { shippedForms } from "../schemas/forms";
-import { api, ApiError, forPeople, queryKeys, unwrap } from "../api/client";
-import type { ResourceProposal } from "../api/manifest";
-import { Alert, Badge, Button, Checkbox, deniedReason as refusal, ExternalLink, FilePicker, Tabs, tabPanelProps, PageLoading } from "./ui";
+import type { JsonSchema, ManifestSource, UiSchema } from "./forms/types";
+import { Alert, Button, Checkbox, deniedReason as refusal, Tabs, tabPanelProps, PageLoading } from "./ui";
 import { FormFrame } from "./forms/FormRoute";
-import type { BadgeTone, DialogSize } from "./ui";
-import { ago } from "../pages/apps/CatalogCards";
+import type { DialogSize } from "./ui";
 import { guideUrl, useBranding } from "../branding";
-import { digestOf, getDraft, putDraft, subscribeDrafts } from "../api/drafts";
-import { pastedSecrets } from "../api/pastedSecrets";
+import { digestOf } from "../api/drafts";
+import type { Verdict } from "../api/drafts";
 import { ResourceHistory } from "./ResourceHistory";
-import { askAbout, standingIn } from "../assistant/state";
+import { standingIn } from "../assistant/state";
 import { usePermissions } from "../api/permissions";
-import type { Effective } from "../api/permissions";
-import { proposeStanding } from "../api/approval";
-import type { Draft, Verdict } from "../api/drafts";
-import { kindPlural } from "../kindWords";
+import { extractName, manifestOf } from "./forms/resourceForm";
+import { useFormArrangement } from "./forms/useFormArrangement";
+import { useResourceDraft } from "./forms/useResourceDraft";
+import { useDryRunCheck } from "./forms/useDryRunCheck";
+import { useYamlEditor } from "./forms/useYamlEditor";
+import { useYamlSubmitQueue } from "./forms/useYamlSubmitQueue";
+import { ResourceFormFooter, verdictStateOf } from "./forms/ResourceFormFooter";
+import type { ResourceFormFooterProps, VerdictState } from "./forms/ResourceFormFooter";
+import { ResourceFormNotes } from "./forms/ResourceFormNotes";
+import { ResourceYamlPanel } from "./forms/ResourceYamlPanel";
 
-// Monaco is loaded when the YAML view is opened and not before: it is the heaviest thing in
-// the Portal and a dialog that never shows its manifest would otherwise pay for it.
-const MonacoSourceView = lazy(() => import("../pages/models/MonacoSourceView"));
-
-/**
- * How the form's data and the manifest it writes translate into each other, for the YAML
- * view of a dialog: what the form submits is the manifest the YAML shows, and the YAML the
- * author edits becomes the form again on the way back.
- */
-export interface ManifestSource<T> {
-  toManifest: (form: T) => unknown;
-  fromManifest: (manifest: unknown) => T;
-}
+export type { ManifestSource };
 
 export interface ResourceFormDialogProps<T> {
   open: boolean;
@@ -117,97 +99,20 @@ export interface ResourceFormDialogProps<T> {
   autoCheck?: boolean;
 }
 
-/** How long the form rests after a change before an automatic check runs. */
-const AUTO_CHECK_MS = 1200;
-
 type View = "form" | "yaml" | "history";
 
 const VIEWS: View[] = ["form", "yaml"];
 
 /**
- * The chip's tone per verdict; the words say the same, so the colour is never alone (UI-30).
- * `waiting` passes and names a resource an open change creates (MF-48): proposable, and its change
- * merges after that one.
+ * Strict validation refuses a proposal whose draft carries no fresh green verdict, and the click
+ * saves that draft first (T-0769), so the button says so before the first save, not after a click
+ * that proposed nothing (T-0779).
  */
-const VERDICT_TONE: Record<"none" | "green" | "waiting" | "red" | "stale", BadgeTone> = {
-  none: "neutral",
-  green: "success",
-  waiting: "info",
-  red: "danger",
-  stale: "warning",
+const PROPOSE_REASON: Partial<Record<VerdictState, string>> = {
+  none: "drafts.proposeReason.none",
+  red: "drafts.proposeReason.red",
+  stale: "drafts.proposeReason.stale",
 };
-
-function extractName(form: unknown): string | undefined {
-  if (!form || typeof form !== "object") return undefined;
-  const f = form as Record<string, unknown>;
-  if (typeof f.name === "string" && f.name.trim()) return f.name.trim();
-  if (f.metadata && typeof f.metadata === "object") {
-    const m = f.metadata as Record<string, unknown>;
-    if (typeof m.name === "string" && m.name.trim()) return m.name.trim();
-  }
-  return undefined;
-}
-
-/**
- * The node of an rjsf `ErrorSchema` that marks one field, created along the way: `.spec.url`
- * becomes `{ spec: { url: { __errors: [...] } } }`, which is what puts `aria-invalid` on the input
- * and its sentence in `aria-describedby`.
- */
-function atPath(root: ErrorSchema, path: string[]): string[] {
-  let node = root as Record<string, unknown>;
-  for (const segment of path.filter(Boolean)) {
-    node[segment] = (node[segment] as Record<string, unknown> | undefined) ?? {};
-    node = node[segment] as Record<string, unknown>;
-  }
-  const list = (node.__errors as string[] | undefined) ?? [];
-  node.__errors = list;
-  return list;
-}
-
-/**
- * The control that edits a field: a workbench control standing in for a hidden form field
- * carries `data-field`, a form field has rjsf's `root_…` id. A hidden input is no control.
- */
-function controlOf(field: string): HTMLElement | null {
-  const target =
-    document.querySelector<HTMLElement>(`[data-field="${CSS.escape(field)}"]`) ??
-    document.getElementById(`root_${field.split(".").join("_")}`);
-  return target && !(target instanceof HTMLInputElement && target.type === "hidden") ? target : null;
-}
-
-/** The name a field shows, its schema `title`, or the last segment of its path without one. */
-function titleAt(schema: JsonSchema, path: string[]): string {
-  let node: JsonSchema | undefined = schema;
-  for (const segment of path) {
-    const properties: Record<string, JsonSchema> | undefined = (
-      node as { properties?: Record<string, JsonSchema> } | undefined
-    )?.properties;
-    node = properties?.[segment];
-  }
-  const title = (node as { title?: unknown } | undefined)?.title;
-  return typeof title === "string" && title.trim() !== "" ? title : (path[path.length - 1] ?? "");
-}
-
-/**
- * The form's field a finding's manifest path names: `metadata.name` is the form's `name`, and a
- * form that holds the spec's fields at its top level (most do, through `source`) has
- * `spec.contextSpaceRef` as `contextSpaceRef` (T-2731, UI-45).
- */
-function fieldPath(path: string, schema: JsonSchema): string[] {
-  // An element is `roles[0]` in the server's path and `roles.0` in rjsf's errors (T-5590).
-  const segments = path.replace(/^metadata\./, "").replace(/\[(\d+)\]/g, ".$1").split(".");
-  const flat = segments[0] === "spec" && !(schema.properties && "spec" in schema.properties);
-  return flat ? segments.slice(1) : segments;
-}
-
-/**
- * A finding's sentence. The server refuses a name with the regular expression it failed (jc-core
- * `validate_dns1123_label`); a person gets the field's own sentence in their language instead
- * (T-4209, UI-44).
- */
-function findingSentence(message: string, t: TFunction): string {
-  return /DNS-1123 label regex/.test(message) ? t("form.dns1123") : forPeople(message);
-}
 
 /** One frame for every manifest form: the schema decides the fields, the caller the kind. */
 export function ResourceFormDialogBody<T>({
@@ -241,7 +146,7 @@ export function ResourceFormDialogBody<T>({
   onChange,
   autoCheck = false,
 }: ResourceFormDialogProps<T>): JSX.Element {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const branding = useBranding();
   const viewsId = useId();
   const advancedHintId = useId();
@@ -255,156 +160,30 @@ export function ResourceFormDialogBody<T>({
   // adds is that the button says which of the two it is (T-0962).
   const disabled = closed || submitting === true || deniedReason !== undefined;
 
-  // One fetch for the whole of `portal/forms/`, shared by every dialog through the query cache.
-  const forms = useQuery({
-    queryKey: queryKeys.forms(),
-    enabled: open && kind !== undefined,
-    staleTime: 5 * 60_000,
-    retry: false,
-    queryFn: async () => unwrap(await api.GET("/api/v1/forms", {})),
-  });
-  // CC-29: the Git mechanics are on the form only when the person asked for them. The stored
-  // preference starts it; the switch answers at once and saves in the background, so an
-  // instance without a preferences database still has a working switch.
-  const preferences = useQuery({
-    queryKey: queryKeys.preferences(),
-    enabled: open && kind !== undefined,
-    retry: false,
-    queryFn: async () => unwrap(await api.GET("/api/v1/preferences", {})),
-  });
-  const [advancedChoice, setAdvancedChoice] = useState<boolean | null>(null);
-  const advanced = advancedChoice ?? preferences.data?.advancedMode === true;
-  const saveAdvanced = useMutation({
-    mutationFn: async (next: boolean) =>
-      unwrap(await api.PUT("/api/v1/preferences", { body: { ...(preferences.data ?? {}), advancedMode: next } })),
-  });
-
-  // The fields the manifest may arrange, as one string: a page that rebuilds its schema object on
-  // every render would otherwise hand the form a new arrangement on every keystroke, and RJSF
-  // rebuilds the input the person is typing into (endpoint_form.test.tsx typed one character).
-  const arrangeable = paths(schema).join("\u0000");
-  const arranged = useMemo(() => {
-    if (!kind) {
-      return undefined;
-    }
-    // The arrangements the UI ships first, the configuration repository's after them: an
-    // organization that writes help for one field keeps the shipped help on the others (UI-02).
-    // The shipped ones arrange the form from the first paint, so the fields do not rearrange
-    // themselves under the hands of someone who started typing at once.
-    const indexed = index([...shippedForms, ...(forms.data?.items ?? [])]);
-    const manifest = indexed.forms[kind];
-    // What a manifest asked for and this form cannot do is worth saying, but not before the
-    // request has answered: the organization's own manifest is not in hand yet, and a complaint
-    // about a field it arranges would appear and disappear again.
-    const answered = !forms.isPending;
-    if (!manifest) {
-      return {
-        uiSchema: undefined,
-        about: undefined,
-        guide: undefined,
-        problems: answered ? indexed.problems : [],
-        advancedFields: false,
-      };
-    }
-    const result = arrange(manifest, {
-      locale: i18n.language,
-      properties: arrangeable ? arrangeable.split("\u0000") : [],
-      // A required field its default fills may fold (T-4824).
-      required: (schema.required ?? []).filter((field) => !prefilled(schema.properties?.[field])),
-      widgets: [...Object.keys(portalThemeWidgets), ...PORTAL_WIDGET_NAMES],
-      advanced,
-      // An example reads as this project's and this organization's own (T-2752).
-      examples: { project, orgDomain: branding.orgDomain },
-    });
-    const advancedFields = Object.values(manifest.spec.fields ?? {}).some((field) => field.advanced === true);
-    return {
-      uiSchema: result.uiSchema,
-      about: result.about,
-      guide: result.guide,
-      problems: answered ? [...indexed.problems, ...result.problems] : [],
-      advancedFields,
-    };
-  }, [kind, forms.data, forms.isPending, arrangeable, i18n.language, advanced, project, branding.orgDomain]);
-
-  // The manifest arranges what it names; the caller's literal still covers what a manifest
-  // cannot know, such as a name that is read-only once the resource exists.
-  const effectiveUiSchema = useMemo<UiSchema | undefined>(() => {
-    if (!arranged?.uiSchema) {
-      return uiSchema;
-    }
-    return mergeUi(arranged.uiSchema, uiSchema) as UiSchema;
-  }, [arranged, uiSchema]);
-  const lockedUiSchema = useMemo<UiSchema | undefined>(() => {
-    if (lockedName === undefined) {
-      return effectiveUiSchema;
-    }
-    const own = (effectiveUiSchema as Record<string, unknown> | undefined)?.name;
-    return {
-      ...(effectiveUiSchema as Record<string, unknown> | undefined),
-      name: { ...(typeof own === "object" && own !== null ? own : {}), "ui:readonly": true },
-    } as UiSchema;
-  }, [effectiveUiSchema, lockedName]);
-  const formProblems = arranged?.problems ?? [];
-  // A manifest that asks for what the form cannot do is a defect for whoever wrote it, said in
-  // the console, never to the person filling the form in (T-4165, photo audit T-4159).
-  const problemsSaid = formProblems.join("\n");
-  useEffect(() => {
-    if (problemsSaid !== "") console.warn(`${kind}: ${t("form.uischemaProblems")}:\n${problemsSaid}`);
-  }, [kind, problemsSaid, t]);
+  const arrangement = useFormArrangement({ open, kind, schema, uiSchema, lockedName, project, orgDomain: branding.orgDomain });
   const isLax = (branding as { validation?: string })?.validation === "lax";
   // The base comes from the installation's branding, which an administrator writes, so a
   // `javascript:` there would otherwise reach the anchor below (T-2252, T-2409). It is checked
   // in `ExternalLink`, which is where every link out of the Portal is checked — and which keeps
   // the words when the address is not a place, instead of dropping the sentence.
-  const guideHref = guideUrl(branding, arranged?.guide);
-  const isStrict = !isLax;
+  const guideHref = guideUrl(branding, arrangement.guide);
 
   const [view, setView] = useState<View>("form");
-  const [text, setText] = useState("");
-  const [yamlError, setYamlError] = useState<string | null>(null);
-  const [issues, setIssues] = useState<string[]>([]);
-  /** What the browser's own check refused, keyed by field, until the form changes (T-1491). */
-  const [schemaErrors, setSchemaErrors] = useState<ErrorSchema | undefined>(undefined);
-  // Why the last Check stopped before asking the server, and the field to bring into view: a
-  // count of filled fields beside the button left a person searching a long form (T-3970).
-  // It holds the form it judged, so any change to the draft, from a field or from a workbench
-  // beside the form, retires it.
-  const [stopped, setStopped] = useState<{ message: string; field?: string; form?: T } | null>(null);
-  /** Whether the last check said applying this restarts the pipeline's stream (T-1056). */
-  const [restartsStream, setRestartsStream] = useState(false);
-
-  const [currentDraft, setCurrentDraft] = useState<Draft | null>(null);
-  // The draft name whose load has answered, with or without a draft: the write below waits
-  // for it, and a name that has no draft yet must not wait forever (T-0631).
-  const [loadedName, setLoadedName] = useState<string | undefined>(undefined);
-  const [ownVerdict, setInternalVerdict] = useState<Verdict | null>(null);
-  const internalVerdict =
-    externalVerdict !== undefined ? externalVerdict : ownVerdict;
-
-  const currentManifest = useMemo(() => {
-    if (!formData) return {};
-    return source ? source.toManifest(formData) : formData;
-  }, [formData, source]);
-
-  const currentDigest = useMemo(
-    () => digestOf(currentManifest),
-    [currentManifest],
-  );
-  const [conflict, setConflict] = useState<string | null>(null);
-  /** Why the server would not save the draft (MF-24, T-2626), in its own words. */
-  const [saveRefused, setSaveRefused] = useState<string | null>(null);
-  const lastVersionRef = useRef<number | undefined>(undefined);
-  const lastTypedRef = useRef<number>(0);
-  /** The digest of the manifest the draft last held: an unchanged form writes nothing. */
-  const syncedDigestRef = useRef<string | undefined>(undefined);
-
-  const activeName = draftName || extractName(formData);
-  // A draft opened is not the person's edit: what the form would write from it counts as synced,
-  // so a draft holding a field the form has no control for is not rewritten without it on open.
-  // Measured by the stored manifest instead, that write-back waited only on a re-render clearing
-  // the debounce first (T-2754).
-  const openedDigest = (manifest: unknown, loaded: T): string =>
-    digestOf(source ? source.toManifest(loaded) : manifest);
+  const yaml = useYamlEditor(source, project, onChange);
+  const currentDigest = useMemo(() => digestOf(formData ? manifestOf(formData, source) : {}), [formData, source]);
+  const draft = useResourceDraft({
+    open,
+    project,
+    draftKind,
+    draftName,
+    formData,
+    source,
+    currentDigest,
+    verdict: externalVerdict,
+    onVerdictChange,
+    onChange,
+  });
+  const { activeName } = draft;
 
   // The assistant is told which form is open and which draft it edits, so a question asked from
   // here is answered about this form (T-1611, UI-61). No values travel: the draft is where they are.
@@ -418,211 +197,6 @@ export function ResourceFormDialogBody<T>({
     };
   }, [open, kind, activeName]);
 
-  /** The verdict on screen, for the answers below that arrive after a newer one (T-2624). */
-  const heldVerdictRef = useRef<Verdict | null>(null);
-  const updateVerdict = (v: Verdict | null) => {
-    heldVerdictRef.current = v;
-    setInternalVerdict(v);
-    onVerdictChange?.(v);
-  };
-  /**
-   * The verdict a save or a reload of the draft carries. The store keeps a draft's verdict
-   * across a save, so a save that crosses a check in flight answers with the verdict from before
-   * that check (none, or the one another hand ran on its own manifest). Taken as it came, it
-   * replaced the fresh one and Propose stayed refused (T-2624). The newer check wins; the digest
-   * still decides whether it is fresh for what the form holds (PF-57).
-   */
-  const adoptVerdict = (incoming: Verdict | null | undefined) => {
-    if (incoming === undefined) {
-      return;
-    }
-    const held = heldVerdictRef.current;
-    if (
-      held !== null &&
-      (incoming === null || Date.parse(incoming.checkedAt) < Date.parse(held.checkedAt))
-    ) {
-      return;
-    }
-    updateVerdict(incoming);
-  };
-
-  /** A dialog opens on its form again, whatever view it was closed from. */
-  function handleOpenChange(next: boolean) {
-    if (!next) {
-      setView("form");
-      setYamlError(null);
-      setIssues([]);
-      setRestartsStream(false);
-      setConflict(null);
-      setCurrentDraft(null);
-      setLoadedName(undefined);
-      lastVersionRef.current = undefined;
-    }
-    onOpenChange(next);
-  }
-
-  // Load existing draft on open if draftName is set
-  useEffect(() => {
-    if (!open || !draftKind || !project || !draftName) {
-      return;
-    }
-    let active = true;
-    void getDraft(project, draftKind, draftName).then((d) => {
-      if (!active) return;
-      setLoadedName(draftName);
-      if (!d) return;
-      setCurrentDraft(d);
-      lastVersionRef.current = d.version;
-      if (d.verdict !== undefined) {
-        updateVerdict(d.verdict ?? null);
-      }
-      if (d.manifest) {
-        const loaded = source
-          ? source.fromManifest(d.manifest)
-          : (d.manifest as T);
-        syncedDigestRef.current = openedDigest(d.manifest, loaded);
-        onChange?.(loaded);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [open, draftKind, project, draftName]);
-
-  // Debounced write of draft on form change (600 ms)
-  useEffect(() => {
-    if (!open || !draftKind || !project || !activeName || !formData) {
-      return;
-    }
-    // A named draft is loaded before anything is written back: the form's first, empty
-    // data must not overwrite what another window typed.
-    if (draftName && loadedName !== draftName) {
-      return;
-    }
-    const manifest = source ? source.toManifest(formData) : formData;
-    const digest = digestOf(manifest);
-    if (digest === syncedDigestRef.current) {
-      return;
-    }
-    lastTypedRef.current = Date.now();
-    const timer = setTimeout(() => {
-      // A proposal may have written this manifest already (see `draftRefFor`).
-      if (digest === syncedDigestRef.current) {
-        return;
-      }
-      void putDraft(
-        project,
-        draftKind,
-        activeName,
-        manifest,
-        lastVersionRef.current,
-      )
-        .then((d) => {
-          syncedDigestRef.current = digest;
-          setCurrentDraft(d);
-          lastVersionRef.current = d.version;
-          adoptVerdict(d.verdict);
-          setConflict(null);
-          setSaveRefused(null);
-        })
-        .catch((err: unknown) => {
-          const isConflict =
-            typeof err === "object" &&
-            err !== null &&
-            (err as { status?: number }).status === 409;
-          if (!isConflict) {
-            setSaveRefused(refusalOf(err));
-          }
-          if (isConflict) {
-            setConflict(t("drafts.conflict"));
-            void getDraft(project, draftKind, activeName).then((reloaded) => {
-              if (reloaded) {
-                setCurrentDraft(reloaded);
-                lastVersionRef.current = reloaded.version;
-                adoptVerdict(reloaded.verdict);
-                if (reloaded.manifest) {
-                  const loaded = source
-                    ? source.fromManifest(reloaded.manifest)
-                    : (reloaded.manifest as T);
-                  syncedDigestRef.current = openedDigest(reloaded.manifest, loaded);
-                  onChange?.(loaded);
-                }
-              }
-            });
-          }
-        });
-    }, 600);
-
-    return () => {
-      clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- currentDigest stands for the manifest a page builds around the form (a hidden attribute lives outside it)
-  }, [formData, currentDigest, open, draftKind, project, activeName, draftName, loadedName]);
-
-  // Subscribe to project draft events
-  const hasDraft = currentDraft !== null;
-  useEffect(() => {
-    if (!open || !draftKind || !project || !hasDraft) {
-      return;
-    }
-    return subscribeDrafts(project, (event) => {
-      if (event.kind === draftKind && event.name === activeName) {
-        if (event.event === "drop") {
-          setCurrentDraft(null);
-          updateVerdict(null);
-          return;
-        }
-        if (event.event === "verdict") {
-          void getDraft(project, draftKind, activeName).then((d) => {
-            if (d) {
-              setCurrentDraft(d);
-              adoptVerdict(d.verdict ?? null);
-            }
-          });
-          return;
-        }
-        if (event.version > (lastVersionRef.current ?? 0)) {
-          if (Date.now() - lastTypedRef.current < 1500) {
-            return;
-          }
-          void getDraft(project, draftKind, activeName).then((reloaded) => {
-            if (reloaded) {
-              setCurrentDraft(reloaded);
-              lastVersionRef.current = reloaded.version;
-              adoptVerdict(reloaded.verdict);
-              if (reloaded.manifest) {
-                const loaded = source
-                  ? source.fromManifest(reloaded.manifest)
-                  : (reloaded.manifest as T);
-                syncedDigestRef.current = openedDigest(reloaded.manifest, loaded);
-                onChange?.(loaded);
-              }
-            }
-          });
-        }
-      }
-    });
-  }, [open, draftKind, project, activeName, hasDraft]);
-
-  // The clock the verdict's age is read against, moving while a verdict is on screen, so "Checked
-  // 0 s ago" does not stay that for as long as the dialog is open.
-  const [now, setNow] = useState(() => Date.now());
-  const hasVerdict = internalVerdict !== null;
-  useEffect(() => {
-    if (!open || !hasVerdict) {
-      return undefined;
-    }
-    const timer = setInterval(() => setNow(Date.now()), 15_000);
-    return () => clearInterval(timer);
-  }, [open, hasVerdict]);
-
-  const verdictState = useMemo<"none" | "green" | "waiting" | "red" | "stale">(() => {
-    if (!internalVerdict) return "none";
-    if (internalVerdict.inputDigest !== currentDigest) return "stale";
-    if (!internalVerdict.ok) return "red";
-    return (internalVerdict.waitsOn ?? []).length > 0 ? "waiting" : "green";
-  }, [internalVerdict, currentDigest]);
-
   /**
    * A form can be checked when the page gives the dialog a check of its own or the collection to
    * dry run. It is the same set of forms whose proposal names its draft, so it is also the set
@@ -630,48 +204,47 @@ export function ResourceFormDialogBody<T>({
    * it has no way to get (T-0779).
    */
   const canCheck = Boolean(onCheck) || Boolean(plural && project && draftKind);
+  const check = useDryRunCheck({
+    kind,
+    schema,
+    formData,
+    formView: view === "form",
+    currentDigest,
+    verdict: draft.verdict,
+    updateVerdict: draft.updateVerdict,
+    canCheck,
+    disabled,
+    checkRefusal,
+    onCheck,
+    autoCheck,
+    source,
+    project,
+    plural,
+    draftKind,
+    draftName,
+    onChange,
+    readYaml: yaml.read,
+    onYamlChecked: () => yaml.setIssues([]),
+    advancedFolded: arrangement.advancedFields && !arrangement.advanced,
+    showAdvanced: () => arrangement.setAdvanced(true, false),
+    advanced: arrangement.advanced,
+  });
 
-  // Strict validation refuses a proposal whose draft carries no fresh green verdict, and the
-  // click saves that draft first (T-0769) — so the button has to say so before the first save,
-  // not after a click that proposed nothing (T-0779).
-  const proposeReason = useMemo<string | undefined>(() => {
-    if (!canCheck || !draftKind || !activeName) return undefined;
-    if (verdictState === "none") return t("drafts.proposeReason.none");
-    if (verdictState === "red") return t("drafts.proposeReason.red");
-    if (verdictState === "stale") return t("drafts.proposeReason.stale");
-    return undefined;
-  }, [canCheck, draftKind, activeName, verdictState, t]);
-
+  const verdictState = verdictStateOf(draft.verdict, currentDigest);
+  const proposeKey = canCheck && draftKind && activeName ? PROPOSE_REASON[verdictState] : undefined;
+  const proposeReason = proposeKey ? t(proposeKey) : undefined;
   const effectiveSubmitDisabledReason =
     deniedReason ?? (isLax ? submitDisabledReason : submitDisabledReason || proposeReason);
 
-  /** The server's own sentence for a refused save, else what the request failed with. */
-  function refusalOf(err: unknown): string {
-    const detail = (err as { detail?: unknown } | null)?.detail;
-    if (typeof detail === "string" && detail) return detail;
-    return err instanceof Error ? err.message : t("app.error.generic");
-  }
-
-  /** The form the YAML describes, or `null` with the reason on screen. */
-  function readYaml(): T | null {
-    if (!source) {
-      return null;
+  /** A dialog opens on its form again, whatever view it was closed from. */
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      setView("form");
+      yaml.reset();
+      check.reset();
+      draft.reset();
     }
-    try {
-      const document: unknown = parseYaml(text);
-      if (!document || typeof document !== "object") {
-        throw new Error(t("form.yamlNotManifest"));
-      }
-      setYamlError(null);
-      return source.fromManifest(document);
-    } catch (err) {
-      setYamlError(
-        t("form.yamlError", {
-          message: err instanceof Error ? err.message : String(err),
-        }),
-      );
-      return null;
-    }
+    onOpenChange(next);
   }
 
   function show(next: View) {
@@ -680,7 +253,7 @@ export function ResourceFormDialogBody<T>({
     }
     let form = formData;
     if (view === "yaml") {
-      const read = readYaml();
+      const read = yaml.read();
       if (read === null) {
         return;
       }
@@ -688,95 +261,15 @@ export function ResourceFormDialogBody<T>({
       form = read;
     }
     if (next === "yaml") {
-      setText(stringifyYaml(source.toManifest(form ?? ({} as T))));
-      setYamlError(null);
+      yaml.showForm(form ?? ({} as T));
     }
-    setIssues([]);
+    yaml.setIssues([]);
     setView(next);
   }
 
   // An existing resource shows its own history beside the form and the YAML (T-3975).
   const views: View[] = project && draftKind && lockedName ? [...VIEWS, "history"] : VIEWS;
   const [restored, setRestored] = useState<string | null>(null);
-
-  /** The manifest the YAML view holds, saved as a file (T-3977): references, never values. */
-  function downloadYaml() {
-    const url = URL.createObjectURL(new Blob([text], { type: "application/yaml" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${extractName(formData) ?? kind?.toLowerCase() ?? "manifest"}.yaml`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
-  /**
-   * A manifest file read into the YAML view and the form (T-3977). A literal secret is refused
-   * before anything is shown; a manifest of another project is moved into this one, said on
-   * screen. The form then holds a document no verdict covers, so it is proposed only once
-   * Check is green again.
-   */
-  const [uploadNote, setUploadNote] = useState<string | null>(null);
-  async function uploadYaml(file: File) {
-    const read = await file.text();
-    setUploadNote(null);
-    const secrets = pastedSecrets(read);
-    if (secrets.length > 0) {
-      setYamlError(t("form.yamlUploadSecret", { keys: secrets.join(", ") }));
-      return;
-    }
-    let document: unknown;
-    try {
-      document = parseYaml(read);
-    } catch (err) {
-      setYamlError(t("form.yamlError", { message: err instanceof Error ? err.message : String(err) }));
-      return;
-    }
-    if (!document || typeof document !== "object" || !source) {
-      setYamlError(t("form.yamlError", { message: t("form.yamlNotManifest") }));
-      return;
-    }
-    const metadata = (document as { metadata?: { namespace?: unknown } }).metadata;
-    if (project && metadata && typeof metadata.namespace === "string" && metadata.namespace !== project) {
-      setUploadNote(t("form.yamlUploadMoved", { from: metadata.namespace, to: project }));
-      metadata.namespace = project;
-    }
-    setText(stringifyYaml(document));
-    setYamlError(null);
-    setIssues([]);
-    onChange?.(source.fromManifest(document));
-  }
-
-  /**
-   * The draft a proposal names, holding what the form shows: a proposal takes the draft's own
-   * manifest, so the save the debounce has not sent yet goes first (T-0769, AG-61).
-   */
-  async function draftRefFor(form: T): Promise<{ kind: string; name: string } | undefined> {
-    const active = draftName || extractName(form);
-    if (!draftKind || !active) {
-      return undefined;
-    }
-    const manifest = source ? source.toManifest(form) : form;
-    const digest = digestOf(manifest);
-    const loaded = !draftName || loadedName === draftName;
-    if (project && loaded && digest !== syncedDigestRef.current) {
-      try {
-        const saved = await putDraft(project, draftKind, active, manifest, lastVersionRef.current);
-        syncedDigestRef.current = digest;
-        lastVersionRef.current = saved.version;
-        setCurrentDraft(saved);
-        adoptVerdict(saved.verdict);
-        setSaveRefused(null);
-      } catch (err) {
-        // Another window changed the draft: the person sees it before anything is proposed. Any
-        // other failure leaves the proposal to the server's check, which says what to do.
-        if ((err as { status?: number }).status === 409) {
-          throw err;
-        }
-        setSaveRefused(refusalOf(err));
-      }
-    }
-    return { kind: draftKind, name: active };
-  }
 
   /**
    * The draft is saved before the proposal names it, and that save is a request of its own: until
@@ -790,7 +283,7 @@ export function ResourceFormDialogBody<T>({
     // The YAML view edits `metadata.name` freely, so the refusal is here and not only in the
     // read-only field above it (T-0796).
     if (lockedName !== undefined && extractName(form) !== lockedName) {
-      setConflict(t("resourceEdit.renamed", { name: lockedName }));
+      draft.setConflict(t("resourceEdit.renamed", { name: lockedName }));
       return;
     }
     if (savingRef.current || submitting) {
@@ -798,10 +291,11 @@ export function ResourceFormDialogBody<T>({
     }
     savingRef.current = true;
     setSaving(true);
-    draftRefFor(form)
+    draft
+      .draftRefFor(form)
       .then(
         (draftRef) => onSubmit(form, draftRef),
-        () => setConflict(t("drafts.conflict")),
+        () => draft.setConflict(t("drafts.conflict")),
       )
       .finally(() => {
         // One task later, not now: the page's mutation tells its observers on the next task, and
@@ -813,292 +307,46 @@ export function ResourceFormDialogBody<T>({
       });
   }
 
-  /**
-   * The check a dialog runs for itself: the same dry run the pages with their own `onCheck`
-   * send, on the manifest the form holds and the draft the proposal will name (T-0779).
-   */
-  const ownCheck = useMutation({
-    mutationFn: async (form: T) => {
-      const manifest = source ? source.toManifest(form) : form;
-      const name = draftName || extractName(form);
-      // What a page's `toManifest` builds is a manifest the API checks; its type is the API's.
-      const proposed = manifest as ResourceProposal;
-      const body: ResourceProposal =
-        draftKind && name ? { ...proposed, draft: { kind: draftKind, name } } : proposed;
-      return unwrap(
-        await api.POST("/api/v1/projects/{project}/{plural}", {
-          params: {
-            path: { project: project ?? "", plural: plural ?? "" },
-            query: { dryRun: "All" },
-          },
-          body: body,
-        }),
-      );
-    },
-    onSuccess: (result) => {
-      const answer = result as { verdict?: Verdict; restartsStream?: boolean };
-      updateVerdict(answer?.verdict ?? null);
-      // T-1056, PL-45: the runner restarts a stream whenever its render moves, and a periodic
-      // pipeline then starts its schedule over. A person reads that before proposing, not after.
-      setRestartsStream(answer?.restartsStream === true);
-    },
-    // A refused check judged nothing: the chip says "not checked", never "changed since".
-    onError: () => {
-      updateVerdict(null);
-    },
-  });
-
-  /**
-   * What the schema already refuses, as sentences and as errors keyed by their own field.
-   *
-   * The check used to go straight to the server, so an untouched form was answered with the
-   * server's own wording — `invalid resource envelope: missing field name`, or a regular
-   * expression, or nothing at all — and no field was marked, which left a person and a screen
-   * reader with no idea where (T-1491, UI-44, UI-45). The browser knows this much already.
-   */
-  function schemaRefusals(
-    form: T,
-  ): { marked: ErrorSchema; sentences: string[]; missing: boolean } | null {
-    // A typed reference is judged by the name its picker shows, as the form itself judges it (T-2872).
+  // The YAML view submits what the form view would, judged by the schema of the render after
+  // `onChange` (T-0890): the parent may widen it for what was typed.
+  const enqueueYaml = useYamlSubmitQueue<T>((form) => {
     const { errors } = validator.validateFormData(namesOfRefs(kind, form), schema);
-    if (errors.length === 0) {
-      return null;
-    }
-    const marked: ErrorSchema = {};
-    const sentences: string[] = [];
-    for (const issue of errors) {
-      const sentence = t(errorMessageKey(issue, schema));
-      sentences.push(`${issue.property ?? ""} ${sentence}`.trim());
-      atPath(marked, (issue.property ?? "").split(".")).push(sentence);
-    }
-    // A required field left empty is a manifest the server cannot even read: a reference with no
-    // name answers "does not parse: untagged enum Ref" instead of anything a person can act on
-    // (T-2634).
-    return { marked, sentences, missing: errors.some((issue) => issue.name === "required") };
-  }
-
-  /**
-   * A finding the server made, on the field it names (`fieldPath`; UI-45, T-1491). A finding with no path stays in the list under the verdict, where it was.
-   */
-  const findingErrors = useMemo<ErrorSchema | undefined>(() => {
-    const located = (internalVerdict?.findings ?? []).filter(
-      (finding) => finding.level === "error" && Boolean(finding.path),
-    );
-    if (located.length === 0) {
-      return undefined;
-    }
-    const marked: ErrorSchema = {};
-    for (const finding of located) {
-      atPath(marked, fieldPath(finding.path, schema)).push(findingSentence(finding.message, t));
-    }
-    return marked;
-  }, [internalVerdict, schema, t]);
-
-  /**
-   * What the fields say: the browser's own refusals and the server's findings together. The
-   * server's used to be dropped whenever the browser marked any field at all, so a name another
-   * project holds went unsaid on the name while the space picker was marked (T-2731, UI-45); a
-   * field both judge shows both sentences.
-   */
-  const shownErrors = useMemo<ErrorSchema | undefined>(() => {
-    if (schemaErrors === undefined || findingErrors === undefined) {
-      return schemaErrors ?? findingErrors;
-    }
-    return mergeObjects(findingErrors, schemaErrors, "preventDuplicates") as ErrorSchema;
-  }, [schemaErrors, findingErrors]);
-
-  /** The first required field the schema finds empty, as its path and the name it shows. */
-  function firstMissing(form: T): { message: string; field: string } | null {
-    const { errors } = validator.validateFormData(namesOfRefs(kind, form), schema);
-    const issue = errors.find((candidate) => candidate.name === "required");
-    if (!issue) {
-      return null;
-    }
-    const path = (issue.property ?? "").split(".").filter(Boolean);
-    return { message: t("form.missing", { field: titleAt(schema, path) }), field: path.join(".") };
-  }
-
-  /**
-   * What the form held when Check was last pressed: a check the server refused outright (an
-   * invalid manifest answers with a problem, not a verdict) leaves no verdict, and the chip says
-   * the check failed rather than "not checked yet" until the form changes (T-4824).
-   */
-  const [checkedDigest, setCheckedDigest] = useState<string | null>(null);
-
-  /** The check runs on what the active view holds: the form, or the YAML read back into it. */
-  function runCheck() {
-    if (!canCheck) {
+    if (errors.length > 0) {
+      yaml.setIssues(errors.map((issue) => `${issue.property ?? ""} ${t(errorMessageKey(issue))}`.trim()));
       return;
     }
-    setStopped(null);
-    setCheckedDigest(currentDigest);
-    if (checkRefusal) {
-      setStopped({ ...checkRefusal, form: formData });
-      return;
-    }
-    const check = onCheck ?? ((form: T) => ownCheck.mutate(form));
-    if (view === "form") {
-      if (formData) {
-        // What the browser already knows goes onto the fields at once, in words (T-1491); the
-        // server is still asked, because its check sees what the schema cannot — a reference that
-        // does not resolve, a name already taken, a grant the proposer does not have. Not while a
-        // required field is empty: that manifest does not parse, and the field already says what
-        // it needs (T-2634).
-        const refused = schemaRefusals(formData);
-        setSchemaErrors(refused?.marked);
-        if (!refused?.missing) {
-          check(formData);
-        } else {
-          const missing = firstMissing(formData);
-          setStopped(missing ? { ...missing, form: formData } : null);
-          // A required field among the advanced ones is not on screen until they are shown.
-          if (missing && !controlOf(missing.field) && arranged?.advancedFields && !advanced) {
-            setAdvancedChoice(true);
-          }
-        }
-      }
-      return;
-    }
-    const form = readYaml();
-    if (form !== null) {
-      // The YAML view is checked by the server alone, on purpose: it is where a value the form's
-      // own schema cannot express is typed — a rate limit outside the offered classes, a field the
-      // kind has no control for — and the parent widens the schema only one render later (T-0890).
-      // Refusing it here would refuse what the REST route accepts.
-      onChange?.(form);
-      setSchemaErrors(undefined);
-      setIssues([]);
-      check(form);
-    }
-  }
-
-  // The automatic check reads what the latest render holds; it is keyed on the form alone, so a
-  // verdict arriving re-renders without sending the same form again.
-  const autoChecked = useRef<T | undefined>(undefined);
-  const autoRun = useRef<(form: T) => void>(() => undefined);
-  useEffect(() => {
-    autoRun.current = (form: T) => {
-      if (!canCheck || disabled || checkRefusal || schemaRefusals(form)?.missing) {
-        return;
-      }
-      autoChecked.current = form;
-      (onCheck ?? ((next: T) => ownCheck.mutate(next)))(form);
-    };
+    yaml.setIssues([]);
+    handleSubmit(form);
   });
-  useEffect(() => {
-    if (!autoCheck || view !== "form" || formData === undefined || autoChecked.current === formData) {
-      return;
-    }
-    const timer = setTimeout(() => autoRun.current(formData), AUTO_CHECK_MS);
-    return () => clearTimeout(timer);
-  }, [autoCheck, view, formData]);
-
-  // The field a stopped check names is opened, scrolled to and focused once it is on screen,
-  // with every fold around it opened (T-3970); `advanced` reruns it once those fields show.
-  useEffect(() => {
-    const target = view === "form" && stopped?.field ? controlOf(stopped.field) : null;
-    if (!target) {
-      return;
-    }
-    for (let fold = target.closest("details"); fold; fold = fold.parentElement?.closest("details") ?? null) {
-      fold.open = true;
-    }
-    target.scrollIntoView?.({ block: "center" });
-    target.focus();
-  }, [stopped, view, advanced]);
-
-  const stoppedElement = stopped && stopped.form === formData ? (
-    <span data-testid="check-stopped" role="status" className="text-caption text-danger">
-      {stopped.message}
-    </span>
-  ) : null;
-
-  const checkButton = canCheck ? (
-    <Button
-      size="sm"
-      disabled={disabled || ownCheck.isPending}
-      disabledReason={deniedReason ?? (submitDisabledReason || t("app.busyReason"))}
-      onClick={runCheck}
-    >
-      {t("form.check")}
-    </Button>
-  ) : null;
-
-  /**
-   * The YAML view submits what the form view would: the same schema decides (UI-01). One
-   * render later: the parent rebuilds its schema and its base manifest from the form it is
-   * handed (a rate limit outside the classes, a field the form has no control for), so what
-   * is checked and proposed is the document typed, not the render before it (T-0890).
-   */
-  const [queued, setQueued] = useState<T | null>(null);
   function submitYaml() {
-    const form = readYaml();
+    const form = yaml.read();
     if (form === null) {
       return;
     }
     onChange?.(form);
-    setQueued(form);
+    enqueueYaml(form);
   }
-  useEffect(() => {
-    if (queued === null) {
-      return;
-    }
-    // The effect is the "one render later": it consumes the queue and reports the schema's
-    // answer, so the state it sets is the point of it.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- the effect is the render after onChange: it consumes the queue so the parent's widened schema judges the YAML (T-0890)
-    setQueued(null);
-    const { errors } = validator.validateFormData(namesOfRefs(kind, queued), schema);
-    if (errors.length > 0) {
-      setIssues(
-        errors.map((issue) =>
-          `${issue.property ?? ""} ${t(errorMessageKey(issue))}`.trim(),
-        ),
-      );
-      return;
-    }
-    setIssues([]);
-    handleSubmit(queued);
-  }, [queued, schema, handleSubmit, t, kind]);
-
-  // The age in the person's language: the verdict sentence is translated, and an English
-  // "12s ago" inside a German one was half a translation (T-1753).
-  const verdictAge = internalVerdict?.checkedAt ? ago(internalVerdict.checkedAt, now, t) : "";
-  const refusedCheck = verdictState === "none" && checkedDigest === currentDigest && Boolean(error ?? ownCheck.error);
-  const verdictChip = (
-    <Badge data-testid="draft-verdict" tone={refusedCheck ? "danger" : VERDICT_TONE[verdictState]}>
-      {verdictState === "none" && (refusedCheck ? t("drafts.verdict.refused") : t("drafts.verdict.none"))}
-      {verdictState === "green" && t("drafts.verdict.green", { age: verdictAge })}
-      {verdictState === "waiting" &&
-        t("drafts.verdict.waiting", { changes: (internalVerdict?.waitsOn ?? []).join(", "), age: verdictAge })}
-      {verdictState === "red" && t("drafts.verdict.red", { age: verdictAge })}
-      {verdictState === "stale" && t("drafts.verdict.stale")}
-    </Badge>
-  );
 
   // What the footer's buttons answered, beside them, where the person is looking (T-1424): the
   // page's own refusal of a check or a proposal, or this dialog's own check refused.
-  const ownCheckError = ownCheck.error
-    ? ownCheck.error instanceof ApiError
-      ? (ownCheck.error.problem?.detail ?? ownCheck.error.message)
-      : ownCheck.error.message
-    : null;
-  const footerError = error ?? ownCheckError;
-  const footerErrorElement = footerError ? (
-    <span data-testid="footer-error" role="alert" className="basis-full text-right text-caption text-danger">
-      {footerError}
-    </span>
-  ) : null;
-
-  const reasonElement = proposeReason ? (
-    <span
-      id="propose-reason"
-      data-testid="propose-reason"
-      role="status"
-      className={`text-caption ${isLax ? "text-warning" : "text-danger"}`}
-    >
-      {isLax ? t("drafts.laxWarning") : proposeReason}
-    </span>
-  ) : null;
+  const footer: ResourceFormFooterProps = {
+    onCancel: () => handleOpenChange(false),
+    check: canCheck
+      ? {
+          onClick: check.runCheck,
+          disabled: disabled || check.pending,
+          disabledReason: deniedReason ?? (submitDisabledReason || t("app.busyReason")),
+        }
+      : undefined,
+    stoppedMessage: check.stoppedMessage,
+    verdict:
+      draftKind && activeName
+        ? { verdict: draft.verdict, state: verdictState, refused: verdictState === "none" && check.refusedWith(error) }
+        : undefined,
+    proposeReason,
+    lax: isLax,
+    error: error ?? check.error,
+  };
 
   // A person who may not create the kind is told so at the top, in words, instead of a whole
   // form greyed out with the reason in API terms under its last field (T-4165, audit T-4158).
@@ -1132,122 +380,19 @@ export function ResourceFormDialogBody<T>({
       closeLabel={t("resourceDelete.close")}
     >
       <div className="flex flex-col gap-4">
-        {/*
-          What the kind is for, before the form asks anything (UI-02, T-1608): two sentences from
-          the kind's own arrangement, in the person's language. A person who opened this dialog
-          without knowing what a Layer or a SyncSource is reads it here and nowhere else.
-        */}
-        {kind ? (
-          <div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => askAbout(t("form.fillFromSentenceQuestion", { kind }))}
-            >
-              {t("form.fillFromSentence")}
-            </Button>
-          </div>
-        ) : null}
-
-        {arranged?.about ? (
-          <p data-testid="form-about" className="text-body text-fg-muted">
-            {arranged.about}
-          </p>
-        ) : null}
-
-        {/*
-          One link to the kind's page in the User Guide, and only when this installation serves
-          one: `guideUrl` answers nothing without both the base URL and the page, so an instance
-          without a guide shows no dead link (UI-02, DP-11, T-2252). It names the page it opens,
-          so a screen reader announces where it goes rather than "link".
-
-          `ExternalLink`, not a hand-written anchor: the base half of this address is the
-          installation's `documentationBaseUrl`, which arrives from a manifest, and a manifest
-          must never be able to put a `javascript:` URL behind something to click (PF-50,
-          T-2409). It is also what carries `rel="noopener noreferrer"` and the words that say a
-          new tab opens, which the form behind it needs because it may hold typing.
-        */}
-        {guideHref ? (
-          <p className="text-body">
-            <ExternalLink
-              data-testid="form-guide"
-              href={guideHref}
-              className="text-primary-soft-fg underline-offset-2"
-            >
-              {t("form.guideLink", { kind: kind ? kindPlural(kind, t) : "" })}
-            </ExternalLink>
-          </p>
-        ) : null}
-
-        {conflict ? (
-          <Alert role="alert" tone="warning">
-            {conflict}
-          </Alert>
-        ) : null}
-        {saveRefused ? (
-          <Alert role="alert" tone="danger">
-            {t("drafts.saveRefused", { reason: saveRefused })}
-          </Alert>
-        ) : null}
-
-        {draftKind && project ? <ProposeStandingNote project={project} kind={draftKind} /> : null}
-
-        {draftKind && (currentDraft || isStrict) ? (
-          <div className="flex flex-wrap items-center gap-2">
-            {currentDraft ? (
-              <span
-                data-testid="draft-status"
-                className="text-caption text-fg-muted"
-              >
-                {t("drafts.touched", {
-                  who: currentDraft.touchedBy,
-                  kind: currentDraft.touchedKind,
-                  version: currentDraft.version,
-                })}
-              </span>
-            ) : null}
-            {isStrict ? (
-              <Badge title={t("drafts.strictHelp")}>{t("drafts.strict")}</Badge>
-            ) : null}
-          </div>
-        ) : null}
-
-        {draftKind &&
-        internalVerdict?.findings &&
-        internalVerdict.findings.length > 0 ? (
-          <div
-            data-testid="draft-findings"
-            className="flex flex-col gap-1 rounded border border-border bg-surface-subtle p-2 text-caption"
-          >
-            <span className="font-semibold text-fg">{t("drafts.findings")}</span>
-            <ul className="list-disc pl-4 space-y-0.5">
-              {internalVerdict.findings.map((f, idx) => (
-                <li
-                  key={idx}
-                  className={
-                    f.level === "error"
-                      ? "text-danger"
-                      : f.level === "warning"
-                        ? "text-warning"
-                        : "text-fg-muted"
-                  }
-                >
-                  {f.path ? (
-                    <span className="font-mono">{f.path}: </span>
-                  ) : null}
-                  <span>{findingSentence(f.message, t)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
-        {restartsStream ? (
-          <Alert role="status" tone="warning">
-            {t("form.restartsStream")}
-          </Alert>
-        ) : null}
+        <ResourceFormNotes
+          kind={kind}
+          about={arrangement.about}
+          guideHref={guideHref}
+          conflict={draft.conflict}
+          saveRefused={draft.saveRefused}
+          project={project}
+          draftKind={draftKind}
+          draft={draft.currentDraft}
+          strict={!isLax}
+          verdict={draft.verdict}
+          restartsStream={check.restartsStream}
+        />
 
         {source ? (
           <Tabs
@@ -1276,7 +421,7 @@ export function ResourceFormDialogBody<T>({
               schema={schema}
               project={project}
               kind={kind}
-              uiSchema={lockedUiSchema}
+              uiSchema={arrangement.uiSchema}
               formData={formData}
               disabled={disabled}
               submitLabel={submitLabel}
@@ -1284,47 +429,31 @@ export function ResourceFormDialogBody<T>({
               // The verdict's reason is already in the actions, in red: once is enough (T-5589).
               submitReasonShown={Boolean(draftKind && activeName && proposeReason && !isLax && proposeReason === effectiveSubmitDisabledReason)}
               submitting={submitting || saving}
-              extraErrors={shownErrors}
+              extraErrors={check.shownErrors}
               onSubmit={handleSubmit}
               onChange={(next) => {
                 // What the browser refused is about the form as it was: a keystroke makes it stale,
                 // and rjsf's own live validation takes over from here.
-                setSchemaErrors(undefined);
+                check.clearSchemaErrors();
                 onChange?.(next);
               }}
               afterFields={afterFields}
               actions={
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button variant="ghost" onClick={() => handleOpenChange(false)}>
-                    {t("form.cancel")}
-                  </Button>
-                  {checkButton}
-                  {stoppedElement}
-                  {draftKind && activeName ? (
-                    <>
-                      {verdictChip}
-                      {reasonElement}
-                    </>
-                  ) : null}
-                  {footerErrorElement}
-                  {arranged?.advancedFields ? (
+                <ResourceFormFooter {...footer}>
+                  {arrangement.advancedFields ? (
                     <>
                       <Checkbox
                         label={t("form.advancedMode")}
                         aria-describedby={advancedHintId}
-                        checked={advanced}
-                        onChange={(event) => {
-                          const next = event.target.checked;
-                          setAdvancedChoice(next);
-                          saveAdvanced.mutate(next);
-                        }}
+                        checked={arrangement.advanced}
+                        onChange={(event) => arrangement.setAdvanced(event.target.checked, true)}
                       />
                       <span id={advancedHintId} className="sr-only">
                         {t("form.advancedModeHint")}
                       </span>
                     </>
                   ) : null}
-                </div>
+                </ResourceFormFooter>
               }
             />
             </Suspense>
@@ -1339,123 +468,42 @@ export function ResourceFormDialogBody<T>({
                 if (!source) return;
                 onChange?.(source.fromManifest(manifest));
                 setRestored(id);
-                setIssues([]);
+                yaml.setIssues([]);
                 setView("form");
               }}
             />
           </div>
         ) : (
-          <div {...tabPanelProps(viewsId, "yaml")} className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-caption text-fg-muted">{t("form.yamlHint")}</p>
-              <div className="flex gap-2">
-                <Button size="sm" variant="secondary" data-testid="yaml-download" onClick={downloadYaml}>
-                  {t("form.yamlDownload")}
+          <ResourceYamlPanel
+            editor={yaml}
+            viewsId={viewsId}
+            disabled={disabled}
+            downloadName={extractName(formData) ?? kind?.toLowerCase() ?? "manifest"}
+            footer={
+              <ResourceFormFooter {...footer} className="justify-end">
+                {effectiveSubmitDisabledReason && !proposeReason ? (
+                  <span role="status" className="text-caption text-fg-muted">
+                    {effectiveSubmitDisabledReason}
+                  </span>
+                ) : null}
+                {/* `disabledReason`, as the form view's submit has it (theme.tsx): a hard-disabled
+                    button leaves the tab order, and the reason written for it was then never read by
+                    the person tabbing the footer (UI-44, T-1753). */}
+                <Button
+                  variant="primary"
+                  data-shortcut="save"
+                  disabled={disabled || Boolean(effectiveSubmitDisabledReason)}
+                  disabledReason={effectiveSubmitDisabledReason}
+                  loading={submitting || saving}
+                  onClick={submitYaml}
+                >
+                  {submitLabel}
                 </Button>
-                {disabled ? null : (
-                  <FilePicker
-                    label={t("form.yamlUpload")}
-                    accept=".yaml,.yml,application/yaml,text/yaml"
-                    onFile={(file) => void uploadYaml(file)}
-                    className="text-body"
-                  >
-                    <span className="rounded-md border border-border px-3 py-1 text-caption">{t("form.yamlUpload")}</span>
-                  </FilePicker>
-                )}
-              </div>
-            </div>
-            {uploadNote ? (
-              <p role="status" data-testid="yaml-upload-note" className="text-caption text-fg-muted">
-                {uploadNote}
-              </p>
-            ) : null}
-            <div className="overflow-hidden rounded-md border border-border">
-              <Suspense
-                fallback={
-                  <p className="p-3 text-body">{t("models.loadingEditor")}</p>
-                }
-              >
-                <MonacoSourceView
-                  value={text}
-                  onChange={(next) => {
-                    setText(next);
-                    setYamlError(null);
-                  }}
-                  onMount={() => undefined}
-                  height="24rem"
-                />
-              </Suspense>
-            </div>
-            {/* What the YAML answered, right above the button that asked it (T-1395). */}
-            {yamlError ? (
-              <Alert role="alert" tone="danger">
-                {yamlError}
-              </Alert>
-            ) : null}
-            {issues.length > 0 ? (
-              <Alert role="alert" tone="danger">
-                <p>{t("form.schemaErrors")}</p>
-                <ul className="mt-1 list-disc pl-5">
-                  {issues.map((issue) => (
-                    <li key={issue} className="font-mono text-caption">
-                      {issue}
-                    </li>
-                  ))}
-                </ul>
-              </Alert>
-            ) : null}
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button variant="ghost" onClick={() => handleOpenChange(false)}>
-                {t("form.cancel")}
-              </Button>
-              {checkButton}
-              {stoppedElement}
-              {draftKind && activeName ? (
-                <>
-                  {verdictChip}
-                  {reasonElement}
-                </>
-              ) : null}
-              {footerErrorElement}
-              {effectiveSubmitDisabledReason && !proposeReason ? (
-                <span role="status" className="text-caption text-fg-muted">
-                  {effectiveSubmitDisabledReason}
-                </span>
-              ) : null}
-              {/* `disabledReason`, as the form view's submit has it (theme.tsx): a hard-disabled
-                  button leaves the tab order, and the reason written for it was then never read by
-                  the person tabbing the footer (UI-44, T-1753). */}
-              <Button
-                variant="primary"
-                data-shortcut="save"
-                disabled={disabled || Boolean(effectiveSubmitDisabledReason)}
-                disabledReason={effectiveSubmitDisabledReason}
-                loading={submitting || saving}
-                onClick={submitYaml}
-              >
-                {submitLabel}
-              </Button>
-            </div>
-          </div>
+              </ResourceFormFooter>
+            }
+          />
         )}
       </div>
     </FormFrame>
-  );
-}
-
-/**
- * Before the click, what proposing leads to: approved at once, or waiting for another approver
- * and why (PF-58, PF-70). It reads the permissions the page already holds and fetches nothing, so
- * opening a form never races its draft's load with a request of its own.
- */
-function ProposeStandingNote({ project, kind }: { project: string; kind: string }): JSX.Element | null {
-  const { t } = useTranslation();
-  const { data } = useQuery<Effective>({ queryKey: queryKeys.permissions(project), enabled: false });
-  const standing = proposeStanding(data, kind);
-  if (!standing) return null;
-  return (
-    <p role="status" data-testid="propose-standing" className="text-caption text-fg-muted">
-      {t(`changes.${standing}`, { kind: kindPlural(kind, t) })}
-    </p>
   );
 }

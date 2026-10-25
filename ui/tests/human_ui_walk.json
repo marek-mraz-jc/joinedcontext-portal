@@ -6,6 +6,32 @@
   ],
   "enforce": false,
   "modules": {
+    "src/components/forms/ResourceFormFooter.tsx": {
+      "walkedBy": "worker-t5515 (stub walk, read by integrator-2)",
+      "date": "2026-10-25",
+      "screenshots": [
+        "evidence/worker-t5515/T-5515/create-yaml-1440.png",
+        "evidence/worker-t5515/T-5515/create-yaml-400.png",
+        "evidence/worker-t5515/T-5515/create-1440.png",
+        "evidence/worker-t5515/T-5515/create-400.png"
+      ]
+    },
+    "src/components/forms/ResourceFormNotes.tsx": {
+      "walkedBy": "worker-t5515 (stub walk, read by integrator-2)",
+      "date": "2026-10-25",
+      "screenshots": [
+        "evidence/worker-t5515/T-5515/create-checked-1440.png",
+        "evidence/worker-t5515/T-5515/create-checked-400.png"
+      ]
+    },
+    "src/components/forms/ResourceYamlPanel.tsx": {
+      "walkedBy": "worker-t5515 (stub walk, read by integrator-2)",
+      "date": "2026-10-25",
+      "screenshots": [
+        "evidence/worker-t5515/T-5515/create-yaml-1440.png",
+        "evidence/worker-t5515/T-5515/create-yaml-400.png"
+      ]
+    },
     "src/assistant/AssistantDock.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
