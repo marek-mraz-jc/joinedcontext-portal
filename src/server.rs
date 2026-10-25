@@ -3,6 +3,7 @@ use axum::http::{header, HeaderName, HeaderValue};
 use axum::middleware::{from_fn, from_fn_with_state, Next};
 use axum::response::Response;
 use axum::Router;
+use tower_http::compression::CompressionLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::api;
@@ -124,6 +125,12 @@ pub fn app(state: AppState) -> Router {
             HeaderName::from_static("permissions-policy"),
             HeaderValue::from_static("geolocation=(self), camera=(), microphone=()"),
         ))
+        // gzip for a client that asks (T-5598): a space's grid read 480 KB of JSON uncompressed,
+        // seconds on a phone's network. tower-http leaves out event streams, images, gRPC, bodies
+        // under 32 bytes and answers already encoded upstream (the proxied `/cs` reads included).
+        // The session cookie is SameSite=Lax and no answer echoes the CSRF token, so a cross-site
+        // page cannot time compressed lengths of a signed-in answer (BREACH).
+        .layer(CompressionLayer::new().gzip(true))
 }
 
 /// The sites a public form's page `/f/{slug}` may be framed by: its Endpoint's

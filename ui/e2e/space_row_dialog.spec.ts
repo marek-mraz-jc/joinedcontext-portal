@@ -27,12 +27,18 @@ const LINKML = [
   "classes:",
   "  KeyPerformanceIndicator:",
   "    title: Key performance indicator",
-  "    slots: [id, name, kpiValue, category]",
+  "    slots: [id, name, kpiValue, category, address]",
   "slots:",
   "  id: {}",
   "  name: { range: string, title: Name }",
   "  kpiValue: { range: float, title: Value }",
-  "  category: { range: string, title: Category }",
+  "  category: { range: KpiCategory, title: Category }",
+  "  address: { range: string, title: Address }",
+  "enums:",
+  "  KpiCategory:",
+  "    permissible_values:",
+  "      quantitative: { title: Quantitative }",
+  "      qualitative: { title: Qualitative }",
   "",
 ].join("\n");
 
@@ -43,6 +49,8 @@ function kpi(n: number) {
     name: { type: "Property", value: `District ${n}` },
     kpiValue: { type: "Property", value: 10 * n, observedAt: "2026-10-20T10:00:00Z" },
     category: { type: "Property", value: "quantitative" },
+    // An attribute the import left empty: the detail says "not set" (T-5599).
+    address: { type: "Property", value: {} },
   };
 }
 
@@ -112,6 +120,11 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("tab")).toHaveText(["Fields", "History", "Metadata", "Comments"]);
     await expect(dialog.getByText("30", { exact: true })).toBeVisible();
+    // T-5599: no URN on screen (Copy identifier holds it), the enum's label, and "not set".
+    await expect(dialog).not.toContainText("urn:");
+    await expect(dialog.getByRole("button", { name: "Copy identifier" })).toBeVisible();
+    await expect(dialog.getByText("Quantitative", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("not set", { exact: true })).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
     await shot(page, `row-fields-${label}`);
 
@@ -143,5 +156,50 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await form.getByRole("button", { name: "Create", exact: true }).click();
     await expect(form.getByText("Enter why you add it, for example: Inspection on 2026-10-22.")).toBeVisible();
     await shot(page, `row-add-${label}`);
+  });
+}
+
+// The History tab's answers (T-5597): a 404 for an attribute with nothing recorded says so with no
+// retry, a 403 names the missing right with no retry, a 503 offers a retry that reads again.
+for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
+  test(`the History tab tells nothing recorded, a refusal and a failure apart (${label})`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await stubApi(page);
+    let failed = false;
+    await page.route("**/cs/**/temporal/entities/**", async (route) => {
+      const attrs = new URL(route.request().url()).searchParams.get("attrs");
+      const answer = (status: number, body: unknown) =>
+        route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+      if (attrs === "name") return answer(404, { type: "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound", title: "Not Found" });
+      if (attrs === "category") return answer(403, { type: "https://uri.etsi.org/ngsi-ld/errors/PermissionDenied", title: "Forbidden" });
+      if (!failed) {
+        failed = true;
+        return answer(503, { title: "Service Unavailable", detail: "the broker did not answer" });
+      }
+      return route.fallback();
+    });
+    await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en&row=${encodeURIComponent(URN)}`);
+    const dialog = page.getByRole("dialog", { name: "Details: District 3" });
+    await dialog.getByRole("tab", { name: "History" }).click();
+    const attribute = dialog.getByRole("combobox", { name: "Attribute" });
+
+    await attribute.selectOption("name");
+    await expect(dialog.getByText("Nothing was recorded in this window.")).toBeVisible();
+    await expect(dialog.getByRole("alert")).toHaveCount(0);
+    await shot(page, `row-history-nothing-${label}`);
+
+    await attribute.selectOption("category");
+    await expect(dialog.getByRole("alert")).toContainText("Your role may read current values but not their history");
+    await expect(dialog.getByRole("button", { name: "Try again" })).toHaveCount(0);
+    expect(await axeViolations(page)).toEqual([]);
+    await shot(page, `row-history-refused-${label}`);
+
+    await attribute.selectOption("kpiValue");
+    await expect(dialog.getByRole("alert")).toContainText("Not loaded: the broker did not answer");
+    await shot(page, `row-history-failed-${label}`);
+    await dialog.getByRole("button", { name: "Try again" }).click();
+    await expect(dialog.getByRole("cell", { name: "30" }).first()).toBeVisible();
+    await expect(dialog.getByRole("alert")).toHaveCount(0);
+    await shot(page, `row-history-values-${label}`);
   });
 }

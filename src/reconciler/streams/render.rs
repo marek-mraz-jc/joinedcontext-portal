@@ -10,7 +10,9 @@ use jc_core::kinds::pipeline::{Compute, PipelineSource, PipelineSpec, Step};
 use jcctl::bento::InputContext;
 use serde_json::Value;
 
-use super::identity::{bound_in_flight, pipeline_oauth2, replaces, writes, written};
+use super::identity::{
+    bound_in_flight, in_flight, pipeline_oauth2, reads_in_batches, replaces, writes, written,
+};
 use super::RenderError;
 use crate::store::Mirror;
 
@@ -76,7 +78,7 @@ pub fn render_stream(
         },
         "output": labelled(written(), "output")
     });
-    bound_in_flight(&mut stream, source.terminates());
+    bound_in_flight(&mut stream, in_flight([Some(source)]));
     Ok(stream)
 }
 
@@ -490,7 +492,7 @@ pub fn render_endpoint_stream(
         "output": written()
     });
     // An Endpoint source polls on a clock (`generate`), whatever its trigger.
-    bound_in_flight(&mut stream, true);
+    bound_in_flight(&mut stream, in_flight([None]));
     Ok(stream)
 }
 
@@ -595,10 +597,7 @@ pub(super) fn datasource_input(
             }
         });
         (inp, vec![p1, p2])
-    } else if matches!(
-        source.source_type,
-        DataSourceType::Mqtt | DataSourceType::WebSocket
-    ) {
+    } else if reads_in_batches(source) {
         (resident_batches(input_json), Vec::new())
     } else {
         (input_json, Vec::new())
@@ -923,10 +922,10 @@ pub fn render_merged(
             ));
         }
     }
-    let polled = sources.iter().all(|source| match source {
-        ResolvedSource::Data { spec, .. } => spec.terminates(),
-        ResolvedSource::Endpoint { .. } => true,
-    });
+    let threads = in_flight(sources.iter().map(|source| match source {
+        ResolvedSource::Data { spec, .. } => Some(spec.as_ref()),
+        ResolvedSource::Endpoint { .. } => None,
+    }));
 
     let mut stream = serde_json::json!({
         "input": labelled(input, "input"),
@@ -939,7 +938,7 @@ pub fn render_merged(
         },
         "output": labelled(written(), "output")
     });
-    bound_in_flight(&mut stream, polled);
+    bound_in_flight(&mut stream, threads);
     Ok(stream)
 }
 

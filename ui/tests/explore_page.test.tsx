@@ -635,3 +635,75 @@ it("opens the grid on the type and the filter the route carries, without a space
     ).toBe(true),
   );
 });
+
+describe("the endpoint the explorer reads through (T-5604)", () => {
+  const AIR = {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "Endpoint",
+    metadata: { name: "helsinki-air-quality", namespace: "helsinki", title: { en: "Helsinki air quality" } },
+    spec: { contextSpaceRef: "helsinki", slug: "jtjnhkaau64zmzz5csmcwem52icvufy2", audience: "public", policyRef: "urn:ngsi-ld:Policy:hel.fi:helsinki:public-air-quality" },
+  };
+  const APP = {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "Endpoint",
+    metadata: {
+      name: "app-air-quality",
+      namespace: "helsinki",
+      title: { en: "Air quality" },
+      annotations: { "joinedcontext.com/generated-by": "portal/app-reconciler" },
+    },
+    spec: { contextSpaceRef: { kind: "ContextSpace", name: "helsinki" }, slug: "3jlwl5dg2oidblwqhc6qdi3zxl", audience: "project-list", callerRole: true },
+  };
+
+  function open(endpoints: unknown[], initialEndpoint?: string) {
+    const asked: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: unknown) => {
+        asked.push(urlOf(input));
+        return Promise.resolve(new Response("", { status: 404 }));
+      }),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(queryKeys.list("helsinki", "endpoints"), list(endpoints));
+    client.setQueryData(queryKeys.list("helsinki", "spaces"), SPACES);
+    client.setQueryData(queryKeys.list("helsinki", "datamodels"), MODELS);
+    client.setQueryData(queryKeys.session(), { sub: "demo.viewer", groups: ["helsinki"] });
+    render(
+      <QueryClientProvider client={client}>
+        <I18nextProvider i18n={i18n}>
+          <InRouter>
+            <ExplorePage project="helsinki" initialSpace="helsinki" initialEndpoint={initialEndpoint} />
+          </InRouter>
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    return asked;
+  }
+
+  afterEach(() => {
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("writes the endpoint picked for the person into the address, the space's own before an App's", async () => {
+    open([APP, AIR]);
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get("endpoint")).toBe("helsinki-air-quality"));
+    expect(screen.getByLabelText(en.explore.endpoint)).toHaveValue("helsinki-air-quality");
+    await userEvent.selectOptions(await screen.findByLabelText(/Entity type/i), "BikeHireDockingStation");
+    const named = await screen.findByText("helsinki-air-quality", { selector: "span" });
+    expect(named.parentElement?.textContent).toContain(`${en.explore.readThrough} helsinki-air-quality`);
+  });
+
+  it("names a linked endpoint the person is not shown and reads through no other in its place", async () => {
+    const asked = open([AIR], "app-air-quality");
+    expect(await screen.findByText(en.explore.endpointUnshown.replace("{name}", "app-air-quality"))).toBeInTheDocument();
+    expect(screen.getByLabelText(en.explore.endpoint)).toHaveValue("");
+    await userEvent.selectOptions(await screen.findByLabelText(/Entity type/i), "BikeHireDockingStation");
+    expect(new URLSearchParams(window.location.search).get("endpoint")).toBe("app-air-quality");
+    expect(asked.some((url) => url.includes(AIR.spec.slug))).toBe(false);
+    // The person picks one they can read, and the page reads through it.
+    await userEvent.selectOptions(screen.getByLabelText(en.explore.endpoint), "helsinki-air-quality");
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get("endpoint")).toBe("helsinki-air-quality"));
+    expect(screen.queryByText(en.explore.endpointUnshown.replace("{name}", "app-air-quality"))).toBeNull();
+  });
+});

@@ -402,8 +402,25 @@ function usageOf(raw: Record<string, unknown>): SlotUsage {
   return usage;
 }
 
+/**
+ * The last few sources parsed, by their text (T-5598): a space's grid asked the same 96 KB model
+ * for its slots, enums, rules, relations and titles, eight YAML parses in one 2 s render on a
+ * phone. Every caller reads the model and copies what it changes, so one object serves them all.
+ */
+const PARSED = new Map<string, LinkmlModel>();
+const PARSED_KEPT = 4;
+
 /** The structured projection of a source that parses; `EMPTY_MODEL` for one that does not. */
 export function parseModel(source: string): LinkmlModel {
+  const kept = PARSED.get(source);
+  if (kept !== undefined) return kept;
+  const model = parseSource(source);
+  if (PARSED.size >= PARSED_KEPT) PARSED.delete(PARSED.keys().next().value as string);
+  PARSED.set(source, model);
+  return model;
+}
+
+function parseSource(source: string): LinkmlModel {
   const document = parseDocument(source);
   if (document.errors.length > 0) {
     return EMPTY_MODEL;
