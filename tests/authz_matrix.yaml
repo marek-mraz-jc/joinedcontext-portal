@@ -268,6 +268,10 @@ routes:
     expect: [403, 403, 403, 403, 403, allow, 403, 403]
     body: {"subject": {"kind": "public"}, "action": "retrieveEntity"}
     note: "it reveals what another person may do (EP-103); an administrator meets the fixture's 404 (no such Endpoint) or 503 (no gateway)"
+  - route: GET /projects/{project}/endpoints/{name}/access/matrix
+    rule: "org-admin, or read on Policy in the Endpoint's space"
+    expect: [401, allow, allow, allow, allow, allow, 403, allow]
+    note: "who may do what on one Endpoint (API/01 §57, EP-103): a Policy reader and an administrator meet the fixture's 404 (no such Endpoint); the 200 path is tests/access_matrix_tests.rs"
   - route: POST /projects/{project}/access/explore
     rule: "org-admin"
     expect: [403, 403, 403, 403, 403, allow, 403, 403]
@@ -896,6 +900,19 @@ routes:
     rule: "project-verb:read:MqttBroker"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
     note: "what the broker measures, read by the Portal from the broker's own HTTP API; the browser never reaches a broker (API/01 §44, T-4043)"
+  - route: GET /projects/{project}/mqttbrokers/{name}/devices
+    rule: "project-verb:read:MqttBroker"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "the Add device form's options: roles only for a person who may propose ServiceAccount and the broker (T-5532)"
+  - route: POST /projects/{project}/mqttbrokers/{name}/devices
+    rule: "project-verb:propose:ServiceAccount+MqttBroker, person only"
+    expect: [403, 403, 403, allow, 403, allow, 404, 403]
+    body: {"name": "dev1", "role": "camera", "topic": "cameras/#", "jwks": {"keys": [{"kty": "EC", "crv": "P-256", "kid": "k1", "x": "f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU", "y": "x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}]}}
+    note: "one Change of the device's ServiceAccount (public keys only) and the broker role; a workload token is 403 (tests/mqtt_devices_tests.rs)"
+  - route: GET /projects/{project}/mqttbrokers/{name}/bindings
+    rule: "project-verb:read:MqttBroker"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "which topic fills which attribute, joined from the manifests; each hop the caller may not read is hidden without its name (API/01 §47, T-5533)"
   - route: GET /projects/{project}/mqttbrokers/{name}/captured
     rule: "project-verb:approve:MqttBroker (PL-87)"
     expect: [401, 404, 404, allow, allow, allow, 404, 404]

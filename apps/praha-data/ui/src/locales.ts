@@ -163,6 +163,8 @@ const cs: Strings = {
     review: "Zkontrolovat změny",
     apply: "Uložit",
     discard: "Zahodit změny",
+    entity: "Záznam",
+    copyId: "Kopírovat identifikátor",
     attribute: "Atribut",
     before: "Před změnou",
     after: "Po změně",

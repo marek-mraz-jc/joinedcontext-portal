@@ -1,5 +1,6 @@
 pub mod access_attributes;
 pub mod access_explore;
+pub mod access_matrix;
 pub mod access_requests;
 pub mod access_simulate;
 pub mod activity;
@@ -57,7 +58,9 @@ pub mod knowledge_usage;
 pub mod kpi_check;
 pub mod live;
 pub mod mqtt_allowance;
+pub mod mqtt_bindings;
 pub mod mqtt_captured;
+pub mod mqtt_devices;
 pub mod mqtt_measured;
 pub mod mutate;
 pub mod ops;
@@ -133,6 +136,7 @@ pub fn router() -> Router<AppState> {
         .merge(access_attributes::router())
         .merge(access_simulate::router())
         .merge(access_explore::router())
+        .merge(access_matrix::router())
         .merge(agent_access::router())
         .merge(endpoint_preview::router())
         .merge(kpi_check::router())
@@ -167,7 +171,9 @@ pub fn router() -> Router<AppState> {
         .merge(agent_registry::router())
         .merge(agent_activity::router())
         .merge(space_move::router())
+        .merge(mqtt_bindings::router())
         .merge(mqtt_captured::router())
+        .merge(mqtt_devices::router())
         .merge(mqtt_measured::router())
         .merge(mqtt_allowance::router())
         .merge(workspaces::router())

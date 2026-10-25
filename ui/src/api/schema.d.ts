@@ -2261,6 +2261,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/endpoints/{name}/access/matrix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who May Do What On An Endpoint
+         * @description Every principal a Policy of the Endpoint's space names, the project's ServiceAccounts the caller may read and the public, against each type and read, write, delete and history, from the gateway's own grant document per principal (API/01 §57, EP-103). Organization administrators and whoever reads Policies in the Endpoint's space; recorded as an `access.simulated` activity event. Changes no data.
+         */
+        get: operations["access_matrix"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/endpoints/{name}/access/simulate": {
         parameters: {
             query?: never;
@@ -2909,6 +2929,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/mqttbrokers/{name}/bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read An MQTT Broker's Topic Bindings
+         * @description Which topic filter of the broker reaches which type and attributes: each DataSource naming the broker, the pipelines of the project that read it and the Endpoints they write through, read from the manifests (API/01 §47). Each hop is checked against the caller's rights; one they may not read is `hidden` without its name and ends the row.
+         */
+        get: operations["get_bindings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/mqttbrokers/{name}/captured": {
         parameters: {
             query?: never;
@@ -2928,6 +2968,30 @@ export interface paths {
          * @description Deletes every message the broker kept at once and records who did it in the activity log, without the payloads (API/01 §47). Only a person who may approve MqttBrokers in the project; anybody else gets 404.
          */
         delete: operations["delete_captured"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/mqttbrokers/{name}/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What The Add Device Form Of A Broker May Offer
+         * @description The broker's roles with their publish filters, listed only for a person who may propose a ServiceAccount and this MqttBroker, and the realm's token endpoint a device asks (T-5532, PF-47). Whoever may read the project's MqttBrokers.
+         */
+        get: operations["device_options"];
+        put?: never;
+        /**
+         * Add A Device To An MQTT Broker
+         * @description Proposes one Change, in the caller's name, that writes a ServiceAccount signing in by the public keys given (`spec.credentials[].jwks`, PF-47) and adds it to one role of the broker. A private key member is refused (422 naming it); role and topic must be the broker's own (422 naming the field). The Change always waits for a second person (T-5532).
+         */
+        post: operations["add_device"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -4528,6 +4592,17 @@ export interface components {
             /** @description The call changes something (its operation is not read-only). */
             write: boolean;
         };
+        /** @description A device to add: its account name, the role and topic picked, and its public keys. */
+        AddDevice: {
+            /** @description A JSON Web Key Set of public keys only (PF-47). */
+            jwks: unknown;
+            /** @description The ServiceAccount's name, a DNS label such as `sensor-001`. */
+            name: string;
+            /** @description One of the broker's roles. */
+            role: string;
+            /** @description One of the role's publish filters; required when the role publishes. */
+            topic?: string | null;
+        };
         /**
          * @description Something the caller may or may not do that no rule expresses as a kind and a verb, with the
          *     API's own words for the refusal: the control is rendered disabled with the reason, never
@@ -4958,6 +5033,14 @@ export interface components {
             /** @description The values a coded attribute may take. */
             values?: string[] | null;
         };
+        /**
+         * @description One mapped attribute: `from` the record field (two for a point), absent for an expression or
+         *     a fixed value.
+         */
+        AttributeBinding: {
+            from?: string | null;
+            to: string;
+        };
         /** @description What decided one attribute for the caller. */
         AttributeExplained: {
             action: string;
@@ -5005,6 +5088,20 @@ export interface components {
         BackChannelLogoutForm: {
             /** @description The JWT the provider signed, carrying the `logout_events` claim. */
             logout_token: string;
+        };
+        /** @description One topic filter's way to an attribute; it ends at the first hop the caller may not read. */
+        Binding: {
+            /** @description The output mapper's map; absent for a step written by hand. */
+            attributes?: components["schemas"]["AttributeBinding"][] | null;
+            dataSource: components["schemas"]["Hop"];
+            endpoint?: null | components["schemas"]["Hop"];
+            pipeline?: null | components["schemas"]["Hop"];
+            topicFilter?: string | null;
+            type?: string | null;
+        };
+        Bindings: {
+            bindings: components["schemas"]["Binding"][];
+            broker: string;
         };
         /** @description Everything the Portal shows that names or themes an installation. */
         Branding: {
@@ -5938,6 +6035,22 @@ export interface components {
         DeclineRequest: {
             reason: string;
         };
+        /** @description What the Add device form of one broker may offer the caller. */
+        DeviceOptions: {
+            /** @description The `aud` of the device's client assertion: the realm issuer. */
+            issuer?: string | null;
+            /** @description Whether the caller may propose a device here: `ServiceAccount` and this `MqttBroker`. */
+            mayAdd: boolean;
+            /** @description The broker's roles, empty unless `mayAdd`. */
+            roles: components["schemas"]["DeviceRole"][];
+            /** @description The realm's token endpoint a device asks for its access token, absent without a login. */
+            tokenUrl?: string | null;
+        };
+        /** @description One role the form may offer, with the topic filters a device of it may publish to. */
+        DeviceRole: {
+            name: string;
+            publish: string[];
+        };
         /** @description What `scripts/publish-health.py` writes for one check. */
         Digest: {
             /** Format: date-time */
@@ -6516,6 +6629,15 @@ export interface components {
          * @enum {string}
          */
         HoldReason: "share-exceeded" | "empty" | "incomplete";
+        /** @description One hop of a binding: a manifest by name, or `hidden` when the caller may not read it. */
+        Hop: {
+            hidden?: boolean;
+            /** @description `DataSource`, `Pipeline` or `Endpoint`. */
+            kind: string;
+            name?: string | null;
+            /** @description The Context Space an Endpoint writes into. */
+            space?: string | null;
+        };
         /** @description Who is signed in. Returned by `GET /api/v1/auth/me` and used by every protected route. */
         Identity: {
             email?: string | null;
@@ -6778,6 +6900,53 @@ export interface components {
              *     configured.
              */
             endSessionUrl: string;
+        };
+        Matrix: {
+            cells: components["schemas"]["MatrixCell"][];
+            edges: components["schemas"]["MatrixEdge"][];
+            endpoint: string;
+            principals: components["schemas"]["MatrixPrincipal"][];
+            space: string;
+            types: string[];
+        };
+        /** @description What one principal may do on one type for one action. */
+        MatrixCell: {
+            /** @description `read`, `write`, `delete` or `history`. */
+            action: string;
+            /** @description `"*"` for every attribute, else the attribute names. */
+            attributes: unknown;
+            /** @description The constraints the grant narrows the rows by (`q`, `scopeQ`, `geoQ`, `temporalQ`). */
+            constraint?: string | null;
+            /** @description The Policy that grants or prohibits this, when one Policy in force covers the type. */
+            decidedBy?: string | null;
+            /** @description `permit`, or `prohibit` where a prohibition takes it away. */
+            effect: string;
+            /** @description `{kind}:{name}` of the principal. */
+            principal: string;
+            type: string;
+        };
+        /**
+         * @description One edge of the graph principal → Policy → Endpoint → type; node ids are
+         *     `principal:{kind}:{name}`, `policy:{name}`, `endpoint:{name}` and `type:{name}`.
+         */
+        MatrixEdge: {
+            from: string;
+            to: string;
+        };
+        MatrixPrincipal: {
+            /** @description `person`, `group`, `role`, `serviceAccount` or `public`. */
+            kind: string;
+            name: string;
+            via: components["schemas"]["MatrixVia"][];
+        };
+        /**
+         * @description How a principal reaches the Endpoint: a Policy that names it, or the project's
+         *     ServiceAccount manifest it is.
+         */
+        MatrixVia: {
+            /** @description `policy` or `serviceAccount`. */
+            kind: string;
+            name: string;
         };
         /** @description Who is signed in and through which front, so the UI knows whose logout to call. */
         Me: components["schemas"]["Identity"] & {
@@ -15734,6 +15903,88 @@ export interface operations {
             };
         };
     };
+    access_matrix: {
+        parameters: {
+            query?: {
+                /** @description Only principals of this kind: `person`, `group`, `role`, `serviceAccount` or `public`. */
+                kind?: string | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Endpoint name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The matrix and its graph */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Matrix"];
+                };
+            };
+            /** @description `kind` is not a principal kind */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Neither an organization administrator nor a reader of Policies in the Endpoint's space */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such Endpoint, or the gateway does not serve it yet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description More than 50 principals: narrow with `kind` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No gateway, or it did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     simulate_access: {
         parameters: {
             query?: never;
@@ -18215,6 +18466,49 @@ export interface operations {
             };
         };
     };
+    get_bindings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description MqttBroker name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The bindings; empty when no DataSource names the broker */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bindings"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such broker, or not readable by the caller */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     get_captured: {
         parameters: {
             query?: {
@@ -18330,6 +18624,159 @@ export interface operations {
                 };
             };
             /** @description The capture store did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    device_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description MqttBroker name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The form's options */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceOptions"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such broker, or not readable by the caller */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    add_device: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description MqttBroker name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "jwks": {
+                 *         "keys": [
+                 *           {
+                 *             "crv": "P-256",
+                 *             "kid": "k1",
+                 *             "kty": "EC",
+                 *             "x": "f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU",
+                 *             "y": "x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"
+                 *           }
+                 *         ]
+                 *       },
+                 *       "name": "sensor-001",
+                 *       "role": "camera",
+                 *       "topic": "cameras/${clientid}/#"
+                 *     }
+                 */
+                "application/json": components["schemas"]["AddDevice"];
+            };
+        };
+        responses: {
+            /** @description The Change that adds the device, waiting for a second person */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
+            };
+            /** @description The body does not read, or a manifest does not pass its door */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not propose a ServiceAccount or this MqttBroker, or is not a person */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such broker, or not readable by the caller */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A ServiceAccount of that name exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A field names what the broker or PF-47 refuses */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No forge */
             503: {
                 headers: {
                     [name: string]: unknown;

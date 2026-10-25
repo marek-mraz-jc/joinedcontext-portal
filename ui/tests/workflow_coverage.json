@@ -10,6 +10,16 @@
         "routes": [
           "DELETE /api/v1/projects/{project}/mqttbrokers/{name}/captured"
         ]
+      },
+      "add-device": {
+        "live": {
+          "spec": "mqtt-device.spec.ts",
+          "test": "a steward adds a device by a browser-made key pair; a private key and a viewer are refused"
+        },
+        "personOnly": "a device's key pair is made in a person's browser and its private key handed to them once; an agent proposes the ServiceAccount and the MqttBroker with jc_resource_propose (T-5532)",
+        "routes": [
+          "POST /api/v1/projects/{project}/mqttbrokers/{name}/devices"
+        ]
       }
     },
     "session": {

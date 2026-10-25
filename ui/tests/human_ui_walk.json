@@ -267,6 +267,24 @@
         "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
       ]
     },
+    "src/components/endpoints/AccessMatrix.tsx": {
+      "walkedBy": "worker-t5531",
+      "date": "2026-10-25",
+      "screenshots": [
+        "evidence/worker-t5531/T-5531/matrix-1440.png",
+        "evidence/worker-t5531/T-5531/matrix-400.png",
+        "evidence/worker-t5531/T-5531/detail-1440.png",
+        "evidence/worker-t5531/T-5531/detail-400.png",
+        "evidence/worker-t5531/T-5531/graph-1440.png",
+        "evidence/worker-t5531/T-5531/graph-400.png",
+        "evidence/worker-t5531/T-5531/refused-1440.png",
+        "evidence/worker-t5531/T-5531/refused-400.png",
+        "evidence/worker-t5531/T-5531/empty-1440.png",
+        "evidence/worker-t5531/T-5531/empty-400.png",
+        "evidence/worker-t5531/T-5531/failed-1440.png",
+        "evidence/worker-t5531/T-5531/failed-400.png"
+      ]
+    },
     "src/components/endpoints/QueryCard.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
@@ -1451,6 +1469,20 @@
       "date": "2026-10-20",
       "screenshots": []
     },
+    "src/pages/mqttbrokers/BrokerTopics.tsx": {
+      "walkedBy": "worker-t5533",
+      "date": "2026-10-24",
+      "screenshots": [
+        "evidence/T-5533/topics-bindings-capture-1440.png",
+        "evidence/T-5533/topics-bindings-capture-400.png",
+        "evidence/T-5533/topics-hidden-capture-empty-1440.png",
+        "evidence/T-5533/topics-hidden-capture-empty-400.png",
+        "evidence/T-5533/topics-no-binding-1440.png",
+        "evidence/T-5533/topics-no-binding-400.png",
+        "evidence/T-5533/topics-refused-1440.png",
+        "evidence/T-5533/topics-refused-400.png"
+      ]
+    },
     "src/pages/organization/AgentActivity.tsx": {
       "walkedBy": "worker-t5301",
       "date": "2026-10-23",
@@ -2062,6 +2094,22 @@
         "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-workspaces-dialog-work-on-a-copy-steward-en-1440.png"
       ]
     },
-    "src/pages/access/AccountAccess.tsx": null
+    "src/pages/access/AccountAccess.tsx": null,
+    "src/pages/mqttbrokers/AddDevice.tsx": {
+      "walkedBy": "worker-t5532",
+      "date": "2026-10-24",
+      "screenshots": [
+        "evidence/T-5532/mqtt-device-form-empty-1440.png",
+        "evidence/T-5532/mqtt-device-form-empty-400.png",
+        "evidence/T-5532/mqtt-device-pasted-private-key-1440.png",
+        "evidence/T-5532/mqtt-device-pasted-private-key-400.png",
+        "evidence/T-5532/mqtt-device-refused-topic-1440.png",
+        "evidence/T-5532/mqtt-device-refused-topic-400.png",
+        "evidence/T-5532/mqtt-device-generated-key-once-1440.png",
+        "evidence/T-5532/mqtt-device-generated-key-once-400.png",
+        "evidence/T-5532/mqtt-device-pending-sign-in-1440.png",
+        "evidence/T-5532/mqtt-device-pending-sign-in-400.png"
+      ]
+    }
   }
 }

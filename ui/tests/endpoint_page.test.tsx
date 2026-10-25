@@ -198,6 +198,10 @@ function renderPage({
     if (path.endsWith(`/endpoints/${NAME}/usage`)) {
       return json({ name: NAME, from: "2026-09-23", to: "2026-10-22", days: [], totals: {}, total: 0 });
     }
+    // T-5531: the page's "Who may do what", with no Policy naming anyone yet.
+    if (path.endsWith(`/endpoints/${NAME}/access/matrix`)) {
+      return json({ endpoint: NAME, space: "air", principals: [], types: [], cells: [], edges: [] });
+    }
     if (path.endsWith(`/endpoints/${NAME}`)) {
       return endpoint === null ? json({ title: "Not Found", detail: "no such endpoint" }, 404) : json(endpoint);
     }

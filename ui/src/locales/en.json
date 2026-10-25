@@ -2200,6 +2200,58 @@
           "full": "At most {max} columns; untick one to pick another."
         }
       }
+    },
+    "accessMatrix": {
+      "title": "Who may do what",
+      "lead": "Every person, group, role, service account and the public this Endpoint's Policies name, with what the gateway lets each of them do. Pick a cell to see the attributes, the condition and the Policy behind it.",
+      "kind": "Show",
+      "kindHint": "Narrow the list to one kind of principal, for example Groups.",
+      "everyKind": "Everyone",
+      "views": "View",
+      "matrix": "Matrix",
+      "graph": "Graph",
+      "who": "Who",
+      "caption": "Who may do what on {name}",
+      "everyType": "Every type",
+      "cellLabel": "{who}, {action} {type}: {state}",
+      "pickHint": "Pick a cell to see which attributes it covers and which Policy decides it.",
+      "detailTitle": "{who}: {action} {type}",
+      "noGrant": "No Policy grants this; the gateway refuses it.",
+      "permits": "Allowed",
+      "prohibits": "Taken away by a prohibition",
+      "everyAttribute": "Every attribute",
+      "attributes": "Only these attributes: {names}",
+      "constraint": "Only rows matching",
+      "decidedBy": "Decided by the Policy",
+      "empty": "No Policy names anyone on this Endpoint yet",
+      "emptyHint": "Nobody but the gateway's own checks reaches it. Write a Policy for this Endpoint's space on the Policies page to give a group or the public access.",
+      "graphLabel": "How each principal reaches {name}",
+      "graphList": "Principals, Policies, the Endpoint and its types",
+      "reaches": "reaches {names}",
+      "kinds": {
+        "person": "Person",
+        "group": "Group",
+        "role": "Role",
+        "serviceAccount": "Service account",
+        "public": "The public"
+      },
+      "action": {
+        "read": "Read",
+        "write": "Write",
+        "delete": "Delete",
+        "history": "History"
+      },
+      "state": {
+        "allow": "Allowed",
+        "partial": "In part",
+        "deny": "Refused"
+      },
+      "step": {
+        "principal": "Who",
+        "policy": "Policy",
+        "endpoint": "Endpoint",
+        "type": "Type"
+      }
     }
   },
   "datasources": {
@@ -9440,7 +9492,7 @@
       "certificateIssued": "Issued by the platform for {host} from a public certificate authority; devices check it with their system CA store.",
       "example": "Try it",
       "copyExample": "Copy the command",
-      "exampleHint": "Set TOKEN to an access token of the device's client first; the Portal never shows one."
+      "exampleHint": "Set TOKEN to an access token of the device's client first (Add device below shows how); the Portal never shows one."
     },
     "measured": {
       "title": "Measured",
@@ -9482,6 +9534,92 @@
     },
     "capture": {
       "kept": "Keeps the last {count} messages per topic for {window}, for building the mapping."
+    },
+    "device": {
+      "title": "Add device",
+      "open": "Add device",
+      "close": "Close the form",
+      "lead": "A device signs in with its own key pair: no password exists for it anywhere.",
+      "mayNot": "You may not add devices to {broker}: a person who may propose service accounts and this MQTT broker can.",
+      "noRoles": "{broker} has no role yet. Add a role with its topics in the broker's form first.",
+      "name": "Device name",
+      "nameHelp": "A DNS label, e.g. sensor-001. The device signs in as client {project}-<name>.",
+      "nameInvalid": "Use lowercase letters, digits and '-', at most 63 characters.",
+      "source": "Key pair",
+      "generate": "Generate in this browser",
+      "generateHelp": "A P-256 key pair made here; the private key is offered to you once and never sent.",
+      "paste": "Paste a public key",
+      "pasteHelp": "The device made its own key pair; paste only its public half.",
+      "generateNow": "Generate key pair",
+      "onceTitle": "Save the private key now",
+      "once": "It is shown once and never leaves this browser. Download it as {file} or copy it onto the device; the Portal forgets it when you propose.",
+      "privateKey": "Private key",
+      "download": "Download {file}",
+      "copyKey": "Copy the private key",
+      "publicKey": "Public key",
+      "publicKeyHelp": "A JWKS with its list of keys, one JWK, or a PEM starting -----BEGIN PUBLIC KEY-----. P-256 or RSA 2048+.",
+      "role": "Broker role",
+      "roleHelp": "The role of {broker} whose topics the device may use.",
+      "topic": "Topic",
+      "topicHelp": "The role's topic filter the device publishes under; the broker puts the device's client id in place of $'{'clientid'}'.",
+      "noPublish": "Role {role} publishes nowhere: the device only subscribes.",
+      "propose": "Propose device",
+      "proposeHelp": "A second person approves the Change before the device can sign in.",
+      "refused": "The device was not proposed",
+      "pendingTitle": "{device} is proposed",
+      "pending": "It signs in once a second person approves the Change and it is applied.",
+      "openChange": "Open the change",
+      "signInTitle": "How this device signs in",
+      "signInLead": "The device signs a short assertion with its private key, gets an access token of client {client} and connects with it. Run on the device, with its key file:",
+      "tokenStep": "Get an access token",
+      "copyToken": "Copy the token request",
+      "noLogin": "This Portal has no sign-in realm configured, so the token request cannot be shown.",
+      "rotate": "Rotate the key: propose a new public key on the account's page. Revoke: remove the device from the role in the broker's form.",
+      "another": "Add another device",
+      "keyError": {
+        "empty": "Add the device's public key: paste it here.",
+        "notKey": "This is not a public key. Paste a JWKS, one JWK or a PEM public key.",
+        "private": "This is a private key. Paste the public key only; the private key stays on the device.",
+        "unsupported": "Use a P-256 (ES256) or RSA 2048+ (RS256) signing key.",
+        "tooMany": "A device holds at most five keys. Remove the extra ones.",
+        "kidTwice": "Two keys share one kid: give each its own.",
+        "notGenerated": "No key pair yet. Choose Generate key pair first."
+      }
+    },
+    "topics": {
+      "title": "Topics",
+      "caption": "Which topic of {broker} fills which attribute",
+      "filter": "Topic filter",
+      "via": "Data source and pipeline",
+      "type": "Type",
+      "attributes": "Attributes",
+      "endpoint": "Endpoint",
+      "last": "Last message",
+      "hidden": "A {kind} you may not read",
+      "noPipeline": "No pipeline reads it yet",
+      "byHand": "Mapped in code; open the pipeline to see it",
+      "mapped": "{from} → {to}",
+      "computed": "{to} (computed)",
+      "empty": "No topic is bound yet",
+      "emptyHint": "Add an MQTT data source that picks {broker} as its platform broker, with a topic filter such as devices/+/data, then a pipeline that reads it.",
+      "errorTitle": "The topics could not be read",
+      "error": "Try again in a minute."
+    },
+    "captured": {
+      "title": "Captured messages",
+      "hint": "The newest messages this broker kept, newest first. Only people who may approve MQTT brokers see them.",
+      "off": "{broker} does not keep messages. Set what the broker does to capture to see the newest messages here.",
+      "empty": "No message kept yet",
+      "emptyHint": "Messages a device publishes to {broker} appear here within a few seconds.",
+      "clear": "Delete captured messages",
+      "clearFailed": "The captured messages were not deleted. Try again in a minute.",
+      "confirmTitle": "Delete every captured message of {broker}?",
+      "confirmText": "The kept messages are gone at once and cannot be restored; the deletion is recorded in the activity log. New messages are kept again as they arrive.",
+      "bytes": "{count, plural, one {# byte} other {# bytes}}",
+      "payload": "Payload of {topic}",
+      "truncated": "More messages are kept than shown here.",
+      "errorTitle": "The captured messages could not be read",
+      "error": "Try again in a minute."
     }
   },
   "connect": {

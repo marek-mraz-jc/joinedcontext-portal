@@ -251,6 +251,14 @@
         "drift_modal.test.tsx"
       ]
     },
+    "src/components/endpoints/AccessMatrix.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "access_matrix.test.tsx"
+      ]
+    },
     "src/components/endpoints/QueryCard.tsx": {
       "controls": {
         "Button": 1
@@ -1569,6 +1577,14 @@
         "sdm_import.test.tsx"
       ]
     },
+    "src/pages/mqttbrokers/BrokerTopics.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "mqtt_broker_topics.test.tsx"
+      ]
+    },
     "src/pages/organization/AgentActivity.tsx": {
       "controls": {
         "Button": 5
@@ -2138,6 +2154,15 @@
       },
       "tests": [
         "representation_outputs_field.test.tsx"
+      ]
+    },
+    "src/pages/mqttbrokers/AddDevice.tsx": {
+      "controls": {
+        "Button": 5,
+        "RadioGroup": 1
+      },
+      "tests": [
+        "mqtt_devices.test.tsx"
       ]
     }
   }

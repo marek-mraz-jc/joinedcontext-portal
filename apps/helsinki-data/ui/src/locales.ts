@@ -159,6 +159,8 @@ const fi: Strings = {
     review: "Tarkista muutokset",
     apply: "Tallenna",
     discard: "Hylkää muutokset",
+    entity: "Kohde",
+    copyId: "Kopioi tunniste",
     attribute: "Ominaisuus",
     before: "Ennen",
     after: "Jälkeen",

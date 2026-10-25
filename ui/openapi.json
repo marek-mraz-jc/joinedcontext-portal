@@ -9098,6 +9098,120 @@
         }
       }
     },
+    "/api/v1/projects/{project}/endpoints/{name}/access/matrix": {
+      "get": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Who May Do What On An Endpoint",
+        "description": "Every principal a Policy of the Endpoint's space names, the project's ServiceAccounts the caller may read and the public, against each type and read, write, delete and history, from the gateway's own grant document per principal (API/01 §57, EP-103). Organization administrators and whoever reads Policies in the Endpoint's space; recorded as an `access.simulated` activity event. Changes no data.",
+        "operationId": "access_matrix",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Endpoint name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "Only principals of this kind: `person`, `group`, `role`, `serviceAccount` or `public`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The matrix and its graph",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Matrix"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`kind` is not a principal kind",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Neither an organization administrator nor a reader of Policies in the Endpoint's space",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such Endpoint, or the gateway does not serve it yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "More than 50 principals: narrow with `kind`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No gateway, or it did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/endpoints/{name}/access/simulate": {
       "post": {
         "tags": [
@@ -12605,6 +12719,68 @@
         }
       }
     },
+    "/api/v1/projects/{project}/mqttbrokers/{name}/bindings": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Read An MQTT Broker's Topic Bindings",
+        "description": "Which topic filter of the broker reaches which type and attributes: each DataSource naming the broker, the pipelines of the project that read it and the Endpoints they write through, read from the manifests (API/01 §47). Each hop is checked against the caller's rights; one they may not read is `hidden` without its name and ends the row.",
+        "operationId": "get_bindings",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "MqttBroker name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bindings; empty when no DataSource names the broker",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bindings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such broker, or not readable by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/mqttbrokers/{name}/captured": {
       "get": {
         "tags": [
@@ -12768,6 +12944,204 @@
           },
           "503": {
             "description": "The capture store did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/mqttbrokers/{name}/devices": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "What The Add Device Form Of A Broker May Offer",
+        "description": "The broker's roles with their publish filters, listed only for a person who may propose a ServiceAccount and this MqttBroker, and the realm's token endpoint a device asks (T-5532, PF-47). Whoever may read the project's MqttBrokers.",
+        "operationId": "device_options",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "MqttBroker name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The form's options",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceOptions"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such broker, or not readable by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Add A Device To An MQTT Broker",
+        "description": "Proposes one Change, in the caller's name, that writes a ServiceAccount signing in by the public keys given (`spec.credentials[].jwks`, PF-47) and adds it to one role of the broker. A private key member is refused (422 naming it); role and topic must be the broker's own (422 naming the field). The Change always waits for a second person (T-5532).",
+        "operationId": "add_device",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "MqttBroker name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddDevice"
+              },
+              "example": {
+                "jwks": {
+                  "keys": [
+                    {
+                      "crv": "P-256",
+                      "kid": "k1",
+                      "kty": "EC",
+                      "x": "f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU",
+                      "y": "x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"
+                    }
+                  ]
+                },
+                "name": "sensor-001",
+                "role": "camera",
+                "topic": "cameras/${clientid}/#"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The Change that adds the device, waiting for a second person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body does not read, or a manifest does not pass its door",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not propose a ServiceAccount or this MqttBroker, or is not a person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such broker, or not readable by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A ServiceAccount of that name exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A field names what the broker or PF-47 refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No forge",
             "content": {
               "application/json": {
                 "schema": {
@@ -20631,6 +21005,36 @@
           }
         }
       },
+      "AddDevice": {
+        "type": "object",
+        "description": "A device to add: its account name, the role and topic picked, and its public keys.",
+        "required": [
+          "name",
+          "role",
+          "jwks"
+        ],
+        "properties": {
+          "jwks": {
+            "description": "A JSON Web Key Set of public keys only (PF-47)."
+          },
+          "name": {
+            "type": "string",
+            "description": "The ServiceAccount's name, a DNS label such as `sensor-001`."
+          },
+          "role": {
+            "type": "string",
+            "description": "One of the broker's roles."
+          },
+          "topic": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One of the role's publish filters; required when the role publishes."
+          }
+        },
+        "additionalProperties": false
+      },
       "Affordance": {
         "type": "object",
         "description": "Something the caller may or may not do that no rule expresses as a kind and a verb, with the\nAPI's own words for the refusal: the control is rendered disabled with the reason, never\nhidden (UI-44).",
@@ -21851,6 +22255,24 @@
           }
         }
       },
+      "AttributeBinding": {
+        "type": "object",
+        "description": "One mapped attribute: `from` the record field (two for a point), absent for an expression or\na fixed value.",
+        "required": [
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to": {
+            "type": "string"
+          }
+        }
+      },
       "AttributeExplained": {
         "type": "object",
         "description": "What decided one attribute for the caller.",
@@ -21977,6 +22399,78 @@
           "logout_token": {
             "type": "string",
             "description": "The JWT the provider signed, carrying the `logout_events` claim."
+          }
+        }
+      },
+      "Binding": {
+        "type": "object",
+        "description": "One topic filter's way to an attribute; it ends at the first hop the caller may not read.",
+        "required": [
+          "dataSource"
+        ],
+        "properties": {
+          "attributes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AttributeBinding"
+            },
+            "description": "The output mapper's map; absent for a step written by hand."
+          },
+          "dataSource": {
+            "$ref": "#/components/schemas/Hop"
+          },
+          "endpoint": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Hop"
+              }
+            ]
+          },
+          "pipeline": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Hop"
+              }
+            ]
+          },
+          "topicFilter": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Bindings": {
+        "type": "object",
+        "required": [
+          "broker",
+          "bindings"
+        ],
+        "properties": {
+          "bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Binding"
+            }
+          },
+          "broker": {
+            "type": "string"
           }
         }
       },
@@ -24546,6 +25040,60 @@
         },
         "additionalProperties": false
       },
+      "DeviceOptions": {
+        "type": "object",
+        "description": "What the Add device form of one broker may offer the caller.",
+        "required": [
+          "mayAdd",
+          "roles"
+        ],
+        "properties": {
+          "issuer": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `aud` of the device's client assertion: the realm issuer."
+          },
+          "mayAdd": {
+            "type": "boolean",
+            "description": "Whether the caller may propose a device here: `ServiceAccount` and this `MqttBroker`."
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeviceRole"
+            },
+            "description": "The broker's roles, empty unless `mayAdd`."
+          },
+          "tokenUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The realm's token endpoint a device asks for its access token, absent without a login."
+          }
+        }
+      },
+      "DeviceRole": {
+        "type": "object",
+        "description": "One role the form may offer, with the topic filters a device of it may publish to.",
+        "required": [
+          "name",
+          "publish"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "publish": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "Digest": {
         "type": "object",
         "description": "What `scripts/publish-health.py` writes for one check.",
@@ -26226,6 +26774,35 @@
           "incomplete"
         ]
       },
+      "Hop": {
+        "type": "object",
+        "description": "One hop of a binding: a manifest by name, or `hidden` when the caller may not read it.",
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "hidden": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`DataSource`, `Pipeline` or `Endpoint`."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "space": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Context Space an Endpoint writes into."
+          }
+        }
+      },
       "Identity": {
         "type": "object",
         "description": "Who is signed in. Returned by `GET /api/v1/auth/me` and used by every protected route.",
@@ -26827,6 +27404,150 @@
           "endSessionUrl": {
             "type": "string",
             "description": "Absolute URL: Keycloak's `end_session_endpoint`, or the portal itself when no realm is\nconfigured."
+          }
+        }
+      },
+      "Matrix": {
+        "type": "object",
+        "required": [
+          "endpoint",
+          "space",
+          "principals",
+          "types",
+          "cells",
+          "edges"
+        ],
+        "properties": {
+          "cells": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatrixCell"
+            }
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatrixEdge"
+            }
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "principals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatrixPrincipal"
+            }
+          },
+          "space": {
+            "type": "string"
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "MatrixCell": {
+        "type": "object",
+        "description": "What one principal may do on one type for one action.",
+        "required": [
+          "principal",
+          "type",
+          "action",
+          "effect",
+          "attributes"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "`read`, `write`, `delete` or `history`."
+          },
+          "attributes": {
+            "description": "`\"*\"` for every attribute, else the attribute names."
+          },
+          "constraint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The constraints the grant narrows the rows by (`q`, `scopeQ`, `geoQ`, `temporalQ`)."
+          },
+          "decidedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Policy that grants or prohibits this, when one Policy in force covers the type."
+          },
+          "effect": {
+            "type": "string",
+            "description": "`permit`, or `prohibit` where a prohibition takes it away."
+          },
+          "principal": {
+            "type": "string",
+            "description": "`{kind}:{name}` of the principal."
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "MatrixEdge": {
+        "type": "object",
+        "description": "One edge of the graph principal → Policy → Endpoint → type; node ids are\n`principal:{kind}:{name}`, `policy:{name}`, `endpoint:{name}` and `type:{name}`.",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        }
+      },
+      "MatrixPrincipal": {
+        "type": "object",
+        "required": [
+          "kind",
+          "name",
+          "via"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "`person`, `group`, `role`, `serviceAccount` or `public`."
+          },
+          "name": {
+            "type": "string"
+          },
+          "via": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatrixVia"
+            }
+          }
+        }
+      },
+      "MatrixVia": {
+        "type": "object",
+        "description": "How a principal reaches the Endpoint: a Policy that names it, or the project's\nServiceAccount manifest it is.",
+        "required": [
+          "kind",
+          "name"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "`policy` or `serviceAccount`."
+          },
+          "name": {
+            "type": "string"
           }
         }
       },
