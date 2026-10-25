@@ -43,8 +43,7 @@ export type { Agg, Group } from "./helpers";
 // The entity grid (UI-64, UI-71, SDK-29): one component for the Portal, Dashboards and apps
 export { EntityGrid } from "../grid/EntityGrid";
 export type { EntityGridProps } from "../grid/EntityGrid";
-export { DEFAULT_LABELS, useEntityGrid } from "../grid/useEntityGrid";
-export { readableName } from "../grid/readableName";
+export { DEFAULT_LABELS, readableName, useEntityGrid } from "../grid/useEntityGrid";
 export type { ColumnLayout, GridLabels, GridLabelsInput, GridState, MetaKey, UseEntityGridOptions, VisibleColumn } from "../grid/useEntityGrid";
 export { targetName } from "../grid/cells";
 export type { CellLabels, ColumnKind } from "../grid/cells";

@@ -13,6 +13,7 @@ import type { AttributeChange, EntityChange } from "./apply";
 import type { EnumOption } from "../enums";
 import type { RelationEnd } from "../relations";
 import { readableName } from "./readableName";
+export { readableName };
 
 export type MetaKey = "observedAt" | "unit" | "datasetId" | "createdAt" | "modifiedAt";
 
