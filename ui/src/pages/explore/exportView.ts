@@ -72,7 +72,7 @@ export function cellText(value: unknown, style: "excel-sk" | "plain"): string {
  * A CSV field. A text starting with `=`, `+`, `-`, `@`, a tab or a carriage return is what a
  * spreadsheet runs as a formula, so it is written with a leading apostrophe and stays text.
  */
-function field(text: string, separator: string, numeric: boolean): string {
+export function csvField(text: string, separator: string, numeric: boolean): string {
   const safe = !numeric && /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
   return /["\n\r]/.test(safe) || safe.includes(separator) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
@@ -81,13 +81,13 @@ function field(text: string, separator: string, numeric: boolean): string {
 export function toCsv(entities: Entity[], columns: string[], style: "excel-sk" | "plain"): string {
   const separator = style === "excel-sk" ? ";" : ",";
   const newline = style === "excel-sk" ? "\r\n" : "\n";
-  const lines = [columns.map((column) => field(column, separator, false)).join(separator)];
+  const lines = [columns.map((column) => csvField(column, separator, false)).join(separator)];
   for (const entity of entities) {
     lines.push(
       columns
         .map((column) => {
           const value = plain(entity[column]);
-          return field(cellText(value, style), separator, typeof value === "number");
+          return csvField(cellText(value, style), separator, typeof value === "number");
         })
         .join(separator),
     );
