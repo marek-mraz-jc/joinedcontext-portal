@@ -172,6 +172,8 @@ async fn rig() -> Rig {
 fn admin() -> Identity {
     let mut person = common::person("anna");
     person.groups = vec!["portal-approver".into()];
+    // Revoke is a decision door: it needs a second factor proven in the session (T-5567).
+    person.second_factor = true;
     person
 }
 
@@ -418,8 +420,16 @@ async fn revoking_a_consent_deletes_it_in_the_realm() {
         .mount(&r._realm)
         .await;
     let uri = "/api/v1/organization/people/jana-id/consents/mcp-hub";
-    let refused = common::send(&r.state, common::person("eve"), "DELETE", uri, None).await;
+    // eve proves a second factor too, so her 403 is the missing right alone.
+    let mut eve = common::person("eve");
+    eve.second_factor = true;
+    let refused = common::send(&r.state, eve, "DELETE", uri, None).await;
     assert_eq!(refused.status, 403, "{}", refused.text);
+    assert!(
+        !refused.text.contains("second-factor-required"),
+        "{}",
+        refused.text
+    );
     let answer = common::send(&r.state, admin(), "DELETE", uri, None).await;
     assert_eq!(answer.status, 204, "{}", answer.text);
     let odd = common::send(
