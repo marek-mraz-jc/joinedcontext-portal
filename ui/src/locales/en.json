@@ -6271,6 +6271,7 @@
         "source-delete": "Deleted because the source dropped them"
       },
       "endpoint": {
+        "rate-limited": "Rate limit reached",
         "traffic": "Endpoint traffic"
       },
       "access": {

@@ -6271,6 +6271,7 @@
         "source-delete": "Smazané, protože je zdroj vypustil"
       },
       "endpoint": {
+        "rate-limited": "Překročený limit požadavků",
         "traffic": "Provoz endpointu"
       },
       "access": {
