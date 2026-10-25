@@ -56,6 +56,13 @@ async fn state() -> AppState {
         ORG_NAMESPACE,
         json!({ "rules": [{ "kinds": ["Project", "MqttBroker", "ServiceAccount"], "verbs": ["read", "propose", "approve"] }] }),
     );
+    // Writes brokers and reads no ServiceAccount (T-5590).
+    upsert(
+        "Role",
+        "broker-author",
+        ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["MqttBroker"], "verbs": ["read", "propose"] }] }),
+    );
     upsert(
         "Role",
         "viewer",
@@ -66,6 +73,7 @@ async fn state() -> AppState {
         ("ada", "org-admin", json!({ "organization": "hel" })),
         ("stef", "steward", json!({ "organization": "hel" })),
         ("vic", "viewer", json!({ "project": "helsinki" })),
+        ("bea", "broker-author", json!({ "project": "helsinki" })),
     ] {
         upsert(
             "RoleBinding",
@@ -79,6 +87,15 @@ async fn state() -> AppState {
 }
 
 async fn propose_broker(state: &AppState, name: &str, spec: Value) -> (StatusCode, String) {
+    propose_broker_as(state, "stef", name, spec).await
+}
+
+async fn propose_broker_as(
+    state: &AppState,
+    who: &str,
+    name: &str,
+    spec: Value,
+) -> (StatusCode, String) {
     let body = json!({
         "apiVersion": "joinedcontext.com/v1alpha1", "kind": "MqttBroker",
         "metadata": { "name": name }, "spec": spec
@@ -86,7 +103,7 @@ async fn propose_broker(state: &AppState, name: &str, spec: Value) -> (StatusCod
     // Checked first the way every door is (PF-57); a refusal is the same either way.
     let answer = checked_send(
         state,
-        person("stef"),
+        person(who),
         "POST",
         "/api/v1/projects/helsinki/mqttbrokers",
         Some(body),
@@ -246,4 +263,44 @@ async fn whoever_reads_the_project_reads_its_allowance_and_usage() {
         (json!(false), json!("organization"))
     );
     assert_eq!(espoo["brokers"]["limit"], 0);
+}
+
+/// T-5590: a role's account is one of the project's ServiceAccounts the proposer reads. A name
+/// typed past the form is refused naming its element, and an account the proposer cannot read is
+/// refused in the same words as one that is not there, so the answer tells them nothing of it.
+#[tokio::test]
+async fn a_role_naming_an_account_that_is_not_there_or_not_readable_is_refused_by_its_element() {
+    let state = state().await;
+    state.mirror.upsert(envelope(
+        "Organization",
+        "hel",
+        ORG_NAMESPACE,
+        organization(json!({ "enabled": true, "brokers": 5, "connections": 1500 })),
+    ));
+    let mut typed = broker(10);
+    typed["roles"][0]["serviceAccounts"] = json!(["cam", "vent-1"]);
+    let (status, text) = propose_broker(&state, "vents", typed).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{text}");
+    assert!(text.contains("spec.roles[0].serviceAccounts[1]"), "{text}");
+    assert!(
+        text.contains("ServiceAccount 'vent-1', which does not exist"),
+        "{text}"
+    );
+
+    let (status, unseen) = propose_broker_as(&state, "bea", "cams", broker(10)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{unseen}");
+    assert!(
+        unseen.contains("spec.roles[0].serviceAccounts[0]"),
+        "{unseen}"
+    );
+    assert!(
+        unseen.contains("ServiceAccount 'cam', which does not exist"),
+        "{unseen}"
+    );
+
+    let (status, text) = propose_broker(&state, "cams", broker(10)).await;
+    assert!(
+        status.is_success(),
+        "an account the steward reads: {status} {text}"
+    );
 }
