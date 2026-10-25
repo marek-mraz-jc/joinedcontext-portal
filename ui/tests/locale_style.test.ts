@@ -78,7 +78,7 @@ describe("locale style", () => {
   // empty search answers suggest what to type instead.
   // The field hints of the owner's UI order of 2026-10-21 (T-4949: "every field has a hint line with
   // an example") sit in their own `hint` group, one per field, so the rule above reads them as such.
-  const NOT_A_FORM = new Set(["models.hints", "pipelines.kpiEditor.hint", "spaces.viewHints", "agentRun.catalog", "access.groupPage.hint", "entityGrid.hint", "spaces.personal.hint", "endpointUsage.hint"]);
+  const NOT_A_FORM = new Set(["models.hints", "pipelines.kpiEditor.hint", "spaces.viewHints", "agentRun.catalog", "access.groupPage.hint", "entityGrid.hint", "spaces.personal.hint", "endpointUsage.hint", "mqttbrokers.test.hints"]);
 
   function examplesPerGroup(bundle: Record<string, unknown>, marker: RegExp): Record<string, string[]> {
     const groups: Record<string, string[]> = {};

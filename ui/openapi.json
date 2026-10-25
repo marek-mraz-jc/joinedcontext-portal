@@ -13096,6 +13096,200 @@
         }
       }
     },
+    "/api/v1/projects/{project}/mqttbrokers/{name}/test-publish": {
+      "post": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Test an MQTT Publish",
+        "description": "Dry-runs one message of a ServiceAccount on a topic: the broker's ACL, size and rate limits, the DataSource and Pipeline bound to the topic, the mapping on the project's runner and the Endpoint's record check (API/01 §44a, T-5534). Nothing is published or written. Whoever may read the project's MqttBrokers; the mapping step needs propose on Pipeline.",
+        "operationId": "test_publish",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "MqttBroker name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestPublish"
+              },
+              "example": {
+                "account": "cam-west",
+                "payload": "{\"temperature\": 21.5}",
+                "topic": "cameras/helsinki-cam-west/frame"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Each step's outcome",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DryRun"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: the CSRF token is missing or does not match, or the caller lacks the verb this write needs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such broker, or not readable by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "An account the broker's roles do not name, a topic with a wildcard, or a payload above 1 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/mqttbrokers/{name}/watch": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Watch an MQTT Broker's Refusals",
+        "description": "The CONNECTs the gateway refused for this broker since a time, with their reason, and the account's connected clients now (API/01 §44a, T-5534). The record holds no token, client id or address. Whoever may read the project's MqttBrokers.",
+        "operationId": "watch_mqtt_broker",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "MqttBroker name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account",
+            "in": "query",
+            "description": "Only this ServiceAccount's refusals and connections, e.g. `cam-west`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Only refusals after this time (RFC 3339), e.g. `2026-10-24T10:00:00Z`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Refusals and the account's connections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Watched"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such broker, or not readable by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "An account the broker's roles do not name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/ops": {
       "get": {
         "tags": [
@@ -25225,6 +25419,31 @@
           }
         }
       },
+      "DryRun": {
+        "type": "object",
+        "description": "The answer of the dry run.",
+        "required": [
+          "clientId",
+          "published",
+          "steps"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "description": "The client id and username the device connects with: its Keycloak client."
+          },
+          "published": {
+            "type": "boolean",
+            "description": "Always `false`: the test publishes nothing."
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            }
+          }
+        }
+      },
       "DryRunResult": {
         "type": "object",
         "description": "Reviewer-facing validation and diff result returned on `?dryRun=All` (MF-13, R17).",
@@ -28366,6 +28585,15 @@
           }
         }
       },
+      "Outcome": {
+        "type": "string",
+        "description": "How one step judged the message.",
+        "enum": [
+          "ok",
+          "refused",
+          "unchecked"
+        ]
+      },
       "OutsideMergeRequest": {
         "type": "object",
         "description": "An open merge request in the forge that the Portal does not offer for approval (T-3433).",
@@ -30517,6 +30745,30 @@
         },
         "additionalProperties": false
       },
+      "Refusal": {
+        "type": "object",
+        "description": "One CONNECT the gateway refused, as its record keeps it.",
+        "required": [
+          "at",
+          "reason"
+        ],
+        "properties": {
+          "account": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string",
+            "description": "`no_token`, `expired`, `wrong_audience`, `invalid_token`, `wrong_client`,\n`unknown_account`, `other_project`, `no_role`, `no_subscription` or `no_realm`."
+          }
+        }
+      },
       "RegistrationCard": {
         "type": "object",
         "description": "What a registration's card shows (UI-27, PF-48).",
@@ -32129,6 +32381,28 @@
         },
         "additionalProperties": false
       },
+      "Step": {
+        "type": "object",
+        "description": "One step of the dry run.",
+        "required": [
+          "step",
+          "outcome",
+          "reason"
+        ],
+        "properties": {
+          "outcome": {
+            "$ref": "#/components/schemas/Outcome"
+          },
+          "reason": {
+            "type": "string",
+            "description": "In words, never a value of the payload or a token."
+          },
+          "step": {
+            "type": "string",
+            "description": "`acl`, `size`, `rate`, `binding`, `mapping` or `endpoint`."
+          }
+        }
+      },
       "StepVerdict": {
         "type": "string",
         "enum": [
@@ -32565,6 +32839,30 @@
             "type": "string"
           }
         }
+      },
+      "TestPublish": {
+        "type": "object",
+        "description": "One message a ServiceAccount would publish (API/01 §44a).",
+        "required": [
+          "account",
+          "topic",
+          "payload"
+        ],
+        "properties": {
+          "account": {
+            "type": "string",
+            "description": "A ServiceAccount the broker's roles name, e.g. `cam-west`."
+          },
+          "payload": {
+            "type": "string",
+            "description": "The message as the device sends it, text or JSON."
+          },
+          "topic": {
+            "type": "string",
+            "description": "The topic the device publishes on, no wildcard, e.g. `cameras/helsinki-cam-west/frame`."
+          }
+        },
+        "additionalProperties": false
       },
       "TestRequest": {
         "type": "object",
@@ -33010,6 +33308,55 @@
               "$ref": "#/components/schemas/DataView"
             },
             "description": "The views of the space this caller sees, oldest first."
+          }
+        }
+      },
+      "Watched": {
+        "type": "object",
+        "description": "What the watch answers.",
+        "required": [
+          "observedAt",
+          "refusals",
+          "refusalsRead"
+        ],
+        "properties": {
+          "connected": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The account's connected clients now; `null` when the broker is not measured.",
+            "minimum": 0
+          },
+          "messagesPerSecond": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "The broker's messages per second now; `null` when not measured."
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why refusals or measurements are missing, in words."
+          },
+          "refusals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Refusal"
+            },
+            "description": "Newest first; empty when `refusalsRead` is false."
+          },
+          "refusalsRead": {
+            "type": "boolean"
           }
         }
       },
