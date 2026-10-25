@@ -220,9 +220,10 @@ describe("the explorer", () => {
   it("reads the endpoint list another page already cached as the API's List (T-0625)", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(() =>
+      vi.fn((input: unknown) =>
         Promise.resolve(
-          new Response(JSON.stringify(list([])), { status: 200, headers: { "Content-Type": "application/json" } }),
+          // The mount's refetch answers the same List, so the option the cache drew stays put.
+          new Response(JSON.stringify((typeof input === "string" ? input : (input as Request).url).endsWith("/endpoints") ? ENDPOINTS : list([])), { status: 200, headers: { "Content-Type": "application/json" } }),
         ),
       ),
     );
@@ -685,8 +686,8 @@ describe("the endpoint the explorer reads through (T-5604)", () => {
     await waitFor(() => expect(new URLSearchParams(window.location.search).get("endpoint")).toBe("helsinki-air-quality"));
     expect(screen.getByLabelText(en.explore.endpoint)).toHaveValue("helsinki-air-quality");
     await userEvent.selectOptions(await screen.findByLabelText(/Entity type/i), "BikeHireDockingStation");
-    const named = await screen.findByText("helsinki-air-quality", { selector: "span" });
-    expect(named.parentElement?.textContent).toContain(`${en.explore.readThrough} helsinki-air-quality`);
+    // The line under the filters names the Endpoint by its title, not its slug (T-5622).
+    expect(await screen.findByText(`${en.explore.readThrough} Helsinki air quality`, { exact: false })).toBeInTheDocument();
   });
 
   it("names a linked endpoint the person is not shown and reads through no other in its place", async () => {
