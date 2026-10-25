@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
+import { attributeTable } from "./attributeAccess";
 import type { Page } from "@playwright/test";
 
 // The journey over entity data (T-1437; UI-64, UI-67, UI-59). `vite preview` has no portal API and
@@ -162,6 +163,9 @@ async function stubApi(page: Page, options: { write?: boolean } = {}): Promise<S
     // The access panel asks the endpoint's own PDP one question per action, before any read.
     if (path.endsWith("/access/check")) {
       return json({ decision: options.write === true });
+    }
+    if (path.endsWith("/access/attributes")) {
+      return json(attributeTable(TYPE, ["availableBikeNumber", "name"], options.write === true ? ["availableBikeNumber", "name"] : []));
     }
     if (path.endsWith("/access")) {
       return json(grant(options.write === true));

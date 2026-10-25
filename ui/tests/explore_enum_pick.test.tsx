@@ -104,6 +104,13 @@ it("offers the enum's values as a picker in the explorer's edit cell", async () 
       if (url.includes("/entities?")) {
         return json([ENTITY], { "NGSILD-Results-Count": "1" });
       }
+      // The gateway's own decisions per attribute (T-5528): both are written.
+      if (url.includes("/access/attributes")) {
+        return json({
+          type: "Alert",
+          attributes: ["category", "note"].map((name) => ({ name, read: true, write: true, delete: false, reason: "grant" })),
+        });
+      }
       if (url.includes("/access")) {
         return json({
           subject: { type: "user", id: "someone" },

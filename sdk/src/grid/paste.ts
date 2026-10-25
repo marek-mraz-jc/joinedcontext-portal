@@ -30,6 +30,8 @@ export interface PasteTarget {
   current: string | null;
   /** The values an enum allows, when the attribute has one. */
   allowed?: readonly string[];
+  /** The server refuses the person a write of this attribute (T-5530): skipped as "not allowed". */
+  refused?: boolean;
 }
 
 export interface PlannedEdit {
@@ -41,22 +43,27 @@ export interface PlannedEdit {
 
 /**
  * What a paste of `matrix` changes: one edit per cell that lands on an editable, typed attribute of
- * a listed row, with a value its enum allows; every other cell is counted as skipped, never guessed
- * at. A cell whose text equals what it holds is no change. Past `MAX_PASTE_CELLS` nothing is planned.
+ * a listed row, with a value its enum allows; a cell the server refuses the person is counted as
+ * refused, every other cell as skipped, never guessed at. A cell whose text equals what it holds is no change. Past `MAX_PASTE_CELLS` nothing is planned.
  */
 export function planPaste(
   matrix: string[][],
   target: (rowOffset: number, colOffset: number) => PasteTarget,
-): { edits: PlannedEdit[]; skipped: number; tooLarge: boolean } {
+): { edits: PlannedEdit[]; skipped: number; refused: number; tooLarge: boolean } {
   const cells = matrix.reduce((sum, row) => sum + row.length, 0);
   if (cells > MAX_PASTE_CELLS) {
-    return { edits: [], skipped: cells, tooLarge: true };
+    return { edits: [], skipped: cells, refused: 0, tooLarge: true };
   }
   const edits: PlannedEdit[] = [];
   let skipped = 0;
+  let refused = 0;
   matrix.forEach((row, r) => {
     row.forEach((text, c) => {
       const cell = target(r, c);
+      if (cell.refused) {
+        refused++;
+        return;
+      }
       if (!cell.id || !cell.attr || cell.current === null || (cell.allowed && !cell.allowed.includes(text))) {
         skipped++;
         return;
@@ -66,5 +73,5 @@ export function planPaste(
       }
     });
   });
-  return { edits, skipped, tooLarge: false };
+  return { edits, skipped, refused, tooLarge: false };
 }
