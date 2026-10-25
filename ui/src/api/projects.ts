@@ -77,7 +77,7 @@ export function useProjectTitles(): (project: string) => string {
  * the only Organization of an installation that has one. `undefined` while that is not known.
  */
 export function organizationNameOf(
-  list: { organizations: { name: string }[]; ownerOf: Map<string, string | undefined> } | undefined,
+  list: { organizations: { name: string }[]; ownerOf: Map<string, string | null | undefined> } | undefined,
   project: string,
   chosen?: string,
 ): string | undefined {
