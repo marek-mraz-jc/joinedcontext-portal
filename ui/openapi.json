@@ -8979,6 +8979,125 @@
         }
       }
     },
+    "/api/v1/projects/{project}/endpoints/{name}/access/attributes": {
+      "get": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Why An Attribute Is Refused",
+        "description": "What decided one attribute for the caller and, for a caller who may read it, the Policy that decided (API/01 §58). The decisions table itself is the gateway's `access/attributes`, read with the person's session. Whoever may read the Endpoint. Changes no data.",
+        "operationId": "explain_attribute",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Endpoint name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "The entity type, a class of the Endpoint's space model.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "attribute",
+            "in": "query",
+            "description": "The attribute's short name or IRI.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "description": "`read`, `write` (default) or `delete`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The decision and, where the caller may read it, the deciding Policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttributeExplained"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A missing or malformed type, attribute or action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not read the Endpoint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such Endpoint, or no such type in its space model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No gateway, or it did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/endpoints/{name}/access/matrix": {
       "get": {
         "tags": [
@@ -22150,6 +22269,58 @@
             ]
           },
           "to": {
+            "type": "string"
+          }
+        }
+      },
+      "AttributeExplained": {
+        "type": "object",
+        "description": "What decided one attribute for the caller.",
+        "required": [
+          "type",
+          "attribute",
+          "action",
+          "policyHidden"
+        ],
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "attribute": {
+            "type": "string"
+          },
+          "decision": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "The gateway's decision; `None` when it was not asked (the caller may read no Policy)."
+          },
+          "policy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The deciding Policy's manifest name, only for a caller who may read it."
+          },
+          "policyHidden": {
+            "type": "boolean",
+            "description": "A Policy decided and the caller may not read it."
+          },
+          "policyTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`policy_grant_matched`, `prohibited`, `no_grant` or `not_admitted`, as the gateway says."
+          },
+          "type": {
             "type": "string"
           }
         }

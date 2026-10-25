@@ -5464,7 +5464,28 @@
       "filterOther": "Vyberte test, napr. má hodnotu alebo prázdne.",
       "editAsText": "Napíšte dopyt NGSI-LD sami"
     },
-    "groupNoValue": "(bez hodnoty)"
+    "groupNoValue": "(bez hodnoty)",
+    "inspector": {
+      "title": "Váš prístup",
+      "close": "Zavrieť",
+      "read": "Čítať",
+      "write": "Zapisovať",
+      "delete": "Mazať",
+      "allowed": "povolené",
+      "notAllowed": "nepovolené",
+      "loading": "Overuje sa váš prístup…",
+      "failed": "Váš prístup sa nepodarilo načítať ({reason}). Obnovte stránku a skúste to znova.",
+      "grant": "Váš prístup to povoľuje.",
+      "notInGrant": "Nie je vo vašom prístupe.",
+      "noGrant": "Váš prístup nepokrýva tento typ.",
+      "formula": "Vypočítava ho pipeline, preto sa tu neupravuje.",
+      "prohibited": "Výslovne zakázané politikou.",
+      "prohibitedBy": "Výslovne zakázané politikou „{policy}“.",
+      "prohibitedHidden": "Skryté politikou, ktorú nemôžete čítať.",
+      "naming": "Hľadá sa politika…",
+      "namingFailed": "Politiku sa nepodarilo pomenovať; skúste to o chvíľu.",
+      "askAccess": "Požiadať o prístup"
+    }
   },
   "explore": {
     "title": "Prehliadať dáta",

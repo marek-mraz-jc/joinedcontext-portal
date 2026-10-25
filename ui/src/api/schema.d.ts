@@ -2241,6 +2241,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/endpoints/{name}/access/attributes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Why An Attribute Is Refused
+         * @description What decided one attribute for the caller and, for a caller who may read it, the Policy that decided (API/01 §58). The decisions table itself is the gateway's `access/attributes`, read with the person's session. Whoever may read the Endpoint. Changes no data.
+         */
+        get: operations["explain_attribute"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/endpoints/{name}/access/matrix": {
         parameters: {
             query?: never;
@@ -5020,6 +5040,21 @@ export interface components {
         AttributeBinding: {
             from?: string | null;
             to: string;
+        };
+        /** @description What decided one attribute for the caller. */
+        AttributeExplained: {
+            action: string;
+            attribute: string;
+            /** @description The gateway's decision; `None` when it was not asked (the caller may read no Policy). */
+            decision?: boolean | null;
+            /** @description The deciding Policy's manifest name, only for a caller who may read it. */
+            policy?: string | null;
+            /** @description A Policy decided and the caller may not read it. */
+            policyHidden: boolean;
+            policyTitle?: string | null;
+            /** @description `policy_grant_matched`, `prohibited`, `no_grant` or `not_admitted`, as the gateway says. */
+            reason?: string | null;
+            type: string;
         };
         /**
          * @description One attribute of one type: how many entities carry it and, for numbers, their range and the
@@ -15781,6 +15816,83 @@ export interface operations {
                 };
             };
             /** @description No git forge configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    explain_attribute: {
+        parameters: {
+            query: {
+                /** @description The entity type, a class of the Endpoint's space model. */
+                type: string;
+                /** @description The attribute's short name or IRI. */
+                attribute: string;
+                /** @description `read`, `write` (default) or `delete`. */
+                action?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Endpoint name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The decision and, where the caller may read it, the deciding Policy */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttributeExplained"];
+                };
+            };
+            /** @description A missing or malformed type, attribute or action */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not read the Endpoint */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such Endpoint, or no such type in its space model */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No gateway, or it did not answer */
             503: {
                 headers: {
                     [name: string]: unknown;

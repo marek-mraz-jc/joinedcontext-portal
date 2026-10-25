@@ -84,6 +84,8 @@ export interface GridLabels {
   /** The row detail's Metadata tab: created, changed, by whom and through what (T-5529). */
   metadata: string;
   metadataLabels?: Partial<import("./AttributeMetadata").MetadataLabels>;
+  /** The cell inspector's words (T-5528): its title also names each cell's "i" button. */
+  inspectorLabels?: Partial<import("./CellInspector").CellInspectorLabels>;
   /** Edit mode: the cell editor, the pending list and what applying them is called (UI-67). */
   edit: string;
   pending: string;
