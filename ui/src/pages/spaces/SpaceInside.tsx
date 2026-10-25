@@ -71,7 +71,7 @@ import type { LiveChange } from "./DataViews";
 import type { EnumChoice } from "./DataViews";
 import { SpaceDrift } from "./SpaceDrift";
 import { TypeApi } from "./TypeApi";
-import { SharePanel } from "./PublicView";
+import { SharePanel } from "./SharePanel";
 import { ExportLinks, ImportRowsDialog } from "./ImportRows";
 import { useWorkspace } from "../../components/layout/WorkspaceContext";
 import { CommentsPanel } from "./Comments";

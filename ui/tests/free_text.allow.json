@@ -173,7 +173,7 @@
       "class": "FREE",
       "reason": "a part of an address answer (street, town, postcode)"
     },
-    "src/pages/spaces/PublicView.tsx :: Endpoint name": {
+    "src/pages/spaces/SharePanel.tsx :: Endpoint name": {
       "class": "FREE",
       "reason": "the name of the new public Endpoint"
     },

@@ -12,6 +12,7 @@ import type { ColumnFilter, FilterColumn, FilterKind, FilterOp } from "./filters
 import type { AttributeChange, EntityChange } from "./apply";
 import type { EnumOption } from "../enums";
 import type { RelationEnd } from "../relations";
+import { readableName } from "./readableName";
 
 export type MetaKey = "observedAt" | "unit" | "datasetId" | "createdAt" | "modifiedAt";
 
@@ -369,14 +370,6 @@ export interface ColumnLayout {
 export const MIN_COLUMN_WIDTH = 40;
 export const MAX_COLUMN_WIDTH = 2000;
 
-/**
- * An attribute's name as a header reads it when nothing labels it: a compact or full IRI loses its
- * prefix (`ngsi-ld:status` and `https://…/vocab#status` read `status`).
- */
-export function readableName(attr: string): string {
-  const local = attr.split(/[#/]/).filter(Boolean).at(-1) ?? attr;
-  return local.replace(/^[A-Za-z][\w.-]*:(?!\/)/, "") || attr;
-}
 
 export interface UseEntityGridOptions {
   config: ResolvedGridConfig;

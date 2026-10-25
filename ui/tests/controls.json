@@ -1942,7 +1942,15 @@
     },
     "src/pages/spaces/PublicView.tsx": {
       "controls": {
-        "Button": 3,
+        "Button": 2
+      },
+      "tests": [
+        "public_view.test.tsx"
+      ]
+    },
+    "src/pages/spaces/SharePanel.tsx": {
+      "controls": {
+        "Button": 1,
         "Checkbox": 1
       },
       "tests": [

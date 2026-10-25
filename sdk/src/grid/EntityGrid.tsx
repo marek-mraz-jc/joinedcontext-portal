@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { RichRow, RichCell } from "./model";
 import { cellText } from "./model";
 import type { ColumnLayout, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
-import { MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, readableName, useEntityGrid } from "./useEntityGrid";
+import { readableName } from "./readableName";
+import { MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, useEntityGrid } from "./useEntityGrid";
 import { CellView, cellDisplayText, columnKind, formatDate, targetName } from "./cells";
 import type { CellLabels, ColumnKind } from "./cells";
 import { ColumnMenu } from "./ColumnMenu";

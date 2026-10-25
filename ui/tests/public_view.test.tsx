@@ -10,7 +10,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { ApiError } from "../src/api/client";
-import { PublicViewPage, SharePanel, publicName, publishRequest, retryAfterSeconds, retryPublic } from "../src/pages/spaces/PublicView";
+import { PublicViewPage, retryAfterSeconds, retryPublic } from "../src/pages/spaces/PublicView";
+import { SharePanel, publishRequest } from "../src/pages/spaces/SharePanel";
+import { publicName } from "../src/pages/spaces/publicName";
 import { expectNoViolations } from "./checks";
 import { renderPage } from "./page_contract";
 
