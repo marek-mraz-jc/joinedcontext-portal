@@ -557,6 +557,19 @@ impl RunQueue {
             .collect()
     }
 
+    /// What came due joins the queue; a pipeline already queued or running stays one entry.
+    fn queue_due(&mut self, now: DateTime<Utc>) {
+        for entry in self.entries.values_mut() {
+            let Some(due) = entry.next.filter(|due| *due <= now) else {
+                continue;
+            };
+            if entry.queued.is_none() && entry.running.is_none() && !entry.stuck {
+                entry.queued = Some(due);
+            }
+            entry.next = entry.clock.next_after(now);
+        }
+    }
+
     /// Ends the runs the runner finished, lost or held too long; queues what came due; starts
     /// what each lane has room for. Returns the runs to delete and the runs to start.
     fn settle(
@@ -609,16 +622,7 @@ impl RunQueue {
             ended.push(key);
         }
 
-        // What came due joins the queue; a pipeline already queued or running stays one entry.
-        for entry in self.entries.values_mut() {
-            let Some(due) = entry.next.filter(|due| *due <= now) else {
-                continue;
-            };
-            if entry.queued.is_none() && entry.running.is_none() && !entry.stuck {
-                entry.queued = Some(due);
-            }
-            entry.next = entry.clock.next_after(now);
-        }
+        self.queue_due(now);
         self.queue_retries(now);
 
         let mut starts = Vec::new();
