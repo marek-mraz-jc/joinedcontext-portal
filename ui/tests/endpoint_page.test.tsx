@@ -286,10 +286,10 @@ describe("the endpoint's own settings page", () => {
 
     // Who may call it: the policy the URN names, what it grants, and to whom (T-2282, GW34).
     expect(screen.getByRole("link", { name: "readers" })).toBeInTheDocument();
-    expect(screen.getByText("retrieveOps")).toBeInTheDocument();
+    expect(screen.getByText(en.choice.operationGroup.retrieveOps)).toBeInTheDocument();
     expect(screen.getByText("retrieveEntity, queryEntity")).toBeInTheDocument();
-    expect(screen.getByText(en.endpoints.page.policyReads)).toBeInTheDocument();
-    expect(screen.getByText(/role:public/)).toBeInTheDocument();
+    expect(screen.getByText(en.endpoints.page.grantChanges.nothing)).toBeInTheDocument();
+    expect(screen.getByTitle("role:public")).toHaveTextContent("public");
     expect(screen.getByText("120 requests a minute · burst 20")).toBeInTheDocument();
     expect(screen.getByText("A caller may cache an answer for 60 seconds.")).toBeInTheDocument();
     expect(screen.getByText("At most 50000 rows in a file")).toBeInTheDocument();

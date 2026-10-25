@@ -144,15 +144,33 @@ export function grantWrites(operations: readonly string[]): boolean {
 }
 
 /**
- * The Table 4.20-1 operations that change context or subscription state, for a grant that names
- * operations one by one instead of by group (GW15, GW16; `Operation::is_write` in `jc-core`,
- * which this list is held against).
+ * What a grant changes, in the words a person reads (T-5592): `data` when it can change
+ * entities, `subscriptions` when the only state it changes is subscriptions, `nothing` for a read.
  *
- * A subscription write is in here and is deliberately *not* what makes `associationOps` or
- * `federationOps` a write: `OperationGroup::includes_write` counts only the groups that change
- * context data, and the Portal says what the platform decides, not what it would decide itself.
+ * `grantWrites` follows `Operation::is_write`, where a subscription write counts; a person who
+ * reads "can change data" beside a grant that only lets the city's people subscribe to the bike
+ * stations is told something false about the data, so the page asks this instead.
  */
-export const WRITE_OPERATIONS: ReadonlySet<string> = new Set([
+export function grantChanges(operations: readonly string[]): "data" | "subscriptions" | "nothing" {
+  const covered = expandOperations(operations);
+  if (covered.some((name) => DATA_WRITE_OPERATIONS.has(name))) return "data";
+  if (covered.some((name) => SUBSCRIPTION_WRITE_OPERATIONS.has(name))) return "subscriptions";
+  return "nothing";
+}
+
+/** The Table 4.20-1 operations that change subscription state, and nothing else. */
+export const SUBSCRIPTION_WRITE_OPERATIONS: ReadonlySet<string> = new Set([
+  "createSubscription",
+  "updateSubscription",
+  "deleteSubscription",
+]);
+
+/**
+ * The Table 4.20-1 operations that change context data (entities, attributes, their history).
+ * The one list of them in the Portal: Effective permissions sorts the gateway's actions into
+ * read and write columns by it, and this page's chip says "changes data" by it (T-5592).
+ */
+export const DATA_WRITE_OPERATIONS: ReadonlySet<string> = new Set([
   "createEntity",
   "updateEntity",
   "appendAttrs",
@@ -174,7 +192,18 @@ export const WRITE_OPERATIONS: ReadonlySet<string> = new Set([
   "replaceAttrs",
   "mergeBatch",
   "purgeEntity",
-  "createSubscription",
-  "updateSubscription",
-  "deleteSubscription",
+]);
+
+/**
+ * The Table 4.20-1 operations that change context or subscription state, for a grant that names
+ * operations one by one instead of by group (GW15, GW16; `Operation::is_write` in `jc-core`,
+ * which this list is held against).
+ *
+ * A subscription write is in here and is deliberately *not* what makes `associationOps` or
+ * `federationOps` a write: `OperationGroup::includes_write` counts only the groups that change
+ * context data, and the Portal says what the platform decides, not what it would decide itself.
+ */
+export const WRITE_OPERATIONS: ReadonlySet<string> = new Set([
+  ...DATA_WRITE_OPERATIONS,
+  ...SUBSCRIPTION_WRITE_OPERATIONS,
 ]);
