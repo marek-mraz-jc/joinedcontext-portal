@@ -82,7 +82,7 @@ describe("GroupCounts", () => {
       get: async () => null,
     };
     const onChoose = vi.fn();
-    wrap(<GroupCounts source={source} type="BikeHireDockingStation" attr="status" options={STATUS} q="availableBikeNumber<3" chosen={null} onChoose={onChoose} />);
+    wrap(<GroupCounts scope="helsinki/bikes" source={source} type="BikeHireDockingStation" attr="status" options={STATUS} q="availableBikeNumber<3" chosen={null} onChoose={onChoose} />);
 
     const groups = screen.getByRole("navigation", { name: L.groupsOf.replace("{attr}", "status") });
     expect(await within(groups).findByRole("button", { name: "Working (12)" })).toBeInTheDocument();

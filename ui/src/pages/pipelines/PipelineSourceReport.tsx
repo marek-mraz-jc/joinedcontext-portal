@@ -17,14 +17,13 @@ import {
   TableHeaderCell,
   TableRow,
 } from "../../components/ui";
+import { csvField } from "../explore/exportView";
 import { download } from "../models/diagramExport";
 
 type Report = components["schemas"]["PipelineSourceDeletes"];
 
-/** One CSV cell: quoted when it holds a separator, a quote or a line break. */
-function cell(text: string): string {
-  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
+/** One CSV cell: quoted where needed, and an id a spreadsheet would run as a formula kept as text (F-UI3-009). */
+const cell = (text: string): string => csvField(text, ",", false);
 
 /**
  * The report as a CSV a steward keeps or hands on (T-4892): one row per id, its side, and for a

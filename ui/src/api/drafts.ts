@@ -8,22 +8,32 @@ export type Draft = components["schemas"]["Draft"];
 export type DraftEvent = components["schemas"]["DraftEvent"];
 
 /**
- * One draft, or null when there is none or it cannot be read. Through the typed client, so the
- * workspace the person is in reaches the call (CC-76) and an ended session goes to the login.
+ * One draft, or null when there is none (404, or an answer that is not a draft). Through the typed
+ * client, so the workspace the person is in reaches the call (CC-76) and an ended session goes to
+ * the login. Any other failure throws with its status and detail: read as "no draft", it would let
+ * the form write with no expected version over another window's draft (F-UI1-013).
  */
 export async function getDraft(
   project: string,
   kind: string,
   name: string,
 ): Promise<Draft | null> {
-  try {
-    const { data } = await api.GET("/api/v1/projects/{project}/drafts/{kind}/{name}", {
-      params: { path: { project, kind, name } },
-    });
-    return data === undefined ? null : asDraft(data);
-  } catch {
-    return null;
+  const { data, error, response } = await api.GET("/api/v1/projects/{project}/drafts/{kind}/{name}", {
+    params: { path: { project, kind, name } },
+  });
+  if (data !== undefined) {
+    try {
+      return asDraft(data);
+    } catch {
+      return null;
+    }
   }
+  if (response.status === 404) return null;
+  const detail = (error as { detail?: unknown } | undefined)?.detail;
+  throw Object.assign(new Error(typeof detail === "string" ? detail : `HTTP ${response.status}`), {
+    status: response.status,
+    detail: typeof detail === "string" ? detail : undefined,
+  });
 }
 
 /** A draft answer carries a version; anything else is not a draft (a mocked or proxied 200). */

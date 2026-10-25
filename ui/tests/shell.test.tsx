@@ -133,6 +133,18 @@ describe("portal shell", () => {
     });
   });
 
+  // F-UI1-002: the trail decodes each segment of the address; a broken escape keeps the segment
+  // as typed instead of throwing above every error boundary and blanking the Portal.
+  it("keeps the shell up on an address with a broken escape", async () => {
+    window.history.pushState({}, "", "/projects/helsinki/spaces/%E0%A4%A");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/projects/helsinki/spaces/%E0%A4%A");
+      expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeInTheDocument();
+    });
+    expect(screen.getByRole("navigation", { name: "Main navigation" })).toBeInTheDocument();
+  });
+
   it("shows the project and the active section as a breadcrumb trail", async () => {
     // A route change remounts the shell, so the breadcrumb node has to be looked up again.
     const crumbs = () => screen.getByRole("navigation", { name: "Breadcrumb" });

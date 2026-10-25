@@ -187,6 +187,9 @@ export function textsWith(current: unknown, language: string, value: string): Re
   return Object.keys(next).length > 0 ? next : undefined;
 }
 
+/** Path members that reach an object's prototype rather than a member of it (F-UI2-002). */
+const PROTOTYPE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 /**
  * A manifest with a change's field diff applied (`FieldChange`: dotted paths with `[i]` indices,
  * `to` absent for a removed leaf), so the approval page previews what the Change makes. Only the
@@ -202,6 +205,8 @@ export function applyFields(
       .split(".")
       .flatMap((part) => part.split(/\[(\d+)\]/).filter((k) => k !== ""))
       .map((k) => (/^\d+$/.test(k) ? Number(k) : k));
+    // A path is data: one naming the prototype would write into every object of the page.
+    if (keys.some((key) => typeof key === "string" && PROTOTYPE_KEYS.has(key))) continue;
     let node: Record<string | number, unknown> = out;
     keys.forEach((key, i) => {
       if (i === keys.length - 1) {

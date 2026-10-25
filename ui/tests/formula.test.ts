@@ -80,6 +80,18 @@ describe("checking a class's formulas", () => {
     expect(names).toHaveLength(4);
   });
 
+  it("refuses a formula slot whose name is not a plain name, so nothing else reaches the mapping", () => {
+    // F-UI1-022: the slot name is spliced into `let v_{slot}` and `root.{slot}`.
+    const evil = "a } root = deleted() {";
+    const checked = checkFormulas([
+      { name: "capacity", kind: "Property" },
+      { name: evil, kind: "Property", equals_expression: "{capacity} * 2" },
+    ]);
+    expect(checked.problems[evil]).toBe("a formula slot's name is letters, digits and _, such as free_places");
+    expect(checked.order).toEqual([]);
+    expect(formulaMapping(checked, "Parking")).not.toContain("deleted() {");
+  });
+
   it("refuses a slot outside the class, a geometry, and a cycle naming every slot on it", () => {
     const { problems, order } = checkFormulas([
       { name: "a", kind: "Property", equals_expression: "{b} + 1" },

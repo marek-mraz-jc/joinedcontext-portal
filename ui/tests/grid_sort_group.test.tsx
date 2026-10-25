@@ -124,7 +124,7 @@ describe("group counts", () => {
         return { rows: [], total: 7 };
       },
     } as unknown as EntitySource;
-    wrap(<GroupCount source={source} type="Event" q="seats>2" path={[{ attr: "status", value: "open" }, { attr: "city", value: undefined }]} />);
+    wrap(<GroupCount scope="helsinki/events" source={source} type="Event" q="seats>2" path={[{ attr: "status", value: "open" }, { attr: "city", value: undefined }]} />);
     expect(await screen.findByText("7 rows")).toBeInTheDocument();
     expect(asked).toEqual(['seats>2;status=="open";!city']);
   });
@@ -152,7 +152,7 @@ function orderedSource(filled: number, values: number[]): { source: EntitySource
 
 function Footer({ source, start }: { source: EntitySource; start: Aggregation }) {
   const [value, setValue] = useState<Aggregation>(start);
-  return <FooterAggregate source={source} type="Event" attr="seats" label="Seats" kind="number" q={'category=="music"'} value={value} onChange={setValue} />;
+  return <FooterAggregate scope="helsinki/events" source={source} type="Event" attr="seats" label="Seats" kind="number" q={'category=="music"'} value={value} onChange={setValue} />;
 }
 
 describe("ordered footer", () => {

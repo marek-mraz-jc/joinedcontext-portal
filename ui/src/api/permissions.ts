@@ -106,6 +106,23 @@ export function mayRead(effective: Effective | undefined, kind: string): boolean
   });
 }
 
+/** How many empty answers are asked again: a minute at five seconds, the first mirror sync's window. */
+export const EMPTY_GRANTS_ASKS = 12;
+
+/**
+ * When to ask `permissions/me` again: every five seconds while the answer holds no grant, as a
+ * fresh Portal pod answers before its first mirror sync (T-0630), and no more after
+ * EMPTY_GRANTS_ASKS answers, since a person who genuinely holds nothing would be polled for as
+ * long as the page is open (F-UI1-021).
+ */
+export function emptyGrantsRetry(
+  data: { grants?: unknown; bootstrap?: boolean } | undefined,
+  answers: number,
+): number | false {
+  const empty = data !== undefined && Array.isArray(data.grants) && data.grants.length === 0 && data.bootstrap !== true;
+  return empty && answers < EMPTY_GRANTS_ASKS ? 5000 : false;
+}
+
 /**
  * The caller's effective permissions in `project` (T-0526). A convenience for the UI: a
  * control renders only when the API would honour it, and the API decides on its own.
@@ -122,15 +139,7 @@ export function usePermissions(project: string) {
     enabled: project !== "",
     // A fresh Portal pod answers with no grant until its first mirror sync; a page opened in
     // that window would otherwise keep every control disabled until a reload (T-0630).
-    refetchInterval: (query) => {
-      const data = query.state.data;
-      return data &&
-        Array.isArray(data.grants) &&
-        data.grants.length === 0 &&
-        data.bootstrap !== true
-        ? 5000
-        : false;
-    },
+    refetchInterval: (query) => emptyGrantsRetry(query.state.data, query.state.dataUpdateCount),
   });
   return {
     data: query.data,

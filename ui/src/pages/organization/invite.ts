@@ -14,8 +14,9 @@ export type InviteRole = (typeof INVITE_ROLES)[number];
  * The RoleBinding that gives the invited person `role` in `project`. It is proposed like every
  * other grant and holds once approved: the invitation itself grants nothing (PF-95, PF-108).
  */
-export function inviteBinding(email: string, role: InviteRole, project: string, orgDomain: string): Manifest {
-  return bindingOf({ subjectKind: "user", subject: email.trim().toLowerCase(), role, place: "project", until: "" }, project, orgDomain);
+export function inviteBinding(email: string, role: InviteRole, project: string): Manifest {
+  // A project place: no Organization is named.
+  return bindingOf({ subjectKind: "user", subject: email.trim().toLowerCase(), role, place: "project", until: "" }, project, undefined);
 }
 
 export type InvitationState =

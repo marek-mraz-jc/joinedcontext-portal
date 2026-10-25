@@ -33,6 +33,7 @@ import {
   TableRow,
   Term,
 } from "../components/ui";
+import { policyRules } from "../components/endpoints/policyBinding";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
 import { SPACE_LABEL } from "../schemas/modelprojection";
 
@@ -88,6 +89,10 @@ export function toPolicyEnvelope(
     ...((kept.labels as Record<string, string> | undefined) ?? {}),
     ...(form.contextSpaceRef ? { [SPACE_LABEL]: form.contextSpaceRef } : {}),
   };
+  const ruled = hasRules(rest as Record<string, unknown>);
+  const own = ruled
+    ? Object.fromEntries(Object.entries(rest).filter(([key]) => !RULE_MEMBERS.includes(key)))
+    : rest;
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "Policy",
@@ -98,10 +103,10 @@ export function toPolicyEnvelope(
       ...(Object.keys(labels).length > 0 ? { labels } : {}),
     },
     spec: {
-      ...present({ ...rest }),
+      ...present({ ...own }),
       contextSpaceRef: { kind: "ContextSpace", name: form.contextSpaceRef },
       assigner: assigner?.trim() ? assigner : `did:web:${orgDomain}`,
-      ...(information && information.length > 0 ? { information } : {}),
+      ...(!ruled && information && information.length > 0 ? { information } : {}),
       ...(validity && (validity.from || validity.to)
         ? { validity: present(validity as Record<string, unknown>) }
         : {}),
@@ -110,6 +115,13 @@ export function toPolicyEnvelope(
 }
 
 /** The stored manifest back as the form: the same pair, so the YAML view and the fields agree. */
+/** The members a rule of `rules[]` carries, which the Policy then holds in no other place (ADR-N-057). */
+const RULE_MEMBERS = ["effect", "assignee", "operations", "actions", "information", "q", "scopeQ", "geoQ", "temporalQ"];
+
+function hasRules(spec: Record<string, unknown>): boolean {
+  return Array.isArray(spec.rules) && spec.rules.length > 0;
+}
+
 export function fromPolicyEnvelope(manifest: unknown): PolicyForm {
   const envelope = (manifest ?? {}) as {
     metadata?: { name?: string };
@@ -122,8 +134,14 @@ export function fromPolicyEnvelope(manifest: unknown): PolicyForm {
     name: envelope.metadata?.name ?? "",
     contextSpaceRef:
       (typeof reference === "string" ? reference : reference?.name) ?? "",
-    assignee: (spec.assignee as PolicyForm["assignee"]) ?? { kind: "role", id: "" },
-    operations: (spec.operations as string[] | undefined) ?? [],
+    // A `rules[]` Policy holds its grants in its rules: nothing is added beside them, or the
+    // saved manifest holds both shapes, which jc-core refuses (ADR-N-057, F-UI3-015).
+    ...(hasRules(spec)
+      ? {}
+      : {
+          assignee: (spec.assignee as PolicyForm["assignee"]) ?? { kind: "role", id: "" },
+          operations: (spec.operations as string[] | undefined) ?? [],
+        }),
   } as PolicyForm;
 }
 
@@ -227,12 +245,12 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
     words.length === 0
       ? policies
       : policies.filter((policy) => {
-          const spec = (policy.spec ?? {}) as { contextSpaceRef?: string; assignee?: { id?: string } };
+          const spec = (policy.spec ?? {}) as { contextSpaceRef?: string };
           const haystack = [
             policy.metadata.name,
             localized(policy.metadata.title, locale, ""),
             spec.contextSpaceRef ?? "",
-            spec.assignee?.id ?? "",
+            ...policyRules(policy).map((rule) => (rule.assignee as { id?: string } | undefined)?.id ?? ""),
           ]
             .join(" ")
             .toLocaleLowerCase(locale);
@@ -324,11 +342,17 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
                 <span className="font-mono text-caption">{shape.contextSpaceRef || "—"}</span>
               </TableCell>
               <TableCell>
-                <GranteeInWords kind={shape.assignee.kind} id={shape.assignee.id} />
+                {/* Every rule's grantee, not only a single-rule Policy's (F-UI3-015). */}
+                <div className="flex flex-col gap-0.5">
+                  {policyRules(policy).map((rule, index) => {
+                    const assignee = (rule.assignee ?? {}) as { kind?: string; id?: string };
+                    return <GranteeInWords key={index} kind={assignee.kind ?? "role"} id={assignee.id ?? ""} />;
+                  })}
+                </div>
               </TableCell>
               <TableCell>
                 {/* The areas first, the CIM 009 names they stand for one click away (T-2282, T-4990). */}
-                <OperationsInWords operations={shape.operations} />
+                <OperationsInWords operations={[...new Set(policyRules(policy).flatMap((rule) => (rule.operations as string[] | undefined) ?? []))]} />
               </TableCell>
               <TableCell>
                 <LifecycleBadge kind="phase" value={policy.status?.phase} />
