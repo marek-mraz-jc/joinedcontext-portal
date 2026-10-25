@@ -5261,8 +5261,7 @@
   },
   "entities": {
     "type": "Entity type",
-    "scopeQ": "Scope",
-    "scopeQHint": "NGSI-LD scopeQ, e.g. /district/1",
+    "scopeQ": "Area",
     "filters": "Filters",
     "attribute": "Attribute",
     "operator": "Operator",
@@ -5270,17 +5269,24 @@
     "addFilter": "Add filter",
     "remove": "Remove",
     "advanced": "This q uses | or brackets, which the rows cannot show; edit it as text.",
-    "q": "Query (q)",
-    "qHint": "The NGSI-LD q the rows compose; edit it here or in YAML.",
+    "q": "Query as text (q)",
     "attrs": "Attributes to read",
-    "typeNotGranted": "{name} (not granted through this endpoint)",
     "qProblem": {
       "shape": "Write each condition as an attribute, a comparison and a value with no spaces, e.g. name==\"Hospital\"; join conditions with ; (and) or | (or).",
       "unquoted": "Text goes in double quotes: {fix}"
     },
-    "typeHint": "The type of entity to list; the filters below follow its model.",
     "noTypes": "No type to choose: the space's data model declares none and the space holds no entity you may read.",
-    "noAttributes": "The type's model lists no attribute: write the filter as Query (q) below."
+    "noAttributes": "The type's model lists no attribute: write the filter as Query as text (q), under Technical details below.",
+    "typesNotGranted": "Not readable through this endpoint",
+    "technical": "Technical details",
+    "technicalScope": "Area is sent as the NGSI-LD scopeQ; the filters as the q below.",
+    "hint": {
+      "type": "What to list, e.g. air quality readings; the filters below follow its model.",
+      "scope": "The area code the entities are filed under, e.g. /district/1; leave empty for every area.",
+      "q": "The filters above written out in the NGSI-LD query language, e.g. pm10>40 for pm10 above 40; edit it here or in YAML.",
+      "filters": "Each row narrows the list, e.g. Available bikes > 3. Rows add up: every one has to hold.",
+      "attrs": "Tick the attributes to show as columns, e.g. Name and Date observed; with none ticked every attribute shows."
+    }
   },
   "entityGrid": {
     "id": "ID",
@@ -5487,7 +5493,7 @@
       "filterDate": "Choose a test, then pick a date, e.g. after 2026-10-01.",
       "filterEnum": "Choose a test; with any of, pick one or more allowed values:",
       "filterOther": "Choose a test, e.g. has a value, or empty.",
-      "editAsText": "Write the NGSI-LD query yourself"
+      "editAsText": "Write the filter as text, e.g. pm10>40"
     },
     "groupNoValue": "(no value)"
   },
@@ -5518,7 +5524,6 @@
     "noSpaceHint": "Its entities open here, read through one of its endpoints. Start with one of this project's spaces:",
     "typeInModel": "This type in its data model:",
     "readThrough": "Read through",
-    "endpointHint": "The Endpoint whose Policy decides what you see. A link you share names it, so a colleague reads through the same one.",
     "endpointUnshown": "The link names the Endpoint {name}, which this space does not show you",
     "endpointUnshownPick": "Nothing is read through another Endpoint in its place. Pick one of the Endpoints you can read above, or ask the space's steward for access to {name}.",
     "views": "What to show",
@@ -5621,7 +5626,13 @@
       "pickEntity": "Pick the entity to chart over time."
     },
     "pickSpaceFirst": "Pick a space first.",
-    "noMatch": "Nothing matches this query; change or remove a filter."
+    "noMatch": "Nothing matches this query; change or remove a filter.",
+    "endpointApps": "Applications",
+    "unknownType": "There is no type {type} in this space",
+    "unknownTypeHint": "The address names a type this space does not have. Pick one of its types:",
+    "hint": {
+      "endpoint": "The Endpoint whose Policy decides what you see, e.g. the space's public one. A link you share names it, so a colleague reads through the same one."
+    }
   },
   "agentRun": {
     "title": "Application run",

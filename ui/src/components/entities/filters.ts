@@ -29,6 +29,8 @@ export interface FilterSlot {
   name: string;
   range?: string;
   kind: NgsiLdKind;
+  /** What a reader calls it, per language: the model's label, else its title (DM-100). */
+  label?: Record<string, string>;
   /** The permissible values when the range is an enum of the model. */
   values?: string[];
   minimum?: number;
@@ -108,6 +110,7 @@ export function filterSlotsOf(
         name,
         range: slot?.range,
         kind: slot?.kind ?? "Property",
+        ...(slot?.label ?? slot?.title ? { label: slot?.label ?? slot?.title } : {}),
         values: values?.map((v) => v.name),
         minimum: slot?.minimum_value,
         maximum: slot?.maximum_value,

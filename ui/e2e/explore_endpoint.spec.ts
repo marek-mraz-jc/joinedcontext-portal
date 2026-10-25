@@ -77,7 +77,7 @@ for (const width of [1440, 400]) {
     await expect(page.locator("tbody tr").first()).toBeVisible();
     await expect(page).toHaveURL(new RegExp(`endpoint=${OWN.name}`));
     await expect(page.locator("#explore-endpoint")).toHaveValue(OWN.name);
-    await expect(page.locator("main").getByText(`Read through ${OWN.name}`)).toBeVisible();
+    await expect(page.locator("main").getByText("Read through Helsinki air quality")).toBeVisible();
     expect(reads.every((path) => path.includes(OWN.slug))).toBe(true);
     expect(await axeViolations(page)).toEqual([]);
     await page.screenshot({ path: `${SHOTS}/read-through-${width}.png`, fullPage: true });

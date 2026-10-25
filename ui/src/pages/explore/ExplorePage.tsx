@@ -7,6 +7,7 @@ import { parseGridConfig } from "@joinedcontext/sdk";
 import type { GridState, ResolvedGridConfig, RichRow } from "@joinedcontext/sdk";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized, refName } from "../../api/manifest";
+import type { Manifest } from "../../api/manifest";
 import { AccessPanel, deniedAttributes, editableAttributes, useAccess } from "../../components/entities/AccessPanel";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
@@ -22,7 +23,7 @@ import { ChartFromView } from "./ChartFromView";
 import { ExploreMap, isLocated } from "./ExploreMap";
 import { andQ } from "./exportView";
 import type { ViewSort } from "./exportView";
-import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/spaceFacts";
+import { entityTypesOf, isAppEndpoint, pickReadEndpoint, spaceOf } from "../spaces/spaceFacts";
 import { useIdentity } from "../../auth/AuthProvider";
 import { replaceOwnSearch } from "../../assistant/HandOff";
 
@@ -148,6 +149,13 @@ export function ExplorePage({
     (m) => m.metadata.name === refName(spaceManifest?.spec.dataModelRef),
   );
   const types = model ? entityTypesOf(model) : [];
+  // Only the model's own types make an address's type unknown: the broker's list is the person's
+  // readable types, so a type missing there may exist and be refused (T-5622).
+  const knownTypes = types.length > 0 ? types : undefined;
+  /** The space's model is not known yet: the space or the model list is still on its way. */
+  const modelPending = spaces.isPending || models.isPending;
+  const unknownType =
+    query.type !== undefined && knownTypes !== undefined && !knownTypes.includes(query.type) ? query.type : undefined;
   // The slots and the denied list are memoized because the grid's config is built from them: a new
   // array on every render would make the grid rebuild its source and read the endpoint again, on
   // and on. It also stops the LinkML being parsed once per render.
@@ -208,7 +216,8 @@ export function ExplorePage({
    */
   const config: ResolvedGridConfig | null = useMemo(() => {
     // A q the broker would refuse is not sent: the field says how to fix it (T-4264, T-4160 #22).
-    if (!slug || !query.type || qProblem(query.q)) {
+    // Nor is a type read before the model says whether the space has it (T-5622).
+    if (!slug || !query.type || modelPending || unknownType !== undefined || qProblem(query.q)) {
       return null;
     }
     const parsed = parseGridConfig({
@@ -222,7 +231,7 @@ export function ExplorePage({
       ...(editableAttrs.length > 0 ? { mode: "edit" as const, editableAttrs } : {}),
     });
     return parsed.config ?? null;
-  }, [slug, query.type, query.q, query.attrs, query.scopeQ, editableAttrs]);
+  }, [slug, query.type, modelPending, unknownType, query.q, query.attrs, query.scopeQ, editableAttrs]);
 
   // A stable callback and the same object back when nothing moved: the grid hands its page over
   // from an effect, so a new function or a new object on every render would read and re-render
@@ -329,11 +338,14 @@ export function ExplorePage({
           description={
             space && spaceEndpoints.length === 0 && !endpoints.isError
               ? t("explore.noEndpoint")
-              : t("explore.endpointHint")
+              : t("explore.hint.endpoint")
           }
         >
           <Select
             id="explore-endpoint"
+            // Named by hand: the failure note beside it makes two children, which the Field does
+            // not wire (T-5622).
+            aria-describedby="explore-endpoint__description"
             value={endpoint?.metadata.name ?? ""}
             disabled={!space}
             title={!space ? t("explore.pickSpaceFirst") : undefined}
@@ -343,18 +355,12 @@ export function ExplorePage({
             }}
           >
             <option value="">—</option>
-            {spaceEndpoints.map((e) => {
-              const title = localized(e.metadata.title, locale, e.metadata.name);
-              // Two endpoints of one title are told apart by their names (T-3218).
-              const twin = spaceEndpoints.some(
-                (other) => other !== e && localized(other.metadata.title, locale, other.metadata.name) === title,
-              );
-              return (
-                <option key={e.metadata.name} value={e.metadata.name}>
-                  {twin ? `${title} (${e.metadata.name})` : title}
-                </option>
-              );
-            })}
+            {/* The space's own Endpoints first, an App's under "Applications": the group tells a
+                space's Endpoint from an App's of one title, where a slug in brackets did (T-5622). */}
+            {endpointOptions(spaceEndpoints.filter((e) => !isAppEndpoint(e)), locale)}
+            {spaceEndpoints.some(isAppEndpoint) ? (
+              <optgroup label={t("explore.endpointApps")}>{endpointOptions(spaceEndpoints.filter(isAppEndpoint), locale)}</optgroup>
+            ) : null}
           </Select>
           {endpoints.isError ? (
             <ListFailed
@@ -383,18 +389,18 @@ export function ExplorePage({
           readable={readable}
         />
       ) : null}
-      {space && query.type ? (
+      {space && query.type && unknownType === undefined ? (
         <p className="text-caption text-fg-muted">
           {t("explore.typeInModel")} <TypeLink project={project} type={query.type} space={space} className="font-mono" />
           {endpointName ? (
             <>
               {" · "}
-              {t("explore.readThrough")} <span className="font-mono">{endpointName}</span>
+              {t("explore.readThrough")} {endpoint ? endpointTitle(endpoint, locale) : endpointName}
             </>
           ) : null}
         </p>
       ) : null}
-      {space ? <AccessPanel slug={slug} type={query.type} access={access} /> : null}
+      {space ? <AccessPanel slug={slug} type={unknownType === undefined ? query.type : undefined} access={access} /> : null}
 
       {config && space && query.type ? (
         <Tabs
@@ -477,7 +483,24 @@ export function ExplorePage({
           reason={reasonOf(models.error, t("explore.loadFailed"))}
           onRetry={() => void models.refetch()}
         />
-      ) : unshownEndpoint !== undefined ? null : space ? (
+      ) : unshownEndpoint !== undefined || (query.type && modelPending) ? null : space && unknownType !== undefined ? (
+        // An address naming a type the space has none of says so, rather than an empty grid that
+        // reads like a type with nothing in it yet (T-5622).
+        <EmptyState
+          title={t("explore.unknownType", { type: unknownType })}
+          description={(knownTypes ?? []).length > 0 ? t("explore.unknownTypeHint") : t("entities.noTypes")}
+          icon="explore"
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              {(knownTypes ?? []).map((type) => (
+                <Button key={type} size="sm" variant="secondary" onClick={() => changeQuery({ type, scopeQ: query.scopeQ })}>
+                  {type}
+                </Button>
+              ))}
+            </div>
+          }
+        />
+      ) : space ? (
         // A linked Endpoint this person is not shown has its own warning above.
         <EmptyState
           title={t("explore.noType")}
@@ -623,4 +646,23 @@ export function ExplorePage({
       </Dialog>
     </div>
   );
+}
+
+/** An Endpoint as a person reads it: its title, else the App it serves or its own name. */
+function endpointTitle(endpoint: Manifest, locale: string): string {
+  const name = endpoint.metadata.name;
+  return localized(endpoint.metadata.title, locale, isAppEndpoint(endpoint) ? name.replace(/^app-/, "") : name);
+}
+
+/** One group's options; two of one title in a group are told apart by their names (T-3218). */
+function endpointOptions(group: Manifest[], locale: string): JSX.Element[] {
+  return group.map((e) => {
+    const title = endpointTitle(e, locale);
+    const twin = group.some((other) => other !== e && endpointTitle(other, locale) === title);
+    return (
+      <option key={e.metadata.name} value={e.metadata.name}>
+        {twin ? `${title} (${e.metadata.name})` : title}
+      </option>
+    );
+  });
 }
