@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized } from "../../api/manifest";
 import { operationAreas } from "../../components/AccessWords";
+import { DATA_WRITE_OPERATIONS } from "../../components/endpoints/operationGroups";
 import {
   Badge,
   Field,
@@ -38,30 +39,13 @@ interface GrantDocument {
   prohibitions?: GrantEntry[];
 }
 
-/** CIM 009 operation names that write; everything else on an entry is a read (R8). */
-const WRITE_OPERATIONS = new Set([
-  "createEntity",
-  "updateEntity",
-  "appendAttrs",
-  "updateAttrs",
-  "deleteAttrs",
-  "deleteEntity",
-  "mergeEntity",
-  "replaceEntity",
-  "replaceAttrs",
-  "batchOps",
-  "upsertBatch",
-  "createBatch",
-  "updateBatch",
-  "deleteBatch",
-]);
-
+/** The actions that change context data, by the Portal's one list of them (R8, T-5592). */
 export function writesOf(actions: string[]): string[] {
-  return actions.filter((action) => WRITE_OPERATIONS.has(action));
+  return actions.filter((action) => DATA_WRITE_OPERATIONS.has(action));
 }
 
 export function readsOf(actions: string[]): string[] {
-  return actions.filter((action) => !WRITE_OPERATIONS.has(action));
+  return actions.filter((action) => !DATA_WRITE_OPERATIONS.has(action));
 }
 
 function ConstraintList({ entry }: { entry: GrantEntry }): JSX.Element {

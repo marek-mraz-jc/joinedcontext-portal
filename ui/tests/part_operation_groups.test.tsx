@@ -304,16 +304,22 @@ describe("what the endpoint page says about who may call it", () => {
     await i18n.changeLanguage("en");
   });
 
-  it("names the policy, who holds it, and what its group covers", async () => {
+  it("names the policy, who holds it, and what its group covers, in words", async () => {
     show();
     const section = await grants();
     expect(within(section).getByRole("link", { name: "readers" })).toBeInTheDocument();
-    expect(within(section).getByText(/role:public/)).toBeInTheDocument();
-    expect(within(section).getByText("retrieveOps")).toBeInTheDocument();
-    expect(within(section).getByText(en.endpoints.page.group.retrieveOps, { exact: false })).toBeInTheDocument();
+    expect(within(section).getByTitle("role:public")).toHaveTextContent(`public (${en.choice.principalKind.role})`);
+    expect(within(section).getByText(en.choice.operationGroup.retrieveOps)).toBeInTheDocument();
+    // The members stay one press away: a group is exactly this list (GW34).
     expect(within(section).getByText("retrieveEntity, queryEntity")).toBeInTheDocument();
     expect(within(section).getByText("Covers 2 operations")).toBeInTheDocument();
-    expect(within(section).getByText(en.endpoints.page.policyReads)).toBeInTheDocument();
+    expect(within(section).getByText(en.endpoints.page.grantChanges.nothing)).toBeInTheDocument();
+    expect(within(section).getByText(en.endpoints.page.grantEveryType)).toBeInTheDocument();
+    // No code name is the visible line of a grant (T-5592).
+    for (const summary of section.querySelectorAll("summary")) {
+      expect(summary.textContent).not.toMatch(/[a-z][A-Z]/);
+    }
+    expect(section.textContent).not.toMatch(/\b(role|group|user|serviceAccount):/);
   });
 
   it("marks a grant that can change data as one, and does not mark a read", async () => {
@@ -324,13 +330,12 @@ describe("what the endpoint page says about who may call it", () => {
     });
     show({ endpoint: writing, policies: [WRITERS] });
     const section = await grants();
-    expect(within(section).getByText(en.endpoints.page.policyWrites)).toBeInTheDocument();
-    expect(within(section).queryByText(en.endpoints.page.policyReads)).toBeNull();
+    expect(within(section).getByText(en.endpoints.page.grantChanges.data)).toBeInTheDocument();
+    expect(within(section).queryByText(en.endpoints.page.grantChanges.nothing)).toBeNull();
     expect(within(section).getByText("updateEntity, updateAttrs, replaceEntity, replaceAttrs")).toBeInTheDocument();
   });
 
-  // T-2751: a single operation was printed twice, as a chip and again as text beside it.
-  it("names a single operation once", async () => {
+  it("names a single operation by what it does, its code name once behind it", async () => {
     const single = manifest("Policy", "readers", {
       contextSpaceRef: "ovzdusie",
       assignee: { kind: "role", id: "public" },
@@ -338,12 +343,12 @@ describe("what the endpoint page says about who may call it", () => {
     });
     show({ policies: [single] });
     const section = await grants();
+    expect(within(section).getByText(en.access.words.area.read)).toBeInTheDocument();
     expect(within(section).getAllByText("queryEntity")).toHaveLength(1);
-    expect(within(section).getByText(en.endpoints.page.operationSingle)).toBeInTheDocument();
   });
 
-  // T-5015: one line per single operation and every policy unfolded made this section 9,500 px.
-  it("puts a policy's single operations in one row and folds after five policies", async () => {
+  // T-5015: every policy unfolded made this section 9,500 px.
+  it("folds after five policies", async () => {
     const policies = Array.from({ length: 7 }, (_, n) =>
       manifest("Policy", `readers-${n}`, {
         contextSpaceRef: "ovzdusie",
@@ -355,7 +360,6 @@ describe("what the endpoint page says about who may call it", () => {
     show({ endpoint: manifest("Endpoint", NAME, { contextSpaceRef: "ovzdusie", slug: SLUG }), policies });
     const section = await grants();
     expect(within(section).getAllByRole("listitem")).toHaveLength(5);
-    expect(within(section).getAllByText("2 single operations")).toHaveLength(5);
     const more = within(section).getByRole("button", { name: "Show all 7 policies" });
     expect(more).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(more);
@@ -383,7 +387,7 @@ describe("what the endpoint page says about who may call it", () => {
     const said = within(section).getByRole("status");
     expect(said).toHaveTextContent(URN);
     // And no grant is drawn from the space's other policies, which is what the gateway would do.
-    expect(within(section).queryByText("retrieveOps")).toBeNull();
+    expect(within(section).queryByText(en.choice.operationGroup.retrieveOps)).toBeNull();
   });
 
   it("has no axe violation and shows no raw key in any locale the organisation offers", async () => {
@@ -392,11 +396,8 @@ describe("what the endpoint page says about who may call it", () => {
       const view = show();
       const section = await grants();
       expectNoRawKeys(section);
-      // The group's own name is the standard's and is never translated; the sentence beside it is.
-      expect(within(section).getByText("retrieveOps")).toBeInTheDocument();
-      expect(
-        within(section).getByText(i18n.t("endpoints.page.group.retrieveOps"), { exact: false }),
-      ).toBeInTheDocument();
+      // The group by its label in the person's language; its CIM 009 members are the standard's.
+      expect(within(section).getByText(i18n.t("choice.operationGroup.retrieveOps"))).toBeInTheDocument();
       await expectNoViolations(section);
       view.unmount();
       vi.unstubAllGlobals();

@@ -64,11 +64,20 @@ export function PermissionGuard({
  * One line under the header names it once, for the kinds the page creates, when the document says
  * the role may propose none of them. Nothing while the document is unknown, as with the guard.
  */
-export function MayNotCreate({ project, kinds }: { project: string; kinds: string[] }): JSX.Element | null {
+export function MayNotCreate({
+  project,
+  kinds,
+  message = "form.mayNotCreate",
+}: {
+  project: string;
+  kinds: string[];
+  /** The line's key, for a page whose refused controls change a resource rather than create one. */
+  message?: string;
+}): JSX.Element | null {
   const { t } = useTranslation();
   const { data, can } = usePermissions(project);
   if (data === undefined || kinds.some((kind) => can(kind, "propose"))) {
     return null;
   }
-  return <p className="mt-1 max-w-prose text-caption text-fg-muted">{t("form.mayNotCreate")}</p>;
+  return <p className="mt-1 max-w-prose text-caption text-fg-muted">{t(message)}</p>;
 }
