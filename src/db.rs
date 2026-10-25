@@ -184,11 +184,40 @@ const AGENT_RUN_COLUMNS: &str = "id, project, app_name, title, endpoint_name, en
 const AGENT_EVENT_COLUMNS: &str = "run_id, seq, kind, payload, \
      to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at";
 
+/// Records `run` only when its application has no live run, decided under a transaction-scoped
+/// advisory lock on (project, application): two concurrent admissions of one App's run never
+/// both pass the check (F-POR1-018). `Ok(false)` when another live run holds the App.
+pub async fn insert_agent_run_alone(pool: &PgPool, run: &AgentRun) -> Result<bool, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1 || '/' || $2, 0))")
+        .bind(&run.project)
+        .bind(&run.app_name)
+        .execute(&mut *tx)
+        .await?;
+    let live: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM agent_runs WHERE project = $1 AND app_name = $2 \
+         AND status NOT IN ('published', 'failed', 'cancelled', 'expired'))",
+    )
+    .bind(&run.project)
+    .bind(&run.app_name)
+    .fetch_one(&mut *tx)
+    .await?;
+    if live {
+        return Ok(false);
+    }
+    insert_agent_run(&mut *tx, run).await?;
+    tx.commit().await?;
+    Ok(true)
+}
+
 /// Records a run at the moment it is admitted, ticket hash included (AG-43).
 ///
 /// The two timestamps arrive as the RFC 3339 text the caller minted, and the cast is written into
 /// the statement so the parameter stays a string on this side.
-pub async fn insert_agent_run(pool: &PgPool, run: &AgentRun) -> Result<(), sqlx::Error> {
+pub async fn insert_agent_run(
+    pool: impl sqlx::PgExecutor<'_>,
+    run: &AgentRun,
+) -> Result<(), sqlx::Error> {
     sqlx::query(
         "INSERT INTO agent_runs (id, project, app_name, endpoint_name, endpoint_slug, profile, \
          kind, unattended, continues, \
