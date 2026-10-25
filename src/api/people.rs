@@ -504,7 +504,6 @@ fn not_self_nor_last(state: &AppState, identity: &Identity, user: &KcUser) -> Re
     Ok(())
 }
 
-/// The person `id`, after the verb and the takeover guard.
 /// A person's account, their consents and their second factor are decided by a person in a
 /// Portal session; a service account's or an agent's token never removes them, whatever its
 /// grants (AG-133, PF-58).
@@ -519,6 +518,7 @@ fn refuse_bearer(identity: &Identity) -> Result<(), ApiError> {
     Ok(())
 }
 
+/// The person `id`, after the verb and the takeover guard.
 async fn target<'a>(
     state: &'a AppState,
     identity: &Identity,
