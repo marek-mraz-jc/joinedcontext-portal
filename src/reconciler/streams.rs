@@ -406,6 +406,7 @@ impl StreamDeployer {
             ),
         );
         crate::pipeline_log::with_passes(stream, &url);
+        with_source_failures(stream, &url);
         crate::pipeline_log::with_problems(stream, KPI_PROBLEM_LABEL, &url);
         // What last crossed each node, for the studio's drawer (T-3974).
         let samples = format!(
@@ -3875,6 +3876,79 @@ output:
                 "mutation": "root = if errored() { deleted() }"
             })
         );
+    }
+
+    /// T-5721: a read that timed out or was refused is a failed line in the run's log, not a run
+    /// of sent 0 and failed 0 that reads as an empty source.
+    #[test]
+    fn a_failed_source_read_is_reported_to_the_run_log_in_place_of_its_drop() {
+        let mut rendered = render_stream(
+            &helsinki_pipeline_spec(),
+            "p",
+            "helsinki",
+            &helsinki_datasource_spec(),
+            "src",
+            "abc123",
+            None,
+        )
+        .expect("renders");
+        StreamDeployer::new("http://runner")
+            .with_validation(
+                "http://portal/",
+                Arc::new(crate::pipeline_validation::ModelSchemas::default()),
+            )
+            .reporting(&mut rendered, "helsinki", "p", &["helsinki".to_owned()]);
+        let processors = rendered["pipeline"]["processors"]
+            .as_array()
+            .expect("processors");
+        assert!(processors.iter().all(|p| p["mutation"] != DROP_ERRORED));
+        let report = processors
+            .iter()
+            .find(|p| p["label"] == "processor_1")
+            .expect("the node keeps its name");
+        assert_eq!(report["switch"][0]["check"], "errored()");
+        let text = report.to_string();
+        assert!(
+            text.contains("http://portal/internal/pipelines/helsinki/p/outcomes"),
+            "{text}"
+        );
+        assert!(text.contains("\\\"failed\\\": [{"), "{text}");
+        assert_eq!(
+            report["switch"][0]["processors"][1]["mapping"],
+            "root = deleted()"
+        );
+    }
+
+    /// T-5721: reads inside the input (a merged source, a broker of several) give one report at
+    /// the head of the stream's processors, so no Bento label repeats.
+    #[test]
+    fn failed_reads_inside_the_input_share_one_report_at_the_head() {
+        let read = |url: &str| {
+            serde_json::json!({ "generate": { "interval": "1h", "mapping": "root = \"\"" },
+                "processors": [{ "try": [{ "http": { "url": url } }] }, { "mutation": DROP_ERRORED }] })
+        };
+        let mut stream = serde_json::json!({
+            "input": { "broker": { "inputs": [read("https://a.example"), read("https://b.example")] } },
+            "pipeline": { "processors": [{ "label": "pass", "branch": {} }, { "catch": [] }, { "mapping": "root = this" }] },
+        });
+        with_source_failures(&mut stream, "http://portal/outcomes");
+        assert!(!stream.to_string().contains(DROP_ERRORED), "{stream}");
+        let processors = stream["pipeline"]["processors"]
+            .as_array()
+            .expect("processors");
+        assert_eq!(processors.len(), 4);
+        assert_eq!(processors[0]["switch"][0]["check"], "errored()");
+        assert_eq!(processors[1]["label"], "pass");
+        assert_eq!(stream.to_string().matches("\"source_failed\"").count(), 1);
+
+        // An http_client input is reported by the run queue's one tick: nothing is moved.
+        let mut resident = serde_json::json!({
+            "input": { "broker": { "inputs": [read("https://a.example"), { "http_client": { "url": "https://rt.example" } }] } },
+            "pipeline": { "processors": [{ "mapping": "root = this" }] },
+        });
+        let before = resident.clone();
+        with_source_failures(&mut resident, "http://portal/outcomes");
+        assert_eq!(resident, before);
     }
 
     #[tokio::test]

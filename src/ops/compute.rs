@@ -3,9 +3,9 @@
 
 use super::bounds;
 use super::drafts::DraftRef;
+use super::parse_input;
 use super::proposals::own_draft;
 use super::proposals::record_verdict;
-use super::serde_error_path_and_message;
 use super::OpError;
 use super::Operation;
 use super::OperationAnnotations;
@@ -253,19 +253,11 @@ pub fn operations() -> Vec<Operation> {
             verb: None,
             lane: Lane::Green,
             validate: |val| {
-                serde_json::from_value::<CatalogSearchInput>(val.clone())
-                    .map(|_| ())
-                    .map_err(|e| {
-                        let (path, message) = serde_error_path_and_message(&e);
-                        OpError::InvalidInput { path, message }
-                    })
+                parse_input::<CatalogSearchInput>(val.clone()).map(|_| ())
             },
             run: |_, state, project, val| {
                 Box::pin(async move {
-                    let input: CatalogSearchInput = serde_json::from_value(val).map_err(|e| {
-                        let (path, message) = serde_error_path_and_message(&e);
-                        OpError::InvalidInput { path, message }
-                    })?;
+                    let input: CatalogSearchInput = parse_input(val)?;
                     let q = input.q.or(input.query).unwrap_or_default();
                     let q = q.trim();
                     if q.is_empty() {
@@ -303,19 +295,11 @@ pub fn operations() -> Vec<Operation> {
             verb: None,
             lane: Lane::Green,
             validate: |val| {
-                serde_json::from_value::<KpiComputeInput>(val.clone())
-                    .map(|_| ())
-                    .map_err(|e| {
-                        let (path, message) = serde_error_path_and_message(&e);
-                        OpError::InvalidInput { path, message }
-                    })
+                parse_input::<KpiComputeInput>(val.clone()).map(|_| ())
             },
             run: |_, state, project, val| {
                 Box::pin(async move {
-                    let input: KpiComputeInput = serde_json::from_value(val).map_err(|e| {
-                        let (path, message) = serde_error_path_and_message(&e);
-                        OpError::InvalidInput { path, message }
-                    })?;
+                    let input: KpiComputeInput = parse_input(val)?;
                     let params = kpi::ComputeKpi {
                         name: input.name,
                         title: input.title,
@@ -360,10 +344,7 @@ pub fn operations() -> Vec<Operation> {
             verb: Some(Verb::Propose),
             lane: Lane::Green,
             validate: |val| {
-                let input: PipelineTestInput = serde_json::from_value(val.clone()).map_err(|e| {
-                    let (path, message) = serde_error_path_and_message(&e);
-                    OpError::InvalidInput { path, message }
-                })?;
+                let input: PipelineTestInput = parse_input(val.clone())?;
                 if input.pipeline.is_none() && input.draft.is_none() {
                     return Err(OpError::InvalidInput {
                         path: "/pipeline".into(),
@@ -390,19 +371,11 @@ pub fn operations() -> Vec<Operation> {
             verb: None,
             lane: Lane::Green,
             validate: |val| {
-                serde_json::from_value::<ModelInferInput>(val.clone())
-                    .map(|_| ())
-                    .map_err(|e| {
-                        let (path, message) = serde_error_path_and_message(&e);
-                        OpError::InvalidInput { path, message }
-                    })
+                parse_input::<ModelInferInput>(val.clone()).map(|_| ())
             },
             run: |caller, state, project, val| {
                 Box::pin(async move {
-                    let input: ModelInferInput = serde_json::from_value(val).map_err(|e| {
-                        let (path, message) = serde_error_path_and_message(&e);
-                        OpError::InvalidInput { path, message }
-                    })?;
+                    let input: ModelInferInput = parse_input(val)?;
                     if let Some(url) = input.url {
                         return infer_from_url(&caller.identity, state, project, input.name.as_deref(), &url).await;
                     }
@@ -443,10 +416,7 @@ async fn pipeline_test_run(
     project: &str,
     val: Value,
 ) -> Result<Value, OpError> {
-    let input: PipelineTestInput = serde_json::from_value(val).map_err(|e| {
-        let (path, message) = serde_error_path_and_message(&e);
-        OpError::InvalidInput { path, message }
-    })?;
+    let input: PipelineTestInput = parse_input(val)?;
     let (pipeline, draft_ref) =
         candidate(state, project, input.pipeline, input.draft.as_ref()).await?;
 
