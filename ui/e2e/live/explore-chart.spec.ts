@@ -15,12 +15,12 @@ test("a person charts an attribute from the explorer and proposes it on a new da
   try {
     await page.getByRole("button", { name: "Helsinki city context" }).click();
     const types = page.locator("#explore-type");
-    await expect(types.locator("option", { hasText: "not granted through this endpoint" }).first()).toBeAttached({ timeout: 60_000 });
+    await expect(types.locator("optgroup option").first()).toBeAttached({ timeout: 60_000 });
     const granted = await types
       .locator("option")
       .evaluateAll((options) =>
         options
-          .filter((option) => option.getAttribute("value") && !option.textContent?.includes("not granted"))
+          .filter((option) => option.getAttribute("value") && option.parentElement?.tagName !== "OPTGROUP")
           .map((option) => option.getAttribute("value") ?? ""),
       );
     await types.selectOption(granted[0]);

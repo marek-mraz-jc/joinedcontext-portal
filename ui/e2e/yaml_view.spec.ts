@@ -86,7 +86,9 @@ for (const width of [1440, 400]) {
     test("a viewer reads the manifest read-only", async ({ page }) => {
       await stub(page, false);
       await page.goto("/projects/helsinki/settings/members?edit=stewards&lang=en");
-      await expect(page.getByRole("heading", { name: /View/ })).toBeVisible();
+      // T-5591: a reader's heading is the record's own title, "Read only" beside it.
+      await expect(page.getByRole("heading", { name: "eva@hel.fi: steward" })).toBeVisible();
+      await expect(page.getByText("Read only", { exact: true })).toBeVisible();
       await expect(editor(page)).toBeVisible();
       await expect(editor(page)).toContainText("apiVersion");
       await expect(editor(page)).not.toContainText("status");

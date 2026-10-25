@@ -11,7 +11,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import type { Manifest } from "../src/api/manifest";
-import { filterSlotsOf, filtersFromQ, opsFor, qFromFilters, qProblem } from "../src/components/entities/filters";
+import { filterSlotsOf, filtersFromQ, opsFor, qFromFilters, qProblem, typeGroups } from "../src/components/entities/filters";
 
 const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", name: "Jana Kováčová", roles: [] };
 const BRANDING = {
@@ -300,5 +300,21 @@ describe("data explorer (UI-33)", () => {
         urlOf(call[0]).pathname.endsWith("/datamodels/bb-air-quality/source"),
       ),
     ).toBe(true);
+  });
+});
+
+describe("typeGroups (T-5622)", () => {
+  it("offers every type as granted without a grant document", () => {
+    expect(typeGroups(["A", "B"], undefined, undefined)).toEqual({ granted: ["A", "B"], ungranted: [] });
+  });
+  it("puts the granted types first and the others apart", () => {
+    expect(typeGroups(["A", "B", "C"], undefined, ["C", "A"])).toEqual({ granted: ["A", "C"], ungranted: ["B"] });
+  });
+  it("keeps a chosen type no list holds, once", () => {
+    expect(typeGroups(["A"], "Z", ["A"])).toEqual({ granted: ["A"], ungranted: ["Z"] });
+    expect(typeGroups(["A"], "A", undefined)).toEqual({ granted: ["A"], ungranted: [] });
+  });
+  it("offers nothing for an empty list and no choice", () => {
+    expect(typeGroups([], undefined, [])).toEqual({ granted: [], ungranted: [] });
   });
 });

@@ -4,7 +4,7 @@
  * far outside the rest, and the pipelines writing the type. Ranges and ids are only there for
  * whoever reads the entities: the API leaves them out, and the tab then shows a dash.
  */
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -145,7 +145,10 @@ describe("the explorer's Quality tab", () => {
         </I18nextProvider>
       </QueryClientProvider>,
     );
-    await userEvent.selectOptions(await screen.findByLabelText(/Entity type/i), TYPE);
+    // The grant arrives first: it moves the type into the group of the ones it does not grant.
+    const types = await screen.findByLabelText(/Entity type/i);
+    await waitFor(() => expect(types.querySelector("optgroup")).not.toBeNull());
+    await userEvent.selectOptions(types, TYPE);
     const tabs = await screen.findByRole("tablist", { name: en.explore.views });
     await userEvent.click(within(tabs).getByRole("tab", { name: en.explore.quality.tab }));
     expect(await screen.findByTestId("type-quality")).toBeInTheDocument();

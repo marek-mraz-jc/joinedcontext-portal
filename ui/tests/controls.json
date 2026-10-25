@@ -1316,9 +1316,10 @@
     },
     "src/pages/explore/ExplorePage.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
+        "explore_controls.test.tsx",
         "explore_enum_pick.test.tsx",
         "explore_new_user.test.tsx",
         "explore_page.test.tsx",

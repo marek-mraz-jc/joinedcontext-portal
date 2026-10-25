@@ -5340,8 +5340,7 @@
   },
   "entities": {
     "type": "Typ entity",
-    "scopeQ": "Rozsah (scope)",
-    "scopeQHint": "NGSI-LD scopeQ, např. /district/1",
+    "scopeQ": "Oblast",
     "filters": "Filtry",
     "attribute": "Atribut",
     "operator": "Operátor",
@@ -5349,17 +5348,24 @@
     "addFilter": "Přidat filtr",
     "remove": "Odebrat",
     "advanced": "Toto q používá | nebo závorky, které řádky nezobrazí; upravte ho jako text.",
-    "q": "Dotaz (q)",
-    "qHint": "NGSI-LD q, které řádky skládají; upravte ho zde nebo v YAML.",
+    "q": "Dotaz jako text (q)",
     "attrs": "Čtené atributy",
-    "typeNotGranted": "{name} (přes tento endpoint neuděleno)",
     "qProblem": {
       "shape": "Každou podmínku napište jako atribut, porovnání a hodnotu bez mezer, např. name==\"Nemocnice\"; podmínky spojujte znakem ; (a zároveň) nebo | (nebo).",
       "unquoted": "Text patří do uvozovek: {fix}"
     },
-    "typeHint": "Typ entit k výpisu; filtry níže se řídí jeho modelem.",
     "noTypes": "Není co vybrat: datový model prostoru nedeklaruje žádný typ a prostor nemá entitu, kterou smíte číst.",
-    "noAttributes": "Model typu neuvádí žádný atribut: filtr napište níže jako Dotaz (q)."
+    "noAttributes": "Model typu neuvádí žádný atribut: filtr napište níže jako Dotaz jako text (q) v Technických podrobnostech.",
+    "typesNotGranted": "Přes tento endpoint je nelze číst",
+    "technical": "Technické podrobnosti",
+    "technicalScope": "Oblast se posílá jako NGSI-LD scopeQ, filtry jako q níže.",
+    "hint": {
+      "type": "Co se má vypsat, např. měření kvality ovzduší; filtry níže se řídí jeho modelem.",
+      "scope": "Kód oblasti, pod kterou jsou entity zařazeny, např. /district/1; prázdné pole znamená všechny oblasti.",
+      "q": "Filtry výše zapsané v dotazovacím jazyce NGSI-LD, např. pm10>40 pro pm10 nad 40; upravte ho zde nebo v YAML.",
+      "filters": "Každý řádek zužuje seznam, např. Volná kola > 3. Řádky se sčítají: platit musí každý.",
+      "attrs": "Zaškrtněte atributy, které se mají zobrazit jako sloupce, např. Název a Datum pozorování; bez zaškrtnutí se zobrazí všechny."
+    }
   },
   "entityGrid": {
     "id": "ID",
@@ -5405,6 +5411,9 @@
     "filterRow": "Filtry",
     "sortPage": "Seřadit tuto stranu podle",
     "sortAll": "Seřadit všechny řádky podle",
+    "sortedLoaded": "Seřazeno v rámci {count} načtených řádků: tento pohled čte i další brokery, které neřadí.",
+    "queryRefused": "Broker tento dotaz odmítl",
+    "errorDetail": "Co broker odpověděl",
     "matching": "odpovídajících",
     "noTotal": "endpoint u této odpovědi neuvádí celkový počet",
     "history": "Historie",
@@ -5570,7 +5579,7 @@
       "filterDate": "Vyberte test a zvolte datum, např. po 2026-10-01.",
       "filterEnum": "Vyberte test; u „kterákoli z“ zvolte jednu nebo více povolených hodnot:",
       "filterOther": "Vyberte test, např. má hodnotu nebo prázdné.",
-      "editAsText": "Napište dotaz NGSI-LD sami"
+      "editAsText": "Zapište filtr jako text, např. pm10>40"
     },
     "groupNoValue": "(bez hodnoty)"
   },
@@ -5598,7 +5607,6 @@
     "noSpaceHint": "Jeho entity se otevřou zde, čtené přes jeden z jeho endpointů. Začněte jedním z prostorů tohoto projektu:",
     "typeInModel": "Tento typ v jeho datovém modelu:",
     "readThrough": "Čte se přes",
-    "endpointHint": "Endpoint, jehož politika určuje, co uvidíte. Odkaz, který pošlete, ho uvádí, takže kolega čte přes tentýž.",
     "endpointUnshown": "Odkaz uvádí Endpoint {name}, který vám tento prostor neukazuje",
     "endpointUnshownPick": "Místo něj se nečte přes jiný Endpoint. Vyberte výše jeden z Endpointů, které můžete číst, nebo požádejte správce prostoru o přístup k {name}.",
     "views": "Co zobrazit",
@@ -5703,7 +5711,13 @@
     "pickSpaceFirst": "Nejprve vyberte prostor.",
     "noMatch": "Dotazu nic neodpovídá; změňte nebo odstraňte filtr.",
     "technical": "Technické podrobnosti (JSON-LD)",
-    "copyJson": "Kopírovat JSON-LD"
+    "copyJson": "Kopírovat JSON-LD",
+    "endpointApps": "Aplikace",
+    "unknownType": "Typ {type} v tomto prostoru neexistuje",
+    "unknownTypeHint": "Adresa uvádí typ, který tento prostor nemá. Vyberte jeden z jeho typů:",
+    "hint": {
+      "endpoint": "Endpoint, jehož politika rozhoduje, co uvidíte, např. veřejný endpoint prostoru. Odkaz, který sdílíte, ho uvádí, takže kolega čte přes tentýž."
+    }
   },
   "agentRun": {
     "title": "Běh aplikace",
