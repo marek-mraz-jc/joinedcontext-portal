@@ -6251,7 +6251,8 @@
         "drifted": "Abweichung vom Repository"
       },
       "change": {
-        "merged": "Änderung übernommen"
+        "merged": "Änderung übernommen",
+        "rejected": "Änderung abgelehnt"
       },
       "pipeline": {
         "throughput": "Pipeline-Durchsatz",

@@ -54,13 +54,15 @@ export function kindLabel(
  * The event's sentence and, apart, the cause it was glued to (T-4200). A publisher writes "Endpoint
  * x was not published: <reason>" and keeps the reason in `details.reason`, which may be a CKAN API
  * name, a URL or a problem body: the row says the sentence, the cause waits behind a disclosure.
+ * A rejection's reason is what the approver wrote to a person (T-5613): it stays in the sentence.
  */
-export function sentenceOf(event: Pick<ActivityEvent, "summary" | "details">): {
+export function sentenceOf(event: Pick<ActivityEvent, "summary" | "details" | "kind">): {
   sentence: string;
   reason?: string;
 } {
   const reason = (event.details as { reason?: unknown } | undefined)?.reason;
-  if (typeof reason !== "string" || !reason) return { sentence: event.summary };
+  if (typeof reason !== "string" || !reason || event.kind === "change.rejected")
+    return { sentence: event.summary };
   const at = event.summary.lastIndexOf(`: ${reason}`);
   if (at <= 0 || at + reason.length + 2 !== event.summary.length)
     return { sentence: event.summary };

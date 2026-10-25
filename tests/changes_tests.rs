@@ -1325,7 +1325,7 @@ async fn reject_answers_202_rejected_and_requests_changes_without_merge() {
 
     let config = Config::for_tests();
     let state = AppState::new(config.clone(), None).with_gitea(Arc::new(client));
-    let app = server::app(state);
+    let app = server::app(state.clone());
 
     Mock::given(method("GET"))
         .and(path("/api/v1/repos/test-owner/test-repo/pulls/4"))
@@ -1424,6 +1424,25 @@ spec:
         .iter()
         .any(|r| r.method == "PATCH" && r.url.path().ends_with("/pulls/4")));
     assert!(!requests.iter().any(|r| r.url.path().ends_with("/merge")));
+
+    // T-5613: the rejection is on the project's feed too, not only on the forge.
+    let filter = joinedcontext_portal::activity::ActivityFilter {
+        kinds: vec!["change.rejected".into()],
+        limit: 10,
+        ..Default::default()
+    };
+    let page = state
+        .activity
+        .list("ovzdusie", &filter)
+        .await
+        .expect("the feed reads");
+    let [event] = page.items.as_slice() else {
+        panic!("one change.rejected event, got {:?}", page.items);
+    };
+    assert_eq!(event.correlation_id.as_deref(), Some("chg-00000004"));
+    assert_eq!(event.details["resourceKind"], json!("ContextSpace"));
+    assert_eq!(event.details["name"], json!("mobility"));
+    assert!(event.details["rejectedBy"].is_string());
 }
 
 #[tokio::test]

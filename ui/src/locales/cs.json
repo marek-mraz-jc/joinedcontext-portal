@@ -6251,7 +6251,8 @@
         "drifted": "Odchylka od repozitáře"
       },
       "change": {
-        "merged": "Změna sloučena"
+        "merged": "Změna sloučena",
+        "rejected": "Změna zamítnuta"
       },
       "pipeline": {
         "throughput": "Propustnost pipeline",
