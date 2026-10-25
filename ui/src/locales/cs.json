@@ -486,7 +486,8 @@
     "action": "Upravit {name}",
     "loading": "Načítá se {name}…",
     "unreadable": "{name} se nepodařilo načíst.",
-    "viewTitle": "Zobrazit {name}",
+    "readOnlyBadge": "Jen ke čtení",
+    "showFields": "Zobrazit pole manifestu",
     "readOnly": "Vaše role zde nedovoluje měnit {kind}, proto je tento formulář jen pro čtení. Správce projektu vám to může udělit.",
     "manifest": "Manifest {name}"
   },
@@ -6605,6 +6606,18 @@
       "didHint": "Napište decentralizovaný identifikátor, například did:web:example.org; seznam k výběru neexistuje.",
       "peopleHidden": "Seznam osob vidí jen správce organizace; napište e-mail, kterým se osoba přihlašuje.",
       "noneYet": "Zatím tu není nic tohoto druhu k výběru ({kind}); napište název tak, jak jej píše poskytovatel identity."
+    },
+    "summary": {
+      "title": "Co tato politika povoluje",
+      "assigner": "Zadavatel",
+      "validFrom": "Platí od",
+      "validTo": "Platí do",
+      "always": "Vždy",
+      "noEnd": "Bez konce platnosti",
+      "lastChange": "Poslední změna",
+      "notRecorded": "Nezaznamenáno",
+      "changed": "{at}, navrhl(a) {author}",
+      "changedApproved": "{at}, navrhl(a) {author}, schválil(a) {approver}"
     },
     "sentence": {
       "title": "Slovy",

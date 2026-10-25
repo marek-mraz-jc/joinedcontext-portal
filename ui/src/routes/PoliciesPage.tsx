@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { GranteeInWords, OperationsInWords } from "../components/AccessWords";
 import { policySentence } from "../pages/policies/policySentence";
+import { PolicySummary } from "../pages/policies/PolicySummary";
 import { TryAPerson } from "../pages/policies/TryAPerson";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
@@ -345,6 +346,8 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
                       fromPolicyEnvelope(manifest) as unknown as Record<string, unknown>,
                     toManifest: (edited, stored) =>
                       toPolicyEnvelope(project, orgDomain, edited as unknown as PolicyForm, stored),
+                    // What it allows, in words, before the fields (T-5591).
+                    summary: (manifest) => <PolicySummary project={project} policy={fromPolicyEnvelope(manifest)} />,
                   }}
                 />
               </TableCell>
