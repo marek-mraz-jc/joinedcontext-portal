@@ -34,6 +34,7 @@ fn identity(username: &str, groups: &[&str]) -> Identity {
         name: Some(username.to_string()),
         roles: Vec::new(),
         groups: groups.iter().map(|group| group.to_string()).collect(),
+        second_factor: false,
     }
 }
 

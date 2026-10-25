@@ -166,6 +166,7 @@ fn cookie(config: &Config, email: &str) -> String {
             name: None,
             roles: Vec::new(),
             groups: Vec::new(),
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,

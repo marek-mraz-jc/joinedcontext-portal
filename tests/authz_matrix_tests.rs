@@ -30,6 +30,7 @@ use tower::ServiceExt;
 
 use common::{cookie, envelope, person, CSRF};
 use joinedcontext_portal::auth::csrf::CSRF_HEADER;
+use joinedcontext_portal::auth::session::Identity;
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::server;
@@ -493,9 +494,21 @@ async fn fixture() -> AppState {
     state
 }
 
-/// One call as `role`: a session cookie for a person, the realm's token for the ServiceAccount,
-/// nothing for anonymous.
+/// One call as `role`: a session cookie for a person who proved a second factor (the table
+/// measures roles; the factor has its own test below), the realm's token for the
+/// ServiceAccount, nothing for anonymous.
 async fn call(state: &AppState, role: &str, method: &str, path: &str, row: &Row) -> StatusCode {
+    send(state, role, true, method, path, row).await.status()
+}
+
+async fn send(
+    state: &AppState,
+    role: &str,
+    factor: bool,
+    method: &str,
+    path: &str,
+    row: &Row,
+) -> axum::response::Response {
     let (internal, uri) = url(path, row);
     let content_type = match (&row.form, method) {
         (Some(_), _) => "application/x-www-form-urlencoded",
@@ -513,8 +526,12 @@ async fn call(state: &AppState, role: &str, method: &str, path: &str, row: &Row)
             request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
         }
         who => {
+            let identity = Identity {
+                second_factor: factor,
+                ..person(who)
+            };
             request = request
-                .header(header::COOKIE, cookie(&state.config, person(who)))
+                .header(header::COOKIE, cookie(&state.config, identity))
                 .header(CSRF_HEADER, CSRF);
         }
     }
@@ -533,7 +550,6 @@ async fn call(state: &AppState, role: &str, method: &str, path: &str, row: &Row)
         .oneshot(request.body(body).expect("request"))
         .await
         .expect("response")
-        .status()
 }
 
 fn cell(status: StatusCode) -> String {
@@ -596,6 +612,66 @@ async fn every_role_meets_every_route_as_the_table_says() {
         misses.len(),
         misses.join("\n  ")
     );
+}
+
+/// T-5567 (AUT-2, PF-128): the decision doors, and only they, refuse a person who holds the right
+/// but proved no second factor in the session, with `second-factor-required`. Every cell the
+/// table allows a person is called again without the factor; the routes that change answer form
+/// the list below, so a door that loses its gate, or a new one without it, turns this red. The
+/// access-request doors answer 503 here (no database) before the caller is asked about;
+/// `access_requests_tests` covers them.
+#[tokio::test]
+async fn a_decision_without_a_second_factor_is_refused_at_every_door() {
+    let table = table();
+    let state = fixture().await;
+    let mut gated = std::collections::BTreeSet::new();
+    let mut misses = Vec::new();
+    let mut rows: Vec<&Row> = table.routes.iter().collect();
+    rows.sort_by_key(|row| row.route.contains("logout"));
+    for row in rows {
+        let (method, path) = split(&row.route);
+        let hides = row.expect.iter().any(|cell| cell == "404");
+        for (role, expect) in ROLES.iter().zip(&row.expect) {
+            if expect != "allow" || ["anonymous", "service-account"].contains(role) {
+                continue;
+            }
+            let answer = send(&state, role, false, method, path, row).await;
+            if holds(expect, answer.status(), hides) {
+                continue;
+            }
+            let status = answer.status();
+            let body = axum::body::to_bytes(answer.into_body(), 1 << 20)
+                .await
+                .expect("body");
+            let problem: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
+            let slug = problem["type"].as_str().unwrap_or_default();
+            if status == StatusCode::FORBIDDEN && slug.ends_with("second-factor-required") {
+                gated.insert(row.route.clone());
+            } else {
+                misses.push(format!("{} as {role}: answered {status} {slug}", row.route));
+            }
+        }
+    }
+    assert!(misses.is_empty(), "{}", misses.join("\n"));
+    let expected = [
+        "DELETE /organization/people/{id}",
+        "DELETE /organization/people/{id}/consents/{client}",
+        "PATCH /organization/people/{id}",
+        "POST /organization/people",
+        "POST /organization/people/{id}/disable",
+        "POST /organization/people/{id}/enable",
+        "POST /organization/people/{id}/remove-second-factor",
+        "POST /organization/people/{id}/resend-invitation",
+        "POST /organization/people/{id}/reset-password",
+        "POST /organization/people/{id}/sign-out",
+        "POST /projects/{project}/changes/{id}/approve",
+        "POST /projects/{project}/changes/{id}/reject",
+        "POST /projects/{project}/serviceaccounts/{name}/revoke",
+        "POST /projects/{project}/spaces/{space}/erasures/{id}/approve",
+        "POST /projects/{project}/spaces/{space}/erasures/{id}/decline",
+    ];
+    let gated: Vec<&str> = gated.iter().map(String::as_str).collect();
+    assert_eq!(gated, expected, "the doors that want a second factor");
 }
 
 /// PF-107 (T-3046): a `CkanInstance` is changed by the organization administrator and by whoever

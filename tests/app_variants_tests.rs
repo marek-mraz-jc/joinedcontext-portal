@@ -268,6 +268,7 @@ impl Persona {
                 roles: Vec::new(),
                 groups: Vec::new(),
                 client: None,
+                second_factor: false,
             },
             roles,
         })

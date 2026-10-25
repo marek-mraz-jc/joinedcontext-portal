@@ -74,6 +74,7 @@ fn cookie(config: &Config, username: &str, roles: Vec<&str>) -> String {
             name: Some(username.to_owned()),
             roles: roles.into_iter().map(str::to_owned).collect(),
             groups: vec![],
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,

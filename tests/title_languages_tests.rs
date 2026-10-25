@@ -37,6 +37,7 @@ fn cookies(config: &Config) -> String {
             name: Some("Demo Steward".into()),
             roles: Vec::new(),
             groups: vec!["portal-approver".into()],
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,
