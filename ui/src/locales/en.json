@@ -4925,7 +4925,19 @@
       "createTitle": "Create from {title}",
       "createHint": "Choose the endpoint whose data the app shows; the rest is the template's.",
       "screenshot": "{title} as its demo shows it",
-      "demo": "Open the demo"
+      "demo": "Open the demo",
+      "useAsIs": "Use as is",
+      "modelOut": "Generate is unavailable: the Portal's model key is refused or out of credit, so the app builder cannot answer until an administrator replaces or tops it up. Use as is still works: it starts your App from the template unchanged and asks no model.",
+      "modelOutShort": "The app builder cannot answer: the model key is refused or out of credit. Use as is instead.",
+      "useTitle": "Use {title} as is",
+      "useHint": "The template lands unchanged in a repository of its own and the App is proposed for approval; no model is asked.",
+      "useLead": "Name the App and choose the endpoint it reads. After approval it builds on the forge and opens like any other App.",
+      "name": "App name",
+      "nameHint": "Lowercase letters, digits and hyphens, such as bike-finder. It names the App and its repository.",
+      "endpointHint": "Only endpoints you may read are listed; the App shows that endpoint's data.",
+      "noEndpoints": "No endpoint you may read is in this project yet. Ask a steward to create one or to share one with you.",
+      "chooseFirst": "Enter a name and choose an endpoint first.",
+      "useSubmit": "Create the App"
     },
     "jobs": {
       "title": "Scheduled jobs",

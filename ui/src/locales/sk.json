@@ -4925,7 +4925,19 @@
       "createTitle": "Vytvoriť zo šablóny {title}",
       "createHint": "Zvoľte endpoint, ktorého dáta aplikácia ukazuje; zvyšok je zo šablóny.",
       "screenshot": "{title}, ako ju ukazuje ukážka",
-      "demo": "Otvoriť ukážku"
+      "demo": "Otvoriť ukážku",
+      "useAsIs": "Použiť bez úprav",
+      "modelOut": "Generovanie nie je dostupné: kľúč modelu Portálu je odmietnutý alebo bez kreditu, takže tvorca aplikácií neodpovie, kým ho administrátor nevymení alebo nedobije. Použiť bez úprav funguje aj tak: aplikáciu založí zo šablóny bez zmien a model sa nepýta.",
+      "modelOutShort": "Tvorca aplikácií neodpovedá: kľúč modelu je odmietnutý alebo bez kreditu. Použite radšej Použiť bez úprav.",
+      "useTitle": "Použiť {title} bez úprav",
+      "useHint": "Šablóna sa bez zmien uloží do vlastného repozitára a aplikácia sa navrhne na schválenie; model sa nepýta.",
+      "useLead": "Pomenujte aplikáciu a zvoľte endpoint, ktorý číta. Po schválení sa zostaví v repozitári a otvorí sa ako každá iná aplikácia.",
+      "name": "Názov aplikácie",
+      "nameHint": "Malé písmená, číslice a pomlčky, napríklad bike-finder. Pomenuje aplikáciu aj jej repozitár.",
+      "endpointHint": "Zobrazujú sa len endpointy, ktoré smiete čítať; aplikácia ukazuje dáta zvoleného endpointu.",
+      "noEndpoints": "V tomto projekte zatiaľ nie je endpoint, ktorý smiete čítať. Požiadajte správcu, aby ho vytvoril alebo vám ho sprístupnil.",
+      "chooseFirst": "Najprv zadajte názov a zvoľte endpoint.",
+      "useSubmit": "Vytvoriť aplikáciu"
     },
     "jobs": {
       "title": "Plánované úlohy",

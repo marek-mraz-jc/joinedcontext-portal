@@ -1549,6 +1549,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/app-templates/{name}/apps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create App From Template
+         * @description Lands the template's source in a new repository `{project}_{app}` and proposes the App building from it, reading the chosen Endpoint; no model is asked (T-5617).
+         */
+        post: operations["create_from_template"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/apps/rename-shapes": {
         parameters: {
             query?: never;
@@ -4946,6 +4966,12 @@ export interface components {
             via: Record<string, never>;
         };
         AppTemplates: {
+            /**
+             * @description Whether "Generate" can answer now: an agent runner is configured and the model key was
+             *     not last reported refused or out of credit (AG-96). When it is `false`, a template is
+             *     still used as is (T-5617).
+             */
+            modelAvailable: boolean;
             /** @description Every template, by name. */
             templates: components["schemas"]["Template"][];
         };
@@ -8776,6 +8802,19 @@ export interface components {
             name: string;
             purpose: string;
             title: string;
+        };
+        /**
+         * @description What the person chooses: the App's name and the Endpoint it reads.
+         * @example {
+         *       "endpointName": "bikes",
+         *       "name": "bike-finder"
+         *     }
+         */
+        TemplateApp: {
+            /** @description The project's Endpoint the App reads, one the caller may read. */
+            endpointName: string;
+            /** @description The App's name, a DNS-1123 label: `kpi-board`. */
+            name: string;
         };
         TemplateList: {
             /** @description The project's templates, newest first. */
@@ -13468,6 +13507,89 @@ export interface operations {
             };
             /** @description No such project the caller may read */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    create_from_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description A template's name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateApp"];
+            };
+        };
+        responses: {
+            /** @description The Change that proposes the App */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not propose an App in the project */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project or template */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A repository of that name is already in the forge */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The name or the Endpoint is refused; errors names the field */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No forge configured */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
