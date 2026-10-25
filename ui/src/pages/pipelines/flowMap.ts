@@ -107,7 +107,7 @@ export function layout(map: FlowMap): Layout {
 }
 
 /** The curve of an edge from the right side of one card to the left side of the next. */
-export function curve(from: Placed, to: Placed): string {
+export function curve(from: Pick<Placed, "x" | "y">, to: Pick<Placed, "x" | "y">): string {
   const x1 = from.x + CARD_WIDTH;
   const y1 = from.y + CARD_HEIGHT / 2;
   const x2 = to.x;

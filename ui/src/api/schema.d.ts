@@ -2241,6 +2241,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/endpoints/{name}/access/matrix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who May Do What On An Endpoint
+         * @description Every principal a Policy of the Endpoint's space names, the project's ServiceAccounts the caller may read and the public, against each type and read, write, delete and history, from the gateway's own grant document per principal (API/01 §57, EP-103). Organization administrators and whoever reads Policies in the Endpoint's space; recorded as an `access.simulated` activity event. Changes no data.
+         */
+        get: operations["access_matrix"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/endpoints/{name}/access/simulate": {
         parameters: {
             query?: never;
@@ -6845,6 +6865,53 @@ export interface components {
              *     configured.
              */
             endSessionUrl: string;
+        };
+        Matrix: {
+            cells: components["schemas"]["MatrixCell"][];
+            edges: components["schemas"]["MatrixEdge"][];
+            endpoint: string;
+            principals: components["schemas"]["MatrixPrincipal"][];
+            space: string;
+            types: string[];
+        };
+        /** @description What one principal may do on one type for one action. */
+        MatrixCell: {
+            /** @description `read`, `write`, `delete` or `history`. */
+            action: string;
+            /** @description `"*"` for every attribute, else the attribute names. */
+            attributes: unknown;
+            /** @description The constraints the grant narrows the rows by (`q`, `scopeQ`, `geoQ`, `temporalQ`). */
+            constraint?: string | null;
+            /** @description The Policy that grants or prohibits this, when one Policy in force covers the type. */
+            decidedBy?: string | null;
+            /** @description `permit`, or `prohibit` where a prohibition takes it away. */
+            effect: string;
+            /** @description `{kind}:{name}` of the principal. */
+            principal: string;
+            type: string;
+        };
+        /**
+         * @description One edge of the graph principal → Policy → Endpoint → type; node ids are
+         *     `principal:{kind}:{name}`, `policy:{name}`, `endpoint:{name}` and `type:{name}`.
+         */
+        MatrixEdge: {
+            from: string;
+            to: string;
+        };
+        MatrixPrincipal: {
+            /** @description `person`, `group`, `role`, `serviceAccount` or `public`. */
+            kind: string;
+            name: string;
+            via: components["schemas"]["MatrixVia"][];
+        };
+        /**
+         * @description How a principal reaches the Endpoint: a Policy that names it, or the project's
+         *     ServiceAccount manifest it is.
+         */
+        MatrixVia: {
+            /** @description `policy` or `serviceAccount`. */
+            kind: string;
+            name: string;
         };
         /** @description Who is signed in and through which front, so the UI knows whose logout to call. */
         Me: components["schemas"]["Identity"] & {
@@ -15714,6 +15781,88 @@ export interface operations {
                 };
             };
             /** @description No git forge configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    access_matrix: {
+        parameters: {
+            query?: {
+                /** @description Only principals of this kind: `person`, `group`, `role`, `serviceAccount` or `public`. */
+                kind?: string | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Endpoint name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The matrix and its graph */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Matrix"];
+                };
+            };
+            /** @description `kind` is not a principal kind */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Neither an organization administrator nor a reader of Policies in the Endpoint's space */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such Endpoint, or the gateway does not serve it yet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description More than 50 principals: narrow with `kind` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No gateway, or it did not answer */
             503: {
                 headers: {
                     [name: string]: unknown;

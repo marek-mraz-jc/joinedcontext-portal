@@ -264,6 +264,10 @@ routes:
     expect: [403, 403, 403, 403, 403, allow, 403, 403]
     body: {"subject": {"kind": "public"}, "action": "retrieveEntity"}
     note: "it reveals what another person may do (EP-103); an administrator meets the fixture's 404 (no such Endpoint) or 503 (no gateway)"
+  - route: GET /projects/{project}/endpoints/{name}/access/matrix
+    rule: "org-admin, or read on Policy in the Endpoint's space"
+    expect: [401, allow, allow, allow, allow, allow, 403, allow]
+    note: "who may do what on one Endpoint (API/01 §57, EP-103): a Policy reader and an administrator meet the fixture's 404 (no such Endpoint); the 200 path is tests/access_matrix_tests.rs"
   - route: POST /projects/{project}/access/explore
     rule: "org-admin"
     expect: [403, 403, 403, 403, 403, allow, 403, 403]
