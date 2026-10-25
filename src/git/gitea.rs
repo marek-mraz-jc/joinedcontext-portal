@@ -1929,9 +1929,10 @@ impl GiteaClient {
     pub async fn put_file(&self, req: &FileWrite<'_>) -> Result<String, GitError> {
         let url = self.repo_url(&format!("contents/{}", self.write_path(req.path)?))?;
         let encoded = STANDARD.encode(committed_text(req.path, req.content).as_bytes());
+        let message = crate::change::ProposedVia::sign(req.message);
         let payload = PutFilePayload {
             content: encoded,
-            message: req.message,
+            message: &message,
             branch: req.branch,
             sha: req.sha,
             author: req.author,
@@ -2013,9 +2014,10 @@ impl GiteaClient {
         files: Vec<ChangeFileDto>,
     ) -> Result<String, GitError> {
         let url = self.repo_url("contents")?;
+        let message = crate::change::ProposedVia::sign(message);
         let payload = ChangeFilesPayload {
             files,
-            message,
+            message: &message,
             branch,
             author,
             committer: author,
@@ -2034,8 +2036,9 @@ impl GiteaClient {
     /// `DELETE /contents/{path}` — deletes a file with human commit attribution.
     pub async fn delete_file(&self, req: &FileDelete<'_>) -> Result<String, GitError> {
         let url = self.repo_url(&format!("contents/{}", self.write_path(req.path)?))?;
+        let message = crate::change::ProposedVia::sign(req.message);
         let payload = DeleteFilePayload {
-            message: req.message,
+            message: &message,
             branch: req.branch,
             sha: req.sha,
             author: req.author,
@@ -2157,11 +2160,13 @@ impl GiteaClient {
         body: &str,
     ) -> Result<PullRequest, GitError> {
         let url = self.repo_url("pulls")?;
+        // A merge request opened inside a call over MCP names its channel (AG-137).
+        let body = crate::change::ProposedVia::sign_body(body);
         let payload = CreatePullRequestPayload {
             head,
             base,
             title,
-            body,
+            body: &body,
         };
         let res = self.send(self.http.post(url).json(&payload)).await?;
         let res = Self::check_status(res).await?;

@@ -284,6 +284,10 @@
       "title": "{count, plural, one {# žiadosť o zlúčenie vo forge nie je zmenou} few {# žiadosti o zlúčenie vo forge nie sú zmenami} other {# žiadostí o zlúčenie vo forge nie je zmenami}}",
       "item": "#{number} od {author}"
     },
+    "proposedVia": {
+      "badge": "Navrhnuté cez {client} (MCP)",
+      "hint": "Tento návrh napísal AI klient ({client}) cez MCP a {author} ho potvrdil(a). Prečítajte si, čo mení, ako pri každom inom."
+    },
     "workspace": "Z kópie",
     "fromWorkspace": "Z kópie {name}, ktorú pripravil(a) {author}, vrátené {date}: upravené mimo živého projektu a pred návrhom znova skontrolované.",
     "emptyHint": "Každá zmena tohto projektu tu čaká, kým ju človek prečíta a rozhodne. Teraz nič nečaká; podajte zmenu a objaví sa v tomto zozname.",

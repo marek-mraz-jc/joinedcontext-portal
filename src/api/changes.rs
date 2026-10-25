@@ -942,6 +942,7 @@ fn build_proposal(
     let change_meta = ChangeMeta::from_merge_request(pr.number, project);
     let change_status = ChangeStatus::new(lane, phase, plan.summary)
         .in_repository(&pr.repository)
+        .proposed_through(&pr.body)
         .with_merge_request(pr.url.clone());
 
     ChangeProposal {
@@ -2148,6 +2149,7 @@ pub async fn approve_change_for(
     let change_meta = change_meta(state, gitea, pr_number, project);
     let change_status = ChangeStatus::new(lane, ChangePhase::Deploying, plan.summary)
         .in_repository(&pr.repository)
+        .proposed_through(&pr.body)
         .with_merge_request(pr.url);
     let change = Change::new(change_meta, change_status);
 
@@ -2595,6 +2597,7 @@ pub async fn reject_change_for(
     let change_meta = change_meta(state, gitea, pr_number, project);
     let change_status = ChangeStatus::new(lane, ChangePhase::Rejected, plan.summary)
         .in_repository(&pr.repository)
+        .proposed_through(&pr.body)
         .with_merge_request(pr.url);
     Ok(Change::new(change_meta, change_status))
 }

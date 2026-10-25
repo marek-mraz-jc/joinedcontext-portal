@@ -80,6 +80,10 @@ pub struct ChangeStatus {
     pub merge_request: Option<String>,
     pub plan: PlanSummary,
     pub phase: ChangePhase,
+    /// The channel the Change was proposed through when it was not the person at the Portal
+    /// (AG-137, ADR-N-060 §2.2): read back from the merge request's `Proposed-Via` line.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proposed_via: Option<ProposedVia>,
 }
 
 impl ChangeStatus {
@@ -90,7 +94,14 @@ impl ChangeStatus {
             merge_request: None,
             plan,
             phase,
+            proposed_via: None,
         }
+    }
+
+    /// The channel the merge request's body names ([`ProposedVia::in_body`]).
+    pub fn proposed_through(mut self, merge_request_body: &str) -> Self {
+        self.proposed_via = ProposedVia::in_body(merge_request_body);
+        self
     }
 
     /// The repository the Change's merge request is in; an empty name leaves it unsaid.
@@ -103,6 +114,92 @@ impl ChangeStatus {
         self.merge_request = Some(mr.into());
         self
     }
+}
+
+/// The channel a Change came through and the OAuth client that sent it (AG-17, AG-137).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProposedVia {
+    /// `mcp`: a person's AI client over the Portal's MCP server.
+    pub channel: String,
+    /// The token's `azp`, at most 64 characters of `[A-Za-z0-9._:-]`.
+    pub client: String,
+}
+
+tokio::task_local! {
+    /// The channel of the call being served: the MCP door sets it around one `tools/call`, and
+    /// the forge client signs every commit and merge request opened inside it.
+    pub static PROPOSED_VIA: ProposedVia;
+}
+
+const TRAILER: &str = "Proposed-Via: ";
+
+impl ProposedVia {
+    /// A `tools/call` of `client` (the token's `azp`); a client id outside the allowed
+    /// characters is named `unknown` rather than written into Git.
+    pub fn mcp(client: Option<&str>) -> Self {
+        let client = client
+            .filter(|c| valid_client(c))
+            .unwrap_or("unknown")
+            .to_owned();
+        Self {
+            channel: "mcp".to_owned(),
+            client,
+        }
+    }
+
+    /// The channel of the call being served, outside any [`PROPOSED_VIA`] scope none.
+    pub fn current() -> Option<Self> {
+        PROPOSED_VIA.try_with(Clone::clone).ok()
+    }
+
+    /// The Git trailer line (ADR-N-060 §2.2): `Proposed-Via: mcp; client=mcp-mobile`.
+    pub fn trailer(&self) -> String {
+        format!("{TRAILER}{}; client={}", self.channel, self.client)
+    }
+
+    /// `message` with the trailer of the call being served, unchanged outside one.
+    pub fn sign(message: &str) -> std::borrow::Cow<'_, str> {
+        match Self::current() {
+            Some(via) => format!("{message}\n\n{}", via.trailer()).into(),
+            None => message.into(),
+        }
+    }
+
+    /// A merge request body for the call being served: the channel in its first line, the
+    /// trailer in its last, unchanged outside one.
+    pub fn sign_body(body: &str) -> std::borrow::Cow<'_, str> {
+        match Self::current() {
+            Some(via) => format!(
+                "Proposed through an AI client over MCP (client `{}`).\n\n{body}\n\n{}",
+                via.client,
+                via.trailer()
+            )
+            .into(),
+            None => body.into(),
+        }
+    }
+
+    /// The channel the body's last `Proposed-Via` line names; a line a hand edit broke names
+    /// none, so the page never shows a client id it could not check.
+    pub fn in_body(body: &str) -> Option<Self> {
+        let line = body
+            .lines()
+            .rev()
+            .find_map(|l| l.trim().strip_prefix(TRAILER))?;
+        let (channel, client) = line.split_once("; client=")?;
+        (channel == "mcp" && valid_client(client)).then(|| Self {
+            channel: channel.to_owned(),
+            client: client.to_owned(),
+        })
+    }
+}
+
+fn valid_client(client: &str) -> bool {
+    (1..=64).contains(&client.len())
+        && client
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b':' | b'-'))
 }
 
 /// Change risk classification lane (CC-63).
@@ -624,5 +721,72 @@ mod tests {
         assert_eq!(serialized["status"]["plan"]["create"], 1);
         assert_eq!(serialized["status"]["plan"]["update"], 0);
         assert_eq!(serialized["status"]["plan"]["delete"], 0);
+    }
+
+    // T-5609: a Change proposed over MCP says so in Git and on the page (AG-17, AG-137).
+
+    #[tokio::test]
+    async fn a_call_over_mcp_signs_the_commit_and_the_merge_request() {
+        let via = ProposedVia::mcp(Some("mcp-mobile"));
+        let (message, body) = PROPOSED_VIA
+            .scope(via, async {
+                (
+                    ProposedVia::sign("Update Endpoint bikes").into_owned(),
+                    ProposedVia::sign_body("Proposed update.").into_owned(),
+                )
+            })
+            .await;
+        assert_eq!(
+            message,
+            "Update Endpoint bikes\n\nProposed-Via: mcp; client=mcp-mobile"
+        );
+        assert!(body.starts_with("Proposed through an AI client over MCP (client `mcp-mobile`)."));
+        assert_eq!(
+            ProposedVia::in_body(&body),
+            Some(ProposedVia {
+                channel: "mcp".to_owned(),
+                client: "mcp-mobile".to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn outside_a_call_over_mcp_nothing_is_signed() {
+        assert_eq!(
+            ProposedVia::sign("Update Endpoint bikes"),
+            "Update Endpoint bikes"
+        );
+        assert_eq!(
+            ProposedVia::sign_body("Proposed update."),
+            "Proposed update."
+        );
+        assert_eq!(ProposedVia::in_body("Proposed update."), None);
+    }
+
+    #[test]
+    fn a_client_id_outside_the_charset_is_never_written_or_shown() {
+        assert_eq!(ProposedVia::mcp(Some("evil\n<b>x</b>")).client, "unknown");
+        assert_eq!(ProposedVia::mcp(Some(&"a".repeat(65))).client, "unknown");
+        assert_eq!(ProposedVia::mcp(None).client, "unknown");
+        assert_eq!(
+            ProposedVia::in_body("Proposed-Via: mcp; client=<img src=x>"),
+            None
+        );
+        assert_eq!(ProposedVia::in_body("Proposed-Via: person; client=x"), None);
+    }
+
+    #[test]
+    fn the_status_carries_the_channel_its_merge_request_names() {
+        let status = ChangeStatus::new(
+            Lane::Yellow,
+            ChangePhase::PendingApproval,
+            PlanSummary::default(),
+        )
+        .proposed_through("x\n\nProposed-Via: mcp; client=mcp-mobile");
+        let serialized = serde_json::to_value(&status).expect("serialize");
+        assert_eq!(
+            serialized["proposedVia"],
+            json!({ "channel": "mcp", "client": "mcp-mobile" })
+        );
     }
 }

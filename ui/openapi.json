@@ -24293,6 +24293,17 @@
           "plan": {
             "$ref": "#/components/schemas/PlanSummary"
           },
+          "proposedVia": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProposedVia",
+                "description": "The channel the Change was proposed through when it was not the person at the Portal\n(AG-137, ADR-N-060 §2.2): read back from the merge request's `Proposed-Via` line."
+              }
+            ]
+          },
           "repository": {
             "type": [
               "string",
@@ -30831,6 +30842,24 @@
           },
           "to": {
             "type": "string"
+          }
+        }
+      },
+      "ProposedVia": {
+        "type": "object",
+        "description": "The channel a Change came through and the OAuth client that sent it (AG-17, AG-137).",
+        "required": [
+          "channel",
+          "client"
+        ],
+        "properties": {
+          "channel": {
+            "type": "string",
+            "description": "`mcp`: a person's AI client over the Portal's MCP server."
+          },
+          "client": {
+            "type": "string",
+            "description": "The token's `azp`, at most 64 characters of `[A-Za-z0-9._:-]`."
           }
         }
       },

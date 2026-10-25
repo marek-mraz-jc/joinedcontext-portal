@@ -1001,3 +1001,72 @@ async fn put_file_commits_yaml_in_the_canonical_layout() {
     };
     assert_eq!(client.put_file(&write).await.unwrap(), "commit-sha-tidy");
 }
+
+/// AG-17, AG-137, T-5609: a commit and a merge request opened inside a call over MCP name the
+/// channel and the client, so the approver and the forge history tell an AI client's proposal
+/// from the person's own.
+#[tokio::test]
+async fn a_call_over_mcp_signs_its_commit_and_its_merge_request() {
+    use joinedcontext_portal::change::{ProposedVia, PROPOSED_VIA};
+    use wiremock::matchers::body_partial_json;
+
+    let server = MockServer::start().await;
+    let client = GiteaClient::new(
+        server.uri().parse().unwrap(),
+        "test-owner",
+        "test-repo",
+        "secret-token",
+    )
+    .unwrap();
+    Mock::given(method("PUT"))
+        .and(path("/api/v1/repos/test-owner/test-repo/contents/a.yaml"))
+        .and(body_partial_json(json!({
+            "message": "Update Endpoint a\n\nProposed-Via: mcp; client=mcp-mobile"
+        })))
+        .respond_with(
+            ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "c1" } })),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/repos/test-owner/test-repo/pulls"))
+        .and(body_partial_json(json!({
+            "body": "Proposed through an AI client over MCP (client `mcp-mobile`).\n\nPR description\n\nProposed-Via: mcp; client=mcp-mobile"
+        })))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+            "number": 18,
+            "html_url": "https://gitea.example.com/test-owner/test-repo/pulls/18",
+            "state": "open",
+            "body": "x\n\nProposed-Via: mcp; client=mcp-mobile",
+            "merged": false
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let write = FileWrite {
+        path: "a.yaml",
+        branch: "feature-1",
+        message: "Update Endpoint a",
+        content: "a: 1\n",
+        sha: None,
+        author: Author {
+            name: "Alice Developer",
+            email: "alice@example.com",
+        },
+    };
+    let pr = PROPOSED_VIA
+        .scope(ProposedVia::mcp(Some("mcp-mobile")), async {
+            client.put_file(&write).await.unwrap();
+            client
+                .create_pull_request("feature-1", "main", "Add feature", "PR description")
+                .await
+                .unwrap()
+        })
+        .await;
+    assert_eq!(
+        ProposedVia::in_body(&pr.body).map(|via| via.client),
+        Some("mcp-mobile".to_owned())
+    );
+}

@@ -1249,6 +1249,7 @@ pub async fn repoint_project(
                 crate::change::PlanSummary::new(0, 1, 0),
             )
             .in_repository(&pull.repository)
+            .proposed_through(&pull.body)
             .with_merge_request(pull.url),
         )),
     ))
@@ -1692,6 +1693,7 @@ pub async fn delete_project_for(
             summary,
         )
         .in_repository(&pull.repository)
+        .proposed_through(&pull.body)
         .with_merge_request(pull.url),
     ))
 }

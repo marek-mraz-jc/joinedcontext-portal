@@ -284,6 +284,10 @@
       "title": "{count, plural, one {# Merge-Request in der Forge ist keine Änderung} other {# Merge-Requests in der Forge sind keine Änderungen}}",
       "item": "#{number} von {author}"
     },
+    "proposedVia": {
+      "badge": "Vorgeschlagen über {client} (MCP)",
+      "hint": "Ein KI-Client ({client}) hat diesen Vorschlag über MCP geschrieben, {author} hat ihn bestätigt. Prüfen Sie die Änderungen wie bei jedem anderen."
+    },
     "workspace": "Aus einer Kopie",
     "fromWorkspace": "Aus der Kopie {name} von {author}, zurückgebracht am {date}: getrennt vom Live-Projekt bearbeitet und vor dem Vorschlag erneut geprüft.",
     "emptyHint": "Jede Änderung an diesem Projekt wartet hier darauf, dass eine Person sie liest und entscheidet. Gerade wartet nichts; schlagen Sie eine Änderung vor, und sie erscheint in dieser Liste.",
