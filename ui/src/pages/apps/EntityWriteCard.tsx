@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { readCsrfToken } from "../../api/client";
 import { Button } from "../../components/ui/Button";
 import { Card, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TableRowHeaderCell } from "../../components/ui";
-import { localId, textOf } from "./QueryResultCard";
+import { isRecord, localId, textOf } from "./QueryResultCard";
 
 /**
  * A change to entities the assistant prepared (AG-78): every attribute before and after, and the
@@ -22,10 +22,6 @@ type State =
   | { kind: "applying" }
   | { kind: "applied"; refused: { id: string; detail: string }[] }
   | { kind: "cancelled" };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 /** The preview of a `write_entities` step that passed its checks, or none. */
 export function entityWriteOf(payload: Record<string, unknown>): EntityWrite | null {

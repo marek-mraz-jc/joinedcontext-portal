@@ -8,6 +8,7 @@
 //! ponytail: jobs live in memory; a restart forgets one, the annotation keeps the space held,
 //! and starting the move again resumes from the hold.
 
+use crate::capped::refusal;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -329,7 +330,7 @@ impl Moves {
                 )
             })?;
         if !export.status().is_success() {
-            return Err(refusal("the source broker refused the export", export).await);
+            return Err(refusal("the source broker refused the export", export, None).await);
         }
         let import = self
             .http
@@ -346,7 +347,7 @@ impl Moves {
                 )
             })?;
         if !import.status().is_success() {
-            return Err(refusal("the target broker refused the import", import).await);
+            return Err(refusal("the target broker refused the import", import, None).await);
         }
         Ok(())
     }
@@ -361,7 +362,7 @@ impl Moves {
             .await
             .map_err(|err| format!("a broker did not answer its digest: {}", err.without_url()))?;
         if !answer.status().is_success() {
-            return Err(refusal("a broker refused its digest", answer).await);
+            return Err(refusal("a broker refused its digest", answer, None).await);
         }
         answer
             .json()
@@ -380,26 +381,13 @@ impl Moves {
             .map_err(|err| err.without_url().to_string())?;
         match answer.status().is_success() {
             true => Ok(()),
-            false => Err(refusal("the broker refused the purge", answer).await),
+            false => Err(refusal("the broker refused the purge", answer, None).await),
         }
     }
 }
 
 fn lock<T>(held: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     held.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
-/// `what: status: detail`, the broker's problem detail cut to a sentence.
-async fn refusal(what: &str, answer: reqwest::Response) -> String {
-    let status = answer.status();
-    let body: serde_json::Value = answer.json().await.unwrap_or_default();
-    match body["detail"].as_str().or(body["title"].as_str()) {
-        Some(detail) => format!(
-            "{what}: {status}: {}",
-            detail.chars().take(300).collect::<String>()
-        ),
-        None => format!("{what}: {status}"),
-    }
 }
 
 fn member<'a>(map: &'a mut serde_norway::Mapping, key: &str) -> &'a mut serde_norway::Mapping {

@@ -11,7 +11,7 @@ import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { EditResourceDialog } from "../../components/EditResourceDialog";
 import { usePermissions, useReadableList } from "../../api/permissions";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../../api/client";
-import { asManifests, isChange, localized, plainTitle, prune } from "../../api/manifest";
+import { asManifests, isChange, knownSecretNames, localized, plainTitle, prune } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
 import type { Verdict } from "../../api/drafts";
 import { ChangeNotice } from "../../components/ChangeNotice";
@@ -250,10 +250,6 @@ export function endpointView(raw: string): { shown: string; full: string; secret
   const shown = each.map((one) => one.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").split(/[?#]/)[0]?.replace(/(.)\/$/, "$1") ?? "");
   return { shown: shown.join(", "), full: each.join(", "), secrets };
 }
-
-// Moved to the manifest helpers so the pipeline editor offers the same names (T-3972).
-import { knownSecretNames } from "../../api/manifest";
-export { knownSecretNames };
 
 /** The words of a runner input's name that are written in capitals: protocols, products, clouds. */
 const ACRONYMS = new Set([

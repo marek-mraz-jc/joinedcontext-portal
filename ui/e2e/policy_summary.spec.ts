@@ -127,3 +127,20 @@ test("an editor reads every rule of a rules[] Policy, in the list and the summar
   }
 });
 
+test("a broken address keeps the shell and shows the not-found card (F-UI1-002)", async ({ page }) => {
+  mkdirSync(DIR, { recursive: true });
+  await stubApi(page, "viewer");
+  for (const width of [1440, 400]) {
+    await page.setViewportSize({ width, height: width === 400 ? 860 : 900 });
+    await page.goto("/projects/helsinki/policies?lang=en");
+    // vite preview's static server 404s a malformed escape before the app loads; the Portal's
+    // own fallback serves the app, so the address is reached from inside it, as a pasted link would.
+    await page.evaluate(() => {
+      window.history.pushState(null, "", "/projects/helsinki/spaces/%E0%A4%A?lang=en");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    await expect(page.locator("main#main")).toBeAttached();
+    await expect(page.getByText("This page does not exist")).toBeVisible();
+    await page.screenshot({ path: join(DIR, `broken-address-${width}.png`), fullPage: true });
+  }
+});

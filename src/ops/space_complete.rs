@@ -131,10 +131,7 @@ pub fn output_schema() -> Value {
 }
 
 pub fn validate_input(val: &Value) -> Result<(), OpError> {
-    let input: SpaceCompleteInput = serde_json::from_value(val.clone()).map_err(|e| {
-        let (path, message) = ops::serde_error_path_and_message(&e);
-        OpError::InvalidInput { path, message }
-    })?;
+    let input: SpaceCompleteInput = ops::parse_input(val.clone())?;
 
     let has_files = input.files.as_ref().is_some_and(|f| !f.is_empty());
     let has_url = input.url.as_ref().is_some_and(|u| !u.trim().is_empty());
@@ -320,10 +317,7 @@ pub async fn run(
     project: &str,
     val: Value,
 ) -> Result<Value, OpError> {
-    let input: SpaceCompleteInput = serde_json::from_value(val).map_err(|e| {
-        let (path, message) = ops::serde_error_path_and_message(&e);
-        OpError::InvalidInput { path, message }
-    })?;
+    let input: SpaceCompleteInput = ops::parse_input(val)?;
 
     // Determine space name
     let space_name = space_name_of(&input);
