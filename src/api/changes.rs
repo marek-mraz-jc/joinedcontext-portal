@@ -1506,7 +1506,6 @@ pub async fn approve_change(
                 .map_err(|e| ApiError::BadRequest(format!("invalid json body: {e}")))?,
         )
     };
-    refuse_bearer_decision(&user.0.identity)?;
     let confirm = approve_body.as_ref().and_then(|b| b.confirm.as_deref());
     let change = approve_change_for(
         &state,
@@ -1875,6 +1874,7 @@ pub async fn approve_change_for(
     confirm: Option<&str>,
     by: ApprovedBy,
 ) -> Result<Change, ApiError> {
+    refuse_bearer_decision(identity)?;
     may_approve_anything(state, identity, project)?;
     let (gitea, pr_number) = resolve_change(state, project, id)?;
     let gitea: &crate::git::GiteaClient = &gitea;
@@ -2411,7 +2411,6 @@ pub async fn reject_change(
         serde_json::from_slice(&body)
             .map_err(|e| ApiError::BadRequest(format!("invalid json body: {e}")))?
     };
-    refuse_bearer_decision(&user.0.identity)?;
     let change = reject_change_for(
         &state,
         &user.0.identity,
@@ -2433,6 +2432,7 @@ pub async fn reject_change_for(
     id: &str,
     reason: Option<&str>,
 ) -> Result<Change, ApiError> {
+    refuse_bearer_decision(identity)?;
     may_approve_anything(state, identity, project)?;
     let (gitea, pr_number) = resolve_change(state, project, id)?;
     let gitea: &crate::git::GiteaClient = &gitea;

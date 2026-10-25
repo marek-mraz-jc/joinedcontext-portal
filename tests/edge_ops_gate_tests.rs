@@ -384,15 +384,18 @@ async fn an_agent_holds_the_rights_of_the_person_it_runs_for_and_nothing_more() 
 
 /// AG-59: `may_run` is the caller's half only. It answers on the caller and the operation alone, so
 /// it may not be read as permission — a person with no binding anywhere passes it for every
-/// operation, and the person's half (`permitted`) is what refuses them.
+/// operation, and the person's half (`permitted`) is what refuses them. The one exception is a
+/// bearer token at a Change's decision, which no grant lifts (AG-133).
 #[test]
 fn the_callers_half_says_nothing_about_what_the_person_may_do() {
     for via in [Via::Session, Via::Bearer] {
         let nobody = Caller::new(identity("nobody", &[]), via);
         for op in ops::registry() {
-            assert!(
+            let decides = op.kind == "Change" && op.verb.is_some();
+            assert_eq!(
                 nobody.may_run(op).is_ok(),
-                "{} {via:?} was refused by the caller's half",
+                via == Via::Session || !decides,
+                "{} {via:?}: the caller's half answered on more than the caller",
                 op.name,
             );
         }
