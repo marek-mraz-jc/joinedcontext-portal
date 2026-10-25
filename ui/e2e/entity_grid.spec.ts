@@ -431,8 +431,10 @@ for (const width of [1440, 400]) {
       const cell = page.getByLabel("Edit Available bike number").first();
       await expect(cell).toHaveValue("0");
 
-      // Click the cell, type over it, Enter keeps the value and goes one row down.
-      await cell.click();
+      // Click the cell, type over it, Enter keeps the value and goes one row down. At 400 px the
+      // pinned name leaves ~90 px of this column in sight and its middle sits under the name, so
+      // the click goes where a person taps: the field's start, beside the pinned column.
+      await cell.click({ position: { x: 8, y: 8 } });
       await page.keyboard.press("ControlOrMeta+a");
       await page.keyboard.type("4");
       await page.keyboard.press("Enter");
