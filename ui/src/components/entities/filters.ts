@@ -213,6 +213,21 @@ export function relationsOfModel(model: Manifest | string | undefined, type: str
   return found;
 }
 
+/**
+ * The types to offer, split by grant (T-3218, T-5622): a type the query already names stays
+ * visible even where no list holds it (a YAML edit, a model still loading), so nothing a person
+ * chose is silently replaced; with no grant document every type counts as granted.
+ */
+export function typeGroups(
+  types: string[],
+  current: string | undefined,
+  readable: string[] | undefined,
+): { granted: string[]; ungranted: string[] } {
+  const offered = [...new Set([...(current && !types.includes(current) ? [current] : []), ...types])];
+  const granted = readable === undefined ? offered : offered.filter((name) => readable.includes(name));
+  return { granted, ungranted: offered.filter((name) => !granted.includes(name)) };
+}
+
 /** The operators a slot's range makes sense with; everything for an attribute the model lacks. */
 export function opsFor(slot: FilterSlot | undefined): Op[] {
   if (!slot) {

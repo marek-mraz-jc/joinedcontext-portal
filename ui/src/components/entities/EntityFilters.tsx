@@ -6,7 +6,7 @@ import { listSpaceTypes } from "../../api/gateway";
 import { clsx } from "clsx";
 import { localized } from "../../api/manifest";
 import { Button, Checkbox, Field, Input, Select } from "../ui";
-import { filtersFromQ, opsFor, qFromFilters, qProblem } from "./filters";
+import { filtersFromQ, opsFor, qFromFilters, qProblem, typeGroups } from "./filters";
 import type { EntityQuery, Filter, FilterSlot } from "./filters";
 
 export interface EntityFiltersProps {
@@ -68,11 +68,6 @@ function Filters({
   const q = value.q ?? "";
   /** What a reader calls an attribute: the model's label, the name itself without one. */
   const labelOf = (name: string) => localized(slots.find((slot) => slot.name === name)?.label, i18n.language, name);
-  // A type the query already names stays visible even where no list holds it (a YAML edit, a
-  // model still loading), so nothing a person chose is silently replaced.
-  const offered = [...new Set([...(value.type && !types.includes(value.type) ? [value.type] : []), ...types])];
-  const granted = readable === undefined ? offered : offered.filter((name) => readable.includes(name));
-  const ungranted = offered.filter((name) => !granted.includes(name));
   // The rows are derived from `q`, but a row being typed (no value yet) is not in `q`, so they
   // live here and are re-derived only when `q` changed under them (the YAML view, a reset).
   const [state, setState] = useState(() => ({ q, rows: filtersFromQ(q) }));
@@ -106,31 +101,13 @@ function Filters({
           label={t("entities.type")}
           description={types.length === 0 && !loading ? t("entities.noTypes") : t("entities.hint.type")}
         >
-          <Select
+          <TypeSelect
             id={`${id}-type`}
-            value={value.type ?? ""}
-            disabled={types.length === 0 && !value.type}
-            title={types.length === 0 && !value.type ? t("entities.noTypes") : undefined}
-            onChange={(event) => onChange({ type: event.target.value || undefined, scopeQ: value.scopeQ })}
-          >
-            <option value="">—</option>
-            {/* What the source lets them read comes first; the rest stand apart in a group that
-                says so, so nobody picks a type to meet an empty grid (T-3218, T-5622). */}
-            {granted.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-            {ungranted.length > 0 ? (
-              <optgroup label={t("entities.typesNotGranted")}>
-                {ungranted.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </optgroup>
-            ) : null}
-          </Select>
+            types={types}
+            readable={readable}
+            value={value}
+            onChange={(type) => onChange({ type, scopeQ: value.scopeQ })}
+          />
         </Field>
         <Field id={`${id}-scopeQ`} label={t("entities.scopeQ")} description={t("entities.hint.scope")}>
           <Input
@@ -265,6 +242,50 @@ function Filters({
         </fieldset>
       ) : null}
     </div>
+  );
+}
+
+/** The type picker: what the source grants first, the rest in a group that says so (T-3218, T-5622). */
+function TypeSelect({
+  id,
+  types,
+  readable,
+  value,
+  onChange,
+}: {
+  id: string;
+  types: string[];
+  readable: string[] | undefined;
+  value: EntityQuery;
+  onChange: (type: string | undefined) => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const { granted, ungranted } = typeGroups(types, value.type, readable);
+  const none = types.length === 0 && !value.type;
+  return (
+    <Select
+      id={id}
+      value={value.type ?? ""}
+      disabled={none}
+      title={none ? t("entities.noTypes") : undefined}
+      onChange={(event) => onChange(event.target.value || undefined)}
+    >
+      <option value="">—</option>
+      {granted.map((name) => (
+        <option key={name} value={name}>
+          {name}
+        </option>
+      ))}
+      {ungranted.length > 0 ? (
+        <optgroup label={t("entities.typesNotGranted")}>
+          {ungranted.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </optgroup>
+      ) : null}
+    </Select>
   );
 }
 
