@@ -453,41 +453,39 @@ test("a municipality admin onboards 100 employees into five departments and offb
     tally.approvals += 1;
     await expect.poll(() => groupMembers(page, group("traffic")), { timeout: 300_000 }).toContain(first.email);
 
-    const addOnPage = async (who: Created): Promise<{ name: string; namespace: string }> => {
-      await page.goto(`/organization/groups/${group("traffic")}?lang=en`, {
-        waitUntil: "load",
-      });
-      const field = page.getByLabel("E-mail of the person");
-      await field.fill(who.email);
-      await page.getByRole("button", { name: "Add member" }).click();
-      tally.clicks += 1;
-      const link = page.getByRole("link", {
-        name: /^(Review it in Approvals|Open the change)$/,
-      });
-      await expect(link).toBeVisible({ timeout: 60_000 });
-      const id = ((await link.getAttribute("href")) ?? "").split("/approvals/")[1]?.split(/[?#]/)[0] ?? "";
-      tally.changes += 1;
-      return { name: id, namespace: "org" };
-    };
-    // Two adds before either is approved: both must survive their merges (no lost update).
-    const pendingA = await addOnPage(rest[0]);
+    // The other 19 in one Change (T-5605): pasted as a list into the person field, proposed once.
+    await page.goto(`/organization/groups/${group("traffic")}?lang=en`, {
+      waitUntil: "load",
+    });
+    const field = page.getByLabel("E-mail of the person");
+    await field.click();
+    await field.fill(rest.map((who) => who.email).join(", "));
+    await page.getByRole("option", { name: `Add the e-mails of the list (${rest.length})` }).click();
+    tally.clicks += 2;
+    await page.getByRole("button", { name: `Add members (${rest.length})` }).click();
+    tally.clicks += 1;
+    const link = page.getByRole("link", {
+      name: /^(Review it in Approvals|Open the change)$/,
+    });
+    await expect(link).toBeVisible({ timeout: 60_000 });
+    const id = ((await link.getAttribute("href")) ?? "").split("/approvals/")[1]?.split(/[?#]/)[0] ?? "";
+    tally.changes += 1;
+    // A second edit while this one waits would be computed from the stored list and drop the 19:
+    // the page holds it and names the open change instead.
+    await page.goto(`/organization/groups/${group("traffic")}?lang=en`, {
+      waitUntil: "load",
+    });
+    await expect(page.getByRole("link", { name: `Open change ${id}` })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole("button", { name: "Add member" })).toHaveAttribute("aria-disabled", "true");
     await both(page, tally, "/organization/groups/walk-dep-traffic", "member-proposed", "steward");
-    const pendingB = await addOnPage(rest[1]);
-    for (const change of [pendingA, pendingB]) {
-      await approveAny(page, change);
-      tally.approvals += 1;
-    }
+    await approveAny(page, { name: id, namespace: "org" });
+    tally.approvals += 1;
     await expect
       .poll(() => groupMembers(page, group("traffic")), {
         timeout: 300_000,
-        message: "two adds pending together both land",
+        message: "the 19 added in one Change all land",
       })
-      .toEqual(expect.arrayContaining([rest[0].email, rest[1].email]));
-    for (const who of rest.slice(2)) {
-      await approveAny(page, await addOnPage(who));
-      tally.approvals += 1;
-      await expect.poll(() => groupMembers(page, group("traffic")), { timeout: 300_000 }).toContain(who.email);
-    }
+      .toEqual(expect.arrayContaining(rest.map((who) => who.email)));
     await page.goto(`/organization/groups/${group("traffic")}?lang=en`, {
       waitUntil: "load",
     });

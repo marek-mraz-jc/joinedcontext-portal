@@ -64,92 +64,92 @@ spec:
   fields:
     name:
       help:
-        en: The broker's name in this project; lowercase letters, digits and hyphens. It is part of its address.
-        sk: Názov brokera v tomto projekte; malé písmená, číslice a spojovníky. Je súčasťou jeho adresy.
-        cs: Název brokeru v tomto projektu; malá písmena, číslice a spojovníky. Je součástí jeho adresy.
-        de: Der Name des Brokers in diesem Projekt; Kleinbuchstaben, Ziffern, Bindestriche. Er ist Teil seiner Adresse.
+        en: The broker's name in this project; lowercase letters, digits and hyphens. It is part of its address. E.g. sensors.
+        sk: Názov brokera v tomto projekte; malé písmená, číslice a spojovníky. Je súčasťou jeho adresy. Napr. sensors.
+        cs: Název brokeru v tomto projektu; malá písmena, číslice a spojovníky. Je součástí jeho adresy. Např. sensors.
+        de: Der Name des Brokers in diesem Projekt; Kleinbuchstaben, Ziffern, Bindestriche. Er ist Teil seiner Adresse. Z. B. sensors.
     mode:
       help:
-        en: What the broker does; only the modes the project's MQTT allowance names are accepted.
-        sk: Čo broker robí; prijaté sú len režimy, ktoré povoľuje MQTT povolenie projektu.
-        cs: Co broker dělá; přijaty jsou jen režimy, které povoluje MQTT povolení projektu.
-        de: Was der Broker tut; nur die Modi, die das MQTT-Kontingent des Projekts nennt, werden angenommen.
+        en: What the broker does; only the modes the project's MQTT allowance names are accepted. E.g. Devices send data in.
+        sk: Čo broker robí; prijaté sú len režimy, ktoré povoľuje MQTT povolenie projektu. Napr. Zariadenia posielajú dáta.
+        cs: Co broker dělá; přijaty jsou jen režimy, které povoluje MQTT povolení projektu. Např. Zařízení posílají data.
+        de: Was der Broker tut; nur die Modi, die das MQTT-Kontingent des Projekts nennt, werden angenommen. Z. B. Geräte senden Daten.
     capture:
       help:
-        en: Only with "…and keep the last messages"; the messages are kept so a steward can build the mapping, then dropped.
-        sk: Len s „…a uchová posledné správy“; správy sa uchovajú, aby správca zostavil mapovanie, potom sa zahodia.
-        cs: Jen s „…a uchová poslední zprávy“; zprávy se uchovají, aby správce sestavil mapování, pak se zahodí.
-        de: Nur mit „…und die letzten Nachrichten behalten“; die Nachrichten bleiben, bis das Mapping gebaut ist, dann werden sie verworfen.
+        en: Only with "…and keep the last messages"; the messages are kept so a steward can build the mapping, then dropped. E.g. 50 messages for 2 hours.
+        sk: Len s „…a uchová posledné správy“; správy sa uchovajú, aby správca zostavil mapovanie, potom sa zahodia. Napr. 50 správ na 2 hodiny.
+        cs: Jen s „…a uchová poslední zprávy“; zprávy se uchovají, aby správce sestavil mapování, pak se zahodí. Např. 50 zpráv na 2 hodiny.
+        de: Nur mit „…und die letzten Nachrichten behalten“; die Nachrichten bleiben, bis das Mapping gebaut ist, dann werden sie verworfen. Z. B. 50 Nachrichten für 2 Stunden.
     capture.messagesPerTopic:
       help:
-        en: How many of the newest messages are kept per topic; at most 1000.
-        sk: Koľko najnovších správ sa uchová na tému; najviac 1000.
-        cs: Kolik nejnovějších zpráv se uchová na téma; nejvýše 1000.
-        de: Wie viele der neuesten Nachrichten je Topic bleiben; höchstens 1000.
+        en: How many of the newest messages are kept per topic; at most 1000. E.g. 50.
+        sk: Koľko najnovších správ sa uchová na tému; najviac 1000. Napr. 50.
+        cs: Kolik nejnovějších zpráv se uchová na téma; nejvýše 1000. Např. 50.
+        de: Wie viele der neuesten Nachrichten je Topic bleiben; höchstens 1000. Z. B. 50.
     capture.window:
       help:
-        en: How long a message is kept from its arrival; at most a day.
-        sk: Ako dlho sa správa uchová od príchodu; najviac deň.
-        cs: Jak dlouho se zpráva uchová od příchodu; nejvýše den.
-        de: Wie lange eine Nachricht ab Eingang bleibt; höchstens einen Tag.
+        en: How long a message is kept from its arrival; at most a day. E.g. 2 hours.
+        sk: Ako dlho sa správa uchová od príchodu; najviac deň. Napr. 2 hodiny.
+        cs: Jak dlouho se zpráva uchová od příchodu; nejvýše den. Např. 2 hodiny.
+        de: Wie lange eine Nachricht ab Eingang bleibt; höchstens einen Tag. Z. B. 2 Stunden.
     roles:
       help:
-        en: One role per group of devices that may do the same; at least one.
-        sk: Jedna rola na skupinu zariadení, ktoré smú to isté; aspoň jedna.
-        cs: Jedna role na skupinu zařízení, která smějí totéž; alespoň jedna.
-        de: Eine Rolle je Gruppe von Geräten, die dasselbe dürfen; mindestens eine.
+        en: One role per group of devices that may do the same; at least one. E.g. one role sensors for every thermometer.
+        sk: Jedna rola na skupinu zariadení, ktoré smú to isté; aspoň jedna. Napr. jedna rola sensors pre všetky teplomery.
+        cs: Jedna role na skupinu zařízení, která smějí totéž; alespoň jedna. Např. jedna role sensors pro všechny teploměry.
+        de: Eine Rolle je Gruppe von Geräten, die dasselbe dürfen; mindestens eine. Z. B. eine Rolle sensors für alle Thermometer.
     roles[].name:
       help:
-        en: The role's name; lowercase letters, digits and hyphens.
-        sk: Názov roly; malé písmená, číslice a spojovníky.
-        cs: Název role; malá písmena, číslice a spojovníky.
-        de: Der Name der Rolle; Kleinbuchstaben, Ziffern, Bindestriche.
+        en: The role's name; lowercase letters, digits and hyphens. E.g. sensors.
+        sk: Názov roly; malé písmená, číslice a spojovníky. Napr. sensors.
+        cs: Název role; malá písmena, číslice a spojovníky. Např. sensors.
+        de: Der Name der Rolle; Kleinbuchstaben, Ziffern, Bindestriche. Z. B. sensors.
     roles[].serviceAccounts:
       help:
-        en: The ServiceAccounts of this project that hold the role; removing one revokes that device alone.
-        sk: ServiceAccounty tohto projektu, ktoré majú rolu; odobratím jedného odvoláte len to zariadenie.
-        cs: ServiceAccounty tohoto projektu, které mají roli; odebráním jednoho odvoláte jen to zařízení.
-        de: Die ServiceAccounts dieses Projekts mit dieser Rolle; einen zu entfernen sperrt nur dieses Gerät.
+        en: The ServiceAccounts of this project that hold the role; removing one revokes that device alone. E.g. vent-1.
+        sk: ServiceAccounty tohto projektu, ktoré majú rolu; odobratím jedného odvoláte len to zariadenie. Napr. vent-1.
+        cs: ServiceAccounty tohoto projektu, které mají roli; odebráním jednoho odvoláte jen to zařízení. Např. vent-1.
+        de: Die ServiceAccounts dieses Projekts mit dieser Rolle; einen zu entfernen sperrt nur dieses Gerät. Z. B. vent-1.
     roles[].publish:
       placeholder: cameras/${clientid}/frames
       help:
-        en: "Topics the role may publish to; ${clientid} stands for the device's own id, + for one level, # for every level below."
-        sk: "Témy, do ktorých smie rola publikovať; ${clientid} je vlastné id zariadenia, + jedna úroveň, # všetky úrovne pod ňou."
-        cs: "Témata, do kterých smí role publikovat; ${clientid} je vlastní id zařízení, + jedna úroveň, # všechny úrovně pod ní."
-        de: "Topics, in die die Rolle veröffentlichen darf; ${clientid} ist die eigene ID des Geräts, + eine Ebene, # alle Ebenen darunter."
+        en: "Topics the role may publish to; ${clientid} stands for the device's own id, + for one level, # for every level below. E.g. sensors/${clientid}/#."
+        sk: "Témy, do ktorých smie rola publikovať; ${clientid} je vlastné id zariadenia, + jedna úroveň, # všetky úrovne pod ňou. Napr. sensors/${clientid}/#."
+        cs: "Témata, do kterých smí role publikovat; ${clientid} je vlastní id zařízení, + jedna úroveň, # všechny úrovně pod ní. Např. sensors/${clientid}/#."
+        de: "Topics, in die die Rolle veröffentlichen darf; ${clientid} ist die eigene ID des Geräts, + eine Ebene, # alle Ebenen darunter. Z. B. sensors/${clientid}/#."
     roles[].subscribe:
       help:
-        en: Topics the role may subscribe to, only under the device's own ${clientid}.
-        sk: Témy, ktoré smie rola odoberať, len pod vlastným ${clientid} zariadenia.
-        cs: Témata, která smí role odebírat, jen pod vlastním ${clientid} zařízení.
-        de: Topics, die die Rolle abonnieren darf, nur unter der eigenen ${clientid} des Geräts.
+        en: Topics the role may subscribe to, only under the device's own ${clientid}. E.g. sensors/${clientid}/commands.
+        sk: Témy, ktoré smie rola odoberať, len pod vlastným ${clientid} zariadenia. Napr. sensors/${clientid}/commands.
+        cs: Témata, která smí role odebírat, jen pod vlastním ${clientid} zařízení. Např. sensors/${clientid}/commands.
+        de: Topics, die die Rolle abonnieren darf, nur unter der eigenen ${clientid} des Geräts. Z. B. sensors/${clientid}/commands.
     limits:
       help:
-        en: Bounds that protect the broker from a flood; left empty, the platform's defaults hold.
-        sk: Hranice, ktoré chránia broker pred záplavou; prázdne ponechajú predvoľby platformy.
-        cs: Hranice, které chrání broker před záplavou; prázdné ponechají výchozí hodnoty platformy.
-        de: Grenzen, die den Broker vor einer Flut schützen; leer gelten die Vorgaben der Plattform.
+        en: Bounds that protect the broker from a flood; left empty, the platform's defaults hold. E.g. 500 connections.
+        sk: Hranice, ktoré chránia broker pred záplavou; prázdne ponechajú predvoľby platformy. Napr. 500 pripojení.
+        cs: Hranice, které chrání broker před záplavou; prázdné ponechají výchozí hodnoty platformy. Např. 500 připojení.
+        de: Grenzen, die den Broker vor einer Flut schützen; leer gelten die Vorgaben der Plattform. Z. B. 500 Verbindungen.
     limits.maxMessageBytes:
       help:
-        en: The largest message a device may send, in bytes; at most 1 MiB.
-        sk: Najväčšia správa, ktorú smie zariadenie poslať, v bajtoch; najviac 1 MiB.
-        cs: Největší zpráva, kterou smí zařízení poslat, v bajtech; nejvýše 1 MiB.
-        de: Die größte Nachricht eines Geräts in Bytes; höchstens 1 MiB.
+        en: The largest message a device may send, in bytes; at most 1 MiB. E.g. 4096.
+        sk: Najväčšia správa, ktorú smie zariadenie poslať, v bajtoch; najviac 1 MiB. Napr. 4096.
+        cs: Největší zpráva, kterou smí zařízení poslat, v bajtech; nejvýše 1 MiB. Např. 4096.
+        de: Die größte Nachricht eines Geräts in Bytes; höchstens 1 MiB. Z. B. 4096.
     limits.messagesPerSecond:
       help:
-        en: Messages each device may send per second; at most 1000.
-        sk: Počet správ za sekundu na jedno zariadenie; najviac 1000.
-        cs: Počet zpráv za sekundu na jedno zařízení; nejvýše 1000.
-        de: Nachrichten je Gerät und Sekunde; höchstens 1000.
+        en: Messages each device may send per second; at most 1000. E.g. 10.
+        sk: Počet správ za sekundu na jedno zariadenie; najviac 1000. Napr. 10.
+        cs: Počet zpráv za sekundu na jedno zařízení; nejvýše 1000. Např. 10.
+        de: Nachrichten je Gerät und Sekunde; höchstens 1000. Z. B. 10.
     limits.maxConnections:
       help:
-        en: How many devices may be connected at once; at most 10000.
-        sk: Koľko zariadení smie byť pripojených naraz; najviac 10000.
-        cs: Kolik zařízení smí být připojeno najednou; nejvýše 10000.
-        de: Wie viele Geräte gleichzeitig verbunden sein dürfen; höchstens 10000.
+        en: How many devices may be connected at once; at most 10000. E.g. 500.
+        sk: Koľko zariadení smie byť pripojených naraz; najviac 10000. Napr. 500.
+        cs: Kolik zařízení smí být připojeno najednou; nejvýše 10000. Např. 500.
+        de: Wie viele Geräte gleichzeitig verbunden sein dürfen; höchstens 10000. Z. B. 500.
     port:
       help:
-        en: A port of its own from 18830 to 18849, for devices that cannot send a host name; empty uses 8883 by name.
-        sk: Vlastný port od 18830 do 18849 pre zariadenia, ktoré nevedia poslať názov hostiteľa; prázdne použije 8883 podľa názvu.
-        cs: Vlastní port od 18830 do 18849 pro zařízení, která neumějí poslat název hostitele; prázdné použije 8883 podle názvu.
-        de: Ein eigener Port von 18830 bis 18849 für Geräte, die keinen Hostnamen senden können; leer gilt 8883 nach Namen.
+        en: A port of its own from 18830 to 18849, for devices that cannot send a host name; empty uses 8883 by name. E.g. 18830.
+        sk: Vlastný port od 18830 do 18849 pre zariadenia, ktoré nevedia poslať názov hostiteľa; prázdne použije 8883 podľa názvu. Napr. 18830.
+        cs: Vlastní port od 18830 do 18849 pro zařízení, která neumějí poslat název hostitele; prázdné použije 8883 podle názvu. Např. 18830.
+        de: Ein eigener Port von 18830 bis 18849 für Geräte, die keinen Hostnamen senden können; leer gilt 8883 nach Namen. Z. B. 18830.
