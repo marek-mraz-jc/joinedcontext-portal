@@ -181,6 +181,14 @@ const MORE: Record<string, unknown> = {
     spec: { organizationRef: "hel" },
   },
   "/api/v1/organization/datamodels": list([]),
+  // The Policies and limits section reads the catalog with the values in force (T-2715).
+  "/api/v1/organization/limits": {
+    entries: [
+      { path: "spec.projects.quota.contextSpaces", section: "projects", security: false, default: null, min: 0, max: 20, value: 10, origin: "organization" },
+      { path: "spec.limits.signIn.sessionIdleMinutes", section: "signIn", security: true, default: 60, min: 5, max: 120, value: null, origin: "default" },
+    ],
+    projects: [],
+  },
   "/api/v1/projects/org/rolebindings": list([]),
   [`/api/v1/projects/${PROJECT}/knowledge/sources`]: list([]),
   "/api/v1/catalogue": {

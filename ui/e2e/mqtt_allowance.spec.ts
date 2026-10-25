@@ -105,6 +105,10 @@ async function stubApi(page: Page, world: World): Promise<void> {
     if (plural === "projects") {
       return json({ apiVersion: API, kind: "List", items: [{ apiVersion: API, kind: "Project", metadata: { name: PROJECT, namespace: "org" }, spec: { title: "Helsinki" } }] });
     }
+    if (plural === "serviceaccounts") {
+      // The role's device is picked from the accounts the person reads (T-5590).
+      return json({ apiVersion: API, kind: "List", items: [{ apiVersion: API, kind: "ServiceAccount", metadata: { name: "vent-1", namespace: PROJECT }, spec: {} }] });
+    }
     return json({ apiVersion: API, kind: "List", items: plural === "mqttbrokers" ? world.brokers : [] });
   });
 }
@@ -201,7 +205,7 @@ test.describe("MQTT allowance", () => {
     await page.goto(`/projects/${PROJECT}/mqttbrokers/new?lang=en`);
     await page.getByRole("textbox", { name: /^Name/ }).first().fill("vents");
     await page.getByRole("textbox", { name: /^Role/ }).first().fill("vents");
-    await page.getByRole("textbox", { name: /Service accounts/ }).first().fill("vent-1");
+    await page.getByRole("combobox", { name: /Service accounts/ }).first().selectOption("vent-1");
     await page.getByRole("button", { name: "Check", exact: true }).click();
     await expect(page.getByText(/MQTT allowance: brokers 2 reached/)).toBeVisible();
     // The verdict's reason is said once, not again beside the submit (T-5589).

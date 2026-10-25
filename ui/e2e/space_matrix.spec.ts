@@ -188,9 +188,12 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
       await stubApi(page, {});
       await open(page);
       await expect(page.getByText("Workshop for Families 5").first()).toBeVisible();
-      await expect(page.getByRole("button", { name: "Copy the query" })).toHaveCount(0);
+      const query = page.getByRole("status", { name: "The query this asks" });
+      await expect(query).toHaveCount(0);
       await page.getByRole("button", { name: "Query", exact: true }).click();
-      await expect(page.getByRole("button", { name: "Copy the query" })).toBeVisible();
+      // Every row is asked for, so the line says so and offers nothing to copy (0373b9ea).
+      await expect(query).toHaveText("all records");
+      await expect(page.getByRole("button", { name: "Copy the query" })).toHaveCount(0);
       await shot(page, `dark-${label}`);
       expect(await axeViolations(page)).toEqual([]);
     });
