@@ -454,8 +454,8 @@ routes:
     values: {"id": "ar-0a1b2c3d4e5f"}
     note: "a reader's 503 is the fixture's: without a database the request's space is unknown, so the owner check (tests/access_requests_tests.rs) comes after it"
   - route: POST /projects/{project}/access-requests/{id}/decline
-    rule: "project-read, then approve on the request's ContextSpace (PL-91, PL-93)"
-    expect: [403, allow, allow, allow, allow, allow, 404, allow]
+    rule: "a person's session (AG-133), then project-read, then approve on the request's ContextSpace (PL-91, PL-93)"
+    expect: [403, allow, allow, allow, allow, allow, 404, 403]
     values: {"id": "ar-0a1b2c3d4e5f"}
     body: {"reason": "moved"}
     note: "a reader's 503 is the fixture's: without a database the request's space is unknown, so the owner check (tests/access_requests_tests.rs) comes after it"

@@ -1506,7 +1506,6 @@ pub async fn approve_change(
                 .map_err(|e| ApiError::BadRequest(format!("invalid json body: {e}")))?,
         )
     };
-    refuse_bearer_decision(&user.0.identity)?;
     let confirm = approve_body.as_ref().and_then(|b| b.confirm.as_deref());
     let change = approve_change_for(
         &state,
@@ -1635,7 +1634,7 @@ async fn approve_every_file(
     project: &str,
     gitea: &GiteaClient,
     pr: &PullRequest,
-) -> Result<(Lane, bool, bool, bool), ApiError> {
+) -> Result<(Lane, bool, bool, bool, bool), ApiError> {
     // The caller's grants, per project, computed where each file actually lives (PF-50, T-1682).
     // Asking the project in the *path* once would check a file under `projects/other/` against a
     // binding that never reached it: an organization-scoped grant covers every project and is
@@ -1647,6 +1646,7 @@ async fn approve_every_file(
     let mut deletes_every_kind = true;
     let mut changes_access = false;
     let mut publishes = false;
+    let mut grants_approver = false;
     let mut files = Vec::new();
     for file in gitea.pull_request_files(pr.number).await? {
         let git_ref = if file.deleted {
@@ -1753,6 +1753,7 @@ async fn approve_every_file(
         // A public publication is held for a second person like an access change (EP-142).
         changes_access |= public;
         changes_access |= needs_second_person(&envelope.kind);
+        grants_approver |= !file.deleted && grants_its_caller(state, identity, envelope);
         if file.deleted {
             // `delete` is its own verb on every kind, not only the access ones: a cascade that
             // removes a whole project is held to `approve` and `delete` on each kind it takes
@@ -1809,7 +1810,13 @@ async fn approve_every_file(
             change::classify_manifest(envelope, Operation::Create),
         );
     }
-    Ok((lane, deletes_every_kind, changes_access, publishes))
+    Ok((
+        lane,
+        deletes_every_kind,
+        changes_access,
+        publishes,
+        grants_approver,
+    ))
 }
 
 /// Whether this file of a change publishes in the public catalogue (EP-142) or makes an App
@@ -1866,6 +1873,86 @@ pub(crate) fn needs_second_person(kind: &str) -> bool {
     is_access_kind(kind) || kind == "DataModel"
 }
 
+/// Whether `envelope` hands `identity` access: a Policy whose grant names them, a Group they are
+/// in or a realm role they hold, or a Group change that adds them as a member. Such a change is
+/// approved by a second person, never by the one it grants (PF-58, T-5563).
+fn grants_its_caller(
+    state: &AppState,
+    identity: &crate::auth::session::Identity,
+    envelope: &ResourceEnvelope,
+) -> bool {
+    let is_caller = |user: &str| {
+        let user = user.trim();
+        user.eq_ignore_ascii_case(&identity.username)
+            || user == identity.subject
+            || identity
+                .email
+                .as_deref()
+                .is_some_and(|email| user.eq_ignore_ascii_case(email.trim()))
+    };
+    let members_of = |spec: &serde_json::Value| -> Vec<String> {
+        spec.get("members")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|member| member.get("user").and_then(serde_json::Value::as_str))
+            .map(str::to_owned)
+            .collect()
+    };
+    match envelope.kind.as_str() {
+        "Policy" => {
+            let rules = envelope
+                .spec
+                .get("rules")
+                .and_then(serde_json::Value::as_array)
+                .map(|rules| rules.iter().collect::<Vec<_>>())
+                .unwrap_or_else(|| vec![&envelope.spec]);
+            rules
+                .into_iter()
+                .filter(|rule| {
+                    rule.get("effect").and_then(serde_json::Value::as_str) != Some("prohibition")
+                })
+                .filter_map(|rule| rule.get("assignee"))
+                .any(|assignee| {
+                    let id = assignee
+                        .get("id")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or_default();
+                    match assignee.get("kind").and_then(serde_json::Value::as_str) {
+                        Some("user") => is_caller(id),
+                        Some("group") => {
+                            identity.groups.iter().any(|group| group == id)
+                                || state
+                                    .mirror
+                                    .get(crate::permissions::ORG_NAMESPACE, "Group", id)
+                                    .is_some_and(|group| {
+                                        members_of(&group.spec).iter().any(|m| is_caller(m))
+                                    })
+                        }
+                        Some("role") => identity.roles.iter().any(|role| role == id),
+                        Some("serviceAccount") => identity
+                            .client
+                            .as_deref()
+                            .is_some_and(|client| id.rsplit('/').next() == Some(client)),
+                        _ => false,
+                    }
+                })
+        }
+        "Group" => {
+            let was_member = state
+                .mirror
+                .get(
+                    crate::permissions::ORG_NAMESPACE,
+                    "Group",
+                    &envelope.metadata.name,
+                )
+                .is_some_and(|group| members_of(&group.spec).iter().any(|m| is_caller(m)));
+            !was_member && members_of(&envelope.spec).iter().any(|m| is_caller(m))
+        }
+        _ => false,
+    }
+}
+
 /// Core approval function factored out for reuse by both the REST route and the operations registry.
 pub async fn approve_change_for(
     state: &AppState,
@@ -1875,6 +1962,7 @@ pub async fn approve_change_for(
     confirm: Option<&str>,
     by: ApprovedBy,
 ) -> Result<Change, ApiError> {
+    refuse_bearer_decision(identity)?;
     may_approve_anything(state, identity, project)?;
     let (gitea, pr_number) = resolve_change(state, project, id)?;
     let gitea: &crate::git::GiteaClient = &gitea;
@@ -1943,7 +2031,7 @@ pub async fn approve_change_for(
     // Every file of the merge request, not only the headline (T-0832, MF-21, CC-63): each
     // manifest needs approve on its kind, the PF-52 hold when it grants access, and its own
     // lane; a native file approves under the kind its directory names.
-    let (bundle_lane, deletes_every_kind, changes_access, publishes) =
+    let (bundle_lane, deletes_every_kind, changes_access, publishes, grants_approver) =
         approve_every_file(state, identity, project, gitea, &pr).await?;
     if publishes && by == ApprovedBy::Operation {
         tracing::warn!(change = %id, approver = %identity.username, "refused: an operation may not approve a public publication");
@@ -1965,6 +2053,15 @@ pub async fn approve_change_for(
         }
     };
 
+    // Nobody grants themselves access alone: a Policy naming its author, a Group they are in or
+    // a role they hold, or a Group change adding them, waits for someone else, an administrator
+    // of Policy included (PF-58, T-5563).
+    if is_author && grants_approver {
+        tracing::warn!(change = %id, kind = %data.kind, approver = %identity.username, "refused: a change granting access to its own proposer");
+        return Err(ApiError::SelfApproval(
+            "this change grants access to its own author (a Policy naming them, a Group they are in, or a Group adding them), so a second person approves it, never its author (PF-58)".to_string(),
+        ));
+    }
     // Access is never granted, nor a model changed, by its own proposer: someone else approves
     // it, an administrator of its kind or the bootstrap group (PF-58, T-4833, T-4830).
     if is_author && (changes_access || needs_second_person(&data.kind)) {
@@ -2411,7 +2508,6 @@ pub async fn reject_change(
         serde_json::from_slice(&body)
             .map_err(|e| ApiError::BadRequest(format!("invalid json body: {e}")))?
     };
-    refuse_bearer_decision(&user.0.identity)?;
     let change = reject_change_for(
         &state,
         &user.0.identity,
@@ -2433,6 +2529,7 @@ pub async fn reject_change_for(
     id: &str,
     reason: Option<&str>,
 ) -> Result<Change, ApiError> {
+    refuse_bearer_decision(identity)?;
     may_approve_anything(state, identity, project)?;
     let (gitea, pr_number) = resolve_change(state, project, id)?;
     let gitea: &crate::git::GiteaClient = &gitea;
