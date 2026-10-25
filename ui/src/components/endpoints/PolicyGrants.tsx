@@ -214,7 +214,7 @@ function Operations({ names }: { names: string[] }): JSX.Element {
 }
 
 /** The types a grant reaches and, per type, "all attributes" or the attributes it names (R6, R9). */
-function Covers({ information }: { information: Information[] }): JSX.Element {
+export function Covers({ information }: { information: Information[] }): JSX.Element {
   const { t, i18n } = useTranslation();
   const listed = (items: string[]) =>
     new Intl.ListFormat(i18n.language, { style: "long", type: "conjunction" }).format(items);
