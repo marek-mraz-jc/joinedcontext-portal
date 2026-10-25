@@ -110,7 +110,7 @@ import {
 import { ConfirmDialog, Field, Input, RadioGroup, Select } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { SourceRemovalsPanel } from "../pipelines/PipelineSourceReport";
-import { useUrlParam, useUrlUrn } from "../../navigation/urlState";
+import { useUrlParam, useUrlText, useUrlUrn } from "../../navigation/urlState";
 import { policyRefsOf } from "../../components/endpoints/policyBinding";
 
 const SAMPLE_LIMIT = 3;
@@ -356,8 +356,19 @@ function SpaceData({
   const { t, i18n } = useTranslation();
   // The type is in the address like the view, so back, reload and a sent link open it (T-4825).
   const [type, setType] = useUrlParam<string>("type", types[0] ?? "", types);
-  // The open row is in the address too, so a link opens it in its dialog (T-4828).
-  const [openRow, setOpenRow] = useUrlUrn("row");
+  // The open row is in the address too, so a link opens it in its dialog (T-4828), with its tab and
+  // History attribute (T-5602); the dialog reads a tab or attribute it does not know as its default.
+  const [openRow, setOpenRow] = useUrlUrn("row", ["tab", "attr"]);
+  const [rowTab, setRowTab] = useUrlText("tab");
+  const [rowAttr, setRowAttr] = useUrlText("attr");
+  const detailPlace = useMemo(() => ({ tab: rowTab, attr: rowAttr }), [rowTab, rowAttr]);
+  const onDetailPlace = useCallback(
+    (next: { tab: string; attr: string }) => {
+      setRowTab(next.tab === "fields" ? null : next.tab);
+      setRowAttr(next.tab === "history" || next.tab === "metadata" ? next.attr : null);
+    },
+    [setRowTab, setRowAttr],
+  );
   // "+ Row": the type's form in a dialog, creating through the space surface (T-4828).
   const [creating, setCreating] = useState(false);
   // The type's alerts are being chosen (T-3261).
@@ -404,8 +415,10 @@ function SpaceData({
   // column's footer, all but the search kept in the view's settings.
   const [filters, setFilters] = useState<FilterGroup>(EMPTY_GROUP);
   const [filterColumns, setFilterColumns] = useState<FilterColumn[]>([]);
-  const [searchText, setSearchText] = useState("");
-  const [search, setSearch] = useState("");
+  // The search is in the address in place (T-5602), so a reload or a sent link asks it again.
+  const [urlSearch, setUrlSearch] = useUrlText("q");
+  const [searchText, setSearchText] = useState(urlSearch ?? "");
+  const [search, setSearch] = useState(urlSearch ?? "");
   const [rowSize, setRowSize] = useState<RowSize>("small");
   const [aggregations, setAggregations] = useState<Record<string, Aggregation>>({});
   // The Sort and Group panels (T-5188): the keys after the header's own sort, and the fields the
@@ -479,10 +492,11 @@ function SpaceData({
     const wait = setTimeout(() => setSearch(searchText), 400);
     return () => clearTimeout(wait);
   }, [searchText]);
+  useEffect(() => setUrlSearch(search), [search, setUrlSearch]);
   const panelQ = useMemo(() => queryFromGroup(filterColumns, filters), [filterColumns, filters]);
-  // The search asks the type's text fields at the endpoint, at most eight of them per query.
+  // The search asks the type's text fields at the endpoint, a name in any of its languages.
   const searchQ = useMemo(
-    () => searchQuery(search, filterColumns.filter((c) => c.kind === "text" && c.attr && !c.meta).slice(0, 8).map((c) => c.attr!)),
+    () => searchQuery(search, filterColumns),
     [search, filterColumns],
   );
   const onFilterColumns = useCallback(
@@ -1078,6 +1092,8 @@ function SpaceData({
           ]}
           openRow={openRow}
           onOpenRow={setOpenRow}
+          detailPlace={detailPlace}
+          onDetailPlace={onDetailPlace}
           project={project}
           config={config}
           source={gridSource}
@@ -1123,7 +1139,27 @@ function SpaceData({
               />
             ) : null
           }
-          empty={<p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>}
+          empty={
+            // An empty answer to a search or a filter is no match, not an empty space (T-5600).
+            search.trim() !== "" ? (
+              <NoMatch
+                text={t("spaces.inside.searchNoMatch", { type: typeTitle, text: search.trim() })}
+                clear={t("spaces.inside.clearSearch")}
+                onClear={() => {
+                  setSearchText("");
+                  setSearch("");
+                }}
+              />
+            ) : panelQ ? (
+              <NoMatch
+                text={t("spaces.inside.filterNoMatch", { type: typeTitle })}
+                clear={t("spaces.inside.clearFilters")}
+                onClear={() => setFilters(EMPTY_GROUP)}
+              />
+            ) : (
+              <p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>
+            )
+          }
         />
         </div>
       ) : null}
@@ -1133,6 +1169,18 @@ function SpaceData({
 }
 
 /** The fields a saved view groups by (`settings.groupBy`), `null` where it names none. */
+/** What a search or filter that matched no row says, and the way back to every row. */
+function NoMatch({ text, clear, onClear }: { text: string; clear: string; onClear: () => void }): JSX.Element {
+  return (
+    <div role="status" className="flex flex-wrap items-center gap-2">
+      <p className="text-body text-fg-muted">{text}</p>
+      <Button variant="secondary" size="sm" onClick={onClear}>
+        {clear}
+      </Button>
+    </div>
+  );
+}
+
 function readGroupBy(raw: unknown): string[] | null {
   if (!Array.isArray(raw)) return null;
   return raw.filter((each): each is string => typeof each === "string").slice(0, MAX_GROUP_FIELDS);
