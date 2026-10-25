@@ -1242,6 +1242,10 @@ a.jc-cell--link:focus-visible {
 }
 .jc-grid-filter-toggle { display: none; }
 .jc-grid-scroll-hint { margin: 0; padding: var(--jc-space-1, 4px) var(--jc-space-2, 8px); font-size: 0.8125rem; opacity: 0.75; }
+/* The order is of the loaded rows only: a view that also reads other brokers is never ordered whole (T-5618). */
+.jc-grid-sort-note { margin: 0; padding: var(--jc-space-1, 4px) var(--jc-space-2, 8px); font-size: 0.8125rem; }
+.jc-grid-error-detail { margin-top: var(--jc-space-2, 8px); font-size: 0.8125rem; color: var(--jc-color-muted, #666); }
+.jc-grid-error-detail summary { cursor: pointer; min-height: 2.75rem; display: inline-flex; align-items: center; }
 
 @media (width <= 640px) {
   .jc-grid-pager { flex-wrap: wrap; column-gap: var(--jc-space-1, 4px); }

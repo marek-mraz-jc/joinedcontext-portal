@@ -80,11 +80,25 @@ export class SourceError extends Error {
   readonly status: number;
   /** The attribute the refusal is about, where the problem names one (`slot`, DM-70). */
   readonly slot?: string;
-  constructor(status: number, message: string, slot?: string) {
+  /** The problem document's own `title` and `detail`, for a grid that words the refusal itself. */
+  readonly problem?: { title?: string; detail?: string };
+  /**
+   * The source refused to order the answer (a 400 BadRequestData on a query with `orderBy`): a
+   * broker that also reads other brokers never orders (CIM 009 5.7.2.4, 4.23.1).
+   */
+  readonly orderRefused?: boolean;
+  constructor(
+    status: number,
+    message: string,
+    slot?: string,
+    extra?: { problem?: { title?: string; detail?: string }; orderRefused?: boolean },
+  ) {
     super(message);
     this.name = "SourceError";
     this.status = status;
     this.slot = slot;
+    this.problem = extra?.problem;
+    this.orderRefused = extra?.orderRefused;
   }
 }
 
@@ -141,6 +155,14 @@ function detailOf(body: unknown, fallback: string): string {
     if (typeof problem.title === "string" && problem.title) return problem.title;
   }
   return fallback;
+}
+
+/** The text members of a problem document, where the answer is one. */
+function problemOf(body: unknown): { type?: string; title?: string; detail?: string } {
+  if (typeof body !== "object" || body === null) return {};
+  const raw = body as Record<string, unknown>;
+  const text = (key: string) => (typeof raw[key] === "string" && raw[key] !== "" ? (raw[key] as string) : undefined);
+  return { type: text("type"), title: text("title"), detail: text("detail") };
 }
 
 function entitiesQuery(q: GridQuery, offset: number, limit: number): string {
@@ -234,6 +256,13 @@ function ngsiSource(base: string, transport: Transport, language: string, hidden
         method: "GET",
         path: `${base}/entities?${entitiesQuery(q, page.offset, page.limit)}`,
       });
+      if (status === 400) {
+        const { type, title, detail } = problemOf(body);
+        throw new SourceError(400, detail ?? title ?? "the query was refused", undefined, {
+          problem: { title, detail },
+          orderRefused: Boolean(q.orderBy) && (type ?? title ?? "").endsWith("BadRequestData"),
+        });
+      }
       if (!ok(status)) refuse(status, body, "the read was refused");
       if (!Array.isArray(body)) throw new SourceError(status, "the answer is not a list of entities");
       return {
