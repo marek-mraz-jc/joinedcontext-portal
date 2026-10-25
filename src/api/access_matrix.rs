@@ -123,16 +123,10 @@ pub async fn access_matrix(
     Path((project, name)): Path<(String, String)>,
     Query(query): Query<MatrixQuery>,
 ) -> Result<Json<Matrix>, ApiError> {
-    let identity = &user.0.identity;
-    let (slug, space, rights) = admitted(&state, identity, &project, &name, query.kind.as_deref())?;
+    let (identity, kind) = (&user.0.identity, query.kind.as_deref());
+    let (slug, space, rights) = admitted(&state, identity, &project, &name, kind)?;
     let policies = policies_of(&state, &project, &space);
-    let candidates = candidates(
-        &state,
-        &project,
-        &policies,
-        rights.as_ref(),
-        query.kind.as_deref(),
-    )?;
+    let candidates = candidates(&state, &project, &policies, rights.as_ref(), kind)?;
     let answers = ask_each(&state, &slug, candidates.keys().cloned().collect()).await;
     let matrix = assemble(&name, space, candidates, answers, &policies)?;
     record(&state, identity, &project, &name, matrix.principals.len()).await;
