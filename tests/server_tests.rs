@@ -6,11 +6,87 @@ use joinedcontext_portal::server;
 use joinedcontext_portal::state::AppState;
 use tower::ServiceExt;
 
+mod common;
+
+/// T-5627: a visitor without a session who opens the installation's name gets the public
+/// catalogue, never a login; the query (`?lang=en`) travels along and no cache keeps the answer.
 #[tokio::test]
-async fn root_serves_the_html_shell() {
+async fn root_sends_a_visitor_without_a_session_to_the_catalogue() {
+    for (uri, location) in [("/", "/catalogue"), ("/?lang=en", "/catalogue?lang=en")] {
+        let app = server::app(AppState::new(Config::for_tests(), None));
+        let response = app
+            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FOUND, "{uri}");
+        assert_eq!(response.headers()[header::LOCATION], location, "{uri}");
+        assert_eq!(
+            response.headers()[header::CACHE_CONTROL],
+            "no-store",
+            "{uri}"
+        );
+    }
+}
+
+/// T-5627: a token the Portal cannot verify is no session either; the edge header is believed
+/// only when the configuration trusts an edge, and then only once verified.
+#[tokio::test]
+async fn root_sends_an_unverified_token_to_the_catalogue_too() {
+    let mut config = Config::for_tests();
+    config.trust_edge_token = true;
+    for (name, value) in [
+        ("x-access-token", "forged"),
+        ("authorization", "Bearer forged"),
+    ] {
+        let app = server::app(AppState::new(config.clone(), None));
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header(name, value)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FOUND, "{name}");
+        assert_eq!(response.headers()[header::LOCATION], "/catalogue", "{name}");
+    }
+}
+
+/// T-5627: a signed-in steward still lands on the home page at `/`.
+#[tokio::test]
+async fn root_serves_a_signed_in_person_the_home_page() {
+    let config = Config::for_tests();
+    let cookie = common::cookie(&config, common::person("steward"));
+    let app = server::app(AppState::new(config, None));
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/")
+                .header(header::COOKIE, cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(response.headers()[header::CONTENT_TYPE]
+        .to_str()
+        .unwrap()
+        .contains("text/html"));
+}
+
+#[tokio::test]
+async fn a_page_serves_the_html_shell() {
     let app = server::app(AppState::new(Config::for_tests(), None));
     let response = app
-        .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/projects")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
@@ -26,7 +102,7 @@ async fn root_serves_the_html_shell() {
     let body_bytes = response.into_body().collect().await.unwrap().to_bytes();
     let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
     // `ui/dist` is empty in CI (build.rs only creates the folder) and full after a local
-    // `pnpm build`; both must answer `/` with the SPA shell.
+    // `pnpm build`; both must answer a page with the SPA shell.
     assert!(
         body_str.contains("UI bundle not built") || body_str.contains("id=\"root\""),
         "unexpected shell: {body_str}"
@@ -86,7 +162,7 @@ async fn spa_route_falls_back_to_index() {
     let body_bytes = response.into_body().collect().await.unwrap().to_bytes();
     let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
     // `ui/dist` is empty in CI (build.rs only creates the folder) and full after a local
-    // `pnpm build`; both must answer `/` with the SPA shell.
+    // `pnpm build`; both must answer a page with the SPA shell.
     assert!(
         body_str.contains("UI bundle not built") || body_str.contains("id=\"root\""),
         "unexpected shell: {body_str}"

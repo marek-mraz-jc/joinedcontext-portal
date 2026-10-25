@@ -52,7 +52,12 @@ async fn a_built_image_serves_the_portal_and_not_the_placeholder() {
     }
     let app = server::app(AppState::new(Config::for_tests(), None));
     let response = app
-        .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/catalogue")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
