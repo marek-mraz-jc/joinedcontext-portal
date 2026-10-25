@@ -1142,6 +1142,9 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       )}
       {!onHide && ownHidden.length > 0 && <HiddenFields attrs={ownHidden} labels={labels} labelOf={hiddenLabel} onShow={showColumns} />}
       {overflows && <p className="jc-grid-scroll-hint">{labels.scrollHint}</p>}
+      {grid.sortedLoadedOnly && rows.length > 0 && (
+        <p className="jc-grid-sort-note" role="status">{labels.sortedLoaded.replace("{count}", String(rows.length))}</p>
+      )}
       <div className="jc-grid-scroll" ref={scrollRef} onScroll={virtual ? onScroll : undefined}>
         <table
           ref={tableRef}
@@ -1468,7 +1471,17 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         </div>
       )}
 
-      {error && <div className="jc-grid-error">{labels.error}: {error}</div>}
+      {error && (
+        <div className="jc-grid-error">
+          {labels.error}: {error}
+          {grid.errorDetail && (
+            <details className="jc-grid-error-detail">
+              <summary>{labels.errorDetail}</summary>
+              <p>{grid.errorDetail}</p>
+            </details>
+          )}
+        </div>
+      )}
 
       {detailRow && (
         <RowDetail
