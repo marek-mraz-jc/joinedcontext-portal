@@ -190,7 +190,7 @@ fn people(state: &AppState) -> Result<&People, ApiError> {
 /// The caller holds `verb` on `Person` in a binding at organization scope (PF-91).
 /// The verb on Person; administering anyone (every verb but read) is a decision door that
 /// also wants a second factor in the session (T-5567).
-fn allow(state: &AppState, identity: &Identity, verb: Verb) -> Result<(), ApiError> {
+pub(crate) fn allow(state: &AppState, identity: &Identity, verb: Verb) -> Result<(), ApiError> {
     crate::permissions::for_request(state, identity, ORG_NAMESPACE).check(PERSON, verb, None)?;
     if verb == Verb::Read {
         return Ok(());
