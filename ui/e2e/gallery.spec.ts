@@ -148,9 +148,11 @@ for (const size of SIZES) {
         fullPage: true,
         animations: "disabled",
         caret: "hide",
-        // Another machine's chromium rasterizes text a shade differently; a layout change is far
-        // above this (the ratio `visual.spec.ts` holds its own baselines at).
-        maxDiffPixelRatio: 0.03,
+        // Pixels, not a ratio of the page (T-5575): 2 px more padding on the shared Button moved
+        // 5 758 to 14 563 pixels per size, under 1 % of the full page, so the old 3 % ratio let it
+        // through. Another machine's chromium rasterizes text a shade differently: 0 to 217 pixels
+        // against these baselines on the sandbox's chromium 1243.
+        maxDiffPixels: 1500,
       });
     });
   });

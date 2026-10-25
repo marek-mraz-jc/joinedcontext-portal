@@ -29,6 +29,7 @@ jobs:
       rust: ${{ steps.paths.outputs.rust }}
       ui: ${{ steps.paths.outputs.ui }}
       apps: ${{ steps.paths.outputs.apps }}
+      gallery: ${{ steps.paths.outputs.gallery }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: the path filter self-test
@@ -204,6 +205,37 @@ jobs:
         run: cd ui && pnpm vitest run --shard=${{ matrix.shard }}/4
       - if: steps.has.outputs.ui == 'no'
         run: echo "no ui/package.json yet"
+  # The component-gallery baselines (T-5575; UI-15, UI-16, UI-27): four screenshots against the
+  # vite dev server, no backend. They ran only in the daily ci-full e2e, so a shared component's
+  # spacing or a token changed by hand turned red a day later in a lane already red for other
+  # reasons. PW_ONLY=gallery starts the dev server alone (playwright.config.ts). A baseline
+  # changes on purpose only: `pnpm e2e -- --project=gallery --update-snapshots`.
+  ui-gallery:
+    needs: changes
+    if: needs.changes.outputs.gallery == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with: { version: 10 }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: ui/pnpm-lock.yaml }
+      # The UI links the SDK's sources and `link:` installs nothing for the sibling (T-1439).
+      - run: cd sdk && pnpm install --frozen-lockfile
+      - run: cd ui && pnpm install --frozen-lockfile && pnpm exec playwright install --with-deps chromium
+      - name: the component gallery matches its baselines
+        env: { PW_ONLY: gallery }
+        run: cd ui && pnpm exec playwright test
+      # The actual and diff PNGs tell an intended change, whose baseline then wants regenerating,
+      # from a layout that broke (T-2311).
+      - if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ui-gallery-results
+          path: ui/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
   # The applications, beside the UI rather than after it: each app installs, tests and builds on
   # its own, and after the UI suite they ran past the ui job's budget (d40934c, run 35714368871).
   # Same steps as before, in their own job; nothing is skipped or sharded.
