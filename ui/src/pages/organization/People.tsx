@@ -15,6 +15,7 @@ import {
   Alert,
   Badge,
   Button,
+  Checkbox,
   ConfirmDialog,
   Dialog,
   EmptyState,
@@ -395,6 +396,8 @@ export function People(): JSX.Element {
   const [writing, setWriting] = useCreateForm();
   const [secret, setSecret] = useState<{ email: string; password: string } | null>(null);
   const [invited, setInvited] = useState<Invitation | null>(null);
+  // The people ticked on this page; a new search or page starts with nobody ticked.
+  const [selected, setSelected] = useState<Person[]>([]);
 
   const people = useQuery({
     queryKey: queryKeys.peoplePage(search, first),
@@ -442,6 +445,7 @@ export function People(): JSX.Element {
               event.preventDefault();
               setFirst(0);
               setSearch(typed.trim());
+              setSelected([]);
             }}
           >
             <Field id={searchField} label={t("organization.people.search")}>
@@ -460,6 +464,8 @@ export function People(): JSX.Element {
 
           <PendingInvitations people={people.data?.items ?? []} locale={locale} />
 
+          <BulkActions selected={selected} onDone={() => setSelected([])} />
+
           {people.error ? (
             <PageFailed error={people.error} onRetry={() => void people.refetch()} />
           ) : (
@@ -469,17 +475,20 @@ export function People(): JSX.Element {
               status={people.isPending ? t("app.loading") : undefined}
             >
               <TableHead>
+                <TableHeaderCell>
+                  <SelectAll items={people.data?.items ?? []} selected={selected} onChange={setSelected} />
+                </TableHeaderCell>
                 <TableHeaderCell>{t("organization.people.name")}</TableHeaderCell>
                 <TableHeaderCell>{t("organization.people.email")}</TableHeaderCell>
                 <TableHeaderCell>{t("organization.people.state")}</TableHeaderCell>
                 <TableHeaderCell>{t("organization.people.lastSeen")}</TableHeaderCell>
               </TableHead>
               {people.isPending ? (
-                <TableSkeleton columns={4} />
+                <TableSkeleton columns={5} />
               ) : (
                 <TableBody>
                   {(people.data?.items ?? []).length === 0 ? (
-                    <TableEmpty columns={4}>
+                    <TableEmpty columns={5}>
                       <EmptyState
                         bare
                         title={search ? t("organization.people.noMatch", { search }) : t("organization.people.empty")}
@@ -489,6 +498,17 @@ export function People(): JSX.Element {
                   ) : (
                     (people.data?.items ?? []).map((person) => (
                       <TableRow key={person.id}>
+                        <TableCell>
+                          <Checkbox
+                            label={<span className="sr-only">{t("organization.people.bulk.select", { name: fullName(person) })}</span>}
+                            checked={selected.some((one) => one.id === person.id)}
+                            onChange={(event) =>
+                              setSelected((now) =>
+                                event.target.checked ? [...now, person] : now.filter((one) => one.id !== person.id),
+                              )
+                            }
+                          />
+                        </TableCell>
                         <TableCell primary>
                           <Link
                             data-row-link=""
@@ -525,7 +545,10 @@ export function People(): JSX.Element {
                 size="sm"
                 disabled={first === 0}
                 disabledReason={t("app.firstPage")}
-                onClick={() => setFirst(Math.max(0, first - PAGE))}
+                onClick={() => {
+                  setFirst(Math.max(0, first - PAGE));
+                  setSelected([]);
+                }}
               >
                 {t("organization.people.previous")}
               </Button>
@@ -534,7 +557,10 @@ export function People(): JSX.Element {
                 size="sm"
                 disabled={people.data?.next == null}
                 disabledReason={t("app.lastPage")}
-                onClick={() => setFirst(people.data?.next ?? first)}
+                onClick={() => {
+                  setFirst(people.data?.next ?? first);
+                  setSelected([]);
+                }}
               >
                 {t("organization.people.next")}
               </Button>
@@ -556,6 +582,130 @@ export function People(): JSX.Element {
       />
       <OneTimePassword secret={secret} onClose={() => setSecret(null)} />
     </section>
+  );
+}
+
+/** The header box: ticks everyone on the page, or nobody when everyone already is; none on an empty page. */
+function SelectAll({
+  items,
+  selected,
+  onChange,
+}: {
+  items: Person[];
+  selected: Person[];
+  onChange: (people: Person[]) => void;
+}): JSX.Element | null {
+  const { t } = useTranslation();
+  if (items.length === 0) return null;
+  const all = items.every((person) => selected.some((one) => one.id === person.id));
+  return (
+    <Checkbox
+      label={<span className="sr-only">{t("organization.people.bulk.selectAll")}</span>}
+      checked={all}
+      onChange={() => onChange(all ? [] : items)}
+    />
+  );
+}
+
+type Bulk = "disable" | "delete";
+
+type BulkOutcome = { text: string; failed?: boolean } | { change: Change };
+
+/**
+ * Disables or deletes the ticked people at once (T-5606): a department leaving is one confirm
+ * naming the count, and a deletion is ONE Change taking all of them out of every Group and
+ * RoleBinding. The server holds each person to the single route's rules and says who it refused.
+ */
+function BulkActions({ selected, onDone }: { selected: Person[]; onDone: () => void }): JSX.Element {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [asking, setAsking] = useState<Bulk | null>(null);
+  const [outcome, setOutcome] = useState<BulkOutcome | null>(null);
+  const count = selected.length;
+  const act = useMutation({
+    mutationFn: async (bulk: Bulk): Promise<BulkOutcome> => {
+      if (bulk === "delete") {
+        const result = await api.POST("/api/v1/organization/people/remove", {
+          body: { ids: selected.map((person) => person.id) },
+        });
+        const change = await unwrap(result);
+        return result.response.status === 204
+          ? { text: t("organization.people.bulk.deleted", { count }) }
+          : { change: change as Change };
+      }
+      // A disable changes no manifest: each person is their own call, one after another.
+      const failed: string[] = [];
+      for (const person of selected) {
+        try {
+          await perform(person.id, "disable");
+        } catch (error) {
+          failed.push(`${person.email} (${reasonOf(error, t("app.error.generic"))})`);
+        }
+      }
+      return failed.length === 0
+        ? { text: t("organization.people.bulk.disabled", { count }) }
+        : {
+            text: t("organization.people.bulk.partly", { done: count - failed.length, count, failed: failed.join(", ") }),
+            failed: true,
+          };
+    },
+    onMutate: () => setOutcome(null),
+    // The refusal names the person; the dialog closes so the alert beside the ticks is read.
+    onError: () => setAsking(null),
+    onSuccess: (done) => {
+      setAsking(null);
+      setOutcome(done);
+      onDone();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.people() });
+    },
+  });
+  return (
+    <div className="space-y-2">
+      <p className="text-caption text-fg-muted">{t("organization.people.bulk.hint")}</p>
+      {outcome && "change" in outcome ? <ChangeNotice change={outcome.change} project={ORG_NAMESPACE} /> : null}
+      {outcome && "text" in outcome ? (
+        <Alert tone={outcome.failed ? "warning" : "success"} role="status">
+          {outcome.text}
+        </Alert>
+      ) : null}
+      {act.error ? (
+        <Alert tone="danger" role="alert">
+          {reasonOf(act.error, t("app.error.generic"))}
+        </Alert>
+      ) : null}
+      {count === 0 ? null : (
+        <div role="toolbar" aria-label={t("organization.people.bulk.selected", { count })} className="flex flex-wrap items-center gap-2">
+          <span className="text-body text-fg">{t("organization.people.bulk.selected", { count })}</span>
+          <PermissionGuard project={ORG_NAMESPACE} kind="Person" verb="disable">
+            <Button variant="secondary" size="sm" disabled={act.isPending} disabledReason={t("app.busyReason")} onClick={() => setAsking("disable")}>
+              {t("organization.people.bulk.disable")}
+            </Button>
+          </PermissionGuard>
+          <PermissionGuard project={ORG_NAMESPACE} kind="Person" verb="delete">
+            <Button variant="danger" size="sm" disabled={act.isPending} disabledReason={t("app.busyReason")} onClick={() => setAsking("delete")}>
+              {t("organization.people.bulk.delete")}
+            </Button>
+          </PermissionGuard>
+          <Button variant="ghost" size="sm" onClick={onDone}>
+            {t("organization.people.bulk.clear")}
+          </Button>
+        </div>
+      )}
+      <ConfirmDialog
+        open={asking !== null}
+        onOpenChange={(open) => {
+          if (!open) setAsking(null);
+        }}
+        title={asking === "delete" ? t("organization.people.bulk.confirmDelete.title", { count }) : t("organization.people.bulk.confirmDisable.title", { count })}
+        description={asking === "delete" ? t("organization.people.bulk.confirmDelete.body") : t("organization.people.bulk.confirmDisable.body")}
+        confirmLabel={asking === "delete" ? t("organization.people.bulk.delete") : t("organization.people.bulk.disable")}
+        tone={asking === "delete" ? "danger" : "primary"}
+        pending={act.isPending}
+        onConfirm={() => {
+          if (asking) act.mutate(asking);
+        }}
+      />
+    </div>
   );
 }
 
