@@ -12,7 +12,7 @@ import { catalogueKey, datasetKey } from "../src/pages/catalogue/queries";
 import { notesBlocks, resourceSays } from "../src/pages/catalogue/DatasetPage";
 import { narrowed, parseCatalogueSearch, toggled } from "../src/pages/catalogue/search";
 import { snippets } from "../src/pages/catalogue/snippets";
-import { mapCollection } from "../src/pages/catalogue/DatasetMap";
+import { DatasetMap, mapCollection } from "../src/pages/catalogue/DatasetMap";
 import type { MapLayer } from "../src/components/dashboards/MapLibreView";
 
 const drawn: { layers: MapLayer[]; project?: string } = { layers: [] };
@@ -395,12 +395,12 @@ describe("the catalogue (EP-81, EP-82)", () => {
   it("says why when the map cannot be read, and reads it again on retry", async () => {
     answers["/api/v1/catalogue/datasets/bbsk-kpi/map"] = {
       status: 503,
-      body: { title: "Service Unavailable", status: 503, detail: "the endpoint of dataset 'bbsk-kpi' did not answer; try again in a minute" },
+      body: { title: "Service Unavailable", status: 503, detail: "The endpoint of dataset 'bbsk-kpi' did not answer; try again in a minute." },
     };
     answers["/api/v1/catalogue/datasets/bbsk-kpi/sample"] = { status: 404, body: { title: "Not Found", status: 404 } };
     renderAt("/catalogue/bbsk-kpi");
     expect(await screen.findByRole("heading", { level: 2, name: "Places on the map" })).toBeInTheDocument();
-    expect(await screen.findByRole("alert")).toHaveTextContent("The map could not be read; retry in a moment. the endpoint of dataset 'bbsk-kpi' did not answer");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/The endpoint of dataset 'bbsk-kpi' did not answer; try again in a minute\.Retry$/);
     answers["/api/v1/catalogue/datasets/bbsk-kpi/map"] = { status: 200, body: MAP };
     fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Retry" }));
     expect(await screen.findByRole("application", { name: "Map of AirQualityObserved" })).toBeInTheDocument();
@@ -417,6 +417,67 @@ describe("the catalogue (EP-81, EP-82)", () => {
     expect(screen.queryByRole("heading", { name: "Use this data" })).toBeNull();
     const paths = fetchMock.mock.calls.map((call) => new URL((call[0] as Request).url).pathname);
     expect(paths).not.toContain("/api/v1/catalogue/datasets/bbsk-kpi/sample");
+  });
+});
+
+describe("the dataset map on its own (T-5628)", () => {
+  function renderMap(answer: Answer) {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify(answer.body), {
+          status: answer.status,
+          headers: { "Content-Type": answer.status >= 400 ? "application/problem+json" : "application/json" },
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const view = render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <I18nextProvider i18n={i18n}>
+          <DatasetMap name="bbsk-kpi" />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    return { fetchMock, view };
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("draws the places it is given and counts them", async () => {
+    renderMap({ status: 200, body: MAP });
+    expect(await screen.findByRole("application", { name: "Map of AirQualityObserved" })).toBeInTheDocument();
+    expect(screen.getByText("The map shows the first 2 of 14 places.")).toBeInTheDocument();
+    expect(drawn.layers[0].popupProperties).toEqual(["Name", "PM10"]);
+  });
+
+  it("renders nothing for a dataset without places or without an endpoint", async () => {
+    for (const answer of [
+      { status: 200, body: { ...MAP, total: 0, features: [] } },
+      { status: 404, body: { title: "Not Found", status: 404, detail: "dataset 'bbsk-kpi' has no public endpoint here" } },
+    ]) {
+      const { fetchMock, view } = renderMap(answer);
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      await waitFor(() => expect(view.container).toBeEmptyDOMElement());
+      view.unmount();
+    }
+  });
+
+  it("says in one sentence why the map cannot be read, with a generic line when the server gives none", async () => {
+    const { view } = renderMap({
+      status: 503,
+      body: { title: "Service Unavailable", status: 503, detail: "The endpoint of dataset 'bbsk-kpi' did not answer; try again in a minute." },
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/The endpoint of dataset 'bbsk-kpi' did not answer; try again in a minute\.Retry$/);
+    expect(screen.getByRole("alert")).not.toHaveTextContent("could not be read");
+    view.unmount();
+    renderMap({ status: 503, body: { title: "Service Unavailable", status: 503 } });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/The map could not be read; try again in a moment\.Retry$/);
   });
 });
 

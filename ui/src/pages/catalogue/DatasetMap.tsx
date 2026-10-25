@@ -20,7 +20,6 @@ import {
   TableHeaderCell,
   TableRow,
 } from "../../components/ui";
-import { problemOf } from "./labels";
 import { datasetKey } from "./queries";
 
 // MapLibre (about 200 KB gzipped) loads only for a dataset that has a place to draw.
@@ -81,9 +80,8 @@ export function DatasetMap({ name }: { name: string }): JSX.Element | null {
             </Button>
           }
         >
-          {t("catalogue.dataset.mapFailed", {
-            reason: problemOf(map.error, t("app.error.generic")),
-          })}
+          {/* The server's reason is one sentence of its own; the generic line only stands in for it. */}
+          {(map.error instanceof ApiError && map.error.problem?.detail) || t("catalogue.dataset.mapFailed")}
         </Alert>
       </Section>
     );

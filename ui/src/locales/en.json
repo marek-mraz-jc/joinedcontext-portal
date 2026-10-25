@@ -8290,7 +8290,7 @@
       "mapCount": "{count, plural, one {# place on the map.} other {# places on the map.}}",
       "mapCountOf": "The map shows the first {shown} of {total} places.",
       "mapList": "{count, plural, one {The place as a list} other {The # places as a list}}",
-      "mapFailed": "The map could not be read; retry in a moment. {reason}",
+      "mapFailed": "The map could not be read; try again in a moment.",
       "says": {
         "ngsild": "Query and filter the entities over the NGSI-LD API.",
         "mcp": "Connect an AI assistant to this data (MCP).",

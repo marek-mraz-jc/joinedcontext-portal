@@ -1564,18 +1564,13 @@ pub async fn get_sample(
         (status = 503, description = "The Endpoint did not answer", body = crate::error::ProblemDetails),
     )
 )]
-pub async fn get_map(
+pub(crate) async fn get_map(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(name): Path<String>,
     axum::extract::Query(query): axum::extract::Query<MapQuery>,
 ) -> Result<Response, ApiError> {
-    let lang = query.lang.unwrap_or_else(|| "en".to_owned());
-    if !(2..=3).contains(&lang.len()) || !lang.bytes().all(|b| b.is_ascii_lowercase()) {
-        return Err(ApiError::BadRequest(format!(
-            "lang '{lang}' is no language code; send two or three lowercase letters, e.g. lang=sk"
-        )));
-    }
+    let lang = map_lang(query.lang)?;
     let (_, found) = dataset(&state, &name).await?;
     let no_map = || ApiError::NotFound(format!("dataset '{name}' has no public endpoint here"));
     let slug = extra(&found, "endpoint")
@@ -1586,19 +1581,40 @@ pub async fn get_map(
         .await
         .ok_or_else(no_map)?;
     let class = classes.into_iter().next().ok_or_else(no_map)?;
-    let unavailable = |reason: String| {
-        tracing::warn!(dataset = %name, %reason, "catalogue map failed");
-        ApiError::Unavailable(format!(
-            "the endpoint of dataset '{name}' did not answer; try again in a minute"
-        ))
-    };
+    let (total, entities) = located(&gateway_endpoint(&state, &slug), &class)
+        .await
+        .map_err(|reason| {
+            tracing::warn!(dataset = %name, %reason, "catalogue map failed");
+            ApiError::Unavailable(format!(
+                "The endpoint of dataset '{name}' did not answer; try again in a minute."
+            ))
+        })?;
+    let view: Option<jc_core::display_order::Display> =
+        serde_json::from_value(endpoint.spec["display"][&class].clone()).ok();
+    let mut map = map_of(&class, &entities, linkml.as_deref(), view.as_ref(), &lang);
+    map.total = total;
+    map.basemap = crate::api::basemap::style_url(&state.config, &project).map(|_| project);
+    Ok(cached(&headers, map))
+}
+
+/// The language a map labels its popups in: two or three lowercase letters, English when absent.
+fn map_lang(lang: Option<String>) -> Result<String, ApiError> {
+    let lang = lang.unwrap_or_else(|| "en".to_owned());
+    if !(2..=3).contains(&lang.len()) || !lang.bytes().all(|b| b.is_ascii_lowercase()) {
+        return Err(ApiError::BadRequest(format!(
+            "lang '{lang}' is no language code; send two or three lowercase letters, e.g. lang=sk"
+        )));
+    }
+    Ok(lang)
+}
+
+/// Up to [`MAP_ROWS`] keyValues entities of `class` from the Endpoint at `endpoint`, read
+/// anonymously, and the count the Endpoint reports; the reason as text when it did not answer.
+async fn located(endpoint: &str, class: &str) -> Result<(Option<u64>, Vec<Value>), String> {
     let response = HTTP
-        .get(format!(
-            "{}ngsi-ld/v1/entities",
-            gateway_endpoint(&state, &slug)
-        ))
+        .get(format!("{endpoint}ngsi-ld/v1/entities"))
         .query(&[
-            ("type", class.as_str()),
+            ("type", class),
             ("limit", MAP_ROWS.to_string().as_str()),
             ("options", "keyValues"),
             ("count", "true"),
@@ -1606,24 +1622,16 @@ pub async fn get_map(
         .header(header::ACCEPT, "application/json")
         .send()
         .await
-        .map_err(|e| unavailable(e.to_string()))?;
+        .map_err(|e| e.to_string())?;
     if !response.status().is_success() {
-        return Err(unavailable(format!("status {}", response.status())));
+        return Err(format!("status {}", response.status()));
     }
     let total = response
         .headers()
         .get("NGSILD-Results-Count")
         .and_then(|v| v.to_str().ok()?.parse().ok());
-    let entities: Vec<Value> = response
-        .json()
-        .await
-        .map_err(|e| unavailable(e.to_string()))?;
-    let view: Option<jc_core::display_order::Display> =
-        serde_json::from_value(endpoint.spec["display"][&class].clone()).ok();
-    let mut map = map_of(&class, &entities, linkml.as_deref(), view.as_ref(), &lang);
-    map.total = total;
-    map.basemap = crate::api::basemap::style_url(&state.config, &project).map(|_| project);
-    Ok(cached(&headers, map))
+    let entities = response.json().await.map_err(|e| e.to_string())?;
+    Ok((total, entities))
 }
 
 /// The DataModel of the space an Endpoint serves: its name, its classes and its LinkML source,
@@ -2287,5 +2295,24 @@ classes:
             ["sta", "ngsi-ld", "mcp"],
             "a list wins; sta is served only where listed"
         );
+    }
+
+    #[test]
+    fn a_map_is_labelled_in_english_unless_a_language_code_is_asked() {
+        assert_eq!(map_lang(None).ok().as_deref(), Some("en"));
+        assert_eq!(map_lang(Some("sk".into())).ok().as_deref(), Some("sk"));
+        assert_eq!(map_lang(Some("fil".into())).ok().as_deref(), Some("fil"));
+        for bad in ["", "s", "SK", "sk-SK", "slov", "s1", "<b>"] {
+            assert!(
+                matches!(map_lang(Some(bad.into())), Err(ApiError::BadRequest(_))),
+                "{bad:?} is refused"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn an_endpoint_that_does_not_answer_gives_its_reason() {
+        let refused = located("http://localhost:9/", "AirQualityObserved").await;
+        assert!(refused.is_err(), "a closed port is a reason, not a map");
     }
 }

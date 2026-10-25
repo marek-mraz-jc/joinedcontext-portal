@@ -8290,7 +8290,7 @@
       "mapCount": "{count, plural, one {# miesto na mape.} few {# miesta na mape.} other {# miest na mape.}}",
       "mapCountOf": "Mapa ukazuje prvých {shown} z {total} miest.",
       "mapList": "{count, plural, one {Miesto ako zoznam} other {Miesta ako zoznam (#)}}",
-      "mapFailed": "Mapu sa nepodarilo načítať; skúste to o chvíľu znova. {reason}",
+      "mapFailed": "Mapu sa nepodarilo načítať; skúste to o chvíľu znova.",
       "says": {
         "ngsild": "Dopytovanie a filtrovanie entít cez NGSI-LD API.",
         "mcp": "Pripojenie AI asistenta k týmto dátam (MCP).",
