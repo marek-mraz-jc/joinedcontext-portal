@@ -460,16 +460,21 @@ async fn propose_device(
             account.clone(),
         )
         .await?,
-        checked(
-            identity,
-            state,
-            project,
-            "mqttbrokers",
-            broker_name,
-            Operation::Update,
-            broker_manifest.clone(),
-        )
-        .await?,
+        // The account the role now lists is the other file of this Change (MF-13, T-5590).
+        crate::references::BUNDLE
+            .scope(
+                vec![account.clone()],
+                checked(
+                    identity,
+                    state,
+                    project,
+                    "mqttbrokers",
+                    broker_name,
+                    Operation::Update,
+                    broker_manifest.clone(),
+                ),
+            )
+            .await?,
     );
     let files = vec![
         file(ACCOUNT, project, &account)?,

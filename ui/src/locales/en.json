@@ -9637,7 +9637,8 @@
         "no_subscription": "There is nothing this subscriber may read.",
         "no_realm": "The gateway has no realm to check tokens with."
       }
-    }
+    },
+    "noAccounts": "No service account of this project that you can read. Add a device from the broker's page, or create one under Project settings, Service accounts."
   },
   "connect": {
     "title": "Connect an AI assistant",
