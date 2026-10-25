@@ -155,6 +155,48 @@ describe("row dialog (T-4828)", () => {
   });
 });
 
+// T-5599: the detail names no URN (the id is behind a copy button), reads an enum by its label and
+// says "not set" for an attribute with no value, on the page and read on its own.
+describe("row dialog values (T-5599)", () => {
+  const EVENT = "urn:ngsi-ld:Event:hel.fi:helsinki:elo-1";
+  const LATER = "urn:ngsi-ld:Event:hel.fi:helsinki:elo-2";
+  const events: Record<string, unknown>[] = [EVENT, LATER].map((id) => ({
+    id,
+    type: "Event",
+    eventStatus: { type: "Property", value: "EventScheduled" },
+    address: { type: "Property", value: {} },
+  }));
+  const config = parseGridConfig({
+    source: { kind: "fixture", name: "test" },
+    type: "Event",
+    columns: [
+      { attr: "eventStatus", label: "Status" },
+      { attr: "address", label: "Address" },
+    ],
+    pageSize: 1,
+    mode: "view",
+  }).config!;
+  const enums = { eventStatus: [{ value: "EventScheduled", title: "Scheduled" }] };
+
+  it.each([
+    ["on the page", undefined, EVENT],
+    ["read on its own", LATER, LATER],
+  ])("shows no URN, the enum label and not set %s, and copies the id", async (_, openRow, id) => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<EntityGrid config={config} source={fixtureSource(events)} enums={enums} openRow={openRow} />);
+    if (!openRow) fireEvent.click(await screen.findByRole("button", { name: `Open: ${EVENT}` }));
+    const dialog = await screen.findByRole("dialog", { name: `Details: ${id.split(":").at(-1)}` });
+    expect(dialog.textContent).not.toMatch(/urn:/);
+    const status = within(dialog).getByText("Status").nextElementSibling;
+    expect(status).toHaveTextContent(/^Scheduled$/);
+    expect(within(dialog).getByText("Address").nextElementSibling).toHaveTextContent(/^not set$/);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Copy identifier" }));
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Copied" })).toBeInTheDocument());
+    expect(writeText).toHaveBeenCalledWith(id);
+  });
+});
+
 describe("versions in a temporal answer (DM-114)", () => {
   it("keeps supersededAt and the text fields of provenance, organization and actorKind included, nothing else", () => {
     const body = {

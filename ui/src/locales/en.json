@@ -5387,6 +5387,8 @@
     "openRow": "Open",
     "rowDetail": "Details",
     "rowFields": "Fields",
+    "rowCopyId": "Copy identifier",
+    "rowNotSet": "not set",
     "historyVersions": "Every version, with who changed it and why",
     "historyVersionsRefused": "Your role may not read earlier versions in this space.",
     "historySuperseded": "Replaced",

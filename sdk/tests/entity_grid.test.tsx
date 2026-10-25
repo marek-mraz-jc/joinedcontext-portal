@@ -335,7 +335,9 @@ describe("EntityGrid", () => {
 
     fireEvent.click(open);
     const panel = screen.getByRole("dialog", { name: "Details: Kamppi" });
-    expect(within(panel).getByText("urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:001")).toBeInTheDocument();
+    // T-5599: the id is behind Copy identifier, never text in the dialog.
+    expect(panel.textContent).not.toMatch(/urn:/);
+    expect(within(panel).getByRole("button", { name: "Copy identifier" })).toBeInTheDocument();
     expect(within(panel).queryByRole("button", { name: /^Open/ })).toBeNull();
     expect(within(panel).getAllByRole("textbox").length).toBeGreaterThan(0);
   });

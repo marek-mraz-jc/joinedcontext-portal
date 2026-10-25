@@ -111,6 +111,8 @@ const cs: Strings = {
     openRow: "Otevřít",
     rowDetail: "Podrobnosti",
     rowFields: "Pole",
+    rowCopyId: "Kopírovat identifikátor",
+    rowNotSet: "nenastaveno",
     close: "Zavřít",
     id: "Identifikátor",
     type: "Typ",
@@ -273,6 +275,8 @@ const en: Strings = {
     openRow: "Open",
     rowDetail: "Details",
     rowFields: "Fields",
+    rowCopyId: "Copy identifier",
+    rowNotSet: "not set",
     close: "Close",
   },
 };

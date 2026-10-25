@@ -224,6 +224,8 @@ export function gridLabels(t: (key: string) => string): GridLabels {
     groupNoValue: t("entityGrid.groupNoValue"),
     rowDetail: t("entityGrid.rowDetail"),
     rowFields: t("entityGrid.rowFields"),
+    rowCopyId: t("entityGrid.rowCopyId"),
+    rowNotSet: t("entityGrid.rowNotSet"),
     close: t("entityGrid.close"),
     pasted: t("entityGrid.pasted"),
     skipped: t("entityGrid.skipped"),

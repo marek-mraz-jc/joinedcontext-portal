@@ -27,12 +27,18 @@ const LINKML = [
   "classes:",
   "  KeyPerformanceIndicator:",
   "    title: Key performance indicator",
-  "    slots: [id, name, kpiValue, category]",
+  "    slots: [id, name, kpiValue, category, address]",
   "slots:",
   "  id: {}",
   "  name: { range: string, title: Name }",
   "  kpiValue: { range: float, title: Value }",
-  "  category: { range: string, title: Category }",
+  "  category: { range: KpiCategory, title: Category }",
+  "  address: { range: string, title: Address }",
+  "enums:",
+  "  KpiCategory:",
+  "    permissible_values:",
+  "      quantitative: { title: Quantitative }",
+  "      qualitative: { title: Qualitative }",
   "",
 ].join("\n");
 
@@ -43,6 +49,8 @@ function kpi(n: number) {
     name: { type: "Property", value: `District ${n}` },
     kpiValue: { type: "Property", value: 10 * n, observedAt: "2026-10-20T10:00:00Z" },
     category: { type: "Property", value: "quantitative" },
+    // An attribute the import left empty: the detail says "not set" (T-5599).
+    address: { type: "Property", value: {} },
   };
 }
 
@@ -112,6 +120,11 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("tab")).toHaveText(["Fields", "History", "Metadata", "Comments"]);
     await expect(dialog.getByText("30", { exact: true })).toBeVisible();
+    // T-5599: no URN on screen (Copy identifier holds it), the enum's label, and "not set".
+    await expect(dialog).not.toContainText("urn:");
+    await expect(dialog.getByRole("button", { name: "Copy identifier" })).toBeVisible();
+    await expect(dialog.getByText("Quantitative", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("not set", { exact: true })).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
     await shot(page, `row-fields-${label}`);
 

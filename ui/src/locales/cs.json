@@ -5387,6 +5387,8 @@
     "openRow": "Otevřít",
     "rowDetail": "Podrobnosti",
     "rowFields": "Pole",
+    "rowCopyId": "Kopírovat identifikátor",
+    "rowNotSet": "nenastaveno",
     "historyVersions": "Každá verze, kdo ji změnil a proč",
     "historyVersionsRefused": "Vaše role v tomto prostoru nesmí číst starší verze.",
     "historySuperseded": "Nahrazeno",

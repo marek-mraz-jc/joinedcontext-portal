@@ -692,7 +692,7 @@ describe("the space's own data", () => {
     const urn = SPACE_ROWS[0].id;
     window.history.pushState({}, "", `/projects/banskabystrica/spaces/ovzdusie?row=${encodeURIComponent(urn)}`);
     renderInside({ status: 200, count: 1 });
-    const dialog = await screen.findByRole("dialog", { name: `${en.entityGrid.rowDetail}: ${urn}` });
+    const dialog = await screen.findByRole("dialog", { name: `${en.entityGrid.rowDetail}: ${urn.split(":").at(-1)}` });
     expect(within(dialog).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       en.entityGrid.rowFields,
       en.entityGrid.history,
@@ -709,7 +709,7 @@ describe("the space's own data", () => {
     renderInside({ status: 200, count: 1 });
     const urn = SPACE_ROWS[0].id;
     await userEvent.click(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: ${urn}` }));
-    expect(await screen.findByRole("dialog", { name: `${en.entityGrid.rowDetail}: ${urn}` })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: `${en.entityGrid.rowDetail}: ${urn.split(":").at(-1)}` })).toBeInTheDocument();
     expect(new URLSearchParams(window.location.search).get("row")).toBe(urn);
   });
 

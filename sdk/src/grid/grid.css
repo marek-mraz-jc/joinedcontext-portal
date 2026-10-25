@@ -747,11 +747,23 @@
   overflow-wrap: anywhere;
 }
 
-.jc-grid-detail-id {
-  margin: 0.25rem 0 0;
-  font-size: 0.8125rem;
+/* Copy identifier and Close: 44 px targets that wrap under each other on a phone (T-5599). */
+.jc-grid-detail-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.jc-grid-detail-actions button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
+/* An attribute with no value says so instead of showing nothing (T-5599). */
+.jc-grid-detail-empty {
   color: var(--jc-color-muted, #57606a);
-  overflow-wrap: anywhere;
+  font-style: italic;
 }
 
 .jc-grid-detail-list {

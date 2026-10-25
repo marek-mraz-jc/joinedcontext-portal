@@ -107,6 +107,8 @@ const fi: Strings = {
     openRow: "Avaa",
     rowDetail: "Tiedot",
     rowFields: "Kentät",
+    rowCopyId: "Kopioi tunniste",
+    rowNotSet: "ei asetettu",
     close: "Sulje",
     id: "Tunniste",
     type: "Tyyppi",
@@ -265,6 +267,8 @@ const en: Strings = {
     openRow: "Open",
     rowDetail: "Details",
     rowFields: "Fields",
+    rowCopyId: "Copy identifier",
+    rowNotSet: "not set",
     close: "Close",
   },
 };
