@@ -65,11 +65,12 @@ pub async fn open(gitea: &GiteaClient, proposal: &Proposal<'_>) -> Result<PullRe
         // The sha of what the branch already holds, so a retry updates the file instead of
         // being refused for creating one that exists.
         let existing = gitea.get_file(path, proposal.branch).await.ok().flatten();
-        // The same bytes are not written again: a rerun adds no empty commit to the review.
-        if existing
-            .as_ref()
-            .is_some_and(|file| file.content == crate::git::gitea::committed_text(path, content))
-        {
+        // The same bytes are not written again: a rerun adds no empty commit to the review. A
+        // native file an earlier run committed formatted (before F-POR2-017) counts as the same.
+        if existing.as_ref().is_some_and(|file| {
+            file.content == crate::git::gitea::committed_text(path, content)
+                || jc_core::yaml_fmt::format(content).is_ok_and(|text| text == file.content)
+        }) {
             continue;
         }
         let existing = existing.map(|file| file.sha);

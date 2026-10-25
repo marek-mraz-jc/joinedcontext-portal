@@ -475,7 +475,7 @@ pub fn check_trace(
 
 /// The account the pipeline writes as and, under per-pipeline identity, its Policies derived
 /// from this draft (PL-19, PL-20); the shared `pipelines` account keeps the Policies it has.
-fn identity(
+pub(crate) fn identity(
     state: &AppState,
     project: &str,
     name: &str,

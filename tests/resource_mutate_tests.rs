@@ -2171,3 +2171,47 @@ async fn a_project_catalogue_is_checked_with_the_project_and_its_iri_is_required
     assert!(body.contains("\"valid\":false"), "{body}");
     assert!(body.contains("spec.catalog.publisher.uri"), "{body}");
 }
+
+/// F-POR2-006: a patch by a person who may not read the manifest is answered exactly as a patch
+/// of a name that does not exist, so the answer discloses nothing.
+#[tokio::test]
+async fn a_patch_of_an_unreadable_manifest_answers_as_if_it_were_absent() {
+    let forge = MockServer::start().await;
+    let state = common::state_on(&forge);
+    state.mirror.upsert(common::envelope(
+        "Endpoint",
+        "air",
+        "ovzdusie",
+        json!({ "contextSpaceRef": "mobility", "audience": "project" }),
+    ));
+    let patch = Some(json!({ "spec": { "audience": "public" } }));
+    let held = common::send(
+        &state,
+        common::person("stranger"),
+        "PATCH",
+        "/api/v1/projects/ovzdusie/endpoints/air",
+        patch.clone(),
+    )
+    .await;
+    let absent = common::send(
+        &state,
+        common::person("stranger"),
+        "PATCH",
+        "/api/v1/projects/ovzdusie/endpoints/nope",
+        patch,
+    )
+    .await;
+    assert_eq!(held.status, StatusCode::NOT_FOUND, "{}", held.text);
+    assert_eq!(held.text.replace("air", "nope"), absent.text);
+}
+
+/// F-POR2-012: the branch name of a change is stable across builds. An open change is found by
+/// this name (CC-34); a toolchain whose hasher renames it would orphan every open change and let
+/// a second one open. A failure here is that toolchain bump: decide the migration then.
+#[test]
+fn the_branch_name_of_a_change_is_pinned() {
+    assert_eq!(
+        branch_name("ovzdusie", "Endpoint", "air", Operation::Update),
+        "portal/update-endpoint-air-878e627a"
+    );
+}

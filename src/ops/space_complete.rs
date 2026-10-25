@@ -738,18 +738,7 @@ pub async fn run(
             .pointer("/metadata/name")
             .and_then(Value::as_str)
             .unwrap_or(&space_name);
-        let stored = store
-            .put(
-                project,
-                "DataModel",
-                name,
-                m.clone(),
-                None,
-                &caller.identity.username,
-                caller.via.touched_kind(),
-            )
-            .await
-            .map_err(ops::drafts::draft_error)?;
+        let stored = put_draft(caller, state, project, "DataModel", name, m.clone()).await?;
         let verdict = if let Some(v) = model_verdict {
             store
                 .set_verdict(project, "DataModel", name, v)
@@ -788,18 +777,7 @@ pub async fn run(
             .pointer("/metadata/name")
             .and_then(Value::as_str)
             .unwrap_or("source");
-        let stored = store
-            .put(
-                project,
-                "DataSource",
-                name,
-                m.clone(),
-                None,
-                &caller.identity.username,
-                caller.via.touched_kind(),
-            )
-            .await
-            .map_err(ops::drafts::draft_error)?;
+        let stored = put_draft(caller, state, project, "DataSource", name, m.clone()).await?;
 
         let v = Some(
             datasource_verdict(caller, state, project, &m, input.url.is_some(), ds_findings).await,
@@ -879,18 +857,7 @@ pub async fn run(
             .pointer("/metadata/name")
             .and_then(Value::as_str)
             .unwrap_or("pipeline");
-        let stored = store
-            .put(
-                project,
-                "Pipeline",
-                name,
-                m.clone(),
-                None,
-                &caller.identity.username,
-                caller.via.touched_kind(),
-            )
-            .await
-            .map_err(ops::drafts::draft_error)?;
+        let stored = put_draft(caller, state, project, "Pipeline", name, m.clone()).await?;
 
         let p_verdict = pipeline_verdict(
             caller,
@@ -1615,6 +1582,50 @@ fn bundle_of(drafts: &[CompletedDraft]) -> Vec<Value> {
 
 /// One draft kept with the verdict of `jc_manifest_dry_run` on it; `inferred` when the completion
 /// drafted it rather than found it. `bundle` holds the drafts proposed with it as one Change.
+/// Stores `manifest` as the project's draft of `kind/name` for this caller: propose judged on
+/// the manifest itself, and another person's draft of the same name is a conflict, never
+/// overwritten (F-POR3-012).
+async fn put_draft(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    kind: &str,
+    name: &str,
+    manifest: Value,
+) -> Result<ops::drafts::Draft, OpError> {
+    crate::permissions::for_request(state, &caller.identity, project).check(
+        kind,
+        Verb::Propose,
+        Some(&manifest),
+    )?;
+    let store = draft_store(state);
+    let existing = store
+        .get(project, kind, name)
+        .await
+        .map_err(ops::drafts::draft_error)?;
+    if let Some(theirs) = existing
+        .as_ref()
+        .filter(|draft| draft.touched_by != caller.identity.username)
+    {
+        return Err(OpError::Api(ApiError::Conflict(format!(
+            "{kind} '{name}' already has a draft {} is working on; finish or drop it first, or name this one differently",
+            theirs.touched_by
+        ))));
+    }
+    store
+        .put(
+            project,
+            kind,
+            name,
+            manifest,
+            Some(existing.map_or(0, |draft| draft.version)),
+            &caller.identity.username,
+            caller.via.touched_kind(),
+        )
+        .await
+        .map_err(ops::drafts::draft_error)
+}
+
 async fn checked_draft(
     caller: &Caller,
     state: &AppState,
@@ -1629,18 +1640,7 @@ async fn checked_draft(
         .unwrap_or_default()
         .to_owned();
     let store = draft_store(state);
-    let stored = store
-        .put(
-            project,
-            &kind,
-            &name,
-            manifest.clone(),
-            None,
-            &caller.identity.username,
-            caller.via.touched_kind(),
-        )
-        .await
-        .map_err(ops::drafts::draft_error)?;
+    let stored = put_draft(caller, state, project, &kind, &name, manifest.clone()).await?;
     // The bundle is proposed with this draft as one Change, so a reference to one of its drafts
     // (the space naming its new model, the Endpoint its new space) resolves (T-5109).
     let check = ops::call(
