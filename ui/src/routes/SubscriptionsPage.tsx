@@ -28,9 +28,7 @@ import {
   Term,
 } from "../components/ui";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
-
-/** The space a subscription's manifest is filed under, the way every space-scoped kind is labelled. */
-const SPACE_LABEL = "joinedcontext.com/space";
+import { SPACE_LABEL } from "../schemas/modelprojection";
 
 export interface SubscriptionForm {
   name: string;
