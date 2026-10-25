@@ -349,6 +349,59 @@ async fn a_policy_reader_of_the_space_reads_it() {
     assert_eq!(answer.status, 200, "{}", answer.text);
 }
 
+/// PF-59: a ServiceAccount no Policy of the space names (granted through a role or a group) is
+/// a row for an administrator, and invisible to a Policy reader of the space who may not read
+/// ServiceAccounts: never asked about, never named.
+#[tokio::test]
+async fn a_service_account_shows_only_to_who_may_read_it() {
+    let r = rig().await;
+    r.state.mirror.upsert(common::envelope(
+        "ServiceAccount",
+        "sensors",
+        "helsinki",
+        json!({}),
+    ));
+    Mock::given(method("POST"))
+        .and(body_partial_json(
+            json!({ "subject": { "serviceAccount": "helsinki-sensors" } }),
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "admitted": true, "policies": [],
+            "permissions": [{ "resource": { "type": "BikeHireDockingStation" },
+                              "actions": ["upsertEntity"], "attributes": "*" }],
+            "prohibitions": []
+        })))
+        .mount(&r.gateway)
+        .await;
+    gateway_answers(&r.gateway).await;
+
+    let answer = matrix(&r.state, admin(), ROUTE).await;
+    assert_eq!(answer.status, 200, "{}", answer.text);
+    let m = body(&answer);
+    assert_eq!(
+        cell(&m, "serviceAccount:helsinki-sensors", "write", "permit")["attributes"],
+        "*"
+    );
+
+    let who = reader(
+        &r.state,
+        "pia",
+        &["Policy", "Endpoint"],
+        json!({ "contextSpace": "bikes" }),
+    );
+    r.gateway.reset().await;
+    gateway_answers(&r.gateway).await;
+    let answer = matrix(&r.state, who, ROUTE).await;
+    assert_eq!(answer.status, 200, "{}", answer.text);
+    assert!(!answer.text.contains("sensors"), "{}", answer.text);
+    for question in asked(&r.gateway).await {
+        assert!(
+            question["subject"].get("serviceAccount").is_none(),
+            "{question}"
+        );
+    }
+}
+
 /// A member who reads no Policy, or reads them only in another space, is refused before the
 /// gateway is asked.
 #[tokio::test]

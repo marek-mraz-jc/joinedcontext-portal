@@ -20,6 +20,7 @@ use crate::api::access_explore::EXPLORE_AT_ONCE;
 use crate::api::access_simulate::{ask_gateway, Resolved};
 use crate::auth::CurrentUser;
 use crate::error::ApiError;
+use crate::permissions::Effective;
 use crate::state::AppState;
 use crate::store::ListOptions;
 
@@ -99,7 +100,7 @@ pub struct Matrix {
     get,
     path = "/api/v1/projects/{project}/endpoints/{name}/access/matrix",
     summary = "Who May Do What On An Endpoint",
-    description = "Every principal a Policy of the Endpoint's space names, the project's ServiceAccounts and the public, against each type and read, write, delete and history, from the gateway's own grant document per principal (API/01 §56, EP-103). Organization administrators and whoever reads Policies in the Endpoint's space; recorded as an `access.simulated` activity event. Changes no data.",
+    description = "Every principal a Policy of the Endpoint's space names, the project's ServiceAccounts the caller may read and the public, against each type and read, write, delete and history, from the gateway's own grant document per principal (API/01 §56, EP-103). Organization administrators and whoever reads Policies in the Endpoint's space; recorded as an `access.simulated` activity event. Changes no data.",
     tag = "access",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -123,9 +124,15 @@ pub async fn access_matrix(
     Query(query): Query<MatrixQuery>,
 ) -> Result<Json<Matrix>, ApiError> {
     let identity = &user.0.identity;
-    let (slug, space) = admitted(&state, identity, &project, &name, query.kind.as_deref())?;
+    let (slug, space, rights) = admitted(&state, identity, &project, &name, query.kind.as_deref())?;
     let policies = policies_of(&state, &project, &space);
-    let candidates = candidates(&state, &project, &policies, query.kind.as_deref())?;
+    let candidates = candidates(
+        &state,
+        &project,
+        &policies,
+        rights.as_ref(),
+        query.kind.as_deref(),
+    )?;
     let answers = ask_each(&state, &slug, candidates.keys().cloned().collect()).await;
     let matrix = assemble(&name, space, candidates, answers, &policies)?;
     record(&state, identity, &project, &name, matrix.principals.len()).await;
@@ -133,15 +140,15 @@ pub async fn access_matrix(
 }
 
 /// The Endpoint's slug and space, once the caller may read its matrix: an organization
-/// administrator, or a reader of Policies in the Endpoint's space; everybody else is `403`
-/// before the gateway is asked.
+/// administrator (`None` rights: they read every manifest), or a reader of Policies in the
+/// Endpoint's space (their rights); everybody else is `403` before the gateway is asked.
 fn admitted(
     state: &AppState,
     identity: &crate::auth::Identity,
     project: &str,
     name: &str,
     kind: Option<&str>,
-) -> Result<(String, String), ApiError> {
+) -> Result<(String, String, Option<Effective>), ApiError> {
     if kind.is_some_and(|kind| !KINDS.contains(&kind)) {
         return Err(ApiError::BadRequest(format!(
             "kind must be one of {}",
@@ -171,7 +178,7 @@ fn admitted(
     let slug = endpoint.spec["slug"]
         .as_str()
         .ok_or_else(|| ApiError::NotFound(format!("the Endpoint {name} has no slug yet")))?;
-    Ok((slug.to_owned(), space))
+    Ok((slug.to_owned(), space, (!admin).then_some(rights)))
 }
 
 type Candidates = BTreeMap<(String, String), BTreeSet<MatrixVia>>;
@@ -181,9 +188,10 @@ fn candidates(
     state: &AppState,
     project: &str,
     policies: &[(String, Value)],
+    rights: Option<&Effective>,
     kind: Option<&str>,
 ) -> Result<Candidates, ApiError> {
-    let mut found = principals(state, project, policies);
+    let mut found = principals(state, project, policies, rights);
     if let Some(kind) = kind {
         found.retain(|key, _| key.0 == kind);
     }
@@ -306,9 +314,15 @@ fn policies_of(state: &AppState, project: &str, space: &str) -> Vec<(String, Val
 }
 
 /// Each principal the space's Policies name (the Policy's assignee, or each of its `rules`'),
-/// the project's ServiceAccounts and the public, keyed by (kind, name). A `did` assignee is no
+/// the project's ServiceAccounts the caller may read (PF-59: a kind they cannot read stays
+/// invisible; `None` rights read all) and the public, keyed by (kind, name). A `did` assignee is no
 /// token the gateway can be asked about and is left out.
-fn principals(state: &AppState, project: &str, policies: &[(String, Value)]) -> Candidates {
+fn principals(
+    state: &AppState,
+    project: &str,
+    policies: &[(String, Value)],
+    rights: Option<&Effective>,
+) -> Candidates {
     let mut found = Candidates::new();
     found.entry(("public".into(), "public".into())).or_default();
     for (name, spec) in policies {
@@ -336,6 +350,13 @@ fn principals(state: &AppState, project: &str, policies: &[(String, Value)]) -> 
         .mirror
         .list(project, "ServiceAccount", &ListOptions::default())
         .items
+        .into_iter()
+        .filter(|account| {
+            rights.is_none_or(|rights| {
+                serde_json::to_value(account)
+                    .is_ok_and(|manifest| rights.may_read_manifest("ServiceAccount", &manifest))
+            })
+        })
     {
         // The Keycloak client id is derived, never chosen (Architecture/12 §3).
         let client = format!("{project}-{}", account.metadata.name);
