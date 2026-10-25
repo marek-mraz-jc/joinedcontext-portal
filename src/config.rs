@@ -219,6 +219,10 @@ pub struct Config {
     /// `RoleBinding` can be written into an empty repository (`JC_PORTAL_BOOTSTRAP_ADMINS`,
     /// default `portal-approver`; T-0526, PF-50).
     pub bootstrap_admins: String,
+    /// Every decision door asks for a second factor proven in the session (T-5567, AUT-2).
+    /// Always on outside tests: no environment key turns it off; `Config::for_tests` leaves it
+    /// off so a test session that decides does not need a step-up of its own.
+    pub decisions_need_second_factor: bool,
     /// The usernames the Portal's own live journeys sign in as, the only people whose runs may
     /// carry `X-JC-Run-Origin: journey` (`JC_PORTAL_JOURNEY_USERS`, comma-separated; default
     /// none, so no one can mark a run; AG-93, T-2816).
@@ -314,6 +318,10 @@ impl std::fmt::Debug for Config {
             .field("oidc", &self.oidc)
             .field("trust_edge_token", &self.trust_edge_token)
             .field("connector_clients", &self.connector_clients)
+            .field(
+                "decisions_need_second_factor",
+                &self.decisions_need_second_factor,
+            )
             .field("dashboards", &self.dashboards)
             .field("setup", &self.setup)
             .field("cookie_key", &"[redacted]")
@@ -1789,6 +1797,7 @@ impl Config {
             health_dir,
             database_url,
             bootstrap_admins,
+            decisions_need_second_factor: true,
             journey_users,
             keycloak_admin,
             organization_bounds: organization_bounds(&lookup)?,
@@ -1863,6 +1872,7 @@ impl Config {
             // The dev realm's approver role: a test session that carries it may do everything,
             // one that does not is bound by whatever Role/RoleBinding the test puts in the mirror.
             bootstrap_admins: "portal-approver".to_owned(),
+            decisions_need_second_factor: false,
             journey_users: Vec::new(),
             keycloak_admin: None,
             organization_bounds: jc_core::kinds::OrganizationBounds::default(),

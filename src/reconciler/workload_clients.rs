@@ -460,6 +460,11 @@ fn contested(accounts: &[BoundAccount], listed: &Value) -> BTreeMap<String, Stri
     refused
 }
 
+/// Refuses every token a subject was issued until now (T-5568): the Portal's `revoke_subject`,
+/// which the gateway reads back through `/internal/revocations`.
+pub type Revoke =
+    std::sync::Arc<dyn Fn(String) -> futures_util::future::BoxFuture<'static, ()> + Send + Sync>;
+
 /// The realm's workload clients, as the reconciler's own client may write them.
 pub struct WorkloadClientSync {
     admin: Admin,
@@ -470,6 +475,8 @@ pub struct WorkloadClientSync {
     pipelines: Option<String>,
     /// The identities namespace, when every App's job principal gets its client too (AP-159).
     app_jobs: Option<String>,
+    /// What ends a removed client's tokens at once; `None` leaves them valid until they expire.
+    revoke: Option<Revoke>,
 }
 
 impl WorkloadClientSync {
@@ -481,7 +488,15 @@ impl WorkloadClientSync {
             admin: Admin::new(issuer, client_id, auth)?,
             pipelines: None,
             app_jobs: None,
+            revoke: None,
         })
+    }
+
+    /// Revokes the service-account user of each client this sync removes, so a deleted
+    /// ServiceAccount's tokens stop opening anything within the gateway's next poll (T-5568).
+    pub fn with_revoke(mut self, revoke: Revoke) -> Self {
+        self.revoke = Some(revoke);
+        self
     }
 
     /// Gives every Pipeline's own account its federated client, bound to its Kubernetes
@@ -584,7 +599,11 @@ impl WorkloadClientSync {
                 continue;
             }
             let mut outcome = ClientOutcome::of(account);
-            match client.get("id").and_then(Value::as_str) {
+            let uuid = client.get("id").and_then(Value::as_str);
+            if let Some(uuid) = uuid {
+                self.end_tokens(&token, uuid, &mut outcome).await;
+            }
+            match uuid {
                 Some(uuid) => match self
                     .admin
                     .send(
@@ -606,6 +625,36 @@ impl WorkloadClientSync {
             outcomes.push(outcome);
         }
         outcomes
+    }
+
+    /// Revokes the service-account user of the client `uuid` before the client goes: Keycloak
+    /// deletes that user with it, and its tokens would open the gateway until they expire. A
+    /// lookup that fails is a warning, never a reason to keep the client.
+    async fn end_tokens(&self, token: &str, uuid: &str, outcome: &mut ClientOutcome) {
+        let Some(revoke) = self.revoke.as_ref() else {
+            return;
+        };
+        let user = self
+            .admin
+            .send(
+                token,
+                reqwest::Method::GET,
+                &format!("/clients/{uuid}/service-account-user"),
+                None,
+            )
+            .await;
+        match user.map(|user| {
+            user.as_ref()
+                .and_then(|u| u.get("id"))
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        }) {
+            Ok(Some(id)) => revoke(id).await,
+            Ok(None) => {}
+            Err(err) => outcome.warnings.push(format!(
+                "the removed client's tokens stay valid until they expire: {err}"
+            )),
+        }
     }
 
     async fn converge_one(

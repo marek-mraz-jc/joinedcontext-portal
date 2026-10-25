@@ -60,6 +60,7 @@ fn identity(username: &str, groups: &[&str]) -> Identity {
         name: Some(username.to_owned()),
         roles: Vec::new(),
         groups: groups.iter().map(|group| (*group).to_owned()).collect(),
+        second_factor: false,
     }
 }
 

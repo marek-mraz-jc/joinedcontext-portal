@@ -38,6 +38,7 @@ fn cookies(config: &Config, groups: Vec<String>) -> String {
             name: Some("Demo Steward".into()),
             roles: Vec::new(),
             groups,
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,

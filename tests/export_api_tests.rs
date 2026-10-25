@@ -278,6 +278,7 @@ fn cookie_for(config: &Config, groups: Vec<String>) -> String {
             name: None,
             roles: Vec::new(),
             groups,
+            second_factor: false,
         },
         expires_at: now + 3600,
         issued_at: now,

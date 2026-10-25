@@ -3,6 +3,7 @@
 //! and the gateway outputs that write and record refusals. The client secret is only ever named
 //! as a `${JC_CLIENT_SECRET_<PROJECT>}` variable, never rendered.
 
+use jc_core::kinds::data_source::{DataSourceSpec, DataSourceType};
 use jc_core::kinds::pipeline::{OutputMode, PipelineSpec};
 use serde_json::Value;
 
@@ -159,27 +160,54 @@ fn own_caches(value: &mut Value, project: &str) {
 /// 64 pages while a slow gateway timed them out and they were retried, which grew the runner
 /// until it was OOMKilled. A polled source loses nothing by waiting: its input stops reading
 /// while the slots are full, and the next poll reads the newer state. A resident source (MQTT,
-/// WebSocket) keeps [`WRITES_IN_FLIGHT`], since its messages arrive whether or not it reads them.
+/// WebSocket) has its own window ([`in_flight`]), since its messages arrive whether or not it
+/// reads them.
 /// ponytail: one bound for every polled stream; size it per stream when one needs more.
 pub(super) const POLLED_IN_FLIGHT: u64 = 4;
 
-/// How many writes of a resident stream wait on the gateway at once: the 64 Bento's
-/// `http_client` output kept in flight when the write was the output (T-4036). The write is a
-/// processor now (T-4056), so the pipeline's threads are its window: one thread is one write
-/// waiting, and at the default (`GOMAXPROCS`, one on dev's runner) the HSL feed would be
-/// written one position at a time again. Measured with Bento 1.22 and a stub gateway: 64 threads
-/// write about 150 a second at 0.42 s a write and keep up with 500 a second at 30 ms, as the
-/// output did.
+/// How many writes of a resident stream wait on the gateway at once when the source is not read
+/// in batches: the 64 Bento's `http_client` output kept in flight when the write was the output
+/// (T-4036). The write is a processor now (T-4056), so the pipeline's threads are its window: one
+/// thread is one write waiting, and at the default (`GOMAXPROCS`, one on dev's runner) a feed of
+/// single records would be written one at a time. Measured with Bento 1.22 and a stub gateway: 64
+/// threads write about 150 a second at 0.42 s a write and keep up with 500 a second at 30 ms.
 pub(super) const WRITES_IN_FLIGHT: u64 = 64;
 
-/// Sets the stream's write window: [`POLLED_IN_FLIGHT`] for a polled source,
-/// [`WRITES_IN_FLIGHT`] otherwise.
-pub(super) fn bound_in_flight(stream: &mut Value, polled: bool) {
-    let threads = if polled {
-        POLLED_IN_FLIGHT
-    } else {
-        WRITES_IN_FLIGHT
-    };
+/// How many writes of a resident source read in batches (MQTT, WebSocket, T-5046) wait on the
+/// gateway at once: one. A batch is one upsert of up to 1000 records, so one write a second
+/// carries the HSL feed; 64 batches in flight held overlapping vehicle ids each, waited on each
+/// other's row locks past the broker's 5 s `lock_timeout`, failed with 500 and were replayed
+/// (T-5636: 2.7 s per UPDATE, Postgres at 1.9 cores). One at a time also writes a vehicle's
+/// positions in the order they came, so a late batch never sets an older position.
+pub(super) const BATCHES_IN_FLIGHT: u64 = 1;
+
+/// How many writes a stream reading `sources` keeps waiting on the gateway: the window of an
+/// unbatched resident source if it reads one, else [`BATCHES_IN_FLIGHT`] if it reads a batched
+/// one, else [`POLLED_IN_FLIGHT`]. `None` is an Endpoint source, which polls on a clock.
+pub(super) fn in_flight<'a>(sources: impl IntoIterator<Item = Option<&'a DataSourceSpec>>) -> u64 {
+    let mut threads = POLLED_IN_FLIGHT;
+    for source in sources.into_iter().flatten() {
+        if source.terminates() {
+            continue;
+        }
+        if !reads_in_batches(source) {
+            return WRITES_IN_FLIGHT;
+        }
+        threads = BATCHES_IN_FLIGHT;
+    }
+    threads
+}
+
+/// Whether a resident source is read through the broker input that batches it (T-5046).
+pub(super) fn reads_in_batches(source: &DataSourceSpec) -> bool {
+    matches!(
+        source.source_type,
+        DataSourceType::Mqtt | DataSourceType::WebSocket
+    )
+}
+
+/// Sets the stream's write window to `threads` (see [`in_flight`]).
+pub(super) fn bound_in_flight(stream: &mut Value, threads: u64) {
     if let Some(pipeline) = stream.get_mut("pipeline").and_then(Value::as_object_mut) {
         pipeline.insert("threads".to_owned(), threads.into());
     }

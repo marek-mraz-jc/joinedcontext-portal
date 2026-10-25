@@ -51,6 +51,16 @@
       "close": "Not now",
       "notYet": "You are not signed in yet. Finish signing in in the other tab, then continue."
     },
+    "stepUp": {
+      "title": "Confirm with your one-time code",
+      "body": "Approving, rejecting, revoking and administering people need a second factor in this session. You signed in with your password only.",
+      "how": "Sign in again in a new tab with your password and the code from your authenticator app. If you have no authenticator yet, the sign-in page sets one up. This page and what you typed stay here.",
+      "afterSignIn": "When you have entered the code in the new tab, come back here, continue, and press the decision again.",
+      "signIn": "Sign in with the code in a new tab",
+      "continue": "Continue here",
+      "close": "Not now",
+      "notYet": "The code has not arrived yet. Finish signing in in the other tab, then continue."
+    },
     "listHidden": "This list is not open to you in {project}. Whoever manages the project can grant it.",
     "busyReason": "Wait for the action in progress to finish.",
     "firstPage": "This is the first page.",
@@ -5397,8 +5407,13 @@
     "openRow": "Open",
     "rowDetail": "Details",
     "rowFields": "Fields",
+    "rowCopyId": "Copy identifier",
+    "rowNotSet": "not set",
     "historyVersions": "Every version, with who changed it and why",
     "historyVersionsRefused": "Your role may not read earlier versions in this space.",
+    "historyRefused": "Your role may read current values but not their history; ask a steward of this space.",
+    "historyRetry": "Try again",
+    "historyNotLoaded": "Not loaded",
     "historySuperseded": "Replaced",
     "historyChangedBy": "Changed by",
     "historyReason": "Reason",
@@ -5502,6 +5517,10 @@
     "noSpace": "Choose a context space to read",
     "noSpaceHint": "Its entities open here, read through one of its endpoints. Start with one of this project's spaces:",
     "typeInModel": "This type in its data model:",
+    "readThrough": "Read through",
+    "endpointHint": "The Endpoint whose Policy decides what you see. A link you share names it, so a colleague reads through the same one.",
+    "endpointUnshown": "The link names the Endpoint {name}, which this space does not show you",
+    "endpointUnshownPick": "Nothing is read through another Endpoint in its place. Pick one of the Endpoints you can read above, or ask the space's steward for access to {name}.",
     "views": "What to show",
     "entities": "Entities",
     "quality": {
@@ -8931,7 +8950,8 @@
     "unprocessable": "Correct each finding the answer lists; a dry run shows the same findings before you send.",
     "recipient-refused": "Send only to people of the organization whose e-mail address is verified.",
     "no-model-key": "Ask an administrator of the organization to add or renew the model key, then try again.",
-    "no-json": "Ask again; the model's answer did not match the requested schema."
+    "no-json": "Ask again; the model's answer did not match the requested schema.",
+    "second-factor-required": "Sign in again with your one-time code, then repeat the decision."
   },
   "jobs": {
     "title": "What you started",

@@ -51,6 +51,16 @@
       "close": "Teraz nie",
       "notYet": "Ešte nie ste prihlásení. Dokončite prihlásenie na druhej karte a potom pokračujte."
     },
+    "stepUp": {
+      "title": "Potvrďte jednorazovým kódom",
+      "body": "Schválenie, zamietnutie, odobratie prístupu a správa ľudí vyžadujú v tejto relácii druhý faktor. Prihlásili ste sa iba heslom.",
+      "how": "Prihláste sa znova na novej karte heslom a kódom z overovacej aplikácie. Ak ešte aplikáciu nemáte, prihlasovacia stránka vás ňou prevedie. Táto stránka aj to, čo ste napísali, tu zostanú.",
+      "afterSignIn": "Keď na novej karte zadáte kód, vráťte sa sem, pokračujte a rozhodnutie stlačte znova.",
+      "signIn": "Prihlásiť sa s kódom na novej karte",
+      "continue": "Pokračovať tu",
+      "close": "Teraz nie",
+      "notYet": "Kód ešte neprišiel. Dokončite prihlásenie na druhej karte a potom pokračujte."
+    },
     "listHidden": "Tento zoznam vám v {project} nie je prístupný. Udeliť ho môže ten, kto projekt spravuje.",
     "busyReason": "Počkajte, kým sa dokončí prebiehajúca akcia.",
     "firstPage": "Toto je prvá stránka.",
@@ -5397,8 +5407,13 @@
     "openRow": "Otvoriť",
     "rowDetail": "Podrobnosti",
     "rowFields": "Polia",
+    "rowCopyId": "Kopírovať identifikátor",
+    "rowNotSet": "nenastavené",
     "historyVersions": "Každá verzia, kto ju zmenil a prečo",
     "historyVersionsRefused": "Vaša rola v tomto priestore nesmie čítať staršie verzie.",
+    "historyRefused": "Vaša rola smie čítať aktuálne hodnoty, nie ich históriu; požiadajte správcu tohto priestoru.",
+    "historyRetry": "Skúsiť znova",
+    "historyNotLoaded": "Nenačítané",
     "historySuperseded": "Nahradené",
     "historyChangedBy": "Zmenil",
     "historyReason": "Dôvod",
@@ -5502,6 +5517,10 @@
     "noSpace": "Vyberte kontextový priestor na čítanie",
     "noSpaceHint": "Jeho entity sa otvoria tu, čítané cez jeden z jeho endpointov. Začnite jedným z priestorov tohto projektu:",
     "typeInModel": "Tento typ v jeho dátovom modeli:",
+    "readThrough": "Číta sa cez",
+    "endpointHint": "Endpoint, ktorého politika určuje, čo uvidíte. Odkaz, ktorý pošlete, ho uvádza, takže kolega číta cez ten istý.",
+    "endpointUnshown": "Odkaz uvádza Endpoint {name}, ktorý vám tento priestor neukazuje",
+    "endpointUnshownPick": "Namiesto neho sa nečíta cez iný Endpoint. Vyberte vyššie jeden z Endpointov, ktoré môžete čítať, alebo požiadajte správcu priestoru o prístup k {name}.",
     "views": "Čo zobraziť",
     "entities": "Entity",
     "quality": {
@@ -8931,7 +8950,8 @@
     "unprocessable": "Opravte každé zistenie, ktoré odpoveď uvádza; skúšobný beh ukáže tie isté zistenia ešte pred odoslaním.",
     "recipient-refused": "Posielajte len ľuďom z organizácie s overenou e-mailovou adresou.",
     "no-model-key": "Požiadajte správcu organizácie, aby pridal alebo obnovil kľúč k modelu, a skúste to znova.",
-    "no-json": "Opýtajte sa znova; odpoveď modelu nezodpovedala požadovanej schéme."
+    "no-json": "Opýtajte sa znova; odpoveď modelu nezodpovedala požadovanej schéme.",
+    "second-factor-required": "Prihláste sa znova jednorazovým kódom a rozhodnutie zopakujte."
   },
   "jobs": {
     "title": "Čo ste spustili",

@@ -444,6 +444,7 @@ impl Driver {
                 name: None,
                 roles: vec![],
                 groups: vec![],
+                second_factor: false,
             },
             access: Access::default(),
             kind: "conversation".into(),

@@ -35,6 +35,7 @@ fn identity(email: &str) -> Identity {
         name: None,
         roles: Vec::new(),
         groups: Vec::new(),
+        second_factor: false,
     }
 }
 

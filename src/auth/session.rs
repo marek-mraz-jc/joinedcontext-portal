@@ -98,6 +98,43 @@ pub struct Identity {
     /// never rendered: a cookie session is a person's and has none.
     #[serde(skip)]
     pub client: Option<String>,
+    /// The person proved a second factor when this session signed in: the token's `amr` names
+    /// `otp`, or its `acr` is the realm's step-up level `mfa`. Every decision door asks for it
+    /// (T-5567); `GET /api/v1/auth/me` reports it so the UI can offer the step-up.
+    #[serde(default)]
+    pub second_factor: bool,
+}
+
+/// The `acr` the realm sets once its step-up subflow asked the one-time code (`acr.loa.map`
+/// `{"mfa": 2}`, components/keycloak in the deployment) and the `acr_values` a step-up login
+/// asks for.
+pub const STEP_UP_ACR: &str = "mfa";
+
+/// Whether a token's `acr` and `amr` claims prove a second factor: `amr` (a list, or one
+/// string) names `otp`, as the realm tags every one-time-code step, or `acr` is
+/// [`STEP_UP_ACR`]. A token without either proves none.
+pub fn proves_second_factor(acr: Option<&str>, amr: &serde_json::Value) -> bool {
+    let otp = |method: &serde_json::Value| method.as_str() == Some("otp");
+    acr == Some(STEP_UP_ACR)
+        || otp(amr)
+        || amr
+            .as_array()
+            .is_some_and(|methods| methods.iter().any(otp))
+}
+
+/// The gate of every decision door (T-5567, AUT-2, PF-58): approving or rejecting a change,
+/// deciding an access request, revoking a grant, erasing a subject's data, administering people.
+/// Whatever path gave the right (realm role, RoleBinding, bootstrap group), the person proved a
+/// second factor in this session; otherwise 403 `second-factor-required` with the step-up login.
+/// A service account never proves one and is refused here as well as by the door's own rule.
+pub fn require_second_factor(
+    identity: &Identity,
+    config: &crate::config::Config,
+) -> Result<(), ApiError> {
+    if !config.decisions_need_second_factor || identity.second_factor {
+        return Ok(());
+    }
+    Err(ApiError::SecondFactorRequired)
 }
 
 /// The session payload. `Debug` redacts the tokens so none reaches a log line.
@@ -268,6 +305,15 @@ impl FromRequestParts<AppState> for CurrentUser {
             // `edge` client: its `azp` names that login, not a workload (PF-46).
             if front == Front::Edge {
                 session.identity.client = None;
+                // The edge logs in with its own static parameters and cannot ask the realm for
+                // the step-up level: that login is the Portal's own code flow, whose cookie
+                // session then proves the factor for the same person (T-5567).
+                session.identity.second_factor |= load_from(&parts.headers, &state.config)
+                    .is_some_and(|own| {
+                        own.identity.subject == session.identity.subject
+                            && own.identity.second_factor
+                            && !state.is_revoked(&own)
+                    });
             }
             if state.is_revoked(&session) {
                 return Err(ApiError::Unauthorized);
@@ -428,6 +474,7 @@ mod tests {
                 name: Some("Demo Steward".into()),
                 roles: Vec::new(),
                 groups: Vec::new(),
+                second_factor: false,
             },
             expires_at: now + expires_in,
             issued_at: now,
