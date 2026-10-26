@@ -1130,7 +1130,7 @@ The broker never writes a floating time. A date-time with an offset is an instan
 
 - a required field (`DTSTART`, `SUMMARY`) without a source;
 - a mapped attribute the type does not have in the space's model, or a dotted path into a class that lacks the member;
-- an attribute whose range the field does not accept: `date` or `datetime` for `DTSTART`, `DTEND` and `LAST-MODIFIED`; a string, an enum or a LanguageProperty for the text fields (`LOCATION` also takes a structured address); a GeoProperty for `GEO` (NGSI-LD `location`); `uri` for `URL`;
+- an attribute whose range the field does not accept: `date` or `datetime` for `DTSTART`, `DTEND` and `LAST-MODIFIED`, or a `string` whose `pattern` admits an ISO 8601 date or date-time and refuses free text (`^[0-9]{4}-[0-9]{2}-[0-9]{2}(T…)?$`, the shape of a model whose sources mix whole-day and timed events); a string, an enum or a LanguageProperty for the text fields (`LOCATION` also takes a structured address); a GeoProperty for `GEO` (NGSI-LD `location`); `uri` for `URL`;
 - a required field whose source is not a required slot, or a `firstOf` that does not end in one;
 - a `map` over an enum that does not cover every permissible value and names no `default`; a `STATUS` value other than `TENTATIVE`, `CONFIRMED` or `CANCELLED`;
 - a remap on a field that does not allow it, an unknown field or remap key, `UID` or `DTSTAMP` mapped, `DTEND` beside `DURATION`, `CLASS` other than `PUBLIC`, a `DURATION` constant that is not an RFC 5545 duration;
