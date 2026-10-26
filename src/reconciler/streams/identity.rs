@@ -349,6 +349,14 @@ pub(super) fn replaces(pipeline: &PipelineSpec, at: usize) -> bool {
         .is_some_and(|output| output.mode == Some(OutputMode::Replace))
 }
 
+/// Whether any output replaces its entities (PL-79): a changed stream then runs at once (T-5824).
+pub(super) fn replaces_any(pipeline: &PipelineSpec) -> bool {
+    pipeline
+        .outputs()
+        .iter()
+        .any(|output| output.mode == Some(OutputMode::Replace))
+}
+
 /// The writes to `targets` (an Endpoint slug and whether its output replaces the entity, PL-79),
 /// one after the other, each a `branch` around the upsert (T-4056).
 ///

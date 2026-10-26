@@ -1336,7 +1336,15 @@ fn place(
         Ok(clock) => {
             own_credential(&mut stream, ns);
             let stream = run_queue::one_run(&stream);
-            queued.insert((ns.to_owned(), name.clone()), Planned { stream, clock });
+            let replace = identity::replaces_any(spec);
+            queued.insert(
+                (ns.to_owned(), name.clone()),
+                Planned {
+                    stream,
+                    clock,
+                    replace,
+                },
+            );
             outcomes.push((
                 ns.to_owned(),
                 name,
@@ -4714,6 +4722,9 @@ output:
         assert!(upsert_at(&rendered, "write_0")["url"]
             .as_str()
             .is_some_and(|u| u.ends_with(&format!("/dst{merged}"))));
+        // T-5824: the run queue runs a changed stream at once only when an output replaces.
+        assert!(identity::replaces_any(&spec));
+        assert!(!identity::replaces_any(&plain));
     }
 
     /// PL-73: each record takes the first route whose `when` holds, runs that route's steps, and
