@@ -6887,6 +6887,10 @@ export interface components {
         };
         /** @description Who is signed in. Returned by `GET /api/v1/auth/me` and used by every protected route. */
         Identity: {
+            /**
+             * @description Only an address the identity provider verified ([`verified_email`]): a binding's `user`
+             *     subject matches it, so an address a person typed in unverified grants nothing.
+             */
             email?: string | null;
             /**
              * @description Keycloak group paths from the token's `groups` claim, without the leading `/`. Identity,

@@ -461,6 +461,19 @@ describe("delete and the trash (T-3107)", () => {
     vi.unstubAllGlobals();
   });
 
+  it("says so when the copy of a refused delete stays in the trash", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const request = input as Request;
+      return request.method === "POST" ? json({ id: 9, urn: "u", type: "T", entity: {}, deletedAt: "", expiresAt: "" }, 201) : json({ title: "down" }, 500);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const refused = vi.fn(() => Promise.reject(new SourceError(403, "no delete granted")));
+    await expect(deleteRow("helsinki", "bikes", { query: vi.fn(), get: vi.fn(), remove: refused }, station(2))).rejects.toThrow(
+      "no delete granted. Its copy also stays among your deleted entities.",
+    );
+    vi.unstubAllGlobals();
+  });
+
   it("asks before deleting a row and says a refusal in the gateway's words", async () => {
     let refuse = false;
     const onDelete = vi.fn(() => (refuse ? Promise.reject(new Error("no delete granted")) : Promise.resolve()));
@@ -508,6 +521,26 @@ describe("delete and the trash (T-3107)", () => {
     expect(restore).toHaveBeenCalledWith(item.entity);
     await waitFor(() => expect(screen.queryByTestId("view-trash")).toBeNull());
     expect(sentTo(fetchMock, "/spaces/bikes/trash/4").map((call) => call.method)).toEqual(["DELETE"]);
+    vi.unstubAllGlobals();
+  });
+
+  it("says a put-back entity's copy stayed when the trash keeps it", async () => {
+    const item = { id: 4, urn: station(1).id, type: "BikeHireDockingStation", entity: { id: station(1).id, type: "BikeHireDockingStation", name: { type: "Property", value: "Station 1" } }, deletedAt: "2026-10-06T19:20:00Z", expiresAt: "2026-11-05T19:20:00Z" };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => ((input as Request).method === "DELETE" ? json({ title: "down" }, 500) : json([item]))),
+    );
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <I18nextProvider i18n={i18n}>
+          <TrashPanel project="helsinki" space="bikes" restore={vi.fn(() => Promise.resolve())} />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    const panel = await screen.findByTestId("view-trash");
+    await userEvent.click(within(panel).getByText("Deleted entities (1)"));
+    await userEvent.click(within(panel).getByRole("button", { name: "Put back Station 1" }));
+    expect(await within(panel).findByText(/Station 1 is back, but its copy stays among your deleted entities \(HTTP 500\)/)).toBeInTheDocument();
     vi.unstubAllGlobals();
   });
 });

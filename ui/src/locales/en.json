@@ -814,6 +814,8 @@
       "restore": "Put back",
       "restoreOne": "Put back {name}",
       "restoreRefused": "{name} was not put back: {reason}",
+      "trashStray": "{reason}. Its copy also stays among your deleted entities.",
+      "restoredStray": "{name} is back, but its copy stays among your deleted entities ({reason}); putting it back again would clash with it.",
       "liveChanged": "Entities of this type changed at {time}; shown as they are now.",
       "moveReason": "Why you move (optional)",
       "boardReadOnly": "You can read this board. None of your Endpoints lets you change {attr}, so the cards stay where they are.",

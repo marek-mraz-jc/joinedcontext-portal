@@ -152,7 +152,7 @@ export function OneTimePassword({
   );
 }
 
-interface PersonForm {
+export interface PersonForm {
   email: string;
   firstName: string;
   lastName: string;
@@ -1220,6 +1220,16 @@ function viaText(via: Via | undefined, t: (key: string, options?: Record<string,
 }
 
 /** Edit a person's name, e-mail and language; a changed e-mail is verified again (PF-92). */
+/** What an edit changes, and nothing else: an address differing only in case is the same one, so it asks for no new verification. */
+export function changedFields(person: Person, next: PersonForm): components["schemas"]["EditPerson"] {
+  const body: components["schemas"]["EditPerson"] = {};
+  if (next.email.trim().toLowerCase() !== person.email.toLowerCase()) body.email = next.email.trim();
+  if (next.firstName.trim() !== person.firstName) body.firstName = next.firstName.trim();
+  if (next.lastName.trim() !== person.lastName) body.lastName = next.lastName.trim();
+  if (next.locale && next.locale !== (person.locale ?? "")) body.locale = next.locale;
+  return body;
+}
+
 function EditPersonDialog({
   person,
   open,
@@ -1243,11 +1253,7 @@ function EditPersonDialog({
 
   const edit = useMutation({
     mutationFn: async (next: PersonForm) => {
-      const body: components["schemas"]["EditPerson"] = {};
-      if (next.email.trim().toLowerCase() !== person.email) body.email = next.email.trim();
-      if (next.firstName.trim() !== person.firstName) body.firstName = next.firstName.trim();
-      if (next.lastName.trim() !== person.lastName) body.lastName = next.lastName.trim();
-      if (next.locale && next.locale !== (person.locale ?? "")) body.locale = next.locale;
+      const body = changedFields(person, next);
       return unwrap(
         await api.PATCH("/api/v1/organization/people/{id}", { params: { path: { id: person.id } }, body }),
       );

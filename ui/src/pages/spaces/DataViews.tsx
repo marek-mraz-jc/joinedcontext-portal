@@ -9,6 +9,7 @@ import type { JSX, ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { cellText, EntityHistory, toRichRow } from "@joinedcontext/sdk";
+import portalI18n from "../../i18n";
 import { api, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
 import type { EntitySource, RichRow } from "@joinedcontext/sdk";
@@ -1215,10 +1216,12 @@ export async function deleteRow(project: string, space: string, source: EntitySo
   try {
     await source.remove(row.id);
   } catch (error) {
-    await api.DELETE("/api/v1/projects/{project}/spaces/{space}/trash/{id}", {
+    const forgot = await api.DELETE("/api/v1/projects/{project}/spaces/{space}/trash/{id}", {
       params: { path: { ...path, id: kept.data.id } },
     });
-    throw error;
+    if (forgot.response.ok) throw error;
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(portalI18n.t("spaces.views.trashStray", { reason }));
   }
 }
 
@@ -1291,9 +1294,12 @@ export function TrashPanel({
                   setBusy(item.id);
                   try {
                     await restore(item.entity as Record<string, unknown>);
-                    await api.DELETE("/api/v1/projects/{project}/spaces/{space}/trash/{id}", {
+                    const forgot = await api.DELETE("/api/v1/projects/{project}/spaces/{space}/trash/{id}", {
                       params: { path: { project, space, id: item.id } },
                     });
+                    if (!forgot.response.ok) {
+                      setRefused(t("spaces.views.restoredStray", { name, reason: `HTTP ${forgot.response.status}` }));
+                    }
                     await queryClient.invalidateQueries({ queryKey: trashKey(project, space) });
                     await queryClient.invalidateQueries({ queryKey: ["space-view-rows", space] });
                   } catch (error) {
