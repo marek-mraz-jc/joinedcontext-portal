@@ -26,6 +26,7 @@ use super::space_rules::{
 };
 use super::temporal_q::intersect;
 use crate::capped::refusal;
+use futures_util::StreamExt;
 use jc_core::envelope::ORG_NAMESPACE;
 use jc_core::kinds::data_model::ModelImport;
 use jc_core::kinds::{
@@ -40,6 +41,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+
+/// How many view and rule-document reads one broker pass keeps in flight (T-5804).
+const WRITES_AT_ONCE: usize = 8;
 
 /// A broker call that has not answered in this long is a failed run, not a slow one.
 const TIMEOUT: Duration = Duration::from_secs(15);
@@ -1855,10 +1859,18 @@ impl ViewSync {
                 return;
             }
         };
-        for (id, (owner, view)) in &part.views {
-            let outcome = self
-                .put_if_changed(base, token, &format!("/q/views/{id}"), view)
-                .await;
+        // One read per view, most unchanged, so they go several at once (T-5804): one after
+        // the other they held a prod sync run for minutes. The outcomes keep the views' order.
+        let mut reads = Vec::with_capacity(part.views.len());
+        for (id, (_, view)) in &part.views {
+            let path = format!("/q/views/{id}");
+            reads.push(async move { self.put_if_changed(base, token, &path, view).await });
+        }
+        let written: Vec<ViewOutcome> = futures_util::stream::iter(reads)
+            .buffered(WRITES_AT_ONCE)
+            .collect()
+            .await;
+        for ((owner, _), outcome) in part.views.values().zip(written) {
             note(owner, outcome);
         }
         for id in listed.keys() {
@@ -1950,15 +1962,24 @@ impl ViewSync {
                 return;
             }
         }
-        for (tenant, (owner, document)) in &part.documents {
+        let mut reads = Vec::with_capacity(part.documents.len());
+        for (tenant, (_, document)) in &part.documents {
             let path = format!("/q/policy/{tenant}");
-            let outcome = match self.get(base, token, &path).await {
-                Ok(Some(stored)) if stored.get("document") == Some(document) => {
-                    ViewOutcome::Written
+            reads.push(async move {
+                match self.get(base, token, &path).await {
+                    Ok(Some(stored)) if stored.get("document") == Some(document) => {
+                        ViewOutcome::Written
+                    }
+                    Ok(_) => self.put(base, token, &path, document).await,
+                    Err(reason) => ViewOutcome::Failed(reason),
                 }
-                Ok(_) => self.put(base, token, &path, document).await,
-                Err(reason) => ViewOutcome::Failed(reason),
-            };
+            });
+        }
+        let written: Vec<ViewOutcome> = futures_util::stream::iter(reads)
+            .buffered(WRITES_AT_ONCE)
+            .collect()
+            .await;
+        for ((tenant, (owner, _)), outcome) in part.documents.iter().zip(written) {
             if outcome == ViewOutcome::Written {
                 self.written().insert(tenant.clone(), base.to_owned());
             }
@@ -3985,6 +4006,57 @@ mod tests {
         );
         assert!(!format!("{outcomes:?}").contains(TOKEN));
         assert!(sync.written().contains_key("city-air"));
+    }
+
+    /// T-5804: a broker pass over views the broker already holds sends no write and reads them
+    /// several at once, so a slow broker costs a run one read's wait per batch, never per view.
+    #[tokio::test]
+    async fn unchanged_views_are_read_several_at_once_and_never_written() {
+        let server = broker().await;
+        let view = json!({"id": "v", "rules": []});
+        let mut desired = Desired::default();
+        for n in 0..24 {
+            let owner = Owner {
+                kind: "Endpoint",
+                project: "city".into(),
+                name: format!("e{n}"),
+            };
+            desired
+                .views
+                .insert(format!("v{n:02}"), (owner, view.clone()));
+        }
+        json_at("/q/views", 200, json!({})).mount(&server).await;
+        json_at("/q/policy", 404, json!({})).mount(&server).await;
+        Mock::given(method("GET"))
+            .and(wiremock::matchers::path_regex("^/q/views/v[0-9]+$"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(&view)
+                    .set_delay(Duration::from_millis(400)),
+            )
+            .expect(24)
+            .mount(&server)
+            .await;
+        Mock::given(method("PUT"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        let file = token_file();
+        let sync = ViewSync::new(server.uri(), &file);
+        let started = std::time::Instant::now();
+        let outcomes = sync.apply(desired).await;
+        let elapsed = started.elapsed();
+        let _ = std::fs::remove_file(&file);
+
+        assert_eq!(outcomes.len(), 24);
+        assert!(
+            outcomes.iter().all(|(_, o)| *o == ViewOutcome::Written),
+            "{outcomes:?}"
+        );
+        // One after the other the 24 reads take 9.6 s; WRITES_AT_ONCE of them at once, 1.2 s.
+        assert!(elapsed < Duration::from_millis(4800), "{elapsed:?}");
     }
 
     /// PF-111: a space on broker `canary` is written to the canary's address and nothing of it

@@ -915,14 +915,17 @@ impl Syncer {
     }
 
     async fn do_sync(&self, leader: bool) -> Result<(usize, String), SyncError> {
+        let mut steps = Steps::start();
         // 1. Resolve default branch and its commit revision
         let default_branch = self.gitea.default_branch().await?;
         let revision = self.gitea.branch_head(&default_branch).await?;
+        steps.mark("revision");
 
         // 2, 3. The repository as files on disk, this run's own; in layout 2 the organization
         //       with every registered project mounted at `projects/{slug}/` (CC-86).
         // 4. Load and validate the whole repository the way `jcctl plan` does (CC-08, MF-05).
         let (scratch, repository) = self.stage_and_load(&revision).await?;
+        steps.mark("stage");
 
         // 4b. The author's mapping beside a Pipeline manifest (PL-03): the loader leaves
         //     `bento.yaml` alone, so the streams read it from the staged tree by name.
@@ -934,6 +937,7 @@ impl Syncer {
         let transitions = super::transitions::Transitions::of(&self.mirror);
         let (fresh_mirror, loaded) =
             self.load_mirror(&scratch, &repository, &revision, &default_branch)?;
+        steps.mark("mirror");
 
         // 5a. What the sync webhook route authorises a run against (MF-44, T-2297). Before the
         //     follower's early return: any replica can be the one an origin's hook reaches, and
@@ -944,18 +948,22 @@ impl Syncer {
         //     (DM-121); before the early return for the same reason.
         self.resolve_personal_keys(&fresh_mirror, scratch.path())
             .await;
+        steps.mark("secrets");
 
         // 5b. Every replica serves `/apps/*` from its own disk, so each one fetches the builds
         //     the new mirror names before anything is leader-only (AP-102).
         if let Some(cache) = self.apps_cache_dir.as_deref() {
             crate::apps::fetch::fetch_missing(&self.gitea, Path::new(cache), &fresh_mirror).await;
         }
+        steps.mark("app_builds");
 
         // A follower stops here: what the runner accepted, what the cluster runs and what the
         //    forge enforces are the leader's to converge, so its stream pipelines say so.
         if !leader {
             self.serve_as_follower(&fresh_mirror, &transitions, &repository)
                 .await;
+            steps.mark("follower");
+            steps.log(leader);
             return Ok((loaded, revision));
         }
 
@@ -965,6 +973,7 @@ impl Syncer {
         //       ponytail: compares with the last sync of this process; a deletion merged while
         //       the Portal was down leaves its repository open until an operator archives it.
         self.archive_deleted_projects(&fresh_mirror).await;
+        steps.mark("archive");
 
         // 5a'. Resolve what every pipeline's `secretRef`s name and hand the values to the
         //      runner as one Secret (T-0927, PL-15). A pipeline whose reference does not
@@ -973,14 +982,17 @@ impl Syncer {
         let refused = self
             .resolve_pipeline_secrets(&fresh_mirror, scratch.path())
             .await;
+        steps.mark("pipeline_secrets");
         // 5a-authors. A pipeline whose proposer or approver no longer reaches a source or
         //      target is held out the same way, the reference as its reason (PL-95, T-4917).
         let lost = self
             .lost_authors(&fresh_mirror, &repository, &scratch, &revision)
             .await;
+        steps.mark("authors");
         // 5a-access. A pipeline the gateway refused three runs in a row for a revoked or ended
         //      grant is held out the same way until a grant names it again (PL-93, T-4882).
         let lost = self.paused_for_access(&fresh_mirror, lost).await;
+        steps.mark("paused_for_access");
         let held: BTreeMap<_, _> = refused
             .iter()
             .chain(&lost)
@@ -994,21 +1006,25 @@ impl Syncer {
         //      ponytail: a deleted project's rows stay (it holds nothing to compare against);
         //      drop them with the project's archive when PF-77 grows a data purge.
         self.forget_gone_pipelines(&fresh_mirror).await;
+        steps.mark("forget_gone_pipelines");
 
         // 5b'. What every `Subscription` manifest declares, written into the space it names
         //      (T-0931, CC-72). The broker holds the effect, so the status of each manifest is
         //      where a person sees whether the declaration arrived.
         self.converge_subscriptions(&fresh_mirror, &scratch).await;
+        steps.mark("subscriptions");
 
         // 5b''. Every `ContextSourceRegistration`, written into the tenant of the hub space it
         //       names (T-0345, PF-48). A hub is a configuration, so the manifest's status is
         //       where a person sees whether the member was actually registered.
         self.converge_registrations(&fresh_mirror).await;
+        steps.mark("registrations");
 
         // 5b'''. Every Endpoint's and Context Space's view and every space's rule document,
         //        written into the broker (T-3640). The condition says whether the broker holds
         //        it; an Endpoint whose view is refused keeps the gateway path and its phase.
         self.converge_views(&fresh_mirror, &repository).await;
+        steps.mark("views");
 
         // 5c. The realm's managed groups, brought to what `users/groups/` says (PF-63). The
         //     drift lands on the Group manifests of this run's mirror, so the Access page shows
@@ -1017,10 +1033,12 @@ impl Syncer {
         //     filled from its bindings, which the forge maps onto the teams of 5c* (PF-87).
         let projects = fresh_mirror.repositories();
         self.converge_groups(&fresh_mirror, &projects).await;
+        steps.mark("groups");
 
         // 5c*. The forge teams those groups map onto: two per project of layout 2, each
         //      reaching its project's repository alone; a gone project's teams go (PF-87).
         self.converge_project_teams(&fresh_mirror, &projects).await;
+        steps.mark("project_teams");
 
         // 5c'. People whose removal Change has been decided (PF-93): merged, the Keycloak user
         //      goes; closed unmerged, the pending removal is dropped and the person stays
@@ -1028,10 +1046,12 @@ impl Syncer {
         if let Some((people, pool)) = self.people.as_ref() {
             crate::api::people::finish_deletions(people, pool, &self.gitea).await;
         }
+        steps.mark("people");
 
         // 5d. Every published App's own Keycloak client (ADR-N-030, AP-111). The secrets it reads
         //     back replace the last run's, so a retired App's secret is gone with its client.
         self.converge_app_clients(&fresh_mirror).await;
+        steps.mark("app_clients");
 
         // 5d'. The federated client of every ServiceAccount bound to a workload (PF-47). Nothing
         //      is read back: no secret opens such a client. A Pipeline's own account is bound
@@ -1039,19 +1059,23 @@ impl Syncer {
         //      App's job principal (AP-159).
         self.converge_workload_accounts(&fresh_mirror, &bentos)
             .await;
+        steps.mark("workload_accounts");
 
         // 5d''. One `endpoint:{slug}` scope on the MCP hub's client per Endpoint that serves MCP
         //       (T-2490, EP-88): the connect-time allow-list a hub token carries.
         self.converge_hub_scopes(&fresh_mirror).await;
+        steps.mark("hub_scopes");
 
         // 5d, named servers. One public PKCE client per named MCP server, its own audience
         //       (EP-96, T-3156).
         self.converge_mcp_clients(&fresh_mirror).await;
+        steps.mark("mcp_clients");
 
         // 5e. The file the edge serves: helm's base with the routes of every App whose client
         //     the step above has in place (ADR-N-030, AP-112). A failure leaves APISIX serving
         //     the last file it read.
         self.converge_edge_file(&fresh_mirror).await;
+        steps.mark("edge_file");
 
         // Until the stream wave below has answered, a stream pipeline says what the leader last
         // concluded, so a replica that has just taken the lock never serves its follower stamp
@@ -1071,6 +1095,7 @@ impl Syncer {
         if let Some(previous) = catalogue {
             self.start_catalogue_wave(previous, &repository, &scratch);
         }
+        steps.mark("swap");
 
         // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47), each with the
         //     validation stage of its space's model at the version the space pins now (PL-60).
@@ -1081,6 +1106,7 @@ impl Syncer {
         //     alone (T-4599).
         self.converge_streams(&fresh_mirror, &repository, &scratch, &bentos, &held)
             .await;
+        steps.mark("streams");
         mark_refused_pipelines(&fresh_mirror, &refused, &lost);
         transitions.keep_all(&fresh_mirror);
         let phases = stream_phases(&fresh_mirror);
@@ -1098,20 +1124,24 @@ impl Syncer {
         //    swapped, so a cluster that refuses one object leaves the Portal serving the
         //    repository correctly and says why in the log; one app's failure is not the run's.
         self.converge_apps(&repository).await;
+        steps.mark("apps");
 
         // 6a. Every published App's host: its certificate, requested once, and its edge Ingress;
         //     a retired App's are removed (ADR-N-037, AP-133). An App whose certificate is not
         //     issued yet says so, and reads published only once it is.
         self.converge_app_hosts(&scratch, &transitions).await;
+        steps.mark("app_hosts");
 
         // 6a2. Each WASM shard's placement of the published `wasm` Apps placed on it, and its
         //      store key (AP-157, AP-158): after 6, so an App retired this run has left it.
         self.converge_wasm_shards().await;
+        steps.mark("wasm_shards");
 
         // 6a3. Every MqttBroker's release and client (ADR-N-048 §2.6–§2.7, T-3994). A manifest
         //      the platform refuses keeps the release it had and says why in its status; one no
         //      repository holds any more loses both, and only when every repository staged.
         self.converge_mqtt_brokers(&scratch, &transitions).await;
+        steps.mark("mqtt_brokers");
 
         // 6b. An app whose `status.build` names a build this host does not hold keeps the
         //     previous one serving, and says so on the App rather than looking healthy (AP-72).
@@ -1123,12 +1153,14 @@ impl Syncer {
         //     one organization the store refuses is that organization's condition, not the
         //     run's failure, exactly like the app wave above.
         self.converge_artifact_store(&transitions).await;
+        steps.mark("artifact_store");
 
         // 6d. Whether each Organization owns the domain it declares (PF-41, T-2377): minted,
         //     checked when due and stored, then reported on the Organization's status. A lookup
         //     that fails is a recorded state; a database that fails is a log line, and the
         //     Organization shows no state rather than a stale one.
         self.verify_domains().await;
+        steps.mark("domains");
 
         // 7. Compile `users/` into what the forge enforces (T-0527, PF-51, PF-52, CC-41): the
         //    CODEOWNERS, the bindings as data, and the gate that reads them. Written only when
@@ -1138,12 +1170,14 @@ impl Syncer {
         if let Err(err) = self.publish_roles(&repository, &default_branch).await {
             tracing::warn!(error = %err, "roles were not compiled into the repository");
         }
+        steps.mark("roles");
 
         // 7a. CSV is the one file an Endpoint offers (T-4600): a stored Endpoint that still
         //     names a retired representation is rewritten without it, one commit per
         //     repository. A clean repository is not touched, so the next run changes nothing.
         self.drop_retired_representations(&scratch, &repository, &default_branch)
             .await;
+        steps.mark("representations");
 
         // 8. Drift (CC-21): configuration cannot drift, because every component reads it from
         //    the repository (CC-72, T-0421 option B). What can is a space's seed entities, so
@@ -1151,7 +1185,9 @@ impl Syncer {
         //    reads, as this Portal's own service account, so it reports what a person could
         //    see. Only the leader scans: a follower's answer would be the same read made twice.
         self.scan_and_start_background(&scratch).await;
+        steps.mark("drift");
 
+        steps.log(leader);
         Ok((loaded, revision))
     }
 
@@ -3127,6 +3163,43 @@ fn mark_refused_pipelines(
     }
 }
 
+/// Where one sync run spent its time (T-5804): each step's elapsed_ms since the step before it,
+/// logged as one line at the run's end, so a slow run names its slow step.
+struct Steps {
+    last: std::time::Instant,
+    spent: Vec<(&'static str, u128)>,
+}
+
+impl Steps {
+    fn start() -> Self {
+        Self {
+            last: std::time::Instant::now(),
+            spent: Vec::new(),
+        }
+    }
+
+    /// Closes the step `name`: the time since the last mark is its own.
+    fn mark(&mut self, name: &'static str) {
+        let now = std::time::Instant::now();
+        self.spent
+            .push((name, now.duration_since(self.last).as_millis()));
+        self.last = now;
+    }
+
+    /// `name=ms` per step, in run order.
+    fn line(&self) -> String {
+        self.spent
+            .iter()
+            .map(|(name, ms)| format!("{name}={ms}"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    fn log(&self, leader: bool) {
+        tracing::info!(leader, steps_ms = %self.line(), "sync run steps");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::registrations::RegistrationOutcome;
@@ -3135,6 +3208,26 @@ mod tests {
     };
     use super::super::subscriptions::SubscriptionOutcome;
     use super::*;
+
+    /// T-5804: the run's step line names every step it marked, in run order, with its
+    /// elapsed_ms, so a slow run names its slow step.
+    #[test]
+    fn the_step_line_names_each_step_with_its_elapsed_ms() {
+        let mut steps = Steps::start();
+        steps.mark("stage");
+        std::thread::sleep(Duration::from_millis(20));
+        steps.mark("views");
+        steps.mark("groups");
+        let line = steps.line();
+        let parts: Vec<(&str, u128)> = line
+            .split(' ')
+            .filter_map(|part| part.split_once('='))
+            .filter_map(|(name, ms)| Some((name, ms.parse().ok()?)))
+            .collect();
+        let names: Vec<&str> = parts.iter().map(|(name, _)| *name).collect();
+        assert_eq!(names, ["stage", "views", "groups"], "{line}");
+        assert!(parts.get(1).is_some_and(|(_, ms)| *ms >= 20), "{line}");
+    }
 
     /// T-4482: the staged tree is removed off the wave's path, and still removed.
     #[test]

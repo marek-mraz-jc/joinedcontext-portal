@@ -1485,6 +1485,58 @@ async fn each_visibility_opens_for_its_own_callers_alone() {
     }
 }
 
+/// F-BNT3-009: a private App stored without an owner (written before T-4910) opens for the
+/// administrators of its project alone. Two app-editors of the project, who may propose an App
+/// but not approve one, get the `404` a stranger gets; the administrator, who can give it an
+/// owner, opens it.
+#[tokio::test]
+async fn an_ownerless_private_app_opens_for_its_projects_administrators_alone() {
+    let dir = app_root("ownerless-private", &[("index.html", INDEX)]);
+    let mirror = roles_app();
+    let mut app = mirror
+        .get("ovzdusie", "App", "air-quality")
+        .expect("the app");
+    app.spec["visibility"] = serde_json::json!("private");
+    assert!(!app
+        .metadata
+        .annotations
+        .contains_key("joinedcontext.com/owner"));
+    mirror.upsert(app);
+    let org = joinedcontext_portal::permissions::ORG_NAMESPACE;
+    for (role, verbs) in [
+        ("app-editors", serde_json::json!(["read", "propose"])),
+        (
+            "app-admins",
+            serde_json::json!(["read", "propose", "approve"]),
+        ),
+    ] {
+        mirror.upsert(common::envelope(
+            "Role",
+            role,
+            org,
+            serde_json::json!({ "rules": [{ "kinds": ["App"], "verbs": verbs }] }),
+        ));
+    }
+    for (who, role) in [
+        ("marek", "app-editors"),
+        ("eva", "app-editors"),
+        ("olga", "app-admins"),
+    ] {
+        mirror.upsert(common::envelope(
+            "RoleBinding",
+            &format!("{who}-in-ovzdusie"),
+            org,
+            serde_json::json!({ "subjects": [{ "user": format!("{who}@hel.fi") }], "role": role,
+                                "scope": { "project": "ovzdusie" } }),
+        ));
+    }
+    for (who, expected) in [("marek", 404), ("eva", 404), ("olga", 200)] {
+        let token = Some(common::REALM.person_token("air-quality", who, &[]));
+        let (status, _, _) = get_as(dir.path(), mirror.clone(), token, "/apps/air-quality/").await;
+        assert_eq!(status.as_u16(), expected, "{who}");
+    }
+}
+
 /// T-4922: the edge asks `/edge/apps/{name}/admit` before a pod App's server or a wasm App's shard
 /// answers, and gets the T-4910 matrix: `204` where the static host would serve the page, else the
 /// static host's own refusal, the `404` of a draft byte for byte or the `403` page of a `roles` App.
