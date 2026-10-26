@@ -30,7 +30,7 @@ describe("a space's page opened from its address", () => {
   it("reads nothing ahead for an address that is no space's page", async () => {
     const asked = stub();
     const client = new QueryClient();
-    for (const path of ["/projects/helsinki/spaces", "/projects/helsinki/spaces/new", "/projects/helsinki/spaces/upload", "/projects/helsinki/spaces/a%2Fb", "/projects/helsinki/spaces/Air/edit", "/projects/helsinki/endpoints/air"]) {
+    for (const path of ["/projects/helsinki/spaces", "/projects/helsinki/spaces/new", "/projects/helsinki/spaces/upload", "/projects/helsinki/spaces/complete", "/projects/helsinki/spaces/a%2Fb", "/projects/helsinki/spaces/Air/edit", "/projects/helsinki/endpoints/air"]) {
       preloadSpacePage(client, path);
     }
     await new Promise((resolve) => setTimeout(resolve, 0));
