@@ -7,6 +7,7 @@ use serde_json::Value;
 use crate::api::dry_run::{self, DryRunQuery, DryRunResult};
 use crate::api::mutate::{
     author_credentials, branch_name, create_or_reuse_branch, open_change_on, resolve_repo_path,
+    turn,
 };
 use crate::auth::session::{Front, Identity};
 use crate::auth::CurrentUser;
@@ -48,10 +49,15 @@ async fn owned_beside(
 /// Two DataModels may share one LinkML source: the one that names it keeps it, and the delete
 /// removes the manifest alone. Compared by the file name the manifest would carry — the paths
 /// in a manifest are relative to it (`./{name}.linkml.yaml`), never repository paths.
-fn still_named(state: &AppState, project: &str, kind: &str, name: &str, path: &str) -> bool {
+fn still_named(
+    mirror: &crate::store::Mirror,
+    project: &str,
+    kind: &str,
+    name: &str,
+    path: &str,
+) -> bool {
     let file = path.rsplit('/').next().unwrap_or(path);
-    !state
-        .mirror
+    !mirror
         .matching(|candidate| {
             let same = candidate.kind == kind
                 && candidate.metadata.name == name
@@ -364,7 +370,7 @@ async fn goes_with(
             }
         }
         "App" => {
-            let grants: Vec<String> = crate::api::mutate::held_grants(state, project, name)
+            let grants: Vec<String> = crate::api::mutate::held_grants(&state.mirror, project, name)
                 .iter()
                 .map(|grant| format!("{}/{}", grant.kind, grant.metadata.name))
                 .collect();
@@ -588,10 +594,11 @@ pub async fn delete_with_identity(
         .await?
         .ok_or_else(not_found)?;
 
-    let branch = match workspace_branch {
-        Some(branch) => branch,
+    let (branch, _turn) = match workspace_branch {
+        Some(branch) => (branch, None),
         None => {
             let branch = branch_name(project, kind_info.kind, name, Operation::Delete);
+            let held = turn(gitea, &branch).await;
             // One open change per resource (CC-34, T-0883): the pending removal is decided first.
             if let Some(pending) = open_change_on(state, gitea, &branch, project).await? {
                 return Err(ApiError::Conflict(format!(
@@ -599,7 +606,8 @@ pub async fn delete_with_identity(
                     kind_info.kind, pending.name
                 )));
             }
-            create_or_reuse_branch(gitea, &branch, &default_branch).await?
+            let branch = create_or_reuse_branch(gitea, &held, &default_branch).await?;
+            (branch, Some(held))
         }
     };
 
@@ -610,7 +618,8 @@ pub async fn delete_with_identity(
     // ahead: a refusal must not cost a tree listing.
     let mut removals = vec![(repo_path.clone(), existing.sha.clone())];
     for path in owned_beside(gitea, &repo_path, name, &read_from).await? {
-        if still_named(state, project, kind_info.kind, name, &path) {
+        // Judged on the mirror the delete reads, a workspace's branch included (F-POR4-016).
+        if still_named(&mirror, project, kind_info.kind, name, &path) {
             continue;
         }
         if let Some(file) = gitea.get_file(&path, &read_from).await? {
@@ -621,7 +630,7 @@ pub async fn delete_with_identity(
     // An App's Endpoint and Policies were committed with it and leave with it, or the gateway
     // keeps serving a removed App's grants (T-2632, AP-21).
     if kind_info.kind == "App" {
-        for grant in crate::api::mutate::held_grants(state, project, name) {
+        for grant in crate::api::mutate::held_grants(&mirror, project, name) {
             let info = crate::resource::by_kind(&grant.kind).ok_or_else(|| {
                 ApiError::Internal(format!("no catalogue entry for {}", grant.kind))
             })?;
@@ -740,6 +749,28 @@ mod tests {
             access_expires_at: 9_999_999_999,
             refresh_token: None,
         })
+    }
+
+    /// F-POR4-016: a LinkML source another model names on the workspace's branch stays.
+    #[test]
+    fn a_source_the_branch_still_names_stays() {
+        let branch = crate::store::Mirror::new();
+        branch.upsert(crate::resource::ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.into(),
+            kind: "DataModel".into(),
+            metadata: crate::resource::ObjectMeta::new("air-copy", "ovzdusie"),
+            spec: json!({ "linkml": "./air.linkml.yaml" }),
+            status: None,
+        });
+        let path = "projects/ovzdusie/spaces/s/datamodels/air.linkml.yaml";
+        assert!(still_named(&branch, "ovzdusie", "DataModel", "air", path));
+        assert!(!still_named(
+            &crate::store::Mirror::new(),
+            "ovzdusie",
+            "DataModel",
+            "air",
+            path
+        ));
     }
 
     #[test]

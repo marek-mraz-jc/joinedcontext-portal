@@ -74,7 +74,7 @@ pub fn check(
         Some(expiry) => problems(state, project, name, &pipeline, expiry),
         None => swept_by_another(&state.mirror, project, name, &pipeline),
     };
-    let ungranted = source_delete_grants(&state.mirror, project, &pipeline);
+    let ungranted = source_delete_grants(state, project, name, &pipeline);
     if problems.is_empty() && !ungranted.is_empty() {
         return Err(ApiError::Invalid {
             detail: "spec.sourceDeletes deletes through the pipeline's Endpoint, and no Policy \
@@ -177,7 +177,7 @@ fn problems(
         }
     }
 
-    let policies = policies(mirror, project);
+    let (account, policies) = grants_of(state, project, name, pipeline);
     for (operation, wire) in [
         (Operation::QueryBatch, "queryBatch"),
         (Operation::DeleteBatch, "deleteBatch"),
@@ -185,11 +185,11 @@ fn problems(
         let missing: Vec<&str> = expiry
             .types
             .iter()
-            .filter(|t| !granted(&policies, &space, operation, Some(t)))
+            .filter(|t| !granted(&policies, &space, &account, operation, Some(t)))
             .map(String::as_str)
             .collect();
         if !missing.is_empty() {
-            let extend = pipeline_policy(&policies, &space)
+            let extend = pipeline_policy(&policies, &space, &account)
                 .map_or_else(|| "a Policy".to_owned(), |name| format!("Policy {name}"));
             problems.push(format!(
                 "no Policy grants the pipelines account {wire} on {} in space {space}: add it \
@@ -225,7 +225,12 @@ pub(crate) const SOURCE_DELETE_OPERATIONS: [(Operation, &str); 2] = [
     (Operation::DeleteBatch, "deleteBatch"),
 ];
 
-fn source_delete_grants(mirror: &Mirror, project: &str, pipeline: &PipelineSpec) -> Vec<String> {
+fn source_delete_grants(
+    state: &AppState,
+    project: &str,
+    name: &str,
+    pipeline: &PipelineSpec,
+) -> Vec<String> {
     use jc_core::kinds::SourceDeleteMode;
     let deletes = pipeline.source_deletes.as_ref().is_some_and(|rule| {
         matches!(
@@ -236,7 +241,8 @@ fn source_delete_grants(mirror: &Mirror, project: &str, pipeline: &PipelineSpec)
     if !deletes {
         return Vec::new();
     }
-    let policies = policies(mirror, project);
+    let mirror = &state.mirror;
+    let (account, policies) = grants_of(state, project, name, pipeline);
     let mut problems = Vec::new();
     for output in pipeline.outputs() {
         let Some(space) = space_of_endpoint(mirror, project, output.target_endpoint.local_id())
@@ -245,10 +251,10 @@ fn source_delete_grants(mirror: &Mirror, project: &str, pipeline: &PipelineSpec)
         };
         let entity_type = output.entity_type.as_deref();
         for (operation, wire) in SOURCE_DELETE_OPERATIONS {
-            if granted(&policies, &space, operation, entity_type) {
+            if granted(&policies, &space, &account, operation, entity_type) {
                 continue;
             }
-            let extend = pipeline_policy(&policies, &space)
+            let extend = pipeline_policy(&policies, &space, &account)
                 .map_or_else(|| "a Policy".to_owned(), |name| format!("Policy {name}"));
             problems.push(format!(
                 "no Policy grants the pipelines account {wire} on {} in space {space}: add it \
@@ -267,12 +273,13 @@ fn source_delete_grants(mirror: &Mirror, project: &str, pipeline: &PipelineSpec)
 fn granted(
     policies: &[(String, PolicySpec)],
     space: &str,
+    account: &str,
     operation: Operation,
     entity_type: Option<&str>,
 ) -> bool {
     policies.iter().any(|(_, policy)| {
         !policy.effect.is_prohibition()
-            && for_pipelines(policy, space)
+            && for_pipelines(policy, space, account)
             && policy.operations.iter().any(|op| match op {
                 OperationRef::Single(single) => *single == operation,
                 OperationRef::Group(group) => group.operations().contains(&operation),
@@ -292,17 +299,44 @@ fn granted(
     })
 }
 
-fn for_pipelines(policy: &PolicySpec, space: &str) -> bool {
+fn for_pipelines(policy: &PolicySpec, space: &str, account: &str) -> bool {
     policy.context_space_ref.name() == space
         && policy.assignee.kind == PrincipalKind::ServiceAccount
-        && policy.assignee.id == crate::reconciler::streams::PIPELINE_ACCOUNT
+        && policy.assignee.id == account
+}
+
+/// The account the pipeline deletes as and the Policies that bind it: under per-pipeline
+/// identity its own derived ones, as the stream writes (F-POR3-018); else the shared
+/// `pipelines` account and the project's Policies.
+fn grants_of(
+    state: &AppState,
+    project: &str,
+    name: &str,
+    pipeline: &PipelineSpec,
+) -> (String, Vec<(String, PolicySpec)>) {
+    match crate::record_check::identity(state, project, name, pipeline) {
+        (account, Some(derived)) => (
+            account,
+            derived
+                .into_iter()
+                .flat_map(|(name, spec)| spec.expand(&name).unwrap_or_default())
+                .collect(),
+        ),
+        (account, None) => (account, policies(&state.mirror, project)),
+    }
 }
 
 /// The Policy the author extends: the pipelines account's write grant on the space.
-fn pipeline_policy<'a>(policies: &'a [(String, PolicySpec)], space: &str) -> Option<&'a str> {
+fn pipeline_policy<'a>(
+    policies: &'a [(String, PolicySpec)],
+    space: &str,
+    account: &str,
+) -> Option<&'a str> {
     policies
         .iter()
-        .find(|(_, policy)| !policy.effect.is_prohibition() && for_pipelines(policy, space))
+        .find(|(_, policy)| {
+            !policy.effect.is_prohibition() && for_pipelines(policy, space, account)
+        })
         .map(|(name, _)| PolicySpec::policy_of(name))
 }
 
@@ -621,6 +655,36 @@ mod tests {
             json!([]),
         ));
         assert!(refusals(&state, "stops", with(snapshot, false)).is_empty());
+    }
+
+    /// F-POR3-018: under per-pipeline identity the stream deletes as `pl-{pipeline}` with its
+    /// derived Policies, so those are what the door judges: the expiry the derivation grants
+    /// passes with no shared grant, and the shared `pipelines` grant alone admits no source
+    /// delete the derived Policies do not hold.
+    #[test]
+    fn under_pipeline_identity_the_derived_policies_are_judged() {
+        let state = AppState::new(
+            Config {
+                pipeline_identity: true,
+                ..Config::for_tests()
+            },
+            None,
+        );
+        state.mirror.upsert(endpoint("ep-vehicles", "vehicles"));
+        let swept = pipeline_spec("ep-vehicles", expiry(&["Vehicle"]));
+        assert_eq!(refusals(&state, "vehicles", swept), Vec::<String>::new());
+
+        state.mirror.upsert(grant(
+            "vehicles-pipelines-write",
+            "vehicles",
+            json!(["upsertBatch", "queryBatch", "deleteBatch"]),
+            json!([]),
+        ));
+        let mut deletes = pipeline_spec("ep-vehicles", None);
+        deletes["sourceDeletes"] = json!({ "mode": "snapshot" });
+        let found = refusals(&state, "vehicles", deletes);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(found.join(" ").contains("deleteBatch"), "{found:?}");
     }
 
     #[test]

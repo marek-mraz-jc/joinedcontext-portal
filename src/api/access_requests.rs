@@ -642,22 +642,32 @@ pub(crate) async fn approve_request(
             request.endpoint
         ))
     })?;
-    let change = propose(
+    // The decision is claimed before the grant is proposed: a second owner deciding at the same
+    // time gets the 409 before any Change of theirs is open (F-POR1-017).
+    decided(&state, &user, &request, ("pending", "approved"), None, None).await?;
+    let change = match propose(
         &state,
         &user,
         &project,
         requests::grant_bundle(&request, &endpoint),
     )
-    .await?;
-    decided(
-        &state,
-        &user,
-        &request,
-        ("pending", "approved"),
-        None,
-        change_name(&change),
-    )
-    .await?;
+    .await
+    {
+        Ok(change) => change,
+        Err(err) => {
+            if let Err(undo) =
+                requests::reopen(pool(&state)?, &request.id, &user.0.identity.username).await
+            {
+                tracing::error!(id = %request.id, error = %undo, "an approval whose proposal failed was not reopened");
+            }
+            return Err(err);
+        }
+    };
+    if let Some(name) = change_name(&change) {
+        requests::record_change(pool(&state)?, &request.id, name)
+            .await
+            .map_err(store_error)?;
+    }
     record(&state, &user, &request, "approved access").await;
     Ok((StatusCode::ACCEPTED, Json(change)).into_response())
 }

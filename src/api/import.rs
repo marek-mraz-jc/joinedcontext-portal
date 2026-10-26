@@ -1238,34 +1238,22 @@ pub async fn import(
     if !resource::is_dns1123(&project) {
         return Err(ApiError::NotFound(format!("project '{project}' not found")));
     }
-    // The organization's upload size judges the body as it arrived: a JSON import is re-encoded
-    // before the bundle is read, and a git archive is unpacked (ADR-N-035).
-    let (parts, body) = request.into_parts();
-    let raw = axum::body::to_bytes(body, MAX_UPLOAD_BYTES + 64 * 1024)
-        .await
-        .map_err(|err| ApiError::BadRequest(format!("the upload could not be read: {err}")))?;
-    crate::api::organization_limits::within_upload_limit(&state, raw.len())?;
-    let request = Request::from_parts(parts, axum::body::Body::from(raw));
+    // Who may not import learns that before the body is read: a refused caller cannot make the
+    // Portal buffer an upload of the organization's size (F-POR2-005).
     match query.format.as_deref() {
         None => {}
         Some("git") => {
-            // Before the body: who may not open a project learns that and nothing else (PF-65).
+            // Who may not open a project learns that and nothing else (PF-65).
             crate::api::projects::may_open(&state, &user.0.identity)?;
             crate::permissions::require_organization_admin(
                 &state,
                 &user.0.identity,
                 "importing a project",
             )?;
-            let (bytes, mut input) = read_git_request(&state, request).await?;
-            input.dry_run |= query.dry_run.as_deref() == Some("All");
-            let (status, body) =
-                crate::api::import_git::import(&state, &user.0.identity, &project, &bytes, input)
-                    .await?;
-            return Ok((status, Json(body)).into_response());
         }
         Some("app") => {
-            // Before the body, as for a project (UI-87): who may not read the project learns
-            // nothing more, who does not administer the organization is refused.
+            // As for a project (UI-87): who may not read the project learns nothing more, who
+            // does not administer the organization is refused.
             if !crate::permissions::for_request(&state, &user.0.identity, &project)
                 .may_read_project()
             {
@@ -1276,18 +1264,32 @@ pub async fn import(
                 &user.0.identity,
                 "importing an application",
             )?;
-            let (bytes, mut input) = read_git_request(&state, request).await?;
-            input.dry_run |= query.dry_run.as_deref() == Some("All");
-            let (status, body) =
-                crate::api::app_transfer::import(&state, &user.0.identity, &project, &bytes, input)
-                    .await?;
-            return Ok((status, Json(body)).into_response());
         }
         Some(other) => {
             return Err(ApiError::BadRequest(format!(
                 "format '{other}' is neither git nor app; a bundle or manifests import without one"
             )))
         }
+    }
+    // The organization's upload size judges the body as it arrived: a JSON import is re-encoded
+    // before the bundle is read, and a git archive is unpacked (ADR-N-035).
+    let (parts, body) = request.into_parts();
+    let raw = axum::body::to_bytes(body, MAX_UPLOAD_BYTES + 64 * 1024)
+        .await
+        .map_err(|err| ApiError::BadRequest(format!("the upload could not be read: {err}")))?;
+    crate::api::organization_limits::within_upload_limit(&state, raw.len())?;
+    let request = Request::from_parts(parts, axum::body::Body::from(raw));
+    if query.format.is_some() {
+        let (bytes, mut input) = read_git_request(&state, request).await?;
+        input.dry_run |= query.dry_run.as_deref() == Some("All");
+        let (status, body) = if query.format.as_deref() == Some("app") {
+            crate::api::app_transfer::import(&state, &user.0.identity, &project, &bytes, input)
+                .await?
+        } else {
+            crate::api::import_git::import(&state, &user.0.identity, &project, &bytes, input)
+                .await?
+        };
+        return Ok((status, Json(body)).into_response());
     }
     let (bytes, mut options) = read_request(&state, request).await?;
     if query.dry_run.as_deref() == Some("All") {
@@ -1544,7 +1546,8 @@ pub async fn propose_files(
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
     let gitea: &crate::git::GiteaClient = &gitea;
     let default_branch = gitea.default_branch().await?;
-    let branch = create_or_reuse_branch(gitea, &branch, &default_branch).await?;
+    let held = crate::api::mutate::turn(gitea, &branch).await;
+    let branch = create_or_reuse_branch(gitea, &held, &default_branch).await?;
 
     let (author_name, author_email) = author_credentials(identity, project);
     for (path, content) in &files {

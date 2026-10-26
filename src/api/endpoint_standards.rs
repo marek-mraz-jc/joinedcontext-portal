@@ -27,6 +27,9 @@ use crate::state::AppState;
 
 /// How long one Endpoint's answer is kept, here and in a browser.
 const MAX_AGE: Duration = Duration::from_secs(3600);
+/// How long an answer built while the gateway did not answer is kept: long enough that a burst
+/// of visitors asks a failing gateway once per Endpoint, short enough that the page heals soon.
+const INCOMPLETE_MAX_AGE: Duration = Duration::from_secs(30);
 /// The most Endpoints whose answers are kept at once.
 const KEPT_MAX: usize = 512;
 /// The most types tried for an entity to build the examples from.
@@ -46,8 +49,39 @@ static HTTP: LazyLock<reqwest::Client> = LazyLock::new(|| {
         .unwrap_or_default()
 });
 
-static KEPT: LazyLock<RwLock<HashMap<String, (Instant, EndpointStandards)>>> =
-    LazyLock::new(RwLock::default);
+/// Each Endpoint's answer, with the moment it was built and how long it is kept.
+type Kept = (Instant, Duration, EndpointStandards);
+
+static KEPT: LazyLock<RwLock<HashMap<String, Kept>>> = LazyLock::new(RwLock::default);
+
+/// The answer kept for `slug`, or the one `build` makes, and how long it may be kept: an hour,
+/// or [`INCOMPLETE_MAX_AGE`] when the gateway did not answer.
+async fn kept_or_built<F>(slug: &str, build: F) -> (EndpointStandards, Duration)
+where
+    F: std::future::Future<Output = (EndpointStandards, bool)>,
+{
+    let kept = KEPT
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(slug)
+        .filter(|(at, age, _)| at.elapsed() < *age)
+        .map(|(at, age, answer)| (answer.clone(), age.saturating_sub(at.elapsed())));
+    if let Some(kept) = kept {
+        return kept;
+    }
+    let (answer, complete) = build.await;
+    let age = if complete {
+        MAX_AGE
+    } else {
+        INCOMPLETE_MAX_AGE
+    };
+    let mut kept = KEPT.write().unwrap_or_else(|e| e.into_inner());
+    if kept.len() >= KEPT_MAX && !kept.contains_key(slug) {
+        kept.clear();
+    }
+    kept.insert(slug.to_owned(), (Instant::now(), age, answer.clone()));
+    (answer, age)
+}
 
 /// What a public Endpoint's page shows under "Standards".
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -125,26 +159,7 @@ pub async fn get_standards(
 ) -> Result<Response, ApiError> {
     let (project, endpoint) = public_endpoint(&state, &slug)
         .ok_or_else(|| ApiError::NotFound(format!("no public endpoint '{slug}'")))?;
-    let kept = KEPT
-        .read()
-        .unwrap_or_else(|e| e.into_inner())
-        .get(&slug)
-        .filter(|(at, _)| at.elapsed() < MAX_AGE)
-        .map(|(_, answer)| answer.clone());
-    let answer = match kept {
-        Some(answer) => answer,
-        None => {
-            let (answer, complete) = build(&state, &project, &slug, &endpoint.spec).await;
-            if complete {
-                let mut kept = KEPT.write().unwrap_or_else(|e| e.into_inner());
-                if kept.len() >= KEPT_MAX {
-                    kept.clear();
-                }
-                kept.insert(slug, (Instant::now(), answer.clone()));
-            }
-            answer
-        }
-    };
+    let (answer, age) = kept_or_built(&slug, build(&state, &project, &slug, &endpoint.spec)).await;
     // What the Organization and the catalogue entry say now, never an hour old.
     let answer = EndpointStandards {
         licence: licence_of(&endpoint.spec),
@@ -158,7 +173,7 @@ pub async fn get_standards(
     Ok((
         [(
             header::CACHE_CONTROL,
-            format!("public, max-age={}", MAX_AGE.as_secs()),
+            format!("public, max-age={}", age.as_secs()),
         )],
         Json(answer),
     )
@@ -506,6 +521,30 @@ pub fn router() -> axum::Router<AppState> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[tokio::test]
+    async fn a_failing_gateway_is_asked_once_per_endpoint_in_the_short_window() {
+        let builds = std::sync::atomic::AtomicUsize::new(0);
+        let failing = || async {
+            builds.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let answer = EndpointStandards {
+                slug: "t5728-down".into(),
+                types: vec![],
+                entity_type: None,
+                standards: vec![],
+                base: String::new(),
+                served: vec![],
+                licence: None,
+                requests_per_minute: None,
+            };
+            (answer, false)
+        };
+        for _ in 0..5 {
+            let (_, age) = kept_or_built("t5728-down", failing()).await;
+            assert!(age <= INCOMPLETE_MAX_AGE, "{age:?}");
+        }
+        assert_eq!(builds.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
 
     #[test]
     fn each_standard_writes_its_examples_in_its_own_syntax() {

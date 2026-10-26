@@ -636,6 +636,47 @@ async fn who_does_not_administer_the_organization_imports_no_project() {
     nothing_created(&server).await;
 }
 
+/// F-POR2-005: the refusal comes before the body is polled. A body that fails on its first read
+/// would answer 400 "could not be read" if the Portal buffered it first; refused callers get
+/// 403 (404 for an App import by who may not read the project) and the upload is never read.
+#[tokio::test]
+async fn a_refused_import_never_reads_the_upload() {
+    use tower::ServiceExt;
+    let (server, state) = world().await;
+    for query in ["?format=git", "?format=app"] {
+        let never: Vec<Result<axum::body::Bytes, std::io::Error>> =
+            vec![Err(std::io::Error::other("the body was read"))];
+        let response = joinedcontext_portal::server::app(state.clone())
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/v1/projects/doprava/import{query}"))
+                    .header(
+                        axum::http::header::COOKIE,
+                        common::cookie(&state.config, person("peter")),
+                    )
+                    .header(joinedcontext_portal::auth::csrf::CSRF_HEADER, common::CSRF)
+                    .header(
+                        axum::http::header::CONTENT_TYPE,
+                        "multipart/form-data; boundary=jcgitimport",
+                    )
+                    .body(axum::body::Body::from_stream(futures_util::stream::iter(
+                        never,
+                    )))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        // 403, or 404 for an App import by who may not read the project; never the 400 of a read
+        let status = response.status();
+        assert!(
+            [StatusCode::FORBIDDEN, StatusCode::NOT_FOUND].contains(&status),
+            "{query}: {status}"
+        );
+    }
+    nothing_created(&server).await;
+}
+
 const ORG_MODEL: &str = "apiVersion: joinedcontext.com/v1alpha1\nkind: DataModel\nmetadata:\n  \
                          name: stations\n  namespace: org\nspec:\n  linkml: \
                          ./stations.linkml.yaml\n  version: 1.3.0\n  lifecycle: published\n  \

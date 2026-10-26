@@ -52,22 +52,32 @@ export async function proposeChecked(
 }
 
 /**
- * One import of manifests the form drew, replacing what an earlier proposal already drew
- * (MF-23, T-1227); `dryRun` checks without proposing. Every manifest still lands as a Change.
+ * One import of manifests the form drew; `dryRun` checks without proposing. Every manifest still
+ * lands as a Change. `replace` (the default) updates what an earlier proposal of the same form
+ * already drew (MF-23, T-1227); `fail` refuses a name someone else holds.
  */
-export async function importManifests(project: string, manifests: unknown[], dryRun: boolean): Promise<unknown> {
+export async function importManifests(
+  project: string,
+  manifests: unknown[],
+  dryRun: boolean,
+  conflictPolicy: "replace" | "fail" = "replace",
+): Promise<unknown> {
   return unwrap<unknown>(
     await api.POST("/api/v1/projects/{project}/import", {
       params: { path: { project }, query: dryRun ? { dryRun: "All" } : undefined },
-      body: { manifests: manifests as ResourceProposal[], conflictPolicy: "replace" },
+      body: { manifests: manifests as ResourceProposal[], conflictPolicy },
     }),
   );
 }
 
-/** Proposes manifests as one checked import, the way the endpoint form proposes a projection (PF-57). */
+/**
+ * Proposes new manifests as one checked import, the way the endpoint form proposes its first
+ * projection (PF-57). A name taken since the form loaded, by a concurrent proposal or another
+ * person, is refused with the import's detail instead of replaced (F-UI2-013).
+ */
 export async function proposeBundle(project: string, manifests: unknown[]): Promise<unknown> {
-  await importManifests(project, manifests, true);
-  return importManifests(project, manifests, false);
+  await importManifests(project, manifests, true, "fail");
+  return importManifests(project, manifests, false, "fail");
 }
 
 /** One PUT or POST of a manifest, as the endpoints page does it; the result is a Change. */

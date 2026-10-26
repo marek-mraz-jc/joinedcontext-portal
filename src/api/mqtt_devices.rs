@@ -432,20 +432,36 @@ async fn propose_device(
     mut env: ResourceEnvelope,
 ) -> Result<crate::change::Change, ApiError> {
     let account = device_account(project, request, jwks, &identity.username, broker_name);
+    // A role written without `serviceAccounts` gets the list; a role the broker does not hold is
+    // a refusal, never a Change that adds nobody (F-POR2-013).
+    let mut matched = false;
     if let Some(roles) = env.spec.get_mut("roles").and_then(Value::as_array_mut) {
         for entry in roles
             .iter_mut()
             .filter(|r| r["name"] == request.role.as_str())
         {
-            if let Some(accounts) = entry
-                .get_mut("serviceAccounts")
-                .and_then(Value::as_array_mut)
-            {
+            let Some(entry) = entry.as_object_mut() else {
+                continue;
+            };
+            matched = true;
+            let accounts = entry
+                .entry("serviceAccounts")
+                .or_insert_with(|| Value::Array(Vec::new()));
+            if let Some(accounts) = accounts.as_array_mut() {
                 if !accounts.iter().any(|a| a == request.name.as_str()) {
                     accounts.push(Value::String(request.name.clone()));
                 }
             }
         }
+    }
+    if !matched {
+        return Err(ApiError::Unprocessable {
+            detail: format!("broker '{broker_name}' has no role '{}'", request.role),
+            errors: vec![format!(
+                "role: '{}' is not a role of broker '{broker_name}'; pick one of the broker's roles",
+                request.role
+            )],
+        });
     }
     let broker_manifest = as_value(&env)?;
 

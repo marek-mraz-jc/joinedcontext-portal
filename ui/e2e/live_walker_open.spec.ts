@@ -24,3 +24,43 @@ test("the walker judges the page a Portal draws after reloading itself", async (
   expect(await page.getByRole("heading", { level: 1, name: "New policy" }).isVisible()).toBe(true);
   expect(documents).toBe(2);
 });
+
+// T-5743: the walker reported "console: TypeError: Failed to fetch dynamically imported module" on /
+// with the edge's own "Too many requests" page in the shot. The edge refused the App chunk (429), the
+// Portal logged it and reloaded itself, and that reload met the same 429. Here the first document's
+// chunk is refused, its reload is refused, and the load after the edge's window draws the page.
+test("the walker judges a page the edge refused only after the edge's window, without the refused load's console", async ({ page }) => {
+  test.setTimeout(60_000);
+  const logged: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error" && !message.text().startsWith("Failed to load resource")) logged.push(message.text());
+  });
+  const portal = '<main><h1>Home</h1></main><script>import("/assets/App.js").catch((error) => { console.error(String(error)); setTimeout(() => location.reload(), 200); });</script>';
+  let documents = 0;
+  let chunks = 0;
+  await page.route("http://portal.test/**", (route) => {
+    if (route.request().url().endsWith("/assets/App.js")) {
+      chunks += 1;
+      return chunks === 1
+        ? route.fulfill({ status: 429, headers: { "retry-after": "0" }, body: "" })
+        : route.fulfill({ body: "export default 1;", contentType: "text/javascript" });
+    }
+    documents += 1;
+    return documents === 2
+      ? route.fulfill({ status: 429, headers: { "retry-after": "0" }, body: "<main><h1>Too many requests</h1></main>", contentType: "text/html" })
+      : route.fulfill({ body: portal, contentType: "text/html" });
+  });
+  expect(await openToJudge(page, "http://portal.test/", 1_000, () => logged.splice(0))).toBe(false);
+  expect(await page.getByRole("heading", { level: 1, name: "Home" }).isVisible()).toBe(true);
+  expect(logged).toEqual([]);
+  expect(documents).toBe(3);
+});
+
+// A Portal the edge keeps refusing stays a finding: openToJudge says so after two loads again.
+test("the walker reports a page the edge refuses on every load", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.route("http://portal.test/**", (route) =>
+    route.fulfill({ status: 429, headers: { "retry-after": "0" }, body: "<main><h1>Too many requests</h1></main>", contentType: "text/html" }),
+  );
+  expect(await openToJudge(page, "http://portal.test/", 1_000)).toBe(true);
+});

@@ -161,6 +161,14 @@ fn sign_token(
     encode(&header, &claims, signer).expect("sign token")
 }
 
+/// A bearer header of a client's own token, which never decides a question.
+fn sign_client_token_bearer(signer: &EncodingKey, kid: &str, issuer: &str) -> String {
+    format!(
+        "Bearer {}",
+        sign_client_token(signer, kid, issuer, PORTAL_AUDIENCE, "claude-connector")
+    )
+}
+
 /// A `client_credentials` token of Keycloak client `client`, as Keycloak issues it: `azp` names
 /// the client and the user is the client's own service account.
 fn sign_client_token(
@@ -186,6 +194,13 @@ fn sign_client_token(
 }
 
 async fn setup_app_and_keys() -> (axum::Router, String, EncodingKey, String) {
+    setup_app_with(Vec::new()).await
+}
+
+/// [`setup_app_and_keys`] with `extra` resources in the mirror beside the shared ones.
+async fn setup_app_with(
+    extra: Vec<ResourceEnvelope>,
+) -> (axum::Router, String, EncodingKey, String) {
     // Leaked on purpose: the router outlives this function, and a dropped wiremock server goes
     // back to the pool, where a test running beside this one resets its mocks and the forge
     // answers 404 half-way through (a flaky `ci-full` on 2026-09-18).
@@ -253,6 +268,9 @@ async fn setup_app_and_keys() -> (axum::Router, String, EncodingKey, String) {
         }),
         status: None,
     });
+    for envelope in extra {
+        mirror.upsert(envelope);
+    }
     // Seed some resources
     mirror.upsert(ResourceEnvelope {
         api_version: API_VERSION.to_string(),
@@ -813,6 +831,84 @@ async fn mcp_oauth_protected_resource_metadata() {
     assert_eq!(meta["scopes_supported"], json!(["mcp:portal"]));
 }
 
+/// The Portal session cookie of `subject`, sealed with the key [`setup_app_with`] configures, and
+/// the CSRF pair a browser's write carries.
+fn session_cookie(subject: &str) -> String {
+    use axum::response::IntoResponse;
+    use axum_extra::extract::cookie::PrivateCookieJar;
+    use joinedcontext_portal::auth::session::{self, Identity, Session};
+    let key = axum_extra::extract::cookie::Key::from("k".repeat(64).as_bytes());
+    let now = session::now_unix();
+    let identity = Identity {
+        client: None,
+        subject: subject.into(),
+        username: subject.into(),
+        email: None,
+        name: None,
+        roles: vec!["portal-approver".into()],
+        groups: vec!["platform-admins".into()],
+        second_factor: false,
+    };
+    let session = Session {
+        identity,
+        expires_at: now + 3600,
+        issued_at: now,
+        id_token: "id-token-placeholder".into(),
+        access_expires_at: now + 3600,
+        refresh_token: None,
+    };
+    let jar = session::store(PrivateCookieJar::new(key), &session).expect("store session");
+    let response = (jar, StatusCode::OK).into_response();
+    let mut parts: Vec<String> = response
+        .headers()
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .map(|raw| raw.split(';').next().unwrap_or_default().to_string())
+        .collect();
+    parts.push(format!(
+        "{}=csrf-mcp-elicitations",
+        joinedcontext_portal::auth::csrf::CSRF_COOKIE
+    ));
+    parts.join("; ")
+}
+
+/// One request to the question's page route, with a session cookie or a bearer token.
+async fn decide(
+    app: &axum::Router,
+    uri: &str,
+    credential: (&str, &str),
+    decision: Option<&str>,
+) -> (StatusCode, Value) {
+    let mut request = Request::builder()
+        .uri(uri)
+        .header(credential.0, credential.1);
+    let body = match decision {
+        Some(decision) => {
+            request = request
+                .method("POST")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(
+                    joinedcontext_portal::auth::csrf::CSRF_HEADER,
+                    "csrf-mcp-elicitations",
+                );
+            Body::from(json!({ "decision": decision }).to_string())
+        }
+        None => Body::empty(),
+    };
+    let resp = app
+        .clone()
+        .oneshot(request.body(body).unwrap())
+        .await
+        .unwrap();
+    let status = resp.status();
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
 async fn rpc(app: axum::Router, token: &str, body: Value) -> Value {
     let resp = app
         .oneshot(
@@ -829,6 +925,126 @@ async fn rpc(app: axum::Router, token: &str, body: Value) -> Value {
     assert_eq!(resp.status(), StatusCode::OK);
     let bytes = resp.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&bytes).unwrap()
+}
+
+fn envelope(kind: &str, name: &str, namespace: &str, spec: Value) -> ResourceEnvelope {
+    ResourceEnvelope {
+        api_version: API_VERSION.to_string(),
+        kind: kind.to_string(),
+        metadata: ObjectMeta::new(name, namespace),
+        spec,
+        status: None,
+    }
+}
+
+/// T-5699, F-POR4-008: a caller whose grant is bound to one space neither lists nor reads an
+/// Endpoint, or a draft of one, that lives in another space of the project; their own space's
+/// stays readable.
+#[tokio::test]
+async fn a_space_bound_caller_neither_lists_nor_reads_another_spaces_manifests_or_drafts() {
+    let org = joinedcontext_portal::permissions::ORG_NAMESPACE;
+    let (app, issuer, signer, kid) = setup_app_with(vec![
+        envelope("ContextSpace", "space-a", "ovzdusie", json!({})),
+        envelope("ContextSpace", "space-b", "ovzdusie", json!({})),
+        envelope(
+            "Endpoint",
+            "air-a",
+            "ovzdusie",
+            json!({ "contextSpaceRef": "space-a", "slug": "aira0000000000000000000000000" }),
+        ),
+        envelope(
+            "Endpoint",
+            "air-b",
+            "ovzdusie",
+            json!({ "contextSpaceRef": "space-b", "slug": "airb0000000000000000000000000" }),
+        ),
+        envelope(
+            "Role",
+            "endpoint-reader",
+            org,
+            json!({ "rules": [{ "kinds": ["Project", "ContextSpace", "Endpoint"], "verbs": ["read"] }] }),
+        ),
+        envelope(
+            "RoleBinding",
+            "space-a-reads",
+            org,
+            json!({ "subjects": [{ "user": "space.reader" }], "role": "endpoint-reader",
+                    "scope": { "contextSpace": "space-a" } }),
+        ),
+    ])
+    .await;
+    let steward = sign_token(
+        &signer,
+        &kid,
+        &issuer,
+        PORTAL_AUDIENCE,
+        "steward.user",
+        &["portal-approver"],
+        &["platform-admins"],
+    );
+    let put = rpc(
+        app.clone(),
+        &steward,
+        json!({
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": { "name": "jc_draft_put", "arguments": {
+                "project": "ovzdusie", "kind": "Endpoint", "name": "draft-b",
+                "manifest": { "apiVersion": "joinedcontext.com/v1", "kind": "Endpoint",
+                    "metadata": { "name": "draft-b", "namespace": "ovzdusie" },
+                    "spec": { "contextSpaceRef": "space-b", "audience": "organization" } }
+            } }
+        }),
+    )
+    .await;
+    assert_eq!(put["result"]["isError"], false, "{put}");
+
+    let reader = sign_token(
+        &signer,
+        &kid,
+        &issuer,
+        PORTAL_AUDIENCE,
+        "space.reader",
+        &[],
+        &[],
+    );
+    let listed = rpc(
+        app.clone(),
+        &reader,
+        json!({ "jsonrpc": "2.0", "id": 2, "method": "resources/list", "params": { "project": "ovzdusie" } }),
+    )
+    .await;
+    let uris: Vec<&str> = listed["result"]["resources"]
+        .as_array()
+        .map(|resources| resources.iter().filter_map(|r| r["uri"].as_str()).collect())
+        .unwrap_or_default();
+    assert!(uris.contains(&"jc://ovzdusie/endpoints/air-a"), "{listed}");
+    assert!(!uris.contains(&"jc://ovzdusie/endpoints/air-b"), "{uris:?}");
+    assert!(
+        !uris.contains(&"jc://ovzdusie/drafts/Endpoint/draft-b"),
+        "{uris:?}"
+    );
+    for (uri, readable) in [
+        ("jc://ovzdusie/endpoints/air-a", true),
+        ("jc://ovzdusie/endpoints/air-b", false),
+        ("jc://ovzdusie/drafts/Endpoint/draft-b", false),
+    ] {
+        let read = rpc(
+            app.clone(),
+            &reader,
+            json!({ "jsonrpc": "2.0", "id": 3, "method": "resources/read", "params": { "uri": uri } }),
+        )
+        .await;
+        assert_eq!(read["error"].is_null(), readable, "{uri}: {read}");
+    }
+    // The steward, granted project-wide, still reads the draft.
+    let read = rpc(
+        app,
+        &steward,
+        json!({ "jsonrpc": "2.0", "id": 4, "method": "resources/read",
+                "params": { "uri": "jc://ovzdusie/drafts/Endpoint/draft-b" } }),
+    )
+    .await;
+    assert!(read["error"].is_null(), "{read}");
 }
 
 #[tokio::test]
@@ -1278,13 +1494,23 @@ async fn a_red_call_asks_the_person_before_it_runs_and_a_refusal_runs_nothing() 
         .to_owned();
     assert_eq!(asked["result"]["status"], json!("input_required"));
     assert_eq!(elicitation["mode"], json!("url"));
+    let url = elicitation["url"].as_str().unwrap_or_default().to_owned();
     assert!(
-        elicitation["url"]
-            .as_str()
-            .unwrap_or_default()
-            .ends_with("/projects/ovzdusie/endpoints/public-air"),
-        "the question points at the Endpoint it would delete: {asked}"
+        url.ends_with(&format!(
+            "/projects/ovzdusie/mcp-elicitations/{elicitation_id}"
+        )),
+        "the question points at the page where the person decides: {asked}"
     );
+    let page = format!("/api/v1/projects/ovzdusie/mcp-elicitations/{elicitation_id}");
+    let person = session_cookie("steward.user");
+    let (status, question) = decide(&app, &page, ("cookie", &person), None).await;
+    assert_eq!(status, StatusCode::OK, "{question}");
+    assert_eq!(
+        question["resource"],
+        json!("/projects/ovzdusie/endpoints/public-air"),
+        "the page links what the call would delete: {question}"
+    );
+    assert_eq!(question["decision"], Value::Null);
 
     // 2. An answer to a question nobody asked is refused, and still nothing runs.
     let forged = call(json!({
@@ -1295,11 +1521,67 @@ async fn a_red_call_asks_the_person_before_it_runs_and_a_refusal_runs_nothing() 
     .await;
     assert_eq!(forged["result"]["isError"], json!(true), "{forged}");
 
-    // 3. The person declines: the call is refused by name, nothing runs.
+    // 3. T-5699, F-POR4-001: the client accepting its own question runs nothing; the person
+    // has not decided on the page.
+    let self_accepted = call(json!({
+        "name": "jc_resource_delete",
+        "arguments": arguments,
+        "elicitation": { "elicitationId": elicitation_id, "action": "accept" }
+    }))
+    .await;
+    assert_eq!(
+        self_accepted["result"]["isError"],
+        json!(true),
+        "{self_accepted}"
+    );
+    assert!(
+        self_accepted["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("has not decided"),
+        "{self_accepted}"
+    );
+
+    // 4. Nobody but the person's own session decides: a bearer token is 403, another
+    // person's session 404, and neither records anything.
+    let (status, _) = decide(
+        &app,
+        &format!("{page}/decision"),
+        (
+            "authorization",
+            &sign_client_token_bearer(&signer, &kid, &issuer),
+        ),
+        Some("accept"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let stranger = session_cookie("someone.else");
+    let (status, _) = decide(
+        &app,
+        &format!("{page}/decision"),
+        ("cookie", &stranger),
+        Some("accept"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = decide(&app, &page, ("cookie", &stranger), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // 5. The person declines on the page: the client's call is refused by name, whatever
+    // it says, and the question is spent.
+    let (status, decided) = decide(
+        &app,
+        &format!("{page}/decision"),
+        ("cookie", &person),
+        Some("decline"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{decided}");
+    assert_eq!(decided["decision"], json!("decline"));
     let declined = call(json!({
         "name": "jc_resource_delete",
         "arguments": arguments,
-        "elicitation": { "elicitationId": elicitation_id, "action": "decline" }
+        "elicitation": { "elicitationId": elicitation_id, "action": "accept" }
     }))
     .await;
     assert_eq!(declined["result"]["isError"], json!(true));
@@ -1310,17 +1592,39 @@ async fn a_red_call_asks_the_person_before_it_runs_and_a_refusal_runs_nothing() 
             .contains("declined"),
         "{declined}"
     );
+    let (status, _) = decide(&app, &page, ("cookie", &person), None).await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "an answered question is gone"
+    );
 
-    // 4. The same id is spent: it cannot be answered a second time.
-    let again = call(json!({
+    // 6. A new question the person accepts on the page: the client's call passes the gate.
+    let asked = call(json!({ "name": "jc_resource_delete", "arguments": arguments })).await;
+    let again_id = asked["result"]["structuredContent"]["elicitation"]["elicitationId"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    let again_page = format!("/api/v1/projects/ovzdusie/mcp-elicitations/{again_id}/decision");
+    let (status, _) = decide(&app, &again_page, ("cookie", &person), Some("accept")).await;
+    assert_eq!(status, StatusCode::OK);
+    let accepted = call(json!({
         "name": "jc_resource_delete",
         "arguments": arguments,
-        "elicitation": { "elicitationId": elicitation_id, "action": "accept" }
+        "elicitation": { "elicitationId": again_id }
     }))
     .await;
-    assert_eq!(again["result"]["isError"], json!(true), "{again}");
+    let text = accepted["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap_or_default();
+    for gate in ["has not decided", "declined", "belongs to no open question"] {
+        assert!(
+            !text.contains(gate),
+            "the accepted call stopped at the gate: {accepted}"
+        );
+    }
 
-    // 5. A green read is untouched by any of this.
+    // 7. A green read is untouched by any of this.
     let read = call(json!({
         "name": "jc_catalog_search",
         "project": "ovzdusie",

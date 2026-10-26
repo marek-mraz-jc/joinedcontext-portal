@@ -75,6 +75,30 @@ impl AgentStore {
         Ok(())
     }
 
+    /// Stores a run that must be its application's only live one: `Ok(false)`, and nothing
+    /// stored, when another live run of the app exists. Postgres decides under an advisory lock
+    /// per App, the memory store under its write lock, so two concurrent creates never both start
+    /// (F-POR1-018).
+    pub async fn create_run_alone(&self, run: &AgentRun) -> Result<bool, StoreError> {
+        if let Some(pool) = &self.db {
+            return Ok(db::insert_agent_run_alone(pool, run).await?);
+        }
+        let mut memory = self.memory.write().await;
+        let taken = memory.runs.values().any(|r| {
+            r.project == run.project
+                && r.app_name == run.app_name
+                && AgentRunStatus::parse(&r.status).is_some_and(|s| !s.is_terminal())
+        });
+        if taken {
+            return Ok(false);
+        }
+        memory.runs.insert(run.id.clone(), run.clone());
+        memory
+            .started
+            .insert(run.id.clone(), std::time::Instant::now());
+        Ok(true)
+    }
+
     pub async fn get_run(&self, id: &str) -> Result<Option<AgentRun>, StoreError> {
         if let Some(pool) = &self.db {
             return Ok(db::load_agent_run(pool, id).await?);
@@ -224,35 +248,47 @@ impl AgentStore {
         next: AgentRunStatus,
         error: Option<&str>,
     ) -> Result<AgentRun, StatusChangeError> {
-        let run = self
-            .get_run(id)
-            .await
-            .map_err(StatusChangeError::Store)?
-            .ok_or(StatusChangeError::Unknown)?;
-        let current = AgentRunStatus::parse(&run.status).ok_or(StatusChangeError::Unknown)?;
-        if !current.allows_transition_to(next) {
-            return Err(StatusChangeError::Refused {
-                from: current,
-                to: next,
-            });
-        }
-
-        if next.is_terminal() {
-            crate::telemetry::run_finished(&run.kind, next);
-        }
         if let Some(pool) = &self.db {
-            db::update_agent_run_status(pool, id, next.as_str(), error, next.is_terminal())
-                .await
-                .map_err(|err| StatusChangeError::Store(StoreError(err)))?;
-            return self
+            let run = self
                 .get_run(id)
                 .await
                 .map_err(StatusChangeError::Store)?
-                .ok_or(StatusChangeError::Unknown);
+                .ok_or(StatusChangeError::Unknown)?;
+            let current = transition(&run.status, next)?;
+            let moved = db::update_agent_run_status(
+                pool,
+                id,
+                current.as_str(),
+                next.as_str(),
+                error,
+                next.is_terminal(),
+            )
+            .await
+            .map_err(|err| StatusChangeError::Store(StoreError(err)))?;
+            let after = self
+                .get_run(id)
+                .await
+                .map_err(StatusChangeError::Store)?
+                .ok_or(StatusChangeError::Unknown)?;
+            if !moved {
+                // Another transition won the race: refused from the status it left.
+                let from =
+                    AgentRunStatus::parse(&after.status).ok_or(StatusChangeError::Unknown)?;
+                return Err(StatusChangeError::Refused { from, to: next });
+            }
+            if next.is_terminal() {
+                crate::telemetry::run_finished(&run.kind, next);
+            }
+            return Ok(after);
         }
 
+        // Judged and written under one lock, so two racing transitions cannot both pass.
         let mut memory = self.memory.write().await;
         let stored = memory.runs.get_mut(id).ok_or(StatusChangeError::Unknown)?;
+        transition(&stored.status, next)?;
+        if next.is_terminal() {
+            crate::telemetry::run_finished(&stored.kind, next);
+        }
         stored.status = next.as_str().to_owned();
         if let Some(message) = error {
             stored.error = Some(message.to_owned());
@@ -509,6 +545,19 @@ pub fn now_rfc3339() -> String {
         .unwrap_or_default()
 }
 
+/// The run's status as read, when it may move to `next` (AG-43); the refusal otherwise.
+fn transition(status: &str, next: AgentRunStatus) -> Result<AgentRunStatus, StatusChangeError> {
+    let current = AgentRunStatus::parse(status).ok_or(StatusChangeError::Unknown)?;
+    if current.allows_transition_to(next) {
+        Ok(current)
+    } else {
+        Err(StatusChangeError::Refused {
+            from: current,
+            to: next,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -556,6 +605,62 @@ mod tests {
             expires_at: "2026-09-12T10:35:30Z".to_owned(),
             error: None,
         }
+    }
+
+    /// F-POR1-019: two terminal transitions of one run race; exactly one wins and the other is
+    /// refused from the status the winner left.
+    #[tokio::test]
+    async fn of_two_racing_endings_exactly_one_wins() {
+        let store = std::sync::Arc::new(AgentStore::new(None));
+        store
+            .create_run(&run("run-1", "helsinki", "2026-09-12T10:15:30Z"))
+            .await
+            .expect("create");
+        let (a, b) = (store.clone(), store.clone());
+        let (cancel, fail) = tokio::join!(
+            tokio::spawn(
+                async move { a.set_status("run-1", AgentRunStatus::Cancelled, None).await }
+            ),
+            tokio::spawn(async move {
+                b.set_status("run-1", AgentRunStatus::Failed, Some("x"))
+                    .await
+            }),
+        );
+        let outcomes = [cancel.expect("joined"), fail.expect("joined")];
+        assert_eq!(
+            outcomes.iter().filter(|o| o.is_ok()).count(),
+            1,
+            "{outcomes:?}"
+        );
+        assert!(outcomes
+            .iter()
+            .any(|o| matches!(o, Err(StatusChangeError::Refused { .. }))));
+    }
+
+    /// F-POR1-018: an App holds one live run; a second create waits until the first has ended,
+    /// and another App of the project is never held by it.
+    #[tokio::test]
+    async fn a_live_run_holds_its_app_against_a_second_run() {
+        let store = AgentStore::new(None);
+        let first = run("run-1", "helsinki", "2026-09-12T10:15:30Z");
+        assert!(store.create_run_alone(&first).await.expect("create"));
+        assert!(!store
+            .create_run_alone(&run("run-2", "helsinki", "2026-09-12T10:16:30Z"))
+            .await
+            .expect("create"));
+        assert!(store.get_run("run-2").await.expect("get").is_none());
+
+        let mut other_app = run("run-3", "helsinki", "2026-09-12T10:17:30Z");
+        other_app.app_name = "air-quality".to_owned();
+        assert!(store.create_run_alone(&other_app).await.expect("create"));
+
+        let mut ended = run("run-4", "bb", "2026-09-12T10:18:30Z");
+        ended.status = AgentRunStatus::Failed.as_str().to_owned();
+        store.create_run(&ended).await.expect("create");
+        assert!(store
+            .create_run_alone(&run("run-5", "bb", "2026-09-12T10:19:30Z"))
+            .await
+            .expect("create"));
     }
 
     #[tokio::test]

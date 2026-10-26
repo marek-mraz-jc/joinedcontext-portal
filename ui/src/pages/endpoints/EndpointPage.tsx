@@ -769,6 +769,9 @@ export function EndpointPage({
  * it says. T-2283 turns these four boxes into rows a person builds without knowing NGSI-LD, with the
  * count of what they match; the boxes are what the manifest can express today.
  */
+/** A 409 on a filter proposal: another filter of the project already holds the name (F-UI2-013). */
+const nameTaken = (error: unknown): boolean => error instanceof ApiError && error.status === 409;
+
 function FilterForm({
   project,
   projection,
@@ -914,11 +917,6 @@ function FilterForm({
           propose.mutate();
         }}
       >
-        {failure ? (
-          <Alert tone="danger" role="alert">
-            {failure}
-          </Alert>
-        ) : null}
         <fieldset className="space-y-2" aria-describedby="filter-types-help">
           <legend className="text-caption font-medium">{t("endpoints.filterEditor.types")}</legend>
           <p id="filter-types-help" className="text-caption text-fg-muted">{t("endpoints.filterEditor.typesHelp")}</p>
@@ -1000,6 +998,15 @@ function FilterForm({
             </div>
           ))}
         </fieldset>
+        {/* Beside the button the person just pressed: the form is taller than a screen (F-UI2-013). */}
+        {failure ? (
+          <Alert tone="danger" role="alert">
+            {failure}
+            {nameTaken(propose.error) ? (
+              <p className="mt-1">{t("endpoints.filterEditor.nameTaken")}</p>
+            ) : null}
+          </Alert>
+        ) : null}
         <PermissionGuard project={project} kind="ModelProjection" verb="propose">
           <Button
             type="submit"

@@ -883,6 +883,11 @@ pub(crate) fn account_holds_portal_role(mirror: &Mirror, spec: &ServiceAccountSp
     })
 }
 
+/// Whether a bearer token is a `ServiceAccount`'s own, a workload with no person behind it.
+pub fn is_service_account(mirror: &Mirror, identity: &Identity) -> bool {
+    account_of(mirror, identity).is_some()
+}
+
 /// The account a bearer token speaks for (PF-46, PF-49): its `azp` is the derived client id of
 /// exactly one `ServiceAccount`, and its user is that client's own service account, so a person
 /// who signed in through some client is never mistaken for it. An id two accounts derive is

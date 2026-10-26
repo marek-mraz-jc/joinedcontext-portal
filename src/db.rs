@@ -184,11 +184,40 @@ const AGENT_RUN_COLUMNS: &str = "id, project, app_name, title, endpoint_name, en
 const AGENT_EVENT_COLUMNS: &str = "run_id, seq, kind, payload, \
      to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at";
 
+/// Records `run` only when its application has no live run, decided under a transaction-scoped
+/// advisory lock on (project, application): two concurrent admissions of one App's run never
+/// both pass the check (F-POR1-018). `Ok(false)` when another live run holds the App.
+pub async fn insert_agent_run_alone(pool: &PgPool, run: &AgentRun) -> Result<bool, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1 || '/' || $2, 0))")
+        .bind(&run.project)
+        .bind(&run.app_name)
+        .execute(&mut *tx)
+        .await?;
+    let live: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM agent_runs WHERE project = $1 AND app_name = $2 \
+         AND status NOT IN ('published', 'failed', 'cancelled', 'expired'))",
+    )
+    .bind(&run.project)
+    .bind(&run.app_name)
+    .fetch_one(&mut *tx)
+    .await?;
+    if live {
+        return Ok(false);
+    }
+    insert_agent_run(&mut *tx, run).await?;
+    tx.commit().await?;
+    Ok(true)
+}
+
 /// Records a run at the moment it is admitted, ticket hash included (AG-43).
 ///
 /// The two timestamps arrive as the RFC 3339 text the caller minted, and the cast is written into
 /// the statement so the parameter stays a string on this side.
-pub async fn insert_agent_run(pool: &PgPool, run: &AgentRun) -> Result<(), sqlx::Error> {
+pub async fn insert_agent_run(
+    pool: impl sqlx::PgExecutor<'_>,
+    run: &AgentRun,
+) -> Result<(), sqlx::Error> {
     sqlx::query(
         "INSERT INTO agent_runs (id, project, app_name, endpoint_name, endpoint_slug, profile, \
          kind, unattended, continues, \
@@ -347,23 +376,27 @@ pub async fn list_agent_runs_in_status(
 pub async fn update_agent_run_status(
     pool: &PgPool,
     id: &str,
+    from: &str,
     status: &str,
     error: Option<&str>,
     finished: bool,
-) -> Result<(), sqlx::Error> {
+) -> Result<bool, sqlx::Error> {
+    // Only from the status the caller judged the transition on: two racing transitions, one
+    // row changed (F-POR1-019).
     sqlx::query(
         "UPDATE agent_runs SET status = $2, error = COALESCE($3, error), \
          started_at = CASE WHEN started_at IS NULL AND $2 <> 'queued' THEN now() ELSE started_at END, \
          finished_at = CASE WHEN $4 AND finished_at IS NULL THEN now() ELSE finished_at END \
-         WHERE id = $1",
+         WHERE id = $1 AND status = $5",
     )
     .bind(id)
     .bind(status)
     .bind(error)
     .bind(finished)
+    .bind(from)
     .execute(pool)
     .await
-    .map(|_| ())
+    .map(|done| done.rows_affected() == 1)
 }
 
 /// Moves a run's lease: a run waiting for its change's approval is given the approval's lease
@@ -703,6 +736,46 @@ mod rollback_tests {
         assert_eq!(
             tolerate_newer(38, &breaking).err().map(|e| e.to_string()),
             Some("migration 40 is newer than the latest applied migration 38".to_owned())
+        );
+    }
+
+    /// The lease sweep and the activity trim each have an index the planner takes (F-POR1-026,
+    /// F-POR1-027): the sweep's own query plans on the partial index.
+    #[tokio::test]
+    async fn the_lease_sweep_and_the_activity_trim_read_an_index() {
+        let Some(url) = std::env::var("JC_PORTAL_TEST_DATABASE_URL")
+            .ok()
+            .filter(|url| !url.trim().is_empty())
+        else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let pool = super::connect(&url).await.expect("migrate");
+        let names: Vec<String> = sqlx::query_scalar(
+            "SELECT indexname::text FROM pg_indexes WHERE indexname IN \
+             ('agent_runs_live_expires', 'activity_time') ORDER BY 1",
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("indexes");
+        assert_eq!(names, ["activity_time", "agent_runs_live_expires"]);
+        let mut tx = pool.begin().await.expect("begin");
+        sqlx::query("SET LOCAL enable_seqscan = off")
+            .execute(&mut *tx)
+            .await
+            .expect("set");
+        let plan: Vec<String> = sqlx::query_scalar(
+            "EXPLAIN SELECT id FROM agent_runs \
+             WHERE status NOT IN ('published', 'failed', 'cancelled', 'expired') \
+             AND expires_at < now() ORDER BY expires_at ASC",
+        )
+        .fetch_all(&mut *tx)
+        .await
+        .expect("explain");
+        assert!(
+            plan.iter()
+                .any(|line| line.contains("agent_runs_live_expires")),
+            "{plan:?}"
         );
     }
 

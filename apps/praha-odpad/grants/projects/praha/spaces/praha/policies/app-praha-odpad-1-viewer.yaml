@@ -24,6 +24,7 @@ spec:
     - dateModified
     - refWasteContainerIsle
     - name
+    - location
     relationshipNames:
     - containerCode
     - wasteKind
@@ -31,6 +32,7 @@ spec:
     - dateModified
     - refWasteContainerIsle
     - name
+    - location
   operations:
   - queryEntity
   - retrieveEntity

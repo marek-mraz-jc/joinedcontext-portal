@@ -190,32 +190,42 @@ pub async fn stream_activity(
     let identity = user.0.identity;
 
     let live = state.activity_events.subscribe(&project).await;
-    let stream = BroadcastStream::new(live).filter_map(
-        move |item| -> Option<Result<Event, std::convert::Infallible>> {
-            // A lagging browser misses events rather than the rest of the tail: it reconnects
-            // with `since` and the store replays what it lost.
-            let event = item.ok()?;
-            // Checked against the bindings of this moment, as the draft stream is: a revoked
-            // space binding stops that space's events without a reconnect (T-4876).
-            if event.project != project_of_stream
-                || !filter.matches(&event)
-                || !(ActivityFilter {
-                    reach: crate::permissions::for_request(&state, &identity, &project_of_stream)
-                        .spaces_reached(),
-                    ..Default::default()
-                })
-                .matches(&event)
-            {
-                return None;
-            }
-            Some(Ok(Event::default()
-                .event(event.kind.clone())
-                .json_data(&event)
-                .unwrap_or_else(|_| {
-                    Event::default().comment("unserializable")
-                })))
-        },
-    );
+    let stream = BroadcastStream::new(live)
+        .map_while(
+            move |item| -> Option<Option<Result<Event, std::convert::Infallible>>> {
+                // Checked against the bindings of this moment, as the draft stream is: a revoked
+                // space binding stops that space's events without a reconnect (T-4876), and a
+                // person no longer in the project gets no event at all, the stream ends
+                // (F-POR1-009).
+                let effective =
+                    crate::permissions::for_request(&state, &identity, &project_of_stream);
+                if !effective.may_read_project() {
+                    return None;
+                }
+                // A lagging browser misses events rather than the rest of the tail: it
+                // reconnects with `since` and the store replays what it lost.
+                let Ok(event) = item else {
+                    return Some(None);
+                };
+                if event.project != project_of_stream
+                    || !filter.matches(&event)
+                    || !(ActivityFilter {
+                        reach: effective.spaces_reached(),
+                        ..Default::default()
+                    })
+                    .matches(&event)
+                {
+                    return Some(None);
+                }
+                Some(Some(Ok(Event::default()
+                    .event(event.kind.clone())
+                    .json_data(&event)
+                    .unwrap_or_else(|_| {
+                        Event::default().comment("unserializable")
+                    }))))
+            },
+        )
+        .filter_map(|event| event);
 
     let sse = Sse::new(stream).keep_alive(
         KeepAlive::new()

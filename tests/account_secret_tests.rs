@@ -98,6 +98,9 @@ fn state(keycloak: &MockServer) -> (Config, AppState) {
     let mut config = Config::for_tests();
     config.oidc = Config::from_vars(|k| match k {
         "JC_OIDC_ISSUER" => Some(issuer.clone()),
+        "JC_PORTAL_COOKIE_KEY" => {
+            Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001".into())
+        }
         "JC_OIDC_CLIENT_ID" => Some("portal-api".to_owned()),
         "JC_OIDC_CLIENT_SECRET" => Some("portal-api-credential".to_owned()),
         _ => None,

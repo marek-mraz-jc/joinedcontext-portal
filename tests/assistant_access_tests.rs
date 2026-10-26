@@ -66,6 +66,9 @@ fn config_with(proxy_base: &str, runner: Option<&str>) -> Config {
             // The capture on the internal listener takes the runner's own ServiceAccount token
             // (T-2271), so this Portal knows the realm that signs it and whose token to expect.
             "JC_OIDC_ISSUER" => Some(common::REALM.issuer.as_str()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal-api"),
             "JC_OIDC_CLIENT_SECRET" => Some("secret"),
             "JC_PORTAL_PIPELINE_RUNNER_CLIENT_ID" => Some(common::PIPELINE_RUNNER_CLIENT),

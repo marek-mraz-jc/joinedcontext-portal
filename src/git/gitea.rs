@@ -357,13 +357,22 @@ pub struct FileWrite<'a> {
     pub author: Author<'a>,
 }
 
-/// The text a write commits at `path`: a YAML file in the one manifest layout `jcctl fmt`
-/// writes (T-5052), so a Portal change and a hand edit look the same in git; any other file as
-/// given. YAML the formatter refuses is committed as given: the layout never blocks a write.
-/// A caller that skips a write when the branch already holds its text compares with this.
+/// The text a write commits at `path`: a manifest (YAML with `apiVersion` and `kind`) in the one
+/// layout `jcctl fmt` writes (T-5052), so a Portal change and a hand edit look the same in git;
+/// any other file, a native YAML file (a Bento config, a LinkML model) included, byte for byte
+/// with its comments (MF-42, F-POR2-017). YAML the formatter refuses is committed as given: the
+/// layout never blocks a write. A caller that skips a write when the branch already holds its
+/// text compares with this.
 pub fn committed_text<'a>(path: &str, content: &'a str) -> std::borrow::Cow<'a, str> {
     let yaml = path.ends_with(".yaml") || path.ends_with(".yml");
-    match yaml
+    let manifest = || {
+        serde_norway::from_str::<serde_json::Value>(content).is_ok_and(|doc| {
+            doc.get("apiVersion")
+                .is_some_and(serde_json::Value::is_string)
+                && doc.get("kind").is_some_and(serde_json::Value::is_string)
+        })
+    };
+    match (yaml && manifest())
         .then(|| jc_core::yaml_fmt::format(content).ok())
         .flatten()
     {
@@ -2006,6 +2015,28 @@ impl GiteaClient {
         self.commit_changes(branch, message, author, files).await
     }
 
+    /// `POST /contents` — one commit on `branch` that writes every `(path, content, blob sha)`:
+    /// a new file where the sha is `None`, else a replacement of that blob. Every file lands, or
+    /// none does (F-POR1-023).
+    pub async fn write_files(
+        &self,
+        branch: &str,
+        message: &str,
+        author: Author<'_>,
+        writes: &[(String, String, Option<String>)],
+    ) -> Result<String, GitError> {
+        let mut files = Vec::with_capacity(writes.len());
+        for (path, content, sha) in writes {
+            files.push(ChangeFileDto {
+                operation: if sha.is_some() { "update" } else { "create" },
+                path: self.write_path(path)?,
+                content: Some(STANDARD.encode(committed_text(path, content).as_bytes())),
+                sha: sha.clone(),
+            });
+        }
+        self.commit_changes(branch, message, author, files).await
+    }
+
     async fn commit_changes(
         &self,
         branch: &str,
@@ -2375,6 +2406,16 @@ mod committed_text_tests {
         assert_eq!(committed_text("projects/p/README.md", messy), messy);
     }
 
+    /// F-POR2-017: a native YAML file is no manifest; its comments and layout stay as written.
+    #[test]
+    fn a_native_yaml_file_is_committed_byte_for_byte() {
+        let bento = "# the feed, read hourly\ninput:\n  http_client:\n    url: https://example.org/feed\n    verb: GET\n";
+        assert_eq!(
+            committed_text("projects/p/pipelines/feed/bento.yaml", bento),
+            bento
+        );
+    }
+
     #[test]
     fn yaml_the_formatter_refuses_is_committed_as_given() {
         let anchored = "a: &x 1\nb: *x\n";
@@ -2585,6 +2626,19 @@ mod project_repository_tests {
             )
             .await
             .expect_err("org.yaml is not a file of the project repository");
+        assert!(refused.to_string().contains("org.yaml"), "{refused}");
+        let refused = client
+            .write_files(
+                "portal/x",
+                "m",
+                author,
+                &[
+                    ("projects/ovzdusie/project.yaml".into(), "a".into(), None),
+                    ("org.yaml".into(), "b".into(), Some("abc".into())),
+                ],
+            )
+            .await
+            .expect_err("write_files refuses org.yaml in the project repository too");
         assert!(refused.to_string().contains("org.yaml"), "{refused}");
 
         let organization = client.for_repository("configuration");

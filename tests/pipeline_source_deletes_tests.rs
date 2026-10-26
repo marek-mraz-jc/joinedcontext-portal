@@ -17,7 +17,8 @@ use joinedcontext_portal::config::Config;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::pipeline_log::{NewLine, Outcome};
 use joinedcontext_portal::pipeline_source_deletes::{
-    marked_at_source, note_seen, reported, run_ended, HoldReason, Marks, Report, RunEnd,
+    marked_at_source, note_seen, reported, run_ended, HoldReason, Marks, Report, ReportCount,
+    RunEnd,
 };
 use joinedcontext_portal::state::AppState;
 
@@ -134,6 +135,28 @@ async fn run(
     failed: usize,
     finished: bool,
 ) {
+    run_reported(
+        state,
+        pipeline,
+        run,
+        ids,
+        failed,
+        finished,
+        ReportCount::Complete,
+    )
+    .await;
+}
+
+/// [`run`], with what the runner counted of the run's outcome reports it could not deliver.
+async fn run_reported(
+    state: &AppState,
+    pipeline: &str,
+    run: &str,
+    ids: &[String],
+    failed: usize,
+    finished: bool,
+    reports: ReportCount,
+) {
     let mut lines: Vec<NewLine> = ids
         .iter()
         .map(|id| NewLine {
@@ -162,6 +185,7 @@ async fn run(
             pipeline: pipeline.to_owned(),
             run: run.to_owned(),
             finished,
+            reports,
         },
     )
     .await;
@@ -410,6 +434,55 @@ async fn an_outage_a_partial_read_or_an_empty_answer_deletes_nothing_and_holds()
         .expect("book")
         .1
         .is_none());
+}
+
+/// F-POR3-006: the ledger and the run log learn of a write from the same outcome report, so a run
+/// whose first report the runner dropped looks complete and short of those ids. The runner's own
+/// count of dropped reports makes it incomplete: it counts no miss and deletes nothing, and a run
+/// without a count is held the same way.
+#[tokio::test]
+async fn a_run_whose_outcome_report_was_dropped_is_incomplete_and_deletes_nothing() {
+    let (state, runner) = world(100).await;
+    run(&state, "registry", "r1", &without(&[]), 0, true).await;
+    let second_report_only = without(&(0..25).collect::<Vec<_>>());
+    for (name, reports) in [
+        ("r2", ReportCount::Lost(1)),
+        ("r3", ReportCount::Lost(1)),
+        (
+            "r4",
+            ReportCount::Unknown("the runner does not export the outcome_drop counter"),
+        ),
+        (
+            "r5",
+            ReportCount::Unknown("the runner does not export the outcome_drop counter"),
+        ),
+    ] {
+        run_reported(
+            &state,
+            "registry",
+            name,
+            &second_report_only,
+            0,
+            true,
+            reports,
+        )
+        .await;
+        let (rows, hold) = state
+            .source_ledger
+            .book("helsinki", "registry")
+            .await
+            .expect("book");
+        assert!(
+            rows.values().all(|row| row.misses == 0),
+            "{name}: a run with lost reports counts no miss"
+        );
+        let hold = hold.expect("held");
+        assert_eq!(
+            (hold.reason, hold.run.as_str()),
+            (HoldReason::Incomplete, name)
+        );
+    }
+    assert!(handed(&runner).await.is_empty(), "nothing was deleted");
 }
 
 #[tokio::test]

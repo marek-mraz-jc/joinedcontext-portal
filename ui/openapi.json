@@ -9112,7 +9112,7 @@
           "drift"
         ],
         "summary": "Adopt Drift",
-        "description": "Proposes the live entity as the seed file's content, as a change a person approves. Needs `propose` on Entity; refused when the entity is no longer in the space.",
+        "description": "Proposes, as a change a person approves, the seed file with the entity's declared attributes as the space holds them now. Needs `propose` on Entity; refused when the entity is no longer in the space.",
         "operationId": "adopt_drift",
         "parameters": [
           {
@@ -9145,7 +9145,14 @@
         ],
         "responses": {
           "202": {
-            "description": "The live entity proposed as the seed file's content"
+            "description": "The change that writes the live entity into its seed file, waiting for an approver",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
           },
           "401": {
             "description": "No session",
@@ -9178,7 +9185,7 @@
             }
           },
           "409": {
-            "description": "The entity is not in the space, so there is nothing to adopt",
+            "description": "The entity is not in the space or no longer in its seed file, or an adoption of it is already open",
             "content": {
               "application/json": {
                 "schema": {
@@ -13247,6 +13254,173 @@
           },
           "404": {
             "description": "No such project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/mcp-elicitations/{id}": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Read an MCP Call's Question",
+        "description": "The question a Yellow, Red or destructive MCP call asked, for the person whose client asked it: what would run, the page of what it changes, when it expires and the decision so far (AG-63). Another person's question, an answered or an expired one is 404; a bearer token is refused.",
+        "operationId": "get_question",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The question's id, `eli-` and 16 hex digits",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The open question",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Question"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A bearer token, not the person's session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No open question of this person by that id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/mcp-elicitations/{id}/decision": {
+      "post": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Decide an MCP Call's Question",
+        "description": "The person whose client asked records `accept` or `decline`; the client's next call with the question's id runs or is refused on it (AG-63). A decision may be changed until that call. Another person's question, an answered or an expired one is 404; a bearer token is refused.",
+        "operationId": "decide_question",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The question's id, `eli-` and 16 hex digits",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              },
+              "example": {
+                "decision": "accept"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The question with the decision recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Question"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A body that is not `{\"decision\": \"accept\"}` or `decline`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A bearer token, not the person's session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No open question of this person by that id",
             "content": {
               "application/json": {
                 "schema": {
@@ -25989,6 +26163,20 @@
         },
         "additionalProperties": false
       },
+      "DecisionRequest": {
+        "type": "object",
+        "description": "The person's answer to one question.",
+        "required": [
+          "decision"
+        ],
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/ElicitationDecision",
+            "description": "`accept` lets the call run once; `decline` refuses it."
+          }
+        },
+        "additionalProperties": false
+      },
       "DeclineRequest": {
         "type": "object",
         "description": "Why the proposal is declined, for the audit record.",
@@ -26570,6 +26758,14 @@
             ]
           }
         }
+      },
+      "ElicitationDecision": {
+        "type": "string",
+        "description": "What the person decided on the Portal page.",
+        "enum": [
+          "accept",
+          "decline"
+        ]
       },
       "EndpointAccess": {
         "type": "string",
@@ -31637,6 +31833,49 @@
           "manifest": {}
         },
         "additionalProperties": false
+      },
+      "Question": {
+        "type": "object",
+        "description": "One open question as its page shows it to the person who asked.",
+        "required": [
+          "id",
+          "operation",
+          "message",
+          "resource",
+          "expiresAt"
+        ],
+        "properties": {
+          "decision": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ElicitationDecision",
+                "description": "`None` until the person decided."
+              }
+            ]
+          },
+          "expiresAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix seconds after which the question is no longer answered."
+          },
+          "id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string",
+            "description": "The operation the call runs, `jc_resource_delete`."
+          },
+          "resource": {
+            "type": "string",
+            "description": "The Portal path of what the call would change, `/projects/helsinki/endpoints/air`."
+          }
+        }
       },
       "QuotaUse": {
         "type": "object",

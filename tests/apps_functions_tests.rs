@@ -122,6 +122,9 @@ async fn rig(test: &str) -> Rig {
     let mut config = Config::from_vars(|key| {
         match key {
             "JC_OIDC_ISSUER" => Some(issuer.as_str()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+            }
             "JC_OIDC_CLIENT_ID" => Some("joinedcontext-portal"),
             "JC_OIDC_CLIENT_SECRET" => Some("test-secret"),
             "JC_FUNCTIONS_URL" => Some(runtime_uri.as_str()),
@@ -406,6 +409,9 @@ async fn organization_rig(test: &str, runtime: MockServer) -> Rig {
     let mut config = Config::from_vars(|key| {
         match key {
             "JC_OIDC_ISSUER" => Some(common::REALM.issuer.as_str()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+            }
             "JC_OIDC_CLIENT_ID" => Some("joinedcontext-portal"),
             "JC_OIDC_CLIENT_SECRET" => Some("test-secret"),
             "JC_FUNCTIONS_URL" => Some(runtime_uri.as_str()),

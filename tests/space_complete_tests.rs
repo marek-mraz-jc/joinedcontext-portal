@@ -1236,3 +1236,54 @@ async fn an_uploaded_csv_drafts_the_endpoint_and_the_persons_write_grant() {
         "no upload, no grant for the person: {body}"
     );
 }
+
+/// F-POR3-012: a completion never overwrites another person's draft of the same name; the call
+/// is a conflict and their draft stays as they left it.
+#[tokio::test]
+async fn a_completion_leaves_another_persons_draft_of_the_same_name_unchanged() {
+    let config = Config::for_tests();
+    let state = AppState::new(config.clone(), None);
+    let theirs = json!({ "kind": "ContextSpace", "metadata": { "name": "city-bikes" }, "spec": { "isSandbox": true } });
+    joinedcontext_portal::ops::draft_store(&state)
+        .put(
+            "helsinki",
+            "ContextSpace",
+            "city-bikes",
+            theirs.clone(),
+            None,
+            "colleague",
+            "person",
+        )
+        .await
+        .expect("their draft");
+    let cookie = session_cookie(
+        &config,
+        "steward.user",
+        Some("steward@hel.fi"),
+        vec!["portal-approver"],
+        vec![],
+    );
+    let resp = server::app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/projects/helsinki/ops/jc_space_complete")
+                .header(header::COOKIE, cookie)
+                .header(CSRF_HEADER, TEST_CSRF_TOKEN)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({ "space": "city-bikes", "url": "https://example.invalid/free_bike_status.json" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+    let kept = joinedcontext_portal::ops::draft_store(&state)
+        .get("helsinki", "ContextSpace", "city-bikes")
+        .await
+        .expect("read")
+        .expect("their draft is still there");
+    assert_eq!(kept.manifest, theirs);
+    assert_eq!(kept.touched_by, "colleague");
+}

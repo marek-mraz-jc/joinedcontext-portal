@@ -2020,6 +2020,20 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
       ]
     },
+    "src/pages/mcp/McpElicitationPage.tsx": {
+      "walkedBy": "worker-t5699 (stub walk, e2e/mcp_elicitation.spec.ts)",
+      "date": "2026-10-25",
+      "screenshots": [
+        "evidence/T-5699/question-1440.png",
+        "evidence/T-5699/question-400.png",
+        "evidence/T-5699/accepted-1440.png",
+        "evidence/T-5699/accepted-400.png",
+        "evidence/T-5699/declined-1440.png",
+        "evidence/T-5699/declined-400.png",
+        "evidence/T-5699/gone-1440.png",
+        "evidence/T-5699/gone-400.png"
+      ]
+    },
     "src/pages/workspaces/BringBackPage.tsx": {
       "walkedBy": "worker-t4868",
       "date": "2026-10-21",

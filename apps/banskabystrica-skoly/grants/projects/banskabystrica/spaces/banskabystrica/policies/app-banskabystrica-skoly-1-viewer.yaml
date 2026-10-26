@@ -24,6 +24,7 @@ spec:
     - nonTeachingStaff
     - annualBudget
     - budgetYear
+    - location
     relationshipNames:
     - name
     - address
@@ -32,6 +33,7 @@ spec:
     - nonTeachingStaff
     - annualBudget
     - budgetYear
+    - location
   operations:
   - queryEntity
   - retrieveEntity

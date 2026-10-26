@@ -2072,6 +2072,14 @@
         "sync_source_round_trip.test.ts"
       ]
     },
+    "src/pages/mcp/McpElicitationPage.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "mcp_elicitation.test.tsx"
+      ]
+    },
     "src/pages/workspaces/BringBackPage.tsx": {
       "controls": {
         "Button": 2,

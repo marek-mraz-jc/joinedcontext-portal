@@ -43,6 +43,9 @@ fn config() -> Config {
             // The callbacks take the proxy's own ServiceAccount token (T-2271), so this Portal
             // knows the realm that signs it and the client it belongs to.
             "JC_OIDC_ISSUER" => Some(common::REALM.issuer.as_str()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal-api"),
             "JC_OIDC_CLIENT_SECRET" => Some("secret"),
             "JC_PORTAL_AGENT_PROXY_CLIENT_ID" => Some(common::AGENT_PROXY_CLIENT),
@@ -1745,6 +1748,9 @@ async fn a_function_of_the_run_answers_through_jc_functions() {
             "JC_PORTAL_AGENT_PROXY_CLIENT_ID" => Some(common::AGENT_PROXY_CLIENT),
             "JC_PORTAL_BOOTSTRAP_ADMINS" => Some("portal-approver"),
             "JC_OIDC_ISSUER" => Some(issuer.as_str()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+            }
             "JC_OIDC_CLIENT_ID" => Some("joinedcontext-portal"),
             "JC_OIDC_CLIENT_SECRET" => Some("test-secret"),
             "JC_FUNCTIONS_URL" => Some(runtime_uri.as_str()),
@@ -5014,6 +5020,9 @@ mod held {
                 Some("http://jc-agent-proxy.agents.svc.cluster.local:8080".into())
             }
             "JC_OIDC_ISSUER" => Some(common::REALM.issuer.clone()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001".into())
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal-api".into()),
             "JC_OIDC_CLIENT_SECRET" => Some("secret".into()),
             "JC_PORTAL_AGENT_PROXY_CLIENT_ID" => Some(common::AGENT_PROXY_CLIENT.into()),
@@ -5119,4 +5128,38 @@ mod held {
         let (status, body) = create_as_bearer(&app, create_body()).await;
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
     }
+}
+
+/// F-POR1-018: two creates of one application's run at once on Postgres: the store's unique
+/// index lets one start, the other is 409.
+#[tokio::test]
+async fn two_concurrent_creates_of_one_apps_run_start_one() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let pool = joinedcontext_portal::db::connect(&url)
+        .await
+        .expect("connect + migrate");
+    let (_state, app, cookie, _api, _) = ending_world(200, Some(pool)).await;
+    let mut body = create_body();
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or_default();
+    body["appName"] = json!(format!("twice-{nanos}"));
+    let uri = format!("/api/v1/projects/{PROJECT}/agent-runs");
+    let (one, two) = tokio::join!(
+        call(&app, &cookie, Method::POST, &uri, Some(body.clone())),
+        call(&app, &cookie, Method::POST, &uri, Some(body.clone()))
+    );
+    let mut statuses = [one.0, two.0];
+    statuses.sort();
+    assert_eq!(
+        statuses,
+        [StatusCode::ACCEPTED, StatusCode::CONFLICT],
+        "{} / {}",
+        one.1,
+        two.1
+    );
 }

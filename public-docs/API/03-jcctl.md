@@ -17,10 +17,10 @@ jcctl [COMMAND] [OPTIONS]
 
 | Command | Arguments | Description |
 |---|---|---|
-| **`plan`** | `--repo-dir <path>`, `--gateway-url <url>` | Computes structural diff between Git manifests and live cluster state |
-| **`apply`** | `--repo-dir <path>`, `--gateway-url <url>` | Converges live cluster state to match the Git repository |
+| **`plan`** | `--repo-dir <path>`, `--gateway-url <url>` | Compares the seed entities a space declares with what it holds and prints the repository's flags; exit code 2 if a seed is pending. Configuration is read from the repository by every component, so it has no plan of its own (CC-72) |
+| **`apply`** | `--repo-dir <path>`, `--gateway-url <url>` | Replays the seed entities a space declares into it; configuration needs no apply, every component reads it from the repository (CC-72) |
 | **`drift`** | `--repo-dir <path>`, `--gateway-url <url>`, `[--json]`, `[--adopt-dir <path>]` | Compares the seed entities a space declares with what it holds; exit code 2 if drifted. Needs `--gateway-url`: configuration is read from the repository, so it cannot drift (CC-21, CC-38, CC-72) |
-| **`import`** | `<source> --repo-dir <path>`, `[--namespace <slug>]`, `[--org-domain <d>]`, `[--conflict fail\|skip\|replace\|rename]` | Imports a manifest or an unpacked bundle, rewritten for this project (MF-20…MF-24, PF-22) |
+| **`import`** | `<source> --repo-dir <path>`, `[--namespace <slug>]`, `[--org-domain <from>=<to>]`, `[--conflict fail\|skip\|replace\|rename]` | Imports a manifest or an unpacked bundle, rewritten for this project (MF-20…MF-24, PF-22) |
 | **`export`** | `--repo-dir <path>`, `--project <slug>`, `--out-dir <path>` | Writes `projects/{p}/` of the checkout as a bundle: manifests without `status` or secret values, native files verbatim, and a `kind: Bundle` index (MF-16, MF-17) |
 | **`validate`**| `--repo-dir <path>` | Executes local JSON Schema and Conftest validation on manifests, and refuses a write no Endpoint can serve: a write Policy no Endpoint binds, a Pipeline target that does not bind its write (PL-111) |
 | **`schema export`** | `--out <dir>` | Writes the JSON Schema draft-07 of every manifest kind to `<dir>/{Kind}.json` (default `schemas/kinds`, MF-09, CC-12) |
@@ -41,7 +41,8 @@ jcctl [COMMAND] [OPTIONS]
 | **`migrate`** | `--repo-dir <layout 1 clone>`, `--out-dir <empty dir>` | Splits each `projects/{slug}/` into a project repository of its own with its history, and writes the organization repository of layout 2 with the registry in their place (CC-85) |
 | **`export --format git`** | `--repo-dir <project checkout>`, `--project <slug>`, `--out-dir <dir>`, `[--app-dir <name>=<checkout>]`, `[--org-dir <organization checkout>]` | One `git bundle` per repository of the project, its registry entry without values, a copy of every organization model the project imports (read from `--org-dir`, refused without it), and a `kind: Bundle` index of roles, SHA-256, head commits and carried models (MF-45, MF-49) |
 | **`import --format git`** | `<dir> --out-dir <empty dir>` | Clones each bundle, refuses the import unless every file and head is the one the index lists, and migrates a layout 1 organization on the way in (MF-46, MF-47) |
-| **`login`** | `--idm <issuer url>`, `[--token-file <path>]` | Signs a person in by the device flow (RFC 8628) on the Keycloak client `jcctl` and writes their Portal token to a file only they may read (PF-45, MF-14) |
+| **`login`** | `--idm <issuer url>`, `[--token-file <path>]` | Signs a person in by the device flow (RFC 8628) with PKCE (RFC 7636, S256) on the Keycloak client `jcctl` and writes their Portal token to a file only they may read (PF-45, MF-14) |
+| **`token`** | `--resource <endpoint url>`, `--idm <issuer url>`, `[--token-file <path>]` | Signs a person in the same way for one Endpoint and writes a token the gateway admits on that Endpoint alone, decided by the person's Policy: a script reads as the person who runs it (PF-45, PF-46, §2b) |
 | **`get`** | `<plural> [<name>]`, `--project <slug>`, `[-o name\|yaml\|json]`, `[-l <labelSelector>]` | Reads live manifests from the Portal: a list follows `continue` to the end; `-o name` (the default) prints `{plural}/{name}` per line (MF-14) |
 | **`describe`** | `<plural> <name>`, `--project <slug>` | One live manifest for a person to read: its identity and title, then `spec` and `status` as YAML (MF-14) |
 | **`apply -f`** | `<file>`, `[--project <slug>]` | Proposes every manifest of the file as a `Change`: `POST` when the Portal holds no such resource, `PUT` when it holds a different one, nothing when it already matches; exit `1` when any was refused (MF-12, MF-14) |
@@ -87,6 +88,12 @@ Without `--gateway-url` the command works on the repository alone: `validate`, `
 the `model` verbs need no platform, and `plan` says so rather than comparing against an empty
 world.
 
+Neither `plan` nor `apply` compares or replays configuration manifests: the gateway, the Portal and
+the reconciler read them from the repository (CC-72), so a manifest is live the moment its commit
+is, and a comparison against a platform store that does not exist would report every manifest as
+`CREATE` on every run. Both report the configuration half as read from the repository and decide
+their outcome on the seed half alone, as `drift` does.
+
 ### 2a. Talking to the Portal (`get`, `describe`, `apply -f`, `diff -f`, `delete -f`)
 
 The kubectl-shaped verbs are a client of the Portal resource API ([01 §4](01-portal-api.md#4-resource-api-mf-11mf-15)), not of a
@@ -96,11 +103,13 @@ repository checkout, and take their own address and identity:
 |---|---|---|
 | `--server <url>` | `JC_SERVER` | Base URL of the Portal, e.g. `https://portal.dev.joinedcontext.com` |
 | `--token-file <path>` | `JC_TOKEN_FILE` | File holding an OIDC access token for the Portal: a person's from `jcctl login` (PF-45), or a `ServiceAccount`'s from the client credentials grant (PF-34); without either, the file `jcctl login` wrote |
-| `--idm <url>` (`login` only) | `JC_IDM` | The realm's issuer, e.g. `https://idm.<domain>/realms/<realm>`; `https` except on the loopback interface |
+| `--idm <url>` (`login` and `token`) | `JC_IDM` | The realm's issuer, e.g. `https://idm.<domain>/realms/<realm>`; `https` except on the loopback interface |
 
 `jcctl login` runs the device flow on the public Keycloak client `jcctl`, which offers that
-grant and no other and whose tokens carry the `portal-api` audience the Portal accepts. It
-prints the address and the code to open on any device, polls the token endpoint at the interval
+grant and no other and whose tokens carry the `portal-api` audience the Portal accepts. The
+client is public, so each sign-in carries a proof key (RFC 7636, `S256`): a fresh 32-byte
+verifier, its hash on the device authorization and the verifier on every token request; the
+realm refuses a device authorization without one. It prints the address and the code to open on any device, polls the token endpoint at the interval
 the provider names (five seconds more on `slow_down`), and writes the access token to
 `--token-file`, else `$XDG_CONFIG_HOME/jcctl/token` (`~/.config/jcctl/token`), with mode `600` in
 a directory of mode `700`. The refresh token is not kept: when the token expires, the person
@@ -122,6 +131,38 @@ at the end.
 `get -o yaml` and `-o json` print the manifest as the API serves it. The Portal serves what the
 repository holds, which carries a `secretRef` naming a secret and never its value (CC-06), so
 no output of these verbs carries a resolved secret.
+
+### 2b. A person's script on one Endpoint (`token`)
+
+A script that reads a non-public Endpoint as the person who runs it takes a token from
+`jcctl token`:
+
+```sh
+jcctl token --resource https://api.dev.joinedcontext.com/api/endpoint/<slug> \
+  --idm https://idm.dev.joinedcontext.com/realms/dev
+curl -H 'Accept: application/ld+json' \
+  -H "Authorization: Bearer $(cat ~/.config/jcctl/endpoints/<slug>)" \
+  'https://api.dev.joinedcontext.com/api/endpoint/<slug>/ngsi-ld/v1/entities?type=<Type>&limit=5'
+```
+
+`--resource` is the Endpoint's address as its page shows it; the slug is the path segment after
+`/api/endpoint/`, and an address without one is refused before anything is sent. The command
+runs the device flow of §2a for the scope `openid endpoint:{slug}` and writes the token to
+`--token-file`, else `$XDG_CONFIG_HOME/jcctl/endpoints/{slug}`, with the same modes. The token
+carries the audience `jcctl-endpoint` beside `portal-api`; the gateway admits a `jcctl-endpoint`
+token from the client `jcctl` only on the Endpoint its `endpoint:{slug}` scope names, and the
+Endpoint's Policy decides each call by the person (PF-46). Any other Endpoint answers `401`, an
+Endpoint whose Policy does not grant the person `403`; `endpoint:*` reaches nothing there. A
+token of `jcctl login` alone carries no Endpoint scope and reaches no Endpoint.
+
+Decided (worker-t5614, owner may override): a second sign-in per Endpoint, not an RFC 8693
+token exchange of the `jcctl login` token, because Keycloak's standard token exchange takes only
+confidential clients and `jcctl` lives on a laptop without a secret; the browser session the
+person already has turns the second sign-in into one confirmation. The `endpoint:{slug}` scopes
+are the ones the Portal renders for the MCP hub (Endpoints serving MCP); the admin-permissions
+Job links each to `jcctl` as an optional scope.
+
+A program that runs without a person keeps using a `ServiceAccount` (PF-34).
 
 ## 3. JSON Output Contract (`--json`)
 
@@ -150,6 +191,8 @@ no output of these verbs carries a resolved secret.
 }
 ```
 
+`summary` and `changes` describe configuration manifests and stay zero and empty while every
+component reads them from the repository (section 2, CC-72); the seed half is printed as text.
 `flags` carries what the plan noticed and will not act on: a peer with no schema surface, a
 reference whose model cannot be mirrored, anything a reviewer should read before approving
 rather than discover after applying (DM-48). It is advisory and never changes the exit code —
@@ -240,8 +283,10 @@ archive is refused with the instruction to extract it, because unpacking is what
 and an importer that opened archives itself would be a second place for a path-traversal bug to
 live. The rewrites are explicit arguments and never guessed: `--namespace` moves every
 project-scoped resource and every typed reference that named the source project, and
-`--org-domain` rewrites the `{orgDomain}` segment of every `urn:ngsi-ld:` identifier and nothing
-else (MF-22, PF-22). Every imported manifest is tagged `joinedcontext.com/imported-from` with
+`--org-domain <from>=<to>` rewrites the `{orgDomain}` segment of a `urn:ngsi-ld:` identifier
+(or an anchored `idPattern`) only where that segment is `<from>`, and nothing else: a reference to
+another organization's Entity or Endpoint keeps its domain. A bare domain without `<from>=` is
+refused with the usage (MF-22, PF-22). Every imported manifest is tagged `joinedcontext.com/imported-from` with
 the document it came from (MF-20).
 
 MF-24 is a gate and not a warning: a literal credential, an `apiVersion` this platform does not

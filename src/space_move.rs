@@ -76,7 +76,9 @@ pub struct Plan {
     pub source: String,
     pub target: String,
     pub token: String,
-    pub gateway: String,
+    /// The gateway's addresses; each name stands for every address it resolves to, so a
+    /// headless Service names every pod.
+    pub gateways: Vec<String>,
     pub forge: Arc<GiteaClient>,
     /// The space's manifest in the repository.
     pub path: String,
@@ -170,11 +172,26 @@ impl Moves {
             plan.project, plan.space, plan.to, plan.by
         );
         let to = plan.to.clone();
-        self.edit(plan, &hold, move |manifest| {
-            annotations(manifest).insert(MOVING_TO.into(), to.into());
-        })
-        .await?;
+        let fresh = self
+            .edit(plan, &hold, move |manifest| {
+                annotations(manifest).insert(MOVING_TO.into(), to.into());
+            })
+            .await?;
         self.await_hold(plan).await?;
+        // A target tenant that already holds data is someone's: the copy would mix into it and
+        // a failed move would purge it. A resumed move (the hold was there) finds its own copy
+        // (F-POR4-015).
+        if fresh {
+            let before = self.digest(&plan.target, plan).await?;
+            if before.entities > 0 || before.attr_instances > 0 {
+                return Err(format!(
+                    "broker {} already holds {} entities and {} history records in this space's \
+                     tenant; nothing was copied and that data stays: empty the tenant or move \
+                     the space to another broker",
+                    plan.to, before.entities, before.attr_instances
+                ));
+            }
+        }
 
         self.set(key, |job| job.state = MoveState::Copying);
         self.copy(plan).await?;
@@ -207,6 +224,7 @@ impl Moves {
             spec(manifest).insert("brokerRef".into(), to.into());
         })
         .await
+        .map(|_| ())
     }
 
     /// Releases the hold and purges a target that took the copy; answers `reason` with what
@@ -235,13 +253,13 @@ impl Moves {
     }
 
     /// Edits the space's manifest on the default branch as the Portal; no commit when nothing
-    /// changed, so a resumed move does not commit its hold twice.
+    /// changed, so a resumed move does not commit its hold twice. `true` when it committed.
     async fn edit(
         &self,
         plan: &Plan,
         message: &str,
         change: impl FnOnce(&mut serde_norway::Mapping),
-    ) -> Result<(), String> {
+    ) -> Result<bool, String> {
         let failed =
             |err: crate::git::GitError| format!("the repository refused the commit: {err}");
         let branch = plan.forge.default_branch().await.map_err(failed)?;
@@ -261,7 +279,7 @@ impl Moves {
         let before = manifest.clone();
         change(&mut manifest);
         if manifest == before {
-            return Ok(());
+            return Ok(false);
         }
         let content = serde_norway::to_string(&manifest).map_err(|err| err.to_string())?;
         plan.forge
@@ -277,42 +295,64 @@ impl Moves {
                 },
             })
             .await
-            .map(|_| ())
+            .map(|_| true)
             .map_err(failed)
     }
 
-    /// Waits until the gateway's scrape says it holds the space.
+    /// Waits until every gateway pod's scrape says it holds the space: one pod still taking
+    /// writes would lose them under the copy (F-POR4-014).
     async fn await_hold(&self, plan: &Plan) -> Result<(), String> {
         let wanted = format!("{HELD}{{space=\"{}\"}} 1", plan.tenant);
         let deadline = tokio::time::Instant::now() + self.patience;
         loop {
-            let scrape = self
-                .http
-                .get(format!("{}/metrics", plan.gateway))
-                .timeout(Duration::from_secs(10))
-                .send()
-                .await
-                .ok()
-                .filter(|answer| answer.status().is_success());
-            if let Some(answer) = scrape {
-                if answer
-                    .text()
-                    .await
-                    .unwrap_or_default()
-                    .lines()
-                    .any(|line| line == wanted)
-                {
-                    return Ok(());
-                }
+            if self.held_everywhere(&plan.gateways, &wanted).await {
+                return Ok(());
             }
             if tokio::time::Instant::now() >= deadline {
                 return Err(format!(
-                    "the gateway did not take the hold within {} seconds, so nothing was copied",
+                    "not every gateway pod took the hold within {} seconds, so nothing was copied",
                     self.patience.as_secs()
                 ));
             }
             tokio::time::sleep(self.poll).await;
         }
+    }
+
+    /// Resolved anew each round, so a pod that started meanwhile is asked too.
+    async fn held_everywhere(&self, gateways: &[String], wanted: &str) -> bool {
+        let mut pods = Vec::new();
+        for gateway in gateways {
+            match pods_of(gateway).await {
+                Some(found) => pods.extend(found),
+                None => return false,
+            }
+        }
+        if pods.is_empty() {
+            return false;
+        }
+        for pod in pods {
+            let scrape = self
+                .http
+                .get(format!("{}/metrics", pod.as_str().trim_end_matches('/')))
+                .timeout(Duration::from_secs(10))
+                .send()
+                .await
+                .ok()
+                .filter(|answer| answer.status().is_success());
+            let Some(answer) = scrape else {
+                return false;
+            };
+            if !answer
+                .text()
+                .await
+                .unwrap_or_default()
+                .lines()
+                .any(|line| line == wanted)
+            {
+                return false;
+            }
+        }
+        true
     }
 
     /// Streams the source's export into the target's import; nothing is held in memory.
@@ -386,6 +426,26 @@ impl Moves {
     }
 }
 
+/// Every address `gateway`'s host resolves to, as that URL with the address for its host.
+/// `None` when the name does not resolve.
+async fn pods_of(gateway: &str) -> Option<Vec<url::Url>> {
+    let url = url::Url::parse(gateway).ok()?;
+    let Some(url::Host::Domain(host)) = url.host() else {
+        return url.host().map(|_| vec![url.clone()]);
+    };
+    let port = url.port_or_known_default()?;
+    let addresses = tokio::net::lookup_host((host, port)).await.ok()?;
+    Some(
+        addresses
+            .filter_map(|address| {
+                let mut pod = url.clone();
+                pod.set_ip_host(address.ip()).ok()?;
+                Some(pod)
+            })
+            .collect(),
+    )
+}
+
 fn lock<T>(held: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     held.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
@@ -416,4 +476,92 @@ fn release(manifest: &mut serde_norway::Mapping) {
 
 fn spec(manifest: &mut serde_norway::Mapping) -> &mut serde_norway::Mapping {
     member(manifest, "spec")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    const HOLDS: &str = "jc_gateway_space_held{space=\"t-air\"} 1\n";
+
+    async fn gateway(scrapes: &[&str]) -> MockServer {
+        let server = MockServer::start().await;
+        for (n, body) in scrapes.iter().enumerate() {
+            let mock = Mock::given(method("GET"))
+                .and(path("/metrics"))
+                .respond_with(ResponseTemplate::new(200).set_body_string(*body));
+            let mock = if n + 1 < scrapes.len() {
+                mock.up_to_n_times(1)
+            } else {
+                mock
+            };
+            mock.with_priority(u8::try_from(n + 1).expect("few scrapes"))
+                .mount(&server)
+                .await;
+        }
+        server
+    }
+
+    fn plan(gateways: &[&MockServer]) -> Plan {
+        let forge = GiteaClient::new("http://127.0.0.1:1".parse().expect("url"), "o", "r", "t")
+            .expect("client");
+        Plan {
+            project: "p".into(),
+            space: "air".into(),
+            tenant: "t-air".into(),
+            from: "main".into(),
+            to: "other".into(),
+            source: String::new(),
+            target: String::new(),
+            token: String::new(),
+            gateways: gateways.iter().map(|g| g.uri()).collect(),
+            forge: Arc::new(forge),
+            path: String::new(),
+            by: "jana".into(),
+        }
+    }
+
+    #[tokio::test]
+    async fn the_copy_waits_for_the_pod_slow_to_take_the_hold() {
+        let quick = gateway(&[HOLDS]).await;
+        let slow = gateway(&["", "", HOLDS]).await;
+        let moves = Moves::new(Duration::from_millis(10), Duration::from_secs(5));
+        assert_eq!(moves.await_hold(&plan(&[&quick, &slow])).await, Ok(()));
+        let asked = slow.received_requests().await.expect("requests").len();
+        assert_eq!(asked, 3, "the slow pod is asked until it holds");
+    }
+
+    #[tokio::test]
+    async fn one_pod_that_never_holds_fails_the_move_at_patience() {
+        let quick = gateway(&[HOLDS]).await;
+        let never = gateway(&[""]).await;
+        let moves = Moves::new(Duration::from_millis(10), Duration::from_millis(100));
+        let refused = moves.await_hold(&plan(&[&quick, &never])).await;
+        assert_eq!(
+            refused,
+            Err(
+                "not every gateway pod took the hold within 0 seconds, so nothing was copied"
+                    .into()
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn a_name_stands_for_every_address_it_resolves_to() {
+        let pods = pods_of("http://localhost:8080")
+            .await
+            .expect("localhost resolves");
+        assert!(!pods.is_empty());
+        assert!(pods.iter().all(|pod| pod.port() == Some(8080)
+            && pod
+                .host()
+                .is_some_and(|h| !matches!(h, url::Host::Domain(_)))));
+        assert_eq!(
+            pods_of("http://127.0.0.1:9").await,
+            Some(vec!["http://127.0.0.1:9".parse().expect("url")])
+        );
+        assert_eq!(pods_of("not a url").await, None);
+    }
 }

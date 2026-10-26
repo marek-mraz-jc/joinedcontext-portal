@@ -89,6 +89,7 @@ Copy endpoint addresses using the **Copy URL** button beside any slug:
 - **Microsoft Excel & Power BI:** Select **Data > From Web** and enter the CSV export URL `https://api.{domain}/api/endpoint/{slug}/file.csv`.
 - **Grafana:** In the Infinity datasource plugin, query `/ngsi-ld/v1/entities?type=…` with the header `Accept: application/geo+json` to plot live positions on a Geomap panel.
 - **AI Agents (MCP):** Connect external agent environments (such as Claude Code) to `https://api.{domain}/api/endpoint/{slug}/mcp`. The agent discovers query tools automatically according to the endpoint policy.
+- A script that reads as you: For an Endpoint that is not public, run `jcctl token --resource https://api.{domain}/api/endpoint/{slug} --idm https://idm.{domain}/realms/{realm}`, confirm the sign-in in your browser, and send the token it writes to `~/.config/jcctl/endpoints/{slug}` as `Authorization: Bearer …`. The token opens that one Endpoint and nothing else, and the Endpoint's Policy decides each call as it decides yours ([API/03 §2b](../API/03-jcctl.md#2b-a-persons-script-on-one-endpoint-token)). A program that runs without you uses a service account instead.
 - The schema and what you may do: `https://api.{domain}/api/endpoint/{slug}/schema/v1/AirQualityObserved.json` is the published schema of one type, and `https://api.{domain}/api/endpoint/{slug}/access` answers what the caller of that moment may read and write.
 
 ## 5. Cross-Project Data Sharing

@@ -30,6 +30,9 @@ fn state(store: &MockServer, services: Value) -> AppState {
     let config = Config::from_vars(|key| {
         match key {
             "JC_OIDC_ISSUER" => Some(common::REALM.issuer.as_str()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal-api"),
             "JC_OIDC_CLIENT_SECRET" => Some("secret"),
             "JC_PORTAL_APPS_STORE_ORIGIN" => Some("https://files.dev.example"),
@@ -375,4 +378,59 @@ async fn a_member_of_another_project_reaches_no_service_of_a_project_app() {
         asked(&store, "GET").await.is_empty(),
         "the store is never asked"
     );
+}
+
+/// F-POR2-016: concurrent PUTs that each fit `filesMiB` alone but not together: the quota check
+/// and the write run one App upload at a time, so the stored total stays within the quota.
+#[tokio::test]
+async fn concurrent_puts_never_pass_files_mib_together() {
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+    let held: Arc<Mutex<HashMap<String, usize>>> = Arc::default();
+    let store = MockServer::start().await;
+    let listed = held.clone();
+    Mock::given(method("GET"))
+        .and(path("/apps"))
+        .and(query_param("list-type", "2"))
+        .respond_with(move |_: &wiremock::Request| {
+            let contents: String = listed
+                .lock()
+                .expect("held")
+                .iter()
+                .map(|(key, size)| {
+                    format!("<Contents><Key>{key}</Key><Size>{size}</Size><LastModified>2026-10-10T20:00:00.000Z</LastModified></Contents>")
+                })
+                .collect();
+            ResponseTemplate::new(200).set_body_string(format!(
+                "<ListBucketResult><IsTruncated>false</IsTruncated>{contents}</ListBucketResult>"
+            ))
+        })
+        .mount(&store)
+        .await;
+    let stored = held.clone();
+    Mock::given(method("PUT"))
+        .respond_with(move |request: &wiremock::Request| {
+            let key = request.url.path().trim_start_matches("/apps/").to_owned();
+            stored.lock().expect("held").insert(key, request.body.len());
+            ResponseTemplate::new(200).set_delay(std::time::Duration::from_millis(200))
+        })
+        .mount(&store)
+        .await;
+    let state = state(&store, json!(["files"]));
+    // One call first: the person's token is verified once before the burst (see chyby.md).
+    let (status, _, text) = call(&state, "PUT", "/warm.txt", b"a".to_vec()).await;
+    assert_eq!(status, StatusCode::CREATED, "{text}");
+    let part = vec![0; 400 * 1024];
+    let (one, two, three) = tokio::join!(
+        call(&state, "PUT", "/one.bin", part.clone()),
+        call(&state, "PUT", "/two.bin", part.clone()),
+        call(&state, "PUT", "/three.bin", part.clone())
+    );
+    let created = [&one, &two, &three]
+        .iter()
+        .filter(|answer| answer.0 == StatusCode::CREATED)
+        .count();
+    assert_eq!(created, 2, "{} / {} / {}", one.2, two.2, three.2);
+    let total: usize = held.lock().expect("held").values().sum();
+    assert!(total <= 1024 * 1024, "{total} bytes stored past filesMiB 1");
 }

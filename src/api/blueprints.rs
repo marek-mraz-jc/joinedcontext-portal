@@ -233,10 +233,11 @@ pub async fn start_flow(
 
     // One merge request for the whole expansion: the manifests of one flow are reviewed and
     // merged together or not at all (CC-32).
-    let gitea = state
-        .gitea
-        .as_deref()
+    // The project's own repository in layout 2, where its manifests live (F-POR1-016).
+    let forge = state
+        .forge_for(&project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea = forge.as_ref();
     let default_branch = gitea.default_branch().await?;
     let branch = flow_branch(
         &project,
@@ -244,7 +245,8 @@ pub async fn start_flow(
         &request.version,
         &request.parameters,
     );
-    let branch = create_or_reuse_branch(gitea, &branch, &default_branch).await?;
+    let held = crate::api::mutate::turn(gitea, &branch).await;
+    let branch = create_or_reuse_branch(gitea, &held, &default_branch).await?;
 
     let (author_name, author_email) = author_credentials(identity, &project);
     for (repo_path, yaml) in &planned.files {
