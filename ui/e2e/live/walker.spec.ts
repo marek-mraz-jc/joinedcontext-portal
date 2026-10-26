@@ -129,7 +129,10 @@ for (const [who, person] of [
           const judged = await tab.run(async (page) => {
             await page.setViewportSize(size);
             if (index === 0) {
-              edgeRefused = await openToJudge(page, `${visit.address}${visit.address.includes("?") ? "&" : "?"}lang=${lang}`);
+              // A load the edge refused is judged again after its window, without what it logged.
+              edgeRefused = await openToJudge(page, `${visit.address}${visit.address.includes("?") ? "&" : "?"}lang=${lang}`, undefined, () => {
+                current = [];
+              });
             } else {
               await page.waitForTimeout(300);
               if (!edgeRefused) await afterSelfReload(page);
