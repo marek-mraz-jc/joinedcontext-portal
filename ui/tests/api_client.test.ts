@@ -396,3 +396,27 @@ describe("isPublicFormPath (EP-102)", () => {
     for (const path of ["/", "/f/", "/f/abc/more", "/projects/city/f/abc", "/fx/abc", "/v/abc"]) expect(isPublicFormPath(path), path).toBe(false);
   });
 });
+
+describe("a public form's requests (EP-102)", () => {
+  afterEach(() => {
+    window.history.pushState({}, "", "/");
+    vi.unstubAllGlobals();
+  });
+
+  it("omit credentials on /f/ alone, decided per request as the router moves", async () => {
+    const { api } = await import("../src/api/client");
+    const sent: Request[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((request: Request) => {
+        sent.push(request);
+        return Promise.resolve(new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }));
+      }),
+    );
+    for (const path of ["/projects/city", "/f/abc", "/projects/city"]) {
+      window.history.pushState({}, "", path);
+      await api.GET("/api/v1/auth/me");
+    }
+    expect(sent.map((request) => request.credentials)).toEqual(["same-origin", "omit", "same-origin"]);
+  });
+});

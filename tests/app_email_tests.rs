@@ -390,6 +390,74 @@ async fn people_are_named_by_id_and_an_unknown_one_is_refused() {
     assert_eq!(messages[0].0, vec!["<eva@bbsk.sk>".to_owned()]);
 }
 
+/// AP-168, ADR-N-058: with several Organizations an App mails only people of the group subtree of
+/// the Organization that owns its project; another Organization's verified person is refused.
+#[tokio::test]
+async fn a_person_of_another_organization_is_refused() {
+    let Some(db) = database().await else { return };
+    let (url, inbox) = relay().await;
+    let project = project("orgs");
+    let mut state = state(&url, db, &project, app(json!(["email"]), json!({})));
+    let mut helsinki = organization(Some(json!(["identity", "data", "email"])));
+    helsinki.spec["installation"] = json!(true);
+    state.mirror.upsert(helsinki);
+    state.mirror.upsert(envelope(
+        "Organization",
+        "zilina",
+        "org",
+        json!({ "domain": "zilina.sk", "locales": ["en"], "defaultLocale": "en" }),
+    ));
+    let realm = common::REALM.server;
+    Mock::given(method("POST"))
+        .and(path("/realms/banskabystrica/protocol/openid-connect/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "access_token": "admin", "token_type": "Bearer", "expires_in": 300
+        })))
+        .mount(realm)
+        .await;
+    for (id, address, group) in [
+        ("hel-1", "eva@hel.fi", "/helsinki/stewards"),
+        ("zil-1", "zoe@zilina.sk", "/zilina/stewards"),
+        ("hel-lookalike-1", "ada@hel.fi", "/helsinki-old/stewards"),
+    ] {
+        Mock::given(method("GET"))
+            .and(path(format!("/admin/realms/banskabystrica/users/{id}")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": id, "username": address, "email": address,
+                "enabled": true, "emailVerified": true
+            })))
+            .mount(realm)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/admin/realms/banskabystrica/users/{id}/groups"
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                { "id": format!("g-{id}"), "name": "stewards", "path": group }
+            ])))
+            .mount(realm)
+            .await;
+    }
+    state.people = joinedcontext_portal::people::People::new(
+        &common::REALM.issuer,
+        "portal-admin".into(),
+        joinedcontext_portal::config::ClientAuth::Secret("secret".into()),
+    )
+    .map(Arc::new);
+
+    let message = |to: Value| json!({ "to": to, "subject": "Defect", "text": "Hlavná 4" });
+    let (status, _, text) = send(&state, message(json!(["hel-1"]))).await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{text}");
+    for refused in ["zil-1", "hel-lookalike-1"] {
+        let (status, body, text) = send(&state, message(json!(["hel-1", refused]))).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{text}");
+        assert_eq!(body["to"], refused);
+    }
+    let messages = delivered(&inbox);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages[0].0, vec!["<eva@hel.fi>".to_owned()]);
+}
+
 /// RFC 8058, AP-168: the link in a message stops that App's mail to that person; the next send
 /// is still accepted and reaches nobody. A link with another signature stops nothing.
 #[tokio::test]

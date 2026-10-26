@@ -26,6 +26,10 @@ pub struct Comment {
     pub author: String,
     /// What the Portal shows for the author.
     pub author_name: String,
+    /// The author's Keycloak `sub`, which alone decides whose comment it is: a later account
+    /// with the same username is someone else. `None` on a comment stored before it was kept.
+    #[serde(skip)]
+    pub author_subject: Option<String>,
     pub text: String,
     /// The people the comment notified, by identifier.
     pub mentions: Vec<String>,
@@ -55,6 +59,8 @@ pub struct Notification {
 pub struct Author<'a> {
     pub id: &'a str,
     pub name: &'a str,
+    /// Keycloak `sub`.
+    pub subject: &'a str,
 }
 
 /// What a new comment says and whom it notifies.
@@ -99,6 +105,7 @@ type CommentRow = (
     String,
     String,
     String,
+    Option<String>,
     String,
     Vec<String>,
     time::OffsetDateTime,
@@ -116,12 +123,15 @@ type NotificationRow = (
     Option<time::OffsetDateTime>,
 );
 
-fn comment_of((id, urn, author, author_name, text, mentions, at): CommentRow) -> Comment {
+fn comment_of(
+    (id, urn, author, author_name, author_subject, text, mentions, at): CommentRow,
+) -> Comment {
     Comment {
         id,
         urn,
         author,
         author_name,
+        author_subject,
         text,
         mentions,
         created_at: rfc3339(at),
@@ -178,15 +188,16 @@ impl CommentStore {
                     return Ok(None);
                 }
                 let row: CommentRow = sqlx::query_as(
-                    "INSERT INTO entity_comments (project, space, urn, author, author_name, body, mentions) \
-                     VALUES ($1, $2, $3, $4, $5, $6, $7) \
-                     RETURNING id, urn, author, author_name, body, mentions, created_at",
+                    "INSERT INTO entity_comments (project, space, urn, author, author_name, author_subject, body, mentions) \
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+                     RETURNING id, urn, author, author_name, author_subject, body, mentions, created_at",
                 )
                 .bind(new.project)
                 .bind(new.space)
                 .bind(new.urn)
                 .bind(author.id)
                 .bind(author.name)
+                .bind(author.subject)
                 .bind(new.text)
                 .bind(new.mentions)
                 .fetch_one(&mut *tx)
@@ -227,6 +238,7 @@ impl CommentStore {
                     urn: new.urn.to_owned(),
                     author: author.id.to_owned(),
                     author_name: author.name.to_owned(),
+                    author_subject: Some(author.subject.to_owned()),
                     text: new.text.to_owned(),
                     mentions: new.mentions.to_vec(),
                     created_at: at.clone(),
@@ -267,7 +279,7 @@ impl CommentStore {
         match &self.inner {
             Inner::Postgres(pool) => {
                 let rows: Vec<CommentRow> = sqlx::query_as(
-                    "SELECT id, urn, author, author_name, body, mentions, created_at FROM entity_comments \
+                    "SELECT id, urn, author, author_name, author_subject, body, mentions, created_at FROM entity_comments \
                      WHERE project = $1 AND space = $2 AND urn = $3 ORDER BY id LIMIT $4",
                 )
                 .bind(project)
@@ -290,23 +302,23 @@ impl CommentStore {
         }
     }
 
-    /// Removes one of the author's comments and the notifications it sent; `false` when the
-    /// author holds none by that id in this space.
+    /// Removes one of the author's comments, the author known by their Keycloak `sub`, and the
+    /// notifications it sent; `false` when the author holds none by that id in this space.
     pub async fn remove(
         &self,
         project: &str,
         space: &str,
-        author: &str,
+        subject: &str,
         id: i64,
     ) -> Result<bool, sqlx::Error> {
         match &self.inner {
             // The notifications go with it: `ON DELETE CASCADE` (migration 0025).
             Inner::Postgres(pool) => Ok(sqlx::query(
-                "DELETE FROM entity_comments WHERE project = $1 AND space = $2 AND author = $3 AND id = $4",
+                "DELETE FROM entity_comments WHERE project = $1 AND space = $2 AND author_subject = $3 AND id = $4",
             )
             .bind(project)
             .bind(space)
-            .bind(author)
+            .bind(subject)
             .bind(id)
             .execute(pool)
             .await?
@@ -317,7 +329,12 @@ impl CommentStore {
                 let before = memory.comments.len();
                 memory
                     .comments
-                    .retain(|(p, s, c)| !(p == project && s == space && c.author == author && c.id == id));
+                    .retain(|(p, s, c)| {
+                        !(p == project
+                            && s == space
+                            && c.author_subject.as_deref() == Some(subject)
+                            && c.id == id)
+                    });
                 let removed = memory.comments.len() < before;
                 if removed {
                     memory.notifications.retain(|(_, n)| n.comment_id != id);

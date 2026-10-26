@@ -469,6 +469,7 @@ impl Realm {
             "azp": client,
             "preferred_username": format!("{who}@hel.fi"),
             "email": format!("{who}@hel.fi"),
+            "email_verified": true,
             "realm_access": { "roles": roles },
             "resource_access": { client: { "roles": roles }, "app-other": { "roles": ["steward"] } },
             "exp": now + 300,

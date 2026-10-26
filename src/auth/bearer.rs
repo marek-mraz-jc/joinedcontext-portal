@@ -60,6 +60,7 @@ struct Claims {
     preferred_username: Option<String>,
     azp: Option<String>,
     email: Option<String>,
+    email_verified: Option<bool>,
     name: Option<String>,
     #[serde(default)]
     realm_access: RealmAccess,
@@ -252,7 +253,7 @@ fn session_of(c: Claims) -> (Session, Option<String>) {
             second_factor,
             subject: c.sub,
             username,
-            email: c.email,
+            email: super::session::verified_email(c.email, c.email_verified),
             name: c.name,
             roles: c.realm_access.roles,
             groups: c
@@ -320,6 +321,22 @@ mod tests {
             "iss": ISSUER, "aud": "portal-api", "sub": "svc:smoke", "azp": "apisix-gateway",
             "exp": exp, "iat": now(), "realm_access": { "roles": ["viewer"] }
         })
+    }
+
+    /// An unverified address is no address: a binding naming it would otherwise go to whoever
+    /// typed it into their account.
+    #[test]
+    fn only_a_verified_email_reaches_the_identity() {
+        let identity = |verified: serde_json::Value| {
+            let mut c = claims(now() + 60);
+            c["email"] = json!("admin@city.example");
+            c["email_verified"] = verified;
+            let c: Claims = serde_json::from_value(c).unwrap();
+            session_of(c).0.identity.email
+        };
+        assert_eq!(identity(json!(false)), None);
+        assert_eq!(identity(serde_json::Value::Null), None);
+        assert_eq!(identity(json!(true)).as_deref(), Some("admin@city.example"));
     }
 
     fn sign(signer: &EncodingKey, kid: &str, claims: &serde_json::Value) -> String {
@@ -504,6 +521,7 @@ mod tests {
             c["sub"] = json!("5f0c");
             c["preferred_username"] = json!("jana@hel.fi");
             c["email"] = json!("jana@hel.fi");
+            c["email_verified"] = json!(true);
             c["realm_access"] = json!({ "roles": ["steward", "portal-approver"] });
             c["resource_access"] = json!({
                 "app-alerts": { "roles": ["viewer"] },
