@@ -1486,3 +1486,61 @@ async fn an_external_accounts_client_is_deleted_with_the_account() {
     assert_eq!(outcomes[0].app, "helsinki/vendor");
     assert_eq!(outcomes[0].error, None);
 }
+
+/// T-5766: a Pipeline's token fits the smallest header limit on its hops beside a project of 455
+/// Endpoints on its one space, as Bratislava's is. Before T-5757 its `aud` named all 455 and the
+/// 22 KB token got 431 from the gateway and the Portal's internal listener, so no Bratislava
+/// write ever landed. The rest of a token, `aud` aside, is taken from the 2,526-byte
+/// helsinki/air-quality token T-5757 measured; `aud` travels base64url-encoded (4/3).
+#[tokio::test]
+async fn a_pipelines_token_beside_455_endpoints_fits_the_header_limit() {
+    const HEADER_LIMIT: usize = 8 * 1024;
+    const TOKEN_WITHOUT_AUD: usize = 2_600;
+    const BEARER: usize = "Authorization: Bearer ".len();
+    let mut items = vec![
+        drepo(),
+        endpoint("zilina", "zilina-uniza", "zilina-uniza", SLUG),
+    ];
+    let base32 = b"abcdefghijklmnopqrstuvwxyz234567";
+    for i in 0..454_usize {
+        let slug: String = (0..26)
+            .map(|d| char::from(base32[(i >> (5 * (d % 2))) % 32]))
+            .collect();
+        items.push(endpoint(
+            "zilina",
+            &format!("zilina-kpi-{i}"),
+            "zilina-uniza",
+            &slug,
+        ));
+    }
+    let mirror = mirror_with(items);
+    let keycloak = realm(json!([])).await;
+    creatable(
+        &keycloak,
+        ("zilina", "pl-drepo"),
+        "uuid-pl",
+        (PIPELINES, "pl-zilina-drepo"),
+    )
+    .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REALM}/clients")))
+        .respond_with(ResponseTemplate::new(201))
+        .mount(&keycloak)
+        .await;
+
+    let outcomes = sync(&keycloak)
+        .with_pipelines(PIPELINES.to_owned())
+        .converge(&mirror, &Bentos::new())
+        .await;
+    let outcome = outcomes.iter().find(|o| o.app == "zilina/pl-drepo");
+    assert_eq!(outcome.map(|o| o.error.clone()), Some(None), "{outcomes:?}");
+
+    let aud = audiences_of(&keycloak, "uuid-pl").await;
+    let encoded = json!(aud).to_string().len().div_ceil(3) * 4;
+    let header = BEARER + TOKEN_WITHOUT_AUD + encoded;
+    assert!(
+        header <= HEADER_LIMIT,
+        "{header} bytes over {HEADER_LIMIT} for {} audiences",
+        aud.len()
+    );
+}
