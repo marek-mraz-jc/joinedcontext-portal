@@ -266,11 +266,12 @@ pub(crate) fn history_step(pipeline: &PipelineSpec) -> Result<Option<Value>, Ren
 ///
 /// A component that already carries one keeps it: a label the author wrote is theirs, and the
 /// metrics they read elsewhere are named by it. Anything that is not a map is returned as it
-/// came, because only a map can carry the key.
+/// came, because only a map can carry the key. A `resource:` reference stays bare: Bento's lint
+/// refuses a label on one (the resource carries its own), and the runner refuses the whole stream.
 pub(super) fn labelled(component: serde_json::Value, label: &str) -> serde_json::Value {
     let mut component = component;
     match component.as_object_mut() {
-        Some(fields) if !fields.contains_key("label") => {
+        Some(fields) if !fields.contains_key("label") && !fields.contains_key("resource") => {
             fields.insert("label".to_owned(), serde_json::json!(label));
             component
         }
