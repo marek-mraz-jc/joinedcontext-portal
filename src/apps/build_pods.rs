@@ -11,10 +11,10 @@
 //! whatever an App's code writes there is only ever read by a later build of the same
 //! repository. A claim whose App is gone is deleted on the next pass.
 //!
-//! At most [`MAX_RUNNING`] build Jobs run in the cluster at once; the other jobs stay queued in
-//! the forge and the next pass after one ends starts the next (T-5815: a seed sync queued five
-//! builds, their pods took the node's memory requests to 98 % and a rollout's surge pod stayed
-//! Pending).
+//! At most [`MAX_RUNNING`](crate::apps::build_pods::MAX_RUNNING) build Jobs run in the cluster
+//! at once; the other jobs stay queued in the forge and the next pass after one ends starts the
+//! next (T-5815: a seed sync queued five builds, their pods took the node's memory requests to
+//! 98 % and a rollout's surge pod stayed Pending).
 
 use std::collections::BTreeSet;
 
