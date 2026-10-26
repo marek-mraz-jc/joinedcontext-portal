@@ -31,7 +31,8 @@ export function projectListQuery(project: string, plural: string) {
 
 // Names are DNS labels (kinds: metadata.name): anything else is no space page to read ahead for.
 const SPACE_PAGE = /^\/projects\/([a-z0-9-]{1,63})\/spaces\/([a-z0-9-]{1,63})\/?$/;
-const NOT_A_SPACE = new Set(["new", "upload"]);
+// The static pages under /spaces/ (router.tsx): reading one ahead as a space 404s (T-5749).
+const NOT_A_SPACE = new Set(["new", "upload", "complete"]);
 
 /**
  * A space's page opened from its address starts the reads its grid waits on with the session
