@@ -1037,7 +1037,8 @@ impl Syncer {
         //      is read back: no secret opens such a client. A Pipeline's own account is bound
         //      to a Kubernetes ServiceAccount the step before it keeps (PL-19), and so is an
         //      App's job principal (AP-159).
-        self.converge_workload_accounts(&fresh_mirror).await;
+        self.converge_workload_accounts(&fresh_mirror, &bentos)
+            .await;
 
         // 5d''. One `endpoint:{slug}` scope on the MCP hub's client per Endpoint that serves MCP
         //       (T-2490, EP-88): the connect-time allow-list a hub token carries.
@@ -1510,7 +1511,7 @@ impl Syncer {
         }
     }
 
-    async fn converge_workload_accounts(&self, fresh_mirror: &Mirror) {
+    async fn converge_workload_accounts(&self, fresh_mirror: &Mirror, bentos: &Bentos) {
         if let Some((kube, namespace)) = self.pipeline_service_accounts.as_ref() {
             for failure in super::workload_clients::converge_pipeline_service_accounts(
                 kube,
@@ -1534,7 +1535,7 @@ impl Syncer {
             }
         }
         if let Some(clients) = self.workload_clients.as_ref() {
-            let outcomes = clients.converge(fresh_mirror).await;
+            let outcomes = clients.converge(fresh_mirror, bentos).await;
             // `*` is a failure before any account was looked at: it names no one to hold back.
             if let Some(streams) = self.streams.as_ref() {
                 streams.unbound(
@@ -4958,7 +4959,9 @@ output_error{stream="kpi"} 6
         syncer.converge_registrations(&fresh).await;
         syncer.converge_groups(&fresh, &BTreeMap::new()).await;
         syncer.converge_app_clients(&fresh).await;
-        syncer.converge_workload_accounts(&fresh).await;
+        syncer
+            .converge_workload_accounts(&fresh, &Bentos::new())
+            .await;
         syncer.converge_hub_scopes(&fresh).await;
         syncer.converge_mcp_clients(&fresh).await;
         syncer.converge_edge_file(&fresh).await;

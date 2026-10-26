@@ -17,6 +17,7 @@ use jc_core::kinds::service_account::KubernetesBinding;
 use joinedcontext_portal::config::ClientAuth;
 use joinedcontext_portal::reconciler::app_clients::{audience_mapper, groups_mapper};
 use joinedcontext_portal::reconciler::groups::{MANAGED_BY, MANAGED_VALUE};
+use joinedcontext_portal::reconciler::streams::Bentos;
 use joinedcontext_portal::reconciler::workload_clients::{
     desired, desired_external, ClientCredential, WorkloadClientSync,
 };
@@ -216,15 +217,18 @@ async fn a_realm_that_answers_429_once_still_converges_the_client_in_one_run() {
     mappers(&keycloak, "uuid-air", json!([])).await;
 
     let outcomes = sync(&keycloak)
-        .converge(&mirror_with(vec![
-            account(
-                "helsinki",
-                "air-adapter",
-                Some(("env-dept", "adapter")),
-                "space-writer",
-            ),
-            endpoint("helsinki", "air-all", "air", SLUG),
-        ]))
+        .converge(
+            &mirror_with(vec![
+                account(
+                    "helsinki",
+                    "air-adapter",
+                    Some(("env-dept", "adapter")),
+                    "space-writer",
+                ),
+                endpoint("helsinki", "air-all", "air", SLUG),
+            ]),
+            &Bentos::new(),
+        )
         .await;
 
     assert_eq!(outcomes.len(), 1, "{outcomes:?}");
@@ -270,22 +274,25 @@ async fn a_bound_account_gets_a_federated_client_and_no_secret() {
     mappers(&keycloak, "uuid-air", json!([])).await;
 
     let outcomes = sync(&keycloak)
-        .converge(&mirror_with(vec![
-            account(
-                "helsinki",
-                "air-adapter",
-                Some(("env-dept", "adapter")),
-                "space-writer",
-            ),
-            endpoint("helsinki", "air-all", "air", SLUG),
-            // Another space's endpoint is no audience of this account.
-            endpoint(
-                "helsinki",
-                "bikes-all",
-                "bikes",
-                "b2ryd3wcfak7m2qz4tv6xh3n5j",
-            ),
-        ]))
+        .converge(
+            &mirror_with(vec![
+                account(
+                    "helsinki",
+                    "air-adapter",
+                    Some(("env-dept", "adapter")),
+                    "space-writer",
+                ),
+                endpoint("helsinki", "air-all", "air", SLUG),
+                // Another space's endpoint is no audience of this account.
+                endpoint(
+                    "helsinki",
+                    "bikes-all",
+                    "bikes",
+                    "b2ryd3wcfak7m2qz4tv6xh3n5j",
+                ),
+            ]),
+            &Bentos::new(),
+        )
         .await;
 
     assert_eq!(outcomes.len(), 1, "{outcomes:?}");
@@ -356,21 +363,24 @@ async fn an_account_holding_a_portal_role_gets_the_portal_audience() {
     mappers(&keycloak, "uuid-air", json!([])).await;
 
     let outcomes = sync(&keycloak)
-        .converge(&mirror_with(vec![
-            account(
-                "helsinki",
-                "air-adapter",
-                Some(("env-dept", "adapter")),
-                "proposer",
-            ),
-            envelope(
-                "Role",
-                "org",
-                "proposer",
-                json!({ "rules": [{ "kinds": ["Pipeline"], "verbs": ["propose"] }] }),
-            ),
-            endpoint("helsinki", "air-all", "air", SLUG),
-        ]))
+        .converge(
+            &mirror_with(vec![
+                account(
+                    "helsinki",
+                    "air-adapter",
+                    Some(("env-dept", "adapter")),
+                    "proposer",
+                ),
+                envelope(
+                    "Role",
+                    "org",
+                    "proposer",
+                    json!({ "rules": [{ "kinds": ["Pipeline"], "verbs": ["propose"] }] }),
+                ),
+                endpoint("helsinki", "air-all", "air", SLUG),
+            ]),
+            &Bentos::new(),
+        )
         .await;
 
     assert_eq!(outcomes[0].error, None, "{outcomes:?}");
@@ -407,15 +417,18 @@ async fn a_projects_pipelines_account_gets_the_internal_listeners_audience() {
     mappers(&keycloak, "uuid-pl", json!([])).await;
 
     let outcomes = sync(&keycloak)
-        .converge(&mirror_with(vec![
-            account(
-                "zilina",
-                "pipelines",
-                Some(("pipeline-runner", "pipelines")),
-                "space-writer",
-            ),
-            endpoint("zilina", "air-all", "air", SLUG),
-        ]))
+        .converge(
+            &mirror_with(vec![
+                account(
+                    "zilina",
+                    "pipelines",
+                    Some(("pipeline-runner", "pipelines")),
+                    "space-writer",
+                ),
+                endpoint("zilina", "air-all", "air", SLUG),
+            ]),
+            &Bentos::new(),
+        )
         .await;
 
     assert_eq!(outcomes[0].error, None, "{outcomes:?}");
@@ -437,12 +450,15 @@ async fn an_account_without_a_workload_gets_no_client() {
     let keycloak = realm(json!([])).await;
 
     let outcomes = sync(&keycloak)
-        .converge(&mirror_with(vec![account(
-            "helsinki",
-            "vendor-push",
-            None,
-            "space-writer",
-        )]))
+        .converge(
+            &mirror_with(vec![account(
+                "helsinki",
+                "vendor-push",
+                None,
+                "space-writer",
+            )]),
+            &Bentos::new(),
+        )
         .await;
 
     assert!(outcomes.is_empty(), "{outcomes:?}");
@@ -462,15 +478,18 @@ async fn a_console_change_is_written_back_and_reported() {
     mappers(&keycloak, "uuid-air", json!([held])).await;
 
     let outcomes = sync(&keycloak)
-        .converge(&mirror_with(vec![
-            account(
-                "helsinki",
-                "air-adapter",
-                Some(("env-dept", "adapter")),
-                "space-writer",
-            ),
-            endpoint("helsinki", "air-all", "air", SLUG),
-        ]))
+        .converge(
+            &mirror_with(vec![
+                account(
+                    "helsinki",
+                    "air-adapter",
+                    Some(("env-dept", "adapter")),
+                    "space-writer",
+                ),
+                endpoint("helsinki", "air-all", "air", SLUG),
+            ]),
+            &Bentos::new(),
+        )
         .await;
 
     assert_eq!(outcomes[0].error, None, "{outcomes:?}");
@@ -503,15 +522,18 @@ async fn an_accounts_client_carries_no_groups_mapper() {
     mappers(&keycloak, "uuid-air", json!([audience, groups])).await;
 
     let outcomes = sync(&keycloak)
-        .converge(&mirror_with(vec![
-            account(
-                "helsinki",
-                "air-adapter",
-                Some(("env-dept", "adapter")),
-                "space-writer",
-            ),
-            endpoint("helsinki", "air-all", "air", SLUG),
-        ]))
+        .converge(
+            &mirror_with(vec![
+                account(
+                    "helsinki",
+                    "air-adapter",
+                    Some(("env-dept", "adapter")),
+                    "space-writer",
+                ),
+                endpoint("helsinki", "air-all", "air", SLUG),
+            ]),
+            &Bentos::new(),
+        )
         .await;
 
     assert_eq!(outcomes[0].error, None, "{outcomes:?}");
@@ -537,12 +559,15 @@ async fn a_client_the_platform_did_not_create_is_left_alone() {
     client_lookup(&keycloak, "helsinki-air-adapter", json!([foreign])).await;
 
     let outcomes = sync(&keycloak)
-        .converge(&mirror_with(vec![account(
-            "helsinki",
-            "air-adapter",
-            Some(("env-dept", "adapter")),
-            "space-writer",
-        )]))
+        .converge(
+            &mirror_with(vec![account(
+                "helsinki",
+                "air-adapter",
+                Some(("env-dept", "adapter")),
+                "space-writer",
+            )]),
+            &Bentos::new(),
+        )
         .await;
 
     let error = outcomes[0].error.as_deref().unwrap_or_default();
@@ -561,12 +586,15 @@ async fn a_client_whose_account_lost_its_workload_is_deleted() {
     .await;
 
     let outcomes = sync(&keycloak)
-        .converge(&mirror_with(vec![account(
-            "helsinki",
-            "air-adapter",
-            None,
-            "space-writer",
-        )]))
+        .converge(
+            &mirror_with(vec![account(
+                "helsinki",
+                "air-adapter",
+                None,
+                "space-writer",
+            )]),
+            &Bentos::new(),
+        )
         .await;
 
     assert_eq!(
@@ -614,7 +642,7 @@ async fn a_removed_accounts_tokens_are_revoked_with_its_client() {
         .await;
     let outcomes = sync(&keycloak)
         .with_revoke(std::sync::Arc::clone(&revoke))
-        .converge(&gone)
+        .converge(&gone, &Bentos::new())
         .await;
     assert_eq!(*revoked.lock().expect("the list"), ["sa-user-air"]);
     assert_eq!(
@@ -626,7 +654,10 @@ async fn a_removed_accounts_tokens_are_revoked_with_its_client() {
     // No service-account user to read: the client is removed all the same, and the outcome says
     // its tokens outlive it.
     let keycloak = realm(listed).await;
-    let outcomes = sync(&keycloak).with_revoke(revoke).converge(&gone).await;
+    let outcomes = sync(&keycloak)
+        .with_revoke(revoke)
+        .converge(&gone, &Bentos::new())
+        .await;
     assert_eq!(
         wrote(&keycloak).await,
         vec![format!("DELETE {REALM}/clients/uuid-air")]
@@ -648,21 +679,24 @@ async fn a_second_binding_of_a_held_subject_is_refused() {
     mappers(&keycloak, "uuid-air", json!([held])).await;
 
     let outcomes = sync(&keycloak)
-        .converge(&mirror_with(vec![
-            account(
-                "helsinki",
-                "air-adapter",
-                Some(("env-dept", "adapter")),
-                "space-writer",
-            ),
-            account(
-                "kosice",
-                "squatter",
-                Some(("env-dept", "adapter")),
-                "space-writer",
-            ),
-            endpoint("helsinki", "air-all", "air", SLUG),
-        ]))
+        .converge(
+            &mirror_with(vec![
+                account(
+                    "helsinki",
+                    "air-adapter",
+                    Some(("env-dept", "adapter")),
+                    "space-writer",
+                ),
+                account(
+                    "kosice",
+                    "squatter",
+                    Some(("env-dept", "adapter")),
+                    "space-writer",
+                ),
+                endpoint("helsinki", "air-all", "air", SLUG),
+            ]),
+            &Bentos::new(),
+        )
         .await;
 
     let of = |label: &str| outcomes.iter().find(|o| o.app == label).expect(label);
@@ -685,20 +719,23 @@ async fn two_new_bindings_of_one_subject_both_wait() {
     let keycloak = realm(json!([])).await;
 
     let outcomes = sync(&keycloak)
-        .converge(&mirror_with(vec![
-            account(
-                "helsinki",
-                "air-adapter",
-                Some(("env-dept", "adapter")),
-                "space-writer",
-            ),
-            account(
-                "kosice",
-                "squatter",
-                Some(("env-dept", "adapter")),
-                "space-writer",
-            ),
-        ]))
+        .converge(
+            &mirror_with(vec![
+                account(
+                    "helsinki",
+                    "air-adapter",
+                    Some(("env-dept", "adapter")),
+                    "space-writer",
+                ),
+                account(
+                    "kosice",
+                    "squatter",
+                    Some(("env-dept", "adapter")),
+                    "space-writer",
+                ),
+            ]),
+            &Bentos::new(),
+        )
         .await;
 
     assert_eq!(outcomes.len(), 2, "{outcomes:?}");
@@ -736,7 +773,10 @@ async fn a_pipeline_gets_its_own_federated_client_only_when_the_namespace_is_set
         endpoint("zilina", "zilina-uniza", "zilina-uniza", SLUG),
     ]);
     let keycloak = realm(json!([])).await;
-    assert!(sync(&keycloak).converge(&mirror).await.is_empty());
+    assert!(sync(&keycloak)
+        .converge(&mirror, &Bentos::new())
+        .await
+        .is_empty());
     assert!(wrote(&keycloak).await.is_empty());
 
     Mock::given(method("GET"))
@@ -767,7 +807,7 @@ async fn a_pipeline_gets_its_own_federated_client_only_when_the_namespace_is_set
 
     let outcomes = sync(&keycloak)
         .with_pipelines(PIPELINES.to_owned())
-        .converge(&mirror)
+        .converge(&mirror, &Bentos::new())
         .await;
     // The pipeline's, and the project's harness principal beside it (T-4050).
     let apps: Vec<&str> = outcomes.iter().map(|o| o.app.as_str()).collect();
@@ -800,6 +840,118 @@ async fn a_pipeline_gets_its_own_federated_client_only_when_the_namespace_is_set
     let mut want = vec![json!(SLUG), json!("portal-internal")];
     want.sort_by_key(Value::to_string);
     assert_eq!(audiences, want);
+}
+
+/// Creates `client` (absent on the first lookup, then held as `uuid`) bound to `namespace/sa`.
+async fn creatable(keycloak: &MockServer, client: (&str, &str), uuid: &str, subject: (&str, &str)) {
+    let (project, name) = client;
+    let id = format!("{project}-{name}");
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/clients")))
+        .and(query_param("clientId", id.as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .up_to_n_times(1)
+        .mount(keycloak)
+        .await;
+    client_lookup(
+        keycloak,
+        &id,
+        json!([managed_client(uuid, project, name, subject.0, subject.1)]),
+    )
+    .await;
+    mappers(keycloak, uuid, json!([])).await;
+}
+
+/// The audiences the run wrote on client `uuid`, sorted.
+async fn audiences_of(keycloak: &MockServer, uuid: &str) -> Vec<String> {
+    let mut found: Vec<String> = bodies(
+        keycloak,
+        "POST",
+        &format!("{REALM}/clients/{uuid}/protocol-mappers/models"),
+    )
+    .await
+    .into_iter()
+    .filter_map(|m| {
+        m["config"]["included.custom.audience"]
+            .as_str()
+            .map(str::to_owned)
+    })
+    .collect();
+    found.sort();
+    found
+}
+
+/// T-5757: a Pipeline's token names the Endpoints the Pipeline names (its output's, and each
+/// one of its project its `bento.yaml` calls), not every Endpoint of its space: a Bratislava
+/// pipeline beside 453 Endpoints carried 455 audiences and a 22 KB token the edge refused.
+/// A ServiceAccount with a role on that space still gets every Endpoint of it.
+#[tokio::test]
+async fn a_pipelines_token_names_only_the_endpoints_the_pipeline_names() {
+    const READ: &str = "r5wq3n7kcm2xt4zb6hdy2vfja3";
+    const SIBLING: &str = "s2bq6xm4ty7nc3wk5rdh2jzfa4";
+    const ELSEWHERE: &str = "e3kd7pw2vn5xq4tb6mzh2cyra5";
+    let mirror = mirror_with(vec![
+        drepo(),
+        endpoint("zilina", "zilina-uniza", "zilina-uniza", SLUG),
+        endpoint("zilina", "zilina-read", "zilina-uniza", READ),
+        endpoint("zilina", "zilina-sibling", "zilina-uniza", SIBLING),
+        endpoint("trnava", "trnava-all", "trnava", ELSEWHERE),
+        envelope(
+            "ServiceAccount",
+            "zilina",
+            "adapter",
+            json!({
+                "owner": { "user": "jana.kovacova@zilina.sk" },
+                "purpose": "the university's own adapter",
+                "roles": [{ "role": "space-writer", "scope": { "contextSpace": "zilina-uniza" } }],
+                "credentials": [],
+                "workload": { "kubernetes": { "namespace": "uniza", "serviceAccount": "adapter" } },
+            }),
+        ),
+    ]);
+    // Its mapping reads one Endpoint of its project, one of another project, and one nobody has.
+    let bento = format!(
+        "pipeline:\n  processors:\n    - http:\n        url: ${{JC_GATEWAY_URL}}/api/endpoint/{READ}/ngsi-ld/v1/entities\n\
+         # api/endpoint/{ELSEWHERE}/ngsi-ld/v1/entities and api/endpoint/zz2zz2zz2zz2zz2zz2zz2zz2zz\n"
+    );
+    let bentos = Bentos::from([(("zilina".to_owned(), "drepo".to_owned()), bento)]);
+    let keycloak = realm(json!([])).await;
+    creatable(
+        &keycloak,
+        ("zilina", "pl-drepo"),
+        "uuid-pl",
+        (PIPELINES, "pl-zilina-drepo"),
+    )
+    .await;
+    creatable(
+        &keycloak,
+        ("zilina", "adapter"),
+        "uuid-sa",
+        ("uniza", "adapter"),
+    )
+    .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REALM}/clients")))
+        .respond_with(ResponseTemplate::new(201))
+        .mount(&keycloak)
+        .await;
+
+    let outcomes = sync(&keycloak)
+        .with_pipelines(PIPELINES.to_owned())
+        .converge(&mirror, &bentos)
+        .await;
+    // The harness principals' clients are not this test's: only the two it mocks must converge.
+    for app in ["zilina/adapter", "zilina/pl-drepo"] {
+        let outcome = outcomes.iter().find(|o| o.app == app);
+        assert_eq!(outcome.map(|o| o.error.clone()), Some(None), "{outcomes:?}");
+    }
+
+    let mut want = vec![SLUG, READ, "portal-internal"];
+    want.sort_unstable();
+    assert_eq!(audiences_of(&keycloak, "uuid-pl").await, want);
+    let mut want = vec![SLUG, READ, SIBLING];
+    want.sort_unstable();
+    assert_eq!(audiences_of(&keycloak, "uuid-sa").await, want);
 }
 
 /// T-4050: each project gets its pipeline-test harness principal `{project}-pl-pipeline-test`,
@@ -843,7 +995,7 @@ async fn each_project_gets_a_harness_principal_for_the_internal_listener_alone()
 
     let outcomes = sync(&keycloak)
         .with_pipelines(PIPELINES.to_owned())
-        .converge(&mirror)
+        .converge(&mirror, &Bentos::new())
         .await;
     let apps: Vec<&str> = outcomes.iter().map(|o| o.app.as_str()).collect();
     assert_eq!(apps, ["zilina/pl-pipeline-test"], "{outcomes:?}");
@@ -980,7 +1132,10 @@ async fn an_apps_job_principal_gets_a_client_for_its_own_endpoint_only() {
         endpoint("zilina", "zilina-uniza", "zilina-uniza", "spaceslug"),
     ]);
     let keycloak = realm(json!([])).await;
-    assert!(sync(&keycloak).converge(&mirror).await.is_empty());
+    assert!(sync(&keycloak)
+        .converge(&mirror, &Bentos::new())
+        .await
+        .is_empty());
     assert!(wrote(&keycloak).await.is_empty());
 
     Mock::given(method("GET"))
@@ -1011,7 +1166,7 @@ async fn an_apps_job_principal_gets_a_client_for_its_own_endpoint_only() {
 
     let outcomes = sync(&keycloak)
         .with_app_jobs(IDENTITIES.to_owned())
-        .converge(&mirror)
+        .converge(&mirror, &Bentos::new())
         .await;
     assert_eq!(outcomes.len(), 1, "{outcomes:?}");
     assert_eq!(outcomes[0].app, "zilina/appjob-kpi");
@@ -1055,7 +1210,7 @@ async fn an_app_that_loses_its_jobs_loses_its_principals_client() {
         let keycloak = realm(held.clone()).await;
         let outcomes = sync(&keycloak)
             .with_app_jobs(IDENTITIES.to_owned())
-            .converge(&mirror)
+            .converge(&mirror, &Bentos::new())
             .await;
         assert_eq!(outcomes.len(), 1, "{outcomes:?}");
         assert_eq!(outcomes[0].app, "zilina/appjob-kpi");
@@ -1200,14 +1355,17 @@ async fn an_external_account_gets_a_secret_client_and_no_secret_is_read() {
     mappers(&keycloak, "uuid-vendor", json!([])).await;
 
     let outcomes = sync(&keycloak)
-        .converge(&mirror_with(vec![
-            external(
-                "helsinki",
-                "vendor",
-                json!([{ "kind": "oauth-client", "name": "main" }]),
-            ),
-            endpoint("helsinki", "air-all", "air", SLUG),
-        ]))
+        .converge(
+            &mirror_with(vec![
+                external(
+                    "helsinki",
+                    "vendor",
+                    json!([{ "kind": "oauth-client", "name": "main" }]),
+                ),
+                endpoint("helsinki", "air-all", "air", SLUG),
+            ]),
+            &Bentos::new(),
+        )
         .await;
 
     assert_eq!(outcomes.len(), 1, "{outcomes:?}");
@@ -1264,7 +1422,7 @@ async fn a_device_account_gets_a_key_pair_client() {
                 { "kind": "oauth-client", "name": "device-key", "jwks": { "keys": [device_key("k1")] } },
                 { "kind": "oauth-client", "name": "spare", "jwks": { "keys": [device_key("k1")] } },
             ]),
-        )]))
+        )]), &Bentos::new())
         .await;
 
     assert_eq!(outcomes[0].error, None, "{outcomes:?}");
@@ -1291,14 +1449,17 @@ async fn an_external_accounts_platform_client_is_left_alone_quietly() {
     client_lookup(&keycloak, "banskabystrica-conformance", json!([foreign])).await;
 
     let outcomes = sync(&keycloak)
-        .converge(&mirror_with(vec![
-            external(
-                "banskabystrica",
-                "conformance",
-                json!([{ "kind": "oauth-client", "name": "main" }]),
-            ),
-            external("banskabystrica", "nothing", json!([])),
-        ]))
+        .converge(
+            &mirror_with(vec![
+                external(
+                    "banskabystrica",
+                    "conformance",
+                    json!([{ "kind": "oauth-client", "name": "main" }]),
+                ),
+                external("banskabystrica", "nothing", json!([])),
+            ]),
+            &Bentos::new(),
+        )
         .await;
 
     assert_eq!(outcomes.len(), 1, "{outcomes:?}");
@@ -1314,7 +1475,9 @@ async fn an_external_accounts_client_is_deleted_with_the_account() {
     held["id"] = json!("uuid-vendor");
     let keycloak = realm(json!([held])).await;
 
-    let outcomes = sync(&keycloak).converge(&mirror_with(vec![])).await;
+    let outcomes = sync(&keycloak)
+        .converge(&mirror_with(vec![]), &Bentos::new())
+        .await;
 
     assert_eq!(
         wrote(&keycloak).await,
