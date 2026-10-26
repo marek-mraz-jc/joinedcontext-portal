@@ -221,7 +221,7 @@ pub struct Config {
     pub database_url: Option<String>,
     /// The group (or realm role) whose members may do everything everywhere, so the first
     /// `RoleBinding` can be written into an empty repository (`JC_PORTAL_BOOTSTRAP_ADMINS`,
-    /// default `portal-approver`; T-0526, PF-50).
+    /// default `platform-admins`; T-0526, PF-50).
     pub bootstrap_admins: String,
     /// Every decision door asks for a second factor proven in the session (T-5567, AUT-2).
     /// Always on outside tests: no environment key turns it off; `Config::for_tests` leaves it
