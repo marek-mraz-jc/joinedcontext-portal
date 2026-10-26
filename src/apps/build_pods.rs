@@ -391,31 +391,58 @@ pub async fn dispatch_once(
             tracing::debug!(job = %name, running = now, "a build waits for the one running");
             continue;
         }
-        // The token first: a forge that mints none leaves nothing behind in the cluster.
-        let token = forge
-            .for_application(&repository)
-            .repository_registration_token()
-            .await?;
-        kube.apply(&claim(settings, &app)).await?;
-        let mut build = job(settings, class, &app, id);
-        kube.apply(&build).await?;
-        let uid = kube
-            .get("batch/v1", "Job", &settings.namespace, &name)
-            .await?
-            .and_then(|job| job.pointer("/metadata/uid")?.as_str().map(str::to_owned))
-            .ok_or_else(|| KubeError::Api {
-                status: 404,
-                path: name.clone(),
-                message: "the Job was applied and is not there".into(),
-            })?;
-        kube.apply(&token_secret(settings, &app, id, &uid, &token))
-            .await?;
-        build["metadata"]["annotations"] = json!({ TOKEN_WRITTEN: "true" });
-        kube.apply(&build).await?;
+        start(kube, forge, settings, class, &app, id, &repository).await?;
         busy = Some(now.saturating_add(1));
         pass.started.push(name);
     }
 
+    pass.removed = sweep_claims(kube, mirror, settings).await?;
+    Ok(pass)
+}
+
+/// Starts one build: the runner token first (a forge that mints none leaves nothing behind in
+/// the cluster), then the cache claim, the Job, the token Secret the Job owns, and last the
+/// annotation that says the Job holds its token.
+async fn start(
+    kube: &KubeClient,
+    forge: &GiteaClient,
+    settings: &Settings,
+    class: Class,
+    app: &str,
+    id: u64,
+    repository: &str,
+) -> Result<(), DispatchError> {
+    let name = job_name(app, id);
+    let token = forge
+        .for_application(repository)
+        .repository_registration_token()
+        .await?;
+    kube.apply(&claim(settings, app)).await?;
+    let mut build = job(settings, class, app, id);
+    kube.apply(&build).await?;
+    let uid = kube
+        .get("batch/v1", "Job", &settings.namespace, &name)
+        .await?
+        .and_then(|job| job.pointer("/metadata/uid")?.as_str().map(str::to_owned))
+        .ok_or_else(|| KubeError::Api {
+            status: 404,
+            path: name.clone(),
+            message: "the Job was applied and is not there".into(),
+        })?;
+    kube.apply(&token_secret(settings, app, id, &uid, &token))
+        .await?;
+    build["metadata"]["annotations"] = json!({ TOKEN_WRITTEN: "true" });
+    kube.apply(&build).await?;
+    Ok(())
+}
+
+/// Deletes the cache claim of every App that is gone and returns the claims it deleted.
+async fn sweep_claims(
+    kube: &KubeClient,
+    mirror: &Mirror,
+    settings: &Settings,
+) -> Result<Vec<String>, DispatchError> {
+    let mut removed = Vec::new();
     let apps: BTreeSet<String> = mirror
         .namespaces()
         .iter()
@@ -427,7 +454,7 @@ pub async fn dispatch_once(
     // nothing, so a restart never empties every cache; the last App's claim then waits for the
     // organization's next App to go.
     if mirror.is_empty() {
-        return Ok(pass);
+        return Ok(removed);
     }
     for claim in kube
         .list(
@@ -451,10 +478,10 @@ pub async fn dispatch_once(
             let name = claim_name(app);
             kube.delete("v1", "PersistentVolumeClaim", &settings.namespace, &name)
                 .await?;
-            pass.removed.push(name);
+            removed.push(name);
         }
     }
-    Ok(pass)
+    Ok(removed)
 }
 
 /// How often the queue is read: a build waits at most this long for its pod.
