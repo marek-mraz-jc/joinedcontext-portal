@@ -304,7 +304,7 @@ async fn an_apps_steward_keeps_its_default_group_and_no_other() {
         "Group",
         "board-viewer",
         ORG_NAMESPACE,
-        json!({ "members": [] }),
+        json!({ "description": "The people who lead the city's projects", "members": [] }),
     );
     board
         .metadata
@@ -348,6 +348,25 @@ async fn an_apps_steward_keeps_its_default_group_and_no_other() {
     )
     .await;
     assert_eq!(proposed.status, StatusCode::ACCEPTED, "{}", proposed.text);
+
+    // Anything beside the members stays the organization's (F-POR4-010).
+    let mut described = group("board-viewer", &["eva@hel.fi"]);
+    described["metadata"]["annotations"] = json!({ "joinedcontext.com/app": "doprava/board" });
+    described["spec"]["description"] = json!("now also the operators' group");
+    let redescribed = common::checked_send(
+        &state,
+        person("steward"),
+        "PUT",
+        "/api/v1/projects/org/groups/board-viewer",
+        Some(described),
+    )
+    .await;
+    assert_eq!(
+        redescribed.status,
+        StatusCode::FORBIDDEN,
+        "{}",
+        redescribed.text
+    );
 
     let refused = common::checked_send(
         &state,

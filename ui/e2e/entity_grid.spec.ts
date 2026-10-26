@@ -331,7 +331,7 @@ test.describe("the entity grid", () => {
     await tabTo(page, "Review the changes");
     await page.keyboard.press("Enter");
     const review = page.getByRole("region", { name: "Review the changes" });
-    await expect(review).toContainText(EMPTY_DOCK);
+    await expect(review).toContainText("Rautatientori");
     // The corrected value was observed now, not when the old reading was (UI-67). A radio group is
     // one Tab stop on the chosen one, and the arrow keys move inside it.
     await tabTo(page, "keep when each value was observed");
