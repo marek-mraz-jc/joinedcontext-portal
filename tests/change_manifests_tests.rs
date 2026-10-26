@@ -181,3 +181,22 @@ async fn another_project_or_no_binding_is_not_found() {
     let (status, _) = manifests(&state, "both", PROJECT, "not-a-change").await;
     assert_eq!(status, 400);
 }
+
+/// T-5698: a reader bound to one context space reads the manifests of that space alone; the
+/// Endpoint the change wrote names no space, so a reader of space `water` is not handed it.
+#[tokio::test]
+async fn a_reader_of_one_space_is_not_handed_another_spaces_manifest() {
+    let (_gitea, state) = world().await;
+    state
+        .mirror
+        .upsert(envelope("ContextSpace", "water", PROJECT, json!({})));
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "water-readers",
+        ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": "water@hel.fi" }], "role": "both", "scope": { "contextSpace": "water" } }),
+    ));
+    let (status, body) = manifests(&state, "water", PROJECT, "chg-00000006").await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(names(&body), Vec::<String>::new(), "{body}");
+}

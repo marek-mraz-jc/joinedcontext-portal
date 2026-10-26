@@ -278,18 +278,12 @@ fn no_steps() -> Result<PipelineSpec, OpError> {
 /// fetches it (MF-39). A source with a credential has no sample a dry run may read, and the
 /// answer says what to give instead; one that streams is listened to by [`streamed_sample`].
 fn sample_of_data_source(
+    caller: &super::Caller,
     state: &AppState,
     project: &str,
     name: &str,
 ) -> Result<(Sample, PipelineSpec), OpError> {
-    let source = state
-        .mirror
-        .get(project, "DataSource", name)
-        .ok_or_else(|| {
-            ApiError::NotFound(format!(
-                "DataSource '{name}' not found in project '{project}'"
-            ))
-        })?;
+    let source = readable_source(caller, state, project, name)?;
     let instead = "give the sample as text (a file of the feed) or as a URL instead";
     match pipeline_test::probe_plan(&source.spec) {
         Some(Ok(url)) => pipeline_test::sampling(&source.spec, url)
@@ -305,6 +299,28 @@ fn sample_of_data_source(
     }
 }
 
+/// The DataSource `name` of this project when the caller reads it. Sampling a source, fetched
+/// or listened to, reads what it carries: a caller who may not read it is told nothing, the
+/// same 404 as a source that does not exist, before anything is fetched (T-5698).
+fn readable_source(
+    caller: &super::Caller,
+    state: &AppState,
+    project: &str,
+    name: &str,
+) -> Result<crate::resource::ResourceEnvelope, OpError> {
+    let effective = crate::permissions::for_request(state, &caller.identity, project);
+    state
+        .mirror
+        .get(project, "DataSource", name)
+        .filter(|source| effective.may_read_envelope("DataSource", source))
+        .ok_or_else(|| {
+            ApiError::NotFound(format!(
+                "DataSource '{name}' not found in project '{project}'"
+            ))
+            .into()
+        })
+}
+
 /// A DataSource of this project the caller may read, when it streams rather than answers a
 /// request: `None` for a source the request path samples.
 fn streamed_source(
@@ -313,24 +329,9 @@ fn streamed_source(
     project: &str,
     name: &str,
 ) -> Result<Option<DataSourceSpec>, OpError> {
-    let unknown = || {
-        ApiError::NotFound(format!(
-            "DataSource '{name}' not found in project '{project}'"
-        ))
-    };
-    let source = state
-        .mirror
-        .get(project, "DataSource", name)
-        .ok_or_else(unknown)?;
+    let source = readable_source(caller, state, project, name)?;
     if pipeline_test::probe_plan(&source.spec).is_some() {
         return Ok(None);
-    }
-    let manifest = serde_json::to_value(&source).map_err(|e| ApiError::Internal(e.to_string()))?;
-    // Listening to a source reads what it carries: a caller who may not read it is told nothing.
-    if !crate::permissions::for_request(state, &caller.identity, project)
-        .may_read_manifest("DataSource", &manifest)
-    {
-        return Err(unknown().into());
     }
     serde_json::from_value(source.spec.clone())
         .map(Some)
@@ -486,7 +487,8 @@ async fn try_mapping(
 ) -> Result<Value, OpError> {
     try_mapping_valid(&val)?;
     let input: TryMappingInput = parse_input(val)?;
-    let (pipeline, draft) = candidate(state, project, input.pipeline, input.draft.as_ref()).await?;
+    let (pipeline, draft) =
+        candidate(caller, state, project, input.pipeline, input.draft.as_ref()).await?;
     let trace = match (input.sample, input.messages) {
         (Some(sample), _) => {
             pipeline_test::execute_test_pipeline(
@@ -559,7 +561,7 @@ pub fn operations() -> Vec<Operation> {
                                 return streamed_sample(caller, state, project, &name, &source)
                                     .await;
                             }
-                            sample_of_data_source(state, project, &name)?
+                            sample_of_data_source(caller, state, project, &name)?
                         }
                         (None, Some(sample)) => (sample, no_steps()?),
                         _ => {
@@ -623,12 +625,12 @@ pub fn operations() -> Vec<Operation> {
                 }
                 Ok(())
             },
-            run: |_caller, state, project, val| {
+            run: |caller, state, project, val| {
                 Box::pin(async move {
                     let input: ValidateInput = parse_input(val)?;
                     let pipeline = match (input.pipeline, input.draft.as_ref()) {
                         (None, None) => None,
-                        (pipeline, draft) => Some(candidate(state, project, pipeline, draft).await?),
+                        (pipeline, draft) => Some(candidate(caller, state, project, pipeline, draft).await?),
                     };
                     let (space, schema) =
                         target(state, project, input.space, pipeline.as_ref().map(|p| &p.0))?;

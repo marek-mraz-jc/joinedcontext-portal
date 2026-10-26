@@ -1289,7 +1289,9 @@ impl Driver {
     /// step; `None` when nothing in the project matches.
     async fn catalog(&self, q: &str, step_when_empty: bool) -> Result<Option<Value>, String> {
         let started = std::time::Instant::now();
-        let catalog = crate::api::assistant::search(&self.state, &self.project, q, None).await;
+        let effective = crate::permissions::for_request(&self.state, &self.identity, &self.project);
+        let catalog =
+            crate::api::assistant::search(&self.state, &self.project, &effective, q, None).await;
         let output = serde_json::to_value(&catalog).unwrap_or(Value::Null);
         if catalog.items.is_empty() && !step_when_empty {
             return Ok(None);

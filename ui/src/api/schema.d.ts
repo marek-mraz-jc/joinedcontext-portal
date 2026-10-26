@@ -2292,7 +2292,7 @@ export interface paths {
         put?: never;
         /**
          * Adopt Drift
-         * @description Proposes, as a change a person approves, the seed file with the entity's declared attributes as the space holds them now. Needs `propose` on Entity; refused when the entity is no longer in the space.
+         * @description Proposes, as a change a person approves, the seed file with the entity's declared attributes as the space holds them now. Needs `propose` on Entity; the live entity is read with the caller's own access token, so the file holds only what their Policy shows; refused when the entity is no longer in the space.
          */
         post: operations["adopt_drift"];
         delete?: never;
@@ -16396,7 +16396,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description No such project, or the last scan reported no such drift */
+            /** @description No such project, the last scan reported no such drift, or no live entity the caller may read (also when the session carries no access token of the person) */
             404: {
                 headers: {
                     [name: string]: unknown;

@@ -9,7 +9,7 @@ use super::proposals::record_verdict;
 use super::OpError;
 use super::Operation;
 use super::OperationAnnotations;
-use super::{draft_store, Finding, Level, Verdict};
+use super::{Finding, Level, Verdict};
 use crate::agents::kpi;
 use crate::api::assistant;
 use crate::api::pipeline_test;
@@ -205,6 +205,7 @@ fn pipeline_test_output_schema() -> Value {
 /// draft a verdict is recorded on. The pipeline test and the workbench's steps read it the same
 /// way (ADR-N-034).
 pub(super) async fn candidate(
+    caller: &super::Caller,
     state: &crate::state::AppState,
     project: &str,
     pipeline: Option<Value>,
@@ -216,16 +217,7 @@ pub(super) async fn candidate(
             Ok((p, Some(d.clone())))
         }
         (None, Some(d)) => {
-            let saved = draft_store(state)
-                .get(project, &d.kind, &d.name)
-                .await
-                .map_err(|e| OpError::Api(ApiError::Internal(e.to_string())))?
-                .ok_or_else(|| {
-                    ApiError::NotFound(format!(
-                        "draft '{}/{}' not found in project '{project}'",
-                        d.kind, d.name
-                    ))
-                })?;
+            let saved = super::drafts::readable_draft(state, &caller.identity, project, d).await?;
             Ok((saved.manifest, Some(d.clone())))
         }
         (Some(p), None) => {
@@ -258,7 +250,7 @@ pub fn operations() -> Vec<Operation> {
             validate: |val| {
                 parse_input::<CatalogSearchInput>(val.clone()).map(|_| ())
             },
-            run: |_, state, project, val| {
+            run: |caller, state, project, val| {
                 Box::pin(async move {
                     let input: CatalogSearchInput = parse_input(val)?;
                     let q = input.q.or(input.query).unwrap_or_default();
@@ -279,7 +271,9 @@ pub fn operations() -> Vec<Operation> {
                             assistant::KINDS.join(", ")
                         ))));
                     }
-                    let res = assistant::search(state, project, q, scope).await;
+                    let effective =
+                        crate::permissions::for_request(state, &caller.identity, project);
+                    let res = assistant::search(state, project, &effective, q, scope).await;
                     Ok(serde_json::to_value(res)?)
                 })
             },
@@ -421,7 +415,7 @@ async fn pipeline_test_run(
 ) -> Result<Value, OpError> {
     let input: PipelineTestInput = parse_input(val)?;
     let (pipeline, draft_ref) =
-        candidate(state, project, input.pipeline, input.draft.as_ref()).await?;
+        candidate(caller, state, project, input.pipeline, input.draft.as_ref()).await?;
 
     let req = pipeline_test::TestRequest {
         pipeline: pipeline.clone(),

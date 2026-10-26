@@ -276,7 +276,16 @@ fn feeders(state: &AppState, project: &str) -> BTreeMap<String, String> {
 
 /// The search over the mirror, with the freshness read from the runner for the endpoints that
 /// are returned and open to the caller.
-pub async fn search(state: &AppState, project: &str, q: &str, scope: Option<&str>) -> Catalog {
+///
+/// Searched for one reader (T-5698): a space, Endpoint or model `effective` does not read is
+/// neither a hit nor a door that opens a space.
+pub async fn search(
+    state: &AppState,
+    project: &str,
+    effective: &crate::permissions::Effective,
+    q: &str,
+    scope: Option<&str>,
+) -> Catalog {
     let words = words(q);
     let catalog = Catalog {
         q: q.to_owned(),
@@ -286,9 +295,18 @@ pub async fn search(state: &AppState, project: &str, q: &str, scope: Option<&str
         return catalog;
     }
     let opts = ListOptions::default();
-    let endpoints = state.mirror.list(project, "Endpoint", &opts).items;
-    let spaces = state.mirror.list(project, "ContextSpace", &opts).items;
-    let models = state.mirror.list(project, "DataModel", &opts).items;
+    let of = |kind: &str| -> Vec<ResourceEnvelope> {
+        state
+            .mirror
+            .list(project, kind, &opts)
+            .items
+            .into_iter()
+            .filter(|env| effective.may_read_envelope(kind, env))
+            .collect()
+    };
+    let endpoints = of("Endpoint");
+    let spaces = of("ContextSpace");
+    let models = of("DataModel");
 
     // Which spaces an endpoint opens, so a space and a model inherit the verdict of a door.
     let mut space_access: BTreeMap<String, Access> = BTreeMap::new();
