@@ -302,7 +302,8 @@ mod openbao_edges {
 
     async fn refusal(resolver: &Resolver, references: &[SecretRef]) -> (String, String) {
         match resolver.resolve(Path::new("."), references).await {
-            Err(SecretError::Unresolved { name, reason }) => (name, reason),
+            Err(SecretError::Unresolved { name, reason })
+            | Err(SecretError::Refused { name, reason }) => (name, reason),
             other => panic!("expected a named refusal, got {other:?}"),
         }
     }
@@ -349,7 +350,12 @@ mod openbao_edges {
             let resolver = resolver(&bao.uri(), token_file("outside", JWT));
             let (name, reason) = refusal(&resolver, &[reference(bad, None, "X")]).await;
             assert_eq!(name, bad);
-            assert!(reason.contains("single path segment"), "{bad}: {reason}");
+            // jc-core's MF-35 rule (T-5702) refuses these names before the backend's own
+            // path-segment check; either refusal names the reference and reads nothing.
+            assert!(
+                reason.contains("single path segment") || reason.contains("secretRef.name"),
+                "{bad}: {reason}"
+            );
             let reads = bao.received_requests().await.unwrap_or_default();
             assert!(
                 reads.iter().all(|r| r.method.as_str() != "GET"),

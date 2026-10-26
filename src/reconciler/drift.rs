@@ -275,12 +275,6 @@ impl Watch {
         }
     }
 
-    /// The live entity a resolution is about to work on.
-    pub async fn read(&self, space: &str, id: &str) -> Result<Option<Value>, String> {
-        let token = self.token().await?;
-        self.live(&token, space, id).await
-    }
-
     /// Compares every seed entity of a staged checkout with the space that holds it.
     ///
     /// One token for the whole scan, and the entities of every project in one map: a scan is

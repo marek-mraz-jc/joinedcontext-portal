@@ -20,6 +20,9 @@ const NATIVE: &str = "projects/ovzdusie/spaces/air/pipelines/air-ingest/bento.ya
 const LINKML: &str = "projects/ovzdusie/datamodels/air/model.linkml.yaml";
 /// A file under no kind's folder.
 const NOTE: &str = "projects/ovzdusie/notes/readme.md";
+/// An Endpoint of space `water`, which a steward bound to space `air` may not propose.
+const WATER: &str = "projects/ovzdusie/spaces/water/endpoints/water-api/endpoint.yaml";
+const WATER_YAML: &str = "apiVersion: joinedcontext.com/v1alpha1\nkind: Endpoint\nmetadata:\n  name: water-api\n  namespace: ovzdusie\nspec:\n  contextSpaceRef: water\n";
 const YAML: &str = "apiVersion: joinedcontext.com/v1alpha1\nkind: Pipeline\nmetadata:\n  name: air-ingest\n  namespace: ovzdusie\nspec:\n  contextSpaceRef:\n    name: air\n";
 
 fn pull(number: u64, branch: &str, merged: bool) -> Value {
@@ -80,6 +83,18 @@ async fn world() -> (MockServer, AppState) {
             true,
             json!([{ "filename": NOTE, "status": "deleted" }]),
         ),
+        (
+            3,
+            "portal/delete-endpoint-water-api-0a1b2c3d",
+            true,
+            json!([{ "filename": WATER, "status": "deleted" }]),
+        ),
+        (
+            2,
+            "portal/update-endpoint-water-api-0a1b2c3d",
+            true,
+            json!([{ "filename": WATER, "status": "modified" }]),
+        ),
     ] {
         Mock::given(method("GET"))
             .and(path(format!("{REPO}/pulls/{number}")))
@@ -97,6 +112,7 @@ async fn world() -> (MockServer, AppState) {
         (NATIVE, "input:\n  generate: {}\n"),
         (LINKML, "id: https://example.org/air\nname: air\n"),
         (NOTE, "# notes\n"),
+        (WATER, WATER_YAML),
     ] {
         Mock::given(method("GET"))
             .and(path(format!("{REPO}/contents/{file}")))
@@ -438,4 +454,43 @@ async fn undoing_needs_propose_on_the_kind() {
     let (status, body) = undo(&state, "reader", "chg-00000006").await;
     assert_eq!(status, 403, "{body}");
     assert!(writes(&gitea).await.is_empty());
+}
+
+/// T-5698: a restore or an undo is judged as a proposal of the manifest it puts back, its space
+/// included: a steward bound to space `air` restores and undoes nothing of space `water`.
+#[tokio::test]
+async fn a_steward_of_one_space_restores_and_undoes_nothing_of_another() {
+    let (gitea, state) = world().await;
+    for space in ["air", "water"] {
+        state
+            .mirror
+            .upsert(envelope("ContextSpace", space, PROJECT, json!({})));
+    }
+    state.mirror.upsert(envelope(
+        "Role",
+        "endpoint-steward",
+        ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["Endpoint"], "verbs": ["read", "propose"] }] }),
+    ));
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "air-stewards",
+        ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": "air@hel.fi" }], "role": "endpoint-steward", "scope": { "contextSpace": "air" } }),
+    ));
+    let (status, body) = restore(&state, "air", "chg-00000003").await;
+    assert_eq!(status, 403, "{body}");
+    for git_ref in ["head-2", "main"] {
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/contents/{WATER}")))
+            .and(query_param("ref", git_ref))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({ "sha": git_ref, "content": encode(&WATER_YAML.replace("water\n", "water\n  audience: public\n")) }),
+            ))
+            .mount(&gitea)
+            .await;
+    }
+    let (status, body) = undo(&state, "air", "chg-00000002").await;
+    assert_eq!(status, 403, "{body}");
+    assert!(writes(&gitea).await.is_empty(), "nothing is written");
 }

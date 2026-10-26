@@ -1971,36 +1971,7 @@ fn authorize(
     for item in incoming {
         match &item.envelope {
             Some(envelope) if envelope.kind == BUNDLE_KIND => {}
-            Some(envelope) => {
-                let raw = serde_json::to_value(envelope)
-                    .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))?;
-                effective.check(&envelope.kind, jc_core::kinds::Verb::Propose, Some(&raw))?;
-                crate::permissions::within_own_rights(state, identity, &raw, None, "proposer")?;
-                crate::pipeline_rights::check(
-                    state,
-                    identity,
-                    project,
-                    &raw,
-                    jc_core::kinds::Verb::Propose,
-                )?;
-                // PF-84, AP-14a, AP-114, AP-115: the same refusals as the single-manifest door.
-                crate::spaces::check(
-                    state,
-                    identity,
-                    project,
-                    &envelope.kind,
-                    &envelope.metadata.name,
-                    &envelope.spec,
-                )?;
-                crate::apps::names::check(
-                    state,
-                    identity,
-                    project,
-                    &envelope.kind,
-                    &envelope.metadata.name,
-                )?;
-                crate::groups::check(state, identity, &envelope.kind, &envelope.metadata)?;
-            }
+            Some(envelope) => authorize_manifest(state, identity, project, &effective, envelope)?,
             None => {
                 let Some(path) = &item.path else { continue };
                 // A native file is proposed under the kind its directory names; a path that
@@ -2016,6 +1987,48 @@ fn authorize(
         }
     }
     Ok(())
+}
+
+/// Whether `identity` may propose this one manifest in `project`, with every refusal the
+/// single-manifest door makes: the grant for its kind, space and constraints, a Policy or a
+/// binding within the proposer's own rights, a Pipeline's rights, and the space, App name and
+/// group checks (PF-50, PF-84). An import asks it of each manifest; a restore and an undo of the
+/// manifests they put back (T-5698).
+pub(crate) fn authorize_manifest(
+    state: &AppState,
+    identity: &crate::auth::session::Identity,
+    project: &str,
+    effective: &crate::permissions::Effective,
+    envelope: &ResourceEnvelope,
+) -> Result<(), ApiError> {
+    let raw = serde_json::to_value(envelope)
+        .map_err(|e| ApiError::Internal(format!("manifest did not serialise: {e}")))?;
+    effective.check(&envelope.kind, jc_core::kinds::Verb::Propose, Some(&raw))?;
+    crate::permissions::within_own_rights(state, identity, &raw, None, "proposer")?;
+    crate::pipeline_rights::check(
+        state,
+        identity,
+        project,
+        &raw,
+        jc_core::kinds::Verb::Propose,
+    )?;
+    // PF-84, AP-14a, AP-114, AP-115: the same refusals as the single-manifest door.
+    crate::spaces::check(
+        state,
+        identity,
+        project,
+        &envelope.kind,
+        &envelope.metadata.name,
+        &envelope.spec,
+    )?;
+    crate::apps::names::check(
+        state,
+        identity,
+        project,
+        &envelope.kind,
+        &envelope.metadata.name,
+    )?;
+    crate::groups::check(state, identity, &envelope.kind, &envelope.metadata)
 }
 
 /// The kind's own parse and invariants, for every manifest the bundle carries (T-2253, CC-08).
