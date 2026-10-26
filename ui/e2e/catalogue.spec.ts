@@ -141,7 +141,7 @@ test.describe("the public catalogue", () => {
       }),
     );
     await page.reload();
-    await expect(page.getByRole("alert").filter({ hasText: "The map could not be read" })).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "did not answer; try again in a minute" })).toBeVisible();
     await shot(page, "dataset-map-error-en-400");
   });
 

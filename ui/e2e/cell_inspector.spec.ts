@@ -99,14 +99,16 @@ async function open(page: Page, attr: string): Promise<void> {
   await expect(page.getByRole("dialog", { name: new RegExp(`Your access: ${attr}`) })).toBeVisible();
 }
 
-const CASES: { name: string; persona: Persona; attr: string; access?: "ok" | "slow" | "502"; says: RegExp }[] = [
+/** `onPage`: the grid holds its rows until the decisions are in, so the state shows on the page, not in a cell's panel. */
+const CASES: { name: string; persona: Persona; attr: string; access?: "ok" | "slow" | "502"; says: RegExp; onPage?: boolean }[] = [
   { name: "granted", persona: "steward", attr: "name", says: /Your access allows this/ },
   { name: "read-only", persona: "steward", attr: "availableBikeNumber", says: /Not in your access/ },
   { name: "prohibited-named", persona: "steward", attr: "status", says: /policy “Status is set by the operator”/ },
   { name: "prohibited-hidden", persona: "editor", attr: "status", says: /Hidden by a policy you cannot read/ },
   { name: "formula", persona: "steward", attr: "totalSlotNumber", says: /Calculated by a pipeline/ },
-  { name: "no-access", persona: "outsider", attr: "name", says: /does not cover this type/ },
-  { name: "loading", persona: "steward", attr: "name", access: "slow", says: /Checking your access/ },
+  // Nothing readable: every column is hidden and named so, never a cell with a value to inspect.
+  { name: "no-access", persona: "outsider", attr: "name", says: /name: hidden: no access/, onPage: true },
+  { name: "loading", persona: "steward", attr: "name", access: "slow", says: /Checking your access/, onPage: true },
   { name: "gateway-502", persona: "steward", attr: "name", access: "502", says: /could not be read/ },
 ];
 
@@ -116,9 +118,16 @@ for (const width of [1440, 400]) {
     for (const one of CASES) {
       test(one.name, async ({ page }) => {
         await stub(page, one.persona, one.access);
-        await open(page, one.attr);
-        const panel = page.getByRole("dialog", { name: new RegExp(`Your access: ${one.attr}`) });
-        await expect(panel).toContainText(one.says);
+        if (one.onPage) {
+          await page.goto(EXPLORE);
+          const state = one.access === "slow" ? page.getByRole("status").filter({ hasText: one.says }) : page.getByRole("gridcell", { name: one.says });
+          await expect(state.first()).toBeVisible();
+          await expect(page.getByRole("button", { name: `Your access: ${one.attr}` })).toHaveCount(0);
+        } else {
+          await open(page, one.attr);
+          const panel = page.getByRole("dialog", { name: new RegExp(`Your access: ${one.attr}`) });
+          await expect(panel).toContainText(one.says);
+        }
         await page.screenshot({ path: `${SHOTS}/${one.name}-${width}.png` });
       });
     }
