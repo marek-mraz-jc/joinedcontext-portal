@@ -774,6 +774,66 @@ pub async fn get_run_log(
     Ok(Json(LogPage { items, next }))
 }
 
+/// The newest run of each pipeline the caller may read (T-5818).
+#[derive(Debug, Serialize, ToSchema)]
+#[schema(as = PipelineLatestRunList)]
+pub struct LatestRunList {
+    /// One per pipeline that ran, by name; a pipeline that never ran is absent.
+    pub items: Vec<LatestRun>,
+}
+
+/// One pipeline's newest run.
+#[derive(Debug, Serialize, ToSchema)]
+#[schema(as = PipelineLatestRun)]
+pub struct LatestRun {
+    /// The pipeline's name.
+    pub pipeline: String,
+    pub run: crate::pipeline_log::Run,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/pipeline-runs",
+    summary = "List Latest Pipeline Runs",
+    description = "The newest run of each pipeline of the project the caller may read, in one read for the pipeline list (T-5818, PL-62): its counts as in List Pipeline Runs. A pipeline that never ran is absent.",
+    tag = "pipelines",
+    params(("project" = String, Path, description = "Project name")),
+    responses(
+        (status = 200, description = "The newest run per pipeline, by name", body = LatestRunList),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "The caller reads no pipeline of the project", body = ProblemDetails),
+        (status = 404, description = "Project not found", body = ProblemDetails),
+        (status = 503, description = "The runs could not be read", body = ProblemDetails)
+    )
+)]
+pub(crate) async fn get_latest_runs(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path(project): Path<String>,
+) -> Result<Json<LatestRunList>, ApiError> {
+    let names = pipelines_with(
+        &state,
+        &user,
+        &project,
+        jc_core::kinds::Verb::Read,
+        "reading pipeline runs needs read on Pipeline in project",
+    )?;
+    let runs = state
+        .pipeline_log
+        .latest_runs(&project, &names)
+        .await
+        .map_err(|error| {
+            tracing::warn!(%project, %error, "the latest runs could not be read");
+            ApiError::Unavailable("the pipelines' runs could not be read; try again".into())
+        })?;
+    Ok(Json(LatestRunList {
+        items: runs
+            .into_iter()
+            .map(|(pipeline, run)| LatestRun { pipeline, run })
+            .collect(),
+    }))
+}
+
 /// The health of every pipeline a steward looks after (T-5048).
 #[derive(Debug, Serialize, ToSchema)]
 #[schema(as = PipelineHealthList)]
@@ -802,7 +862,13 @@ pub(crate) async fn get_pipeline_health(
     State(state): State<AppState>,
     Path(project): Path<String>,
 ) -> Result<Json<HealthList>, ApiError> {
-    let names = stewarded_pipelines(&state, &user, &project)?;
+    let names = pipelines_with(
+        &state,
+        &user,
+        &project,
+        jc_core::kinds::Verb::Approve,
+        "the pipelines' health is for stewards: it needs approve on Pipeline in project",
+    )?;
     let unavailable = |error: sqlx::Error| {
         tracing::warn!(%project, %error, "the pipelines' health could not be read");
         ApiError::Unavailable("the pipelines' runs could not be read; try again".into())
@@ -820,31 +886,30 @@ pub(crate) async fn get_pipeline_health(
     Ok(Json(HealthList { items }))
 }
 
-/// The pipelines of `project` the caller may approve, by name; 404 for a project it cannot read,
-/// 403 when it approves none.
-fn stewarded_pipelines(
+/// The pipelines of `project` the caller holds `verb` on, by name; 404 for a project it cannot
+/// read, 403 (`denied` and the project) when it holds `verb` on none.
+fn pipelines_with(
     state: &AppState,
     user: &CurrentUser,
     project: &str,
+    verb: jc_core::kinds::Verb,
+    denied: &str,
 ) -> Result<Vec<String>, ApiError> {
     let effective = crate::permissions::for_request(state, &user.0.identity, project);
     if !effective.may_read_project() || !is_dns1123(project) {
         return Err(ApiError::NotFound(format!("project '{project}' not found")));
     }
-    let approve = jc_core::kinds::Verb::Approve;
     let mut names: Vec<String> = state
         .mirror
         .matching(|env| {
             env.kind == "Pipeline" && env.metadata.namespace.as_deref() == Some(project)
         })
         .into_iter()
-        .filter(|p| may_pipeline(&effective, state, project, &p.spec, approve))
+        .filter(|p| may_pipeline(&effective, state, project, &p.spec, verb))
         .map(|p| p.metadata.name)
         .collect();
-    if names.is_empty() && !effective.may("Pipeline", approve) {
-        return Err(ApiError::Denied(format!(
-            "the pipelines' health is for stewards: it needs approve on Pipeline in project {project}"
-        )));
+    if names.is_empty() && !effective.may("Pipeline", verb) {
+        return Err(ApiError::Denied(format!("{denied} {project}")));
     }
     names.sort();
     Ok(names)
@@ -1465,6 +1530,7 @@ pub fn router() -> Router<AppState> {
             get(get_rejected),
         )
         .route("/projects/{project}/pipelines/{name}/stats", get(get_stats))
+        .route("/projects/{project}/pipeline-runs", get(get_latest_runs))
         .route(
             "/projects/{project}/pipeline-health",
             get(get_pipeline_health),
