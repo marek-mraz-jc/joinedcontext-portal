@@ -1033,6 +1033,8 @@ pub fn named_person(mirror: &Mirror, person: &str) -> Identity {
 pub struct ProjectMembers {
     pub readers: BTreeSet<String>,
     pub writers: BTreeSet<String>,
+    /// Those it lets approve some kind: who reviews a Change of the project (PF-50, CC-91).
+    pub approvers: BTreeSet<String>,
 }
 
 pub fn project_members(mirror: &Mirror, project: &str, now: DateTime<Utc>) -> ProjectMembers {
@@ -1065,15 +1067,17 @@ pub fn project_members(mirror: &Mirror, project: &str, now: DateTime<Utc>) -> Pr
                 .any(|rule| rule.kinds.iter().any(|kind| rule.grants(kind, verb)))
         };
         let reads = grants(Verb::Read);
-        let writes = [Verb::Propose, Verb::Approve, Verb::Delete]
-            .into_iter()
-            .any(grants);
+        let approves = grants(Verb::Approve);
+        let writes = [Verb::Propose, Verb::Delete].into_iter().any(grants) || approves;
         if !reads && !writes {
             continue;
         }
         for person in people_of(&groups, &binding.subjects) {
             if reads {
                 members.readers.insert(person.clone());
+            }
+            if approves {
+                members.approvers.insert(person.clone());
             }
             if writes {
                 members.writers.insert(person);

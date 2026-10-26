@@ -3,7 +3,7 @@
 
 use chrono::{Duration, Utc};
 use joinedcontext_portal::ops::workspaces::{
-    Opening, PreviewState, Scope, ScopedResource, WorkspaceError, WorkspaceStore,
+    Opening, PreviewAccess, PreviewState, Scope, ScopedResource, WorkspaceError, WorkspaceStore,
 };
 
 fn opening<'a>(name: &'a str, project: &'a str, ttl_hours: i64) -> Opening<'a> {
@@ -184,4 +184,55 @@ fn a_scope_reads_the_shape_the_api_documents() {
         serde_json::from_value::<Scope>(serde_json::json!({ "kind": "project", "extra": 1 }))
             .is_err()
     );
+}
+
+/// T-5760 (CC-91, CC-92): a start stores who started the preview and its salt, the previewing
+/// list hands both back, and the next start replaces them; on PostgreSQL when
+/// `JC_PORTAL_TEST_DATABASE_URL` is set, in memory always.
+#[tokio::test]
+async fn a_preview_start_keeps_its_author_and_salt_until_the_next_start() {
+    let mut stores = vec![WorkspaceStore::new(None)];
+    match std::env::var("JC_PORTAL_TEST_DATABASE_URL")
+        .ok()
+        .filter(|url| !url.trim().is_empty())
+    {
+        Some(url) => stores.push(WorkspaceStore::new(Some(
+            joinedcontext_portal::db::connect(&url)
+                .await
+                .expect("the test database answers and migrates"),
+        ))),
+        None => eprintln!("skipped on PostgreSQL: JC_PORTAL_TEST_DATABASE_URL is not set"),
+    }
+    let name = format!(
+        "p{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos() % 1_000_000_000)
+            .unwrap_or_default()
+    );
+    for store in stores {
+        store.create(opening(&name, "helsinki", 1)).await.unwrap();
+        assert_eq!(store.get(&name).await.unwrap().unwrap().preview, None);
+        let first = PreviewAccess {
+            salt: "Q3vR8kM2pL9xT4nW7yB1cZ".into(),
+            author: "3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14".into(),
+        };
+        store.start_preview(&name, first.clone()).await.unwrap();
+        let listed = store.previewing().await.unwrap();
+        let mine = listed.iter().find(|w| w.name == name).expect("it previews");
+        assert_eq!(mine.preview_state, PreviewState::Starting);
+        assert_eq!(mine.preview.as_ref(), Some(&first));
+        let again = PreviewAccess {
+            salt: "z9Y8x7W6v5U4t3S2r1Q0pO".into(),
+            ..first.clone()
+        };
+        store.start_preview(&name, again.clone()).await.unwrap();
+        assert_eq!(store.get(&name).await.unwrap().unwrap().preview, Some(again));
+        assert!(!format!("{first:?}").contains(&first.salt), "Debug hides the salt");
+        assert!(matches!(
+            store.start_preview("nobody-here", first).await,
+            Err(WorkspaceError::NotFound(_))
+        ));
+        store.delete(&name).await.unwrap();
+    }
 }
