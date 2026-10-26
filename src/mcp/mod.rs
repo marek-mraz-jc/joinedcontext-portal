@@ -979,10 +979,7 @@ async fn read_resource(
                 .await
                 .ok()
                 .flatten()
-                .filter(|draft| {
-                    crate::permissions::for_request(state, &caller.identity, project)
-                        .may_read_manifest(&draft.kind, &draft.manifest)
-                })?;
+                .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))?;
             Some(("application/json", serde_json::to_string(&draft).ok()?))
         }
         // AG-81: `jc://-/{plural}/{name}` is a resource of the organization itself.
