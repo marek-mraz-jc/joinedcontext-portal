@@ -3,8 +3,8 @@
 //! The scheduler runs against a stubbed API server, so what is asserted is the three objects
 //! that actually leave the Portal. Three properties cannot be seen from inside the process: the
 //! pod mounts no token and no Secret, its NetworkPolicy names the peers it may reach rather
-//! than leaving a rule open, and the only credential in the whole pod spec is the run's own
-//! ticket.
+//! than leaving a rule open, and the only credential the pod reads is the run's own ticket,
+//! from the run's Secret through a `secretKeyRef` (T-5702).
 
 use joinedcontext_portal::agents::kube::{schedule_workspace_job, AGENT_SERVER_PORT, PROXY_PORT};
 use joinedcontext_portal::agents::profile::Profile;
@@ -33,6 +33,12 @@ fn job_path() -> String {
 fn service_account_path() -> String {
     format!("/api/v1/namespaces/{NAMESPACE}/serviceaccounts/agent-run-{RUN_ID}")
 }
+
+fn secret_path() -> String {
+    format!("/api/v1/namespaces/{NAMESPACE}/secrets/agent-run-{RUN_ID}")
+}
+
+const JOB_UID: &str = "7c1d2e3f-0000-4000-8000-000000000001";
 
 fn policy_path() -> String {
     format!("/apis/networking.k8s.io/v1/namespaces/{NAMESPACE}/networkpolicies/agent-run-{RUN_ID}")
@@ -114,6 +120,15 @@ async fn accepts_apply(api: &MockServer, api_path: &str) {
         .await;
 }
 
+/// Every body applied to `api_path`, in order.
+fn applied_all(requests: &[Request], api_path: &str) -> Vec<Value> {
+    requests
+        .iter()
+        .filter(|request| request.url.path() == api_path && request.method.as_str() == "PATCH")
+        .map(|request| serde_json::from_slice(&request.body).expect("the body is the object"))
+        .collect()
+}
+
 fn applied(requests: &[Request], api_path: &str) -> Value {
     let request = requests
         .iter()
@@ -124,9 +139,23 @@ fn applied(requests: &[Request], api_path: &str) -> Value {
 
 async fn schedule() -> Vec<Request> {
     let api = MockServer::start().await;
-    for api_path in [service_account_path(), policy_path(), job_path()] {
+    for api_path in [
+        service_account_path(),
+        policy_path(),
+        secret_path(),
+        job_path(),
+    ] {
         accepts_apply(&api, &api_path).await;
     }
+    Mock::given(method("GET"))
+        .and(path(job_path()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "metadata": { "name": format!("agent-run-{RUN_ID}"), "uid": JOB_UID },
+        })))
+        .mount(&api)
+        .await;
     let kube = KubeClient::with_token(&api.uri(), TOKEN).expect("a client");
     let scheduled = schedule_workspace_job(
         Some(&kube),
@@ -139,7 +168,7 @@ async fn schedule() -> Vec<Request> {
         TTL_SECS,
     )
     .await
-    .expect("the three objects are applied");
+    .expect("the four objects are applied");
     assert!(scheduled, "a cluster was given, so the workspace is real");
     api.received_requests().await.unwrap_or_default()
 }
@@ -213,24 +242,37 @@ async fn the_only_credential_in_the_pod_spec_is_the_runs_own_ticket() {
         env.iter()
             .find(|entry| entry["name"] == name)
             .and_then(|entry| entry["value"].as_str())
-            .unwrap_or_else(|| panic!("{name} is not in the environment"))
+            .unwrap_or_else(|| panic!("{name} is not a plain value in the environment"))
             .to_owned()
+    };
+    let from_ticket_secret = |name: &str| -> bool {
+        env.iter().any(|entry| {
+            entry["name"] == name
+                && entry.get("value").is_none()
+                && entry["valueFrom"]["secretKeyRef"]
+                    == json!({ "name": format!("agent-run-{RUN_ID}"), "key": "ticket" })
+        })
     };
 
     assert_eq!(value_of("JC_RUN_ID"), RUN_ID);
-    assert_eq!(value_of("JC_RUN_TICKET"), TICKET);
+    assert!(from_ticket_secret("JC_RUN_TICKET"));
     assert_eq!(value_of("JC_PROXY_BASE"), PROXY_BASE);
-    assert_eq!(
-        value_of("OH_SESSION_API_KEYS_0"),
-        TICKET,
+    assert!(
+        from_ticket_secret("OH_SESSION_API_KEYS_0"),
         "the agent server's own API key is the run ticket, so only the Portal drives it"
     );
     assert!(
         value_of("LLM_BASE_URL").starts_with(PROXY_BASE),
         "the model is reached through the proxy alone (AG-40)"
     );
-    assert_eq!(value_of("LLM_API_KEY"), TICKET);
+    assert!(from_ticket_secret("LLM_API_KEY"));
     assert_eq!(value_of("LLM_MODEL"), "claude-sonnet-5");
+
+    // T-5702: a person who may read the Job does not read a live ticket.
+    assert!(
+        !job.to_string().contains(TICKET),
+        "the ticket is in the Job's spec"
+    );
 
     // Everything in the environment is either a run fact or the ticket. A provider key, a forge
     // token or a realm secret reaching the workspace is the failure ADR-N-020 exists to prevent.
@@ -242,6 +284,48 @@ async fn the_only_credential_in_the_pod_spec_is_the_runs_own_ticket() {
             "{name} looks like a credential the workspace must not hold"
         );
     }
+}
+
+#[tokio::test]
+async fn the_ticket_secret_holds_the_ticket_and_is_owned_by_the_job() {
+    let requests = schedule().await;
+    let secrets = applied_all(&requests, &secret_path());
+    assert_eq!(
+        secrets.len(),
+        2,
+        "applied, then applied again with its owner"
+    );
+    for secret in &secrets {
+        assert_eq!(secret["type"], "Opaque");
+        assert_eq!(secret["stringData"]["ticket"], TICKET);
+    }
+    assert_eq!(
+        secrets[1]["metadata"]["ownerReferences"],
+        json!([{
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "name": format!("agent-run-{RUN_ID}"),
+            "uid": JOB_UID,
+        }]),
+        "the garbage collector removes the Secret with its Job"
+    );
+    let order: Vec<&str> = requests
+        .iter()
+        .filter(|request| request.method.as_str() == "PATCH")
+        .map(|request| request.url.path())
+        .collect();
+    let secret_at = order
+        .iter()
+        .position(|api_path| *api_path == secret_path())
+        .expect("the secret was applied");
+    let job_at = order
+        .iter()
+        .position(|api_path| *api_path == job_path())
+        .expect("the job was applied");
+    assert!(
+        secret_at < job_at,
+        "the pod starts only once its Secret exists"
+    );
 }
 
 #[tokio::test]
@@ -371,7 +455,7 @@ async fn the_policy_is_applied_before_the_job_that_it_holds() {
 }
 
 #[tokio::test]
-async fn cancelling_removes_all_three_objects() {
+async fn cancelling_removes_all_four_objects() {
     let api = MockServer::start().await;
     Mock::given(method("DELETE"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "kind": "Status" })))
@@ -389,7 +473,12 @@ async fn cancelling_removes_all_three_objects() {
         .filter(|request| request.method.as_str() == "DELETE")
         .map(|request| request.url.path().to_owned())
         .collect();
-    for api_path in [job_path(), policy_path(), service_account_path()] {
+    for api_path in [
+        job_path(),
+        policy_path(),
+        service_account_path(),
+        secret_path(),
+    ] {
         assert!(deleted.contains(&api_path), "{api_path} was left behind");
     }
 }
