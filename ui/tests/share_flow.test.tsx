@@ -71,7 +71,7 @@ describe("what a share is made of (T-3275)", () => {
 describe("the share flow on an Endpoint's page (T-3275)", () => {
   let imports: { query: string; manifests: Manifest[]; conflictPolicy?: string }[];
   let asked: string[];
-  function show(spec: object, policies: Manifest[], permissions?: object) {
+  function show(spec: object, policies: Manifest[], permissions?: object, orgDenied = false) {
     imports = [];
     asked = [];
     vi.stubGlobal(
@@ -81,6 +81,9 @@ describe("the share flow on an Endpoint's page (T-3275)", () => {
         const url = new URL(request.url);
         const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
         asked.push(url.pathname);
+        if (orgDenied && url.pathname === "/api/v1/projects/org/permissions/me") {
+          return json({ type: "about:blank", title: "Not Found", status: 404, detail: "project 'org' not found" }, 404);
+        }
         if (permissions && url.pathname.endsWith("/permissions/me")) return json(permissions);
         if (url.pathname === "/api/v1/projects") return json({ items: [{ name: "helsinki" }, { name: "praha" }, { name: "bbsk" }] });
         if (url.pathname.endsWith("/import") && request.method === "POST") {
@@ -155,6 +158,15 @@ describe("the share flow on an Endpoint's page (T-3275)", () => {
     await within(pick).findByRole("option", { name: "bbsk" });
     await waitFor(() => expect(asked.filter((path) => path.endsWith("/permissions/me"))).toHaveLength(2));
     expect(asked.filter((path) => path.endsWith("/groups"))).toEqual([]);
+  });
+
+  it("asks for no organization group list when no binding covers the organization (T-5754)", async () => {
+    show({ allowedProjects: [] }, [], { grants: [{ rule: { kinds: ["Group", "Endpoint"], verbs: ["read"] } }] }, true);
+    const pick = await screen.findByLabelText(en.endpoints.shareFlow.project);
+    await within(pick).findByRole("option", { name: "bbsk" });
+    await waitFor(() => expect(asked).toContain("/api/v1/projects/helsinki/groups"));
+    expect(asked).toContain("/api/v1/projects/org/permissions/me");
+    expect(asked).not.toContain("/api/v1/projects/org/groups");
   });
 
   it("offers no share for an endpoint every project or anyone reads already", async () => {
