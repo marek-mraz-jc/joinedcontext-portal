@@ -22,6 +22,9 @@ use joinedcontext_portal::state::AppState;
 const APPS: &str = "/api/v1/projects/helsinki/apps";
 const GENERATED: &str = "portal/app-reconciler";
 
+/// The steward an App names by Keycloak user id (ADR-N-061, PF-126).
+const JANA_ID: &str = "3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14";
+
 fn state_with(gitea: &MockServer) -> AppState {
     let state = common::state_on(gitea);
     state.mirror.upsert(envelope(
@@ -66,7 +69,7 @@ fn app(lifecycle: &str) -> Value {
             "roles": [{ "name": "viewer" }, { "name": "steward" }],
             "access": [
                 { "role": "viewer", "subjects": [{ "group": "bikes-readers" }] },
-                { "role": "steward", "subjects": [{ "user": "jana@hel.fi" }] },
+                { "role": "steward", "subjects": [{ "user": JANA_ID }] },
             ],
             "dataNeeds": [
                 {
@@ -148,7 +151,7 @@ async fn a_published_role_gated_app_commits_its_endpoint_and_one_policy_per_role
         .unwrap_or_else(|| panic!("the App's Endpoint is committed: {files:?}"));
     assert!(endpoint.2.contains("callerRole: true"), "{}", endpoint.2);
     assert!(
-        endpoint.2.contains("jana@hel.fi"),
+        endpoint.2.contains(JANA_ID),
         "the steward's subject: {}",
         endpoint.2
     );
@@ -496,12 +499,7 @@ async fn every_role_of_a_proposed_app_commits_its_default_group() {
         .find(|(_, path, _)| path.ends_with("app-bikes.yaml"))
         .map(|(_, _, yaml)| yaml.clone())
         .unwrap_or_default();
-    for subject in [
-        "bikes-viewer",
-        "bikes-steward",
-        "bikes-readers",
-        "jana@hel.fi",
-    ] {
+    for subject in ["bikes-viewer", "bikes-steward", "bikes-readers", JANA_ID] {
         assert!(endpoint.contains(subject), "{subject}: {endpoint}");
     }
 }

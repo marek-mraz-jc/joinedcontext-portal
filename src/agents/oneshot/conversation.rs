@@ -974,13 +974,15 @@ one context space. Answer with one plain sentence and then ONE fenced JSON block
 ```json
 {{
   "tool": "grant_role",
-  "subjects": [{{ "user": "<username or e-mail>" }}],
+  "subjects": [{{ "user": "<the person's Keycloak user id, a UUID>" }}],
   "role": "<one of the organization's roles>",
   "scope": {{ "project": "{project}" }}
 }}
 ```
 
-`subjects` may name a group instead, `{{ "group": "<group>" }}`; `scope` is exactly one of
+A person is named by id, never by username or e-mail; without the id, tell the person to pick
+them in the grant form on the Members page and send no call. `subjects` may name a group instead,
+`{{ "group": "<group>" }}`; `scope` is exactly one of
 `{{ "organization": true }}`, `{{ "project": "<name>" }}` or `{{ "contextSpace": "<name>" }}`. The
 platform checks that the person holds everything the role grants there and opens the grant form
 filled in; the person proposes it there. You never grant anything yourself. Taking a role away is

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect } from "@playwright/test";
-import type { APIRequestContext, Browser, BrowserContext, Locator, Page } from "@playwright/test";
+import type { APIRequestContext, Browser, BrowserContext, Locator, Page, Response } from "@playwright/test";
 import { edgeRetryMs } from "../../tests/pageChecks";
 import { answerOtp, submitted } from "./totp";
 
@@ -29,9 +29,25 @@ export function inHiddenSection(address: string, hidden: string[]): boolean {
  */
 export async function journeyMarkerOnPortalOnly(context: BrowserContext, portalHost: string): Promise<void> {
   await context.setExtraHTTPHeaders({});
+  // A route turns the browser's HTTP cache off: every page the walker opened fetched the whole
+  // bundle again and emptied the edge's per-IP budget, so a chunk answered 429 where a person's
+  // browser reads its cached copy (T-5744). An immutable file is kept here once it loaded.
+  const kept = new Map<string, { status: number; headers: Record<string, string>; body: Buffer }>();
   await context.route(
     (url) => url.host === portalHost,
-    (route) => route.fallback({ headers: { ...route.request().headers(), "x-jc-run-origin": "journey" } }),
+    async (route) => {
+      const request = route.request();
+      const headers = { ...request.headers(), "x-jc-run-origin": "journey" };
+      if (request.method() !== "GET" || !new URL(request.url()).pathname.startsWith("/assets/")) return route.fallback({ headers });
+      const cached = kept.get(request.url());
+      if (cached) return route.fulfill(cached);
+      const response = await route.fetch({ headers }).catch(() => undefined);
+      if (!response) return route.abort("failed");
+      if (!response.ok() || !/\bimmutable\b/.test(response.headers()["cache-control"] ?? "")) return route.fulfill({ response });
+      const file = { status: response.status(), headers: response.headers(), body: await response.body() };
+      kept.set(request.url(), file);
+      return route.fulfill(file);
+    },
   );
 }
 
@@ -224,18 +240,37 @@ export async function goSignedIn(
  * loads again (T-5078). Otherwise it waits for the page a person looks at: the first heading, the
  * lists that read after it, and while index.html's fallback is the document (a script the edge
  * refused), a load again after `retryMs`, twice at most (T-5069).
+ *
+ * A load the edge refused anywhere, the document or one of its chunks, waits the edge's window out
+ * and loads again, twice at most: the Portal reloads itself once for a refused chunk and that
+ * reload met the same 429, so the walker judged the edge's own page and the Portal's console line
+ * about the chunk (T-5743). `fresh` runs before each load again, so the caller drops what it
+ * gathered from the refused load.
  */
-export async function openToJudge(page: Page, address: string, retryMs = 20_000): Promise<boolean> {
-  let answer = await page.goto(address, { waitUntil: "load" });
-  for (let retry = 0; retry < 2 && answer?.status() === 429; retry++) {
-    await page.waitForTimeout(edgeRetryMs(answer.headers()["retry-after"]));
-    answer = await page.reload({ waitUntil: "load" });
+export async function openToJudge(page: Page, address: string, retryMs = 20_000, fresh: () => void = () => undefined): Promise<boolean> {
+  let refused: Response | undefined;
+  const watch = (response: Response) => {
+    if (response.status() === 429 && ["document", "script", "stylesheet"].includes(response.request().resourceType())) refused ??= response;
+  };
+  page.on("response", watch);
+  try {
+    let answer = await page.goto(address, { waitUntil: "load" });
+    for (let retry = 0; ; retry++) {
+      if (answer?.status() !== 429) {
+        await settle(page, retryMs);
+        await page.waitForTimeout(1500);
+        await afterSelfReload(page, retryMs);
+      }
+      if (!refused) return false;
+      if (retry === 2) return true;
+      await page.waitForTimeout(edgeRetryMs(refused.headers()["retry-after"]));
+      refused = undefined;
+      fresh();
+      answer = await page.reload({ waitUntil: "load" });
+    }
+  } finally {
+    page.off("response", watch);
   }
-  if (answer?.status() === 429) return true;
-  await settle(page, retryMs);
-  await page.waitForTimeout(1500);
-  await afterSelfReload(page, retryMs);
-  return false;
 }
 
 /**

@@ -11,7 +11,7 @@
 //! another test would see.
 
 use joinedcontext_portal::auth::session::{now_unix, Identity, Session};
-use joinedcontext_portal::config::Config;
+use joinedcontext_portal::config::{Config, ConfigError};
 use joinedcontext_portal::git::github_mirror::GithubMirror;
 use joinedcontext_portal::git::GiteaClient;
 use joinedcontext_portal::state::AppState;
@@ -160,6 +160,29 @@ fn a_half_configured_gitea_is_a_startup_error_not_a_portal_without_a_forge() {
             .map(|(_, v)| (*v).to_owned())
     };
     assert!(GiteaClient::from_env(whole).expect("on").is_some());
+}
+
+/// A WASM shard count that is no positive number stops the Portal instead of turning into 2.
+#[test]
+fn an_unparsable_or_zero_wasm_shard_count_is_a_startup_error() {
+    for shards in ["three", "0", "-1"] {
+        let lookup = |key: &str| match key {
+            "JC_PORTAL_APPS_DB_URL" => Some("postgres://apps@db/apps".to_owned()),
+            "JC_PORTAL_WASM_SHARDS" => Some(shards.to_owned()),
+            _ => None,
+        };
+        match Config::from_vars(lookup) {
+            Err(ConfigError::Invalid { var, .. }) => assert_eq!(var, "JC_PORTAL_WASM_SHARDS"),
+            other => panic!("{shards}: {:?}", other.map(|c| c.apps_db)),
+        }
+    }
+    let three = Config::from_vars(|key: &str| match key {
+        "JC_PORTAL_APPS_DB_URL" => Some("postgres://apps@db/apps".to_owned()),
+        "JC_PORTAL_WASM_SHARDS" => Some(" 3 ".to_owned()),
+        _ => None,
+    })
+    .expect("a shard count");
+    assert_eq!(three.apps_db.map(|db| db.shards), Some(3));
 }
 
 /// Case 4: the GitHub copy takes both of its values or neither.

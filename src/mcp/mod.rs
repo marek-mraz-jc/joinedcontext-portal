@@ -361,6 +361,9 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
                 return json_response(StatusCode::OK, &result(id, json!({ "resources": [] })));
             }
             let mut resources = Vec::new();
+            // A space-living item is listed where its manifest is readable, never on a grant of
+            // the kind in another space (PF-59, T-5699).
+            let effective = crate::permissions::for_request(&state, &caller.identity, &project);
             for info in crate::resource::kinds() {
                 if !may_read_kind(&state, &caller, &project, info.kind) {
                     continue;
@@ -370,6 +373,9 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
                         .mirror
                         .list(&project, info.kind, &crate::store::ListOptions::default());
                 for item in page.items {
+                    if !may_read_item(&effective, info.kind, &item) {
+                        continue;
+                    }
                     resources.push(json!({
                         "uri": format!("jc://{project}/{}/{}", info.plural, item.metadata.name),
                         "name": item.metadata.name,
@@ -408,7 +414,10 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
                 .list(&project)
                 .await
                 .unwrap_or_default();
-            for draft in drafts {
+            for draft in drafts
+                .iter()
+                .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))
+            {
                 resources.push(json!({
                     "uri": format!("jc://{project}/drafts/{}/{}", draft.kind, draft.name),
                     "name": draft.name,
@@ -608,6 +617,15 @@ fn may_read(state: &AppState, caller: &crate::ops::Caller, project: &str) -> boo
 
 /// Whether the caller reads this kind here (PF-59): the same rule the REST list and get apply,
 /// so a resource the API hides is not handed out over MCP either.
+/// Whether the caller reads this one item: where its manifest lives, as the REST read decides.
+fn may_read_item(
+    effective: &crate::permissions::Effective,
+    kind: &str,
+    item: &crate::resource::ResourceEnvelope,
+) -> bool {
+    serde_json::to_value(item).is_ok_and(|manifest| effective.may_read_manifest(kind, &manifest))
+}
+
 fn may_read_kind(state: &AppState, caller: &crate::ops::Caller, project: &str, kind: &str) -> bool {
     crate::permissions::for_request(state, &caller.identity, project).may_read(kind)
 }
@@ -691,7 +709,6 @@ async fn answer_call(
         let digest = elicitation::digest_of(&input);
         match params.get("elicitation") {
             None => {
-                let elicitation_id = state.mcp_elicitations.ask(owner, op.name, project, &digest);
                 // PF-57: a proposal whose check has not run is refused on every door
                 // with the same three fields, so a client that reads
                 // `verdict_required` on the REST route reads it here too. The
@@ -699,36 +716,47 @@ async fn answer_call(
                 // the check (ADR-N-021, T-0947).
                 let refusal = crate::ops::verdict_refusal(state, op, project, &input).await;
                 let reason = refusal.as_ref().map_or(
-                    "Nothing has run: open the Portal, look at what this would \
-                         change, and send this call again with the answer."
+                    "Nothing has run: open the Portal page this question names, look at \
+                         what this would change and decide there, then send this call again \
+                         with the `elicitationId`."
                         .to_owned(),
                     |body| {
                         let detail = body.get("detail").and_then(Value::as_str).unwrap_or("");
                         let check = body.get("check").and_then(Value::as_str).unwrap_or("");
                         format!(
-                            "Nothing has run: {detail} Run `{check}`, then send this \
-                                 call again with the answer."
+                            "Nothing has run: {detail} Run `{check}`, decide on the Portal \
+                                 page this question names, then send this call again with the \
+                                 `elicitationId`."
                         )
                     },
                 );
+                let message = format!(
+                    "{} in project '{project}' ({} lane). {reason}",
+                    op.title,
+                    lane_word(lane)
+                );
+                let resource = resource_path(project, op.kind, &input);
+                let elicitation_id = state
+                    .mcp_elicitations
+                    .ask(owner, op.name, project, &digest, &message, &resource);
                 return result(
                     id,
                     elicitation::document(
                         &elicitation_id,
-                        &format!(
-                            "{} in project '{project}' ({} lane). {reason}",
-                            op.title,
-                            lane_word(lane)
-                        ),
-                        &confirm_url(state, project, op.kind, &input),
+                        &message,
+                        &confirm_url(state, project, &elicitation_id),
                         refusal,
                     ),
                 );
             }
-            Some(sent) => match state
-                .mcp_elicitations
-                .answer(owner, op.name, project, &digest, sent)
-            {
+            Some(sent) => match state.mcp_elicitations.answer(
+                owner,
+                op.name,
+                project,
+                &digest,
+                sent,
+                crate::permissions::is_service_account(&state.mirror, &caller.identity),
+            ) {
                 elicitation::Answer::Accepted => {
                     *answer = Some("accepted");
                 }
@@ -737,6 +765,16 @@ async fn answer_call(
                     return result(
                         id,
                         failure_result("the person declined this call; nothing was run (AG-63)"),
+                    );
+                }
+                elicitation::Answer::Waiting => {
+                    return result(
+                        id,
+                        failure_result(
+                            "the person has not decided this question yet: nothing was run. \
+                             They decide on the Portal page the question names; send this call \
+                             again with the same `elicitationId` once they have (AG-63)",
+                        ),
                     );
                 }
                 elicitation::Answer::Unknown => {
@@ -909,11 +947,13 @@ async fn read_resource(
             Some(("application/yaml", source))
         }
         [project, "drafts", kind, name] if may_read_kind(state, caller, project, kind) => {
+            let effective = crate::permissions::for_request(state, &caller.identity, project);
             let draft = crate::ops::drafts::draft_store(state)
                 .get(project, kind, name)
                 .await
                 .ok()
-                .flatten()?;
+                .flatten()
+                .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))?;
             Some(("application/json", serde_json::to_string(&draft).ok()?))
         }
         // AG-81: `jc://-/{plural}/{name}` is a resource of the organization itself.
@@ -933,6 +973,10 @@ async fn read_resource(
                 return None;
             }
             let item = state.mirror.get(project, info.kind, name)?;
+            let effective = crate::permissions::for_request(state, &caller.identity, project);
+            if !may_read_item(&effective, info.kind, &item) {
+                return None;
+            }
             Some(("application/json", serde_json::to_string(&item).ok()?))
         }
         _ => None,
@@ -1014,8 +1058,14 @@ fn lane_word(lane: crate::change::Lane) -> &'static str {
 ///
 /// An operation of one kind names it; `jc_resource_*` takes any kind, so the arguments name it
 /// and the page is the one holding the resource the call is about.
-fn confirm_url(state: &AppState, project: &str, kind: &str, input: &Value) -> String {
+/// The Portal page where the person decides question `id` with their own session (T-5699).
+fn confirm_url(state: &AppState, project: &str, id: &str) -> String {
     let base = state.config.public_base_url.as_str().trim_end_matches('/');
+    format!("{base}/projects/{project}/mcp-elicitations/{id}")
+}
+
+/// The Portal path of what a call would change, which the decision page links to.
+fn resource_path(project: &str, kind: &str, input: &Value) -> String {
     let named = input
         .get("kind")
         .and_then(Value::as_str)
@@ -1034,9 +1084,9 @@ fn confirm_url(state: &AppState, project: &str, kind: &str, input: &Value) -> St
         .and_then(Value::as_str)
         .filter(|name| crate::resource::is_dns1123(name));
     match (crate::resource::by_kind(kind), name) {
-        (Some(info), Some(name)) => format!("{base}/projects/{project}/{}/{name}", info.plural),
-        (Some(info), None) => format!("{base}/projects/{project}/{}", info.plural),
-        (None, _) => format!("{base}/projects/{project}"),
+        (Some(info), Some(name)) => format!("/projects/{project}/{}/{name}", info.plural),
+        (Some(info), None) => format!("/projects/{project}/{}", info.plural),
+        (None, _) => format!("/projects/{project}"),
     }
 }
 

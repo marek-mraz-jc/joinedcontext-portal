@@ -130,10 +130,31 @@ pub struct Workspace {
     pub base_revision: String,
     pub scope: Scope,
     pub preview_state: PreviewState,
+    /// Who started the preview and the salt of its slugs (CC-91, CC-92). In-process only: the
+    /// gateway reads it through the internal preview list, nobody through this API.
+    #[serde(skip)]
+    pub preview: Option<PreviewAccess>,
     #[schema(value_type = String, format = DateTime)]
     pub created_at: DateTime<Utc>,
     #[schema(value_type = String, format = DateTime)]
     pub expires_at: DateTime<Utc>,
+}
+
+/// What a preview's start fixes: the Keycloak user id of the person who started it, its first
+/// reader (CC-91), and the salt its slugs are minted with (CC-92).
+#[derive(Clone, PartialEq, Eq)]
+pub struct PreviewAccess {
+    pub salt: String,
+    pub author: String,
+}
+
+impl std::fmt::Debug for PreviewAccess {
+    // The salt is what keeps a preview's slugs from being computed: no log line carries it.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PreviewAccess")
+            .field("author", &self.author)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Workspace {
@@ -197,6 +218,10 @@ fn row_to_workspace(row: sqlx::postgres::PgRow) -> Result<Workspace, WorkspaceEr
         base_revision: row.get("base_revision"),
         scope: serde_json::from_value(scope).map_err(|e| WorkspaceError::Db(e.to_string()))?,
         preview_state: PreviewState::parse(row.get::<String, _>("preview_state").as_str()),
+        preview: match (row.get("preview_salt"), row.get("preview_author")) {
+            (Some(salt), Some(author)) => Some(PreviewAccess { salt, author }),
+            _ => None,
+        },
         created_at: odt_to_chrono(row.get("created_at")),
         expires_at: odt_to_chrono(row.get("expires_at")),
     })
@@ -240,6 +265,7 @@ impl WorkspaceStore {
             base_revision: opening.base_revision.to_owned(),
             scope: opening.scope,
             preview_state: PreviewState::None,
+            preview: None,
             created_at: now,
             expires_at: now + Duration::hours(opening.ttl_hours),
         };
@@ -257,7 +283,7 @@ impl WorkspaceStore {
                     .map_err(|e| WorkspaceError::Db(e.to_string()))?;
                 let row = sqlx::query(
                     "INSERT INTO workspaces (name, title, project, owner, base_revision, scope, preview_state, created_at, expires_at) VALUES ($1, $8, $2, $3, $4, $5, 'none', $6, $7) \
-                     ON CONFLICT (name) DO NOTHING RETURNING name, title, project, owner, base_revision, scope, preview_state, created_at, expires_at",
+                     ON CONFLICT (name) DO NOTHING RETURNING name, title, project, owner, base_revision, scope, preview_state, preview_salt, preview_author, created_at, expires_at",
                 )
                 .bind(&workspace.name)
                 .bind(&workspace.project)
@@ -282,7 +308,7 @@ impl WorkspaceStore {
         match &*self.inner {
             Inner::Memory(map) => Ok(map.read().await.get(name).cloned()),
             Inner::Db(pool) => {
-                sqlx::query("SELECT name, title, project, owner, base_revision, scope, preview_state, created_at, expires_at FROM workspaces WHERE name = $1")
+                sqlx::query("SELECT name, title, project, owner, base_revision, scope, preview_state, preview_salt, preview_author, created_at, expires_at FROM workspaces WHERE name = $1")
                     .bind(name)
                     .fetch_optional(pool)
                     .await
@@ -312,7 +338,7 @@ impl WorkspaceStore {
                 .filter(|w| w.project == project)
                 .cloned()
                 .collect::<Vec<_>>(),
-            Inner::Db(pool) => sqlx::query("SELECT name, title, project, owner, base_revision, scope, preview_state, created_at, expires_at FROM workspaces WHERE project = $1")
+            Inner::Db(pool) => sqlx::query("SELECT name, title, project, owner, base_revision, scope, preview_state, preview_salt, preview_author, created_at, expires_at FROM workspaces WHERE project = $1")
             .bind(project)
             .fetch_all(pool)
             .await
@@ -345,6 +371,40 @@ impl WorkspaceStore {
                     .execute(pool)
                     .await
                     .map_err(db)?;
+                if done.rows_affected() == 0 {
+                    return Err(WorkspaceError::NotFound(name.to_owned()));
+                }
+                Ok(())
+            }
+        }
+    }
+
+    /// Marks the preview starting, with who started it and the salt of its slugs; both replace
+    /// what an earlier start left (CC-91, CC-92).
+    pub async fn start_preview(
+        &self,
+        name: &str,
+        access: PreviewAccess,
+    ) -> Result<(), WorkspaceError> {
+        match &*self.inner {
+            Inner::Memory(map) => match map.write().await.get_mut(name) {
+                Some(workspace) => {
+                    workspace.preview_state = PreviewState::Starting;
+                    workspace.preview = Some(access);
+                    Ok(())
+                }
+                None => Err(WorkspaceError::NotFound(name.to_owned())),
+            },
+            Inner::Db(pool) => {
+                let done = sqlx::query(
+                    "UPDATE workspaces SET preview_state = 'starting', preview_salt = $2, preview_author = $3 WHERE name = $1",
+                )
+                .bind(name)
+                .bind(&access.salt)
+                .bind(&access.author)
+                .execute(pool)
+                .await
+                .map_err(db)?;
                 if done.rows_affected() == 0 {
                     return Err(WorkspaceError::NotFound(name.to_owned()));
                 }
@@ -390,7 +450,7 @@ impl WorkspaceStore {
                 .await
                 .remove(name)
                 .ok_or_else(|| WorkspaceError::NotFound(name.to_owned())),
-            Inner::Db(pool) => sqlx::query("DELETE FROM workspaces WHERE name = $1 RETURNING name, title, project, owner, base_revision, scope, preview_state, created_at, expires_at")
+            Inner::Db(pool) => sqlx::query("DELETE FROM workspaces WHERE name = $1 RETURNING name, title, project, owner, base_revision, scope, preview_state, preview_salt, preview_author, created_at, expires_at")
             .bind(name)
             .fetch_optional(pool)
             .await
@@ -411,7 +471,7 @@ impl WorkspaceStore {
                 .filter(|w| matches!(w.preview_state, PreviewState::Starting | PreviewState::Running))
                 .cloned()
                 .collect()),
-            Inner::Db(pool) => sqlx::query("SELECT name, title, project, owner, base_revision, scope, preview_state, created_at, expires_at FROM workspaces WHERE preview_state IN ('starting', 'running') ORDER BY name")
+            Inner::Db(pool) => sqlx::query("SELECT name, title, project, owner, base_revision, scope, preview_state, preview_salt, preview_author, created_at, expires_at FROM workspaces WHERE preview_state IN ('starting', 'running') ORDER BY name")
             .fetch_all(pool)
             .await
             .map_err(db)?
@@ -431,7 +491,7 @@ impl WorkspaceStore {
                 .filter(|w| w.expired(now))
                 .cloned()
                 .collect()),
-            Inner::Db(pool) => sqlx::query("SELECT name, title, project, owner, base_revision, scope, preview_state, created_at, expires_at FROM workspaces WHERE expires_at <= $1 ORDER BY name")
+            Inner::Db(pool) => sqlx::query("SELECT name, title, project, owner, base_revision, scope, preview_state, preview_salt, preview_author, created_at, expires_at FROM workspaces WHERE expires_at <= $1 ORDER BY name")
             .bind(chrono_to_odt(now))
             .fetch_all(pool)
             .await

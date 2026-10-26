@@ -14,6 +14,7 @@ use common::doors::{self, mcp, run, session, steward, stranger, viewer, PROJECT}
 use common::envelope;
 use joinedcontext_portal::agents::run::{digest_prompt, mint_run_id, mint_ticket, AgentRun};
 use joinedcontext_portal::auth::session::Identity;
+use joinedcontext_portal::ops::Via;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::state::AppState;
 use serde_json::{json, Value};
@@ -206,8 +207,9 @@ async fn a_run_of_another_person_is_invisible() {
     }
 }
 
-/// AG-45: the person a run acts for sends it a message and answers its question, through the
-/// session and through her own MCP client.
+/// AG-45: the person a run acts for sends it a message through the session and through her own
+/// MCP client, and answers its question in the session alone: over MCP the answer is refused,
+/// a model driving the client never decides for her (T-5699).
 #[tokio::test]
 async fn the_person_messages_her_run_and_answers_its_question() {
     let world = world().await;
@@ -222,9 +224,19 @@ async fn the_person_messages_her_run_and_answers_its_question() {
         assert_eq!(StatusCode::OK, sent.status, "{}", sent.text());
         assert_eq!(json!(true), sent.body["accepted"]);
 
+        let over_mcp = caller.via == Via::Mcp;
         let answered =
             doors::call("jc_run_answer", &caller, &world.state, answer(&world.janas)).await;
-        assert_eq!(StatusCode::OK, answered.status, "{}", answered.text());
+        if over_mcp {
+            assert_eq!(
+                StatusCode::FORBIDDEN,
+                answered.status,
+                "{}",
+                answered.text()
+            );
+        } else {
+            assert_eq!(StatusCode::OK, answered.status, "{}", answered.text());
+        }
     }
     let events = world
         .state
@@ -237,7 +249,7 @@ async fn the_person_messages_her_run_and_answers_its_question() {
         .filter(|event| event.kind == "answer")
         .map(|event| &event.payload)
         .collect();
-    assert_eq!(2, answers.len(), "{answers:?}");
+    assert_eq!(1, answers.len(), "{answers:?}");
     assert_eq!("jana", answers[0]["answeredBy"]);
 }
 

@@ -75,6 +75,30 @@ impl AgentStore {
         Ok(())
     }
 
+    /// Stores a run that must be its application's only live one: `Ok(false)`, and nothing
+    /// stored, when another live run of the app exists. Postgres decides under an advisory lock
+    /// per App, the memory store under its write lock, so two concurrent creates never both start
+    /// (F-POR1-018).
+    pub async fn create_run_alone(&self, run: &AgentRun) -> Result<bool, StoreError> {
+        if let Some(pool) = &self.db {
+            return Ok(db::insert_agent_run_alone(pool, run).await?);
+        }
+        let mut memory = self.memory.write().await;
+        let taken = memory.runs.values().any(|r| {
+            r.project == run.project
+                && r.app_name == run.app_name
+                && AgentRunStatus::parse(&r.status).is_some_and(|s| !s.is_terminal())
+        });
+        if taken {
+            return Ok(false);
+        }
+        memory.runs.insert(run.id.clone(), run.clone());
+        memory
+            .started
+            .insert(run.id.clone(), std::time::Instant::now());
+        Ok(true)
+    }
+
     pub async fn get_run(&self, id: &str) -> Result<Option<AgentRun>, StoreError> {
         if let Some(pool) = &self.db {
             return Ok(db::load_agent_run(pool, id).await?);
@@ -611,6 +635,32 @@ mod tests {
         assert!(outcomes
             .iter()
             .any(|o| matches!(o, Err(StatusChangeError::Refused { .. }))));
+    }
+
+    /// F-POR1-018: an App holds one live run; a second create waits until the first has ended,
+    /// and another App of the project is never held by it.
+    #[tokio::test]
+    async fn a_live_run_holds_its_app_against_a_second_run() {
+        let store = AgentStore::new(None);
+        let first = run("run-1", "helsinki", "2026-09-12T10:15:30Z");
+        assert!(store.create_run_alone(&first).await.expect("create"));
+        assert!(!store
+            .create_run_alone(&run("run-2", "helsinki", "2026-09-12T10:16:30Z"))
+            .await
+            .expect("create"));
+        assert!(store.get_run("run-2").await.expect("get").is_none());
+
+        let mut other_app = run("run-3", "helsinki", "2026-09-12T10:17:30Z");
+        other_app.app_name = "air-quality".to_owned();
+        assert!(store.create_run_alone(&other_app).await.expect("create"));
+
+        let mut ended = run("run-4", "bb", "2026-09-12T10:18:30Z");
+        ended.status = AgentRunStatus::Failed.as_str().to_owned();
+        store.create_run(&ended).await.expect("create");
+        assert!(store
+            .create_run_alone(&run("run-5", "bb", "2026-09-12T10:19:30Z"))
+            .await
+            .expect("create"));
     }
 
     #[tokio::test]

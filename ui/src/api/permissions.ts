@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { api, queryKeys, unwrap } from "./client";
+import { api, ApiError, queryKeys, unwrap } from "./client";
 import { ORG_NAMESPACE } from "./manifest";
 import type { components } from "./schema";
 
@@ -144,6 +144,8 @@ export function usePermissions(project: string) {
   return {
     data: query.data,
     isLoading: query.isPending,
+    // The 404 of a project no binding of the caller covers (PF-59): a known answer, reading nothing.
+    denied: query.error instanceof ApiError && query.error.status === 404,
     can: (kind: string, verb: Verb) => allows(query.data, kind, verb),
   };
 }
@@ -227,10 +229,17 @@ export function ownRights(effective: Effective | undefined): { kinds: string[]; 
 
 /**
  * Whether to ask for a list of `kind`: `undefined` while the permissions are in flight, `false`
- * once they deny reading it, and `true` otherwise — a document that never came (an error) leaves
- * the API to decide, as `allows` does.
+ * once they deny reading it or no binding covers the project (`permissions/me` answered 404, so the
+ * list would 404 too, T-5754), and `true` otherwise — a document that never came for another
+ * reason leaves the API to decide, as `allows` does.
  */
-export function readsOnceKnown(permissions: { data: Effective | undefined; isLoading: boolean }, kind: string) {
+export function readsOnceKnown(
+  permissions: { data: Effective | undefined; isLoading: boolean; denied?: boolean },
+  kind: string,
+) {
+  if (permissions.denied === true) {
+    return false;
+  }
   const reads = mayRead(permissions.data, kind);
   return reads ?? (permissions.isLoading ? undefined : true);
 }

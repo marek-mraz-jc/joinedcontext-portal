@@ -10,7 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { People, PersonPage } from "../src/pages/organization/People";
+import { changedFields, People, PersonPage } from "../src/pages/organization/People";
 import { expectDenied, expectNoViolations, expectOpen } from "./checks";
 import { renderPage } from "./page_contract";
 
@@ -383,5 +383,14 @@ describe("a person's page", () => {
     await user.click(within(dialog).getByRole("button", { name: P.save }));
     await waitFor(() => expect(sent.filter((s) => s.method === "PATCH")).toHaveLength(1));
     expect(sent.find((s) => s.method === "PATCH")?.body).toEqual({ lastName: "Horváthová" });
+  });
+});
+
+describe("an edit's body", () => {
+  it("keeps an address that differs only in case, so no new verification is asked", () => {
+    const stored = { ...JANA, email: "Jana.Novakova@Hel.fi" } as Parameters<typeof changedFields>[0];
+    const form = { email: "jana.novakova@hel.fi", firstName: "Jana", lastName: "Nováková", locale: "sk" };
+    expect(changedFields(stored, form)).toEqual({});
+    expect(changedFields(stored, { ...form, email: "jana@hel.fi" })).toEqual({ email: "jana@hel.fi" });
   });
 });

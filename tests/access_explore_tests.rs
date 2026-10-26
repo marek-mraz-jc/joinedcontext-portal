@@ -108,6 +108,9 @@ async fn rig() -> Rig {
     let mut config = Config::from_vars(|key| {
         match key {
             "JC_OIDC_ISSUER" => Some(issuer.as_str()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal-api"),
             "JC_OIDC_CLIENT_SECRET" => Some("test-secret"),
             "JC_PORTAL_BOOTSTRAP_ADMINS" => Some("portal-approver"),
@@ -130,12 +133,13 @@ async fn rig() -> Rig {
         ("secret", "secret-ops"),
         ("unserved", "unserved"),
     ] {
-        mirror.upsert(common::envelope(
-            "Endpoint",
-            name,
-            "helsinki",
-            json!({ "slug": slug, "enabledRepresentations": ["ogc-features"] }),
-        ));
+        // `bikes` lists nothing: it serves the default set (T-5699).
+        let spec = if name == "bikes" {
+            json!({ "slug": slug })
+        } else {
+            json!({ "slug": slug, "enabledRepresentations": ["ogc-features"] })
+        };
+        mirror.upsert(common::envelope("Endpoint", name, "helsinki", spec));
     }
     mirror.upsert(common::envelope(
         "McpServer",
@@ -271,6 +275,16 @@ async fn only_the_endpoints_the_subject_reaches_are_listed() {
         air["permissions"][0]["constraints"]["geoQ"]["geometry"],
         "Point"
     );
+    // T-5699, F-POR1-020: an Endpoint listing nothing serves the catalogue's default set, not
+    // `ngsi-ld` and `mcp` alone.
+    let bikes = explored["endpoints"][1]["representations"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    for served in ["ngsi-ld", "mcp", "ogc-features"] {
+        assert!(bikes.contains(&json!(served)), "{bikes:?}");
+    }
+    assert!(!bikes.contains(&json!("sta")), "{bikes:?}");
     assert_eq!(explored["mcpServers"], json!(["city-air"]));
     assert_eq!(explored["consents"], json!([]));
     for question in asked(&r.gateway).await {
@@ -294,7 +308,8 @@ async fn a_persons_consents_come_with_their_rows() {
     .await;
     assert_eq!(answer.status, 200, "{}", answer.text);
     let explored = body(&answer);
-    assert_eq!(explored["subject"]["user"], "jana@hel.fi");
+    // The gateway takes `user` as the token `sub`: a person is simulated by their Keycloak id.
+    assert_eq!(explored["subject"]["user"], "jana-id");
     assert_eq!(explored["consents"][0]["clientId"], "mcp-hub");
     assert_eq!(
         explored["consents"][0]["lastUpdatedDate"],

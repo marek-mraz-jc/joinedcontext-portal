@@ -2292,7 +2292,7 @@ export interface paths {
         put?: never;
         /**
          * Adopt Drift
-         * @description Proposes the live entity as the seed file's content, as a change a person approves. Needs `propose` on Entity; refused when the entity is no longer in the space.
+         * @description Proposes, as a change a person approves, the seed file with the entity's declared attributes as the space holds them now. Needs `propose` on Entity; refused when the entity is no longer in the space.
          */
         post: operations["adopt_drift"];
         delete?: never;
@@ -3027,6 +3027,46 @@ export interface paths {
          * @description Checks a v1alpha2 Pipeline draft with one kpi step by jc-core's admission rules (PL-102, PL-103), with each attribute's unit from its space's model, and says of each source whether the pipeline's account may read it. `preview: true` also computes the indicator on each source Endpoint's current page, read as the person (PL-105). Needs propose on Pipeline in the project, from a person's session; a source in a space the caller may not read is named as unknown. Changes no data.
          */
         post: operations["check_kpi"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/mcp-elicitations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read an MCP Call's Question
+         * @description The question a Yellow, Red or destructive MCP call asked, for the person whose client asked it: what would run, the page of what it changes, when it expires and the decision so far (AG-63). Another person's question, an answered or an expired one is 404; a bearer token is refused.
+         */
+        get: operations["get_question"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/mcp-elicitations/{id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide an MCP Call's Question
+         * @description The person whose client asked records `accept` or `decline`; the client's next call with the question's id runs or is refused on it (AG-63). A decision may be changed until that call. Another person's question, an answered or an expired one is 404; a bearer token is refused.
+         */
+        post: operations["decide_question"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6249,6 +6289,11 @@ export interface components {
         Decision: {
             reason: string;
         };
+        /** @description The person's answer to one question. */
+        DecisionRequest: {
+            /** @description `accept` lets the call run once; `decline` refuses it. */
+            decision: components["schemas"]["ElicitationDecision"];
+        };
         /** @description Why the proposal is declined, for the audit record. */
         DeclineRequest: {
             reason: string;
@@ -6433,6 +6478,11 @@ export interface components {
             project: string;
             projects?: null | components["schemas"]["ProjectAffordances"];
         };
+        /**
+         * @description What the person decided on the Portal page.
+         * @enum {string}
+         */
+        ElicitationDecision: "accept" | "decline";
         /**
          * @description What the assistant may prepare on one endpoint's entities.
          * @enum {string}
@@ -6866,6 +6916,10 @@ export interface components {
         };
         /** @description Who is signed in. Returned by `GET /api/v1/auth/me` and used by every protected route. */
         Identity: {
+            /**
+             * @description Only an address the identity provider verified ([`verified_email`]): a binding's `user`
+             *     subject matches it, so an address a person typed in unverified grants nothing.
+             */
             email?: string | null;
             /**
              * @description Keycloak group paths from the token's `groups` claim, without the leading `/`. Identity,
@@ -8266,6 +8320,21 @@ export interface components {
             /** Format: int64 */
             expectedVersion?: number | null;
             manifest: unknown;
+        };
+        /** @description One open question as its page shows it to the person who asked. */
+        Question: {
+            decision?: null | components["schemas"]["ElicitationDecision"];
+            /**
+             * Format: int64
+             * @description Unix seconds after which the question is no longer answered.
+             */
+            expiresAt: number;
+            id: string;
+            message: string;
+            /** @description The operation the call runs, `jc_resource_delete`. */
+            operation: string;
+            /** @description The Portal path of what the call would change, `/projects/helsinki/endpoints/air`. */
+            resource: string;
         };
         /** @description One quota dimension of a project. */
         QuotaUse: {
@@ -16300,12 +16369,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The live entity proposed as the seed file's content */
+            /** @description The change that writes the live entity into its seed file, waiting for an approver */
             202: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
             };
             /** @description No session */
             401: {
@@ -16334,7 +16405,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description The entity is not in the space, so there is nothing to adopt */
+            /** @description The entity is not in the space or no longer in its seed file, or an adoption of it is already open */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -19227,6 +19298,128 @@ export interface operations {
                 };
             };
             /** @description No such project */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_question: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description The question's id, `eli-` and 16 hex digits */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The open question */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Question"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A bearer token, not the person's session */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No open question of this person by that id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    decide_question: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description The question's id, `eli-` and 16 hex digits */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "decision": "accept"
+                 *     }
+                 */
+                "application/json": components["schemas"]["DecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description The question with the decision recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Question"];
+                };
+            };
+            /** @description A body that is not `{"decision": "accept"}` or `decline` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A bearer token, not the person's session */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No open question of this person by that id */
             404: {
                 headers: {
                     [name: string]: unknown;

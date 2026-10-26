@@ -4346,6 +4346,14 @@ output:
             serde_json::json!("plain")
         );
     }
+
+    /// A `resource:` reference gets no label: Bento's lint refuses one there and the runner
+    /// refuses the stream (dev 2026-10-26, every events pipeline naming `events_tail`).
+    #[test]
+    fn a_resource_reference_stays_unlabelled() {
+        let tail = serde_json::json!({ "resource": "events_tail" });
+        assert_eq!(labelled(tail.clone(), "processor_3"), tail);
+    }
     // --- v1alpha2: sources, steps, outputs (PL-52…PL-54, T-1468) ---
 
     fn second_shape(spec: serde_json::Value) -> PipelineSpec {

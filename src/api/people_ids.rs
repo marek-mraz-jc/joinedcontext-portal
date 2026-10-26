@@ -376,12 +376,9 @@ async fn propose(
         .forge_for(namespace)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
     let default_branch = gitea.default_branch().await?;
-    let branch = crate::api::mutate::create_or_reuse_branch(
-        &gitea,
-        "portal/name-people-by-id",
-        &default_branch,
-    )
-    .await?;
+    // Held until the merge request is open, so a second proposal finds it (F-POR2-011).
+    let held = crate::api::mutate::turn(&gitea, "portal/name-people-by-id").await;
+    let branch = crate::api::mutate::create_or_reuse_branch(&gitea, &held, &default_branch).await?;
     let mut uploads = Vec::with_capacity(manifests.len());
     for envelope in manifests {
         let info = crate::resource::by_kind(&envelope.kind).ok_or_else(|| {
@@ -542,5 +539,94 @@ mod tests {
             vec!["helsinki"]
         );
         assert!(plan.unresolved.is_empty());
+    }
+
+    fn caller(client: Option<&str>, groups: &[&str]) -> CurrentUser {
+        use crate::auth::session::{Identity, Session};
+        CurrentUser(Session {
+            identity: Identity {
+                client: client.map(str::to_owned),
+                subject: JANA.into(),
+                username: "jana".into(),
+                email: Some("jana@hel.fi".into()),
+                name: None,
+                roles: Vec::new(),
+                groups: groups.iter().map(|g| (*g).to_owned()).collect(),
+                second_factor: false,
+            },
+            expires_at: 9_999_999_999,
+            issued_at: 1000,
+            id_token: "dummy".into(),
+            access_expires_at: 9_999_999_999,
+            refresh_token: None,
+        })
+    }
+
+    fn state() -> AppState {
+        AppState::new(crate::config::Config::for_tests(), None)
+    }
+
+    async fn names(caller: CurrentUser, ids: &str) -> Result<Json<PersonNames>, ApiError> {
+        let query = NamesQuery {
+            ids: ids.to_owned(),
+        };
+        person_names(caller, State(state()), Query(query)).await
+    }
+
+    #[tokio::test]
+    async fn names_behind_ids_need_the_right_before_the_ids_are_read() {
+        let refused = names(caller(None, &[]), "not-an-id").await;
+        assert!(
+            matches!(&refused, Err(ApiError::Denied(m)) if m.contains("ADR-N-061")),
+            "{refused:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn names_refuse_an_id_that_is_no_keycloak_id_and_more_than_a_hundred() {
+        let admin = || caller(None, &["portal-approver"]);
+        let refused = names(admin(), &format!("{JANA}, jana@hel.fi")).await;
+        let Err(ApiError::Unprocessable { errors, .. }) = refused else {
+            panic!("{refused:?}");
+        };
+        assert_eq!(
+            errors,
+            ["ids: 'jana@hel.fi' is not a Keycloak user id (a lower-case UUID)"]
+        );
+        let many: Vec<String> = (0..=MAX_IDS)
+            .map(|n| format!("00000000-0000-4000-8000-{n:012x}"))
+            .collect();
+        let refused = names(admin(), &many.join(",")).await;
+        let Err(ApiError::Unprocessable { errors, .. }) = refused else {
+            panic!("{refused:?}");
+        };
+        assert_eq!(errors, ["ids: at most 100 at once"]);
+        // Valid ids reach Keycloak, which these tests do not configure.
+        let unavailable = names(admin(), JANA).await;
+        assert!(
+            matches!(unavailable, Err(ApiError::Unavailable(_))),
+            "{unavailable:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn naming_by_id_is_for_a_person_who_updates_people() {
+        let run = |caller| {
+            name_by_id(
+                caller,
+                State(state()),
+                Query(MigrateQuery { dry_run: true }),
+            )
+        };
+        let bearer = run(caller(
+            Some("helsinki-jc-agent-proxy"),
+            &["portal-approver"],
+        ))
+        .await;
+        assert!(matches!(bearer, Err(ApiError::Denied(_))), "{bearer:?}");
+        let nobody = run(caller(None, &[])).await;
+        assert!(matches!(nobody, Err(ApiError::Denied(_))), "{nobody:?}");
+        let admin = run(caller(None, &["portal-approver"])).await;
+        assert!(matches!(admin, Err(ApiError::Unavailable(_))), "{admin:?}");
     }
 }

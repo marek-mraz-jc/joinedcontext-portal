@@ -97,6 +97,9 @@ async fn state(proxy: &MockServer, project: &str, org_services: Value) -> Option
         "JC_AGENTS_NAMESPACE" => Some("agents".to_owned()),
         "JC_AGENT_PROXY_BASE" => Some(proxy.uri()),
         "JC_OIDC_ISSUER" => Some(common::REALM.issuer.clone()),
+        "JC_PORTAL_COOKIE_KEY" => {
+            Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001".into())
+        }
         "JC_OIDC_CLIENT_ID" => Some("portal-api".to_owned()),
         "JC_OIDC_CLIENT_SECRET" => Some("secret".to_owned()),
         _ => None,

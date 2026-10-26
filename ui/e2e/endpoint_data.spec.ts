@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { attributeTable } from "./attributeAccess";
 
 // T-5082: an Endpoint's own page shows its rows, read with the person's own session through the
 // Endpoint. The endpoint orders the whole answer (`orderBy`), the address keeps the type, query and
@@ -71,6 +72,8 @@ async function stub(page: Page, entities: "rows" | "empty" | "refused", asked: U
     const url = new URL(route.request().url());
     const json = (body: unknown, headers: Record<string, string> = {}, status = 200) =>
       route.fulfill({ status, contentType: "application/json", headers, body: JSON.stringify(body) });
+    // Every shown column readable, so the page offers the CSV (T-5530).
+    if (url.pathname.endsWith("/access/attributes")) return json(attributeTable("AirQualityObserved", ["name", "pm10", "dateObserved", "location"]));
     if (url.pathname.endsWith("/schema/index.json")) return json({ models: [{ name: "air", version: 1 }] });
     if (url.pathname.endsWith("/schema/v1/json-schema")) return json(SCHEMA);
     if (url.pathname.endsWith("/ngsi-ld/v1/entities")) {
@@ -110,7 +113,7 @@ for (const width of [1440, 400]) {
     await sort.click();
     await expect.poll(() => asked.at(-1)?.searchParams.get("orderBy")).toBe("pm10;desc");
     await expect(page).toHaveURL(/dataSort=pm10%3Bdesc/);
-    await expect(section.getByRole("gridcell", { name: "89", exact: true }).first()).toBeVisible();
+    await expect(section.getByRole("gridcell", { name: "Your access: PM10 89", exact: true }).first()).toBeVisible();
     await section.screenshot({ path: join(dir, `data-sorted-${width}.png`) });
 
     // The address opens the same order on a fresh load.

@@ -17,7 +17,10 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::{json, Value};
 
+use std::hash::{Hash, Hasher};
+
 use crate::auth::session::CurrentUser;
+use crate::change::{Change, ChangePhase, ChangeStatus, Operation, PlanSummary};
 use crate::error::ApiError;
 use crate::error::ProblemDetails;
 use crate::resource::is_dns1123;
@@ -170,7 +173,7 @@ pub async fn revert_drift(
     post,
     path = "/api/v1/projects/{project}/drift/{space}/{id}/adopt",
     summary = "Adopt Drift",
-    description = "Proposes the live entity as the seed file's content, as a change a person approves. Needs `propose` on Entity; refused when the entity is no longer in the space.",
+    description = "Proposes, as a change a person approves, the seed file with the entity's declared attributes as the space holds them now. Needs `propose` on Entity; refused when the entity is no longer in the space.",
     tag = "drift",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -178,11 +181,11 @@ pub async fn revert_drift(
         ("id" = String, Path, description = "The entity's URN, percent-encoded"),
     ),
     responses(
-        (status = 202, description = "The live entity proposed as the seed file's content"),
+        (status = 202, description = "The change that writes the live entity into its seed file, waiting for an approver", body = Change),
         (status = 401, description = "No session", body = ProblemDetails),
         (status = 403, description = "The caller may not propose an Entity in this project", body = ProblemDetails),
         (status = 404, description = "No such project, or the last scan reported no such drift", body = ProblemDetails),
-        (status = 409, description = "The entity is not in the space, so there is nothing to adopt", body = ProblemDetails),
+        (status = 409, description = "The entity is not in the space or no longer in its seed file, or an adoption of it is already open", body = ProblemDetails),
         (status = 503, description = "The space or the repository cannot be reached now", body = ProblemDetails),
     ),
 )]
@@ -215,19 +218,129 @@ pub async fn adopt_drift(
                 "'{id}' is no longer in the space, so there is nothing to adopt"
             ))
         })?;
+    let seed_dir = format!("projects/{project}/spaces/{space}/entities/seed/");
+    if crate::api::changes::seed_envelope(&entity.source, "{}").is_none()
+        || !entity.source.starts_with(&seed_dir)
+    {
+        return Err(ApiError::Conflict(format!(
+            "'{}' is no seed file of space '{space}', so adopting cannot rewrite it",
+            entity.source
+        )));
+    }
+    let gitea = state
+        .forge_for(&project)
+        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
+    let default_branch = gitea.default_branch().await?;
+    let file = gitea
+        .get_file(&entity.source, &default_branch)
+        .await?
+        .ok_or_else(|| {
+            ApiError::Conflict(format!(
+                "'{}' is no longer in the repository; the next scan reports what is left",
+                entity.source
+            ))
+        })?;
+    let content = adopted(&file.content, &id, &live).map_err(ApiError::Conflict)?;
+    let envelope = crate::api::changes::seed_envelope(&entity.source, &content)
+        .ok_or_else(|| ApiError::Internal("the adopted seed file is no JSON".to_owned()))?;
+
+    // Held until the merge request is open, so a second adoption finds it (F-POR2-011).
+    let held = crate::api::mutate::turn(gitea, &adopt_branch(&project, &space, &id)).await;
+    let branch = crate::api::mutate::create_or_reuse_branch(gitea, &held, &default_branch).await?;
+    let (author_name, author_email) =
+        crate::api::mutate::author_credentials(&user.0.identity, &project);
+    let what = format!("adopt the live '{id}'");
+    gitea
+        .update_files(
+            &branch,
+            &what,
+            crate::git::gitea::Author {
+                name: &author_name,
+                email: &author_email,
+            },
+            &[(entity.source.clone(), content, file.sha)],
+        )
+        .await?;
+    let opened = gitea
+        .create_pull_request(
+            &branch,
+            &default_branch,
+            &what,
+            &format!(
+                "Writes into `{}` what space `{space}` holds for `{id}` now, for every attribute \
+                 the file declares, so the drift ends when this merges.",
+                entity.source
+            ),
+        )
+        .await?;
+    let status = ChangeStatus::new(
+        crate::change::classify_manifest(&envelope, Operation::Update),
+        ChangePhase::PendingApproval,
+        PlanSummary::new(0, 1, 0),
+    )
+    .in_repository(&opened.repository)
+    .proposed_through(&opened.body)
+    .with_merge_request(opened.url);
     Ok((
         StatusCode::ACCEPTED,
-        Json(json!({
-            "apiVersion": API_VERSION,
-            "kind": "Change",
-            "metadata": { "project": project, "space": space },
-            "spec": {
-                "summary": format!("adopt the live '{id}'"),
-                "path": entity.source,
-                "entity": live,
-            },
-        })),
+        Json(Change::new(
+            crate::api::changes::change_meta(&state, gitea, opened.number, &project),
+            status,
+        )),
     ))
+}
+
+/// The branch an adoption lives on: one per entity, so a second adoption while the first is
+/// open finds it (409) instead of opening a second change.
+fn adopt_branch(project: &str, space: &str, id: &str) -> String {
+    let mut hasher = std::hash::DefaultHasher::new();
+    (project, space, id).hash(&mut hasher);
+    format!("portal/adopt-{:016x}", hasher.finish())
+}
+
+/// What the space's members own and no seed file declares.
+const BROKER_OWNED: [&str; 4] = ["createdAt", "modifiedAt", "deletedAt", "instanceId"];
+
+/// The seed file `text` with entity `id`'s declared attributes as `live` holds them: each one
+/// the file declares takes the live value, one the space no longer holds leaves the file, and
+/// what the space holds beside them (a device's own attribute) stays out. Every other entity of
+/// the file and the file's layout (one entity or an array) stay as they are.
+fn adopted(text: &str, id: &str, live: &Value) -> Result<String, String> {
+    let mut document: Value =
+        serde_json::from_str(text).map_err(|e| format!("the seed file is no JSON: {e}"))?;
+    let entities = match &mut document {
+        Value::Array(items) => items.iter_mut().collect::<Vec<_>>(),
+        one @ Value::Object(_) => vec![one],
+        _ => Vec::new(),
+    };
+    let declared = entities
+        .into_iter()
+        .find(|entity| entity.get("id").and_then(Value::as_str) == Some(id))
+        .and_then(Value::as_object_mut)
+        .ok_or_else(|| format!("the seed file no longer declares '{id}'"))?;
+    let names: Vec<String> = declared
+        .keys()
+        .filter(|name| !matches!(name.as_str(), "id" | "type" | "@context"))
+        .cloned()
+        .collect();
+    for name in names {
+        match live.get(&name) {
+            Some(value) => {
+                let mut value = value.clone();
+                if let Some(members) = value.as_object_mut() {
+                    members.retain(|member, _| !BROKER_OWNED.contains(&member.as_str()));
+                }
+                declared.insert(name, value);
+            }
+            None => {
+                declared.remove(&name);
+            }
+        }
+    }
+    let mut out = serde_json::to_string_pretty(&document).map_err(|e| e.to_string())?;
+    out.push('\n');
+    Ok(out)
 }
 
 pub fn router() -> Router<AppState> {
@@ -241,4 +354,43 @@ pub fn router() -> Router<AppState> {
             "/projects/{project}/drift/{space}/{id}/adopt",
             post(adopt_drift),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn adopting_rewrites_only_the_declared_attributes_of_the_one_entity() {
+        let file = json!({ "id": "urn:a", "type": "T",
+            "kept": { "type": "Property", "value": 1 },
+            "gone": { "type": "Property", "value": 2 } })
+        .to_string();
+        let live = json!({ "id": "urn:a", "type": "T",
+            "kept": { "type": "Property", "value": 5, "createdAt": "x", "observedAt": "y" },
+            "device": { "type": "Property", "value": 9 } });
+        let out: Value =
+            serde_json::from_str(&adopted(&file, "urn:a", &live).expect("adopted")).expect("json");
+        assert_eq!(
+            out,
+            json!({ "id": "urn:a", "type": "T",
+                "kept": { "type": "Property", "value": 5, "observedAt": "y" } })
+        );
+        assert!(adopted(&file, "urn:b", &live).is_err(), "not in the file");
+        assert!(adopted("not json", "urn:a", &live).is_err());
+        assert!(adopted("[1, 2]", "urn:a", &live).is_err());
+    }
+
+    #[test]
+    fn one_entity_has_one_adoption_branch() {
+        assert_eq!(
+            adopt_branch("p", "s", "urn:a"),
+            adopt_branch("p", "s", "urn:a")
+        );
+        assert_ne!(
+            adopt_branch("p", "s", "urn:a"),
+            adopt_branch("p", "s", "urn:b")
+        );
+        assert!(adopt_branch("p", "s", "urn:a").starts_with("portal/adopt-"));
+    }
 }

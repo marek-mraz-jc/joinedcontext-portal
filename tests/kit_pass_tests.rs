@@ -2426,6 +2426,9 @@ async fn preview_errors_and_call_function_answer_the_model_as_tool_results() {
             "JC_PORTAL_BOOTSTRAP_ADMINS" => Some("portal-approver"),
             "JC_PORTAL_PUBLIC_URL" => Some("https://portal.example.com"),
             "JC_OIDC_ISSUER" => Some(issuer.as_str()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+            }
             "JC_OIDC_CLIENT_ID" => Some("joinedcontext-portal"),
             "JC_OIDC_CLIENT_SECRET" => Some("test-secret"),
             "JC_FUNCTIONS_URL" => Some(runtime_uri.as_str()),

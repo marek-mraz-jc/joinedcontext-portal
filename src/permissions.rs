@@ -460,6 +460,12 @@ impl Reach {
     }
 }
 
+/// Whether the repository holds more than one Organization (ADR-N-058): with one, every person
+/// of the realm is that Organization's.
+pub fn several_organizations(mirror: &Mirror) -> bool {
+    organizations(mirror).len() > 1
+}
+
 /// The Organizations of the repository by name (PF-121).
 fn organizations(mirror: &Mirror) -> Vec<(String, Value)> {
     mirror
@@ -883,6 +889,11 @@ pub(crate) fn account_holds_portal_role(mirror: &Mirror, spec: &ServiceAccountSp
     })
 }
 
+/// Whether a bearer token is a `ServiceAccount`'s own, a workload with no person behind it.
+pub fn is_service_account(mirror: &Mirror, identity: &Identity) -> bool {
+    account_of(mirror, identity).is_some()
+}
+
 /// The account a bearer token speaks for (PF-46, PF-49): its `azp` is the derived client id of
 /// exactly one `ServiceAccount`, and its user is that client's own service account, so a person
 /// who signed in through some client is never mistaken for it. An id two accounts derive is
@@ -1022,6 +1033,8 @@ pub fn named_person(mirror: &Mirror, person: &str) -> Identity {
 pub struct ProjectMembers {
     pub readers: BTreeSet<String>,
     pub writers: BTreeSet<String>,
+    /// Those it lets approve some kind: who reviews a Change of the project (PF-50, CC-91).
+    pub approvers: BTreeSet<String>,
 }
 
 pub fn project_members(mirror: &Mirror, project: &str, now: DateTime<Utc>) -> ProjectMembers {
@@ -1054,15 +1067,17 @@ pub fn project_members(mirror: &Mirror, project: &str, now: DateTime<Utc>) -> Pr
                 .any(|rule| rule.kinds.iter().any(|kind| rule.grants(kind, verb)))
         };
         let reads = grants(Verb::Read);
-        let writes = [Verb::Propose, Verb::Approve, Verb::Delete]
-            .into_iter()
-            .any(grants);
+        let approves = grants(Verb::Approve);
+        let writes = [Verb::Propose, Verb::Delete].into_iter().any(grants) || approves;
         if !reads && !writes {
             continue;
         }
         for person in people_of(&groups, &binding.subjects) {
             if reads {
                 members.readers.insert(person.clone());
+            }
+            if approves {
+                members.approvers.insert(person.clone());
             }
             if writes {
                 members.writers.insert(person);

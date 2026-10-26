@@ -1472,6 +1472,16 @@
           "test": "a second change on the same resource is refused by the name of the first, and lands once that one is decided"
         },
         "assistant": "jc_resource_propose"
+      },
+      "mcp-question": {
+        "live": {
+          "spec": "mcp-question.spec.ts",
+          "test": "a person opens an MCP call's question that is not open for them, is told what to do, and decides nothing"
+        },
+        "personOnly": "accepting or declining an AI client's call is the person's own decision in their session; the client that asks never answers it (AG-63)",
+        "routes": [
+          "POST /api/v1/projects/{project}/mcp-elicitations/{id}/decision"
+        ]
       }
     },
     "draft": {

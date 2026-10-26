@@ -6,7 +6,7 @@
 //! that list beside `main` and serves the preview's Endpoints on minted slugs. Nothing runs
 //! as a workload of its own, and every pipeline stays paused.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -15,7 +15,7 @@ use utoipa::ToSchema;
 
 use crate::auth::session::Identity;
 use crate::error::ApiError;
-use crate::ops::workspaces::{self, PreviewState, Workspace};
+use crate::ops::workspaces::{self, PreviewAccess, PreviewState, Workspace};
 use crate::state::AppState;
 
 /// At most this many previews run on the node at once (ADR-N-024 §10).
@@ -24,6 +24,25 @@ pub const MAX_ON_NODE: usize = 2;
 /// What the loader puts in front of every organization-unique name of the preview.
 pub fn prefix_of(workspace: &str) -> String {
     format!("ws-{workspace}-")
+}
+
+/// A fresh salt for a preview's slugs: 128 bits of the OS RNG in base64url, 22 characters, what
+/// the gateway accepts as a salt (CC-92).
+fn mint_salt() -> String {
+    use argon2::password_hash::rand_core::{OsRng, RngCore};
+    use base64::Engine as _;
+    let mut bytes = [0u8; 16];
+    OsRng.fill_bytes(&mut bytes);
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
+}
+
+/// The salt `workspace`'s preview mints its slugs with; empty for a preview started before
+/// salts existed, which [`served`] leaves out.
+fn salt_of(workspace: &Workspace) -> &str {
+    workspace
+        .preview
+        .as_ref()
+        .map_or("", |access| access.salt.as_str())
 }
 
 /// One Endpoint of a preview and where it answers.
@@ -63,6 +82,11 @@ pub struct Served {
     pub prefix: String,
     /// The branch's manifest files by path: the organization's files and the project's own.
     pub files: BTreeMap<String, String>,
+    /// The Keycloak user ids the gateway answers the preview for: the person who started it
+    /// and whoever reviews a Change of its project (CC-91, ADR-N-061).
+    pub readers: BTreeSet<String>,
+    /// The salt the preview's slugs are minted with (CC-92).
+    pub salt: String,
 }
 
 /// The list on the internal listener.
@@ -81,7 +105,8 @@ pub struct Render {
     outcome: Result<Found, String>,
 }
 
-/// The renders the Portal holds, one per workspace, keyed by the branch head it rendered.
+/// The renders the Portal holds, one per workspace, keyed by the branch head it rendered and
+/// the salt it minted the slugs with.
 #[derive(Debug, Default)]
 pub struct Renders(Mutex<HashMap<String, (String, Arc<Render>)>>);
 
@@ -149,7 +174,7 @@ async fn render(state: &AppState, workspace: &Workspace) -> Result<Arc<Render>, 
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
     let gitea: &crate::git::GiteaClient = &gitea;
     let head = match gitea.branch_head(&workspace.branch()).await {
-        Ok(head) => head,
+        Ok(head) => format!("{head}\n{}", salt_of(workspace)),
         Err(crate::git::GitError::NotFound) => {
             return Err(ApiError::NotFound(format!(
                 "the branch of workspace '{}' is gone",
@@ -161,10 +186,11 @@ async fn render(state: &AppState, workspace: &Workspace) -> Result<Arc<Render>, 
     if let Some(render) = state.previews.get(&workspace.name, &head) {
         return Ok(render);
     }
+    let revision = head.split('\n').next().unwrap_or_default();
     let staged = match state.mirror.repository_of(&workspace.project) {
-        Some(repository) => assembled(state, workspace, &head, &repository).await?,
+        Some(repository) => assembled(state, workspace, revision, &repository).await?,
         None => {
-            let scratch = crate::reconciler::staging::stage(gitea, &head)
+            let scratch = crate::reconciler::staging::stage(gitea, revision)
                 .await
                 .map_err(|err| ApiError::Unavailable(format!("the branch did not stage: {err}")))?;
             if let Ok(projects) = std::fs::read_dir(scratch.path().join("projects")) {
@@ -184,29 +210,34 @@ async fn render(state: &AppState, workspace: &Workspace) -> Result<Arc<Render>, 
         .ok()
         .filter(|value| !value.trim().is_empty());
     let namespace = format!("{prefix}{}", workspace.project);
-    let outcome = jcctl::loader::Repository::load_preview(root, environment.as_deref(), &prefix)
-        .map(|repository| {
-            let mut endpoints = Vec::new();
-            let mut pipelines = Vec::new();
-            for (id, loaded) in repository.iter() {
-                if id.namespace.as_deref() != Some(namespace.as_str()) {
-                    continue;
-                }
-                match id.kind.as_str() {
-                    "Endpoint" => endpoints.push((
-                        id.name.clone(),
-                        loaded.manifest.spec["slug"]
-                            .as_str()
-                            .unwrap_or_default()
-                            .to_owned(),
-                    )),
-                    "Pipeline" => pipelines.push(id.name.clone()),
-                    _ => {}
-                }
+    let outcome = jcctl::loader::Repository::load_preview_salted(
+        root,
+        environment.as_deref(),
+        &prefix,
+        salt_of(workspace),
+    )
+    .map(|repository| {
+        let mut endpoints = Vec::new();
+        let mut pipelines = Vec::new();
+        for (id, loaded) in repository.iter() {
+            if id.namespace.as_deref() != Some(namespace.as_str()) {
+                continue;
             }
-            (endpoints, pipelines)
-        })
-        .map_err(|err| err.to_string());
+            match id.kind.as_str() {
+                "Endpoint" => endpoints.push((
+                    id.name.clone(),
+                    loaded.manifest.spec["slug"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .to_owned(),
+                )),
+                "Pipeline" => pipelines.push(id.name.clone()),
+                _ => {}
+            }
+        }
+        (endpoints, pipelines)
+    })
+    .map_err(|err| err.to_string());
     let render = Arc::new(Render {
         files: files_under(root),
         outcome,
@@ -356,10 +387,16 @@ pub async fn start(
             state, identity, project, &running,
         )));
     }
-    state
-        .workspaces
-        .set_preview_state(name, PreviewState::Starting)
-        .await?;
+    // A new salt per start: the slugs of a stopped preview never come back (CC-92).
+    let access = PreviewAccess {
+        salt: mint_salt(),
+        author: identity.subject.clone(),
+    };
+    state.workspaces.start_preview(name, access.clone()).await?;
+    let workspace = Workspace {
+        preview: Some(access),
+        ..workspace
+    };
     let render = match render(state, &workspace).await {
         Ok(render) => render,
         Err(err) => {
@@ -427,6 +464,24 @@ pub async fn stop(
     Ok(())
 }
 
+/// Who reads a preview (CC-91): its author and every person a binding in force lets approve in
+/// its project, the reviewers of its Change, by Keycloak user id, as a binding names them
+/// (ADR-N-061, PF-126). Built here from the row and the mirror alone: nothing a request carries
+/// adds a reader.
+///
+/// ponytail: a reviewer bound only through a Keycloak group or realm role is not listed (the
+/// mirror cannot name its members); list them once the Portal resolves group members.
+fn readers(
+    state: &AppState,
+    project: &str,
+    author: String,
+    now: chrono::DateTime<chrono::Utc>,
+) -> BTreeSet<String> {
+    let mut readers = crate::permissions::project_members(&state.mirror, project, now).approvers;
+    readers.insert(author);
+    readers
+}
+
 /// Every running preview that has not expired, rendered, for the gateway (CC-81: an expired
 /// or discarded workspace is not in the list, so its Endpoints go on the next fetch).
 pub async fn served(state: &AppState) -> Result<ServedList, ApiError> {
@@ -436,10 +491,16 @@ pub async fn served(state: &AppState) -> Result<ServedList, ApiError> {
         if workspace.expired(now) || workspace.preview_state != PreviewState::Running {
             continue;
         }
+        let Some(access) = workspace.preview.clone() else {
+            tracing::warn!(workspace = %workspace.name, "a running preview has no salt or author; start it again to serve it");
+            continue;
+        };
         match render(state, &workspace).await {
             Ok(render) if render.outcome.is_ok() => items.push(Served {
                 prefix: prefix_of(&workspace.name),
                 files: render.files.clone(),
+                readers: readers(state, &workspace.project, access.author, now),
+                salt: access.salt,
             }),
             Ok(_) => {}
             Err(err) => {

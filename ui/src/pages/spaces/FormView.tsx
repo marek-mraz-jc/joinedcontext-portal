@@ -708,6 +708,24 @@ interface SchemaIndex {
   models?: { version?: number }[];
 }
 
+/**
+ * The type the Endpoint publishes: a public form's Endpoint names exactly one (API/01 §19), the one
+ * definition with `id` and `type` properties; a nested object's definition is none. Two or none
+ * leave the form unpublished rather than guess.
+ */
+export function publishedType(defs: Record<string, unknown>): string | undefined {
+  const entities = Object.entries(defs).filter(([, definition]) => {
+    const properties = (definition as { properties?: unknown } | null)?.properties;
+    return typeof properties === "object" && properties !== null && "id" in properties && "type" in properties;
+  });
+  return entities.length === 1 ? entities[0][0] : undefined;
+}
+
+/** Every attribute a public form's Endpoint hides unless asked: the model's slots of the type and what the publisher's reads returned, so a slot the publisher's own grant leaves out is hidden too. */
+export function everyAttribute(modelSlots: readonly string[], seen: readonly string[]): string[] {
+  return [...new Set([...modelSlots, ...seen])];
+}
+
 /** The page at `/f/{slug}`: a public form, built from what the Endpoint publishes and sent through it. */
 export function PublicFormPage({
   slug,
@@ -737,8 +755,7 @@ export function PublicFormPage({
     },
   });
   const defs = useMemo(() => ({ ...schema.data?.$defs, ...schema.data?.definitions }), [schema.data]);
-  // The type the Endpoint publishes: a public form's Endpoint names exactly one (API/01 §19).
-  const type = Object.entries(defs).find(([, definition]) => typeof definition === "object" && definition !== null && "properties" in definition)?.[0];
+  const type = publishedType(defs);
   const fields = useMemo(() => (type ? fieldsOfSchema(defs[type], defs) : []), [defs, type]);
   const initial = useMemo(() => prefilled(fields, search, undefined), [fields, search]);
 

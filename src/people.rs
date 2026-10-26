@@ -127,6 +127,8 @@ struct UserSession {
 #[derive(Deserialize)]
 struct NamedGroup {
     name: String,
+    #[serde(default)]
+    path: String,
 }
 
 #[derive(Deserialize)]
@@ -463,6 +465,14 @@ impl Admin<'_> {
             groups.into_iter().map(|g| g.name).collect(),
             roles.into_iter().map(|r| r.name).collect(),
         ))
+    }
+
+    /// The paths of the realm groups the person is in (`/helsinki/stewards`): an Organization's
+    /// people are the members of its subtree `/{organization}` (ADR-N-058 section 2.5).
+    pub async fn group_paths(&self, id: &str) -> Result<Vec<String>, PeopleError> {
+        let id = segment(id)?;
+        let groups: Vec<NamedGroup> = self.json(&format!("/users/{id}/groups")).await?;
+        Ok(groups.into_iter().map(|g| g.path).collect())
     }
 
     pub async fn delete(&self, id: &str) -> Result<(), PeopleError> {

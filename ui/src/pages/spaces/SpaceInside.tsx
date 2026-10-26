@@ -79,7 +79,7 @@ import { useWorkspace } from "../../components/layout/WorkspaceContext";
 import { CommentsPanel } from "./Comments";
 import { importSlotsOf, MAX_EXPORT_IDS } from "./importRows";
 import { useOrgDomain } from "../../api/projects";
-import { FormSettingsEditor, FormSharePanel, FormView } from "./FormView";
+import { everyAttribute, FormSettingsEditor, FormSharePanel, FormView } from "./FormView";
 import type { FormSettings } from "./formView";
 import { AiFieldPanel } from "./AiField";
 import { SpaceChecks } from "./SpaceChecks";
@@ -672,13 +672,19 @@ function SpaceData({
     queries: endpoints.slice(0, MAX_ACCESS_READS).map((endpoint) => accessQuery(slugOf(endpoint))),
     combine: grantsOf,
   });
-  const tables = useQueries({
-    queries: endpoints.slice(0, MAX_ACCESS_READS).map((endpoint) => attributeAccessQuery(slugOf(endpoint), type || undefined)),
-    combine: tablesOf,
-  });
   // Entities are not part of a copy (T-4868): inside one the grid reads the live space, so it
   // offers no write at all; the copy's own data lives in its preview (Try it).
   const { name: copy } = useWorkspace();
+  // Decisions are asked only for a type with a field a person could correct: a class of no slot
+  // (a draft model, like a catalogue's) has no attribute an endpoint serves, and the gateway
+  // answers that question with a 400 (T-5753).
+  const correctable = !copy && slots.some((slot) => !slot.formula);
+  const tables = useQueries({
+    queries: endpoints
+      .slice(0, MAX_ACCESS_READS)
+      .map((endpoint) => attributeAccessQuery(slugOf(endpoint), correctable && type ? type : undefined)),
+    combine: tablesOf,
+  });
   const writer = useMemo(
     () => (copy ? null : writerOf(tables, endpoints, slots)),
     [copy, tables, endpoints, slots],
@@ -1117,7 +1123,7 @@ function SpaceData({
             project={project}
             space={space}
             type={type}
-            attributes={attributes}
+            attributes={everyAttribute(typeSlots.map((slot) => slot.name), attributes)}
             asked={(formSettings.fields?.length ? formSettings.fields.map((field) => field.attr) : typeSlots.map((slot) => slot.name))}
             relationships={typeSlots.filter((slot) => slot.kind === "Relationship").map((slot) => slot.name)}
           />

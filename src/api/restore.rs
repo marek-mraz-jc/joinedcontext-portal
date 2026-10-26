@@ -142,9 +142,9 @@ pub async fn restore_change_for(
         )));
     };
 
-    let restore_branch = format!("portal/restore-{number:08x}");
+    let held = crate::api::mutate::turn(gitea, &format!("portal/restore-{number:08x}")).await;
     let restore_branch =
-        crate::api::mutate::create_or_reuse_branch(gitea, &restore_branch, &default_branch).await?;
+        crate::api::mutate::create_or_reuse_branch(gitea, &held, &default_branch).await?;
     let (author_name, author_email) = crate::api::mutate::author_credentials(identity, project);
     let what = format!("{} {}", headline.kind, headline.metadata.name);
     gitea
@@ -308,9 +308,9 @@ pub async fn undo_change_for(
         )));
     };
 
-    let undo_branch = format!("portal/undo-{number:08x}");
+    let held = crate::api::mutate::turn(gitea, &format!("portal/undo-{number:08x}")).await;
     let undo_branch =
-        crate::api::mutate::create_or_reuse_branch(gitea, &undo_branch, &default_branch).await?;
+        crate::api::mutate::create_or_reuse_branch(gitea, &held, &default_branch).await?;
     let (author_name, author_email) = crate::api::mutate::author_credentials(identity, project);
     let what = format!("{} {}", headline.kind, headline.metadata.name);
     gitea

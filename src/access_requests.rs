@@ -727,6 +727,33 @@ pub(crate) async fn decide(
     Ok(done.rows_affected() == 1)
 }
 
+/// Takes back an approval `by` claimed whose grant was never proposed: pending again, undecided.
+pub(crate) async fn reopen(pool: &PgPool, id: &str, by: &str) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE access_requests SET state = 'pending', decided_by = NULL, decided_at = NULL \
+         WHERE id = $1 AND state = 'approved' AND decided_by = $2 AND change IS NULL",
+    )
+    .bind(id)
+    .bind(by)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Records the Change that grants an approved request.
+pub(crate) async fn record_change(
+    pool: &PgPool,
+    id: &str,
+    change: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE access_requests SET change = $2 WHERE id = $1")
+        .bind(id)
+        .bind(change)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

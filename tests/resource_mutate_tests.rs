@@ -2215,3 +2215,161 @@ fn the_branch_name_of_a_change_is_pinned() {
         "portal/update-endpoint-air-878e627a"
     );
 }
+
+/// The forge's open pull requests: none until the first proposal opens one on `branch`.
+struct OpenPulls {
+    opened: Arc<std::sync::atomic::AtomicBool>,
+    branch: String,
+}
+
+impl wiremock::Respond for OpenPulls {
+    fn respond(&self, _: &wiremock::Request) -> ResponseTemplate {
+        if !self.opened.load(std::sync::atomic::Ordering::SeqCst) {
+            return ResponseTemplate::new(200).set_body_json(json!([]));
+        }
+        ResponseTemplate::new(200).set_body_json(json!([{
+            "number": 44,
+            "html_url": "https://gitea.example.sk/pulls/44",
+            "state": "open",
+            "title": "create ContextSpace mobility",
+            "head": { "ref": self.branch },
+            "base": { "ref": "main" },
+            "created_at": "2026-10-25T20:00:00Z",
+            "user": { "login": "jana.kovacova", "full_name": "Jana Kováčová" },
+            "mergeable": true,
+            "merged": false
+        }]))
+    }
+}
+
+struct OpenPull(Arc<std::sync::atomic::AtomicBool>);
+
+impl wiremock::Respond for OpenPull {
+    fn respond(&self, _: &wiremock::Request) -> ResponseTemplate {
+        self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+        ResponseTemplate::new(201).set_body_json(json!({
+            "number": 44,
+            "html_url": "https://gitea.example.sk/pulls/44",
+            "state": "open",
+            "merged": false
+        }))
+    }
+}
+
+/// F-POR2-011: two proposals of one resource at once. The second waits for the first one's pull
+/// request and is refused naming it; before, it found the branch without a pull request yet and
+/// deleted it under the first one's writes.
+#[tokio::test]
+async fn two_proposals_of_one_resource_at_once_open_one_change_and_delete_no_branch() {
+    let server = MockServer::start().await;
+    mount_space_model(&server).await;
+    let base_url = server.uri().parse().expect("valid mock server url");
+    let client =
+        GiteaClient::new(base_url, "test-owner", "test-repo", "token-xyz").expect("client");
+    let branch = branch_name("ovzdusie", "ContextSpace", "mobility", Operation::Create);
+    let opened = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/test-owner/test-repo"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/test-owner/test-repo/pulls"))
+        .and(query_param("state", "open"))
+        .respond_with(OpenPulls {
+            opened: opened.clone(),
+            branch: branch.clone(),
+        })
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/repos/test-owner/test-repo/branches"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/repos/test-owner/test-repo/branches"))
+        .respond_with(ResponseTemplate::new(409).set_body_string("branch already exists"))
+        .mount(&server)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path(format!(
+            "/api/v1/repos/test-owner/test-repo/branches/{branch}"
+        )))
+        .respond_with(ResponseTemplate::new(204))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(
+            "/api/v1/repos/test-owner/test-repo/contents/projects/ovzdusie/spaces/mobility/space.yaml",
+        ))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({ "message": "not found" })))
+        .mount(&server)
+        .await;
+    // The first proposal's write is slow, so the second arrives while it is under way.
+    Mock::given(method("PUT"))
+        .and(path(
+            "/api/v1/repos/test-owner/test-repo/contents/projects/ovzdusie/spaces/mobility/space.yaml",
+        ))
+        .respond_with(
+            ResponseTemplate::new(201)
+                .set_body_json(json!({ "commit": { "sha": "c1" } }))
+                .set_delay(std::time::Duration::from_millis(300)),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/repos/test-owner/test-repo/pulls"))
+        .respond_with(OpenPull(opened))
+        .mount(&server)
+        .await;
+
+    let config = Config::for_tests();
+    let app = server::app(AppState::new(config.clone(), None).with_gitea(Arc::new(client)));
+    let propose = || {
+        Request::builder()
+            .method("POST")
+            .uri("/api/v1/projects/ovzdusie/spaces")
+            .header(header::COOKIE, session_and_csrf_cookies(&config))
+            .header(CSRF_HEADER, TEST_CSRF_TOKEN)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                serde_json::to_vec(&json!({
+                    "apiVersion": API_VERSION,
+                    "kind": "ContextSpace",
+                    "metadata": { "name": "mobility", "namespace": "ovzdusie" },
+                    "spec": { "isSandbox": true }
+                }))
+                .expect("json bytes"),
+            ))
+            .expect("request")
+    };
+    let (first, second) = tokio::join!(
+        app.clone().oneshot_checked(propose()),
+        app.clone().oneshot_checked(propose())
+    );
+    let mut statuses = vec![
+        first.expect("response").status(),
+        second.expect("response").status(),
+    ];
+    statuses.sort();
+    assert_eq!(statuses, vec![StatusCode::ACCEPTED, StatusCode::CONFLICT]);
+    let requests = server.received_requests().await.expect("received requests");
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|r| r.method.as_str() == "DELETE")
+            .count(),
+        0,
+        "no branch is deleted under a proposal still writing"
+    );
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|r| r.method.as_str() == "POST" && r.url.path().ends_with("/pulls"))
+            .count(),
+        1,
+        "one change opens"
+    );
+}

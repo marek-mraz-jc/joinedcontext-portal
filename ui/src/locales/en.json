@@ -814,6 +814,8 @@
       "restore": "Put back",
       "restoreOne": "Put back {name}",
       "restoreRefused": "{name} was not put back: {reason}",
+      "trashStray": "{reason}. Its copy also stays among your deleted entities.",
+      "restoredStray": "{name} is back, but its copy stays among your deleted entities ({reason}); putting it back again would clash with it.",
       "liveChanged": "Entities of this type changed at {time}; shown as they are now.",
       "moveReason": "Why you move (optional)",
       "boardReadOnly": "You can read this board. None of your Endpoints lets you change {attr}, so the cards stay where they are.",
@@ -1894,6 +1896,7 @@
       "hidden": "Hidden attributes",
       "hiddenHelp": "A ticked attribute is never served, in any format. A name is hidden in every type that has it.",
       "identityOnly": "Identity only: id and type.",
+      "nameTaken": "Reload the page to propose the filter under a name nobody holds yet.",
       "createsProjection": "This endpoint names no projection yet. A filter you propose creates the projection {name} from the space's model, together with the endpoint that names it."
     },
     "proof": {
@@ -10505,5 +10508,22 @@
       "window": "The days ending today (UTC), e.g. the last 30 days.",
       "month": "A month as YYYY-MM, e.g. 2026-10."
     }
+  },
+  "mcpElicitation": {
+    "title": "Decide an AI client's call",
+    "lead": "Your AI client asked to run a call that changes the project. It runs only if you accept here.",
+    "operation": "Operation",
+    "expires": "Open until",
+    "look": "Look at what this call changes",
+    "hint": "Accept lets this one call run once, when your client sends it again; decline stops it. You can change your answer until then.",
+    "accept": "Accept the call",
+    "decline": "Decline the call",
+    "accepted": "You accepted this call",
+    "declined": "You declined this call",
+    "backToClient": "Go back to your AI client: it runs the call, or is told you declined, when it sends it again.",
+    "failed": "Your answer was not recorded",
+    "gone": "This question is no longer open",
+    "goneHint": "It was answered, it expired after ten minutes, or another person's client asked it. Ask your AI client to send its call again for a new question.",
+    "home": "Back to the project"
   }
 }

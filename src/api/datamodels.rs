@@ -1230,7 +1230,8 @@ pub(crate) async fn propose_model(
         Operation::Update
     };
     let branch = branch_name(project, "datamodel", name, operation);
-    let branch = create_or_reuse_branch(gitea, &branch, &default_branch).await?;
+    let held = crate::api::mutate::turn(gitea, &branch).await;
+    let branch = create_or_reuse_branch(gitea, &held, &default_branch).await?;
 
     let (author_name, author_email) = author_credentials(identity, project);
     let commit_msg = format!("{} with its source and artifacts", proposal.title);
