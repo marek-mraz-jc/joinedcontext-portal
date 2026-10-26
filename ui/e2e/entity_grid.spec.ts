@@ -83,7 +83,7 @@ const MODELS = list([
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "DataModel",
     metadata: { name: "helsinki-mobility", namespace: "helsinki" },
-    spec: { version: "1.0.0", classes: [TYPE], linkml: LINKML },
+    spec: { version: "1.0.0", classes: [TYPE], linkml: LINKML, artifacts: { jsonSchema: "./helsinki-mobility.v1.schema.json" } },
   },
 ]);
 

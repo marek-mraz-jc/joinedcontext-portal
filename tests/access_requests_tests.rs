@@ -816,9 +816,9 @@ async fn a_person_asks_on_the_endpoint_and_an_owner_approves() {
     assert_eq!(filed.status, StatusCode::CREATED, "{}", filed.text);
     let request: Value = serde_json::from_str(&filed.text).expect("json");
     let id = request["id"].as_str().expect("an id").to_owned();
-    assert_eq!(request["person"], "eve");
+    assert_eq!(request["person"], id_of("eve"));
     assert_eq!(request["pipeline"], Value::Null);
-    assert_eq!(request["account"], "eve");
+    assert_eq!(request["account"], id_of("eve"));
     assert_eq!(request["state"], "pending");
     let again = send(
         &state,

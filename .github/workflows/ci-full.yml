@@ -51,11 +51,12 @@ jobs:
       # three variables are placeholders the outcome sink names; nothing answers at that URL.
       # On the host network, not a published port: the paging tests' gateway is a mock on the
       # runner's 127.0.0.1, which a bridged container cannot reach (T-3132, T-3170).
-      # JC_MQTT_NAMESPACE fills the client id an MQTT source renders; mqtt-sample.test is the name
-      # the MQTT sample tests give the brokers below, since a saved source never names 127.0.0.1.
+      # JC_MQTT_NAMESPACE fills the client id an MQTT source renders; sample-mqtt.test is the name
+      # the MQTT sample tests give the brokers below, since a saved source never names 127.0.0.1;
+      # a host starting `mqtt-` is refused as a platform broker's Service name (PL-76, T-5561).
       - run: >-
           docker run -d --name pipeline-runner --network host
-          --add-host mqtt-sample.test:127.0.0.1
+          --add-host sample-mqtt.test:127.0.0.1
           -e JC_CLIENT_ID=ci -e JC_CLIENT_SECRET=ci -e JC_TOKEN_URL=http://127.0.0.1:9/token
           -e JC_MQTT_NAMESPACE=ci
           ghcr.io/warpstreamlabs/bento@sha256:656c55de3f8deddd4ee743f3c76f3b497e67324e940f2bc1769693cd8b906364
@@ -105,8 +106,8 @@ jobs:
           # The apps database's tests make a CREATEROLE login and a database each (AP-149).
           JC_APPS_DB_TEST_URL: postgres://jc:jc@127.0.0.1:5432/jc_portal_test
           JC_PORTAL_TEST_BENTO_URL: http://127.0.0.1:4195
-          JC_PORTAL_TEST_MQTT_URL: tcp://mqtt-sample.test:18830
-          JC_PORTAL_TEST_MQTT_AUTH_URL: tcp://mqtt-sample.test:18831
+          JC_PORTAL_TEST_MQTT_URL: tcp://sample-mqtt.test:18830
+          JC_PORTAL_TEST_MQTT_AUTH_URL: tcp://sample-mqtt.test:18831
           JC_PORTAL_TEST_BROKER_URL: http://127.0.0.1:9090
           JC_PORTAL_TEST_BROKER_TOKEN_FILE: "${{ runner.temp }}/broker/token"
       # The template's preview document, as the test above wrote it, rendered in a sandboxed

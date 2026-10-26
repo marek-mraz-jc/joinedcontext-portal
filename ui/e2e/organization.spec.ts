@@ -14,6 +14,9 @@ const IDENTITY = {
   roles: ["portal-editor"],
 };
 
+// A group names its members by Keycloak id (ADR-N-061): the picker finds people in the directory.
+const PETRA = { id: "5f0c2a9e-4b1d-4c3e-9a7f-2d8e6b1c0a43", email: "petra@hel.fi", firstName: "Petra", lastName: "Kráľ", enabled: true, emailVerified: true, requiredActions: [] };
+
 const LIST = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
 
 const ORGANIZATION = {
@@ -36,7 +39,7 @@ const ADMIN = {
       role: "org-admin",
       binding: "admins",
       rule: {
-        kinds: ["RoleBinding", "Role", "Group", "Organization", "Project", "ServiceAccount"],
+        kinds: ["RoleBinding", "Role", "Group", "Organization", "Project", "ServiceAccount", "Person"],
         verbs: ["propose", "approve", "delete"],
       },
     },
@@ -72,6 +75,12 @@ async function stubApi(page: Page): Promise<{ writes: string[] }> {
       );
     }
     if (path.endsWith("/permissions/me")) return json(ADMIN);
+    if (path === "/api/v1/organization/people") {
+      const typed = (new URL(request.url()).searchParams.get("search") ?? "").toLowerCase();
+      const found = [PETRA].filter((p) => `${p.firstName} ${p.lastName} ${p.email}`.toLowerCase().includes(typed));
+      return json({ items: found, total: found.length });
+    }
+    if (path === "/api/v1/organization/people/names") return json({ items: [{ id: PETRA.id, name: "Petra Kráľ" }] });
     if (path === "/api/v1/projects") return json(LIST([{ name: "helsinki" }]));
     if (path === "/api/v1/projects/helsinki") {
       return json({
@@ -109,7 +118,7 @@ for (const width of [1440, 400]) {
     const { writes } = await stubApi(page);
     await page.goto("/organization/groups/air-quality-steward?lang=en");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    const email = page.getByLabel("E-mail of the person");
+    const email = page.getByRole("combobox", { name: "Person", exact: true });
     await expect(email).toHaveAccessibleDescription(/e\.g\. jana\.novak@example\.org/);
     await expect(page.getByLabel("Where")).toHaveAccessibleDescription(/e\.g\. helsinki/);
     await page.getByLabel("Where").selectOption("helsinki");
@@ -120,10 +129,12 @@ for (const width of [1440, 400]) {
     for (const role of await page.getByLabel("Role", { exact: true }).all()) {
       await expect(role).toHaveAccessibleDescription(/e\.g\. /);
     }
-    // The flow still works: a member picked by a full e-mail and added is one proposal (T-4947):
+    // The flow still works: a member found by their e-mail and added is one proposal (T-4947):
     // proposeChecked sends the dry run, then the change itself.
     await email.fill("petra@hel.fi");
-    await page.getByRole("option", { name: "Use petra@hel.fi (not signed in yet)" }).click();
+    await page.getByRole("option", { name: /Petra Kráľ/ }).click();
+    // The list stays open for a second pick; Escape closes it over the button.
+    await email.press("Escape");
     await page.getByRole("button", { name: "Add member" }).click();
     const group = "PUT /api/v1/projects/org/groups/air-quality-steward";
     await expect.poll(() => writes).toEqual([`${group}?dryRun=All`, group]);
