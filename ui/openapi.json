@@ -27912,7 +27912,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Only an address the identity provider verified ([`verified_email`]): a binding's `user`\nsubject matches it, so an address a person typed in unverified grants nothing."
           },
           "groups": {
             "type": "array",

@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { download } from "@joinedcontext/sdk";
 import { api, ApiError, unwrap } from "../../api/client";
 import { useIdentity } from "../../auth/AuthProvider";
 import { Alert, Button, ConfirmDialog, Field, Input, PermissionGuard } from "../../components/ui";
@@ -93,12 +94,10 @@ export function SpacePersonalData({ project, space }: { project: string; space: 
       )) as { entities?: unknown[] },
     onSuccess: (answer) => {
       // The file exists only in this browser: the Portal keeps no export (DM-126).
-      const url = URL.createObjectURL(new Blob([JSON.stringify(answer, null, 2)], { type: "application/json" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `personal-data-${space}-${new Date().toISOString().slice(0, 10)}.json`;
-      link.click();
-      URL.revokeObjectURL(url);
+      download(
+        new Blob([JSON.stringify(answer, null, 2)], { type: "application/json" }),
+        `personal-data-${space}-${new Date().toISOString().slice(0, 10)}.json`,
+      );
       setExported(answer.entities?.length ?? 0);
     },
     onError: (error) => setProblem(said(error)),

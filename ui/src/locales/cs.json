@@ -814,6 +814,8 @@
       "restore": "Vrátit",
       "restoreOne": "Vrátit {name}",
       "restoreRefused": "{name} se nevrátil: {reason}",
+      "trashStray": "{reason}. Jeho kopie zůstává i mezi vašimi smazanými entitami.",
+      "restoredStray": "{name} je zpět, ale jeho kopie zůstává mezi vašimi smazanými entitami ({reason}); další vrácení by se s ním střetlo.",
       "liveChanged": "Entity tohoto typu se změnily v {time}; zobrazeno tak, jak jsou teď.",
       "moveReason": "Proč přesouváte (nepovinné)",
       "boardReadOnly": "Tuto tabuli můžete číst. Žádný z vašich Endpointů vám nedovolí měnit {attr}, proto karty zůstávají na místě.",

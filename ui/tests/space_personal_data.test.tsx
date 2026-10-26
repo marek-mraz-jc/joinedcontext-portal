@@ -98,9 +98,13 @@ describe("a person's data in a space (DM-124, DM-126)", () => {
         revokeObjectURL: vi.fn(),
       }),
     );
+    // a link outside the document saves nothing in some browsers
+    const attached: boolean[] = [];
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(() => undefined);
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        attached.push(this.isConnected);
+      });
     const { sent } = renderSection((url) =>
       url.pathname === `${BASE}/subjects/export`
         ? json({
@@ -126,6 +130,7 @@ describe("a person's data in a space (DM-124, DM-126)", () => {
       },
     ]);
     expect(click).toHaveBeenCalledTimes(1);
+    expect(attached).toEqual([true]);
     const file = JSON.parse(await created.mock.calls[0][0].text()) as {
       entities: unknown[];
     };

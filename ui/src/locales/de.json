@@ -814,6 +814,8 @@
       "restore": "Zurücklegen",
       "restoreOne": "{name} zurücklegen",
       "restoreRefused": "{name} wurde nicht zurückgelegt: {reason}",
+      "trashStray": "{reason}. Seine Kopie bleibt auch unter Ihren gelöschten Entitäten.",
+      "restoredStray": "{name} ist zurück, aber seine Kopie bleibt unter Ihren gelöschten Entitäten ({reason}); ein erneutes Zurücklegen würde damit kollidieren.",
       "liveChanged": "Entitäten dieses Typs wurden um {time} geändert; so gezeigt, wie sie jetzt sind.",
       "moveReason": "Warum Sie verschieben (optional)",
       "boardReadOnly": "Sie können diese Tafel lesen. Keiner Ihrer Endpoints erlaubt Ihnen, {attr} zu ändern, daher bleiben die Karten, wo sie sind.",
