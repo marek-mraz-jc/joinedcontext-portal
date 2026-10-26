@@ -13,7 +13,7 @@ describe("the App's server", () => {
   });
 
   it("reads the runs, reads a report's URL, and an answer that is not a success is a Problem with its detail", async () => {
-    const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+    const fetch = vi.fn(async (url: string, _init?: RequestInit) => {
       if (url === "/api/runs") return json(200, { runs: [], stale: false });
       if (url === "/api/runs/4/report") return json(200, { url: "https://store.test/r.json" });
       if (url === "/api/runs/5/report") return json(404, { title: "Not Found", detail: "no such run" });
