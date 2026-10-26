@@ -53,7 +53,7 @@ for (const width of [1440, 400]) {
       const json = (body: unknown) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
       if (path.endsWith("/auth/me")) return json({ subject: "v1", username: "viewer", name: "Vera Viewer", email: "v@hel.fi", roles: [] });
       if (path.endsWith("/permissions/me")) {
-        return json({ project: "helsinki", grants: [{ role: "viewer", binding: "viewers", scope: "project", rule: { kinds: ["*"], verbs: ["read"] } }] });
+        return json({ project: "helsinki", grants: [{ role: "viewer", binding: "viewers", scope: "project", rule: { kinds: ["*", "Group", "ServiceAccount"], verbs: ["read"] } }] });
       }
       if (path === "/api/v1/preferences") return json({ firstRunDismissed: true });
       if (path === "/api/v1/projects") return json(list([{ name: "helsinki" }]));

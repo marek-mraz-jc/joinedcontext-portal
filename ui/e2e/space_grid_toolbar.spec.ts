@@ -139,7 +139,7 @@ async function stubApi(page: Page, asked: string[], deleted: string[], extra?: {
       return json(manifest("ContextSpace", SPACE, { dataModelRef: "helsinki-events" }, "Helsinki city context"));
     }
     if (path.endsWith("/datamodels")) {
-      return json(list([manifest("DataModel", "helsinki-events", { contextSpaceRef: SPACE, version: "1.0.0", classes: [TYPE], linkml })]));
+      return json(list([manifest("DataModel", "helsinki-events", { contextSpaceRef: SPACE, version: "1.0.0", classes: [TYPE], linkml, artifacts: { jsonSchema: "./helsinki-events.v1.schema.json" } })]));
     }
     if (path.endsWith("/endpoints")) {
       return json(list([manifest("Endpoint", "app-helsinki-data", { contextSpaceRef: SPACE, slug: "k7m2qz4tv6xh3n5jb2ryd3wcfa", audience: "project", enabledRepresentations: ["ngsi-ld", "csv"] })]));

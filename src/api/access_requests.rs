@@ -939,7 +939,7 @@ pub(crate) async fn list_mine(
     Path((project, name)): Path<(String, String)>,
 ) -> Result<Json<Value>, ApiError> {
     let (endpoint, space) = readable_endpoint(&state, &user, &project, &name)?;
-    let found = requests::of_person(pool(&state)?, &user.0.identity.username, (&project, &name))
+    let found = requests::of_person(pool(&state)?, &user.0.identity.subject, (&project, &name))
         .await
         .map_err(store_error)?;
     let at = now();

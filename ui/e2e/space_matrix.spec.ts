@@ -131,7 +131,7 @@ async function stubApi(page: Page, stub: Stub): Promise<void> {
     if (path.endsWith(`/spaces/${SPACE}/views`)) return json({ items: [] });
     if (path.endsWith(`/spaces/${SPACE}`)) return json(manifest("ContextSpace", SPACE, stub.noTypes ? {} : { dataModelRef: "helsinki-events" }));
     if (path.endsWith("/datamodels")) {
-      return json(list(stub.noTypes ? [] : [manifest("DataModel", "helsinki-events", { contextSpaceRef: SPACE, version: "1.0.0", classes: [TYPE], linkml: LINKML })]));
+      return json(list(stub.noTypes ? [] : [manifest("DataModel", "helsinki-events", { contextSpaceRef: SPACE, version: "1.0.0", classes: [TYPE], linkml: LINKML, artifacts: { jsonSchema: "./helsinki-events.v1.schema.json" } })]));
     }
     if (path.endsWith("/endpoints")) {
       return json(list([manifest("Endpoint", "app-helsinki-data", { contextSpaceRef: SPACE, slug: SLUG, audience: "project", enabledRepresentations: ["ngsi-ld", "csv"] })]));
