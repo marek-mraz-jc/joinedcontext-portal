@@ -159,6 +159,11 @@ pub(crate) async fn declare_egress(
     runner: &str,
     project: &str,
 ) -> Result<Option<String>, String> {
+    if !crate::resource::is_dns1123(project) {
+        return Ok(Some(format!(
+            "the project name `{project}` is not a DNS-1123 label, so it has no write budget"
+        )));
+    }
     let label = egress_label(project);
     let url = format!(
         "{}/resources/rate_limit/{label}",
@@ -212,7 +217,9 @@ fn own_caches(value: &mut Value, project: &str) {
 /// Turns a step's `rate_limit` naming [`EGRESS`], or any project's `<project>__pipeline_egress`,
 /// into this project's [`egress_label`]: an `http` step's `rate_limit: pipeline_egress` and a
 /// `rate_limit: { resource: ... }` processor alike. Another project's bucket is never a step's to
-/// drain. Every other rate limit (a source host's own pace) stays as written.
+/// drain. A name holding `${` is the runner's to interpolate (`${JC_SPACE_9:helsinki__pipeline_egress}`
+/// with the variable unset is helsinki's bucket), so it becomes this project's budget too. Every
+/// other rate limit (a source host's own pace) stays as written.
 fn own_egress(value: &mut Value, project: &str) {
     let name = match value {
         Value::String(name) => name,
@@ -222,7 +229,7 @@ fn own_egress(value: &mut Value, project: &str) {
         },
         _ => return,
     };
-    if name == EGRESS || name.ends_with(&format!("__{EGRESS}")) {
+    if name.contains(EGRESS) || name.contains("${") {
         *name = egress_label(project);
     }
 }

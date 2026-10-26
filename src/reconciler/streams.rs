@@ -2819,7 +2819,10 @@ output:
                     { "rate_limit": { "resource": "pipeline_egress" } },
                     { "http": { "url": "https://example.org", "rate_limit": "helsinki__pipeline_egress" } },
                     { "rate_limit": { "resource": "zilina_opendata" } },
-                    { "http": upsert(project, "air-quality-endpoint-slug-abcdef", false) }
+                    { "http": upsert(project, "air-quality-endpoint-slug-abcdef", false) },
+                    { "http": { "url": "https://example.org", "rate_limit": "${JC_SPACE_9:helsinki__pipeline_egress}" } },
+                    { "rate_limit": { "resource": "${JC_SOURCE_SPACE:zilina_opendata}" } },
+                    { "http": { "url": "https://example.org", "rate_limit": "helsinki__pipeline_egress_x" } }
                 ] }
             });
             own_credential(&mut stream, project);
@@ -2835,15 +2838,18 @@ output:
                 p[1]["rate_limit"]["resource"].clone(),
                 p[2]["http"]["rate_limit"].clone(),
                 p[4]["http"]["rate_limit"].clone(),
+                p[5]["http"]["rate_limit"].clone(),
+                p[6]["rate_limit"]["resource"].clone(),
+                p[7]["http"]["rate_limit"].clone(),
             ]
         };
         assert_eq!(
             budgets(&praha),
-            vec![Value::from("praha__pipeline_egress"); 4]
+            vec![Value::from("praha__pipeline_egress"); 7]
         );
         assert_eq!(
             budgets(&helsinki),
-            vec![Value::from("helsinki__pipeline_egress"); 4]
+            vec![Value::from("helsinki__pipeline_egress"); 7]
         );
         assert_eq!(
             praha["pipeline"]["processors"][3]["rate_limit"]["resource"],
@@ -2858,6 +2864,17 @@ output:
     /// F-BNT3-002 (T-5803): before a project's stream reaches the runner, the runner holds that
     /// project's own budget, so a project the resources file never named still runs; a runner
     /// that refuses the budget gets no stream naming it.
+    /// A project name that is no DNS-1123 label never reaches the runner's URL: the refusal
+    /// comes back before any request (the runner here would answer none).
+    #[tokio::test]
+    async fn a_project_name_off_dns1123_gets_no_budget_request() {
+        let http = reqwest::Client::new();
+        for project in ["../streams", "a/b", "Praha", ""] {
+            let refused = declare_egress(&http, "http://localhost:9", project).await;
+            assert!(matches!(refused, Ok(Some(_))), "{project}: {refused:?}");
+        }
+    }
+
     #[tokio::test]
     async fn the_runner_gets_each_projects_budget_before_its_stream() {
         let server = wiremock::MockServer::start().await;
