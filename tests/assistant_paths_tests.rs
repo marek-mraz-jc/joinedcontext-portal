@@ -180,6 +180,20 @@ fn mirror() -> Arc<Mirror> {
             json!({ "subjects": [{ "user": who }], "role": role, "scope": { "project": "helsinki" } }),
         ));
     }
+    // Every seeded project holds the account its pipelines write as (seed
+    // helsinki-serviceaccount-pipelines.yaml), so space completion drafts none and needs no
+    // ServiceAccount grant (F-POR3-012 judges each draft on its own kind).
+    mirror.upsert(envelope(
+        "ServiceAccount",
+        "pipelines",
+        "helsinki",
+        json!({
+            "owner": { "user": "jana.kovacova" },
+            "purpose": "The runner writes what the pipelines load",
+            "credentials": [{ "kind": "oauth-client", "name": "main" }],
+            "roles": [{ "role": "space-writer", "scope": { "contextSpace": "helsinki" } }]
+        }),
+    ));
     mirror.upsert(endpoint("bikes", "helsinki", &["ngsi-ld", "ogc-features"]));
     mirror.upsert(endpoint("air", "helsinki", &["csv"]));
     mirror.upsert(endpoint("espoo-bikes", "espoo", &["ngsi-ld"]));
