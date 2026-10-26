@@ -866,8 +866,8 @@ impl AppState {
         }
         // An Endpoint that declares `spec.publish.ckan` becomes a dataset in its catalogue on
         // every run, and one that stopped declaring it loses the dataset (EP-62, T-2405). The
-        // host is this Portal's own public host, which is where the endpoints answer; the
-        // token comes from the instance's `apiTokenRef`, through the repository's encrypted
+        // host is the data host the endpoints answer on, read there directly: through the
+        // Portal host each read was a 308 and a second edge request (T-4717); the token comes from the instance's `apiTokenRef`, through the repository's encrypted
         // secrets when this Portal holds the age identity, and otherwise from the variable the
         // reference itself names.
         {
@@ -877,14 +877,9 @@ impl AppState {
                 }
                 _ => None,
             };
-            let host = self
-                .config
-                .public_base_url
-                .host_str()
-                .unwrap_or("localhost")
-                .to_owned();
             let mut catalogue =
-                crate::reconciler::ckan::CkanSync::new(host).with_age_key_file(age_key_file);
+                crate::reconciler::ckan::CkanSync::new(catalogue_host(&self.config))
+                    .with_age_key_file(age_key_file);
             let branding = crate::branding::Branding::load(self.config.branding_file.as_deref());
             if !branding.organisation.trim().is_empty() {
                 catalogue = catalogue.titled(branding.organisation);
@@ -1226,6 +1221,15 @@ impl FromRef<AppState> for Key {
     }
 }
 
+/// The host the catalogue publisher reads each Endpoint's record and schemas on.
+fn catalogue_host(config: &Config) -> String {
+    config
+        .api_base_url()
+        .host_str()
+        .unwrap_or("localhost")
+        .to_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1255,6 +1259,17 @@ mod tests {
         let client = GiteaClient::new("http://127.0.0.1:9".parse().expect("url"), "o", "r", "t")
             .expect("client");
         Syncer::new(Arc::new(client), Arc::new(Mirror::default()))
+    }
+
+    /// T-4717: the publisher reads Endpoints on the data host; the Portal host answered each
+    /// read with a 308 to it, two public edge requests per read.
+    #[test]
+    fn the_catalogue_reads_endpoints_on_the_data_host() {
+        let mut config = Config::for_tests();
+        config.public_base_url = "https://portal.dev.example.org".parse().expect("url");
+        assert_eq!(catalogue_host(&config), "api.dev.example.org");
+        config.public_base_url = "https://data.example.org".parse().expect("url");
+        assert_eq!(catalogue_host(&config), "data.example.org");
     }
 
     /// T-4470: the parts `from_config` was cut into, each on a bare configuration.
