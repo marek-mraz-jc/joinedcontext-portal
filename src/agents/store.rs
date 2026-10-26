@@ -637,6 +637,32 @@ mod tests {
             .any(|o| matches!(o, Err(StatusChangeError::Refused { .. }))));
     }
 
+    /// F-POR1-018: an App holds one live run; a second create waits until the first has ended,
+    /// and another App of the project is never held by it.
+    #[tokio::test]
+    async fn a_live_run_holds_its_app_against_a_second_run() {
+        let store = AgentStore::new(None);
+        let first = run("run-1", "helsinki", "2026-09-12T10:15:30Z");
+        assert!(store.create_run_alone(&first).await.expect("create"));
+        assert!(!store
+            .create_run_alone(&run("run-2", "helsinki", "2026-09-12T10:16:30Z"))
+            .await
+            .expect("create"));
+        assert!(store.get_run("run-2").await.expect("get").is_none());
+
+        let mut other_app = run("run-3", "helsinki", "2026-09-12T10:17:30Z");
+        other_app.app_name = "air-quality".to_owned();
+        assert!(store.create_run_alone(&other_app).await.expect("create"));
+
+        let mut ended = run("run-4", "bb", "2026-09-12T10:18:30Z");
+        ended.status = AgentRunStatus::Failed.as_str().to_owned();
+        store.create_run(&ended).await.expect("create");
+        assert!(store
+            .create_run_alone(&run("run-5", "bb", "2026-09-12T10:19:30Z"))
+            .await
+            .expect("create"));
+    }
+
     #[tokio::test]
     async fn a_run_is_read_back_and_listed_inside_its_own_project() {
         let store = AgentStore::new(None);
