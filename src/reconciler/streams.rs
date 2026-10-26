@@ -274,9 +274,14 @@ impl StreamDeployer {
         run_queue::tick(&self.queue, self, now).await;
     }
 
-    /// Tells the run queue which pipelines have ever run, so a scheduled one that never did runs
-    /// on its first plan instead of at its next clock (T-4421).
-    pub fn ran(&self, ran: HashSet<(String, String)>) {
+    /// Tells the run queue which pipelines have ever run and when their newest run last wrote, so
+    /// a scheduled one that never did runs on its first plan instead of at its next clock
+    /// (T-4421), and one that missed its due time while no Portal held it runs under that time
+    /// (T-5778).
+    pub fn ran(
+        &self,
+        ran: std::collections::HashMap<(String, String), chrono::DateTime<chrono::Utc>>,
+    ) {
         self.queue
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())

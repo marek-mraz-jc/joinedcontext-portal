@@ -10,7 +10,7 @@
 //! [`RunQueue`] is the state alone, read with a clock the caller passes in; `tick` drives it
 //! against a `Runner`.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -389,10 +389,12 @@ pub struct RunQueue {
     /// (T-4891): a snapshot pipeline judges its deletes on them.
     ends: Vec<(Key, String, bool)>,
     planned_at: Option<DateTime<Utc>>,
-    /// The pipelines with a run in the durable log (T-4421): a scheduled one new to this queue
-    /// and not among them never ran, so it runs at once instead of waiting a day for its clock.
-    /// `None` until the log has been read: a restart then never runs every pipeline at once.
-    ran: Option<HashSet<Key>>,
+    /// The pipelines with a run in the durable log and when their newest run last wrote
+    /// (T-4421): a scheduled one new to this queue and not among them never ran, so it runs at
+    /// once instead of waiting a day for its clock; one whose due time after that run has passed
+    /// missed it while no Portal held it, so it is queued under that due time (T-5778). `None`
+    /// until the log has been read: a restart then never runs every pipeline at once.
+    ran: Option<HashMap<Key, DateTime<Utc>>>,
     /// The workload accounts (`project/name`) whose Keycloak client the last reconcile could not
     /// converge (T-4426): a pipeline of one is not started, since every write it made would be
     /// refused 401 and replayed until [`RUN_TIMEOUT`], holding its lane.
@@ -463,8 +465,9 @@ impl RunQueue {
             ))
     }
 
-    /// The pipelines the run log holds a run of, read before each [`RunQueue::plan`].
-    pub fn ran(&mut self, ran: HashSet<Key>) {
+    /// The pipelines the run log holds a run of, with their newest run's last line, read before
+    /// each [`RunQueue::plan`].
+    pub fn ran(&mut self, ran: HashMap<Key, DateTime<Utc>>) {
         self.ran = Some(ran);
     }
 
@@ -505,8 +508,11 @@ impl RunQueue {
                     entry.next = first;
                 }
                 None => {
-                    let never_ran = self.ran.as_ref().is_some_and(|ran| !ran.contains(&key));
-                    let first = if never_ran { Some(now) } else { first };
+                    let first = match self.ran.as_ref().map(|ran| ran.get(&key)) {
+                        Some(None) => Some(now),
+                        Some(Some(last)) => missed(&planned.clock, *last, now).or(first),
+                        None => first,
+                    };
                     self.entries.insert(
                         key,
                         Entry {
@@ -828,6 +834,15 @@ fn with_run(stream: &Value, run: &str) -> Value {
     stream
 }
 
+/// The due time a pipeline whose newest run last wrote at `last` missed by `now`: a Portal that
+/// restarted with runs still queued forgot them, and on a full batch lane the pipelines that
+/// waited longest are the ones it forgot, so they waited a whole period more after every
+/// restart; slovensko's 300 pipelines, queued last by name, ran on neither cluster for a day
+/// (T-5778). Queued under that time, they run before what came due since.
+fn missed(clock: &Clock, last: DateTime<Utc>, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+    clock.next_after(last).filter(|due| *due <= now)
+}
+
 fn stamp(t: DateTime<Utc>) -> String {
     t.to_rfc3339_opts(SecondsFormat::Secs, true)
 }
@@ -1102,7 +1117,7 @@ mod tests {
     /// given, failed for a cause outside its source.
     fn pass(queue: &Mutex<RunQueue>, failed: Option<&str>, rules: u64, now: DateTime<Utc>) {
         let mut q = queue.lock().unwrap();
-        q.ran([key("a")].into_iter().collect());
+        q.ran([(key("a"), now)].into_iter().collect());
         q.rules([("p".to_owned(), rules)].into_iter().collect());
         q.failed(
             failed
@@ -1196,7 +1211,7 @@ mod tests {
     fn a_retry_due_after_the_clock_is_left_to_the_clock() {
         let mut queue = RunQueue::new(1, 1);
         let now = at("2026-10-25T04:50:00Z");
-        queue.ran([key("a")].into_iter().collect());
+        queue.ran([(key("a"), now)].into_iter().collect());
         queue.failed(
             [(
                 key("a"),
@@ -1888,7 +1903,7 @@ mod tests {
         };
         {
             let mut q = queue.lock().unwrap();
-            q.ran([key("old")].into_iter().collect());
+            q.ran([(key("old"), now)].into_iter().collect());
             q.plan(wanted(), now);
         }
         step(&queue, &fake, now).await;
@@ -1976,5 +1991,60 @@ mod tests {
             input["processors"][2]["protobuf"]["operator"], "to_json",
             "the feed's own decoding follows the read"
         );
+    }
+
+    /// T-5778: on a full batch lane a restarted Portal forgot the runs still queued, and each
+    /// waited its whole period again: slovensko's pipelines, queued last by name, ran on neither
+    /// cluster for a day. Four pipelines due every 10 minutes keep one lane busy with 15-minute
+    /// runs and the Portal restarts every 30 minutes; the daily one still runs that day.
+    #[tokio::test]
+    async fn a_full_lane_runs_every_pipeline_although_the_portal_restarts_while_it_waits() {
+        let every_10 = Clock::Every(Duration::from_secs(600), Duration::ZERO);
+        let wanted = || -> BTreeMap<Key, Planned> {
+            ["a1", "a2", "a3", "a4"]
+                .map(|name| (key(name), planned(every_10.clone())))
+                .into_iter()
+                .chain([(key("z"), planned(daily_at_5()))])
+                .collect()
+        };
+        let fake = Fake::default();
+        let start = at("2026-10-26T04:00:00Z");
+        // The run log: each ran the day before.
+        let mut log: HashMap<Key, DateTime<Utc>> = wanted()
+            .into_keys()
+            .map(|key| (key, start - Span::hours(20)))
+            .collect();
+        let mut queue = Mutex::new(RunQueue::new(1, 1));
+        let mut running: HashMap<Key, DateTime<Utc>> = HashMap::new();
+        let mut daily = Vec::new();
+        for minute in 0..24 * 60 {
+            let now = start + Span::minutes(minute);
+            if minute % 30 == 0 {
+                queue = Mutex::new(RunQueue::new(1, 1));
+            }
+            {
+                let mut q = queue.lock().unwrap();
+                q.ran(log.clone());
+                q.plan(wanted(), now);
+            }
+            running.retain(|key, since| {
+                let done = now - *since >= Span::minutes(15);
+                if done {
+                    fake.end(&key.1, RunState::Finished);
+                }
+                !done
+            });
+            tick(&queue, &fake, now).await;
+            for line in fake.log() {
+                if let Some(name) = line.strip_prefix("start ") {
+                    running.insert(key(name), now);
+                    log.insert(key(name), now);
+                    if name == "z" {
+                        daily.push(now);
+                    }
+                }
+            }
+        }
+        assert_eq!(daily.len(), 1, "the daily pipeline ran {daily:?}");
     }
 }
