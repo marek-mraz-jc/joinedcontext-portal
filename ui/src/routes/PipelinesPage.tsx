@@ -25,7 +25,7 @@ import {
   dataSourceOf,
   proposeEnabled,
   executionClass,
-  useLastRun,
+  useLatestRuns,
   useStreamCounters,
 } from "../pages/pipelines/PipelineOverview";
 import type { PipelineSpec } from "../pages/pipelines/PipelineOverview";
@@ -69,25 +69,27 @@ export { executionClass };
 function RowLastRun({
   project,
   name,
+  latest,
   counted,
   now,
 }: {
   project: string;
   name: string;
+  /** Every pipeline's latest run, read once for the whole list (T-5818). */
+  latest: ReturnType<typeof useLatestRuns>;
   /** A running resident stream: its runner has counters to read. */
   counted: boolean;
   now: number;
 }): JSX.Element {
-  const last = useLastRun(project, name);
   const counters = useStreamCounters(project, name, counted);
   return (
     <LastRunCell
       project={project}
       name={name}
-      run={last.data}
-      failed={last.isError}
+      run={latest.data ? (latest.data.get(name) ?? null) : undefined}
+      failed={latest.isError}
       // "4 min ago" moves on with each refetch rather than staying where the page opened.
-      now={Math.max(now, last.dataUpdatedAt)}
+      now={Math.max(now, latest.dataUpdatedAt)}
       counters={counted ? counters.data : undefined}
     />
   );
@@ -195,6 +197,7 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
         }),
       ),
   });
+  const latestRuns = useLatestRuns(project);
 
   // Pausing is a repository change like any other, never a live switch (CC-35).
   const toggle = useMutation({
@@ -551,7 +554,13 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
               </TableCell>
               <TableCell className="max-sm:col-start-1 max-sm:py-1">{phase}</TableCell>
               <TableCell className="max-sm:col-start-1 max-sm:pt-1">
-                <RowLastRun project={project} name={pipeline.metadata.name} counted={counted} now={now} />
+                <RowLastRun
+                  project={project}
+                  name={pipeline.metadata.name}
+                  latest={latestRuns}
+                  counted={counted}
+                  now={now}
+                />
               </TableCell>
               <TableCell align="right" className="max-sm:col-start-2 max-sm:row-span-3 max-sm:row-start-1">
                 <div className="flex items-center justify-end gap-1.5">

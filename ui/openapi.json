@@ -14480,6 +14480,79 @@
         }
       }
     },
+    "/api/v1/projects/{project}/pipeline-runs": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "List Latest Pipeline Runs",
+        "description": "The newest run of each pipeline of the project the caller may read, in one read for the pipeline list (T-5818, PL-62): its counts as in List Pipeline Runs. A pipeline that never ran is absent.",
+        "operationId": "get_latest_runs",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The newest run per pipeline, by name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineLatestRunList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller reads no pipeline of the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runs could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/pipelines/test": {
       "post": {
         "tags": [
@@ -30267,6 +30340,39 @@
           "failing",
           "never"
         ]
+      },
+      "PipelineLatestRun": {
+        "type": "object",
+        "description": "One pipeline's newest run.",
+        "required": [
+          "pipeline",
+          "run"
+        ],
+        "properties": {
+          "pipeline": {
+            "type": "string",
+            "description": "The pipeline's name."
+          },
+          "run": {
+            "$ref": "#/components/schemas/PipelineRun"
+          }
+        }
+      },
+      "PipelineLatestRunList": {
+        "type": "object",
+        "description": "The newest run of each pipeline the caller may read (T-5818).",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineLatestRun"
+            },
+            "description": "One per pipeline that ran, by name; a pipeline that never ran is absent."
+          }
+        }
       },
       "PipelineLinks": {
         "type": "object",
