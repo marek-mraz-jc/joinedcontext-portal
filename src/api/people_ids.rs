@@ -376,12 +376,9 @@ async fn propose(
         .forge_for(namespace)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
     let default_branch = gitea.default_branch().await?;
-    let branch = crate::api::mutate::create_or_reuse_branch(
-        &gitea,
-        "portal/name-people-by-id",
-        &default_branch,
-    )
-    .await?;
+    // Held until the merge request is open, so a second proposal finds it (F-POR2-011).
+    let held = crate::api::mutate::turn(&gitea, "portal/name-people-by-id").await;
+    let branch = crate::api::mutate::create_or_reuse_branch(&gitea, &held, &default_branch).await?;
     let mut uploads = Vec::with_capacity(manifests.len());
     for envelope in manifests {
         let info = crate::resource::by_kind(&envelope.kind).ok_or_else(|| {
