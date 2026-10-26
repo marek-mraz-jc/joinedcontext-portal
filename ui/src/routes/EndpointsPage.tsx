@@ -99,7 +99,6 @@ interface EndpointForm {
       instanceRef?: string;
       organization?: string;
       name?: string;
-      datastore?: { representation?: string; refresh?: string };
     };
   };
   /** The catalogue description, one string per text in the author's language (EP-78, UI-50). */
@@ -127,21 +126,12 @@ function publishOf(form: EndpointForm): { publish?: Record<string, unknown> } {
   }
   const organization = ckan.organization?.trim();
   const dataset = ckan.name?.trim();
-  const sheet = ckan.datastore;
   return {
     publish: {
       ckan: {
         instanceRef: { kind: "CkanInstance", name: catalogue },
         ...(organization ? { organization } : {}),
         ...(dataset ? { name: dataset } : {}),
-        ...(sheet?.representation
-          ? {
-              datastore: {
-                representation: sheet.representation,
-                ...(sheet.refresh ? { refresh: sheet.refresh } : {}),
-              },
-            }
-          : {}),
       },
     },
   };
@@ -154,7 +144,6 @@ function publishForm(spec: {
       instanceRef?: string | { name?: string };
       organization?: string;
       name?: string;
-      datastore?: { representation?: string; refresh?: string };
     };
   };
 }): EndpointForm["publish"] {
@@ -168,7 +157,6 @@ function publishForm(spec: {
       instanceRef: (typeof reference === "string" ? reference : reference?.name) ?? "",
       ...(ckan.organization ? { organization: ckan.organization } : {}),
       ...(ckan.name ? { name: ckan.name } : {}),
-      ...(ckan.datastore ? { datastore: ckan.datastore } : {}),
     },
   };
 }
@@ -335,7 +323,6 @@ export function toForm(endpoint: Manifest): EndpointForm {
         instanceRef?: string | { name?: string };
         organization?: string;
         name?: string;
-        datastore?: { representation?: string; refresh?: string };
       };
     };
     catalog?: CatalogManifest;

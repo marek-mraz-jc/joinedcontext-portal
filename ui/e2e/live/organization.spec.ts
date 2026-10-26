@@ -144,3 +144,21 @@ test("a viewer is told who can see the members, and the list is never fetched fo
     await context.close();
   }
 });
+
+// ADR-N-061 (T-5711): the administrator checks which manifests still name people by e-mail; the
+// check proposes nothing, so the walk leaves the repositories as they were.
+test("an administrator checks which manifests still name people by e-mail, and nothing is proposed", async ({ browser }) => {
+  const steward = await signIn(browser, STEWARD, "/organization/people?lang=en");
+  try {
+    const { page } = steward;
+    const panel = page.getByRole("region", { name: "Name people by id" });
+    await expect(panel).toBeVisible({ timeout: 60_000 });
+    const asked = page.waitForResponse((response) => response.url().includes("/organization/people/name-by-id?dryRun=true"));
+    await panel.getByRole("button", { name: "Check the repositories" }).click();
+    expect((await asked).status(), "the check answers the plan").toBe(200);
+    await expect(panel.getByRole("status")).toBeVisible();
+    await expect(panel.getByText(/Change chg-/)).toHaveCount(0);
+  } finally {
+    await steward.context.close();
+  }
+});

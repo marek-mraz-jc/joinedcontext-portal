@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { mayRead, usePermissions } from "../../api/permissions";
 import { ORG_NAMESPACE } from "../../api/manifest";
-import { asUser, emailsIn } from "../../pages/apps/members";
+import { emailsIn } from "../../pages/apps/members";
+import { isPersonId, personLabel, usePersonNames } from "../../api/personNames";
 import { Combobox } from "./Combobox";
 import type { PickerOption } from "./Combobox";
 import { reasonOf, useDebounced } from "./organizationModels";
@@ -15,7 +16,7 @@ interface PersonPickerBase {
   label: string;
   /** Named by a `<label for={id}>` of the page (see `Combobox`). */
   labelled?: boolean;
-  /** E-mails already taken (a group's members): not offered again. */
+  /** Person ids already taken (a group's members): not offered again. */
   exclude?: string[];
   disabled?: boolean;
   required?: boolean;
@@ -29,25 +30,26 @@ export type PersonPickerProps = PersonPickerBase &
   (
     | {
         multiple?: false;
-        /** The chosen person's e-mail, lower case. */
+        /** The chosen person's Keycloak user id (ADR-N-061). */
         value: string;
-        onChange: (email: string) => void;
+        onChange: (id: string) => void;
       }
     | {
-        /** Several people at once; a pasted list of e-mails adds each one (T-5605). */
+        /** Several people at once; a pasted list of e-mails adds each person it finds (T-5605). */
         multiple: true;
         value: string[];
-        onChange: (emails: string[]) => void;
-        /** The words of a pasted list that are not e-mails, as typed: the page names them. */
+        onChange: (ids: string[]) => void;
+        /** The words of a pasted list that name nobody listed, as typed: the page names them. */
         onRefused: (words: string[]) => void;
       }
   );
 
 /**
  * A person of the organization, picked from the realm's people the server lists to this caller
- * (GET /organization/people, Person read), searched on the server as they type (T-4947). A person
- * who has not signed in yet is not in that list: a well-formed e-mail is offered as such, never
- * any other text. The door still decides: a binding or group naming nobody grants nobody.
+ * (GET /organization/people, Person read), searched on the server as they type (T-4947). The value
+ * is the person's Keycloak user id, never their e-mail (ADR-N-061): an invited person has one from
+ * the moment of the invitation. A caller who may not list people pastes an id. The door still
+ * decides: a binding or group naming nobody grants nobody.
  */
 export function PersonPicker(props: PersonPickerProps): JSX.Element {
   const {
@@ -73,13 +75,13 @@ export function PersonPicker(props: PersonPickerProps): JSX.Element {
       unwrap(await api.GET("/api/v1/organization/people", { params: { query: { max: 100, ...(search ? { search } : {}) } } })),
   });
   const options = useMemo<PickerOption[]>(() => {
-    const taken = new Set(exclude.map((email) => email.toLowerCase()));
+    const taken = new Set(exclude);
     return (people.data?.items ?? [])
-      .filter((person) => person.enabled && !taken.has(person.email.toLowerCase()))
+      .filter((person) => person.enabled && !taken.has(person.id))
       .map((person) => {
         const name = `${person.firstName} ${person.lastName}`.trim();
         return {
-          value: person.email.toLowerCase(),
+          value: person.id,
           label: name || person.email,
           detail: name ? person.email : undefined,
           group: t("picker.person.group"),
@@ -87,30 +89,35 @@ export function PersonPicker(props: PersonPickerProps): JSX.Element {
       });
   }, [people.data, exclude, t]);
   const chosen = props.multiple ? props.value : props.value ? [props.value] : [];
-  // A chosen e-mail stays visible as a pill even when the current search does not list it.
+  const names = usePersonNames(chosen);
+  // A chosen person stays visible as a pill even when the current search does not list them.
   const shown = [
     ...options,
     ...chosen
-      .filter((email) => !options.some((option) => option.value === email))
-      .map((email) => ({ value: email, label: email, group: t("picker.person.typed") })),
+      .filter((id) => !options.some((option) => option.value === id))
+      .map((id) => ({ value: id, label: personLabel(id, names), group: t("picker.person.chosen") })),
   ];
-  const choose = (emails: string[]) => (props.multiple ? props.onChange(emails) : props.onChange(emails[0] ?? ""));
-  // One e-mail names one person; a pasted list adds each new e-mail and names the rest.
+  const choose = (ids: string[]) => (props.multiple ? props.onChange(ids) : props.onChange(ids[0] ?? ""));
+  // A pasted id names its person; a pasted list of e-mails adds each person the server finds by
+  // exactly that address, and names the words that found nobody.
   const create = (text: string) => {
+    const id = text.trim().toLowerCase();
     if (!props.multiple) {
-      const email = asUser(text);
-      if (email) props.onChange(email);
+      if (isPersonId(id)) props.onChange(id);
       return;
     }
-    const { emails, invalid: refused } = emailsIn(text);
-    const taken = new Set([...exclude.map((email) => email.toLowerCase()), ...props.value]);
-    props.onChange([...props.value, ...emails.filter((email) => !taken.has(email))]);
-    props.onRefused(refused);
+    const { value, onChange, onRefused } = props;
+    void idsOf(text, reads).then(({ ids, refused }) => {
+      const taken = new Set([...exclude, ...value]);
+      onChange([...value, ...ids.filter((found) => !taken.has(found))]);
+      onRefused(refused);
+    });
   };
   const createLabel = (text: string) => {
     const { emails, invalid: refused } = emailsIn(text);
     if (props.multiple && emails.length + refused.length > 1) return t("picker.person.addList", { count: emails.length });
-    return asUser(text) ? t("picker.person.invite", { email: asUser(text) }) : t("picker.person.needEmail");
+    if (isPersonId(text.trim().toLowerCase())) return t("picker.person.useId", { id: text.trim().toLowerCase() });
+    return emails.length === 1 ? t("picker.person.notInvited", { email: emails[0] }) : t("picker.person.needEmail");
   };
   return (
     <Combobox
@@ -124,7 +131,7 @@ export function PersonPicker(props: PersonPickerProps): JSX.Element {
       required={required}
       invalid={invalid}
       describedBy={describedBy ?? fieldDescribedBy}
-      placeholder="firstname.lastname@example.org"
+      placeholder={t("picker.person.placeholder")}
       loading={reads && people.isLoading}
       failed={people.isError ? { reason: reasonOf(people.error), retry: () => void people.refetch() } : undefined}
       empty={reads ? t("picker.person.none") : t("picker.person.unlisted")}
@@ -133,4 +140,25 @@ export function PersonPicker(props: PersonPickerProps): JSX.Element {
       create={{ label: createLabel, onCreate: create }}
     />
   );
+}
+
+/** The ids of the people a pasted list names: each word is an id, or an e-mail the server lists. */
+async function idsOf(text: string, reads: boolean): Promise<{ ids: string[]; refused: string[] }> {
+  const ids: string[] = [];
+  const refused: string[] = [];
+  for (const word of text.split(/[\s,;]+/).filter(Boolean)) {
+    const lower = word.toLowerCase();
+    if (isPersonId(lower)) {
+      ids.push(lower);
+      continue;
+    }
+    const found = reads
+      ? await api
+          .GET("/api/v1/organization/people", { params: { query: { search: lower, max: 5 } } })
+          .then((answer) => answer.data?.items.find((person) => person.email.toLowerCase() === lower))
+      : undefined;
+    if (found) ids.push(found.id);
+    else refused.push(word);
+  }
+  return { ids: [...new Set(ids)], refused };
 }

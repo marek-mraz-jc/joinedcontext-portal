@@ -23,13 +23,15 @@ const OPS: &str = "/api/v1/projects/org/ops";
 const ADMIN_GRANT: u64 = 0x301;
 const REMOVAL: u64 = 0x302;
 const STEWARD_GRANT: u64 = 0x303;
+/// Jana's Keycloak user id: a binding names a person by id (ADR-N-061, PF-126).
+const JANA_ID: &str = "3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14";
 
 fn binding(name: &str, role: &str, scope: Value) -> Value {
     json!({
         "apiVersion": API_VERSION,
         "kind": "RoleBinding",
         "metadata": { "name": name, "namespace": ORG_NAMESPACE },
-        "spec": { "subjects": [{ "user": "jana.kovacova@hel.fi" }], "role": role, "scope": scope },
+        "spec": { "subjects": [{ "user": JANA_ID }], "role": role, "scope": scope },
     })
 }
 

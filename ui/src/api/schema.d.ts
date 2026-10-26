@@ -900,6 +900,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/people/name-by-id": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Name People by Id
+         * @description Proposes, per repository, one Change rewriting every Group member, RoleBinding and role subject and Policy user assignee that names a person by e-mail or username into their Keycloak user id (ADR-N-061), and lists the addresses no user carries. `dryRun=true` answers the plan alone. Needs `update` on Person.
+         */
+        post: operations["name_by_id"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/people/names": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve Person Names
+         * @description Answers the name behind each Keycloak user id a manifest names. Needs `update` on Person or `approve` on Group.
+         */
+        get: operations["person_names"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/people/remove": {
         parameters: {
             query?: never;
@@ -3720,7 +3760,7 @@ export interface paths {
         put?: never;
         /**
          * Propose a Data Subject's Erasure
-         * @description Proposes erasing the data subject from the space: once another person with `approve` on the ContextSpace approves it (DM-142), the personal Attributes (or the whole Entity of a personal class) of every Entity naming it go from the broker's current state and every version, the CKAN DataStore copy, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers with the proposal, `proposed` and nothing erased, which expires after 7 days; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.
+         * @description Proposes erasing the data subject from the space: once another person with `approve` on the ContextSpace approves it (DM-142), the personal Attributes (or the whole Entity of a personal class) of every Entity naming it go from the broker's current state and every version, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers with the proposal, `proposed` and nothing erased, which expires after 7 days; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.
          */
         post: operations["erase_subject"];
         delete?: never;
@@ -5580,8 +5620,6 @@ export interface components {
             attributes: components["schemas"]["DraftAttribute"][];
             /** @description The drafted `spec.catalog` (EP-78), or the one the Endpoint already declares. */
             catalog: Record<string, never>;
-            /** @description The Endpoint serves `csv`, so its rows can be mirrored into the CKAN DataStore (EP-65). */
-            datastoreAvailable: boolean;
             endpoint: string;
             /** @description The Endpoint's audience is not `public`: the proposal makes it public, in the red lane. */
             makesPublic: boolean;
@@ -5719,8 +5757,6 @@ export interface components {
             description?: string | null;
             format: string;
             name: string;
-            /** @description The DataStore preview, on a resource with an active sheet (EP-65). */
-            previewUrl?: string | null;
             url: string;
         };
         /** @description Up to ten entities of a dataset, read through its Endpoint (EP-82). */
@@ -6177,13 +6213,6 @@ export interface components {
          */
         CreatedRun: components["schemas"]["AgentRun"] & {
             ticket?: string | null;
-        };
-        /** @description The declared row mirror. */
-        DataStoreStatus: {
-            /** @description How the mirror is kept current. */
-            refresh: string;
-            /** @description The tabular representation the rows are read through. */
-            representation: string;
         };
         /** @description A saved view as the API answers it. */
         DataView: {
@@ -7272,6 +7301,14 @@ export interface components {
          * @enum {string}
          */
         Method: "dns-txt" | "did-web";
+        MigrationPlan: {
+            repositories: components["schemas"]["RepositoryPlan"][];
+            /**
+             * @description Addresses and usernames no Keycloak user carries: they stay as they are, and the
+             *     reconciler leaves a group naming one as the realm holds it until somebody fixes it.
+             */
+            unresolved: string[];
+        };
         /** @description Single detected difference between the published model and the candidate LinkML source. */
         ModelChange: {
             reason: string;
@@ -7595,6 +7632,16 @@ export interface components {
             groups: components["schemas"]["GroupRef"][];
             person: components["schemas"]["Person"];
             platformRoles: components["schemas"]["PlatformRole"][];
+        };
+        /** @description One id and the name of the person behind it. */
+        PersonName: {
+            id: string;
+            /** @description First and last name; the e-mail when the realm holds no name. */
+            name: string;
+        };
+        PersonNames: {
+            /** @description The ids the realm knows; an id it does not know is left out. */
+            items: components["schemas"]["PersonName"][];
         };
         PersonPage: {
             items: components["schemas"]["Person"][];
@@ -8255,7 +8302,6 @@ export interface components {
             dataset: string;
             /** @description Where the dataset is in the catalogue, once it is published. */
             datasetUrl?: string | null;
-            datastore?: null | components["schemas"]["DataStoreStatus"];
             /** @description The endpoint that declares the publication. */
             endpoint: string;
             /** @description The `CkanInstance` it publishes to. */
@@ -8456,6 +8502,15 @@ export interface components {
             } | null;
             /** @description A tag, a branch or a commit of the project repository. */
             ref?: string | null;
+        };
+        /** @description What the migration rewrites in one repository. */
+        RepositoryPlan: {
+            /** @description The Change proposed for it; absent in a dry run. */
+            change?: string | null;
+            /** @description `Kind namespace/name` of each manifest the Change rewrites. */
+            manifests: string[];
+            /** @description `organization`, or the project whose own repository it is. */
+            repository: string;
         };
         /**
          * @description One Endpoint a pipeline may ask for, as the request form offers it (PL-90, T-4946): names
@@ -11454,6 +11509,97 @@ export interface operations {
             };
             /** @description The e-mail is taken */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    name_by_id: {
+        parameters: {
+            query?: {
+                /** @description `true` answers the plan and proposes nothing. */
+                dryRun?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plan, and the Change of each repository unless a dry run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MigrationPlan"];
+                };
+            };
+            /** @description The caller lacks update on Person, or is not a person */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client or forge */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    person_names: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated Keycloak user ids, at most 100. Optional so the right is checked first. */
+                ids?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The names of the ids the realm knows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonNames"];
+                };
+            };
+            /** @description The caller neither updates people nor approves groups */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description An id is not a Keycloak user id, or more than 100 */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

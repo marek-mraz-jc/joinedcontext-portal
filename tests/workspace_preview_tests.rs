@@ -118,7 +118,7 @@ async fn starting_renders_the_project_with_its_prefix_and_every_pipeline_paused(
     let preview = body(&started.text);
     assert_eq!(preview["state"], "running");
     assert_eq!(preview["prefix"], "ws-air-v2-");
-    let minted = jcctl::loader::preview_slug("ws-air-v2-", SLUG);
+    let minted = jcctl::loader::preview_slug_salted("ws-air-v2-", "", SLUG);
     assert_eq!(
         preview["endpoints"],
         json!([{

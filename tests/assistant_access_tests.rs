@@ -787,9 +787,9 @@ fn access_roles() -> Vec<ResourceEnvelope> {
     seeded
 }
 
-const GRANT_STEWARD: &str = "Granting it.\n\n```json\n{\"tool\":\"grant_role\",\"subjects\":[{\"user\":\"jana.kovacova\"}],\"role\":\"steward\",\"scope\":{\"project\":\"helsinki\"}}\n```\n";
-const GRANT_ADMIN: &str = "```json\n{\"tool\":\"grant_role\",\"subjects\":[{\"user\":\"jana.kovacova\"}],\"role\":\"org-admin\",\"scope\":{\"project\":\"helsinki\"}}\n```";
-const GRANT_UNKNOWN: &str = "```json\n{\"tool\":\"grant_role\",\"subjects\":[{\"user\":\"jana.kovacova\"}],\"role\":\"superuser\",\"scope\":{\"project\":\"helsinki\"}}\n```";
+const GRANT_STEWARD: &str = "Granting it.\n\n```json\n{\"tool\":\"grant_role\",\"subjects\":[{\"user\":\"3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14\"}],\"role\":\"steward\",\"scope\":{\"project\":\"helsinki\"}}\n```\n";
+const GRANT_ADMIN: &str = "```json\n{\"tool\":\"grant_role\",\"subjects\":[{\"user\":\"3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14\"}],\"role\":\"org-admin\",\"scope\":{\"project\":\"helsinki\"}}\n```";
+const GRANT_UNKNOWN: &str = "```json\n{\"tool\":\"grant_role\",\"subjects\":[{\"user\":\"3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14\"}],\"role\":\"superuser\",\"scope\":{\"project\":\"helsinki\"}}\n```";
 
 #[tokio::test]
 async fn granting_a_role_opens_the_grant_form_on_the_checked_binding_and_proposes_nothing() {
@@ -799,7 +799,7 @@ async fn granting_a_role_opens_the_grant_form_on_the_checked_binding_and_propose
         Conversation {
             path: Some("share-data"),
             answer: GRANT_STEWARD,
-            message: "Give jana.kovacova steward on helsinki",
+            message: "Give 3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14 steward on helsinki",
             tool: "grant_role",
             seeded: access_roles(),
         },
@@ -819,21 +819,17 @@ async fn granting_a_role_opens_the_grant_form_on_the_checked_binding_and_propose
         .expect("the grant form opens");
     assert_eq!(
         navigate.payload["route"],
-        "/projects/helsinki/settings/members?grant=jana-kovacova-steward-helsinki"
+        "/projects/helsinki/settings/members?grant=3f2a9c1e-steward-helsinki"
     );
     let prefill = &navigate.payload["prefill"];
     assert_eq!(prefill["kind"], "RoleBinding");
     assert_eq!(
         prefill["spec"],
-        json!({ "subjects": [{ "user": "jana.kovacova" }], "role": "steward", "scope": { "project": "helsinki" } })
+        json!({ "subjects": [{ "user": "3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14" }], "role": "steward", "scope": { "project": "helsinki" } })
     );
     let draft = state
         .drafts
-        .get(
-            ORG_NAMESPACE,
-            "RoleBinding",
-            "jana-kovacova-steward-helsinki",
-        )
+        .get(ORG_NAMESPACE, "RoleBinding", "3f2a9c1e-steward-helsinki")
         .await
         .expect("drafts")
         .expect("the grant is the person's draft");
@@ -843,11 +839,7 @@ async fn granting_a_role_opens_the_grant_form_on_the_checked_binding_and_propose
         .is_some_and(|verdict| verdict.is_fresh_for(&draft.manifest)));
     assert!(state
         .mirror
-        .get(
-            ORG_NAMESPACE,
-            "RoleBinding",
-            "jana-kovacova-steward-helsinki"
-        )
+        .get(ORG_NAMESPACE, "RoleBinding", "3f2a9c1e-steward-helsinki")
         .is_none());
     assert!(events.iter().all(|e| e.kind != "change"));
 }
@@ -860,7 +852,7 @@ async fn a_grant_beyond_the_persons_rights_or_of_an_unknown_role_goes_back_to_th
         Conversation {
             path: None,
             answer: GRANT_ADMIN,
-            message: "Make jana.kovacova an administrator on helsinki",
+            message: "Make 3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14 an administrator on helsinki",
             tool: "grant_role",
             seeded: access_roles(),
         },
@@ -878,11 +870,7 @@ async fn a_grant_beyond_the_persons_rights_or_of_an_unknown_role_goes_back_to_th
     assert!(events.iter().all(|e| e.kind != "navigate"));
     assert!(state
         .drafts
-        .get(
-            ORG_NAMESPACE,
-            "RoleBinding",
-            "jana-kovacova-org-admin-helsinki"
-        )
+        .get(ORG_NAMESPACE, "RoleBinding", "3f2a9c1e-org-admin-helsinki")
         .await
         .expect("drafts")
         .is_none());
@@ -915,7 +903,7 @@ async fn a_person_who_may_not_propose_bindings_is_not_offered_the_grant_and_is_r
         Conversation {
             path: None,
             answer: GRANT_STEWARD,
-            message: "Give jana.kovacova steward on helsinki",
+            message: "Give 3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14 steward on helsinki",
             tool: "grant_role",
             seeded: access_roles(),
         },

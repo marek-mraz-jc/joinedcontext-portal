@@ -264,29 +264,6 @@ export function endpointSchema(
                 pattern: DNS1123,
                 maxLength: 63,
               },
-              datastore: {
-                type: "object",
-                title: t("endpoints.field.datastore"),
-                properties: {
-                  // No default: a sheet is a full copy of the rows inside the catalogue, so it
-                  // exists when a person chose the representation it is read through and not
-                  // because a default filled itself in (EP-65).
-                  representation: {
-                    type: "string",
-                    title: t("endpoints.field.sheetFrom"),
-                    ...words(t, "choice.datastoreRepresentation", DATASTORE_REPRESENTATIONS),
-                  },
-                  refresh: {
-                    type: "string",
-                    title: t("endpoints.field.sheetRefresh"),
-                    oneOf: DATASTORE_REFRESH.map((refresh) => ({
-                      const: refresh,
-                      title: t(`endpoints.refreshOption.${refresh}`),
-                    })),
-                    default: "onChange",
-                  },
-                },
-              },
             },
           },
         },
@@ -372,20 +349,6 @@ function catalogSchema(t: (key: string) => string, pipelines: string[] = []): Js
     },
   };
 }
-
-/**
- * The representations a DataStore sheet can be filled from (EP-65).
- *
- * `csv` alone: the publisher reads the tabular file and refuses `xlsx` and `file` with the fix
- * named, because a spreadsheet is a binary the gateway builds and the JSON file is not a tabular
- * projection (`crates/jcctl/src/commands/publish_ckan.rs`). The manifest validator admits all
- * three, so offering the two that fail would be a form that writes a manifest the publisher stops
- * on.
- */
-export const DATASTORE_REPRESENTATIONS = ["csv"] as const;
-
-/** How the sheet is kept current (EP-65): by the endpoint's subscription, or on every tick. */
-export const DATASTORE_REFRESH = ["onChange", "onReconcile"] as const;
 
 /** A CKAN organization slug: lowercase letters, digits and hyphens, as CKAN itself accepts. */
 export const CKAN_ORGANIZATION = "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$";
@@ -1964,21 +1927,16 @@ export function roleSchema(
 }
 
 /**
- * An address is `local@domain.tld`, the name Keycloak carries a person under (PF-04, PF-62).
- *
- * Wider than `jc-core`'s `is_address` on purpose: a pattern that refused an address the API
- * accepts would keep a colleague out of a group, and the API is what decides (PF-51).
+ * A member is the person's Keycloak user id, a lower-case UUID, never an e-mail (ADR-N-061): the
+ * picker offers the organization's people by name and writes their id.
  */
-export const MEMBER_ADDRESS_PATTERN = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$";
+export const PERSON_ID_PATTERN = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
 
 /**
- * The `Group` a person authors: what the group is, and who is in it (PF-62).
- *
- * `members` are addresses. Offered as a list of the people the organization already knows where
- * the page has them, and as free text otherwise, because somebody who has never signed in is
- * still a member a binding may name — the reconciler waits for their first login and says so.
+ * The `Group` a person authors: what the group is, and who is in it (PF-62). `members` are
+ * Keycloak user ids; a person invited and not signed in yet has one already.
  */
-export function groupSchema(t: (key: string) => string, users: string[] = []): JsonSchema {
+export function groupSchema(t: (key: string) => string): JsonSchema {
   return {
     type: "object",
     required: ["name"],
@@ -2005,9 +1963,8 @@ export function groupSchema(t: (key: string) => string, users: string[] = []): J
             user: {
               type: "string",
               title: t("access.groups.field.memberUser"),
-              maxLength: 253,
-              ...(users.length > 0 ? { examples: users } : {}),
-              pattern: MEMBER_ADDRESS_PATTERN,
+              maxLength: 36,
+              pattern: PERSON_ID_PATTERN,
             },
           },
         },

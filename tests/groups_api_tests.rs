@@ -14,6 +14,11 @@ use serde_json::{json, Value};
 use wiremock::matchers::{method as http_method, path as url_path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+/// Group members are Keycloak user ids (ADR-N-061, PF-126).
+const LEAD: &str = "3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14";
+const EVA: &str = "0b7e4d21-5c3a-4f9e-8d12-6a4b9c0e3f57";
+const SECOND: &str = "7d9c2e80-1a4b-4c6d-9e3f-5b8a0c2d4e61";
+
 /// A forge that takes the write and answers the open-pull list.
 async fn forge() -> MockServer {
     let gitea = common::forge().await;
@@ -66,7 +71,7 @@ async fn a_reader_sees_the_members_and_a_stranger_sees_no_such_plural() {
         "Group",
         "city-leads",
         ORG_NAMESPACE,
-        json!({ "members": [{ "user": "lead@hel.fi" }] }),
+        json!({ "members": [{ "user": LEAD }] }),
     ));
     bound(&state, "keeper", json!(["read"]));
 
@@ -79,7 +84,7 @@ async fn a_reader_sees_the_members_and_a_stranger_sees_no_such_plural() {
     )
     .await;
     assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
-    assert!(answer.text.contains("lead@hel.fi"), "{}", answer.text);
+    assert!(answer.text.contains(LEAD), "{}", answer.text);
 
     let one = common::checked_send(
         &state,
@@ -101,7 +106,7 @@ async fn a_reader_sees_the_members_and_a_stranger_sees_no_such_plural() {
     )
     .await;
     assert_eq!(stranger.status, StatusCode::NOT_FOUND, "{}", stranger.text);
-    assert!(!stranger.text.contains("lead@hel.fi"), "{}", stranger.text);
+    assert!(!stranger.text.contains(LEAD), "{}", stranger.text);
 }
 
 #[tokio::test]
@@ -116,7 +121,7 @@ async fn proposing_a_group_needs_propose_on_group_and_lands_in_the_red_lane() {
         person("keeper"),
         "POST",
         "/api/v1/projects/org/groups",
-        Some(group("city-leads", &["lead@hel.fi"])),
+        Some(group("city-leads", &[LEAD])),
     )
     .await;
     assert_eq!(refused.status, StatusCode::FORBIDDEN, "{}", refused.text);
@@ -132,7 +137,7 @@ async fn proposing_a_group_needs_propose_on_group_and_lands_in_the_red_lane() {
         person("keeper"),
         "POST",
         "/api/v1/projects/org/groups",
-        Some(group("city-leads", &["lead@hel.fi"])),
+        Some(group("city-leads", &[LEAD])),
     )
     .await;
     assert_eq!(accepted.status, StatusCode::ACCEPTED, "{}", accepted.text);
@@ -194,7 +199,7 @@ async fn a_binding_to_a_group_no_manifest_declares_is_refused_before_a_change_ex
         "Group",
         "city-leads",
         ORG_NAMESPACE,
-        json!({ "members": [{ "user": "lead@hel.fi" }] }),
+        json!({ "members": [{ "user": LEAD }] }),
     ));
     let accepted = common::checked_send(
         &state,
@@ -219,7 +224,7 @@ async fn a_group_name_another_owner_holds_is_refused_naming_both() {
         "Group",
         "city-leads",
         ORG_NAMESPACE,
-        json!({ "members": [{ "user": "lead@hel.fi" }] }),
+        json!({ "members": [{ "user": LEAD }] }),
     ));
     state
         .foreign_names
@@ -231,7 +236,7 @@ async fn a_group_name_another_owner_holds_is_refused_naming_both() {
         person("keeper"),
         "POST",
         groups,
-        Some(group("admins", &["lead@hel.fi"])),
+        Some(group("admins", &[LEAD])),
     )
     .await;
     assert_eq!(foreign.status, StatusCode::FORBIDDEN, "{}", foreign.text);
@@ -242,7 +247,7 @@ async fn a_group_name_another_owner_holds_is_refused_naming_both() {
         foreign.text
     );
 
-    let mut default_group = group("city-leads", &["lead@hel.fi"]);
+    let mut default_group = group("city-leads", &[LEAD]);
     default_group["metadata"]["annotations"] = json!({ "joinedcontext.com/app": "doprava/city" });
     let clash = common::checked_send(
         &state,
@@ -266,7 +271,7 @@ async fn a_group_name_another_owner_holds_is_refused_naming_both() {
         person("keeper"),
         "PUT",
         "/api/v1/projects/org/groups/city-leads?dryRun=All",
-        Some(group("city-leads", &["lead@hel.fi", "second@hel.fi"])),
+        Some(group("city-leads", &[LEAD, SECOND])),
     )
     .await;
     assert_eq!(same.status, StatusCode::OK, "{}", same.text);
@@ -315,7 +320,7 @@ async fn an_apps_steward_keeps_its_default_group_and_no_other() {
         "Group",
         "city-leads",
         ORG_NAMESPACE,
-        json!({ "members": [{ "user": "lead@hel.fi" }] }),
+        json!({ "members": [{ "user": LEAD }] }),
     ));
 
     let read = common::checked_send(
@@ -337,7 +342,7 @@ async fn an_apps_steward_keeps_its_default_group_and_no_other() {
     .await;
     assert_eq!(other.status, StatusCode::NOT_FOUND, "{}", other.text);
 
-    let mut added = group("board-viewer", &["eva@hel.fi"]);
+    let mut added = group("board-viewer", &[EVA]);
     added["metadata"]["annotations"] = json!({ "joinedcontext.com/app": "doprava/board" });
     let proposed = common::checked_send(
         &state,
@@ -350,7 +355,7 @@ async fn an_apps_steward_keeps_its_default_group_and_no_other() {
     assert_eq!(proposed.status, StatusCode::ACCEPTED, "{}", proposed.text);
 
     // Anything beside the members stays the organization's (F-POR4-010).
-    let mut described = group("board-viewer", &["eva@hel.fi"]);
+    let mut described = group("board-viewer", &[EVA]);
     described["metadata"]["annotations"] = json!({ "joinedcontext.com/app": "doprava/board" });
     described["spec"]["description"] = json!("now also the operators' group");
     let redescribed = common::checked_send(
@@ -373,7 +378,7 @@ async fn an_apps_steward_keeps_its_default_group_and_no_other() {
         person("steward"),
         "PUT",
         "/api/v1/projects/org/groups/city-leads",
-        Some(group("city-leads", &["lead@hel.fi", "eva@hel.fi"])),
+        Some(group("city-leads", &[LEAD, EVA])),
     )
     .await;
     assert_eq!(refused.status, StatusCode::FORBIDDEN, "{}", refused.text);

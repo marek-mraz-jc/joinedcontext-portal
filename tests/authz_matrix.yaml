@@ -337,6 +337,14 @@ routes:
   - route: POST /organization/people/remove
     rule: "people-admin"
     expect: [403, 403, 403, 403, 403, allow, 403, 403]
+  - route: GET /organization/people/names
+    rule: "people-admin or group-approver"
+    note: "update on Person or approve on Group at the organization reads the names behind a manifest's person ids (ADR-N-061); the approver role approves in projects only"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: POST /organization/people/name-by-id
+    rule: "people-admin"
+    note: "a person's session only: a workload token is refused (ADR-N-061)"
+    expect: [403, 403, 403, 403, 403, allow, 403, 403]
   - route: POST /organization/people/{id}/disable
     rule: "people-admin"
     expect: [403, 403, 403, 403, 403, allow, 403, 403]

@@ -398,7 +398,12 @@ struct KcUserRef {
 }
 
 impl KcUserRef {
+    /// Whether the App's subject names this user: a Keycloak id only by the id (ADR-N-061, a
+    /// username spelling an id names nobody), a manifest written before by username or e-mail.
     fn is(&self, user: &str) -> bool {
+        if crate::permissions::is_person_id(user) {
+            return self.id == user;
+        }
         self.username.eq_ignore_ascii_case(user)
             || self
                 .email
@@ -527,6 +532,24 @@ impl Admin {
             .await?
             .unwrap_or(Value::Null);
         serde_json::from_value(value).map_err(|err| format!("GET {path}: {err}"))
+    }
+
+    /// Whether `path` names something the realm holds: a 404 is `false`, any other refusal an
+    /// error naming the path.
+    pub(crate) async fn exists(&self, token: &str, path: &str) -> Result<bool, String> {
+        let response = crate::auth::client_auth::paced(|| {
+            let request = self
+                .http
+                .get(format!("{}{path}", self.admin))
+                .bearer_auth(token);
+            async { request.send().await.map_err(|err| err.to_string()) }
+        })
+        .await?;
+        match response.status() {
+            status if status.is_success() => Ok(true),
+            reqwest::StatusCode::NOT_FOUND => Ok(false),
+            status => Err(format!("GET {path}: {status}")),
+        }
     }
 
     /// The realm's client of one id, or `None`.
@@ -706,7 +729,9 @@ impl AppClientSync {
             .cloned())
     }
 
-    /// The id of the realm's user of this e-mail or username; `None` before their first login.
+    /// The id of the realm's user a role member names: their Keycloak user id (ADR-N-061) when
+    /// the realm has it, or, for a manifest written before, the user of that e-mail or username;
+    /// `None` while the realm has nobody under it.
     async fn user_id(
         &self,
         token: &str,
@@ -715,6 +740,15 @@ impl AppClientSync {
     ) -> Result<Option<String>, String> {
         if let Some(known) = index.users.get(user) {
             return Ok(known.clone());
+        }
+        if crate::permissions::is_person_id(user) {
+            let found = self
+                .members()
+                .exists(token, &format!("/users/{user}"))
+                .await?;
+            let id = found.then(|| user.to_owned());
+            index.users.insert(user.to_owned(), id.clone());
+            return Ok(id);
         }
         let field = if user.contains('@') {
             "email"

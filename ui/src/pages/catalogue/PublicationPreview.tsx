@@ -8,23 +8,20 @@ import type { CatalogBlock } from "./publish";
 
 /**
  * The CKAN page a publication becomes (Architecture/21 §7, step 3; EP-108, EP-143): the dataset's
- * texts and facts, its tags, the resources the publisher writes and the columns the DataStore
- * table holds. The publish flow and the approval page draw the same one, so the approver reads
+ * texts and facts, its tags, the resources the publisher writes and the columns the Endpoint
+ * serves. The publish flow and the approval page draw the same one, so the approver reads
  * what the steward saw.
  */
 export function PublicationPreview({
   title,
   description,
   catalog,
-  datastore,
   columns,
   label,
 }: {
   title: string;
   description: string;
   catalog: CatalogBlock;
-  /** `spec.publish.ckan.datastore` is set: the rows go into a DataStore table. */
-  datastore: boolean;
   /** The attributes the public dataset carries; `undefined` when the page does not know them. */
   columns?: string[];
   /** The region's accessible name. */
@@ -54,7 +51,6 @@ export function PublicationPreview({
   // What the publisher writes beside the dataset (EP-108, EP-143); the map is the theme's
   // dataset map, drawn wherever a row has a location.
   const resources = [
-    ...(datastore ? [t("catalogue.publish.resource.datastore")] : []),
     ...(columns === undefined || columns.includes("location") ? [t("catalogue.publish.resource.map")] : []),
     t("catalogue.publish.resource.api"),
     t("catalogue.publish.resource.dcat"),

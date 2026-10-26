@@ -24,9 +24,7 @@ use crate::api::catalogue::{
 use crate::api::changes::{
     ChangeAuthor, ChangeDecision, ChangeList, ChangeProposal, ChangeSummary, OutsideMergeRequest,
 };
-use crate::api::ckan::{
-    CkanStatus, DataStoreStatus, InstanceSummary, PublicationStatus, ResourceLink,
-};
+use crate::api::ckan::{CkanStatus, InstanceSummary, PublicationStatus, ResourceLink};
 use crate::api::datamodels::{
     CatalogueEntry, ModelChange as DatamodelChange, OrganizationModel, OrganizationModels,
     SourceDryRunResult,
@@ -150,6 +148,8 @@ use crate::tools::model_tools::{
         crate::api::endpoint_preview::preview_endpoint,
         crate::api::kpi_check::check_kpi,
         crate::api::people::list_people,
+        crate::api::people_ids::person_names,
+        crate::api::people_ids::name_by_id,
         crate::api::setup::get_setup,
         crate::api::people::create_person,
         crate::api::people::get_person,
@@ -567,7 +567,6 @@ use crate::tools::model_tools::{
         InstanceSummary,
         PublicationStatus,
         ResourceLink,
-        DataStoreStatus,
         FederationGraph,
         Node,
         NodeHealth,

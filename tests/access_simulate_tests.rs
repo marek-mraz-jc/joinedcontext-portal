@@ -180,7 +180,8 @@ fn body(answer: &common::Answer) -> Value {
 }
 
 /// EP-103: a person is asked about as their token would carry them, with the Portal's own
-/// token, and the answer names the Policy that decided.
+/// token, and the answer names the Policy that decided. The user is the Keycloak id, the `sub`
+/// a Policy or binding names them by since ADR-N-061, never the username.
 #[tokio::test]
 async fn a_person_is_asked_about_with_their_groups_and_roles() {
     let r = rig().await;
@@ -204,12 +205,12 @@ async fn a_person_is_asked_about_with_their_groups_and_roles() {
     assert_eq!(answer["policy"], "air-read");
     assert_eq!(
         answer["subject"],
-        json!({ "user": "jana@hel.fi", "groups": ["stewards"], "roles": ["viewer"] })
+        json!({ "user": "jana-id", "groups": ["stewards"], "roles": ["viewer"] })
     );
     assert_eq!(
         asked(&r.gateway).await,
         vec![json!({
-            "subject": { "user": "jana@hel.fi", "groups": ["stewards"], "roles": ["viewer"] },
+            "subject": { "user": "jana-id", "groups": ["stewards"], "roles": ["viewer"] },
             "action": { "name": "retrieveEntity" },
             "resource": { "type": "AirQualityObserved" }
         })]
@@ -391,10 +392,10 @@ async fn every_question_is_recorded_with_both_subjects() {
     };
     assert_eq!(
         event.summary,
-        "anna tried jana@hel.fi on air: deleteEntity refused"
+        "anna tried jana-id on air: deleteEntity refused"
     );
     assert_eq!(event.details["actor"], "anna");
-    assert_eq!(event.details["subject"]["user"], "jana@hel.fi");
+    assert_eq!(event.details["subject"]["user"], "jana-id");
     assert_eq!(event.details["endpoint"], "air");
     assert_eq!(event.details["decision"], false);
 }

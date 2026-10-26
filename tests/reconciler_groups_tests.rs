@@ -3,7 +3,8 @@
 //! Against a mocked Keycloak admin API: a manifest with no group in the realm is created and
 //! filled, a member nobody put in the manifest is pruned, what somebody changed in the console
 //! is overwritten and reported as drift, a group without the managed attribute is never
-//! touched, and a member the realm has no user for is a warning, not a failure.
+//! touched, a member the realm has no user for is a warning, not a failure, and a manifest
+//! still naming members by e-mail leaves the group as the realm holds it (ADR-N-061).
 
 use joinedcontext_portal::config::ClientAuth;
 use std::sync::Arc;
@@ -16,6 +17,14 @@ use wiremock::matchers::{method, path, path_regex, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const REALM: &str = "/admin/realms/bb";
+
+// Keycloak user ids, as a manifest names a person (ADR-N-061).
+const LEAD: &str = "00000000-0000-4000-8000-00000000000a";
+const SNEAKY: &str = "00000000-0000-4000-8000-00000000000b";
+const NEWCOMER: &str = "00000000-0000-4000-8000-00000000000c";
+const LEFT: &str = "00000000-0000-4000-8000-00000000000d";
+const READER: &str = "00000000-0000-4000-8000-00000000000e";
+const WRITER: &str = "00000000-0000-4000-8000-00000000000f";
 
 fn group(name: &str, members: &[&str]) -> ResourceEnvelope {
     ResourceEnvelope {
@@ -110,10 +119,8 @@ async fn a_manifest_the_realm_does_not_have_is_created_and_filled() {
         .mount(&keycloak)
         .await;
     Mock::given(method("GET"))
-        .and(path(format!("{REALM}/users")))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-            { "id": "u1", "email": "lead@hel.fi" }
-        ])))
+        .and(path(format!("{REALM}/users/{LEAD}")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "id": LEAD })))
         .mount(&keycloak)
         .await;
     Mock::given(method("PUT"))
@@ -122,7 +129,7 @@ async fn a_manifest_the_realm_does_not_have_is_created_and_filled() {
         .mount(&keycloak)
         .await;
 
-    let mirror = mirror_with(vec![group("city-leads", &["lead@hel.fi"])]);
+    let mirror = mirror_with(vec![group("city-leads", &[LEAD])]);
     let outcomes = sync(&keycloak).converge(&mirror).await;
 
     assert_eq!(outcomes.len(), 1, "{outcomes:?}");
@@ -138,7 +145,7 @@ async fn a_manifest_the_realm_does_not_have_is_created_and_filled() {
     let wrote = wrote(&keycloak).await;
     assert!(wrote.contains(&format!("POST {REALM}/groups")), "{wrote:?}");
     assert!(
-        wrote.contains(&format!("PUT {REALM}/users/u1/groups/g1")),
+        wrote.contains(&format!("PUT {REALM}/users/{LEAD}/groups/g1")),
         "{wrote:?}"
     );
 
@@ -166,27 +173,22 @@ async fn a_console_edit_is_overwritten_and_reported_and_an_unknown_address_is_on
         ])))
         .mount(&keycloak)
         .await;
-    // Somebody added themselves in the console; the manifest names two other people.
+    // Somebody added themselves in the console, with no e-mail on the account; the manifest
+    // names two other people.
     Mock::given(method("GET"))
         .and(path(format!("{REALM}/groups/g1/members")))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-            { "id": "u9", "email": "sneaky@hel.fi" }
-        ])))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{ "id": SNEAKY }])))
         .mount(&keycloak)
         .await;
     Mock::given(method("GET"))
-        .and(path(format!("{REALM}/users")))
-        .and(query_param("email", "lead@hel.fi"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-            { "id": "u1", "email": "lead@hel.fi" }
-        ])))
+        .and(path(format!("{REALM}/users/{LEAD}")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "id": LEAD })))
         .mount(&keycloak)
         .await;
-    // Nobody has signed in under this address yet.
+    // The realm has no user with this id.
     Mock::given(method("GET"))
-        .and(path(format!("{REALM}/users")))
-        .and(query_param("email", "newcomer@hel.fi"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .and(path(format!("{REALM}/users/{NEWCOMER}")))
+        .respond_with(ResponseTemplate::new(404))
         .mount(&keycloak)
         .await;
     Mock::given(method("PUT"))
@@ -200,10 +202,7 @@ async fn a_console_edit_is_overwritten_and_reported_and_an_unknown_address_is_on
         .mount(&keycloak)
         .await;
 
-    let mirror = mirror_with(vec![group(
-        "city-leads",
-        &["lead@hel.fi", "newcomer@hel.fi"],
-    )]);
+    let mirror = mirror_with(vec![group("city-leads", &[LEAD, NEWCOMER])]);
     let outcomes = sync(&keycloak).converge(&mirror).await;
 
     assert_eq!(outcomes[0].error, None, "{outcomes:?}");
@@ -211,24 +210,57 @@ async fn a_console_edit_is_overwritten_and_reported_and_an_unknown_address_is_on
         outcomes[0]
             .drift
             .iter()
-            .any(|d| d.contains("sneaky@hel.fi") && d.contains("removed")),
+            .any(|d| d.contains(SNEAKY) && d.contains("removed")),
         "the console edit is reported: {outcomes:?}"
     );
     assert!(
-        outcomes[0]
-            .warnings
-            .iter()
-            .any(|w| w.contains("newcomer@hel.fi")),
-        "an address with no user yet is a warning: {outcomes:?}"
+        outcomes[0].warnings.iter().any(|w| w.contains(NEWCOMER)),
+        "an id with no user is a warning: {outcomes:?}"
     );
     let wrote = wrote(&keycloak).await;
     assert!(
-        wrote.contains(&format!("DELETE {REALM}/users/u9/groups/g1")),
+        wrote.contains(&format!("DELETE {REALM}/users/{SNEAKY}/groups/g1")),
         "{wrote:?}"
     );
     assert!(
-        wrote.contains(&format!("PUT {REALM}/users/u1/groups/g1")),
+        wrote.contains(&format!("PUT {REALM}/users/{LEAD}/groups/g1")),
         "{wrote:?}"
+    );
+    assert!(!wrote.iter().any(|w| w.contains(NEWCOMER)), "{wrote:?}");
+}
+
+#[tokio::test]
+async fn a_manifest_naming_members_by_e_mail_leaves_the_group_as_the_realm_holds_it() {
+    let keycloak = realm().await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/groups")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            { "id": "g1", "name": "city-leads", "attributes": { MANAGED_BY: [MANAGED_VALUE] } }
+        ])))
+        .mount(&keycloak)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/groups/g1/members")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{ "id": LEAD }])))
+        .mount(&keycloak)
+        .await;
+
+    let mirror = mirror_with(vec![group("city-leads", &["lead@hel.fi", NEWCOMER])]);
+    let outcomes = sync(&keycloak).converge(&mirror).await;
+
+    let error = outcomes[0].error.as_deref().unwrap_or_default();
+    assert!(
+        error.contains("1 member(s)") && error.contains("ADR-N-061"),
+        "{outcomes:?}"
+    );
+    assert!(
+        !error.contains("lead@hel.fi"),
+        "no address in the outcome: {error}"
+    );
+    assert_eq!(
+        wrote(&keycloak).await,
+        vec!["POST /realms/bb/protocol/openid-connect/token".to_owned()],
+        "nobody is removed or added"
     );
 }
 
@@ -292,7 +324,7 @@ async fn a_realm_that_refuses_the_client_fails_the_wave_and_writes_nothing() {
         .mount(&keycloak)
         .await;
 
-    let mirror = mirror_with(vec![group("city-leads", &["lead@hel.fi"])]);
+    let mirror = mirror_with(vec![group("city-leads", &[LEAD])]);
     let outcomes = sync(&keycloak).converge(&mirror).await;
 
     assert_eq!(outcomes.len(), 1);
@@ -370,16 +402,12 @@ async fn a_projects_derived_groups_follow_its_bindings_and_never_take_a_manifest
         .await;
     Mock::given(method("GET"))
         .and(path(format!("{REALM}/groups/r1/members")))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-            { "id": "u-old", "email": "left@hel.fi" }
-        ])))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{ "id": LEFT }])))
         .mount(&keycloak)
         .await;
     Mock::given(method("GET"))
-        .and(path(format!("{REALM}/users")))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-            { "id": "u-new", "email": "reader@hel.fi" }
-        ])))
+        .and(path(format!("{REALM}/users/{READER}")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "id": READER })))
         .mount(&keycloak)
         .await;
     Mock::given(method("PUT"))
@@ -403,11 +431,11 @@ async fn a_projects_derived_groups_follow_its_bindings_and_never_take_a_manifest
     let generated = vec![
         (
             "doprava-readers".to_owned(),
-            ["reader@hel.fi".to_owned()].into_iter().collect(),
+            [READER.to_owned()].into_iter().collect(),
         ),
         (
             "doprava-writers".to_owned(),
-            ["writer@hel.fi".to_owned()].into_iter().collect(),
+            [WRITER.to_owned()].into_iter().collect(),
         ),
     ];
     let outcomes = sync(&keycloak).converge_with(&mirror, &generated).await;
@@ -431,11 +459,11 @@ async fn a_projects_derived_groups_follow_its_bindings_and_never_take_a_manifest
     );
     let wrote = wrote(&keycloak).await;
     assert!(
-        wrote.contains(&format!("PUT {REALM}/users/u-new/groups/r1")),
+        wrote.contains(&format!("PUT {REALM}/users/{READER}/groups/r1")),
         "{wrote:?}"
     );
     assert!(
-        wrote.contains(&format!("DELETE {REALM}/users/u-old/groups/r1")),
+        wrote.contains(&format!("DELETE {REALM}/users/{LEFT}/groups/r1")),
         "{wrote:?}"
     );
     // The writer the bindings name is not written into the manifest's group.

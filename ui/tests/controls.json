@@ -1169,7 +1169,7 @@
     "src/pages/catalogue/PublishDataset.tsx": {
       "controls": {
         "Button": 6,
-        "Checkbox": 3
+        "Checkbox": 2
       },
       "tests": [
         "catalogue_publish.test.tsx"
@@ -1719,6 +1719,14 @@
       "tests": [
         "people_invite.test.tsx",
         "people_page.test.tsx"
+      ]
+    },
+    "src/pages/organization/NameById.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "name_by_id.test.tsx"
       ]
     },
     "src/pages/organization/ProjectMqtt.tsx": {
