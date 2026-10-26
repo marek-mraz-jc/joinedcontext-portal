@@ -1212,6 +1212,9 @@ a.jc-cell--link:focus-visible {
 .jc-grid-cell, .jc-grid-cell > .jc-grid-open { white-space: normal; text-align: start; }
 .jc-grid-cell > .jc-grid-open { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 .jc-grid-cell[data-format="link"] { max-width: 16ch; }
+/* A web address clamps itself as the name's button does: the cell's clamp alone cuts the link's
+   box off mid-line, out of reach of a pointer. The whole address stays in its title. */
+.jc-grid-cell a.jc-cell--link { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 
 /* Numbered pages (T-5196): 24 px targets at least, 44 px on a touch screen (WCAG 2.5.8). */
 .jc-grid-pages { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; }
