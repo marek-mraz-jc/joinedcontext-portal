@@ -238,15 +238,21 @@ async fn audited(
     }
 }
 
-fn subject_key(state: &AppState) -> Result<&str, ApiError> {
-    state
-        .config
-        .artifact_store
-        .as_ref()
-        .map(|settings| settings.root_secret_key.as_str())
+/// The erasure key, else the artifact store's root key the earlier hashes were made with.
+fn subject_key(config: &crate::config::Config) -> Result<&str, ApiError> {
+    config
+        .erasure_key
+        .as_deref()
+        .or_else(|| {
+            config
+                .artifact_store
+                .as_ref()
+                .map(|settings| settings.root_secret_key.as_str())
+        })
         .ok_or_else(|| {
             ApiError::Unavailable(
-                "this Portal holds no key to hash a data subject with (JC_PORTAL_ARTIFACT_STORE_SECRET_KEY)".into(),
+                "this Portal holds no key to hash a data subject with (JC_PORTAL_ERASURE_KEY)"
+                    .into(),
             )
         })
 }
@@ -280,7 +286,12 @@ pub(crate) async fn export_subject(
 ) -> Result<Response, ApiError> {
     let spec = owned(&state, &user, &project, &space)?;
     let request = checked(body)?;
-    let hash = erasure::subject_hash(subject_key(&state)?, &project, &space, &request.subject);
+    let hash = erasure::subject_hash(
+        subject_key(&state.config)?,
+        &project,
+        &space,
+        &request.subject,
+    );
     let classes = subject_classes(&state, (&project, &space), &spec).await?;
     let (token, found) = named(&state, &project, &space, &classes, &request.subject).await?;
     let watch = state.drift_watch.as_ref().ok_or_else(no_surface)?;
@@ -354,7 +365,12 @@ pub(crate) async fn erase_subject(
     let dry = is_dry_run(&dry)?;
     let request = checked(body)?;
     let pool = erasure_log(&state)?;
-    let hash = erasure::subject_hash(subject_key(&state)?, &project, &space, &request.subject);
+    let hash = erasure::subject_hash(
+        subject_key(&state.config)?,
+        &project,
+        &space,
+        &request.subject,
+    );
     let groups = groups_of(&state, (&project, &space), &spec, &request.subject).await?;
     if dry {
         return Ok(Json(erasure::preview(&groups)).into_response());
@@ -492,7 +508,12 @@ pub(crate) async fn approve_erasure(
     if found.state() != "proposed" {
         return Err(not_proposed(&found));
     }
-    let hash = erasure::subject_hash(subject_key(&state)?, &project, &space, &request.subject);
+    let hash = erasure::subject_hash(
+        subject_key(&state.config)?,
+        &project,
+        &space,
+        &request.subject,
+    );
     if hash != found.subject {
         return Err(ApiError::Unprocessable {
             detail: "subject: this is not the data subject the proposal names; type the value the request gave".into(),
@@ -663,6 +684,46 @@ mod tests {
             access_expires_at: 9_999_999_999,
             refresh_token: None,
         })
+    }
+
+    /// DM-124: the erasure key decides the hash, so a rotated artifact store key leaves a
+    /// proposal's subject hash as it was; without one the artifact key still hashes.
+    #[test]
+    fn the_erasure_key_outlives_an_artifact_key_rotation() {
+        let config = |erasure: Option<&'static str>, artifact: &'static str| {
+            crate::config::Config::from_vars(move |key| {
+                match key {
+                    "JC_OIDC_ISSUER" => Some("https://idm.example.test/realms/dev"),
+                    "JC_OIDC_CLIENT_ID" => Some("portal"),
+                    "JC_OIDC_CLIENT_SECRET" => Some("secret"),
+                    "JC_PORTAL_COOKIE_KEY" => {
+                        Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+                    }
+                    "JC_PORTAL_ERASURE_KEY" => erasure,
+                    "JC_PORTAL_ARTIFACT_STORE_ENDPOINT" => Some("http://store:9000"),
+                    "JC_PORTAL_ARTIFACT_STORE_BUCKET" => Some("artifacts"),
+                    "JC_PORTAL_ARTIFACT_STORE_ACCESS_KEY" => Some("portal"),
+                    "JC_PORTAL_ARTIFACT_STORE_SECRET_KEY" => Some(artifact),
+                    _ => None,
+                }
+                .map(str::to_owned)
+            })
+            .expect("config")
+        };
+        let hash = |config: &crate::config::Config| {
+            let key = subject_key(config).expect("a key");
+            erasure::subject_hash(key, "p", "s", "jana")
+        };
+        let before = hash(&config(Some("erasure-key-1"), "artifact-key-1"));
+        assert_eq!(
+            before,
+            hash(&config(Some("erasure-key-1"), "artifact-key-2"))
+        );
+        assert_eq!(
+            subject_key(&config(None, "artifact-key-1")).ok(),
+            Some("artifact-key-1")
+        );
+        assert_ne!(before, hash(&config(None, "artifact-key-1")));
     }
 
     #[test]

@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { LinkmlSlot } from "../src/pages/models/linkml";
-import { FormEmbed, FormSettingsEditor, FormSharePanel, FormView, formPublishRequest, PublicFormPage } from "../src/pages/spaces/FormView";
+import { everyAttribute, FormEmbed, FormSettingsEditor, FormSharePanel, FormView, formPublishRequest, PublicFormPage, publishedType } from "../src/pages/spaces/FormView";
 import type { FormSettings } from "../src/pages/spaces/formView";
 import { expectNoViolations } from "./checks";
 import { renderPage } from "./page_contract";
@@ -449,6 +449,23 @@ describe("a public form", () => {
     } finally {
       if (real) Object.defineProperty(window, "parent", real);
     }
+  });
+
+  it("hides every model slot the form does not ask for, one the publisher's reads never returned too", () => {
+    const attributes = everyAttribute(["name", "capacity", "ownerPhone"], ["name", "capacity", "note"]);
+    expect(formPublishRequest("parking", "parking-form", "ParkingSpot", attributes, ["name"]).hiddenAttributes).toEqual([
+      "capacity",
+      "ownerPhone",
+      "note",
+    ]);
+  });
+
+  it("takes the one entity definition as its type, never a nested object's, and guesses none of two", () => {
+    const address = { properties: { streetAddress: { type: "string" } } };
+    const spot = { properties: { id: { type: "string" }, type: { type: "string" }, name: { type: "string" } } };
+    expect(publishedType({ Address: address, ParkingSpot: spot })).toBe("ParkingSpot");
+    expect(publishedType({ Address: address })).toBeUndefined();
+    expect(publishedType({ ParkingSpot: spot, Zone: spot })).toBeUndefined();
   });
 
   it("says the form is not published when the Endpoint is gone", async () => {

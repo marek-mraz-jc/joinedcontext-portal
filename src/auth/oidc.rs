@@ -657,7 +657,10 @@ pub async fn callback(
             .preferred_username()
             .map(|u| u.to_string())
             .unwrap_or_else(|| claims.subject().to_string()),
-        email: claims.email().map(|e| e.to_string()),
+        email: super::session::verified_email(
+            claims.email().map(|e| e.to_string()),
+            claims.email_verified(),
+        ),
         name: claims
             .name()
             .and_then(|n| n.get(None))

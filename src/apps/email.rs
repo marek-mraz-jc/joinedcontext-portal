@@ -156,7 +156,7 @@ pub(super) async fn send(
         return ApiError::Unavailable("this installation sends no mail".into()).into_response();
     };
 
-    let recipients = match recipients(&state, &send.to, &person.identity).await {
+    let recipients = match recipients(&state, &project, &send.to, &person.identity).await {
         Ok(recipients) => recipients,
         Err(refused) => return *refused,
     };
@@ -218,9 +218,11 @@ fn display_name(state: &AppState, project: &str, name: &str) -> String {
 }
 
 /// The people `to` names with their verified addresses, each once. `403 …/recipient-refused`
-/// for an id the realm does not hold, holds disabled or without a verified address.
+/// for an id the realm does not hold, holds disabled or without a verified address, or, with
+/// several Organizations, outside the group subtree of the one that owns `project` (AP-168).
 async fn recipients(
     state: &AppState,
+    project: &str,
     to: &To,
     me: &crate::auth::session::Identity,
 ) -> Result<Vec<Recipient>, Box<Response>> {
@@ -249,6 +251,16 @@ async fn recipients(
         .admin()
         .await
         .map_err(|_| unavailable("unreachable"))?;
+    // with one Organization the whole realm is its people; with several, only its subtree,
+    // and a project no Organization owns mails nobody
+    let organization = if crate::permissions::several_organizations(&state.mirror) {
+        Some(
+            crate::permissions::organization_of(&state.mirror, project)
+                .ok_or_else(|| Box::new(services::recipient_refused("organization")))?,
+        )
+    } else {
+        None
+    };
     let mut found = Vec::with_capacity(ids.len());
     for id in ids {
         let user = match admin.get(id).await {
@@ -264,6 +276,23 @@ async fn recipients(
             .filter(|_| user.enabled && user.email_verified)
             .and_then(|email| email.parse::<Address>().ok())
             .ok_or_else(|| Box::new(services::recipient_refused(id)))?;
+        if let Some(organization) = &organization {
+            let paths = match admin.group_paths(&user.id).await {
+                Ok(paths) => paths,
+                Err(crate::people::PeopleError::Unreachable(_)) => {
+                    return Err(unavailable("unreachable"))
+                }
+                Err(_) => return Err(Box::new(services::recipient_refused(id))),
+            };
+            let root = format!("/{organization}");
+            let inside = paths.iter().any(|path| {
+                path.strip_prefix(&root)
+                    .is_some_and(|rest| rest.is_empty() || rest.starts_with('/'))
+            });
+            if !inside {
+                return Err(Box::new(services::recipient_refused(id)));
+            }
+        }
         found.push(Recipient {
             id: user.id,
             address,

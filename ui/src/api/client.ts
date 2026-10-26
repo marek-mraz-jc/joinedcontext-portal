@@ -83,12 +83,14 @@ export function isPublicFormPath(path: string): boolean {
 // document context (jsdom included). The paths in `schema.d.ts` already carry `/api/v1`.
 export const api = createClient<paths>({
   baseUrl: window.location.origin,
-  // The page is anonymous by construction, for a visitor, a site that frames it and the share
-  // panel's preview alike, so not even the Portal's own reads carry the session there.
-  credentials: isPublicFormPath(window.location.pathname) ? "omit" : "same-origin",
+  credentials: "same-origin",
   // Resolve the global at call time. openapi-fetch would otherwise capture whatever
   // `globalThis.fetch` was when this module first loaded, which no test can substitute.
-  fetch: (request) => globalThis.fetch(request),
+  // A public form's page is anonymous by construction, for a visitor, a site that frames it and
+  // the share panel's preview alike, so not even the Portal's own reads carry the session there;
+  // decided per request, as the router moves in and out of `/f/` without a reload.
+  fetch: (request) =>
+    globalThis.fetch(isPublicFormPath(window.location.pathname) ? new Request(request, { credentials: "omit" }) : request),
 });
 
 /** Echoes the double-submit cookie the backend sets non-HttpOnly for exactly this purpose. */

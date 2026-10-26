@@ -34,6 +34,7 @@ async fn a_comment_notifies_its_mentions_and_leaves_with_its_notifications() {
             Author {
                 id: "sami",
                 name: "Sami",
+                subject: "sub-sami",
             },
             NewComment {
                 project: &project,
@@ -52,6 +53,7 @@ async fn a_comment_notifies_its_mentions_and_leaves_with_its_notifications() {
             Author {
                 id: "anna",
                 name: "Anna",
+                subject: "sub-anna",
             },
             NewComment {
                 project: &project,
@@ -98,12 +100,16 @@ async fn a_comment_notifies_its_mentions_and_leaves_with_its_notifications() {
         0
     );
 
-    assert!(!store
-        .remove(&project, "air", "anna", made.id)
-        .await
-        .expect("asked"));
+    // another person, and a later account that took the username `sami`, remove nothing
+    for subject in ["sub-anna", "sami", "sub-sami-recreated"] {
+        assert!(!store
+            .remove(&project, "air", subject, made.id)
+            .await
+            .expect("asked"));
+    }
+    assert_eq!(listed[0].author_subject.as_deref(), Some("sub-sami"));
     assert!(store
-        .remove(&project, "air", "sami", made.id)
+        .remove(&project, "air", "sub-sami", made.id)
         .await
         .expect("asked"));
     assert!(
