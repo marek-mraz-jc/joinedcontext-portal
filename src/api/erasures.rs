@@ -696,6 +696,9 @@ mod tests {
                     "JC_OIDC_ISSUER" => Some("https://idm.example.test/realms/dev"),
                     "JC_OIDC_CLIENT_ID" => Some("portal"),
                     "JC_OIDC_CLIENT_SECRET" => Some("secret"),
+                    "JC_PORTAL_COOKIE_KEY" => {
+                        Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+                    }
                     "JC_PORTAL_ERASURE_KEY" => erasure,
                     "JC_PORTAL_ARTIFACT_STORE_ENDPOINT" => Some("http://store:9000"),
                     "JC_PORTAL_ARTIFACT_STORE_BUCKET" => Some("artifacts"),
