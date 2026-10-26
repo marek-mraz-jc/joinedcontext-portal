@@ -127,7 +127,7 @@ pipeline:
             client_secret: ${JC_CLIENT_SECRET_HELSINKI}
             enabled: true
             token_url: ${JC_TOKEN_URL}
-          rate_limit: pipeline_egress
+          rate_limit: helsinki__pipeline_egress
           timeout: 30s
           url: ${JC_GATEWAY_URL}/api/endpoint/busslug/ngsi-ld/v1/entityOperations/upsert?options=update
           verb: POST

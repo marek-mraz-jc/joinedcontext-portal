@@ -1813,7 +1813,7 @@ async fn change_on_the_runner(
 ) -> (AppState, Vec<AgentRunEvent>, Vec<String>, Vec<Value>) {
     let _one_at_a_time = ON_THE_RUNNER.lock().await;
     let proxy = model_answering(answers).await;
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     Mock::given(method("POST"))
         .and(wiremock::matchers::path_regex(
             r"^/helsinki/streams/pipeline-test-[a-z0-9-]+$",
@@ -1843,7 +1843,9 @@ async fn change_on_the_runner(
             .await
             .unwrap_or_default()
             .iter()
-            .filter(|r| r.method == wiremock::http::Method::POST)
+            .filter(|r| {
+                r.method == wiremock::http::Method::POST && r.url.path().contains("/streams/")
+            })
             .map(|r| serde_json::from_slice(&r.body).unwrap_or(Value::Null))
             .collect();
         for harness in tests.iter().skip(answered) {
@@ -1900,7 +1902,7 @@ async fn change_on_the_runner(
         .await
         .unwrap_or_default()
         .iter()
-        .filter(|r| r.method == wiremock::http::Method::POST)
+        .filter(|r| r.method == wiremock::http::Method::POST && r.url.path().contains("/streams/"))
         .map(|r| serde_json::from_slice(&r.body).unwrap_or(Value::Null))
         .collect();
     (state, events, prompts, harnesses)

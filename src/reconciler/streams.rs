@@ -1277,6 +1277,11 @@ impl StreamDeployer {
                 "`{project}` is not a project name"
             )));
         };
+        // The project's write budget first: the stream names it, and the runner refuses a
+        // stream naming a rate limit it does not hold (T-5803).
+        if let Some(refused) = declare_egress(&self.http, &runner, project).await? {
+            return Ok(StreamOutcome::Error(refused));
+        }
         let url = format!("{runner}/streams/{}", stream_id(project, name));
 
         let mut response = self
@@ -2790,6 +2795,145 @@ output:
         );
     }
 
+    /// A runner that takes every project's write budget, declared before its streams (T-5803);
+    /// a test mounts the streams it reads on top.
+    async fn runner() -> wiremock::MockServer {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path_regex("^/resources/rate_limit/"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    /// F-BNT3-002 (T-5803): two projects' streams wait on two write budgets. The platform's
+    /// upsert, an author's `rate_limit: pipeline_egress` and a step naming another project's
+    /// bucket all become the stream's own project's; a source host's pace stays shared.
+    #[test]
+    fn each_project_writes_through_its_own_egress_budget() {
+        let render = |project: &str| {
+            let mut stream = serde_json::json!({
+                "pipeline": { "processors": [
+                    { "http": { "url": "https://example.org", "rate_limit": "pipeline_egress" } },
+                    { "rate_limit": { "resource": "pipeline_egress" } },
+                    { "http": { "url": "https://example.org", "rate_limit": "helsinki__pipeline_egress" } },
+                    { "rate_limit": { "resource": "zilina_opendata" } },
+                    { "http": upsert(project, "air-quality-endpoint-slug-abcdef", false) },
+                    { "http": { "url": "https://example.org", "rate_limit": "${JC_SPACE_9:helsinki__pipeline_egress}" } },
+                    { "rate_limit": { "resource": "${JC_SOURCE_SPACE:zilina_opendata}" } },
+                    { "http": { "url": "https://example.org", "rate_limit": "helsinki__pipeline_egress_x" } }
+                ] }
+            });
+            own_credential(&mut stream, project);
+            own_credential(&mut stream, project);
+            stream
+        };
+        let praha = render("praha");
+        let helsinki = render("helsinki");
+        let budgets = |stream: &Value| -> Vec<Value> {
+            let p = &stream["pipeline"]["processors"];
+            vec![
+                p[0]["http"]["rate_limit"].clone(),
+                p[1]["rate_limit"]["resource"].clone(),
+                p[2]["http"]["rate_limit"].clone(),
+                p[4]["http"]["rate_limit"].clone(),
+                p[5]["http"]["rate_limit"].clone(),
+                p[6]["rate_limit"]["resource"].clone(),
+                p[7]["http"]["rate_limit"].clone(),
+            ]
+        };
+        assert_eq!(
+            budgets(&praha),
+            vec![Value::from("praha__pipeline_egress"); 7]
+        );
+        assert_eq!(
+            budgets(&helsinki),
+            vec![Value::from("helsinki__pipeline_egress"); 7]
+        );
+        assert_eq!(
+            praha["pipeline"]["processors"][3]["rate_limit"]["resource"],
+            "zilina_opendata"
+        );
+        assert_eq!(
+            egress_label("banska-bystrica"),
+            "banska_bystrica__pipeline_egress"
+        );
+    }
+
+    /// F-BNT3-002 (T-5803): before a project's stream reaches the runner, the runner holds that
+    /// project's own budget, so a project the resources file never named still runs; a runner
+    /// that refuses the budget gets no stream naming it.
+    /// A project name that is no DNS-1123 label never reaches the runner's URL: the refusal
+    /// comes back before any request (the runner here would answer none).
+    #[tokio::test]
+    async fn a_project_name_off_dns1123_gets_no_budget_request() {
+        let http = reqwest::Client::new();
+        for project in ["../streams", "a/b", "Praha", ""] {
+            let refused = declare_egress(&http, "http://localhost:9", project).await;
+            assert!(matches!(refused, Ok(Some(_))), "{project}: {refused:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn the_runner_gets_each_projects_budget_before_its_stream() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path_regex("^/resources/rate_limit/"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("PUT"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+        let deployer = StreamDeployer::new(server.uri());
+        let stream = serde_json::json!({ "pipeline": { "processors": [] } });
+        for project in ["helsinki", "praha"] {
+            let sent = deployer.deploy_stream(project, "feed", &stream).await;
+            assert_eq!(sent, Ok(StreamOutcome::Live));
+        }
+        let paths: Vec<(String, String)> = server
+            .received_requests()
+            .await
+            .expect("recorded")
+            .iter()
+            .map(|r| (r.method.to_string(), r.url.path().to_owned()))
+            .collect();
+        let pair = |m: &str, p: &str| (m.to_owned(), p.to_owned());
+        assert_eq!(
+            paths,
+            vec![
+                pair("POST", "/resources/rate_limit/helsinki__pipeline_egress"),
+                pair("PUT", "/streams/helsinki.feed"),
+                pair("POST", "/resources/rate_limit/praha__pipeline_egress"),
+                pair("PUT", "/streams/praha.feed"),
+            ]
+        );
+        let body: Value =
+            serde_json::from_slice(&server.received_requests().await.expect("recorded")[0].body)
+                .expect("json");
+        assert_eq!(
+            body,
+            serde_json::json!({ "local": { "count": 500, "interval": "1s" } })
+        );
+
+        let refusing = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .respond_with(wiremock::ResponseTemplate::new(502))
+            .mount(&refusing)
+            .await;
+        let deployer = StreamDeployer::new(refusing.uri());
+        match deployer.deploy_stream("praha", "feed", &stream).await {
+            Ok(StreamOutcome::Error(said)) => {
+                assert!(said.contains("praha__pipeline_egress"), "{said}")
+            }
+            other => panic!("a refused budget was not said: {other:?}"),
+        }
+        let sent = refusing.received_requests().await.expect("recorded");
+        assert_eq!(sent.len(), 1, "a stream followed a refused budget");
+    }
+
     /// PL-06: a `bento.yaml` cannot turn a pipeline into a request/response service: an input
     /// that serves HTTP is refused, and an output that answers the caller is replaced by the
     /// endpoint write, whatever the author wrote.
@@ -2850,7 +2994,7 @@ output:
     /// and again once it ended, and tells the run's end the difference.
     #[tokio::test]
     async fn a_run_end_carries_the_reports_the_runner_dropped_during_the_run() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         let key = ("helsinki".to_owned(), "registry".to_owned());
         let line = |n: u64| {
             format!(
@@ -2895,7 +3039,7 @@ output:
     /// sweep: the runner's `GET /streams/{id}` serves a stream back with its variables resolved.
     #[tokio::test]
     async fn with_pipeline_identity_no_stream_sent_to_the_runner_names_a_client_secret() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
             .respond_with(wiremock::ResponseTemplate::new(200))
             .mount(&server)
@@ -2948,7 +3092,7 @@ output:
     /// the sweep's error, and the pipeline itself still runs.
     #[tokio::test]
     async fn an_expiry_that_does_not_validate_sends_no_sweep() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
             .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
@@ -2991,7 +3135,7 @@ output:
     /// or disabled, gets none, and a sweep whose expiry was removed is retired.
     #[tokio::test]
     async fn an_expiring_pipeline_runs_its_sweep_and_loses_it_with_the_expiry() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         for path in [
             "/streams/helsinki.citybikes-free",
             "/streams/helsinki.citybikes-free.expiry",
@@ -3061,7 +3205,7 @@ output:
 
     #[tokio::test]
     async fn put_success_is_live_and_refusal_is_error() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
             .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
@@ -3076,7 +3220,7 @@ output:
         assert_eq!(outcomes.len(), 1);
         assert_eq!(outcomes[0].2, StreamOutcome::Live);
 
-        let server_err = wiremock::MockServer::start().await;
+        let server_err = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
             .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(
@@ -3100,7 +3244,7 @@ output:
 
     #[tokio::test]
     async fn the_runner_receives_the_space_segment_where_the_mapping_reads_jc_space() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
             .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
@@ -3172,7 +3316,7 @@ output:
     /// new model version is a new render, and a space with no model gets no stage.
     #[tokio::test]
     async fn a_stream_into_a_modelled_space_validates_before_it_splits_into_batches() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
             .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
@@ -3280,7 +3424,7 @@ output:
         // variable still in it, the runner resolved it to nothing, and every indicator was
         // refused `attribute derivedFrom: object must be a URI` one by one while the stream
         // reported a 2xx for the batch. The space it writes stayed empty (T-2445).
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
             .and(wiremock::matchers::path("/streams/helsinki.kpi-pipe"))
             .respond_with(wiremock::ResponseTemplate::new(200))
@@ -3369,7 +3513,7 @@ output:
 
     #[tokio::test]
     async fn put_404_falls_back_to_post() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
             .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(404))
@@ -3392,7 +3536,7 @@ output:
 
     #[tokio::test]
     async fn a_runner_that_restarted_gets_its_unchanged_streams_again() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
             .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
@@ -3430,7 +3574,7 @@ output:
     /// restarts it and makes its output fetch a fresh token (T-2336, PL-18).
     #[tokio::test]
     async fn a_stream_the_runner_reports_inactive_is_sent_again() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
             .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
@@ -3520,7 +3664,7 @@ output:
 
     /// What one converge PUT to a runner that accepts everything: the rendered stream as sent.
     async fn rendered_citybikes() -> serde_json::Value {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
             .respond_with(wiremock::ResponseTemplate::new(200))
             .mount(&server)
@@ -3540,7 +3684,7 @@ output:
     /// step holds it, T-5370): the queue hears false; a stop that answers, 404 included, is true.
     #[tokio::test]
     async fn a_delete_the_runner_does_not_answer_in_time_says_the_run_is_held() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("DELETE"))
             .and(wiremock::matchers::path("/streams/helsinki.loop"))
             .respond_with(
@@ -3562,7 +3706,7 @@ output:
 
     /// A runner whose `GET /streams/citybikes-free` answers `held`, and which counts every PUT.
     async fn runner_holding(held: serde_json::Value, puts: u64) -> wiremock::MockServer {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(held))
@@ -3650,7 +3794,14 @@ output:
             }
         });
         let verbs = || seen.lock().expect("the log").clone();
-        let puts = || verbs().iter().filter(|verb| verb.as_str() == "PUT").count();
+        // Each send starts with the project's write budget (T-5803), the first request a
+        // runner that drops every connection sees of it.
+        let puts = || {
+            verbs()
+                .iter()
+                .filter(|verb| verb.as_str() == "POST")
+                .count()
+        };
 
         let deployer = StreamDeployer::new(format!("http://{address}"));
         let mirror = helsinki_test_mirror();
@@ -3697,7 +3848,7 @@ output:
 
     /// A runner whose PUT answers after `delay`, holding none of the streams.
     async fn slow_runner(delay: Duration) -> wiremock::MockServer {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .respond_with(wiremock::ResponseTemplate::new(404))
             .mount(&server)
@@ -3807,7 +3958,7 @@ output:
     /// periodic pipeline is not restarted on every pass and does not emit on every pass (T-0659).
     #[tokio::test]
     async fn a_stream_the_runner_reports_active_is_left_alone() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
             .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
@@ -3836,7 +3987,7 @@ output:
     /// must not restart every stream of a project on every pass.
     #[tokio::test]
     async fn a_listing_without_the_active_flag_is_taken_at_its_word() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
             .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
@@ -3967,7 +4118,7 @@ output:
 
     #[tokio::test]
     async fn an_unchanged_render_is_not_put_again_and_a_change_is() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
             .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
@@ -4000,7 +4151,7 @@ output:
     /// pass, only planned, and its resident stream from an older Portal is not retired by it.
     #[tokio::test]
     async fn push_sources_stay_resident_and_a_poll_is_only_queued() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         for name in ["citybikes-free", "hfp", "webhook"] {
             wiremock::Mock::given(wiremock::matchers::method("PUT"))
                 .and(wiremock::matchers::path(format!(
@@ -4079,7 +4230,7 @@ output:
 
     #[tokio::test]
     async fn retire_deletes_what_disappeared() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         wiremock::Mock::given(wiremock::matchers::method("PUT"))
             .and(wiremock::matchers::path("/streams/helsinki.citybikes-free"))
             .respond_with(wiremock::ResponseTemplate::new(200))
@@ -4112,7 +4263,7 @@ output:
     /// the bare name is removed once, not on every pass.
     #[tokio::test]
     async fn two_projects_with_one_pipeline_name_run_two_streams() {
-        let server = wiremock::MockServer::start().await;
+        let server = runner().await;
         for project in ["helsinki", "praha"] {
             wiremock::Mock::given(wiremock::matchers::method("PUT"))
                 .and(wiremock::matchers::path(format!(

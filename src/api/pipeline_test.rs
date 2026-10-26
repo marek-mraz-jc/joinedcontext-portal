@@ -468,6 +468,16 @@ pub(crate) async fn run_stream_within(
 
     let id = share::slug();
     let config = config(&format!("{capture}/internal/pipeline-tests/{id}"))?;
+    // The project's write budget a step's `rate_limit: pipeline_egress` names (T-5803).
+    if let Some(why) = crate::reconciler::streams::declare_egress(http(), &runner, project)
+        .await
+        .unwrap_or_else(Some)
+    {
+        tracing::warn!(project = %project, %why, "pipeline runner refused a test's write budget");
+        return Err(ApiError::Unavailable(
+            "the pipeline runner did not answer".into(),
+        ));
+    }
     let (sender, mut receiver) = mpsc::unbounded_channel();
     let _slot = Slot::take(project, &id, sender)?;
 

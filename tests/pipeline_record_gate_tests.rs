@@ -158,6 +158,7 @@ async fn test_run(
     records: &[Value],
 ) -> Value {
     runner.reset().await;
+    common::take_budgets(runner).await;
     for verb in ["POST", "DELETE"] {
         Mock::given(method(verb))
             .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z0-9-]+$"))
@@ -194,7 +195,7 @@ async fn play_runner(runner: &MockServer, state: &AppState, messages: &[Value]) 
         common::REALM.workload(common::PIPELINE_RUNNER_CLIENT)
     );
     for _ in 0..100 {
-        let received = runner.received_requests().await.unwrap_or_default();
+        let received = common::stream_requests(runner).await;
         if let Some(create) = received.iter().find(|r| r.method.as_str() == "POST") {
             let harness: Value = serde_json::from_slice(&create.body).expect("a JSON harness");
             let capture = harness["output"]["http_client"]["url"]
@@ -241,7 +242,7 @@ async fn propose(state: &AppState, manifest: &Value) -> (StatusCode, Option<Stri
 
 #[tokio::test]
 async fn a_pipeline_proposes_only_on_a_green_record_check_of_its_spec() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     let state = state(Some(&runner));
     let manifest = pipeline("resident");
 

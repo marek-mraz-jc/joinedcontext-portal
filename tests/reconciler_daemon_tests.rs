@@ -719,6 +719,12 @@ mod pass_edges {
         ));
         let forge = serve(&[files]).await;
         let runner = MockServer::start().await;
+        // Each project's write budget, declared before its streams (T-5803).
+        Mock::given(method("POST"))
+            .and(wiremock::matchers::path_regex("/resources/rate_limit/"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&runner)
+            .await;
         Mock::given(method("GET"))
             .respond_with(ResponseTemplate::new(404))
             .mount(&runner)
@@ -1017,6 +1023,12 @@ mod pass_edges {
         ));
         let forge = serve(&[files]).await;
         let runner = MockServer::start().await;
+        // Each project's write budget, declared before its streams (T-5803).
+        Mock::given(method("POST"))
+            .and(wiremock::matchers::path_regex("/resources/rate_limit/"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&runner)
+            .await;
         Mock::given(method("GET"))
             .respond_with(ResponseTemplate::new(404))
             .mount(&runner)
