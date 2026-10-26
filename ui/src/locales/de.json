@@ -8995,7 +8995,7 @@
       "connector": "Konnektor: {tools}",
       "selected": "Nach Auswahl",
       "omittedTitle": "Ausgelassene Endpoints: {count}",
-      "omitted": "Ein Assistent liest höchstens 50 Endpoints; schränken Sie die Auswahl ein oder schließen Sie einige aus. Ausgelassen: {slugs}",
+      "omitted": "Ein Assistent liest höchstens 100 Endpoints; schränken Sie die Auswahl ein oder schließen Sie einige aus. Ausgelassen: {slugs}",
       "noSources": "Keine Wissensquelle: er antwortet nur aus Live-Daten.",
       "sources": "Wissensquellen"
     },

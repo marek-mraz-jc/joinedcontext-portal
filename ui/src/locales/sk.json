@@ -8995,7 +8995,7 @@
       "connector": "Konektor: {tools}",
       "selected": "Podľa výberu",
       "omittedTitle": "Vynechané endpointy: {count}",
-      "omitted": "Jeden asistent číta najviac 50 endpointov; zúžte výber alebo niektoré vylúčte. Vynechané: {slugs}",
+      "omitted": "Jeden asistent číta najviac 100 endpointov; zúžte výber alebo niektoré vylúčte. Vynechané: {slugs}",
       "noSources": "Žiadny zdroj znalostí: odpovedá len zo živých dát.",
       "sources": "Zdroje znalostí"
     },

@@ -8995,7 +8995,7 @@
       "connector": "Connector: {tools}",
       "selected": "By the selector",
       "omittedTitle": "{count} Endpoints left out",
-      "omitted": "One assistant reads at most 50 Endpoints; narrow the selector or exclude some. Left out: {slugs}",
+      "omitted": "One assistant reads at most 100 Endpoints; narrow the selector or exclude some. Left out: {slugs}",
       "noSources": "No knowledge source: it answers from live data alone.",
       "sources": "Knowledge sources"
     },
