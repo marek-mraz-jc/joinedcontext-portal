@@ -105,6 +105,26 @@ export function useLastRun(project: string, name: string) {
   });
 }
 
+/**
+ * The latest run of every pipeline of the project the caller reads, by name, in one request
+ * whatever the row count (T-5818); a pipeline that never ran is not in the map.
+ */
+export function useLatestRuns(project: string) {
+  return useQuery({
+    queryKey: [...queryKeys.list(project, "pipelines"), "latest-runs"],
+    retry: false,
+    refetchInterval: 60_000,
+    queryFn: async () =>
+      new Map(
+        (
+          await unwrap(
+            await api.GET("/api/v1/projects/{project}/pipeline-runs", { params: { path: { project } } }),
+          )
+        ).items.map((item) => [item.pipeline, item.run] as const),
+      ),
+  });
+}
+
 /** How a run ended: a record that failed in a step reads red, a refused one amber. */
 export function runTone(run: Run): "danger" | "warning" | "success" {
   return run.failed > 0 ? "danger" : run.rejected > 0 ? "warning" : "success";

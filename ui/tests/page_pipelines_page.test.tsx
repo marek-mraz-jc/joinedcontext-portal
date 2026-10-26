@@ -158,6 +158,54 @@ describe("the pipelines page", () => {
 
   // PL-24, T-1503: a paused pipeline has no stream to measure, so its row says paused and the
   // page never asks the runner; a runner that does not answer leaves the row without numbers.
+  it("reads_every_rows_last_run_in_one_request_for_50_rows", async () => {
+    const items = Array.from({ length: 50 }, (_, index) => pipeline(`pipe-${index}`, { spec: { class: "scheduled" } }));
+    const run = (sent: number, failed: number) => ({
+      run: "2026-10-26T09:00:00Z",
+      firstAt: "2026-10-26T09:00:00Z",
+      lastAt: "2026-10-26T09:05:00Z",
+      sent,
+      rejected: 0,
+      failed,
+    });
+    const { calls } = await renderRoute({
+      path: PATH,
+      answer: (path) => {
+        if (path.endsWith("/pipelines")) return jsonResponse(list(items));
+        if (path.endsWith("/pipeline-runs")) {
+          return jsonResponse({
+            items: [
+              { pipeline: "pipe-0", run: run(7, 0) },
+              { pipeline: "pipe-1", run: run(0, 2) },
+            ],
+          });
+        }
+        return undefined;
+      },
+    });
+    const first = (await screen.findByText("pipe-0")).closest("tr") as HTMLElement;
+    expect(await within(first).findByText("7 written")).toBeInTheDocument();
+    const second = screen.getByText("pipe-1").closest("tr") as HTMLElement;
+    expect(within(second).getByText(en.pipelines.lastRun.runFailedBadge)).toBeInTheDocument();
+    const third = screen.getByText("pipe-2").closest("tr") as HTMLElement;
+    expect(within(third).getByText(en.pipelines.lastRun.never)).toBeInTheDocument();
+    expect(calls().filter((call) => call.endsWith("/pipeline-runs"))).toHaveLength(1);
+    expect(calls().filter((call) => /\/pipelines\/[^/]+\/runs/.test(call))).toHaveLength(0);
+  });
+
+  it("says_the_runs_could_not_be_read_when_the_one_read_fails", async () => {
+    await renderRoute({
+      path: PATH,
+      answer: (path) => {
+        if (path.endsWith("/pipelines")) return jsonResponse(list([pipeline("ingest")]));
+        if (path.endsWith("/pipeline-runs")) return problem(503, "the pipelines' runs could not be read; try again");
+        return undefined;
+      },
+    });
+    const row = (await screen.findByText("ingest")).closest("tr") as HTMLElement;
+    expect(await within(row).findByText(en.pipelines.lastRun.unavailable)).toBeInTheDocument();
+  });
+
   it("a_paused_pipeline_says_paused_and_asks_the_runner_nothing", async () => {
     const page = await renderRoute({
       path: PATH,

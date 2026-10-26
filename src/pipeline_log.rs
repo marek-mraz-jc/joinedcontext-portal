@@ -448,6 +448,22 @@ type LineRow = (
     String,
     String,
 );
+
+/// A `pipeline_runs` row as a [`Run`].
+fn run_of((run, first, last, sent, rejected, failed, created, updated, unchanged): RunRow) -> Run {
+    Run {
+        run,
+        first_at: rfc3339(first),
+        last_at: rfc3339(last),
+        sent: u64::try_from(sent).unwrap_or_default(),
+        rejected: u64::try_from(rejected).unwrap_or_default(),
+        failed: u64::try_from(failed).unwrap_or_default(),
+        created: created.and_then(|n| u64::try_from(n).ok()),
+        updated: updated.and_then(|n| u64::try_from(n).ok()),
+        unchanged: unchanged.and_then(|n| u64::try_from(n).ok()),
+    }
+}
+
 type RunRow = (
     String,
     time::OffsetDateTime,
@@ -458,6 +474,20 @@ type RunRow = (
     Option<i64>,
     Option<i64>,
     Option<i64>,
+);
+
+/// A [`RunRow`] with its pipeline's name last.
+type LatestRow = (
+    String,
+    time::OffsetDateTime,
+    time::OffsetDateTime,
+    i64,
+    i64,
+    i64,
+    Option<i64>,
+    Option<i64>,
+    Option<i64>,
+    String,
 );
 
 impl LogStore {
@@ -792,6 +822,33 @@ impl LogStore {
                 .bind(limit as i64)
                 .fetch_all(pool)
                 .await?;
+                Ok(rows.into_iter().map(run_of).collect())
+            }
+            Inner::Memory(map) => Ok(map
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .get(&(project.to_owned(), pipeline.to_owned()))
+                .map(|memory| memory.runs.iter().rev().take(limit).cloned().collect())
+                .unwrap_or_default()),
+        }
+    }
+
+    /// The newest run of each of `pipelines` that ran, by name, in one read (T-5818).
+    pub async fn latest_runs(
+        &self,
+        project: &str,
+        pipelines: &[String],
+    ) -> Result<BTreeMap<String, Run>, sqlx::Error> {
+        match &self.inner {
+            Inner::Postgres(pool) => {
+                let rows: Vec<LatestRow> = sqlx::query_as(
+                    "SELECT DISTINCT ON (pipeline) run, first_at, last_at, sent, rejected, failed, created, updated, unchanged, pipeline \
+                     FROM pipeline_runs WHERE project = $1 AND pipeline = ANY($2) ORDER BY pipeline, last_at DESC",
+                )
+                .bind(project)
+                .bind(pipelines)
+                .fetch_all(pool)
+                .await?;
                 Ok(rows
                     .into_iter()
                     .map(
@@ -805,26 +862,29 @@ impl LogStore {
                             created,
                             updated,
                             unchanged,
-                        )| Run {
-                            run,
-                            first_at: rfc3339(first),
-                            last_at: rfc3339(last),
-                            sent: u64::try_from(sent).unwrap_or_default(),
-                            rejected: u64::try_from(rejected).unwrap_or_default(),
-                            failed: u64::try_from(failed).unwrap_or_default(),
-                            created: created.and_then(|n| u64::try_from(n).ok()),
-                            updated: updated.and_then(|n| u64::try_from(n).ok()),
-                            unchanged: unchanged.and_then(|n| u64::try_from(n).ok()),
+                            pipeline,
+                        )| {
+                            (
+                                pipeline,
+                                run_of((
+                                    run, first, last, sent, rejected, failed, created, updated,
+                                    unchanged,
+                                )),
+                            )
                         },
                     )
                     .collect())
             }
-            Inner::Memory(map) => Ok(map
-                .read()
-                .unwrap_or_else(|e| e.into_inner())
-                .get(&(project.to_owned(), pipeline.to_owned()))
-                .map(|memory| memory.runs.iter().rev().take(limit).cloned().collect())
-                .unwrap_or_default()),
+            Inner::Memory(map) => {
+                let map = map.read().unwrap_or_else(|e| e.into_inner());
+                Ok(pipelines
+                    .iter()
+                    .filter_map(|name| {
+                        let memory = map.get(&(project.to_owned(), name.clone()))?;
+                        Some((name.clone(), memory.runs.last()?.clone()))
+                    })
+                    .collect())
+            }
         }
     }
 

@@ -3301,6 +3301,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/pipeline-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Latest Pipeline Runs
+         * @description The newest run of each pipeline of the project the caller may read, in one read for the pipeline list (T-5818, PL-62): its counts as in List Pipeline Runs. A pipeline that never ran is absent.
+         */
+        get: operations["get_latest_runs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/pipelines/test": {
         parameters: {
             query?: never;
@@ -7729,6 +7749,17 @@ export interface components {
         };
         /** @enum {string} */
         PipelineHealthState: "ok" | "empty" | "drift" | "failing" | "never";
+        /** @description One pipeline's newest run. */
+        PipelineLatestRun: {
+            /** @description The pipeline's name. */
+            pipeline: string;
+            run: components["schemas"]["PipelineRun"];
+        };
+        /** @description The newest run of each pipeline the caller may read (T-5818). */
+        PipelineLatestRunList: {
+            /** @description One per pipeline that ran, by name; a pipeline that never ran is absent. */
+            items: components["schemas"]["PipelineLatestRun"][];
+        };
         /** @description The newest link check of one pipeline, as the source health view shows it. */
         PipelineLinks: {
             /** @description Links that answered 2xx or 3xx. */
@@ -20175,6 +20206,65 @@ export interface operations {
                 };
             };
             /** @description The caller approves no pipeline of the project */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Project not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The runs could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_latest_runs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The newest run per pipeline, by name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineLatestRunList"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller reads no pipeline of the project */
             403: {
                 headers: {
                     [name: string]: unknown;

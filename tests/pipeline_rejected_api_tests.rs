@@ -582,3 +582,148 @@ async fn a_space_steward_replays_its_spaces_pipeline_only_and_never_the_template
     .await;
     assert_eq!(own.status, StatusCode::ACCEPTED, "{}", own.text);
 }
+
+/// T-5818: the pipeline list reads the newest run of every pipeline in one request, and only of
+/// the pipelines the caller reads: a steward of one space sees the pipeline writing it alone.
+#[tokio::test]
+async fn the_latest_runs_are_one_read_of_the_pipelines_the_caller_reads() {
+    use joinedcontext_portal::pipeline_log::{NewLine, Outcome};
+    const LATEST: &str = "/api/v1/projects/helsinki/pipeline-runs";
+    let runner = common::runner().await;
+    let state = retry_world(&runner).await;
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "sanna-helsinki-pipelines",
+        ORG_NAMESPACE,
+        json!({
+            "subjects": [{ "user": "sanna@hel.fi" }],
+            "role": "pipeline-author",
+            "scope": { "contextSpace": "helsinki" },
+        }),
+    ));
+    state.mirror.upsert(envelope(
+        "ContextSpace",
+        "water",
+        "helsinki",
+        json!({ "urnSegment": "water" }),
+    ));
+    state.mirror.upsert(envelope(
+        "Endpoint",
+        "lakes",
+        "helsinki",
+        json!({ "contextSpaceRef": "water", "slug": "w3qz8rmn5tkd2vxc7bpya4hfge" }),
+    ));
+    for name in ["lake-feed", "parks", "idle"] {
+        state.mirror.upsert(envelope(
+            "Pipeline",
+            name,
+            "helsinki",
+            json!({ "class": "resident", "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:helsinki:lakes" }),
+        ));
+    }
+    let sent = |n: usize| -> Vec<NewLine> {
+        (0..n)
+            .map(|i| NewLine {
+                record_id: format!("urn:s-{i}"),
+                step: None,
+                outcome: Outcome::Sent,
+                message: String::new(),
+            })
+            .collect()
+    };
+    for (pipeline, run, n) in [
+        ("stations", "2026-10-26T08:00:00Z", 1),
+        ("stations", "2026-10-26T09:00:00Z", 4),
+        ("lake-feed", "2026-10-26T09:00:00Z", 2),
+        ("parks", "2026-10-26T09:00:00Z", 3),
+    ] {
+        state
+            .pipeline_log
+            .append("helsinki", pipeline, run, &sent(n))
+            .await
+            .expect("kept");
+    }
+
+    let all = send(&state, person("jana"), "GET", LATEST, None).await;
+    assert_eq!(all.status, StatusCode::OK, "{}", all.text);
+    let all: Value = serde_json::from_str(&all.text).expect("json");
+    let items = all["items"].as_array().expect("items");
+    let read: Vec<(&str, &str, u64)> = items
+        .iter()
+        .map(|i| {
+            (
+                i["pipeline"].as_str().unwrap_or_default(),
+                i["run"]["run"].as_str().unwrap_or_default(),
+                i["run"]["sent"].as_u64().unwrap_or_default(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        read,
+        [
+            ("lake-feed", "2026-10-26T09:00:00Z", 2),
+            ("parks", "2026-10-26T09:00:00Z", 3),
+            ("stations", "2026-10-26T09:00:00Z", 4),
+        ]
+    );
+
+    let own = send(&state, person("sanna"), "GET", LATEST, None).await;
+    assert_eq!(own.status, StatusCode::OK, "{}", own.text);
+    let own: Value = serde_json::from_str(&own.text).expect("json");
+    let names: Vec<&str> = own["items"]
+        .as_array()
+        .expect("items")
+        .iter()
+        .filter_map(|i| i["pipeline"].as_str())
+        .collect();
+    assert_eq!(names, ["stations"]);
+
+    // A caller who cannot read the project is told it is not there (PF-59).
+    let refused = send(&state, person("mikko"), "GET", LATEST, None).await;
+    assert_eq!(refused.status, StatusCode::NOT_FOUND, "{}", refused.text);
+    assert!(!refused.text.contains("stations"), "{}", refused.text);
+}
+
+/// T-5818: in Postgres the latest runs are one row per pipeline asked, its newest by `last_at`,
+/// and nothing of a pipeline not asked or of another project.
+#[tokio::test]
+async fn postgres_answers_the_newest_run_of_each_pipeline_asked() {
+    use joinedcontext_portal::pipeline_log::{LogStore, NewLine, Outcome};
+    let Some(url) = std::env::var("JC_PORTAL_TEST_DATABASE_URL")
+        .ok()
+        .filter(|u| !u.trim().is_empty())
+    else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let pool = joinedcontext_portal::db::connect(&url)
+        .await
+        .expect("the test database answers and migrates");
+    let log = LogStore::new(Some(pool));
+    let project = format!("t5818-{}", std::process::id());
+    let sent = [NewLine {
+        record_id: "urn:s-1".into(),
+        step: None,
+        outcome: Outcome::Sent,
+        message: String::new(),
+    }];
+    for (proj, pipeline, run) in [
+        (project.as_str(), "a", "2026-10-26T08:00:00Z"),
+        (project.as_str(), "a", "2026-10-26T09:00:00Z"),
+        (project.as_str(), "b", "2026-10-26T07:00:00Z"),
+        (project.as_str(), "hidden", "2026-10-26T09:00:00Z"),
+        ("t5818-other", "a", "2026-10-26T10:00:00Z"),
+    ] {
+        log.append(proj, pipeline, run, &sent).await.expect("kept");
+    }
+    let asked = ["a", "b", "never"].map(str::to_owned);
+    let latest = log.latest_runs(&project, &asked).await.expect("read");
+    let runs: Vec<(&str, &str)> = latest
+        .iter()
+        .map(|(name, run)| (name.as_str(), run.run.as_str()))
+        .collect();
+    assert_eq!(
+        runs,
+        [("a", "2026-10-26T09:00:00Z"), ("b", "2026-10-26T07:00:00Z")]
+    );
+}
