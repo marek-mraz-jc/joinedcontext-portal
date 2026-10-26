@@ -132,6 +132,53 @@ pub(super) fn cache_label(project: &str, name: &str) -> String {
     format!("{}__{name}", project.replace('-', "_"))
 }
 
+/// The rate limit every gateway write of a stream waits on, as a step names it.
+pub(crate) const EGRESS: &str = "pipeline_egress";
+
+/// How many gateway calls a second one project's streams make at most, all of them together:
+/// the budget the runner's one shared `pipeline_egress` gave every project at once.
+pub(crate) const EGRESS_PER_SECOND: u64 = 500;
+
+/// The project's own [`EGRESS`] on the runner, `<project>__pipeline_egress` (F-BNT3-002,
+/// T-5803): one bucket per project, so a project at its cap leaves every other project's rate
+/// untouched. The Portal declares it ([`declare_egress`]) before it sends the project a stream.
+pub(crate) fn egress_label(project: &str) -> String {
+    cache_label(project, EGRESS)
+}
+
+/// Declares the project's [`egress_label`] on the runner: Bento refuses a stream naming a rate
+/// limit it does not hold (502, "rate limit resource ... was not found"), and the resources file
+/// it starts with names no project, so one created in the Portal has its bucket too. Bento's
+/// `POST /resources/rate_limit/{label}` adds or replaces it; a stream already waiting on it goes
+/// on with the new one. `Ok(Some(why))` is a runner that refused it, `Err` one that gave no
+/// answer, which the caller treats as it treats a stream create that got none.
+/// ponytail: declared before every create, which refills the project's bucket once per send;
+/// keep a declared set per runner if a project's sends ever come faster than its runs.
+pub(crate) async fn declare_egress(
+    http: &reqwest::Client,
+    runner: &str,
+    project: &str,
+) -> Result<Option<String>, String> {
+    let label = egress_label(project);
+    let url = format!(
+        "{}/resources/rate_limit/{label}",
+        runner.trim_end_matches('/')
+    );
+    let local = serde_json::json!({ "local": { "count": EGRESS_PER_SECOND, "interval": "1s" } });
+    let answer = http
+        .post(&url)
+        .json(&local)
+        .send()
+        .await
+        .map_err(|err| format!("the runner did not take the write budget `{label}`: {err}"))?;
+    Ok((!answer.status().is_success()).then(|| {
+        format!(
+            "the runner refused the write budget `{label}`: {}",
+            answer.status()
+        )
+    }))
+}
+
 /// Puts every cache a stream names, the platform's own [`CHANGE_CACHE`] among them, under its
 /// project's prefix (PL-50, T-5337). One runner may carry every project's streams, and the
 /// caches its resources file declares are visible to each of them: under the bare name one
@@ -152,10 +199,31 @@ fn own_caches(value: &mut Value, project: &str) {
                         *name = cache_label(project, name);
                     }
                 }
+                if key == "rate_limit" {
+                    own_egress(inner, project);
+                }
                 own_caches(inner, project);
             }
         }
         _ => {}
+    }
+}
+
+/// Turns a step's `rate_limit` naming [`EGRESS`], or any project's `<project>__pipeline_egress`,
+/// into this project's [`egress_label`]: an `http` step's `rate_limit: pipeline_egress` and a
+/// `rate_limit: { resource: ... }` processor alike. Another project's bucket is never a step's to
+/// drain. Every other rate limit (a source host's own pace) stays as written.
+fn own_egress(value: &mut Value, project: &str) {
+    let name = match value {
+        Value::String(name) => name,
+        Value::Object(map) => match map.get_mut("resource") {
+            Some(Value::String(name)) => name,
+            _ => return,
+        },
+        _ => return,
+    };
+    if name == EGRESS || name.ends_with(&format!("__{EGRESS}")) {
+        *name = egress_label(project);
     }
 }
 
@@ -235,7 +303,7 @@ pub(super) fn upsert(project: &str, slug: &str, replace: bool) -> Value {
         },
         "oauth2": pipeline_oauth2(project),
         "timeout": "30s",
-        "rate_limit": "pipeline_egress",
+        "rate_limit": egress_label(project),
         "drop_on": [400, 413, 422]
     })
 }

@@ -378,7 +378,7 @@ pub fn render_sweep(project: &str, slug: &str, expiry: &Expiry) -> Option<Value>
             "headers": { "Content-Type": "application/json", "Accept": "application/json" },
             "oauth2": crate::reconciler::streams::pipeline_oauth2(project),
             "timeout": "30s",
-            "rate_limit": "pipeline_egress"
+            "rate_limit": crate::reconciler::streams::egress_label(project)
         })
     };
     Some(json!({

@@ -145,7 +145,7 @@ fn state(project: &str, runner: Option<&MockServer>) -> AppState {
 }
 
 async fn runner() -> MockServer {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     Mock::given(method("POST"))
         .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z0-9-]+$"))
         .respond_with(ResponseTemplate::new(200))
@@ -167,7 +167,7 @@ async fn play_runner(
     messages: &[Value],
 ) -> Value {
     for _ in 0..200 {
-        let received = runner.received_requests().await.unwrap_or_default();
+        let received = common::stream_requests(runner).await;
         if let Some(create) = received.iter().filter(|r| r.method == "POST").nth(nth) {
             let harness: Value = serde_json::from_slice(&create.body).expect("a JSON harness");
             let capture = harness["output"]["http_client"]["url"]

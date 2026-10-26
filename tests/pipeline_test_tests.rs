@@ -205,7 +205,7 @@ async fn play_runner_as(
     expect: StatusCode,
 ) -> Value {
     for _ in 0..100 {
-        let received = runner.received_requests().await.unwrap_or_default();
+        let received = common::stream_requests(runner).await;
         if let Some(create) = received.iter().find(|r| r.method == "POST") {
             let harness: Value = serde_json::from_slice(&create.body).expect("a JSON harness");
             let capture = harness["output"]["http_client"]["url"]
@@ -249,7 +249,7 @@ fn runner_mocks(create: ResponseTemplate) -> (Mock, Mock) {
 
 #[tokio::test]
 async fn the_trace_is_what_the_harness_posted_back_and_the_stream_is_deleted() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     let (create, delete) = runner_mocks(ResponseTemplate::new(200));
     create.mount(&runner).await;
     delete.mount(&runner).await;
@@ -298,7 +298,7 @@ async fn the_trace_is_what_the_harness_posted_back_and_the_stream_is_deleted() {
 /// the capture route admits that principal of the test's own project.
 #[tokio::test]
 async fn with_pipeline_identity_a_test_runs_as_the_harness_principal_without_a_secret() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     let (create, delete) = runner_mocks(ResponseTemplate::new(200));
     create.mount(&runner).await;
     delete.mount(&runner).await;
@@ -321,7 +321,7 @@ async fn with_pipeline_identity_a_test_runs_as_the_harness_principal_without_a_s
 /// T-4050: a DataSource probe is a harness too, and runs as the same principal.
 #[tokio::test]
 async fn with_pipeline_identity_a_probe_runs_as_the_harness_principal_without_a_secret() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     let (create, delete) = runner_mocks(ResponseTemplate::new(200));
     create.mount(&runner).await;
     delete.mount(&runner).await;
@@ -377,7 +377,7 @@ fn harness_bearer(project: &str) -> String {
 #[tokio::test]
 async fn the_capture_refuses_another_projects_harness_principal() {
     for stranger in ["helsinki-pl-pipeline-test", "lahti-pl-odpad"] {
-        let runner = MockServer::start().await;
+        let runner = common::runner().await;
         let (create, delete) = runner_mocks(ResponseTemplate::new(200));
         create.mount(&runner).await;
         delete.mount(&runner).await;
@@ -400,7 +400,7 @@ async fn the_capture_refuses_another_projects_harness_principal() {
 /// the capture route like any message, and the Check names what the feed answered.
 #[tokio::test]
 async fn a_data_source_check_names_what_the_feed_answered() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     let (create, delete) = runner_mocks(ResponseTemplate::new(200));
     create.mount(&runner).await;
     delete.mount(&runner).await;
@@ -448,7 +448,7 @@ async fn a_data_source_check_names_what_the_feed_answered() {
 
 #[tokio::test]
 async fn a_harness_the_runner_refuses_is_a_lint_error_with_its_line() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     let (create, delete) = runner_mocks(
         ResponseTemplate::new(400).set_body_string(
             "stream 'pipeline-test-x' failed to create: failed to parse mapping: line 2 char 9: expected whitespace",
@@ -477,7 +477,7 @@ async fn a_harness_the_runner_refuses_is_a_lint_error_with_its_line() {
 /// produced nothing.
 #[tokio::test]
 async fn a_runner_that_fails_the_create_is_503_and_no_trace() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     Mock::given(method("POST"))
         .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z0-9-]+$"))
         .respond_with(ResponseTemplate::new(503).set_body_string("no capacity"))
@@ -497,7 +497,7 @@ async fn a_runner_that_fails_the_create_is_503_and_no_trace() {
 
 #[tokio::test]
 async fn what_the_kind_refuses_is_400_before_the_runner_is_asked() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     let state = AppState::new(config(Some(&runner)), None).with_mirror(mirror("vantaa"));
     let mut body = request("root = this");
     body["pipeline"]["spec"]["class"] = json!("scheduled");
@@ -520,7 +520,7 @@ async fn what_the_kind_refuses_is_400_before_the_runner_is_asked() {
 
 #[tokio::test]
 async fn a_caller_without_the_propose_verb_is_403_and_without_a_runner_it_is_503() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     let state = AppState::new(config(Some(&runner)), None).with_mirror(mirror("turku"));
     let (status, _) = post(&state, "viewer@hel.fi", "turku", &request("root = this")).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
@@ -532,7 +532,7 @@ async fn a_caller_without_the_propose_verb_is_403_and_without_a_runner_it_is_503
 
 #[tokio::test]
 async fn endpoint_sourced_candidate_with_sample_json_array_returns_trace() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     let (create, delete) = runner_mocks(ResponseTemplate::new(200));
     create.mount(&runner).await;
     delete.mount(&runner).await;
@@ -594,7 +594,7 @@ async fn endpoint_sourced_candidate_with_sample_json_array_returns_trace() {
 
 #[tokio::test]
 async fn candidate_with_neither_source_is_400() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     let state = AppState::new(config(Some(&runner)), None).with_mirror(mirror("helsinki"));
     let body = json!({
         "pipeline": {
@@ -701,7 +701,7 @@ async fn a_data_source_check_with_no_runner_still_names_a_probe() {
     );
 
     // A runner that is there but refuses (starting up, or out of room) reads the same way.
-    let refusing = MockServer::start().await;
+    let refusing = common::runner().await;
     // Only the create call happens: the stream the delete would remove was never made.
     Mock::given(method("POST"))
         .and(path_regex(r"^/[a-z-]+/streams/pipeline-test-[a-z0-9-]+$"))
@@ -727,10 +727,8 @@ async fn a_data_source_check_with_no_runner_still_names_a_probe() {
 
 /// How many requests of one method the runner saw.
 async fn requests_of(runner: &MockServer, verb: &str) -> usize {
-    runner
-        .received_requests()
+    common::stream_requests(runner)
         .await
-        .unwrap_or_default()
         .iter()
         .filter(|r| r.method.as_str() == verb)
         .count()
@@ -738,7 +736,7 @@ async fn requests_of(runner: &MockServer, verb: &str) -> usize {
 
 /// A runner that answers the create with `create` and the delete with `delete`.
 async fn runner_answering(create: ResponseTemplate, delete: ResponseTemplate) -> MockServer {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     for (verb, answer) in [("POST", create), ("DELETE", delete)] {
         Mock::given(method(verb))
             .and(path_regex(
@@ -802,7 +800,7 @@ async fn world_of(
     create: ResponseTemplate,
     delete: ResponseTemplate,
 ) -> (MockServer, AppState) {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     Mock::given(method("POST"))
         .and(path_regex(STREAM))
         .respond_with(create)
@@ -819,10 +817,8 @@ async fn world_of(
 
 /// The runner's requests of `verb`, as paths.
 async fn asked(runner: &MockServer, verb: &str) -> Vec<String> {
-    runner
-        .received_requests()
+    common::stream_requests(runner)
         .await
-        .unwrap_or_default()
         .iter()
         .filter(|r| r.method.as_str() == verb)
         .map(|r| r.url.path().to_owned())
@@ -850,7 +846,7 @@ async fn a_second_test_of_the_same_project_while_one_is_running_is_409() {
     // after it answered, so waiting on that list let the first finish before the second was sent
     // on a busy CI host (T-3195); the responder below says so as the request arrives.
     let arrived = Arc::new(tokio::sync::Notify::new());
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     Mock::given(method("POST"))
         .and(path_regex(STREAM))
         .respond_with(Arrival(
@@ -917,7 +913,7 @@ async fn every_test_of_a_project_runs_under_the_one_stream_name_of_the_project()
 /// The runner's answer to a create of a name it already runs (Bento 1.22.0), and its description
 /// of that stream `uptime` seconds after its create.
 async fn runner_holding(project: &str, uptime: f64) -> (MockServer, AppState) {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     Mock::given(method("POST"))
         .and(path_regex(STREAM))
         .respond_with(ResponseTemplate::new(400).set_body_string("Stream already exists"))
@@ -1019,6 +1015,7 @@ async fn the_slot_is_released_after_a_failed_run_so_a_later_test_of_the_same_pro
         );
     }
     runner.reset().await;
+    common::take_budgets(&runner).await;
     Mock::given(method("POST"))
         .and(path_regex(STREAM))
         .respond_with(ResponseTemplate::new(503))
@@ -1027,6 +1024,7 @@ async fn the_slot_is_released_after_a_failed_run_so_a_later_test_of_the_same_pro
     let (status, _) = post(&state, "dev@hel.fi", "t2520-again", &body).await;
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     runner.reset().await;
+    common::take_budgets(&runner).await;
     Mock::given(method("POST"))
         .and(path_regex(STREAM))
         .respond_with(ResponseTemplate::new(200))
@@ -1101,10 +1099,8 @@ async fn the_capture_id_is_unique_per_call_never_reused() {
         post(&state, "dev@hel.fi", "t2520-ids", &request("root = this")).await;
     }
     let capture = regex::Regex::new(r"/internal/pipeline-tests/([a-z2-7]{26})").expect("regex");
-    let mut ids: Vec<String> = runner
-        .received_requests()
+    let mut ids: Vec<String> = common::stream_requests(&runner)
         .await
-        .unwrap_or_default()
         .iter()
         .filter(|r| r.method.as_str() == "POST")
         .filter_map(|r| {
@@ -1214,7 +1210,7 @@ fn with_saved_source(project: &str) -> Arc<Mirror> {
 /// record; the `${VAR}` stays for the runner to fill and never comes back in the answer.
 #[tokio::test]
 async fn a_saved_source_is_tested_with_its_own_input_and_answers_its_first_record() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     let (create, delete) = runner_mocks(ResponseTemplate::new(200));
     create.mount(&runner).await;
     delete.mount(&runner).await;
@@ -1248,7 +1244,7 @@ async fn a_saved_source_is_tested_with_its_own_input_and_answers_its_first_recor
 /// T-4819: a read that failed is said in plain words, not as the runner's error chain.
 #[tokio::test]
 async fn a_failed_read_is_said_in_plain_words() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     let (create, delete) = runner_mocks(ResponseTemplate::new(200));
     create.mount(&runner).await;
     delete.mount(&runner).await;

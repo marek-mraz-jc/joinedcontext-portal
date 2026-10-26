@@ -583,3 +583,34 @@ pub async fn route_to(proxy: &MockServer, route: Option<&str>) {
 pub fn is_router(body: &[u8]) -> bool {
     String::from_utf8_lossy(body).contains(ROUTER_PROMPT)
 }
+
+/// A pipeline runner that takes every project's write budget, which the Portal declares before
+/// it sends the project a stream (T-5803). The streams a test reads are mounted on top of it.
+pub async fn runner() -> MockServer {
+    let runner = MockServer::start().await;
+    take_budgets(&runner).await;
+    runner
+}
+
+/// Mounts the write budgets [`runner`] takes, again after a test resets its mocks.
+pub async fn take_budgets(runner: &MockServer) {
+    Mock::given(method("POST"))
+        .and(path_regex(
+            "^/([a-z0-9-]+/)?resources/rate_limit/[a-z0-9_]+__pipeline_egress$",
+        ))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(runner)
+        .await;
+}
+
+/// What a [`runner`] was asked about its streams, without the write budgets the Portal declares
+/// before them (T-5803).
+pub async fn stream_requests(runner: &MockServer) -> Vec<wiremock::Request> {
+    runner
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|r| !r.url.path().contains("/resources/rate_limit/"))
+        .collect()
+}

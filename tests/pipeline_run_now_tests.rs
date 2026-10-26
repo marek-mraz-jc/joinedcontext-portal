@@ -95,7 +95,7 @@ fn seed(state: &AppState) {
 
 /// The Portal with a runner that takes every stream and reports each one running.
 async fn world() -> (AppState, Arc<StreamDeployer>, MockServer) {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     Mock::given(method("PUT"))
         .respond_with(ResponseTemplate::new(200))
         .mount(&runner)

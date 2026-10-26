@@ -99,6 +99,12 @@ async fn every_send_to_the_runner_is_logged_with_its_reason() {
     );
 
     let runner = MockServer::start().await;
+    // Each project's write budget, declared before its streams (T-5803).
+    Mock::given(method("POST"))
+        .and(wiremock::matchers::path_regex("/resources/rate_limit/"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&runner)
+        .await;
     Mock::given(method("PUT"))
         .and(path("/streams/helsinki.citybikes-free"))
         .respond_with(ResponseTemplate::new(200))

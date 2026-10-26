@@ -1100,8 +1100,18 @@ pub async fn retry_rejected(
         "{runner}/streams/rejected-replay-{}",
         crate::agents::share::slug()
     );
-    let created = http().post(&stream).json(&config).send().await;
-    let accepted = matches!(&created, Ok(answer) if answer.status().is_success());
+    // The project's write budget the replay's upsert names, then the stream (T-5803).
+    let accepted = match crate::reconciler::streams::declare_egress(http(), &runner, &project).await
+    {
+        Ok(None) => {
+            let created = http().post(&stream).json(&config).send().await;
+            matches!(&created, Ok(answer) if answer.status().is_success())
+        }
+        Ok(Some(why)) | Err(why) => {
+            tracing::warn!(%project, pipeline = %name, %why, "the replay's write budget was not declared");
+            false
+        }
+    };
     if !accepted {
         // Nothing was replayed: the records go back on the list as they were.
         for record in records {

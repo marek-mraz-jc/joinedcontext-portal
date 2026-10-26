@@ -229,7 +229,7 @@ async fn ids(state: &AppState) -> Vec<i64> {
 
 #[tokio::test]
 async fn a_retry_replays_the_unmasked_records_through_the_stage_and_keeps_the_masked() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     Mock::given(method("POST"))
         .and(path_regex(r"^/helsinki/streams/rejected-replay-[a-z0-9]+$"))
         .respond_with(ResponseTemplate::new(200))
@@ -256,7 +256,7 @@ async fn a_retry_replays_the_unmasked_records_through_the_stage_and_keeps_the_ma
     assert!(!left.contains(&clean), "the replayed record left the list");
     assert!(left.contains(&masked), "the masked record stays");
 
-    let sent = runner.received_requests().await.expect("recorded");
+    let sent = common::stream_requests(&runner).await;
     let stream: Value = serde_json::from_slice(&sent[0].body).expect("a stream config");
     let text = stream.to_string();
     assert!(text.contains("json_schema"), "the stage is in: {text}");
@@ -271,7 +271,7 @@ async fn a_retry_replays_the_unmasked_records_through_the_stage_and_keeps_the_ma
 /// runner's token service, so the stream names no client secret for the runner's API to serve.
 #[tokio::test]
 async fn with_pipeline_identity_a_replay_names_no_client_secret() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     Mock::given(method("POST"))
         .and(path_regex(r"^/helsinki/streams/rejected-replay-[a-z0-9]+$"))
         .respond_with(ResponseTemplate::new(200))
@@ -291,7 +291,7 @@ async fn with_pipeline_identity_a_replay_names_no_client_secret() {
     .await;
     assert_eq!(answer.status, StatusCode::ACCEPTED, "{}", answer.text);
 
-    let sent = runner.received_requests().await.expect("recorded");
+    let sent = common::stream_requests(&runner).await;
     let text = String::from_utf8_lossy(&sent[0].body).into_owned();
     assert!(
         !text.contains("client_secret") && !text.contains("JC_CLIENT_SECRET"),
@@ -306,7 +306,7 @@ async fn with_pipeline_identity_a_replay_names_no_client_secret() {
 
 #[tokio::test]
 async fn a_reader_may_not_retry_and_a_runner_that_refuses_puts_the_records_back() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     Mock::given(method("POST"))
         .respond_with(ResponseTemplate::new(503))
         .mount(&runner)
@@ -500,7 +500,7 @@ async fn a_reader_lists_the_runs_and_reads_one_runs_log_of_this_pipeline_only() 
 /// live in no space.
 #[tokio::test]
 async fn a_space_steward_replays_its_spaces_pipeline_only_and_never_the_templates() {
-    let runner = MockServer::start().await;
+    let runner = common::runner().await;
     Mock::given(method("POST"))
         .and(path_regex(r"^/helsinki/streams/rejected-replay-[a-z0-9]+$"))
         .respond_with(ResponseTemplate::new(200))
