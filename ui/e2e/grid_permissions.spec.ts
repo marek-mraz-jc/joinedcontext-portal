@@ -134,7 +134,7 @@ test("10 000 rows: the first row and twenty screens of scrolling, timed", async 
   await stub(page, "editor", MANY);
   const started = Date.now();
   await page.goto(EXPLORE);
-  await expect(page.getByRole("button", { name: /mobility:00001$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open: Station 00001" })).toBeVisible();
   const firstRow = Date.now() - started;
   const box = page.locator(".jc-grid-scroll").first();
   const scrollStart = Date.now();
@@ -143,7 +143,7 @@ test("10 000 rows: the first row and twenty screens of scrolling, timed", async 
     await page.waitForTimeout(0);
     await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
   }
-  await expect(page.getByRole("button", { name: /mobility:\d{5}$/ }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Open: Station \d{5}$/ }).first()).toBeVisible();
   const scroll = Date.now() - scrollStart;
   const line = `${new Date().toISOString()} ${process.env.TIMING_LABEL ?? "run"} firstRowMs=${firstRow} scroll20Ms=${scroll}\n`;
   await writeFile(`${SHOTS}-timings.txt`, line, { flag: "a" });
@@ -155,7 +155,7 @@ test("10 000 rows: the first row and twenty screens of scrolling, timed", async 
 async function explore(page: Page, persona: Persona): Promise<Stubbed> {
   const seen = await stub(page, persona, 3);
   await page.goto(EXPLORE);
-  await expect(page.getByRole("button", { name: /mobility:00001$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open: Station 00001" })).toBeVisible();
   // The shots are of the table, not of the filters above it.
   await page.getByRole("grid").evaluate((grid) => grid.scrollIntoView({ block: "start" }));
   return seen;
@@ -225,7 +225,7 @@ for (const width of [1440, 400]) {
 
     test("delete waits for the endpoint's own decision and says why it is not offered", async ({ page }) => {
       await explore(page, "viewer");
-      await page.getByRole("button", { name: /mobility:00001$/ }).click();
+      await page.getByRole("button", { name: "Open: Station 00001" }).click();
       const remove = page.getByTestId("explore-delete");
       await expect(remove).toHaveAttribute("aria-disabled", "true");
       await remove.scrollIntoViewIfNeeded();
