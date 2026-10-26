@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../src/api/client";
-import { proposeChecked } from "../src/api/proposal";
+import { proposeBundle, proposeChecked } from "../src/api/proposal";
 
 /** Every request the helper sends: method, path, whether it was the dry run, and its body. */
 function stubFetch(checkAnswer: unknown) {
@@ -73,6 +73,43 @@ describe("proposeChecked (PF-57, T-0956)", () => {
     await expect(proposeChecked("helsinki", "spaces", SPACE, true)).rejects.toThrow(
       "the check found problems",
     );
+    expect(sent).toHaveLength(1);
+  });
+});
+
+describe("proposeBundle (PF-57, F-UI2-013)", () => {
+  const DRAWN = { apiVersion: "joinedcontext.com/v1alpha1", kind: "ModelProjection", metadata: { name: "air-filter" }, spec: {} };
+  const TAKEN = "ModelProjection 'air-filter' already exists in project 'helsinki'; choose skip, replace or rename (MF-23)";
+
+  it("checks and proposes the first projection refusing a name someone else holds", async () => {
+    const sent = stubFetch({ created: ["air-filter"] });
+    await proposeBundle("helsinki", [DRAWN]);
+
+    expect(sent.map(({ path, dryRun }) => [path, dryRun])).toEqual([
+      ["/api/v1/projects/helsinki/import", true],
+      ["/api/v1/projects/helsinki/import", false],
+    ]);
+    for (const { body } of sent) {
+      expect(JSON.parse(body).conflictPolicy).toBe("fail");
+    }
+  });
+
+  it("proposes nothing when the check finds the name taken and carries the import's detail", async () => {
+    const sent: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        sent.push(String(input instanceof Request ? input.url : input));
+        return new Response(JSON.stringify({ type: "about:blank", title: "Conflict", status: 409, detail: TAKEN }), {
+          status: 409,
+          headers: { "Content-Type": "application/problem+json" },
+        });
+      }),
+    );
+
+    const refused = proposeBundle("helsinki", [DRAWN]);
+    await expect(refused).rejects.toBeInstanceOf(ApiError);
+    await expect(refused).rejects.toMatchObject({ status: 409, problem: { detail: expect.stringContaining("'air-filter' already exists") } });
     expect(sent).toHaveLength(1);
   });
 });

@@ -24,6 +24,10 @@ use crate::artifact_store::Client as Store;
 use crate::error::ApiError;
 use crate::state::AppState;
 
+/// One stored PUT at a time per App, from its quota check to its write, so concurrent uploads
+/// that each fit alone never pass `filesMiB` together (F-POR2-016).
+static PUTS: std::sync::LazyLock<crate::keyed::Keyed> = std::sync::LazyLock::new(Default::default);
+
 /// The largest object one call stores (AP-170).
 pub const MAX_OBJECT_BYTES: usize = 25 * 1024 * 1024;
 /// The body limit of the route: one byte over the object's, so that byte reaches the handler and
@@ -296,6 +300,7 @@ pub(super) async fn put(
         Ok(key) => format!("{}{key}", files.prefix),
         Err(why) => return bad(why),
     };
+    let _turn = PUTS.lock(&files.prefix).await;
     if let Err(refused) = room(&state, &files, (&name, &key), body.len() as u64).await {
         return *refused;
     }

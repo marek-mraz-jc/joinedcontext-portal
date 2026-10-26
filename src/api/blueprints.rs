@@ -245,7 +245,8 @@ pub async fn start_flow(
         &request.version,
         &request.parameters,
     );
-    let branch = create_or_reuse_branch(gitea, &branch, &default_branch).await?;
+    let held = crate::api::mutate::turn(gitea, &branch).await;
+    let branch = create_or_reuse_branch(gitea, &held, &default_branch).await?;
 
     let (author_name, author_email) = author_credentials(identity, &project);
     for (repo_path, yaml) in &planned.files {

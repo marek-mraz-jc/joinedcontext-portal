@@ -111,6 +111,10 @@ pub struct Config {
     /// `/cs/{space}/ngsi-ld/v1/subscriptions`, T-0931). `None`
     /// leaves subscriptions read from the repository and written nowhere.
     pub gateway_url: Option<String>,
+    /// A headless Service naming every gateway pod (`JC_PORTAL_GATEWAY_PODS_URL`, one address
+    /// record per pod): a space move copies only once each pod's `/metrics` shows the hold
+    /// (F-POR4-014). `None` asks `gateway_url` alone, right for one gateway replica.
+    pub gateway_pods_url: Option<String>,
     /// The Keycloak client the Context Gateway holds (`JC_PORTAL_GATEWAY_CLIENT_ID`), which
     /// is the only caller `GET /internal/previews` answers (PF-46, AG-52). `None` leaves that route refusing every call:
     /// a Portal that was not told whose token to expect must not fall back to trusting the
@@ -353,6 +357,7 @@ impl std::fmt::Debug for Config {
             .field("mqtt_namespace", &self.mqtt_namespace)
             .field("gateway_namespace", &self.gateway_namespace)
             .field("gateway_url", &self.gateway_url)
+            .field("gateway_pods_url", &self.gateway_pods_url)
             .field("gateway_client_id", &self.gateway_client_id)
             .field("agent_proxy_client_id", &self.agent_proxy_client_id)
             .field("pipeline_runner_client_id", &self.pipeline_runner_client_id)
@@ -1635,6 +1640,8 @@ impl Config {
         // reaches its broker, so it is refused at startup like every other address.
         let gateway_url = http_url(&lookup, "JC_PORTAL_GATEWAY_URL")?
             .map(|url| url.trim_end_matches('/').to_owned());
+        let gateway_pods_url = http_url(&lookup, "JC_PORTAL_GATEWAY_PODS_URL")?
+            .map(|url| url.trim_end_matches('/').to_owned());
 
         // The broker's own address, checked the same way: a typo here is a registration the
         // hub never learns about, and a hub that federates nothing looks exactly like a hub
@@ -1800,6 +1807,7 @@ impl Config {
             mqtt_namespace,
             gateway_namespace,
             gateway_url,
+            gateway_pods_url,
             gateway_client_id: lookup("JC_PORTAL_GATEWAY_CLIENT_ID")
                 .filter(|v| !v.trim().is_empty()),
             agent_proxy_client_id: lookup("JC_PORTAL_AGENT_PROXY_CLIENT_ID")
@@ -1872,6 +1880,7 @@ impl Config {
             mqtt_namespace: None,
             gateway_namespace: None,
             gateway_url: None,
+            gateway_pods_url: None,
             gateway_client_id: None,
             agent_proxy_client_id: None,
             pipeline_runner_client_id: None,
@@ -2075,6 +2084,7 @@ mod tests {
     fn addresses_keep_or_drop_their_slash_and_the_runner_template_is_probed() {
         let vars = |name: &str| match name {
             "JC_PORTAL_GATEWAY_URL" => Some("http://gw:8080/".to_owned()),
+            "JC_PORTAL_GATEWAY_PODS_URL" => Some("http://gw-pods:8080/".to_owned()),
             "JC_PORTAL_MODEL_TOOLS_URL" => Some("http://tools:8000/".to_owned()),
             "JC_PORTAL_UI_URL" => Some("http://portal-ui:8080/".to_owned()),
             "JC_PORTAL_PIPELINE_RUNNER_URL" => Some("http://runner.{project}.svc:4195".to_owned()),
@@ -2082,6 +2092,10 @@ mod tests {
         };
         let config = Config::from_vars(vars).expect("valid");
         assert_eq!(config.gateway_url.as_deref(), Some("http://gw:8080"));
+        assert_eq!(
+            config.gateway_pods_url.as_deref(),
+            Some("http://gw-pods:8080")
+        );
         assert_eq!(config.ui_url.as_deref(), Some("http://portal-ui:8080"));
         assert_eq!(
             config.model_tools_url.as_deref(),

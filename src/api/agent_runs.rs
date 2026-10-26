@@ -645,7 +645,19 @@ pub async fn create_run(
         error: None,
     };
 
-    state.agents.create_run(&run).await.map_err(unavailable)?;
+    if run.kind == "conversation" {
+        state.agents.create_run(&run).await.map_err(unavailable)?;
+    } else if !state
+        .agents
+        .create_run_alone(&run)
+        .await
+        .map_err(unavailable)?
+    {
+        return Err(ApiError::Conflict(format!(
+            "application '{}' already has a live run",
+            request.app_name
+        )));
+    }
     // The person's identity goes to the proxy before anything the run does can read through it
     // (ADR-N-038 §3.1, AG-94); the Portal keeps no copy.
     crate::agents::identity::hand_over(

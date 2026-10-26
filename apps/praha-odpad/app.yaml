@@ -41,7 +41,7 @@ spec:
         kind: ContextSpace
         name: praha-mesto
       types: [WasteContainer, WasteContainerIsle]
-      attrs: [containerCode, wasteKind, fillingLevel, dateModified, refWasteContainerIsle, name]
+      attrs: [containerCode, wasteKind, fillingLevel, dateModified, refWasteContainerIsle, name, location]
       operations: [queryEntity, retrieveEntity]
       representations: [ngsi-ld, ogc-features]
       roles: [viewer]

@@ -48,6 +48,7 @@ spec:
     - areaCode
     - divisionLevel
     - surfaceArea
+    - location
     relationshipNames:
     - name
     - category
@@ -77,6 +78,7 @@ spec:
     - areaCode
     - divisionLevel
     - surfaceArea
+    - location
   operations:
   - queryEntity
   - retrieveEntity

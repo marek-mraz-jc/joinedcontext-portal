@@ -37,6 +37,7 @@ pub mod git;
 pub mod groups;
 pub mod health_log;
 pub mod health_probe;
+pub mod keyed;
 pub mod link_check;
 pub mod live;
 pub mod mcp;

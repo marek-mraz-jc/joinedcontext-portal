@@ -75,6 +75,30 @@ impl AgentStore {
         Ok(())
     }
 
+    /// Stores a run that must be its application's only live one: `Ok(false)`, and nothing
+    /// stored, when another live run of the app exists. Postgres decides under an advisory lock
+    /// per App, the memory store under its write lock, so two concurrent creates never both start
+    /// (F-POR1-018).
+    pub async fn create_run_alone(&self, run: &AgentRun) -> Result<bool, StoreError> {
+        if let Some(pool) = &self.db {
+            return Ok(db::insert_agent_run_alone(pool, run).await?);
+        }
+        let mut memory = self.memory.write().await;
+        let taken = memory.runs.values().any(|r| {
+            r.project == run.project
+                && r.app_name == run.app_name
+                && AgentRunStatus::parse(&r.status).is_some_and(|s| !s.is_terminal())
+        });
+        if taken {
+            return Ok(false);
+        }
+        memory.runs.insert(run.id.clone(), run.clone());
+        memory
+            .started
+            .insert(run.id.clone(), std::time::Instant::now());
+        Ok(true)
+    }
+
     pub async fn get_run(&self, id: &str) -> Result<Option<AgentRun>, StoreError> {
         if let Some(pool) = &self.db {
             return Ok(db::load_agent_run(pool, id).await?);

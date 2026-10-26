@@ -24,6 +24,7 @@ spec:
     - unitText
     - dateObserved
     - stewardNote
+    - location
     relationshipNames:
     - indicator
     - refArea
@@ -32,6 +33,7 @@ spec:
     - unitText
     - dateObserved
     - stewardNote
+    - location
   operations:
   - queryEntity
   - retrieveEntity

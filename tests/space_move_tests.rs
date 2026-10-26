@@ -309,7 +309,7 @@ async fn nothing_is_copied_before_the_gateway_holds_the_space() {
     assert!(
         job["reason"]
             .as_str()
-            .is_some_and(|r| r.contains("did not take the hold")),
+            .is_some_and(|r| r.contains("not every gateway pod took the hold")),
         "{job}"
     );
     assert!(sent(&world.source, "GET", &format!("{TENANT}/export"))
