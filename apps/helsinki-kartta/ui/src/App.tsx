@@ -192,7 +192,6 @@ function ServiceMap() {
                         type="button"
                         data-id={place.id}
                         aria-pressed={place.id === pickedId}
-                        aria-label={place.name ?? s.unnamed}
                         aria-describedby={`about-${place.id}`}
                         onClick={() => pick(place.id)}
                       >
@@ -200,7 +199,8 @@ function ServiceMap() {
                           {KIND_SHAPE[place.kind]}
                         </span>
                         <span className="name">{place.name ?? s.unnamed}</span>
-                        <span className="sub" id={`about-${place.id}`}>
+                        {/* The name is the button's visible name text (WCAG 2.5.3); the kind line is its description. */}
+                        <span className="sub" id={`about-${place.id}`} aria-hidden="true">
                           {s.kind[place.kind]}
                           {place.kind === "water" && place.temperature !== null ? ` · ${place.temperature.toLocaleString(s.locale)} °C` : ""}
                           {place.coordinates === null ? ` · ${s.notOnMap}` : ""}

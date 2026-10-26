@@ -90,7 +90,7 @@ afterEach(() => {
 });
 
 const results = () => screen.getByRole("region", { name: /paikka/ });
-const names = () => within(results()).queryAllByRole("button").map((button) => button.getAttribute("aria-label"));
+const names = () => within(results()).queryAllByRole("button").map((button) => button.querySelector(".name")?.textContent);
 
 describe("the Helsinki service map", () => {
   it("lists the services and the water sensors, and draws those with a position", async () => {
@@ -133,6 +133,7 @@ describe("the Helsinki service map", () => {
     show();
     await waitFor(() => expect(names()).toContain("Hietaniemi, vesi"));
     const item = within(results()).getByRole("button", { name: "Hietaniemi, vesi" });
+    expect(item).toHaveAccessibleDescription(expect.stringContaining(s.kind.water));
     await userEvent.click(item);
     expect(item).toHaveAttribute("aria-pressed", "true");
     const panel = await screen.findByRole("dialog", { name: "Hietaniemi, vesi" });
@@ -223,11 +224,23 @@ describe("the Helsinki service map", () => {
     expect(screen.getByRole("status")).toHaveTextContent(s.noEndpoint);
   });
 
+  // WCAG 2.5.3 label in name: a voice user says what a place's button shows, so its name is its visible text.
+  it("names each place's button by the words it shows", async () => {
+    show();
+    await waitFor(() => expect(names()).toContain("Keskustakirjasto Oodi"));
+    for (const button of within(results()).getAllByRole("button")) {
+      const shown = button.cloneNode(true) as HTMLElement;
+      shown.querySelectorAll("[aria-hidden='true']").forEach((hidden) => hidden.remove());
+      expect(within(results()).getByRole("button", { name: shown.textContent!.trim() })).toBe(button);
+    }
+  });
+
   it("names its sources and has nothing axe finds", async () => {
     const { container } = show();
     await waitFor(() => expect(names()).toContain("Keskustakirjasto Oodi"));
     expect(screen.getByText(s.attribution)).toBeInTheDocument();
-    const found = await axe.run(container, { rules: { region: { enabled: false } } });
+    // label-content-name-mismatch (WCAG 2.5.3) is opt-in before axe 4.14: every visible word of a place's button is in its name.
+    const found = await axe.run(container, { rules: { region: { enabled: false }, "label-content-name-mismatch": { enabled: true } } });
     expect(found.violations.map((v) => v.id)).toEqual([]);
   });
 });
