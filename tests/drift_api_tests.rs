@@ -295,13 +295,6 @@ async fn adopting_proposes_the_seed_file_with_the_live_values_as_a_change() {
         })))
         .mount(&forge)
         .await;
-    Mock::given(method("POST"))
-        .and(path("/realms/r/protocol/openid-connect/token"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "access_token": "t", "token_type": "Bearer", "expires_in": 300
-        })))
-        .mount(&forge)
-        .await;
     Mock::given(method("GET"))
         .and(path(format!("/cs/{SPACE}/ngsi-ld/v1/entities/{ENTITY}")))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
@@ -313,16 +306,32 @@ async fn adopting_proposes_the_seed_file_with_the_live_values_as_a_change() {
         .mount(&forge)
         .await;
 
-    let mut state = common::state_on(&forge);
+    // The live entity is read through the gateway (here the forge mock) with the person's own
+    // token, never with the Portal's account (T-5698).
+    let forge_url = forge.uri();
+    let config = Config::from_vars(|key| {
+        match key {
+            "JC_OIDC_ISSUER" => Some(common::REALM.issuer.as_str()),
+            "JC_OIDC_CLIENT_ID" => Some("portal-api"),
+            "JC_OIDC_CLIENT_SECRET" => Some("test-secret"),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+            }
+            "JC_PORTAL_GATEWAY_URL" => Some(forge_url.as_str()),
+            _ => None,
+        }
+        .map(str::to_owned)
+    })
+    .expect("config");
+    let client = joinedcontext_portal::git::GiteaClient::new(
+        forge_url.parse().expect("mock url"),
+        "test-owner",
+        "test-repo",
+        "token-xyz",
+    )
+    .expect("client");
+    let mut state = AppState::new(config, None).with_gitea(Arc::new(client));
     state.drift = scanned();
-    state.drift_watch = Some(Arc::new(
-        joinedcontext_portal::reconciler::drift::Watch::new(
-            forge.uri(),
-            &format!("{}/realms/r", forge.uri()),
-            "portal".to_owned(),
-            joinedcontext_portal::config::ClientAuth::Secret("s".to_owned()),
-        ),
-    ));
     let answer = common::send(
         &state,
         common::person("adopter"),
@@ -347,20 +356,51 @@ async fn adopting_proposes_the_seed_file_with_the_live_values_as_a_change() {
         json!({ "subjects": [{ "user": "adopter@hel.fi" }], "role": "adopter",
                 "scope": { "project": PROJECT } }),
     ));
-    let answer = common::send(
-        &state,
-        common::person("adopter"),
-        "POST",
-        &format!("/api/v1/projects/{PROJECT}/drift/{SPACE}/{ENTITY}/adopt"),
-        None,
-    )
-    .await;
-    assert_eq!(answer.status, StatusCode::ACCEPTED, "{}", answer.text);
-    let change: Value = serde_json::from_str(&answer.text).expect("a Change");
+    let token = common::REALM.person_token_of("portal-api", "portal-api", "adopter", &[]);
+    let response = server::app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/api/v1/projects/{PROJECT}/drift/{SPACE}/{ENTITY}/adopt"
+                ))
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .expect("a request"),
+        )
+        .await
+        .expect("an answer");
+    let status = response.status();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body")
+        .to_bytes();
+    let text = String::from_utf8_lossy(&bytes);
+    assert_eq!(status, StatusCode::ACCEPTED, "{text}");
+    let change: Value = serde_json::from_str(&text).expect("a Change");
     assert_eq!(change["metadata"]["name"], "chg-00000009", "{change}");
     assert_eq!(change["status"]["phase"], "PendingApproval");
 
     let sent = forge.received_requests().await.unwrap_or_default();
+    let read = sent
+        .iter()
+        .find(|r| r.url.path().starts_with(&format!("/cs/{SPACE}/")))
+        .expect("the live entity read");
+    assert_eq!(
+        read.headers
+            .get("authorization")
+            .and_then(|v| v.to_str().ok()),
+        Some(format!("Bearer {token}").as_str()),
+        "read with the person's own token"
+    );
+    assert!(
+        !sent
+            .iter()
+            .any(|r| r.url.path().ends_with("/openid-connect/token")),
+        "the Portal fetched no token of its own"
+    );
     let branch = sent
         .iter()
         .find(|r| r.method.as_str() == "POST" && r.url.path().ends_with("/branches"))

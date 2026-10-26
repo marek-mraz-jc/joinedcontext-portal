@@ -361,6 +361,9 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
                 return json_response(StatusCode::OK, &result(id, json!({ "resources": [] })));
             }
             let mut resources = Vec::new();
+            // Item by item: a grant bound to one context space lists that space's manifests
+            // alone, as the REST list does (T-5698).
+            let effective = crate::permissions::for_request(&state, &caller.identity, &project);
             for info in crate::resource::kinds() {
                 if !may_read_kind(&state, &caller, &project, info.kind) {
                     continue;
@@ -369,7 +372,11 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
                     state
                         .mirror
                         .list(&project, info.kind, &crate::store::ListOptions::default());
-                for item in page.items {
+                for item in page
+                    .items
+                    .into_iter()
+                    .filter(|item| effective.may_read_envelope(info.kind, item))
+                {
                     resources.push(json!({
                         "uri": format!("jc://{project}/{}/{}", info.plural, item.metadata.name),
                         "name": item.metadata.name,
@@ -381,6 +388,11 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
             // AG-81: the organization's own resources belong to no project, so they are listed
             // beside it under `jc://-/`. `-` is not a DNS-1123 label and can never be a project's
             // name. The permission is the one the REST route asks of the same kind.
+            let org = crate::permissions::for_request(
+                &state,
+                &caller.identity,
+                crate::permissions::ORG_NAMESPACE,
+            );
             for info in crate::resource::kinds() {
                 if !may_read_kind(
                     &state,
@@ -395,7 +407,11 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
                     info.kind,
                     &crate::store::ListOptions::default(),
                 );
-                for item in page.items {
+                for item in page
+                    .items
+                    .into_iter()
+                    .filter(|item| org.may_read_envelope(info.kind, item))
+                {
                     resources.push(json!({
                         "uri": format!("jc://-/{}/{}", info.plural, item.metadata.name),
                         "name": item.metadata.name,
@@ -408,7 +424,11 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
                 .list(&project)
                 .await
                 .unwrap_or_default();
-            for draft in drafts {
+            // A draft is readable exactly where its manifest would be (PF-59, T-1455).
+            for draft in drafts
+                .into_iter()
+                .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))
+            {
                 resources.push(json!({
                     "uri": format!("jc://{project}/drafts/{}/{}", draft.kind, draft.name),
                     "name": draft.name,
@@ -423,7 +443,11 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
                     state
                         .mirror
                         .list(&project, "DataModel", &crate::store::ListOptions::default());
-                for model in models.items {
+                for model in models
+                    .items
+                    .into_iter()
+                    .filter(|model| effective.may_read_envelope("DataModel", model))
+                {
                     resources.push(json!({
                         "uri": format!("jc://{project}/datamodels/{}/linkml", model.metadata.name),
                         "name": model.metadata.name,
@@ -608,6 +632,26 @@ fn may_read(state: &AppState, caller: &crate::ops::Caller, project: &str) -> boo
 
 /// Whether the caller reads this kind here (PF-59): the same rule the REST list and get apply,
 /// so a resource the API hides is not handed out over MCP either.
+/// The stored manifest `kind`/`name` of `namespace` when the caller reads that one manifest: a
+/// grant on the kind, and for a grant bound to one context space a manifest of that space
+/// (T-5698).
+fn readable_item(
+    state: &AppState,
+    caller: &crate::ops::Caller,
+    namespace: &str,
+    kind: &str,
+    name: &str,
+) -> Option<crate::resource::ResourceEnvelope> {
+    if !may_read_kind(state, caller, namespace, kind) {
+        return None;
+    }
+    let effective = crate::permissions::for_request(state, &caller.identity, namespace);
+    state
+        .mirror
+        .get(namespace, kind, name)
+        .filter(|item| effective.may_read_envelope(kind, item))
+}
+
 fn may_read_kind(state: &AppState, caller: &crate::ops::Caller, project: &str, kind: &str) -> bool {
     crate::permissions::for_request(state, &caller.identity, project).may_read(kind)
 }
@@ -901,7 +945,7 @@ async fn read_resource(
         // The model's own source. The Portal holds the LinkML; the JSON Schema and the
         // `@context` are the endpoint façade's renderings of it, and are read there (EP-47).
         [project, "datamodels", name, "linkml"]
-            if may_read_kind(state, caller, project, "DataModel") =>
+            if readable_item(state, caller, project, "DataModel", name).is_some() =>
         {
             let source = crate::api::datamodels::read_source(state, project, name)
                 .await
@@ -913,26 +957,28 @@ async fn read_resource(
                 .get(project, kind, name)
                 .await
                 .ok()
-                .flatten()?;
+                .flatten()
+                .filter(|draft| {
+                    crate::permissions::for_request(state, &caller.identity, project)
+                        .may_read_manifest(&draft.kind, &draft.manifest)
+                })?;
             Some(("application/json", serde_json::to_string(&draft).ok()?))
         }
         // AG-81: `jc://-/{plural}/{name}` is a resource of the organization itself.
         ["-", plural, name] => {
             let info = crate::resource::by_plural(plural)?;
-            if !may_read_kind(state, caller, crate::permissions::ORG_NAMESPACE, info.kind) {
-                return None;
-            }
-            let item = state
-                .mirror
-                .get(crate::permissions::ORG_NAMESPACE, info.kind, name)?;
+            let item = readable_item(
+                state,
+                caller,
+                crate::permissions::ORG_NAMESPACE,
+                info.kind,
+                name,
+            )?;
             Some(("application/json", serde_json::to_string(&item).ok()?))
         }
         [project, plural, name] => {
             let info = crate::resource::by_plural(plural)?;
-            if !may_read_kind(state, caller, project, info.kind) {
-                return None;
-            }
-            let item = state.mirror.get(project, info.kind, name)?;
+            let item = readable_item(state, caller, project, info.kind, name)?;
             Some(("application/json", serde_json::to_string(&item).ok()?))
         }
         _ => None,

@@ -232,6 +232,7 @@ async fn list(
     let info = kind_named(&input.kind)?;
     let homes = crate::resource::homes(info, project);
     readable(caller, state, &homes[0], info)?;
+    let effective = crate::permissions::for_request(state, &caller.identity, &homes[0]);
     let items: Vec<Value> = homes
         .iter()
         .flat_map(|home| {
@@ -240,6 +241,8 @@ async fn list(
                 .list(home, info.kind, &ListOptions::default())
                 .items
         })
+        // A grant bound to one context space lists that space's manifests alone (T-5698).
+        .filter(|envelope| effective.may_read_envelope(info.kind, envelope))
         .filter(|envelope| {
             input
                 .space
@@ -261,7 +264,14 @@ async fn get(
     let homes = crate::resource::homes(info, project);
     let project = &home_holding(state, info, project, &input.name);
     readable(caller, state, project, info)?;
-    match state.mirror.get(project, info.kind, &input.name) {
+    // What a grant bound to one context space may not read is not there, and is no name the
+    // caller is told about either (PF-59, R20, T-5698).
+    let effective = crate::permissions::for_request(state, &caller.identity, project);
+    match state
+        .mirror
+        .get(project, info.kind, &input.name)
+        .filter(|envelope| effective.may_read_envelope(info.kind, envelope))
+    {
         Some(envelope) => Ok(serde_json::to_value(envelope)?),
         None => {
             // The names it could have been are every name of every place this kind lives in,
@@ -274,6 +284,7 @@ async fn get(
                         .list(home, info.kind, &ListOptions::default())
                         .items
                 })
+                .filter(|envelope| effective.may_read_envelope(info.kind, envelope))
                 .map(|envelope| envelope.metadata.name)
                 .collect();
             names.sort();

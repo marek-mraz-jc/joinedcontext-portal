@@ -268,6 +268,7 @@ async fn mutate_manifest(
 }
 
 async fn resolve_manifest_input(
+    caller: &Caller,
     state: &AppState,
     project: &str,
     input: &ManifestInput,
@@ -277,16 +278,7 @@ async fn resolve_manifest_input(
             same_draft(m, d)?;
             return Ok((m.clone(), Some(d.clone())));
         }
-        let draft = draft_store(state)
-            .get(project, &d.kind, &d.name)
-            .await
-            .map_err(|e| OpError::Api(ApiError::Internal(e.to_string())))?
-            .ok_or_else(|| {
-                ApiError::NotFound(format!(
-                    "draft '{}/{}' not found in project '{project}'",
-                    d.kind, d.name
-                ))
-            })?;
+        let draft = super::drafts::readable_draft(state, &caller.identity, project, d).await?;
         return Ok((draft.manifest, Some(d.clone())));
     }
     if let Some(m) = &input.manifest {
@@ -873,7 +865,7 @@ pub fn operations() -> Vec<Operation> {
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     let input: ManifestInput = parse_input(val)?;
-                    let (manifest, draft_ref) = resolve_manifest_input(state, project, &input).await?;
+                    let (manifest, draft_ref) = resolve_manifest_input(caller, state, project, &input).await?;
                     let answer = dry_run::execute_dry_run(
                         &caller.identity,
                         state,
@@ -936,7 +928,7 @@ pub fn operations() -> Vec<Operation> {
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     let input: ManifestInput = parse_input(val)?;
-                    let (manifest, draft_ref) = resolve_manifest_input(state, project, &input).await?;
+                    let (manifest, draft_ref) = resolve_manifest_input(caller, state, project, &input).await?;
                     let mut out = match mutate_manifest(caller, state, project, "datasources", manifest.clone(), true, false).await {
                         Ok(out) => out,
                         // The same refusal a `DataSource` used to answer as a 4xx: a probe that
