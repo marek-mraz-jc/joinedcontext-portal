@@ -769,6 +769,9 @@ export function EndpointPage({
  * it says. T-2283 turns these four boxes into rows a person builds without knowing NGSI-LD, with the
  * count of what they match; the boxes are what the manifest can express today.
  */
+/** A 409 on a filter proposal: another filter of the project already holds the name (F-UI2-013). */
+const nameTaken = (error: unknown): boolean => error instanceof ApiError && error.status === 409;
+
 function FilterForm({
   project,
   projection,
@@ -999,7 +1002,7 @@ function FilterForm({
         {failure ? (
           <Alert tone="danger" role="alert">
             {failure}
-            {propose.error instanceof ApiError && propose.error.status === 409 ? (
+            {nameTaken(propose.error) ? (
               <p className="mt-1">{t("endpoints.filterEditor.nameTaken")}</p>
             ) : null}
           </Alert>
