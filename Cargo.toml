@@ -68,8 +68,8 @@ path = "src/main.rs"
 
 [dependencies]
 # The manifest contract, by tag or by full commit, never by path into another agent's clone
-# (T-0249). Pinned to platform aacd307 (platform main with T-5710: people named by Keycloak id,
-# ADR-N-061; and T-5087: no CKAN DataStore mirror); the three crates share one reference, so cargo
+# (T-0249). Pinned to platform 3df270c (platform main aacd307 with T-5710: people named by Keycloak id,
+# ADR-N-061; and T-5087: no CKAN DataStore mirror; T-5748: a refused CKAN read says its problem detail); the three crates share one reference, so cargo
 # pulls one copy (T-3167).
 # `version` is the crate's own version at that tag (the tag counts differently); without it
 # cargo-deny reads the requirement as `*` and the supply-chain check goes red (T-0287).
