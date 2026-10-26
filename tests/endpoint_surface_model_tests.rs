@@ -190,6 +190,26 @@ async fn ical_on_the_sdm_event_model_opens_a_change() {
     );
 }
 
+/// bbsk-podujatia's model keeps `startDate` a string with an ISO 8601 date or date-time pattern
+/// (its sources mix whole-day and timed events): the default iCal preset opens a change over it
+/// (T-5208: jc-core 207bf9b refused it, and the reconciler took the Endpoint off the broker).
+#[tokio::test]
+async fn ical_over_a_date_pattern_string_opens_a_change() {
+    let dated = EVENTS.replace(
+        "  startDate:\n    range: datetime\n",
+        "  startDate:\n    range: string\n    pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2})?(Z|[+-][0-9]{2}:[0-9]{2}))?$'\n",
+    );
+    assert_ne!(dated, EVENTS);
+    let (state, _gitea) = portal(&dated).await;
+    let answer = propose(&state, endpoint(json!(["ngsi-ld", "ical"]))).await;
+    assert!(
+        answer.status.is_success(),
+        "{} {}",
+        answer.status,
+        answer.text
+    );
+}
+
 #[tokio::test]
 async fn an_endpoint_without_ical_is_not_held_to_the_event_type() {
     let (state, _gitea) = portal(PLACES).await;
