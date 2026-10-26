@@ -2353,13 +2353,13 @@ impl Syncer {
                     Ok(raw) => crate::personal_keys::usable(&raw),
                     // The reference is named, the value never is (PL-17, MF-24).
                     Err(err) => {
-                        tracing::warn!(project = %namespace, space = %space, secret = %reference.name, error = %err,
+                        tracing::warn!(project = %namespace, space = %space, secret_ref = %reference.name, error = %err,
                             "a space's personal-data key does not resolve; its keyedHash slots have no key");
                         continue;
                     }
                 };
                 let Some(key) = key else {
-                    tracing::warn!(project = %namespace, space = %space, secret = %reference.name,
+                    tracing::warn!(project = %namespace, space = %space, secret_ref = %reference.name,
                         "a space's personal-data key is shorter than 32 bytes; its keyedHash slots have no key");
                     continue;
                 };
