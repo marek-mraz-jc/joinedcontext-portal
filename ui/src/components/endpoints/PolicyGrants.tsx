@@ -10,11 +10,10 @@
 import { useState } from "react";
 import type { JSX } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, queryKeys, unwrap } from "../../api/client";
 import { ORG_NAMESPACE, asManifests, localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
+import { useReadableList } from "../../api/permissions";
 import { granteeName, operationAreas } from "../AccessWords";
 import { Alert, Badge, Button } from "../ui";
 import { PageFailed } from "../ui/PageState";
@@ -44,15 +43,13 @@ export function rulesOf(policy: Manifest): Rule[] {
   return policyRules(policy) as Rule[];
 }
 
-/** Title by name, for one kind the caller may list; empty when the list is refused or absent. */
-function useTitles(project: string, plural: string, wanted: boolean): Map<string, Manifest> {
-  const list = useQuery({
-    queryKey: queryKeys.list(project, plural),
-    queryFn: async () =>
-      unwrap(await api.GET("/api/v1/projects/{project}/{plural}", { params: { path: { project, plural } } })),
-    enabled: wanted,
-    retry: false,
-  });
+/**
+ * Title by name, for one kind the caller may list; empty when the list is refused or absent. A
+ * list the caller's permissions do not read is never asked for: the API answers it with a 404
+ * (T-3852), which the walker reads as a broken page (T-5770).
+ */
+function useTitles(project: string, plural: string, kind: string, wanted: boolean): Map<string, Manifest> {
+  const list = useReadableList(project, plural, kind, wanted);
   const items = asManifests(list.data?.items ?? []);
   return new Map(items.map((item) => [item.metadata.name, item]));
 }
@@ -73,8 +70,8 @@ export function PolicyGrants({
   const policies = binding.kind === "unbound" ? [] : binding.policies;
   const kinds = new Set(policies.flatMap((policy) => rulesOf(policy).map((rule) => rule.assignee?.kind)));
   const titles = {
-    group: useTitles(ORG_NAMESPACE, "groups", kinds.has("group")),
-    serviceAccount: useTitles(project, "serviceaccounts", kinds.has("serviceAccount")),
+    group: useTitles(ORG_NAMESPACE, "groups", "Group", kinds.has("group")),
+    serviceAccount: useTitles(project, "serviceaccounts", "ServiceAccount", kinds.has("serviceAccount")),
   };
 
   if (pending) {

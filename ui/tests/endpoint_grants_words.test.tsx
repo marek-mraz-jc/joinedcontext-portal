@@ -57,7 +57,10 @@ const SERVICE_ACCOUNT = {
 
 let asked: string[] = [];
 
-function show(policies: Manifest[], serviceAccounts: number = 200) {
+/** permissions/me per project; a project left out answers no grants document, so the API decides. */
+type Grants = Record<string, { kinds: string[]; verbs: string[] }[]>;
+
+function show(policies: Manifest[], serviceAccounts: number = 200, grants: Grants = {}) {
   asked = [];
   vi.stubGlobal(
     "fetch",
@@ -66,6 +69,11 @@ function show(policies: Manifest[], serviceAccounts: number = 200) {
       asked.push(path);
       const json = (status: number, body: unknown) =>
         Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
+      const me = /^\/api\/v1\/projects\/([^/]+)\/permissions\/me$/.exec(path);
+      const rules = me ? grants[me[1]] : undefined;
+      if (rules) {
+        return json(200, { grants: rules.map((rule) => ({ rule })) });
+      }
       if (path.endsWith("/helsinki/serviceaccounts")) {
         return serviceAccounts === 200
           ? json(200, { kind: "List", items: [SERVICE_ACCOUNT] })
@@ -154,6 +162,23 @@ describe("who may call helsinki-bikes-ops, in words", () => {
       `pipelines (${en.choice.principalKind.serviceAccount})`,
     );
     expect(asked.some((path) => /people|users|groups/.test(path))).toBe(false);
+  });
+
+  it("asks for no list the caller's permissions do not read, and names the grantees by id (T-5770)", async () => {
+    // A viewer of the space: reads its data, reads no Group of the organization and no
+    // ServiceAccount of the project, so either list would 404 (T-3852).
+    const viewer = [{ kinds: ["Endpoint", "Policy", "Entity"], verbs: ["read"] }];
+    show([READ, PIPELINES], 200, { org: viewer, helsinki: viewer });
+    const read = await grantOf("The city's people read the bike stations");
+    const pipelines = await grantOf("The pipelines write the stations");
+    await vi.waitFor(() => expect(asked).toContain("/api/v1/projects/org/permissions/me"));
+    await vi.waitFor(() => expect(asked).toContain("/api/v1/projects/helsinki/permissions/me"));
+    expect(within(read).getByTitle("group:helsinki")).toHaveTextContent(`helsinki (${en.choice.principalKind.group})`);
+    expect(within(pipelines).getByTitle("serviceAccount:pipelines")).toHaveTextContent(
+      `pipelines (${en.choice.principalKind.serviceAccount})`,
+    );
+    expect(asked).not.toContain("/api/v1/projects/org/groups");
+    expect(asked).not.toContain("/api/v1/projects/helsinki/serviceaccounts");
   });
 
   it("reads each rule of a Policy with rules[], a prohibition as one", async () => {
