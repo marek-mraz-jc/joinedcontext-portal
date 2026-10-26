@@ -51,6 +51,7 @@ const SERVICES = [
       "jc_app_sdk::blob::list(prefix: &str) -> Result<Vec<String>, Error>",
       "jc_app_sdk::blob::delete(key: &str) -> Result<(), Error>",
       "jc_app_sdk::blob::presign(key: &str, method: Method, expires_seconds: u32) -> Result<String, Error>",
+      "jc_app_sdk::blob::presign_put(key: &str, size: u64, expires_seconds: u32) -> Result<String, Error>",
     ],
     appYaml: ["services: [files]", "kind: wasm and storage.blob for the Rust calls"],
     quotas: ["filesMiB"],
