@@ -135,9 +135,10 @@ pub fn stamp_owner(
 pub struct Standing {
     /// The subject [`OWNER_ANNOTATION`] names.
     pub owner: bool,
-    /// The App carries no [`OWNER_ANNOTATION`] (written before T-4910) and the person may propose
-    /// an App in its project: who could have authored it.
-    pub author: bool,
+    /// The App carries no [`OWNER_ANNOTATION`] (written before T-4910) and the person may approve
+    /// an App in its project: its administrator, who can give it an owner (F-BNT3-009). Who may
+    /// only propose one is no owner of it.
+    pub admin: bool,
     /// A binding in force covers the App's project, or the bootstrap group (PF-59).
     pub project_member: bool,
     /// A binding in force anywhere in the organization (DM-75).
@@ -154,7 +155,7 @@ pub fn admits(visibility: AppVisibility, person: Option<&AppPerson>, standing: S
         (AppVisibility::Roles, Some(person)) => !person.roles.is_empty(),
         (AppVisibility::Organization, Some(_)) => standing.organization_member,
         (AppVisibility::Project, Some(_)) => standing.project_member,
-        (AppVisibility::Private, Some(_)) => standing.owner || standing.author,
+        (AppVisibility::Private, Some(_)) => standing.owner || standing.admin,
     }
 }
 
@@ -183,7 +184,7 @@ fn standing(state: &AppState, project: &str, name: &str, identity: &Identity) ->
         .and_then(|app| app.metadata.annotations.get(OWNER_ANNOTATION).cloned());
     Standing {
         owner: owner.as_deref() == Some(identity.subject.as_str()),
-        author: owner.is_none() && rights.may("App", jc_core::kinds::Verb::Propose),
+        admin: owner.is_none() && rights.may("App", jc_core::kinds::Verb::Approve),
         project_member: rights.may_read_project(),
         organization_member: crate::permissions::is_organization_member(state, identity),
     }
@@ -434,8 +435,8 @@ mod tests {
             owner: true,
             ..realm
         };
-        let author = Standing {
-            author: true,
+        let admin = Standing {
+            admin: true,
             ..member
         };
         // (caller, standing, [public, roles, organization, project, private])
@@ -466,9 +467,9 @@ mod tests {
                 [true, false, false, false, true],
             ),
             (
-                "author of an App without an owner",
+                "administrator of an App without an owner",
                 Some(&nobody),
-                author,
+                admin,
                 [true, false, true, true, true],
             ),
             (
