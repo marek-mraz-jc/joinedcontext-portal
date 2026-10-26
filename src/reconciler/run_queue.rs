@@ -258,12 +258,13 @@ fn field(text: &str, lo: u32, hi: u32) -> Option<u64> {
     Some(set)
 }
 
-/// One run-and-delete pipeline as the reconciler hands it over: its stream as one run, and its
-/// clock.
+/// One run-and-delete pipeline as the reconciler hands it over: its stream as one run, its
+/// clock, and whether an output replaces its entities (PL-79).
 #[derive(Debug, Clone)]
 pub struct Planned {
     pub stream: Value,
     pub clock: Clock,
+    pub replace: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -474,7 +475,8 @@ impl RunQueue {
     /// Takes the reconciler's whole set of run-and-delete pipelines: a new one or one whose
     /// stream or clock changed is due by its clock (a run-once one at once, and a scheduled one
     /// that never ran at once too), one no longer in the set leaves the queue and its run is
-    /// deleted.
+    /// deleted. A replace pipeline whose stream changed is due at once (T-5824): its entities
+    /// hold what the old mapping wrote until it runs, and only a replace run removes that.
     pub fn plan(&mut self, wanted: BTreeMap<Key, Planned>, now: DateTime<Utc>) {
         self.planned_at = Some(now);
         let dropped: Vec<Key> = self
@@ -501,11 +503,12 @@ impl RunQueue {
             match self.entries.get_mut(&key) {
                 Some(entry) if entry.stream == planned.stream && entry.clock == planned.clock => {}
                 Some(entry) => {
+                    let rewrite = planned.replace && entry.stream != planned.stream;
                     entry.stuck = false;
                     entry.stream = planned.stream;
                     entry.clock = planned.clock;
                     entry.lane = lane;
-                    entry.next = first;
+                    entry.next = if rewrite { Some(now) } else { first };
                 }
                 None => {
                     let first = match self.ran.as_ref().map(|ran| ran.get(&key)) {
@@ -1001,6 +1004,7 @@ mod tests {
         Planned {
             stream: serde_json::json!({"input": {"generate": {"count": 1}}}),
             clock,
+            replace: false,
         }
     }
 
@@ -1320,6 +1324,94 @@ mod tests {
         Clock::of(None, Some("0 5 * * *")).expect("a schedule")
     }
 
+    fn weekly_run(replace: bool, count: u64) -> Planned {
+        Planned {
+            stream: serde_json::json!({"input": {"generate": {"count": count}}}),
+            clock: Clock::of(None, Some("0 5 * * 1")).expect("a schedule"),
+            replace,
+        }
+    }
+
+    fn next_of(queue: &RunQueue, name: &str) -> Option<DateTime<Utc>> {
+        queue.entries.get(&key(name)).and_then(|entry| entry.next)
+    }
+
+    /// T-5824: a replace pipeline whose mapping changed is due at once, since its entities keep
+    /// what the old mapping wrote until it runs; an upsert one, a changed clock alone and an
+    /// unchanged pipeline keep their clock.
+    #[test]
+    fn a_changed_replace_stream_is_due_at_once_and_the_rest_keep_their_clock() {
+        let mut queue = RunQueue::new(1, 1);
+        let start = at("2026-10-27T06:00:00Z");
+        let later = at("2026-10-28T09:00:00Z");
+        let names = ["replaced", "upserted", "reclocked", "same"];
+        let first: BTreeMap<Key, Planned> = names
+            .iter()
+            .map(|name| (key(name), weekly_run(*name != "upserted", 1)))
+            .collect();
+        queue.plan(first, start);
+        let monday = weekly_run(true, 1).clock.next_after(start);
+        assert_eq!(monday, Some(at("2026-11-02T05:00:00Z")));
+        for name in names {
+            assert_eq!(next_of(&queue, name), monday, "{name}");
+        }
+
+        let mut reclocked = weekly_run(true, 1);
+        reclocked.clock = daily_at_5();
+        let second: BTreeMap<Key, Planned> = [
+            (key("replaced"), weekly_run(true, 2)),
+            (key("upserted"), weekly_run(false, 2)),
+            (key("reclocked"), reclocked),
+            (key("same"), weekly_run(true, 1)),
+        ]
+        .into_iter()
+        .collect();
+        queue.plan(second, later);
+        assert_eq!(next_of(&queue, "replaced"), Some(later));
+        assert_eq!(next_of(&queue, "upserted"), monday);
+        assert_eq!(next_of(&queue, "reclocked"), daily_at_5().next_after(later));
+        assert_eq!(next_of(&queue, "same"), monday);
+    }
+
+    /// T-5824: a seed sync that changes many replace streams queues them all at once, and the
+    /// batch lane still starts one at a time.
+    #[tokio::test]
+    async fn changed_replace_streams_run_through_the_lane_one_at_a_time() {
+        let queue = Mutex::new(RunQueue::new(1, 1));
+        let fake = Fake::default();
+        let start = at("2026-10-27T06:00:00Z");
+        let names = ["a", "b", "c"];
+        let wanted = |count| -> BTreeMap<Key, Planned> {
+            names
+                .iter()
+                .map(|name| (key(name), weekly_run(true, count)))
+                .collect()
+        };
+        queue.lock().unwrap().plan(wanted(1), start);
+        step(&queue, &fake, start).await;
+        assert!(
+            !fake.log().iter().any(|line| line.starts_with("start")),
+            "nothing is due yet"
+        );
+
+        let later = start + Span::hours(1);
+        queue.lock().unwrap().plan(wanted(2), later);
+        let mut previous: Option<&str> = None;
+        for name in names {
+            if let Some(previous) = previous {
+                fake.end(previous, RunState::Finished);
+            }
+            step(&queue, &fake, later).await;
+            assert!(fake.log().contains(&format!("start {name}")), "{name}");
+            let running: Vec<&str> = names
+                .into_iter()
+                .filter(|n| fake.held.lock().unwrap().get(&key(n)) == Some(&RunState::Running))
+                .collect();
+            assert_eq!(running, [name], "one run at a time");
+            previous = Some(name);
+        }
+    }
+
     #[test]
     fn only_sources_that_wait_for_pushes_are_resident() {
         let runner = |name: &str| DataSourceType::Runner(name.to_owned());
@@ -1635,6 +1727,7 @@ mod tests {
             Planned {
                 stream: serde_json::json!({"input": {"generate": {"count": 2}}}),
                 clock: Clock::Once,
+                replace: false,
             },
         );
         queue.lock().unwrap().plan(changed, now + Span::hours(1));
@@ -1652,6 +1745,7 @@ mod tests {
         let hourly = |count: u64| Planned {
             stream: serde_json::json!({"input": {"generate": {"count": count}}}),
             clock: Clock::Every(Duration::from_secs(3600), Duration::ZERO),
+            replace: false,
         };
         let wanted = |count| [(key("loop"), hourly(count))].into_iter().collect();
         queue.lock().unwrap().plan(wanted(1), now);
@@ -1842,6 +1936,7 @@ mod tests {
             Planned {
                 stream: tick_stream,
                 clock: daily_at_5(),
+                replace: false,
             },
         )];
         queue
