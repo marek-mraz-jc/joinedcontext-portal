@@ -40,7 +40,7 @@ export function pageOf(route: string, t: Translate): string {
       const known = NAV_SECTIONS.find((candidate) => candidate.plural === section);
       title = known === undefined ? undefined : t(known.labelKey);
       if (known !== undefined && inside !== undefined) {
-        named ??= decodeURIComponent(inside);
+        named ??= decoded(inside);
       }
     }
   }
@@ -48,4 +48,14 @@ export function pageOf(route: string, t: Translate): string {
     return t("assistant.anotherPage");
   }
   return named === undefined || named === null ? title : t("assistant.pageNamed", { page: title, name: named });
+}
+
+/** A route segment decoded, or as it came when its escapes are malformed (`%E0%A4%A`): a route
+ * a run navigated to never takes the dock down. */
+function decoded(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
 }

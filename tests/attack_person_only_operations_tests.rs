@@ -229,6 +229,8 @@ fn an_mcp_client_is_refused_every_decision_and_keeps_the_doors_a_person_may_use(
         "jc_change_reject",
         "jc_workspace_propose",
         "jc_workspace_discard",
+        // T-5699: answering a run's question is the person's decision too.
+        "jc_run_answer",
     ];
     for name in never_over_mcp {
         let said = over_mcp

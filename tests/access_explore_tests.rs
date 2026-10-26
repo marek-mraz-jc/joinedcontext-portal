@@ -133,12 +133,13 @@ async fn rig() -> Rig {
         ("secret", "secret-ops"),
         ("unserved", "unserved"),
     ] {
-        mirror.upsert(common::envelope(
-            "Endpoint",
-            name,
-            "helsinki",
-            json!({ "slug": slug, "enabledRepresentations": ["ogc-features"] }),
-        ));
+        // `bikes` lists nothing: it serves the default set (T-5699).
+        let spec = if name == "bikes" {
+            json!({ "slug": slug })
+        } else {
+            json!({ "slug": slug, "enabledRepresentations": ["ogc-features"] })
+        };
+        mirror.upsert(common::envelope("Endpoint", name, "helsinki", spec));
     }
     mirror.upsert(common::envelope(
         "McpServer",
@@ -274,6 +275,16 @@ async fn only_the_endpoints_the_subject_reaches_are_listed() {
         air["permissions"][0]["constraints"]["geoQ"]["geometry"],
         "Point"
     );
+    // T-5699, F-POR1-020: an Endpoint listing nothing serves the catalogue's default set, not
+    // `ngsi-ld` and `mcp` alone.
+    let bikes = explored["endpoints"][1]["representations"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    for served in ["ngsi-ld", "mcp", "ogc-features"] {
+        assert!(bikes.contains(&json!(served)), "{bikes:?}");
+    }
+    assert!(!bikes.contains(&json!("sta")), "{bikes:?}");
     assert_eq!(explored["mcpServers"], json!(["city-air"]));
     assert_eq!(explored["consents"], json!([]));
     for question in asked(&r.gateway).await {

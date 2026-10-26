@@ -179,7 +179,8 @@ fn row(endpoint: &crate::resource::ResourceEnvelope, answer: Value) -> Option<Re
             .as_str()
             .unwrap_or_default()
             .to_owned(),
-        representations: representations(spec),
+        // One rule for what an Endpoint serves, the catalogue's and the instance's (T-5699).
+        representations: crate::api::catalogue::served_representations(spec),
         policies: answer["policies"]
             .as_array()
             .map(|names| {
@@ -193,34 +194,6 @@ fn row(endpoint: &crate::resource::ResourceEnvelope, answer: Value) -> Option<Re
         permissions: answer["permissions"].clone(),
         prohibitions: answer["prohibitions"].clone(),
     })
-}
-
-/// What an Endpoint serves: its manifest's list without the retired files (T-4600), then
-/// `ngsi-ld`, which every Endpoint serves, and `mcp` unless `spec.mcp` is `false` (EP-10,
-/// EP-24), the rule the UI's `servedRepresentations` reads too.
-fn representations(spec: &Value) -> Vec<String> {
-    let mut served: Vec<String> = spec["enabledRepresentations"]
-        .as_array()
-        .map(|listed| {
-            listed
-                .iter()
-                .filter_map(Value::as_str)
-                .filter(|r| !crate::reconciler::representations::RETIRED.contains(r))
-                .map(str::to_owned)
-                .collect()
-        })
-        .unwrap_or_default();
-    let always: &[&str] = if spec["mcp"] == json!(false) {
-        &["ngsi-ld"]
-    } else {
-        &["ngsi-ld", "mcp"]
-    };
-    for representation in always {
-        if !served.iter().any(|s| s == representation) {
-            served.push((*representation).to_owned());
-        }
-    }
-    served
 }
 
 /// The project's McpServers naming one of the reached Endpoints as a member (ADR-N-043).

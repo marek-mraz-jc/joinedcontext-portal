@@ -235,7 +235,10 @@ describe("data explorer (UI-33)", () => {
   it("reads a page through the space's endpoint with a filter generated from the model, then one entity in full", async () => {
     const fetchMock = renderExplore();
     await screen.findByRole("heading", { name: en.explore.title });
-    await userEvent.selectOptions(await screen.findByLabelText(en.explore.space), "ovzdusie");
+    // The spaces arrive after the select renders: wait for the option, not the label (CI load race).
+    const space = await screen.findByLabelText(en.explore.space);
+    await waitFor(() => expect(space.querySelector('option[value="ovzdusie"]')).not.toBeNull());
+    await userEvent.selectOptions(space, "ovzdusie");
     expect(screen.getByLabelText(en.explore.endpoint)).toHaveValue("public-air");
     await userEvent.selectOptions(screen.getByLabelText(en.entities.type), "AirQualityObserved");
 
@@ -289,7 +292,9 @@ describe("data explorer (UI-33)", () => {
   it("generates the rows of a model the repository holds as a file (T-0797)", async () => {
     const fetchMock = renderExplore(COMMITTED);
     await screen.findByRole("heading", { name: en.explore.title });
-    await userEvent.selectOptions(await screen.findByLabelText(en.explore.space), "ovzdusie");
+    const space = await screen.findByLabelText(en.explore.space);
+    await waitFor(() => expect(space.querySelector('option[value="ovzdusie"]')).not.toBeNull());
+    await userEvent.selectOptions(space, "ovzdusie");
     await userEvent.selectOptions(await screen.findByLabelText(en.entities.type), "AirQualityObserved");
 
     // The source route carried the LinkML the manifest only names, so the rows are typed.

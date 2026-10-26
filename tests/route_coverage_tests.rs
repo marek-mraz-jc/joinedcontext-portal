@@ -275,6 +275,8 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/projects/{project}/spaces/{space}/move", "an administrator's operation on the broker that holds a space, not a manifest write: the job commits the hold and the switch itself, and jc_resource_apply of a brokerRef is refused for a space with entities (T-4000, PF-115)"),
 ("POST", "/projects/{project}/spaces/{space}/retention/preview", "what a draft of the space's retention would delete now, counted by the broker for the space's owner before saving: a reading about the data, the rules themselves are the manifest's (T-3901, DM-85)"),
 ("POST", "/projects/{project}/spaces/{space}/subjects/export", "a data subject's Entities with their history, for the space's owner, the subject in the body and never the URL (T-4668, DM-124)"),
+("GET", "/projects/{project}/mcp-elicitations/{id}", "the question an MCP call asked, for the person whose client asked it (T-5699, AG-63)"),
+("POST", "/projects/{project}/mcp-elicitations/{id}/decision", "the person accepts or declines an MCP call's question in their own session (T-5699, AG-63)"),
 ("POST", "/projects/{project}/spaces/{space}/erasures", "a data subject's erasure across the broker, CKAN, the Portal's copies and the stored conversations, logged by keyed hash (T-4668, DM-126)"),
 ("GET", "/projects/{project}/spaces/{space}/erasures/{id}", "one erasure's state per store, for the space's owner (T-4668, DM-127)"),
 ("GET", "/projects/{project}/spaces/{space}/erasures", "the space's erasures, proposals waiting for a second owner included (T-5356, DM-142)"),
