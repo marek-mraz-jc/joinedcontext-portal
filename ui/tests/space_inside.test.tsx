@@ -1082,6 +1082,15 @@ describe("the space's own data", () => {
     });
   });
 
+  // T-5753: the catalogue's draft model names no slot, and every endpoint answered its question with a 400.
+  it("asks no endpoint for its decisions on a type whose model names no field", async () => {
+    const source = ["id: https://banskabystrica.sk/models/air", "name: bb-air-quality", "classes:", "  AirQualityObserved:", "    description: a draft", ""].join("\n");
+    const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200 }, { source });
+    await screen.findByRole("grid");
+    await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => urlOf(input).pathname.endsWith("/datamodels/bb-air-quality/source"))).toBe(true));
+    expect(fetchMock.mock.calls.filter(([input]) => urlOf(input).pathname.endsWith("/access/attributes"))).toEqual([]);
+  });
+
   // T-5600: a search that matched nothing said nothing had been written to the space.
   it("searches a name in any language, never a number, and says a search matched no row", async () => {
     const named = [{ ...SPACE_ROWS[0], name: { type: "LanguageProperty", languageMap: { fi: "Helsinki Herttoniemi 2" } } }];
