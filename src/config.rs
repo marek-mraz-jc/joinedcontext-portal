@@ -43,8 +43,10 @@ pub struct Config {
     /// What the deployment says it switched on, for the organization setup page (T-2748).
     pub setup: SetupStatements,
     /// The key every session cookie is sealed with (`JC_PORTAL_COOKIE_KEY`, at least 64
-    /// bytes). A secret. Unset means an ephemeral key: the Portal runs, and every session ends
-    /// at the next restart.
+    /// bytes). A secret. Required once a realm is configured (`JC_OIDC_ISSUER`): a Portal people
+    /// sign in to refuses to start without it, since an ephemeral key ends every session at each
+    /// restart and differs per replica. Without a realm nobody signs in, and an ephemeral key
+    /// only signs the unsubscribe links.
     pub cookie_key: Key,
     /// Keys a session cookie may still be sealed with, during a rotation
     /// (`JC_PORTAL_COOKIE_KEY_PREVIOUS`, comma-separated, each held to the same length as the
@@ -426,17 +428,33 @@ impl std::fmt::Debug for AppsDbSettings {
     }
 }
 
-fn apps_db_settings(lookup: &impl Fn(&str) -> Option<String>) -> Option<AppsDbSettings> {
+/// A shard count that is no positive number is refused: the host would otherwise run a
+/// different number of shards than the operator wrote, and placements would not match it.
+fn apps_db_settings(
+    lookup: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<AppsDbSettings>, ConfigError> {
     let present = |var: &str| lookup(var).filter(|v| !v.trim().is_empty());
-    Some(AppsDbSettings {
-        url: present("JC_PORTAL_APPS_DB_URL")?,
-        shards: present("JC_PORTAL_WASM_SHARDS")
-            .and_then(|v| v.trim().parse().ok())
-            .filter(|n| *n > 0)
-            .unwrap_or(2),
+    let Some(url) = present("JC_PORTAL_APPS_DB_URL") else {
+        return Ok(None);
+    };
+    let shards = match present("JC_PORTAL_WASM_SHARDS") {
+        None => 2,
+        Some(v) => v
+            .trim()
+            .parse()
+            .ok()
+            .filter(|n: &u32| *n > 0)
+            .ok_or_else(|| ConfigError::Invalid {
+                var: "JC_PORTAL_WASM_SHARDS",
+                reason: format!("'{}' is no positive whole number; write e.g. 2", v.trim()),
+            })?,
+    };
+    Ok(Some(AppsDbSettings {
+        url,
+        shards,
         bucket: present("JC_PORTAL_APPS_BUCKET").unwrap_or_else(|| "apps".to_owned()),
         host_namespace: present("JC_PORTAL_WASM_HOST_NAMESPACE").map(|v| v.trim().to_owned()),
-    })
+    }))
 }
 
 /// All-or-nothing on purpose: an endpoint without the root credential would sign every admin
@@ -618,7 +636,10 @@ fn oidc_config(
 }
 
 /// The session cookie's key and the keys a rotation still lets in.
-fn cookie_keys(lookup: &impl Fn(&str) -> Option<String>) -> Result<(Key, Vec<Key>), ConfigError> {
+fn cookie_keys(
+    lookup: &impl Fn(&str) -> Option<String>,
+    sign_in: bool,
+) -> Result<(Key, Vec<Key>), ConfigError> {
     let cookie_key = match lookup("JC_PORTAL_COOKIE_KEY") {
         Some(material) if material.len() >= Config::MIN_COOKIE_KEY_LEN => {
             Key::from(material.as_bytes())
@@ -629,10 +650,20 @@ fn cookie_keys(lookup: &impl Fn(&str) -> Option<String>) -> Result<(Key, Vec<Key
                 reason: format!("at least {} bytes required", Config::MIN_COOKIE_KEY_LEN),
             })
         }
+        None if sign_in => {
+            return Err(ConfigError::Invalid {
+                var: "JC_PORTAL_COOKIE_KEY",
+                reason: format!(
+                    "required while JC_OIDC_ISSUER is set: give at least {} random bytes, \
+                     e.g. from `openssl rand -base64 48`",
+                    Config::MIN_COOKIE_KEY_LEN
+                ),
+            })
+        }
         None => {
             tracing::warn!(
-                "JC_PORTAL_COOKIE_KEY is unset: using an ephemeral key, sessions do not \
-                 survive a restart"
+                "JC_PORTAL_COOKIE_KEY is unset: using an ephemeral key, nobody signs in to a \
+                 Portal without a realm"
             );
             Key::generate()
         }
@@ -1586,7 +1617,7 @@ impl Config {
 
         let oidc = oidc_config(&lookup)?;
 
-        let (cookie_key, cookie_keys_previous) = cookie_keys(&lookup)?;
+        let (cookie_key, cookie_keys_previous) = cookie_keys(&lookup, oidc.is_some())?;
 
         let sync_interval_secs = match lookup("JC_PORTAL_SYNC_INTERVAL") {
             Some(val) => val.parse::<u64>().map_err(|e| ConfigError::Invalid {
@@ -1745,7 +1776,7 @@ impl Config {
         let keycloak_admin = keycloak_admin(&lookup, oidc.as_ref())?;
 
         let artifact_store = artifact_store_settings(&lookup);
-        let apps_db = apps_db_settings(&lookup);
+        let apps_db = apps_db_settings(&lookup)?;
         let pipeline_secrets = pipeline_secret_backend(&lookup);
 
         Ok(Self {
@@ -2089,6 +2120,9 @@ mod tests {
         assert!(oidc_config(&one("JC_OIDC_ISSUER", "https://kc/realms/x")).is_err());
         let full = |name: &str| match name {
             "JC_OIDC_ISSUER" => Some("https://kc/realms/x".to_owned()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001".into())
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal".to_owned()),
             "JC_OIDC_CLIENT_SECRET" => Some("s".to_owned()),
             "JC_KEYCLOAK_ADMIN_URL" => Some("http://kc:8080/admin".to_owned()),
@@ -2111,16 +2145,20 @@ mod tests {
     #[test]
     fn cookie_keys_are_long_enough_or_refused() {
         let long = "k".repeat(Config::MIN_COOKIE_KEY_LEN);
-        let (_, previous) = cookie_keys(&|_: &str| None).unwrap();
+        let (_, previous) = cookie_keys(&|_: &str| None, false).unwrap();
         assert!(previous.is_empty());
+        assert!(
+            cookie_keys(&|_: &str| None, true).is_err(),
+            "a Portal people sign in to has no ephemeral key"
+        );
         let rotating = |name: &str| match name {
             "JC_PORTAL_COOKIE_KEY" => Some(long.clone()),
             "JC_PORTAL_COOKIE_KEY_PREVIOUS" => Some(format!("{long}, ,{long}")),
             _ => None,
         };
-        assert_eq!(cookie_keys(&rotating).unwrap().1.len(), 2);
-        assert!(cookie_keys(&one("JC_PORTAL_COOKIE_KEY", "short")).is_err());
-        assert!(cookie_keys(&one("JC_PORTAL_COOKIE_KEY_PREVIOUS", "short")).is_err());
+        assert_eq!(cookie_keys(&rotating, true).unwrap().1.len(), 2);
+        assert!(cookie_keys(&one("JC_PORTAL_COOKIE_KEY", "short"), false).is_err());
+        assert!(cookie_keys(&one("JC_PORTAL_COOKIE_KEY_PREVIOUS", "short"), false).is_err());
     }
 
     #[test]
@@ -2556,6 +2594,9 @@ mod tests {
     fn partial_oidc_configuration_is_rejected() {
         let err = Config::from_vars(|k| match k {
             "JC_OIDC_ISSUER" => Some("https://idm.example.sk/realms/bb".to_string()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001".into())
+            }
             _ => None,
         })
         .expect_err("partial oidc config must fail closed");
@@ -2565,9 +2606,34 @@ mod tests {
     }
 
     #[test]
+    fn a_portal_people_sign_in_to_does_not_start_without_its_cookie_key() {
+        let err = Config::from_vars(|k| match k {
+            "JC_OIDC_ISSUER" => Some("https://idm.example.sk/realms/bb".to_string()),
+            "JC_OIDC_CLIENT_ID" => Some("portal".to_string()),
+            "JC_OIDC_CLIENT_SECRET" => Some("s3cr3t".to_string()),
+            _ => None,
+        })
+        .expect_err("no cookie key");
+        assert!(matches!(
+            err,
+            ConfigError::Invalid {
+                var: "JC_PORTAL_COOKIE_KEY",
+                ..
+            }
+        ));
+        assert!(
+            Config::from_vars(|_| None).is_ok(),
+            "without a realm nobody signs in"
+        );
+    }
+
+    #[test]
     fn complete_oidc_configuration_is_accepted_and_redacts_the_secret() {
         let config = Config::from_vars(|k| match k {
             "JC_OIDC_ISSUER" => Some("https://idm.example.sk/realms/bb".to_string()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001".into())
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal".to_string()),
             "JC_OIDC_CLIENT_SECRET" => Some("s3cr3t".to_string()),
             _ => None,
@@ -2588,6 +2654,9 @@ mod tests {
     fn the_reconcilers_client_authenticates_one_way_only() {
         let err = Config::from_vars(|k| match k {
             "JC_OIDC_ISSUER" => Some("https://idm.example.sk/realms/bb".to_string()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001".into())
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal".to_string()),
             "JC_OIDC_CLIENT_SECRET" => Some("s3cr3t".to_string()),
             "JC_PORTAL_KEYCLOAK_ADMIN_CLIENT_ID" => Some("portal-reconciler".to_string()),
@@ -2624,6 +2693,9 @@ mod tests {
     fn a_federated_login_client_reads_its_token_file_and_holds_no_secret() {
         let config = Config::from_vars(|k| match k {
             "JC_OIDC_ISSUER" => Some("https://idm.example.sk/realms/bb".to_string()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001".into())
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal-api".to_string()),
             "JC_OIDC_CLIENT_ASSERTION_FILE" => {
                 Some("/var/run/secrets/jc/keycloak/token".to_string())
@@ -2643,6 +2715,9 @@ mod tests {
         std::fs::write(&path, b"-----BEGIN CERTIFICATE-----\nnot-a-real-one\n").expect("write pem");
         let config = Config::from_vars(|k| match k {
             "JC_OIDC_ISSUER" => Some("https://idm.example.sk/realms/bb".to_string()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001".into())
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal".to_string()),
             "JC_OIDC_CLIENT_SECRET" => Some("s3cr3t".to_string()),
             "JC_OIDC_CA_FILE" => Some(path.display().to_string()),
@@ -2664,6 +2739,9 @@ mod tests {
     fn oidc_configuration_without_a_ca_file_carries_no_extra_root() {
         let config = Config::from_vars(|k| match k {
             "JC_OIDC_ISSUER" => Some("https://idm.example.sk/realms/bb".to_string()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001".into())
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal".to_string()),
             "JC_OIDC_CLIENT_SECRET" => Some("s3cr3t".to_string()),
             _ => None,
@@ -2676,6 +2754,9 @@ mod tests {
     fn unreadable_oidc_ca_file_stops_start_up() {
         let err = Config::from_vars(|k| match k {
             "JC_OIDC_ISSUER" => Some("https://idm.example.sk/realms/bb".to_string()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001".into())
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal".to_string()),
             "JC_OIDC_CLIENT_SECRET" => Some("s3cr3t".to_string()),
             "JC_OIDC_CA_FILE" => Some("/nonexistent/jc-portal/ca.crt".to_string()),

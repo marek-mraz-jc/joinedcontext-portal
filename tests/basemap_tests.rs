@@ -7,6 +7,7 @@ use std::time::{Duration, SystemTime};
 use axum::body::Body;
 use axum::http::{header, HeaderMap, Method, Request, StatusCode};
 use axum::response::IntoResponse;
+use futures_util::StreamExt;
 use http_body_util::BodyExt;
 use joinedcontext_portal::config::{BasemapConfig, Config, ConfigError};
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
@@ -48,6 +49,21 @@ async fn start_upstream() -> (String, Arc<AtomicUsize>) {
                 let counter = counter.clone();
                 async move {
                     counter.fetch_add(1, Ordering::SeqCst);
+                    if tile.starts_with("98.") {
+                        // Declares 50 MiB, sends one chunk and then nothing more.
+                        let first = futures_util::stream::once(async {
+                            Ok::<_, std::io::Error>(axum::body::Bytes::from(vec![0u8; 1024]))
+                        });
+                        let body = Body::from_stream(first.chain(futures_util::stream::pending()));
+                        return (
+                            [
+                                (header::CONTENT_TYPE, "image/png".to_owned()),
+                                (header::CONTENT_LENGTH, (50 * 1024 * 1024).to_string()),
+                            ],
+                            body,
+                        )
+                            .into_response();
+                    }
                     if tile.starts_with("non_image") || tile.starts_with("99.") {
                         (
                             [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
@@ -398,6 +414,43 @@ async fn cache_evicts_past_its_cap() {
         "older tile should have been evicted; files: {files:?}"
     );
     assert!(files[0].to_string_lossy().contains("1_1_1"));
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}
+
+/// A tile that declares more than the cap is refused at its headers, not after the upstream's
+/// whole body (or the 10 s client timeout) has passed.
+#[tokio::test]
+async fn an_oversized_tile_is_refused_before_its_body_is_read() {
+    let (addr, _) = start_upstream().await;
+    let temp_dir = std::env::temp_dir().join(format!(
+        "jc-bm-big-{}",
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let mut config = Config::for_tests();
+    config.basemap = Some(BasemapConfig::for_tests(
+        format!("http://{addr}/{{z}}/{{x}}/{{y}}.png"),
+        "OSM".to_string(),
+        temp_dir.clone(),
+    ));
+    let app = server::app(AppState::new(config, None).with_mirror(mirror()));
+
+    let answer = tokio::time::timeout(
+        Duration::from_secs(3),
+        call_app(
+            &app,
+            &format!("/api/v1/projects/{PROJECT}/basemap/default/7/0/98.png"),
+        ),
+    )
+    .await;
+    let (status, _, body) = answer.expect("refused at the declared length, within 3 s");
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    let json: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["detail"], "upstream tile exceeds 1 MiB limit");
+    assert!(!temp_dir.join("7/0/98.png").exists());
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }

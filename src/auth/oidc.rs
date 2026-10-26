@@ -1129,6 +1129,9 @@ mod tests {
         let issuer = format!("{}{REALM}", server.uri().trim_end_matches('/'));
         crate::config::Config::from_vars(|k| match k {
             "JC_OIDC_ISSUER" => Some(issuer.clone()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001".into())
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal".to_string()),
             "JC_OIDC_CLIENT_SECRET" => Some("s3cr3t-do-not-leak".to_string()),
             _ => None,
@@ -1187,6 +1190,9 @@ mod tests {
         // operator reads "Request failed" and learns nothing (that is what `source_chain` is for).
         let config = crate::config::Config::from_vars(|k| match k {
             "JC_OIDC_ISSUER" => Some("http://127.0.0.1:9/realms/bb".to_string()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001".into())
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal".to_string()),
             "JC_OIDC_CLIENT_SECRET" => Some("s3cr3t".to_string()),
             _ => None,
@@ -1295,6 +1301,9 @@ mod tests {
         let file = file.display().to_string();
         crate::config::Config::from_vars(|k| match k {
             "JC_OIDC_ISSUER" => Some(issuer.clone()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001".into())
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal".to_string()),
             "JC_OIDC_CLIENT_ASSERTION_FILE" => Some(file.clone()),
             _ => None,
@@ -1498,6 +1507,9 @@ mod tests {
     fn oidc_config(ca_file: Option<&str>) -> crate::config::OidcConfig {
         crate::config::Config::from_vars(|k| match k {
             "JC_OIDC_ISSUER" => Some("https://idm.example.test/realms/bb".to_string()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001".into())
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal".to_string()),
             "JC_OIDC_CLIENT_SECRET" => Some("s3cr3t".to_string()),
             "JC_OIDC_CA_FILE" => ca_file.map(str::to_string),

@@ -8,6 +8,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
+use futures_util::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::{IntoParams, ToSchema};
@@ -594,14 +595,54 @@ fn workspace_of(branch: &str) -> Option<String> {
 /// `blueprints::flow_branch`, `import`'s headless bundle, `projects`' deletion.
 // `rename-app-shapes-`: every old-shape App of a project in one Change (AP-124, T-2940).
 // `restore-`: what a merged removal took, proposed again (T-3247).
-const BUNDLE_PREFIXES: [&str; 6] = [
+// `adopt-`: a seed entity rewritten to what its space holds now (UI-26, F-POR4-004).
+const BUNDLE_PREFIXES: [&str; 7] = [
     "flow-",
     "import-",
     "delete-project-",
     "remove-person-",
     "rename-app-shapes-",
     "restore-",
+    "adopt-",
 ];
+
+/// A seed entity file (`projects/{p}/spaces/{s}/entities/seed/{name}.json`) as an `Entity`
+/// envelope, so a change that carries only seed files has a headline the list and the plan read:
+/// its name is the file's, its spec the file's JSON. `None` for any other path or for text that
+/// is no JSON.
+pub(crate) fn seed_envelope(path: &str, content: &str) -> Option<ResourceEnvelope> {
+    let mut segments = path.split('/');
+    let (Some("projects"), Some(project), Some("spaces"), Some(space)) = (
+        segments.next(),
+        segments.next(),
+        segments.next(),
+        segments.next(),
+    ) else {
+        return None;
+    };
+    let (Some("entities"), Some("seed"), Some(file), None) = (
+        segments.next(),
+        segments.next(),
+        segments.next(),
+        segments.next(),
+    ) else {
+        return None;
+    };
+    let name = file.strip_suffix(".json").filter(|name| !name.is_empty())?;
+    let spec: Value = serde_json::from_str(content).ok()?;
+    Some(ResourceEnvelope {
+        api_version: crate::resource::API_VERSION.to_owned(),
+        kind: "Entity".to_owned(),
+        metadata: crate::resource::ObjectMeta {
+            name: name.to_owned(),
+            namespace: Some(project.to_owned()),
+            labels: [("joinedcontext.com/space".to_owned(), space.to_owned())].into(),
+            ..Default::default()
+        },
+        spec,
+        status: None,
+    })
+}
 
 /// The headline of a bundle: the first manifest among its files that lives in `project`, the
 /// `Project` manifest first when the bundle deletes one. Every file is still approved on its own
@@ -641,7 +682,7 @@ async fn bundle_headline(
         .collect();
     // `false` sorts first: the Project manifest heads a project's deletion.
     files.sort_by_key(|file| !file.path.ends_with("/project.yaml"));
-    for file in files {
+    for file in &files {
         let git_ref = if file.deleted {
             pr.base_ref()
         } else {
@@ -670,6 +711,32 @@ async fn bundle_headline(
             operation,
             base_envelope,
             head_envelope,
+        }));
+    }
+    // No manifest: a change of seed entities alone (an adopted drift) is headed by its first
+    // seed file, read on both sides.
+    for file in files.iter().filter(|file| !file.deleted) {
+        let Some(head) = gitea.get_file(&file.path, pr.head_ref()).await? else {
+            continue;
+        };
+        let Some(head) = seed_envelope(&file.path, &head.content) else {
+            continue;
+        };
+        let base = gitea
+            .get_file(&file.path, pr.base_ref())
+            .await?
+            .and_then(|base| seed_envelope(&file.path, &base.content));
+        let operation = if base.is_some() {
+            Operation::Update
+        } else {
+            Operation::Create
+        };
+        return Ok(Some(ManifestData {
+            kind: head.kind.clone(),
+            name: head.metadata.name.clone(),
+            operation,
+            base_envelope: base,
+            head_envelope: Some(head),
         }));
     }
     Ok(None)
@@ -1339,6 +1406,54 @@ fn kind_of(proposal: &ChangeProposal) -> Option<&str> {
 }
 
 /// Core proposal listing reusable by the REST route, operations registry and MCP.
+/// How many open merge requests the listing reads at once.
+const LISTED_AT_ONCE: usize = 4;
+
+/// What the listing shows for one open merge request.
+enum Listed {
+    Change(Box<ChangeProposal>),
+    Outside(OutsideMergeRequest),
+    Unlisted,
+}
+
+async fn listed(
+    state: &AppState,
+    gitea: &crate::git::GiteaClient,
+    project: &str,
+    pr: &PullRequest,
+) -> Result<Listed, ApiError> {
+    match standing(state, gitea, project, pr).await? {
+        Standing::Change => {}
+        Standing::Outside(reason) => {
+            return Ok(Listed::Outside(OutsideMergeRequest {
+                number: pr.number,
+                url: pr.url.clone(),
+                author: pr.author_login.clone(),
+                reason,
+            }))
+        }
+        Standing::Unlisted => return Ok(Listed::Unlisted),
+    }
+
+    let Some(data) = load_manifest_data(gitea, pr, project).await? else {
+        return Ok(Listed::Unlisted);
+    };
+
+    let plan = plan::diff(data.base_envelope.as_ref(), data.head_envelope.as_ref());
+    // The file list is fetched here anyway for the count, and its paths carry the lane the
+    // approval will apply (T-1224): no extra call, and the list stops promising a lane the
+    // detail page contradicts.
+    let carried = gitea.pull_request_files(pr.number).await?;
+    let mut proposal = build_proposal(pr, project, &data, plan, None, lane_of_paths(&carried));
+    proposal.metadata = change_meta(state, gitea, pr.number, project);
+    proposal.author = human_author(gitea, pr).await;
+    // The count only: a listing that read every file of every open change to render
+    // "+3 files" would pay for the detail page on the way past it (T-0861).
+    proposal.file_count = Some(carried.len());
+    proposal.waits_on = awaited_changes(state, gitea, pr, project).await?;
+    Ok(Listed::Change(Box::new(proposal)))
+}
+
 pub async fn list_changes_for(state: &AppState, project: &str) -> Result<ChangeList, ApiError> {
     let gitea = state
         .forge_for(project)
@@ -1346,41 +1461,22 @@ pub async fn list_changes_for(state: &AppState, project: &str) -> Result<ChangeL
     let gitea: &crate::git::GiteaClient = &gitea;
 
     let prs = gitea.list_pull_requests("open").await?;
+    // Each merge request costs a few forge reads: four at a time, in the forge's order.
+    let listed: Vec<Listed> = futures_util::stream::iter(
+        prs.into_iter()
+            .map(|pr| async move { listed(state, gitea, project, &pr).await }),
+    )
+    .buffered(LISTED_AT_ONCE)
+    .try_collect()
+    .await?;
     let mut proposals = Vec::new();
     let mut outside = Vec::new();
-
-    for pr in prs {
-        match standing(state, gitea, project, &pr).await? {
-            Standing::Change => {}
-            Standing::Outside(reason) => {
-                outside.push(OutsideMergeRequest {
-                    number: pr.number,
-                    url: pr.url.clone(),
-                    author: pr.author_login.clone(),
-                    reason,
-                });
-                continue;
-            }
-            Standing::Unlisted => continue,
+    for entry in listed {
+        match entry {
+            Listed::Change(proposal) => proposals.push(*proposal),
+            Listed::Outside(request) => outside.push(request),
+            Listed::Unlisted => {}
         }
-
-        let Some(data) = load_manifest_data(gitea, &pr, project).await? else {
-            continue;
-        };
-
-        let plan = plan::diff(data.base_envelope.as_ref(), data.head_envelope.as_ref());
-        // The file list is fetched here anyway for the count, and its paths carry the lane the
-        // approval will apply (T-1224): no extra call, and the list stops promising a lane the
-        // detail page contradicts.
-        let carried = gitea.pull_request_files(pr.number).await?;
-        let mut proposal = build_proposal(&pr, project, &data, plan, None, lane_of_paths(&carried));
-        proposal.metadata = change_meta(state, gitea, pr.number, project);
-        proposal.author = human_author(gitea, &pr).await;
-        // The count only: a listing that read every file of every open change to render
-        // "+3 files" would pay for the detail page on the way past it (T-0861).
-        proposal.file_count = Some(carried.len());
-        proposal.waits_on = awaited_changes(state, gitea, &pr, project).await?;
-        proposals.push(proposal);
     }
 
     proposals.sort_by(|a, b| b.created_at.cmp(&a.created_at));
@@ -2701,6 +2797,25 @@ pub fn router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_seed_file_heads_a_change_as_an_entity_and_nothing_else_does() {
+        let path = "projects/p/spaces/air/entities/seed/stations.json";
+        let envelope = seed_envelope(path, r#"{"id": "urn:a", "type": "T"}"#).expect("a seed");
+        assert_eq!(envelope.kind, "Entity");
+        assert_eq!(envelope.metadata.name, "stations");
+        assert_eq!(envelope.metadata.namespace.as_deref(), Some("p"));
+        assert_eq!(envelope.metadata.labels["joinedcontext.com/space"], "air");
+        for other in [
+            "projects/p/spaces/air/entities/seed/stations.yaml",
+            "projects/p/spaces/air/entities/seed/deeper/s.json",
+            "projects/p/spaces/air/pipelines/seed/s.json",
+            "projects/p/spaces/air/entities/seed/.json",
+        ] {
+            assert!(seed_envelope(other, "{}").is_none(), "{other}");
+        }
+        assert!(seed_envelope(path, "not json").is_none());
+    }
     use http_body_util::BodyExt;
     use serde_json::json;
     use std::sync::Arc;

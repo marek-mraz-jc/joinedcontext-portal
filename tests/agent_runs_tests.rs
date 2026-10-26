@@ -43,6 +43,9 @@ fn config() -> Config {
             // The callbacks take the proxy's own ServiceAccount token (T-2271), so this Portal
             // knows the realm that signs it and the client it belongs to.
             "JC_OIDC_ISSUER" => Some(common::REALM.issuer.as_str()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal-api"),
             "JC_OIDC_CLIENT_SECRET" => Some("secret"),
             "JC_PORTAL_AGENT_PROXY_CLIENT_ID" => Some(common::AGENT_PROXY_CLIENT),
@@ -1745,6 +1748,9 @@ async fn a_function_of_the_run_answers_through_jc_functions() {
             "JC_PORTAL_AGENT_PROXY_CLIENT_ID" => Some(common::AGENT_PROXY_CLIENT),
             "JC_PORTAL_BOOTSTRAP_ADMINS" => Some("portal-approver"),
             "JC_OIDC_ISSUER" => Some(issuer.as_str()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+            }
             "JC_OIDC_CLIENT_ID" => Some("joinedcontext-portal"),
             "JC_OIDC_CLIENT_SECRET" => Some("test-secret"),
             "JC_FUNCTIONS_URL" => Some(runtime_uri.as_str()),
@@ -5014,6 +5020,9 @@ mod held {
                 Some("http://jc-agent-proxy.agents.svc.cluster.local:8080".into())
             }
             "JC_OIDC_ISSUER" => Some(common::REALM.issuer.clone()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001".into())
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal-api".into()),
             "JC_OIDC_CLIENT_SECRET" => Some("secret".into()),
             "JC_PORTAL_AGENT_PROXY_CLIENT_ID" => Some(common::AGENT_PROXY_CLIENT.into()),
