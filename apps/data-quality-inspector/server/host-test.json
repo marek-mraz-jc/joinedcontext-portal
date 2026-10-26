@@ -45,6 +45,19 @@
       "call": "GET /api/runs",
       "status": 200,
       "length": {
+        "/runs": 0
+      },
+      "expect": {
+        "/stale": true
+      }
+    },
+    {
+      "job": "inspect-daily"
+    },
+    {
+      "call": "GET /api/runs",
+      "status": 200,
+      "length": {
         "/runs": 1,
         "/runs/0/types": 2
       },
@@ -71,7 +84,7 @@
     },
     {
       "call": "POST /api/runs",
-      "status": 429
+      "status": 405
     },
     {
       "call": "GET /api/runs/{run}/report",

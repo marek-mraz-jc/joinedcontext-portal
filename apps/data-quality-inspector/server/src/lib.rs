@@ -1,13 +1,14 @@
 //! The server half of data-quality-inspector (T-3354): what the browser cannot keep. The page
 //! inspects the Endpoint's data as it is now; the server runs the same inspection (`../wasm`)
-//! once a day, or when a reader asks, through the App's own Endpoint with the caller's token, and
-//! keeps every run's scores in its own schema, so the page shows the trend. Each run's full report,
-//! every finding of every entity, is a file under the App's prefix.
+//! once a day as the job `inspect-daily` (app.yaml `spec.server.jobs`, AP-154), through the App's
+//! own Endpoint as the App's job principal, and keeps every run's scores in its own schema, so the
+//! page shows the trend. Each run's full report, every finding of every entity, is a file under the
+//! App's prefix. A run reads about thirty pages of the gateway, which takes far longer than a
+//! request may (504 after 5 s, T-3579), so no request runs one.
 //!
 //! | Route | What it does |
 //! |---|---|
-//! | `GET /api/runs` | the kept runs, newest first, each with its scores per type; a new run first when the newest is a day old |
-//! | `POST /api/runs` | a run now, at most one every ten minutes |
+//! | `GET /api/runs` | the kept runs, newest first, each with its scores per type; `stale` when the newest is over a day old |
 //! | `GET /api/runs/{id}/report` | a URL to download the run's full per-entity report from |
 //!
 //! Roles and edits (T-3827, API/07), decided from `identity::caller()` alone; the Endpoint's
@@ -36,9 +37,10 @@ use serde_json::{json, Map, Value as Json};
 
 /// How long a presigned URL lives; the host allows at most 300 seconds.
 const URL_SECONDS: u32 = 120;
-/// Entities read per page, and at most per type.
+/// Entities read per page, and at most per type: a run reads at most 27 pages of the twelve types,
+/// about 35 s on dev, inside a job's 60 s wall time (T-3579).
 const PAGE: usize = 500;
-const MOST: usize = 5000;
+const MOST: usize = 2000;
 /// Runs answered at most, for the trend.
 const RUNS: i64 = 100;
 /// The types the App's data need names, inspected without a schema when none is published.
@@ -283,8 +285,14 @@ fn schema() -> Option<BTreeMap<String, Json>> {
     (!schema.is_empty()).then_some(schema)
 }
 
+/// The daily job `inspect-daily` (app.yaml `spec.server.jobs`, AP-154): one run, or the sentence
+/// that says what stopped it (AP-155), never a body or a credential.
+pub fn inspect_daily() -> Result<(), String> {
+    inspect().map(|_| ())
+}
+
 /// One run now: every type read and inspected, its scores kept, its full report written.
-fn inspect() -> Result<i64, Response> {
+fn inspect() -> Result<i64, String> {
     let schema = schema();
     let names: Vec<String> = match &schema {
         Some(schema) => schema.keys().cloned().collect(),
@@ -298,17 +306,11 @@ fn inspect() -> Result<i64, Response> {
                 _ => None,
             },
         )
-        .ok_or_else(|| {
-            Response::problem(
-                503,
-                "Service Unavailable",
-                "the database did not say what time it is",
-            )
-        })?;
+        .ok_or("the database did not say what time it is")?;
     let mut types = Vec::new();
     for name in names {
         let rows = entities(&name)
-            .map_err(|err| refused(&name, err))?
+            .map_err(|err| format!("{name} could not be read: {err}"))?
             .iter()
             .map(row)
             .collect();
@@ -330,13 +332,9 @@ fn inspect() -> Result<i64, Response> {
             Value::from(valid),
         ],
     )
-    .map_err(Response::from_sql)?;
+    .map_err(|err| format!("the run could not be kept: {err}"))?;
     let Some(Value::Int(id)) = rows.values.first().and_then(|row| row.first()).cloned() else {
-        return Err(Response::problem(
-            500,
-            "Internal Server Error",
-            "the run was not given an id",
-        ));
+        return Err("the run was not given an id".into());
     };
     for t in &types {
         sql::execute(
@@ -352,14 +350,14 @@ fn inspect() -> Result<i64, Response> {
                 Value::from(t.freshness.as_ref().map(|f| f.median_seconds)),
             ],
         )
-        .map_err(Response::from_sql)?;
+        .map_err(|err| format!("the scores of {} could not be kept: {err}", t.entity_type))?;
     }
     blob::put(
         &report_key(id),
         report(&types).to_string().as_bytes(),
         Some("application/json"),
     )
-    .map_err(Response::from_blob)?;
+    .map_err(|err| format!("the report could not be written: {err}"))?;
     Ok(id)
 }
 
@@ -381,11 +379,10 @@ fn ran_within(interval: &str) -> Result<bool, Response> {
 }
 
 fn runs(_: &Request, _: &Params) -> Response {
-    // A day without a run gets one, so the trend has a point a day; a feed that cannot be read
+    // The daily job keeps a point a day; a day without one (the job failed, or has not run yet)
     // leaves the kept runs readable, and says so.
-    let problem = match ran_within("1 day") {
-        Ok(true) => None,
-        Ok(false) => inspect().err(),
+    let stale = match ran_within("1 day") {
+        Ok(ran) => !ran,
         Err(answer) => return answer,
     };
     let runs = match sql::query(
@@ -397,11 +394,6 @@ fn runs(_: &Request, _: &Params) -> Response {
         Ok(rows) => sql::objects(&rows),
         Err(err) => return Response::from_sql(err),
     };
-    if runs.is_empty() {
-        if let Some(problem) = problem {
-            return problem;
-        }
-    }
     let types = match sql::query(
         "select run_id, type, entities, completeness::float8 as completeness, valid::float8 as valid, findings, freshness_median_seconds \
          from run_types where run_id in (select id from quality_runs order by id desc limit $1) order by run_id desc, type",
@@ -429,22 +421,7 @@ fn runs(_: &Request, _: &Params) -> Response {
             Json::Object(run)
         })
         .collect();
-    Response::json(200, &json!({ "runs": runs, "stale": problem.is_some() }))
-}
-
-fn run_now(_: &Request, _: &Params) -> Response {
-    match ran_within("10 minutes") {
-        Ok(true) => Response::problem(
-            429,
-            "Too Many Requests",
-            "a run finished less than ten minutes ago; its scores are the newest",
-        ),
-        Ok(false) => match inspect() {
-            Ok(id) => Response::json(201, &json!({ "id": id })),
-            Err(answer) => answer,
-        },
-        Err(answer) => answer,
-    }
+    Response::json(200, &json!({ "runs": runs, "stale": stale }))
 }
 
 fn download(_: &Request, params: &Params) -> Response {
@@ -461,15 +438,6 @@ fn download(_: &Request, params: &Params) -> Response {
             Err(err) => Response::from_blob(err),
         },
         Err(err) => Response::from_sql(err),
-    }
-}
-
-/// A read of `kind` that failed: the caller's own 401 or 403 as the gateway said it, anything else
-/// the gateway's, naming the type.
-fn refused(kind: &str, err: gateway::Error) -> Response {
-    match err {
-        gateway::Error::Status(401 | 403, _) => Response::from(err),
-        other => Response::problem(502, "Bad Gateway", &format!("{kind}: {other}")),
     }
 }
 
@@ -660,7 +628,6 @@ fn changes(_: &Request, _: &Params) -> Response {
 pub fn handle(request: Request) -> Response {
     Router::new()
         .get("/api/runs", runs)
-        .post("/api/runs", run_now)
         .get("/api/runs/{id}/report", download)
         .get("/api/me", me)
         .get("/api/resolutions", resolutions)
@@ -672,6 +639,23 @@ pub fn handle(request: Request) -> Response {
 }
 
 jc_app_sdk::app!(handle);
+
+// The job's export, a root-level `inspect-daily: func() -> result<_, string>` beside the request
+// handler, as `wit/server.wit` declares it (AP-159).
+#[cfg(target_arch = "wasm32")]
+mod job {
+    wit_bindgen::generate!({ path: "wit", world: "helsinki:data-quality-inspector/server", generate_all });
+
+    struct Jobs;
+
+    impl Guest for Jobs {
+        fn inspect_daily() -> Result<(), String> {
+            super::inspect_daily()
+        }
+    }
+
+    export!(Jobs);
+}
 
 #[cfg(test)]
 mod tests {

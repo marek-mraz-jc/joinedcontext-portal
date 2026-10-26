@@ -50,7 +50,7 @@ export const VIEWER: Me = { id: "u-1", name: "Vilja Viewer", roles: ["viewer"] }
 export const STEWARD: Me = { id: "u-2", name: "Sami Steward", roles: ["viewer", "steward"] };
 
 /**
- * The App's server (T-3354) as the page sees it: the runs it keeps, in memory, a run now added;
+ * The App's server (T-3354) as the page sees it: the runs its daily job kept (T-3579), in memory;
  * who calls, a steward's resolutions and corrections and the history, deciding by `me` (T-3827).
  */
 function appServer(me: Me) {
@@ -63,7 +63,10 @@ function appServer(me: Me) {
     history.unshift({ id: history.length + 1, at, actorName: me?.name, action: "insert", target: `resolutions/${made.id}`, summary: `resolved ${attribute} of ${entity}: ${note}` });
     return made;
   };
-  const runs = [{ id: 1, ran_at: "2030-10-20T09:00:00Z", types: [], entities: 40, findings: 3, completeness: 0.9, valid: 0.75 }];
+  const runs = [
+    { id: 1, ran_at: "2030-10-20T09:00:00Z", types: [], entities: 40, findings: 3, completeness: 0.9, valid: 0.75 },
+    { id: 2, ran_at: "2030-10-21T09:00:00Z", types: [], entities: 41, findings: 2, completeness: 0.92, valid: 0.8 },
+  ];
   return (method: string, path: string, sent: Record<string, unknown>): { status: number; body: unknown } => {
     if (path === "/me") return { status: 200, body: me };
     if (path === "/resolutions" && method === "GET") return { status: 200, body: resolutions };
@@ -75,11 +78,6 @@ function appServer(me: Me) {
       return { status: 201, body: resolve(entity, attribute, note, path === "/corrections") };
     }
     if (path === "/runs" && method === "GET") return { status: 200, body: { runs: [...runs].reverse(), stale: false } };
-    if (path === "/runs" && method === "POST") {
-      const id = runs.length + 1;
-      runs.push({ id, ran_at: "2030-10-21T09:00:00Z", types: [], entities: 41, findings: 2, completeness: 0.92, valid: 0.8 });
-      return { status: 201, body: { id } };
-    }
     const report = /^\/runs\/(\d+)\/report$/.exec(path);
     if (report && runs.some((r) => r.id === Number(report[1]))) return { status: 200, body: { url: `http://portal.test/store/runs/${report[1]}/report.json` } };
     return { status: 404, body: { title: "Not Found", detail: "no such run" } };

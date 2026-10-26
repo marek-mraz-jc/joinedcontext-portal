@@ -27,7 +27,9 @@
 //! such as `viewer`, roles such as `steward+viewer`, or `viewer@u-2` for another person with that
 //! role; without it the step runs as one person holding every role of the App's `app.yaml`.
 //! `rows` counts a table of the called App after the step (`{"plans": 1}`), so a refused write is
-//! shown to have changed nothing.
+//! shown to have changed nothing. A step `{"job": "inspect-daily"}` runs that job export of the
+//! App (`as` picks which) under a job principal's token, as the host's scheduler does (AP-154), and
+//! the run must succeed within the scheduler's wall time.
 //! Needs the variables of src/lib.rs.
 
 use std::collections::BTreeMap;
@@ -111,6 +113,19 @@ async fn play(app: &str) {
         .iter()
         .enumerate()
     {
+        if let Some(export) = step["job"].as_str() {
+            let app = match step["as"].as_str() {
+                Some("second") => &harness.second,
+                _ => &harness.first,
+            };
+            let token = wasm_apps_harness::token("job").expect("a job token");
+            let ran = harness
+                .host
+                .run_job(app, export, token, wasm_host::jobs::WALL_TIME)
+                .await;
+            assert_eq!(ran, Ok(()), "{app} step {n}: the job {export}", app = app.name);
+            continue;
+        }
         let call = text(&step["call"], "call");
         let (verb, target) = call
             .split_once(' ')
