@@ -227,8 +227,14 @@ async fn a_preview_start_keeps_its_author_and_salt_until_the_next_start() {
             ..first.clone()
         };
         store.start_preview(&name, again.clone()).await.unwrap();
-        assert_eq!(store.get(&name).await.unwrap().unwrap().preview, Some(again));
-        assert!(!format!("{first:?}").contains(&first.salt), "Debug hides the salt");
+        assert_eq!(
+            store.get(&name).await.unwrap().unwrap().preview,
+            Some(again)
+        );
+        assert!(
+            !format!("{first:?}").contains(&first.salt),
+            "Debug hides the salt"
+        );
         assert!(matches!(
             store.start_preview("nobody-here", first).await,
             Err(WorkspaceError::NotFound(_))
