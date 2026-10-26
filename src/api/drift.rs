@@ -245,12 +245,9 @@ pub async fn adopt_drift(
     let envelope = crate::api::changes::seed_envelope(&entity.source, &content)
         .ok_or_else(|| ApiError::Internal("the adopted seed file is no JSON".to_owned()))?;
 
-    let branch = crate::api::mutate::create_or_reuse_branch(
-        gitea,
-        &adopt_branch(&project, &space, &id),
-        &default_branch,
-    )
-    .await?;
+    // Held until the merge request is open, so a second adoption finds it (F-POR2-011).
+    let held = crate::api::mutate::turn(gitea, &adopt_branch(&project, &space, &id)).await;
+    let branch = crate::api::mutate::create_or_reuse_branch(gitea, &held, &default_branch).await?;
     let (author_name, author_email) =
         crate::api::mutate::author_credentials(&user.0.identity, &project);
     let what = format!("adopt the live '{id}'");
