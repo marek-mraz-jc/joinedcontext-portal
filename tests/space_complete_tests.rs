@@ -18,6 +18,8 @@ use joinedcontext_portal::state::AppState;
 use joinedcontext_portal::store::Mirror;
 
 const TEST_CSRF_TOKEN: &str = "test-csrf-token-space-complete-123";
+/// The steward's Keycloak user id, the token `sub` a drafted grant names (ADR-N-061, PF-126).
+const STEWARD_ID: &str = "3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14";
 
 fn session_cookie(
     config: &Config,
@@ -31,7 +33,10 @@ fn session_cookie(
     let s = Session {
         identity: Identity {
             client: None,
-            subject: format!("sub-{username}"),
+            subject: match username {
+                "steward.user" => STEWARD_ID.to_owned(),
+                other => format!("sub-{other}"),
+            },
             username: username.to_string(),
             email: email.map(str::to_string),
             name: Some(username.to_string()),
@@ -1015,10 +1020,7 @@ async fn a_project_without_a_pipeline_account_gets_one_drafted_and_named() {
     assert_eq!(account["name"], "pipelines", "{account}");
     // A drafted account is a manifest a person approves, so it carries what the kind needs: an
     // accountable owner and a purpose, one OAuth client, and no platform role of its own.
-    assert_eq!(
-        account["manifest"]["spec"]["owner"]["user"],
-        "sub-steward.user"
-    );
+    assert_eq!(account["manifest"]["spec"]["owner"]["user"], STEWARD_ID);
     assert!(
         account["manifest"]["spec"]["purpose"]
             .as_str()
@@ -1206,7 +1208,7 @@ async fn an_uploaded_csv_drafts_the_endpoint_and_the_persons_write_grant() {
     let grant = &named("room-bookings-upload")["manifest"]["spec"];
     assert_eq!(
         grant["assignee"],
-        json!({ "kind": "user", "id": "sub-steward.user" })
+        json!({ "kind": "user", "id": STEWARD_ID })
     );
     assert_eq!(
         grant["operations"],

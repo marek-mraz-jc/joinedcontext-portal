@@ -308,7 +308,8 @@ async fn a_persons_consents_come_with_their_rows() {
     .await;
     assert_eq!(answer.status, 200, "{}", answer.text);
     let explored = body(&answer);
-    assert_eq!(explored["subject"]["user"], "jana@hel.fi");
+    // The gateway takes `user` as the token `sub`: a person is simulated by their Keycloak id.
+    assert_eq!(explored["subject"]["user"], "jana-id");
     assert_eq!(explored["consents"][0]["clientId"], "mcp-hub");
     assert_eq!(
         explored["consents"][0]["lastUpdatedDate"],

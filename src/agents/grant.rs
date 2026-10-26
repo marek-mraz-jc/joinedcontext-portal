@@ -47,12 +47,13 @@ fn label(text: &str) -> String {
 /// organization scope carries the organization's name, the first label of its domain.
 pub fn manifest(grant: &GrantRole, org_domain: &str) -> Result<Value, String> {
     let Some(first) = grant.subjects.first() else {
-        return Err("name at least one subject, a user (username or e-mail) or a group".into());
+        return Err("name at least one subject, a user (their Keycloak user id) or a group".into());
     };
+    // A person's id names the binding by its first block, as the grant form does (F-UI1-009).
     let who = first
         .user
         .as_deref()
-        .map(|user| user.split('@').next().unwrap_or(user))
+        .map(|user| user.split(['@', '-']).next().unwrap_or(user))
         .or(first.group.as_deref())
         .unwrap_or_default();
     let role = grant.role.trim();
@@ -90,10 +91,12 @@ pub fn manifest(grant: &GrantRole, org_domain: &str) -> Result<Value, String> {
 mod tests {
     use super::*;
 
+    const JANA: &str = "3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14";
+
     fn grant(scope: Value) -> GrantRole {
         GrantRole {
             subjects: vec![Subject {
-                user: Some("Jana.Kovacova@hel.fi".into()),
+                user: Some(JANA.into()),
                 group: None,
                 ..Subject::default()
             }],
@@ -107,16 +110,10 @@ mod tests {
     fn the_binding_is_named_after_who_what_and_where() {
         let binding =
             manifest(&grant(json!({ "project": "helsinki" })), "hel.fi").expect("binding");
-        assert_eq!(
-            binding["metadata"]["name"],
-            "jana-kovacova-steward-helsinki"
-        );
+        assert_eq!(binding["metadata"]["name"], "3f2a9c1e-steward-helsinki");
         assert_eq!(binding["metadata"]["namespace"], "org");
         assert_eq!(binding["spec"]["scope"], json!({ "project": "helsinki" }));
-        assert_eq!(
-            binding["spec"]["subjects"],
-            json!([{ "user": "Jana.Kovacova@hel.fi" }])
-        );
+        assert_eq!(binding["spec"]["subjects"], json!([{ "user": JANA }]));
 
         let organization =
             manifest(&grant(json!({ "organization": true })), "hel.fi").expect("binding");
@@ -124,10 +121,7 @@ mod tests {
             organization["spec"]["scope"],
             json!({ "organization": "hel" })
         );
-        assert_eq!(
-            organization["metadata"]["name"],
-            "jana-kovacova-steward-hel"
-        );
+        assert_eq!(organization["metadata"]["name"], "3f2a9c1e-steward-hel");
     }
 
     #[test]
@@ -144,7 +138,7 @@ mod tests {
 
     #[test]
     fn the_call_is_read_from_its_fence() {
-        let answer = "Granting it.\n\n```json\n{\"tool\":\"grant_role\",\"subjects\":[{\"user\":\"jana.kovacova\"}],\"role\":\"steward\",\"scope\":{\"project\":\"helsinki\"}}\n```\n";
+        let answer = "Granting it.\n\n```json\n{\"tool\":\"grant_role\",\"subjects\":[{\"user\":\"3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14\"}],\"role\":\"steward\",\"scope\":{\"project\":\"helsinki\"}}\n```\n";
         let call = tool_call(answer).expect("a call").expect("parses");
         assert_eq!(call.role, "steward");
         assert!(tool_call("```json\n{\"tool\":\"change_resource\"}\n```").is_none());

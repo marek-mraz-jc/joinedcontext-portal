@@ -1712,11 +1712,12 @@ fn manifest(kind: &str, name: &str, spec: Value) -> Value {
             "metadata": { "name": name, "namespace": ORG_NAMESPACE }, "spec": spec })
 }
 
+/// Peter is named by a Keycloak user id (ADR-N-061, PF-126).
 fn zilina_binding(name: &str, scope: Value) -> Value {
     manifest(
         "RoleBinding",
         name,
-        json!({ "subjects": [{ "user": "peter@zilina.sk" }], "role": "org-admin", "scope": scope }),
+        json!({ "subjects": [{ "user": "5e1d7c3b-9a2f-4b8e-a6d4-2c0f8e9b1a73" }], "role": "org-admin", "scope": scope }),
     )
 }
 
@@ -1844,7 +1845,7 @@ async fn an_organization_admin_reaches_no_binding_or_group_of_another_organizati
         manifest(
             "Group",
             name,
-            json!({ "members": [{ "user": "eva@zilina.sk" }] }),
+            json!({ "members": [{ "user": "5e1d7c3b-9a2f-4b8e-a6d4-2c0f8e9b1a73" }] }),
         )
     };
     let (status, body) = send(

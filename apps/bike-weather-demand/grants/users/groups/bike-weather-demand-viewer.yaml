@@ -8,4 +8,4 @@ metadata:
 spec:
   description: The viewers of bike-weather-demand, its default group.
   members:
-  - user: demo.viewer@hel.fi
+  - user: de300000-0000-4000-8000-000000000002 # demo.viewer

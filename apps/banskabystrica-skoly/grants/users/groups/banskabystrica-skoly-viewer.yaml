@@ -8,5 +8,5 @@ metadata:
 spec:
   description: The viewers of banskabystrica-skoly, its default group.
   members:
-  - user: demo.viewer@hel.fi
-  - user: demo.steward@hel.fi
+  - user: de300000-0000-4000-8000-000000000002 # demo.viewer
+  - user: de300000-0000-4000-8000-000000000001 # demo.steward

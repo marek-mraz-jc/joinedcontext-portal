@@ -149,7 +149,7 @@ fn kinds() -> Vec<Kind> {
         org(
             "Group",
             "groups",
-            json!({ "description": "The people who look after the air", "members": [{ "user": "anna@hel.fi" }] }),
+            json!({ "description": "The people who look after the air", "members": [{ "user": "3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14" }] }),
         ),
         project(
             "Dashboard",

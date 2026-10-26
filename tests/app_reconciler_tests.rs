@@ -1143,7 +1143,7 @@ fn a_role_gated_need_is_granted_to_that_role_on_the_apps_endpoint_alone() {
             ],
             "access": [
                 { "role": "viewer", "subjects": [{ "group": "bb-operations" }] },
-                { "role": "steward", "subjects": [{ "user": "jana@banskabystrica.sk" }] }
+                { "role": "steward", "subjects": [{ "user": "3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14" }] }
             ],
             "dataNeeds": [
                 {
@@ -1174,7 +1174,7 @@ fn a_role_gated_need_is_granted_to_that_role_on_the_apps_endpoint_alone() {
         endpoint["roles"],
         json!([
             { "name": "viewer", "subjects": [{ "group": "bb-operations" }] },
-            { "name": "steward", "subjects": [{ "user": "jana@banskabystrica.sk" }] }
+            { "name": "steward", "subjects": [{ "user": "3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14" }] }
         ]),
         "a role nobody holds gives nobody anything and is left out"
     );
