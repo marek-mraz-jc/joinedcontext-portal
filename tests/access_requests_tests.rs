@@ -48,6 +48,11 @@ async fn state(pool: sqlx::PgPool, pipeline: &str, pipeline_identity: bool) -> A
 
 /// The same world without a database: the request form's list and the request door's refusals
 /// answer before anything is stored.
+/// Each world's forge double, by its pipeline's name, kept for the test's whole run.
+static FORGES: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashMap<String, wiremock::MockServer>>,
+> = std::sync::LazyLock::new(Default::default);
+
 async fn world(pipeline: &str, pipeline_identity: bool) -> AppState {
     let gitea = common::forge().await;
     let client = GiteaClient::new(
@@ -57,7 +62,10 @@ async fn world(pipeline: &str, pipeline_identity: bool) -> AppState {
         "token-xyz",
     )
     .expect("client");
-    std::mem::forget(gitea);
+    FORGES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .insert(pipeline.to_owned(), gitea);
     let mut config = Config::for_tests();
     config.pipeline_identity = pipeline_identity;
     let state = AppState::new(config, None).with_gitea(Arc::new(client));
@@ -370,6 +378,55 @@ async fn a_request_is_approved_in_the_owning_project_and_revoked_there() {
         &pipeline,
         now
     ));
+}
+
+/// F-POR1-017: two owners approving at once: one Change, and the other gets the 409 before it
+/// proposes anything.
+#[tokio::test]
+async fn two_approvals_at_once_open_one_change() {
+    let Some(pool) = pool().await else { return };
+    let pipeline = unique("air");
+    let state = state(pool, &pipeline, true).await;
+    let filed = send(
+        &state,
+        "jana",
+        "POST",
+        &format!("/api/v1/projects/{KPIS}/pipelines/{pipeline}/access-requests"),
+        Some(ask()),
+    )
+    .await;
+    assert_eq!(filed.status, StatusCode::CREATED, "{}", filed.text);
+    let id = serde_json::from_str::<Value>(&filed.text).expect("json")["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    let uri = format!("/api/v1/projects/{HELSINKI}/access-requests/{id}/approve");
+    let (one, two) = tokio::join!(
+        send(&state, "olli", "POST", &uri, None),
+        send(&state, "olli", "POST", &uri, None)
+    );
+    let mut statuses = [one.status, two.status];
+    statuses.sort();
+    assert_eq!(
+        statuses,
+        [StatusCode::ACCEPTED, StatusCode::CONFLICT],
+        "{} / {}",
+        one.text,
+        two.text
+    );
+    let forge = FORGES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .remove(&pipeline)
+        .expect("the world's forge");
+    let opened = forge
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == "POST" && r.url.path().ends_with("/pulls"))
+        .count();
+    assert_eq!(opened, 1, "one approval, one Change");
 }
 
 /// PL-91: the requester never approves their own request, even holding the owner's rights.
