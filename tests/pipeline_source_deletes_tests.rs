@@ -186,6 +186,7 @@ async fn run_reported(
             run: run.to_owned(),
             finished,
             reports,
+            stream: String::new(),
         },
     )
     .await;

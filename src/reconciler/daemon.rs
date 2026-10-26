@@ -1701,6 +1701,13 @@ impl Syncer {
                         tracing::warn!(%error, "the run log was not read: new scheduled pipelines wait for their clock")
                     }
                 }
+                // A replace pipeline whose stream changed across a restart runs at once (T-5825).
+                match log.ran_streams().await {
+                    Ok(streams) => deployer.streams(streams),
+                    Err(error) => {
+                        tracing::warn!(%error, "the run log was not read: changed replace pipelines wait for their clock")
+                    }
+                }
                 // A run that failed for a cause outside its source is retried with backoff (T-5687).
                 match log.outside_failures().await {
                     Ok(failed) => deployer.failed(failed),
