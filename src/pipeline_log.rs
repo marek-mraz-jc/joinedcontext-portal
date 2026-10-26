@@ -158,6 +158,8 @@ struct Memory {
     runs: Vec<Run>,
     /// The last hash written per entity id.
     hashes: HashMap<String, String>,
+    /// The stream hash each run ran, by run (T-5825).
+    streams: HashMap<String, String>,
 }
 
 enum Inner {
@@ -628,6 +630,10 @@ impl LogStore {
                 }
                 let over = memory.runs.len().saturating_sub(RUNS_KEPT);
                 memory.runs.drain(..over);
+                let runs = &memory.runs;
+                memory
+                    .streams
+                    .retain(|run, _| runs.iter().any(|kept| kept.run == *run));
                 Ok(())
             }
         }
@@ -798,6 +804,68 @@ impl LogStore {
                         .filter_map(|run| chrono::DateTime::parse_from_rfc3339(&run.last_at).ok())
                         .max()?;
                     Some((key.clone(), last.with_timezone(&chrono::Utc)))
+                })
+                .collect()),
+        }
+    }
+
+    /// Files the [`stream_hash`](crate::reconciler::run_queue::stream_hash) of the stream the run
+    /// `run` ran with its row (T-5825). A run that logged no line has no row and keeps none: a
+    /// restarted Portal then plans the pipeline as before.
+    pub async fn ran_stream(
+        &self,
+        project: &str,
+        pipeline: &str,
+        run: &str,
+        stream: &str,
+    ) -> Result<(), sqlx::Error> {
+        match &self.inner {
+            Inner::Postgres(pool) => {
+                sqlx::query(
+                    "UPDATE pipeline_runs SET stream_hash = $4 \
+                     WHERE project = $1 AND pipeline = $2 AND run = $3",
+                )
+                .bind(project)
+                .bind(pipeline)
+                .bind(run)
+                .bind(stream)
+                .execute(pool)
+                .await?;
+                Ok(())
+            }
+            Inner::Memory(map) => {
+                let mut map = map.write().unwrap_or_else(|e| e.into_inner());
+                if let Some(memory) = map.get_mut(&(project.to_owned(), pipeline.to_owned())) {
+                    if memory.runs.iter().any(|logged| logged.run == run) {
+                        memory.streams.insert(run.to_owned(), stream.to_owned());
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
+
+    /// Every (project, pipeline) whose newest run has a stream hash, with that hash (T-5825):
+    /// a replace pipeline whose stream differs from it changed while no Portal held it.
+    pub async fn ran_streams(&self) -> Result<HashMap<Key, String>, sqlx::Error> {
+        match &self.inner {
+            Inner::Postgres(pool) => Ok(sqlx::query_as::<_, (String, String, Option<String>)>(
+                "SELECT DISTINCT ON (project, pipeline) project, pipeline, stream_hash \
+                 FROM pipeline_runs ORDER BY project, pipeline, last_at DESC",
+            )
+            .fetch_all(pool)
+            .await?
+            .into_iter()
+            .filter_map(|(project, pipeline, stream)| Some(((project, pipeline), stream?)))
+            .collect()),
+            Inner::Memory(map) => Ok(map
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .iter()
+                .filter_map(|(key, memory)| {
+                    // The newest run is the last: each report moves its run to the end.
+                    let newest = memory.runs.last()?;
+                    Some((key.clone(), memory.streams.get(&newest.run)?.clone()))
                 })
                 .collect()),
         }
@@ -1402,6 +1470,33 @@ mod tests {
         // T-5778: with the time of its last line, which the queue reads for a missed due time.
         let last = ran[&("slovensko".to_owned(), "susr-as".to_owned())];
         assert!((chrono::Utc::now() - last).num_seconds().abs() < 60);
+    }
+
+    /// T-5825: a run's stream hash is kept only for a run the log holds, and the queue reads the
+    /// newest run's: a newer run logged without one hides the older hash.
+    #[tokio::test]
+    async fn ran_streams_name_the_newest_runs_hash_and_only_for_a_logged_run() {
+        let store = LogStore::new(None);
+        let key = ("helsinki".to_owned(), "trees".to_owned());
+        store
+            .ran_stream("helsinki", "trees", "r0", "never-logged")
+            .await
+            .expect("keep");
+        assert!(store.ran_streams().await.expect("read").is_empty());
+        store
+            .append("helsinki", "trees", "r1", &[])
+            .await
+            .expect("append");
+        store
+            .ran_stream("helsinki", "trees", "r1", "h1")
+            .await
+            .expect("keep");
+        assert_eq!(store.ran_streams().await.expect("read")[&key], "h1");
+        store
+            .append("helsinki", "trees", "r2", &[])
+            .await
+            .expect("append");
+        assert!(store.ran_streams().await.expect("read").is_empty());
     }
 
     /// T-5048: the health tab shows the newest failed or rejected line, never a sent one.

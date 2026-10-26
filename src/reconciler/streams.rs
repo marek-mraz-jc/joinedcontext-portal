@@ -288,6 +288,15 @@ impl StreamDeployer {
             .ran(ran);
     }
 
+    /// Tells the run queue the stream hash of each pipeline's newest logged run, so a replace
+    /// pipeline whose stream changed while no Portal held it runs at once (T-5825).
+    pub fn streams(&self, streams: std::collections::HashMap<(String, String), String>) {
+        self.queue
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .streams(streams);
+    }
+
     /// Tells the run queue which pipelines' newest run failed for a cause outside their source,
     /// with that run and the cause, so each is retried with backoff (T-5687).
     pub fn failed(&self, failed: std::collections::BTreeMap<(String, String), (String, String)>) {
@@ -1395,7 +1404,7 @@ impl Runner for StreamDeployer {
         }
     }
 
-    async fn ended(&self, key: &run_queue::Key, run: &str, finished: bool) {
+    async fn ended(&self, key: &run_queue::Key, run: &str, finished: bool, stream: &str) {
         if let Some(ends) = &self.run_ends {
             // Bento keeps a deleted stream's series until it restarts, so the count outlives the
             // stream this run ran in.
@@ -1411,6 +1420,7 @@ impl Runner for StreamDeployer {
                 run: run.to_owned(),
                 finished,
                 reports: report_count(base, end),
+                stream: stream.to_owned(),
             });
         }
     }
@@ -3028,14 +3038,18 @@ output:
         let stream =
             serde_json::json!({ "input": { "generate": { "count": 1, "mapping": "root = {}" } } });
         let _ = Runner::start(&deployer, &key, &stream).await;
-        Runner::ended(&deployer, &key, "r1", true).await;
+        Runner::ended(&deployer, &key, "r1", true, "h1").await;
         let end = heard.try_recv().expect("the run's end");
+        assert_eq!(
+            end.stream, "h1",
+            "the stream hash reaches the run log (T-5825)"
+        );
         assert_eq!(
             end.reports,
             crate::pipeline_source_deletes::ReportCount::Lost(2)
         );
         // A second end with no start of its own has no base to count from.
-        Runner::ended(&deployer, &key, "r2", true).await;
+        Runner::ended(&deployer, &key, "r2", true, "h2").await;
         assert!(matches!(
             heard.try_recv().expect("the run's end").reports,
             crate::pipeline_source_deletes::ReportCount::Unknown(_)

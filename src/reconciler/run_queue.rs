@@ -293,6 +293,9 @@ struct Entry {
     running: Option<DateTime<Utc>>,
     /// The id of the run in the runner: its due time, as the pipeline's log names runs (PL-62).
     run: Option<String>,
+    /// The [`stream_hash`] of the stream that run runs, kept from its start: the stream may
+    /// change while it runs (T-5825).
+    run_stream: Option<String>,
     /// Its stream is removed from the runner once before its first run: one an older Portal
     /// loaded as resident, or a run a restarted Portal no longer knows.
     sweep: bool,
@@ -373,8 +376,9 @@ pub(crate) trait Runner {
     /// Removes the stream; a stream that is not there is fine. False when the runner did not
     /// let go of it in time: its stop hangs on a step that never returns (T-5370).
     async fn delete(&self, key: &Key) -> bool;
-    /// Hears that the run `run` of `key` ended, `finished` or not (T-4891).
-    async fn ended(&self, _key: &Key, _run: &str, _finished: bool) {}
+    /// Hears that the run `run` of `key` ended, `finished` or not (T-4891), and the
+    /// [`stream_hash`] of the stream it ran (T-5825).
+    async fn ended(&self, _key: &Key, _run: &str, _finished: bool, _stream: &str) {}
 }
 
 /// The queue and its two lanes' concurrency.
@@ -388,7 +392,7 @@ pub struct RunQueue {
     gone: Vec<Key>,
     /// The runs that ended since the last tick, by run id, and whether the runner finished them
     /// (T-4891): a snapshot pipeline judges its deletes on them.
-    ends: Vec<(Key, String, bool)>,
+    ends: Vec<(Key, String, bool, String)>,
     planned_at: Option<DateTime<Utc>>,
     /// The pipelines with a run in the durable log and when their newest run last wrote
     /// (T-4421): a scheduled one new to this queue and not among them never ran, so it runs at
@@ -396,6 +400,10 @@ pub struct RunQueue {
     /// missed it while no Portal held it, so it is queued under that due time (T-5778). `None`
     /// until the log has been read: a restart then never runs every pipeline at once.
     ran: Option<HashMap<Key, DateTime<Utc>>>,
+    /// The [`stream_hash`] of the stream each pipeline's newest logged run ran (T-5825): a
+    /// replace pipeline new to this queue whose stream differs from it changed while no Portal
+    /// held it, so it runs at once. A pipeline whose newest run has no hash is not in it.
+    streams: Option<HashMap<Key, String>>,
     /// The workload accounts (`project/name`) whose Keycloak client the last reconcile could not
     /// converge (T-4426): a pipeline of one is not started, since every write it made would be
     /// refused 401 and replayed until [`RUN_TIMEOUT`], holding its lane.
@@ -421,6 +429,7 @@ impl RunQueue {
             ends: Vec::new(),
             planned_at: None,
             ran: None,
+            streams: None,
             unbound: HashSet::new(),
             failed: None,
             rules: BTreeMap::new(),
@@ -472,11 +481,30 @@ impl RunQueue {
         self.ran = Some(ran);
     }
 
+    /// The [`stream_hash`] of the stream each pipeline's newest logged run ran, read before each
+    /// [`RunQueue::plan`] (T-5825).
+    pub fn streams(&mut self, streams: HashMap<Key, String>) {
+        self.streams = Some(streams);
+    }
+
+    /// Whether `planned` replaces and its stream differs from the one the newest logged run of
+    /// `key` ran: it changed while no Portal held it (T-5825).
+    fn changed_unheld(&self, key: &Key, planned: &Planned) -> bool {
+        planned.replace
+            && self
+                .streams
+                .as_ref()
+                .and_then(|streams| streams.get(key))
+                .is_some_and(|ran| *ran != stream_hash(&planned.stream))
+    }
+
     /// Takes the reconciler's whole set of run-and-delete pipelines: a new one or one whose
     /// stream or clock changed is due by its clock (a run-once one at once, and a scheduled one
     /// that never ran at once too), one no longer in the set leaves the queue and its run is
     /// deleted. A replace pipeline whose stream changed is due at once (T-5824): its entities
-    /// hold what the old mapping wrote until it runs, and only a replace run removes that.
+    /// hold what the old mapping wrote until it runs, and only a replace run removes that. The
+    /// same holds for a replace pipeline new to this queue whose stream differs from the one its
+    /// newest logged run ran: it changed while no Portal held it (T-5825).
     pub fn plan(&mut self, wanted: BTreeMap<Key, Planned>, now: DateTime<Utc>) {
         self.planned_at = Some(now);
         let dropped: Vec<Key> = self
@@ -512,6 +540,7 @@ impl RunQueue {
                 }
                 None => {
                     let first = match self.ran.as_ref().map(|ran| ran.get(&key)) {
+                        _ if self.changed_unheld(&key, &planned) => Some(now),
                         Some(None) => Some(now),
                         Some(Some(last)) => missed(&planned.clock, *last, now).or(first),
                         None => first,
@@ -526,6 +555,7 @@ impl RunQueue {
                             queued: None,
                             running: None,
                             run: None,
+                            run_stream: None,
                             sweep: true,
                             stuck: false,
                             last: None,
@@ -642,8 +672,13 @@ impl RunQueue {
             {
                 entry.arm(&run, reason, now);
             }
-            self.ends
-                .extend(entry.run.clone().map(|run| (key.clone(), run, finished)));
+            let stream = entry.run_stream.take().unwrap_or_default();
+            self.ends.extend(
+                entry
+                    .run
+                    .clone()
+                    .map(|run| (key.clone(), run, finished, stream)),
+            );
             entry.running = None;
             entry.last = Some(match failure {
                 None => Last::Finished { at: now, seconds },
@@ -702,6 +737,7 @@ impl RunQueue {
                     entry.running = Some(now);
                     starts.push((key.clone(), with_run(&entry.stream, &run)));
                     entry.run = Some(run);
+                    entry.run_stream = Some(stream_hash(&entry.stream));
                 }
             }
             crate::telemetry::pipeline_queue_depth(
@@ -846,6 +882,17 @@ fn missed(clock: &Clock, last: DateTime<Utc>, now: DateTime<Utc>) -> Option<Date
     clock.next_after(last).filter(|due| *due <= now)
 }
 
+/// The fingerprint of a pipeline's stream as the reconciler renders it, before a run id is
+/// written in (T-5825): SHA-256 of its JSON text, stable across Portal builds. The stream names
+/// secrets by environment variable only, so no secret value is hashed.
+pub fn stream_hash(stream: &Value) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(stream.to_string().as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
 fn stamp(t: DateTime<Utc>) -> String {
     t.to_rfc3339_opts(SecondsFormat::Secs, true)
 }
@@ -877,8 +924,8 @@ pub(crate) async fn tick<R: Runner>(queue: &Mutex<RunQueue>, runner: &R, now: Da
         }
     }
     let ends = std::mem::take(&mut lock().ends);
-    for (key, run, finished) in ends {
-        runner.ended(&key, &run, finished).await;
+    for (key, run, finished, stream) in ends {
+        runner.ended(&key, &run, finished, &stream).await;
     }
     for (key, stream) in starts {
         if let Err(reason) = runner.start(&key, &stream).await {
@@ -1018,6 +1065,8 @@ mod tests {
         stuck: Mutex<BTreeSet<String>>,
         sent: Mutex<HashMap<String, Value>>,
         ends: Mutex<Vec<(String, String, bool)>>,
+        /// The stream hash each ended run was told with, by pipeline.
+        ran_streams: Mutex<Vec<(String, String)>>,
     }
 
     impl Fake {
@@ -1072,9 +1121,11 @@ mod tests {
             self.held.lock().unwrap().remove(key);
             true
         }
-        async fn ended(&self, key: &Key, run: &str, finished: bool) {
+        async fn ended(&self, key: &Key, run: &str, finished: bool, stream: &str) {
             let end = (key.1.clone(), run.to_owned(), finished);
             self.ends.lock().unwrap().push(end);
+            let ran = (key.1.clone(), stream.to_owned());
+            self.ran_streams.lock().unwrap().push(ran);
         }
     }
 
@@ -1371,6 +1422,80 @@ mod tests {
         assert_eq!(next_of(&queue, "upserted"), monday);
         assert_eq!(next_of(&queue, "reclocked"), daily_at_5().next_after(later));
         assert_eq!(next_of(&queue, "same"), monday);
+    }
+
+    /// T-5825: a Portal that restarts with a replace pipeline's stream changed since its newest
+    /// logged run runs it at once; the same stream, a run logged without a hash and an upsert
+    /// pipeline keep their clock.
+    #[test]
+    fn a_replace_stream_changed_across_a_restart_is_due_at_once() {
+        let mut queue = RunQueue::new(1, 1);
+        let now = at("2026-10-27T06:00:00Z");
+        let last = now - Span::hours(1);
+        let names = ["replaced", "same", "unhashed", "upserted"];
+        queue.ran(names.iter().map(|name| (key(name), last)).collect());
+        let old = stream_hash(&weekly_run(true, 1).stream);
+        queue.streams(
+            ["replaced", "same", "upserted"]
+                .iter()
+                .map(|name| (key(name), old.clone()))
+                .collect(),
+        );
+        let wanted: BTreeMap<Key, Planned> = [
+            (key("replaced"), weekly_run(true, 2)),
+            (key("same"), weekly_run(true, 1)),
+            (key("unhashed"), weekly_run(true, 2)),
+            (key("upserted"), weekly_run(false, 2)),
+        ]
+        .into_iter()
+        .collect();
+        queue.plan(wanted, now);
+        let monday = Some(at("2026-11-02T05:00:00Z"));
+        assert_eq!(next_of(&queue, "replaced"), Some(now));
+        assert_eq!(next_of(&queue, "same"), monday);
+        assert_eq!(next_of(&queue, "unhashed"), monday);
+        assert_eq!(next_of(&queue, "upserted"), monday);
+    }
+
+    /// T-5825: a run that ends is told with the hash of the stream it started with, even when
+    /// its stream changed while it ran, so the log never pairs a run with a stream it did not run.
+    #[tokio::test]
+    async fn an_ended_run_is_told_the_hash_of_the_stream_it_ran() {
+        let queue = Mutex::new(RunQueue::new(1, 1));
+        let fake = Fake::default();
+        let now = at("2026-10-27T06:00:00Z");
+        let mut first = weekly_run(true, 1);
+        first.clock = Clock::Once;
+        queue
+            .lock()
+            .unwrap()
+            .plan([(key("a"), first.clone())].into(), now);
+        step(&queue, &fake, now).await;
+        assert!(fake.log().contains(&"start a".to_owned()));
+        let mut second = weekly_run(true, 2);
+        second.clock = Clock::Once;
+        queue.lock().unwrap().plan([(key("a"), second)].into(), now);
+        fake.end("a", RunState::Finished);
+        step(&queue, &fake, now + Span::minutes(1)).await;
+        assert_eq!(
+            fake.ran_streams.lock().unwrap().first(),
+            Some(&("a".to_owned(), stream_hash(&first.stream)))
+        );
+    }
+
+    /// The hash is the stream's whole JSON text in hex: stable across builds, and any change of
+    /// the stream changes it.
+    #[test]
+    fn a_stream_hash_is_sha256_of_its_text() {
+        let stream = serde_json::json!({"input": {"generate": {"count": 1}}});
+        assert_eq!(
+            stream_hash(&stream),
+            "9406b26e4cbbee539aeb8444702f2e6394d766abf9f0a9d94fa5489252e93c31"
+        );
+        assert_ne!(
+            stream_hash(&stream),
+            stream_hash(&weekly_run(true, 2).stream)
+        );
     }
 
     /// T-5824: a seed sync that changes many replace streams queues them all at once, and the
@@ -1783,6 +1908,7 @@ mod tests {
             queued: None,
             running: None,
             run: None,
+            run_stream: None,
             sweep: false,
             stuck: false,
             last: None,

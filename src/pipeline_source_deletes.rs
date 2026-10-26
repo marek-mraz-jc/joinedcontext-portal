@@ -879,6 +879,9 @@ pub struct RunEnd {
     pub finished: bool,
     /// The runner's own count of the run's outcome reports it could not deliver (F-POR3-006).
     pub reports: ReportCount,
+    /// The [`stream_hash`](crate::reconciler::run_queue::stream_hash) of the stream it ran
+    /// (T-5825).
+    pub stream: String,
 }
 
 /// What the runner counted of a run's outcome reports that never reached the Portal: the
@@ -931,7 +934,17 @@ pub async fn run_ended(state: &AppState, end: RunEnd) {
         run,
         finished,
         reports,
+        stream,
     } = end;
+    // A restarted Portal compares a replace pipeline's stream with the one its newest run ran
+    // (T-5825).
+    if let Err(error) = state
+        .pipeline_log
+        .ran_stream(&project, &pipeline, &run, &stream)
+        .await
+    {
+        tracing::warn!(%project, %pipeline, %run, %error, "the run's stream hash was not kept: a restart plans the pipeline by its clock");
+    }
     let Some(spec) = state
         .mirror
         .get(&project, "Pipeline", &pipeline)
@@ -2122,6 +2135,7 @@ mod tests {
                 run: "r1".to_owned(),
                 finished: false,
                 reports: ReportCount::Complete,
+                stream: String::new(),
             },
         )
         .await;
