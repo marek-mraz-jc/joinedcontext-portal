@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import type { IncomingHttpHeaders, Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { gzipSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
 import { journeyMarkerOnPortalOnly } from "./live/portal";
 
@@ -8,8 +9,10 @@ import { journeyMarkerOnPortalOnly } from "./live/portal";
 // reads another origin (the API host's MCP route on /connect) failed that origin's CORS preflight
 // on the marker, and the walker filed a console error no person meets (T-5025).
 
-async function listen(handle: (headers: IncomingHttpHeaders, method: string, res: import("node:http").ServerResponse) => void): Promise<{ server: Server; origin: string }> {
-  const server = createServer((req, res) => handle(req.headers, req.method ?? "", res));
+async function listen(
+  handle: (headers: IncomingHttpHeaders, method: string, res: import("node:http").ServerResponse, path: string) => void,
+): Promise<{ server: Server; origin: string }> {
+  const server = createServer((req, res) => handle(req.headers, req.method ?? "", res, req.url ?? ""));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   return { server, origin: `http://127.0.0.1:${(server.address() as AddressInfo).port}` };
 }
@@ -45,6 +48,37 @@ test("the journey marker reaches the Portal's host and no other origin", async (
     await context.close();
     portal.server.close();
     other.server.close();
+  }
+});
+
+// Routing turns Chromium's HTTP cache off, so the walker fetched the whole immutable bundle on every
+// page it opened and emptied the edge's per-IP budget, which a person's cached browser never does:
+// a chunk answered 429 and the walk filed a Portal that did not boot (T-5744).
+test("an immutable asset is fetched once a context, as a browser's cache does", async ({ browser }) => {
+  const saw: string[] = [];
+  const portal = await listen((_headers, _method, res, path) => {
+    saw.push(path);
+    if (path === "/") return res.writeHead(200, { "content-type": "text/html" }).end('<!doctype html><script src="/assets/app-1.js"></script><script src="/assets/busy-1.js"></script>');
+    // Compressed, as the Portal answers its bundle (T-5598).
+    if (path === "/assets/app-1.js")
+      return res
+        .writeHead(200, { "content-type": "text/javascript", "content-encoding": "gzip", "cache-control": "public, max-age=31536000, immutable" })
+        .end(gzipSync("window.loaded = (window.loaded ?? 0) + 1;"));
+    // A refusal is no file: the next load asks again, as a browser does.
+    res.writeHead(429, { "content-type": "text/plain", "retry-after": "1" }).end("slow down");
+  });
+  const context = await browser.newContext();
+  try {
+    await journeyMarkerOnPortalOnly(context, new URL(portal.origin).host);
+    const page = await context.newPage();
+    for (let load = 0; load < 3; load++) {
+      await page.goto(portal.origin);
+      expect(await page.evaluate(() => (window as unknown as { loaded?: number }).loaded)).toBe(1);
+    }
+    expect(saw).toEqual(["/", "/assets/app-1.js", "/assets/busy-1.js", "/", "/assets/busy-1.js", "/", "/assets/busy-1.js"]);
+  } finally {
+    await context.close();
+    portal.server.close();
   }
 });
 

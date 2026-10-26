@@ -29,9 +29,25 @@ export function inHiddenSection(address: string, hidden: string[]): boolean {
  */
 export async function journeyMarkerOnPortalOnly(context: BrowserContext, portalHost: string): Promise<void> {
   await context.setExtraHTTPHeaders({});
+  // A route turns the browser's HTTP cache off: every page the walker opened fetched the whole
+  // bundle again and emptied the edge's per-IP budget, so a chunk answered 429 where a person's
+  // browser reads its cached copy (T-5744). An immutable file is kept here once it loaded.
+  const kept = new Map<string, { status: number; headers: Record<string, string>; body: Buffer }>();
   await context.route(
     (url) => url.host === portalHost,
-    (route) => route.fallback({ headers: { ...route.request().headers(), "x-jc-run-origin": "journey" } }),
+    async (route) => {
+      const request = route.request();
+      const headers = { ...request.headers(), "x-jc-run-origin": "journey" };
+      if (request.method() !== "GET" || !new URL(request.url()).pathname.startsWith("/assets/")) return route.fallback({ headers });
+      const cached = kept.get(request.url());
+      if (cached) return route.fulfill(cached);
+      const response = await route.fetch({ headers }).catch(() => undefined);
+      if (!response) return route.abort("failed");
+      if (!response.ok() || !/\bimmutable\b/.test(response.headers()["cache-control"] ?? "")) return route.fulfill({ response });
+      const file = { status: response.status(), headers: response.headers(), body: await response.body() };
+      kept.set(request.url(), file);
+      return route.fulfill(file);
+    },
   );
 }
 
