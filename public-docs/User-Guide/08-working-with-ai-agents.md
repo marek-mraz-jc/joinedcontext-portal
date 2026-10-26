@@ -12,6 +12,7 @@ routes:
   - /projects/$project/assistantdeployments
   - /projects/$project/agentprofiles
   - /connectors
+  - /projects/$project/mcp-elicitations/$id
 ---
 
 # Collaborating with Autonomous AI Agents
@@ -122,6 +123,17 @@ You should see your external agent discover available data inspection tools and 
 #### By asking the assistant
 
 Type into the composer: `What is the MCP address for the helsinki-all endpoint?`. The assistant inspects the endpoint manifest and returns the complete Streamable HTTP URL ready to paste into your external client configuration.
+
+### Deciding a Call Your Client Asks About
+
+When your AI client asks to run an MCP call that changes the project, the call does not run yet. The client shows you a link to the page **Decide an AI client's call** in the Portal, where you sign in with your own session.
+
+1. Read the client's message, the operation it names and the time the question stays open until (ten minutes).
+2. Open **Look at what this call changes** to see the resource the call would change.
+3. Select **Accept the call** to let this one call run once, or **Decline the call** to stop it. You can change your answer until the client sends the call again.
+4. Go back to your AI client. Its next try of the same call runs, or tells the client you declined.
+
+Nothing the client says counts as an answer: only your choice on this page does. If the page says **This question is no longer open**, the question was answered, it expired, or another person's client asked it: ask your client to send its call again.
 
 ## 5. Knowledge Sources and Assistants
 
