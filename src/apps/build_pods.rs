@@ -10,6 +10,11 @@
 //! The pod mounts `build-cache-{app}`, the App's own build cache, which no other pod mounts:
 //! whatever an App's code writes there is only ever read by a later build of the same
 //! repository. A claim whose App is gone is deleted on the next pass.
+//!
+//! At most [`MAX_RUNNING`] build Jobs run in the cluster at once; the other jobs stay queued in
+//! the forge and the next pass after one ends starts the next (T-5815: a seed sync queued five
+//! builds, their pods took the node's memory requests to 98 % and a rollout's surge pod stayed
+//! Pending).
 
 use std::collections::BTreeSet;
 
@@ -34,6 +39,10 @@ pub const TOKEN_WRITTEN: &str = "joinedcontext.com/build-token-written";
 
 /// How long a finished Job, its pod and its token Secret stay for a person to read the logs.
 const FINISHED_TTL_SECONDS: u64 = 600;
+
+/// How many build Jobs may run in the cluster at once. One: the node is shared with every
+/// platform workload, and a Rust build alone requests 1.5 GiB.
+pub const MAX_RUNNING: usize = 1;
 
 /// Where a build pod runs and what it runs (AP-130).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -280,6 +289,41 @@ pub fn token_secret(settings: &Settings, app: &str, id: u64, job_uid: &str, toke
     })
 }
 
+/// Whether a build Job still holds its pod's requests: not yet complete or failed, and not
+/// being deleted.
+fn running(job: &Value) -> bool {
+    if job.pointer("/metadata/deletionTimestamp").is_some() {
+        return false;
+    }
+    let ended = job
+        .pointer("/status/conditions")
+        .and_then(Value::as_array)
+        .is_some_and(|conditions| {
+            conditions.iter().any(|condition| {
+                matches!(
+                    condition.get("type").and_then(Value::as_str),
+                    Some("Complete" | "Failed")
+                ) && condition.get("status").and_then(Value::as_str) == Some("True")
+            })
+        });
+    !ended
+}
+
+/// How many build Jobs run in the runner's namespace now.
+async fn running_builds(kube: &KubeClient, settings: &Settings) -> Result<usize, KubeError> {
+    Ok(kube
+        .list(
+            "batch/v1",
+            "Job",
+            &settings.namespace,
+            &format!("app.kubernetes.io/component=build-pod,{APP_LABEL}"),
+        )
+        .await?
+        .iter()
+        .filter(|job| running(job))
+        .count())
+}
+
 /// What one pass did, for the log.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Pass {
@@ -300,8 +344,9 @@ pub enum DispatchError {
     Kube(#[from] KubeError),
 }
 
-/// One pass: a pod for every queued App build that has none, and no claim for an App that is
-/// gone. A job of a repository that is not an App's gets no pod and waits in the queue.
+/// One pass: a pod for a queued App build that has none while fewer than [`MAX_RUNNING`] build
+/// Jobs run, and no claim for an App that is gone. A job of a repository that is not an App's
+/// gets no pod and waits in the queue; so does a build while another one runs.
 pub async fn dispatch_once(
     kube: &KubeClient,
     forge: &GiteaClient,
@@ -309,6 +354,8 @@ pub async fn dispatch_once(
     settings: &Settings,
 ) -> Result<Pass, DispatchError> {
     let mut pass = Pass::default();
+    // Read once, when the first build would start, and counted up as this pass starts more.
+    let mut busy: Option<usize> = None;
     for QueuedJob {
         id,
         labels,
@@ -335,6 +382,15 @@ pub async fn dispatch_once(
             }
             continue;
         }
+        let now = match busy {
+            Some(now) => now,
+            None => running_builds(kube, settings).await?,
+        };
+        busy = Some(now);
+        if now >= MAX_RUNNING {
+            tracing::debug!(job = %name, running = now, "a build waits for the one running");
+            continue;
+        }
         // The token first: a forge that mints none leaves nothing behind in the cluster.
         let token = forge
             .for_application(&repository)
@@ -356,6 +412,7 @@ pub async fn dispatch_once(
             .await?;
         build["metadata"]["annotations"] = json!({ TOKEN_WRITTEN: "true" });
         kube.apply(&build).await?;
+        busy = Some(now.saturating_add(1));
         pass.started.push(name);
     }
 
@@ -652,6 +709,25 @@ mod tests {
             spec["containers"][0]["env"][2]["value"], "1",
             "one job, then the pod ends"
         );
+    }
+
+    #[test]
+    fn a_job_runs_until_it_completes_fails_or_goes() {
+        let with = |status: Value| json!({ "metadata": { "name": "build-a-1" }, "status": status });
+        assert!(running(&json!({ "metadata": { "name": "build-a-1" } })));
+        assert!(running(&with(json!({ "active": 1 }))));
+        assert!(running(&with(
+            json!({ "conditions": [{ "type": "Complete", "status": "False" }] })
+        )));
+        assert!(!running(&with(
+            json!({ "conditions": [{ "type": "Complete", "status": "True" }] })
+        )));
+        assert!(!running(&with(
+            json!({ "conditions": [{ "type": "Failed", "status": "True" }] })
+        )));
+        assert!(!running(&json!({
+            "metadata": { "name": "build-a-1", "deletionTimestamp": "2026-10-26T19:06:00Z" }
+        })));
     }
 
     #[test]
