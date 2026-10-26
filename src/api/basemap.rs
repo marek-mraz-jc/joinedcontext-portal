@@ -39,12 +39,30 @@ struct TokenBucket {
 static RATE_LIMITER: LazyLock<Mutex<HashMap<String, TokenBucket>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// The most buckets held at once: past it the idle ones go, and if every bucket is fresh the
+/// longest-idle one makes room, so many addresses inside two minutes cannot grow the map.
+const MAX_BUCKETS: usize = 10_000;
+
+/// The most bytes one tile may hold; a longer answer is refused while it is read.
+const MAX_TILE_BYTES: usize = 1024 * 1024;
+
 fn check_rate_limit(client_ip: &str) -> bool {
     let mut map = RATE_LIMITER.lock().unwrap_or_else(|e| e.into_inner());
-    let now = Instant::now();
+    admit(&mut map, client_ip, Instant::now())
+}
 
-    if map.len() > 10_000 {
+fn admit(map: &mut HashMap<String, TokenBucket>, client_ip: &str, now: Instant) -> bool {
+    if map.len() >= MAX_BUCKETS && !map.contains_key(client_ip) {
         map.retain(|_, b| now.duration_since(b.last_refill).as_secs() < 120);
+        if map.len() >= MAX_BUCKETS {
+            let oldest = map
+                .iter()
+                .min_by_key(|(_, b)| b.last_refill)
+                .map(|(ip, _)| ip.clone());
+            if let Some(ip) = oldest {
+                map.remove(&ip);
+            }
+        }
     }
 
     let bucket = map
@@ -469,28 +487,27 @@ pub async fn get_tile(
         );
     }
 
-    let bytes = match response.bytes().await {
+    let bytes = match jc_core::outbound::read_capped(response, MAX_TILE_BYTES).await {
         Ok(b) => b,
+        Err(jc_core::outbound::BodyError::TooLarge(_)) => {
+            metrics::counter!("jc_basemap_tiles_total", "result" => "refused").increment(1);
+            return problem_response(
+                StatusCode::BAD_GATEWAY,
+                "upstream-unavailable",
+                "Upstream Unavailable",
+                Some("upstream tile exceeds 1 MiB limit".to_string()),
+            );
+        }
         Err(e) => {
             metrics::counter!("jc_basemap_tiles_total", "result" => "refused").increment(1);
             return problem_response(
                 StatusCode::BAD_GATEWAY,
                 "upstream-unavailable",
                 "Upstream Unavailable",
-                Some(format!("failed to read upstream body: {}", e.without_url())),
+                Some(format!("failed to read upstream body: {e}")),
             );
         }
     };
-
-    if bytes.len() > 1024 * 1024 {
-        metrics::counter!("jc_basemap_tiles_total", "result" => "refused").increment(1);
-        return problem_response(
-            StatusCode::BAD_GATEWAY,
-            "upstream-unavailable",
-            "Upstream Unavailable",
-            Some("upstream tile exceeds 1 MiB limit".to_string()),
-        );
-    }
 
     // The cache walk reads the whole directory, so it runs off the async workers.
     let (dir, max_bytes, stored) = (
@@ -616,6 +633,16 @@ mod tests {
             assert_eq!(ip, edge_saw);
             assert!(!check_rate_limit(&ip), "{forged} opened a fresh bucket");
         }
+    }
+
+    #[test]
+    fn many_fresh_addresses_never_grow_the_bucket_map_past_its_cap() {
+        let mut map = HashMap::new();
+        let now = Instant::now();
+        for n in 0..MAX_BUCKETS + 100 {
+            assert!(admit(&mut map, &format!("fresh-{n}"), now));
+        }
+        assert_eq!(map.len(), MAX_BUCKETS);
     }
 
     #[test]

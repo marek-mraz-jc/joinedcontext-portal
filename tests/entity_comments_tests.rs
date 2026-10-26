@@ -116,6 +116,9 @@ async fn world() -> World {
     let config = Config::from_vars(|key| {
         match key {
             "JC_OIDC_ISSUER" => Some(common::REALM.issuer.as_str()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal-api"),
             "JC_OIDC_CLIENT_SECRET" => Some("test-secret"),
             "JC_PORTAL_GATEWAY_URL" => Some(gateway_url.as_str()),

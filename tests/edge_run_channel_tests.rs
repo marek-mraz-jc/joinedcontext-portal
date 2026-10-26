@@ -45,6 +45,9 @@ fn config() -> Config {
             "JC_AGENTS_NAMESPACE" => Some("agents"),
             "JC_AGENT_PROXY_BASE" => Some("http://jc-agent-proxy.agents.svc.cluster.local:8080"),
             "JC_OIDC_ISSUER" => Some(common::REALM.issuer.as_str()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal-api"),
             "JC_OIDC_CLIENT_SECRET" => Some("secret"),
             "JC_PORTAL_AGENT_PROXY_CLIENT_ID" => Some(common::AGENT_PROXY_CLIENT),

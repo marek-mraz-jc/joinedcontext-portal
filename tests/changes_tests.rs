@@ -294,6 +294,113 @@ spec:
     );
 }
 
+/// Open merge requests are read a few at a time and listed in order (F-POR1-029): four
+/// changes whose file list takes 800 ms each answer well inside the 3.2 s one at a time costs.
+#[tokio::test]
+async fn open_changes_are_read_side_by_side_and_listed_newest_first() {
+    let server = MockServer::start().await;
+    let client = GiteaClient::new(
+        server.uri().parse().expect("url"),
+        "test-owner",
+        "test-repo",
+        "token-xyz",
+    )
+    .expect("client");
+    let config = Config::for_tests();
+    let app = server::app(AppState::new(config.clone(), None).with_gitea(Arc::new(client)));
+
+    let prs: Vec<Value> = (1..=4)
+        .map(|n| {
+            json!({
+                "number": n,
+                "html_url": format!("https://gitea.example.sk/pulls/{n}"),
+                "state": "open",
+                "title": "delete ContextSpace traffic",
+                "head": { "ref": format!("portal/delete-contextspace-traffic-{n}{n}{n}{n}{n}{n}{n}{n}") },
+                "base": { "ref": "main" },
+                "created_at": format!("2026-09-06T1{n}:00:00Z"),
+                "user": { "login": "city.steward", "full_name": "City Steward" },
+                "mergeable": true,
+                "merged": false
+            })
+        })
+        .collect();
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/test-owner/test-repo/pulls"))
+        .and(query_param("state", "open"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(prs))
+        .mount(&server)
+        .await;
+    for n in 1..=4u64 {
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/api/v1/repos/test-owner/test-repo/pulls/{n}/files"
+            )))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!([{
+                        "filename": "projects/ovzdusie/spaces/traffic/space.yaml",
+                        "status": "deleted"
+                    }]))
+                    .set_delay(std::time::Duration::from_millis(800)),
+            )
+            .mount(&server)
+            .await;
+    }
+    let space_traffic = "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  \
+                         name: traffic\n  namespace: ovzdusie\nspec:\n  isSandbox: false\n";
+    Mock::given(method("GET"))
+        .and(path(
+            "/api/v1/repos/test-owner/test-repo/contents/projects/ovzdusie/spaces/traffic/space.yaml",
+        ))
+        .and(query_param("ref", "main"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "blob-sha-traffic",
+            "content": encode_b64(space_traffic)
+        })))
+        .mount(&server)
+        .await;
+
+    let started = std::time::Instant::now();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/projects/ovzdusie/changes")
+                .header(header::COOKIE, approver_cookies(&config))
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let took = started.elapsed();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("bytes")
+        .to_bytes();
+    let list: ChangeList = serde_json::from_slice(&bytes).expect("a ChangeList");
+    let names: Vec<&str> = list
+        .items
+        .iter()
+        .map(|c| c.metadata.name.as_str())
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "chg-00000004",
+            "chg-00000003",
+            "chg-00000002",
+            "chg-00000001"
+        ]
+    );
+    assert!(
+        took < std::time::Duration::from_millis(2600),
+        "four changes took {took:?}, one at a time"
+    );
+}
+
 #[tokio::test]
 async fn get_change_returns_redacted_plan_diff() {
     let server = MockServer::start().await;
