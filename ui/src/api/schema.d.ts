@@ -2252,7 +2252,7 @@ export interface paths {
         put?: never;
         /**
          * Adopt Drift
-         * @description Proposes the live entity as the seed file's content, as a change a person approves. Needs `propose` on Entity; refused when the entity is no longer in the space.
+         * @description Proposes, as a change a person approves, the seed file with the entity's declared attributes as the space holds them now. Needs `propose` on Entity; refused when the entity is no longer in the space.
          */
         post: operations["adopt_drift"];
         delete?: never;
@@ -16154,12 +16154,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The live entity proposed as the seed file's content */
+            /** @description The change that writes the live entity into its seed file, waiting for an approver */
             202: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
             };
             /** @description No session */
             401: {
@@ -16188,7 +16190,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description The entity is not in the space, so there is nothing to adopt */
+            /** @description The entity is not in the space or no longer in its seed file, or an adoption of it is already open */
             409: {
                 headers: {
                     [name: string]: unknown;

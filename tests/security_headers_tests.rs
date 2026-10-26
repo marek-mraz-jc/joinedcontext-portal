@@ -145,6 +145,9 @@ async fn a_page_frames_the_realm_an_app_host_signs_in_through() {
     let realm = |key: &str| {
         match key {
             "JC_OIDC_ISSUER" => Some("https://idm.city.example/realms/city"),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal"),
             "JC_OIDC_CLIENT_SECRET" => Some("secret"),
             _ => None,

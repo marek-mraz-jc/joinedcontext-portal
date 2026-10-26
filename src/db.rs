@@ -739,6 +739,46 @@ mod rollback_tests {
         );
     }
 
+    /// The lease sweep and the activity trim each have an index the planner takes (F-POR1-026,
+    /// F-POR1-027): the sweep's own query plans on the partial index.
+    #[tokio::test]
+    async fn the_lease_sweep_and_the_activity_trim_read_an_index() {
+        let Some(url) = std::env::var("JC_PORTAL_TEST_DATABASE_URL")
+            .ok()
+            .filter(|url| !url.trim().is_empty())
+        else {
+            eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+            return;
+        };
+        let pool = super::connect(&url).await.expect("migrate");
+        let names: Vec<String> = sqlx::query_scalar(
+            "SELECT indexname::text FROM pg_indexes WHERE indexname IN \
+             ('agent_runs_live_expires', 'activity_time') ORDER BY 1",
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("indexes");
+        assert_eq!(names, ["activity_time", "agent_runs_live_expires"]);
+        let mut tx = pool.begin().await.expect("begin");
+        sqlx::query("SET LOCAL enable_seqscan = off")
+            .execute(&mut *tx)
+            .await
+            .expect("set");
+        let plan: Vec<String> = sqlx::query_scalar(
+            "EXPLAIN SELECT id FROM agent_runs \
+             WHERE status NOT IN ('published', 'failed', 'cancelled', 'expired') \
+             AND expires_at < now() ORDER BY expires_at ASC",
+        )
+        .fetch_all(&mut *tx)
+        .await
+        .expect("explain");
+        assert!(
+            plan.iter()
+                .any(|line| line.contains("agent_runs_live_expires")),
+            "{plan:?}"
+        );
+    }
+
     /// The same on a live database: the boot accepts a compatible migration of a newer release
     /// and stops on a breaking one. A scratch database of its own, so no parallel test boots on
     /// the rows it plants.

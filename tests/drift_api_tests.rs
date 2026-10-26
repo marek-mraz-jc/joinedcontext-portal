@@ -5,6 +5,8 @@
 //! declares, against what it holds. The reconciler scans on its tick and these read what it
 //! found, which is why a page renders without waiting on a broker.
 
+mod common;
+
 use std::sync::Arc;
 
 use axum::body::Body;
@@ -266,4 +268,131 @@ async fn a_resolution_without_a_space_surface_refuses_instead_of_writing_nowhere
     .await;
 
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
+}
+
+/// Adopting writes the live values of the attributes the seed file declares into that file, on a
+/// branch of its own, and opens the merge request an approver decides (F-POR4-004): what the
+/// space holds beside them and what only the broker keeps stay out, and the other entity of the
+/// file is untouched.
+#[tokio::test]
+async fn adopting_proposes_the_seed_file_with_the_live_values_as_a_change() {
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, ResponseTemplate};
+
+    let forge = common::forge().await;
+    let source = "projects/helsinki/spaces/helsinki/entities/seed/stations.json";
+    let other = "urn:ngsi-ld:AirQualityObserved:hel.fi:helsinki:station-2";
+    let file = json!([
+        { "id": ENTITY, "type": "AirQualityObserved",
+          "airQualityIndex": { "type": "Property", "value": 42 },
+          "retired": { "type": "Property", "value": false } },
+        { "id": other, "type": "AirQualityObserved" }
+    ]);
+    Mock::given(method("GET"))
+        .and(path(format!("{}/contents/{source}", common::REPO)))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "blob-1", "content": common::encode(&file.to_string())
+        })))
+        .mount(&forge)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/realms/r/protocol/openid-connect/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "access_token": "t", "token_type": "Bearer", "expires_in": 300
+        })))
+        .mount(&forge)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("/cs/{SPACE}/ngsi-ld/v1/entities/{ENTITY}")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": ENTITY, "type": "AirQualityObserved",
+            "airQualityIndex": { "type": "Property", "value": 7,
+                                 "modifiedAt": "2026-10-26T08:00:00Z" },
+            "batteryLevel": { "type": "Property", "value": 0.4 }
+        })))
+        .mount(&forge)
+        .await;
+
+    let mut state = common::state_on(&forge);
+    state.drift = scanned();
+    state.drift_watch = Some(Arc::new(
+        joinedcontext_portal::reconciler::drift::Watch::new(
+            forge.uri(),
+            &format!("{}/realms/r", forge.uri()),
+            "portal".to_owned(),
+            joinedcontext_portal::config::ClientAuth::Secret("s".to_owned()),
+        ),
+    ));
+    let answer = common::send(
+        &state,
+        common::person("adopter"),
+        "POST",
+        &format!("/api/v1/projects/{PROJECT}/drift/{SPACE}/{ENTITY}/adopt"),
+        None,
+    )
+    .await;
+    // Nobody grants this person anything in the project yet: it is not there for them.
+    assert_eq!(answer.status, StatusCode::NOT_FOUND, "{}", answer.text);
+
+    state.mirror.upsert(common::envelope(
+        "Role",
+        "adopter",
+        joinedcontext_portal::permissions::ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["Entity", "ContextSpace"], "verbs": ["read", "propose"] }] }),
+    ));
+    state.mirror.upsert(common::envelope(
+        "RoleBinding",
+        "adopters",
+        joinedcontext_portal::permissions::ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": "adopter@hel.fi" }], "role": "adopter",
+                "scope": { "project": PROJECT } }),
+    ));
+    let answer = common::send(
+        &state,
+        common::person("adopter"),
+        "POST",
+        &format!("/api/v1/projects/{PROJECT}/drift/{SPACE}/{ENTITY}/adopt"),
+        None,
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::ACCEPTED, "{}", answer.text);
+    let change: Value = serde_json::from_str(&answer.text).expect("a Change");
+    assert_eq!(change["metadata"]["name"], "chg-00000009", "{change}");
+    assert_eq!(change["status"]["phase"], "PendingApproval");
+
+    let sent = forge.received_requests().await.unwrap_or_default();
+    let branch = sent
+        .iter()
+        .find(|r| r.method.as_str() == "POST" && r.url.path().ends_with("/branches"))
+        .expect("a branch");
+    assert!(
+        String::from_utf8_lossy(&branch.body).contains("portal/adopt-"),
+        "{}",
+        String::from_utf8_lossy(&branch.body)
+    );
+    let commit = sent
+        .iter()
+        .find(|r| r.method.as_str() == "POST" && r.url.path().ends_with("/contents"))
+        .expect("one commit");
+    let commit: Value = serde_json::from_slice(&commit.body).expect("a json commit");
+    let written = &commit["files"][0];
+    assert_eq!(written["path"], source);
+    assert_eq!(written["operation"], "update");
+    assert_eq!(written["sha"], "blob-1");
+    use base64::Engine;
+    let text = base64::engine::general_purpose::STANDARD
+        .decode(written["content"].as_str().expect("content"))
+        .expect("base64");
+    let adopted: Value = serde_json::from_slice(&text).expect("json");
+    assert_eq!(
+        adopted,
+        json!([
+            { "id": ENTITY, "type": "AirQualityObserved",
+              "airQualityIndex": { "type": "Property", "value": 7 } },
+            { "id": other, "type": "AirQualityObserved" }
+        ])
+    );
+    assert!(sent
+        .iter()
+        .any(|r| r.method.as_str() == "POST" && r.url.path().ends_with("/pulls")));
 }

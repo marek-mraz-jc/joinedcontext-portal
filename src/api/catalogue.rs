@@ -103,6 +103,40 @@ static SEARCHES: LazyLock<Mutex<ByteLru<SearchKey, Arc<Vec<Value>>>>> = LazyLock
     ))
 });
 
+/// The bytes the map answers may hold together, as serialized JSON.
+const MAPS_MAX_BYTES: usize = 16 * 1024 * 1024;
+
+/// One map answer per public Endpoint and popup language, kept for [`MAX_AGE_SECONDS`]: a burst
+/// of anonymous visitors on a dataset page costs its Endpoint one read of up to [`MAP_ROWS`]
+/// entities a minute, the same rule as [`SEARCHES`].
+// ponytail: one replica's memory; share it only when the Portal runs more than one pod.
+type MapKey = (String, String);
+
+static MAPS: LazyLock<Mutex<ByteLru<MapKey, Arc<CatalogueMap>>>> = LazyLock::new(|| {
+    Mutex::new(ByteLru::new(
+        MAPS_MAX_BYTES,
+        Some(Duration::from_secs(MAX_AGE_SECONDS)),
+    ))
+});
+
+/// The map kept for `(slug, lang)`, or the one `build` makes, kept only when it succeeded.
+async fn map_cached<F>(slug: &str, lang: &str, build: F) -> Result<Arc<CatalogueMap>, ApiError>
+where
+    F: std::future::Future<Output = Result<CatalogueMap, ApiError>>,
+{
+    let key = (slug.to_owned(), lang.to_owned());
+    if let Some(map) = MAPS.lock().unwrap_or_else(|e| e.into_inner()).get(&key) {
+        return Ok(map);
+    }
+    let map = build.await?;
+    let bytes = serde_json::to_vec(&map).map_or(usize::MAX, |b| b.len());
+    let map = Arc::new(map);
+    MAPS.lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(key, map.clone(), bytes);
+    Ok(map)
+}
+
 /// One page of the catalogue.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -1577,24 +1611,29 @@ pub(crate) async fn get_map(
         .and_then(|e| our_endpoint_slug(&state, &e))
         .ok_or_else(no_map)?;
     let (project, endpoint) = public_endpoint(&state, &slug).ok_or_else(no_map)?;
-    let (_, classes, linkml) = model_source(&state, &project, &endpoint.spec)
-        .await
-        .ok_or_else(no_map)?;
-    let class = classes.into_iter().next().ok_or_else(no_map)?;
-    let (total, entities) = located(&gateway_endpoint(&state, &slug), &class)
-        .await
-        .map_err(|reason| {
-            tracing::warn!(dataset = %name, %reason, "catalogue map failed");
-            ApiError::Unavailable(format!(
-                "The endpoint of dataset '{name}' did not answer; try again in a minute."
-            ))
-        })?;
-    let view: Option<jc_core::display_order::Display> =
-        serde_json::from_value(endpoint.spec["display"][&class].clone()).ok();
-    let mut map = map_of(&class, &entities, linkml.as_deref(), view.as_ref(), &lang);
-    map.total = total;
-    map.basemap = crate::api::basemap::style_url(&state.config, &project).map(|_| project);
-    Ok(cached(&headers, map))
+    let map = map_cached(&slug, &lang, async {
+        let (_, classes, linkml) = model_source(&state, &project, &endpoint.spec)
+            .await
+            .ok_or_else(no_map)?;
+        let class = classes.into_iter().next().ok_or_else(no_map)?;
+        let (total, entities) = located(&gateway_endpoint(&state, &slug), &class)
+            .await
+            .map_err(|reason| {
+                tracing::warn!(dataset = %name, %reason, "catalogue map failed");
+                ApiError::Unavailable(format!(
+                    "The endpoint of dataset '{name}' did not answer; try again in a minute."
+                ))
+            })?;
+        let view: Option<jc_core::display_order::Display> =
+            serde_json::from_value(endpoint.spec["display"][&class].clone()).ok();
+        let mut map = map_of(&class, &entities, linkml.as_deref(), view.as_ref(), &lang);
+        map.total = total;
+        map.basemap =
+            crate::api::basemap::style_url(&state.config, &project).map(|_| project.clone());
+        Ok(map)
+    })
+    .await?;
+    Ok(cached(&headers, &*map))
 }
 
 /// The language a map labels its popups in: two or three lowercase letters, English when absent.
@@ -1630,7 +1669,7 @@ async fn located(endpoint: &str, class: &str) -> Result<(Option<u64>, Vec<Value>
         .headers()
         .get("NGSILD-Results-Count")
         .and_then(|v| v.to_str().ok()?.parse().ok());
-    let entities = response.json().await.map_err(|e| e.to_string())?;
+    let entities = crate::capped::json(response, crate::capped::ANSWER_BYTES).await?;
     Ok((total, entities))
 }
 
@@ -2308,6 +2347,31 @@ classes:
                 "{bad:?} is refused"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn two_map_reads_in_the_window_build_the_map_once() {
+        let builds = std::sync::atomic::AtomicUsize::new(0);
+        let build = || async {
+            builds.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(map_of("Thing", &[], None, None, "en"))
+        };
+        let slug = "t5728-cached-map";
+        let first = map_cached(slug, "en", build()).await.expect("a map");
+        let second = map_cached(slug, "en", build()).await.expect("a map");
+        assert_eq!(first, second);
+        assert_eq!(builds.load(std::sync::atomic::Ordering::SeqCst), 1);
+        map_cached(slug, "sk", build()).await.expect("a map");
+        assert_eq!(builds.load(std::sync::atomic::Ordering::SeqCst), 2);
+        let failing = map_cached("t5728-failing-map", "en", async {
+            Err(ApiError::Unavailable("down".into()))
+        })
+        .await;
+        assert!(failing.is_err());
+        map_cached("t5728-failing-map", "en", build())
+            .await
+            .expect("a failure is not kept");
+        assert_eq!(builds.load(std::sync::atomic::Ordering::SeqCst), 3);
     }
 
     #[tokio::test]

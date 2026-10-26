@@ -50,6 +50,9 @@ fn config() -> Config {
             "JC_AGENTS_NAMESPACE" => Some("agents"),
             "JC_AGENT_PROXY_BASE" => Some("http://jc-agent-proxy.agents.svc.cluster.local:8080"),
             "JC_OIDC_ISSUER" => Some(common::REALM.issuer.as_str()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal-api"),
             "JC_OIDC_CLIENT_SECRET" => Some("secret"),
             "JC_PORTAL_BOOTSTRAP_ADMINS" => Some("portal-approver"),
@@ -941,6 +944,9 @@ async fn a_run_started_at_the_edge_hands_its_persons_token_to_the_proxy_and_keep
             "JC_AGENTS_NAMESPACE" => Some("agents"),
             "JC_AGENT_PROXY_BASE" => Some(proxy_base.as_str()),
             "JC_OIDC_ISSUER" => Some(common::REALM.issuer.as_str()),
+            "JC_PORTAL_COOKIE_KEY" => {
+                Some("cookie-key-of-the-portal-tests-it-seals-no-session-anybody-uses-0001")
+            }
             "JC_OIDC_CLIENT_ID" => Some("portal-api"),
             "JC_OIDC_CLIENT_SECRET" => Some("secret"),
             "JC_PORTAL_BOOTSTRAP_ADMINS" => Some("portal-approver"),
