@@ -1544,7 +1544,8 @@ pub async fn propose_files(
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
     let gitea: &crate::git::GiteaClient = &gitea;
     let default_branch = gitea.default_branch().await?;
-    let branch = create_or_reuse_branch(gitea, &branch, &default_branch).await?;
+    let held = crate::api::mutate::turn(gitea, &branch).await;
+    let branch = create_or_reuse_branch(gitea, &held, &default_branch).await?;
 
     let (author_name, author_email) = author_credentials(identity, project);
     for (path, content) in &files {

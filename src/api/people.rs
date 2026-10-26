@@ -1441,12 +1441,8 @@ async fn remove(
         .forge_for(ORG_NAMESPACE)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
     let default_branch = gitea.default_branch().await?;
-    let branch = crate::api::mutate::create_or_reuse_branch(
-        &gitea,
-        &removal_branch(people),
-        &default_branch,
-    )
-    .await?;
+    let held = crate::api::mutate::turn(&gitea, &removal_branch(people)).await;
+    let branch = crate::api::mutate::create_or_reuse_branch(&gitea, &held, &default_branch).await?;
     let path_of = |envelope: &ResourceEnvelope| -> Result<String, ApiError> {
         let info = crate::resource::by_kind(&envelope.kind).ok_or_else(|| {
             ApiError::Internal(format!("no catalogue entry for {}", envelope.kind))

@@ -1901,6 +1901,7 @@
       "hidden": "Verborgene Attribute",
       "hiddenHelp": "Ein angehaktes Attribut wird in keinem Format geliefert. Ein Name wird in jedem Typ verborgen, der ihn hat.",
       "identityOnly": "Nur Identität: id und type.",
+      "nameTaken": "Laden Sie die Seite neu, um den Filter unter einem noch freien Namen vorzuschlagen.",
       "createsProjection": "Dieser Endpunkt nennt noch keine Projektion. Ein vorgeschlagener Filter legt die Projektion {name} aus dem Modell des Raums an, zusammen mit dem Endpunkt, der sie nennt."
     },
     "proof": {
