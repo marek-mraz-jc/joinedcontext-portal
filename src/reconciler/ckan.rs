@@ -710,8 +710,9 @@ pub fn sweep_with(
         .collect()
 }
 
-/// The gateway requests of `publisher::record`: the record, and `/ws` for its example type.
-pub const RECORD_READS: u32 = 2;
+/// The gateway requests of `publisher::record`: the record, `/ws` and `/ngsi-ld/v1/types` for
+/// its example type.
+pub const RECORD_READS: u32 = 3;
 /// The gateway requests of `publisher::models`: `model.schema.json`, `model.linkml.yaml`.
 pub const MODELS_READS: u32 = 2;
 

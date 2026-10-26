@@ -919,8 +919,8 @@ fn the_gateway_reads_of_each_publication_keep_the_catalogues_pace() {
     );
     assert_eq!(
         (RECORD_READS, MODELS_READS),
-        (2, 2),
-        "/, /ws; the two schemas"
+        (3, 2),
+        "/, /ws, /ngsi-ld/v1/types; the two schemas"
     );
 
     // A read of nothing waits for nothing.
