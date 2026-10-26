@@ -685,7 +685,7 @@ fn refused_field(refusal: &Refusal) -> &str {
         Refusal::MalformedId(_) | Refusal::IdOutsideGrant(_) => "id",
         Refusal::TypeOutsideGrant(_) => "type",
         Refusal::AttributeOutsideGrant(name) | Refusal::SmuggledPolicyAttribute(name) => name,
-        Refusal::ScopeOutsideGrant(_) => "scope",
+        Refusal::ScopeOutsideGrant(_) | Refusal::ScopeMissing => "scope",
         Refusal::LocationOutsideGrant => "location",
     }
 }
