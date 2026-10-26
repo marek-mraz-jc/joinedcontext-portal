@@ -1,10 +1,11 @@
 //! The one Job a builder run is, and the two objects that hold it in (AG-33…AG-35, AG-52).
 //!
-//! Three objects, all named `agent-run-{id}`: a ServiceAccount that mounts no token, a
+//! Four objects, all named `agent-run-{id}`: a ServiceAccount that mounts no token, a
 //! NetworkPolicy that lets the workspace reach the credential proxy and DNS and nothing else,
-//! and the Job itself. The workspace carries a run id and a ticket; every credential stays in
-//! the proxy (ADR-N-020), so there is no Secret to mount and nothing in the pod spec that a
-//! `kubectl get pod -o yaml` would have to be kept away from.
+//! the Secret holding the run's ticket, and the Job itself. Every other credential stays in the
+//! proxy (ADR-N-020). The ticket reaches the container through a `secretKeyRef`, so a person
+//! who may `get` pods or jobs in the namespace does not read a live ticket (T-5702); the Job owns
+//! the Secret, and the garbage collector removes it with the Job.
 
 use crate::agents::profile::Profile;
 use crate::agents::run::AgentRun;
@@ -22,6 +23,57 @@ const PORTAL_POD_LABEL: &str = "portal-portal";
 pub const AGENT_SERVER_PORT: u16 = 8000;
 /// Where `jc-agent-proxy` listens.
 pub const PROXY_PORT: u16 = 8080;
+/// The key of the run's Secret that holds its ticket.
+const TICKET_KEY: &str = "ticket";
+
+/// The Secret holding one run's ticket, named as the run's other objects. Opaque: the
+/// admission policy `{release}-portal-secrets` admits `agent-run-{id}` of that type alone.
+fn ticket_secret(
+    name: &str,
+    namespace: &str,
+    labels: &serde_json::Value,
+    ticket: &str,
+) -> serde_json::Value {
+    serde_json::json!({
+        "apiVersion": "v1",
+        "kind": "Secret",
+        "type": "Opaque",
+        "metadata": { "name": name, "namespace": namespace, "labels": labels },
+        "stringData": { TICKET_KEY: ticket },
+    })
+}
+
+/// The workspace's environment (AG-40). Each of the three variables that carry the ticket reads
+/// it from the run's Secret `secret`: the pod spec itself holds no credential.
+fn workspace_env(
+    run: &AgentRun,
+    proxy_base: &str,
+    model_name: &str,
+    secret: &str,
+) -> serde_json::Value {
+    let ticket = serde_json::json!({ "secretKeyRef": { "name": secret, "key": TICKET_KEY } });
+    serde_json::json!([
+        // What the workspace may know: where the proxy is, which run it is, and the ticket
+        // that proves it. No model key, no forge token, no realm secret (AG-40).
+        { "name": "JC_PROXY_BASE", "value": proxy_base },
+        { "name": "JC_RUN_ID", "value": run.id },
+        { "name": "JC_RUN_TICKET", "valueFrom": ticket },
+        { "name": "JC_APP_NAME", "value": run.app_name },
+        { "name": "JC_APP_CLASS", "value": run.app_class },
+        { "name": "JC_BRANCH", "value": run.branch },
+        { "name": "JC_PATH_PREFIX", "value": run.path_prefix },
+        // The agent server's own API key, so only the Portal can drive it. It is the run
+        // ticket: one secret per run, minted once, and the proxy is what makes it worth
+        // nothing to anyone else.
+        { "name": "OH_SESSION_API_KEYS_0", "valueFrom": ticket },
+        // The model is reached through the proxy, which is the only place a provider key
+        // exists. The base URL is a workspace-visible address; the key is the ticket again.
+        { "name": "LLM_BASE_URL", "value": format!("{proxy_base}/v1/llm/v1") },
+        { "name": "LLM_API_KEY", "valueFrom": ticket },
+        { "name": "LLM_MODEL", "value": model_name },
+        { "name": "HOME", "value": "/workspace" }
+    ])
+}
 
 /// Schedules one run's workspace. `Ok(false)` means this Portal has no cluster to schedule in,
 /// which is the development shape: the caller drives the agent server itself and is handed the
@@ -163,29 +215,7 @@ pub async fn schedule_workspace_job(
                             "limits": { "cpu": profile.cpu, "memory": profile.memory }
                         },
                         "ports": [{ "name": "agent", "containerPort": AGENT_SERVER_PORT }],
-                        "env": [
-                            // What the workspace may know: where the proxy is, which run it
-                            // is, and the ticket that proves it. No model key, no forge
-                            // token, no realm secret (AG-40).
-                            { "name": "JC_PROXY_BASE", "value": proxy_base },
-                            { "name": "JC_RUN_ID", "value": run.id },
-                            { "name": "JC_RUN_TICKET", "value": ticket },
-                            { "name": "JC_APP_NAME", "value": run.app_name },
-                            { "name": "JC_APP_CLASS", "value": run.app_class },
-                            { "name": "JC_BRANCH", "value": run.branch },
-                            { "name": "JC_PATH_PREFIX", "value": run.path_prefix },
-                            // The agent server's own API key, so only the Portal can drive it.
-                            // It is the run ticket: one secret per run, minted once, and the
-                            // proxy is what makes it worth nothing to anyone else.
-                            { "name": "OH_SESSION_API_KEYS_0", "value": ticket },
-                            // The model is reached through the proxy, which is the only place
-                            // a provider key exists. The base URL is a workspace-visible
-                            // address; the key is the ticket again.
-                            { "name": "LLM_BASE_URL", "value": format!("{proxy_base}/v1/llm/v1") },
-                            { "name": "LLM_API_KEY", "value": ticket },
-                            { "name": "LLM_MODEL", "value": profile.model_name },
-                            { "name": "HOME", "value": "/workspace" }
-                        ],
+                        "env": workspace_env(run, proxy_base, &profile.model_name, &name),
                         "volumeMounts": [
                             { "name": "workspace", "mountPath": "/workspace" },
                             // `readOnlyRootFilesystem` leaves nowhere to write a temporary
@@ -210,12 +240,36 @@ pub async fn schedule_workspace_job(
     kube.apply(&network_policy)
         .await
         .map_err(|err| err.to_string())?;
+    let mut secret = ticket_secret(&name, namespace, &labels, ticket);
+    kube.apply(&secret).await.map_err(|err| err.to_string())?;
     kube.apply(&job).await.map_err(|err| err.to_string())?;
+    // The Job owns the Secret, so the garbage collector removes it with the Job after
+    // `ttlSecondsAfterFinished`. Without the owner the Secret stays until the run's deletion
+    // removes it, so a failure here costs nothing but that.
+    match kube.get("batch/v1", "Job", namespace, &name).await {
+        Ok(Some(created)) if created["metadata"]["uid"].is_string() => {
+            secret["metadata"]["ownerReferences"] = serde_json::json!([{
+                "apiVersion": "batch/v1",
+                "kind": "Job",
+                "name": name,
+                "uid": created["metadata"]["uid"],
+            }]);
+            if let Err(err) = kube.apply(&secret).await {
+                tracing::warn!(run_id = %run.id, error = %err, "the run's ticket Secret is not owned by its Job");
+            }
+        }
+        Ok(_) => {
+            tracing::warn!(run_id = %run.id, "the run's Job is not readable: its ticket Secret has no owner")
+        }
+        Err(err) => {
+            tracing::warn!(run_id = %run.id, error = %err, "the run's ticket Secret is not owned by its Job")
+        }
+    }
 
     Ok(true)
 }
 
-/// Removes one run's three objects. Removing what is not there succeeds, so a cancellation of a
+/// Removes one run's four objects. Removing what is not there succeeds, so a cancellation of a
 /// run that never got a pod is not an error.
 pub async fn delete_workspace_job(kube: Option<&KubeClient>, namespace: &str, run_id: &str) {
     if let Some(kube) = kube {
@@ -225,5 +279,54 @@ pub async fn delete_workspace_job(kube: Option<&KubeClient>, namespace: &str, ru
             .delete("networking.k8s.io/v1", "NetworkPolicy", namespace, &name)
             .await;
         let _ = kube.delete("v1", "ServiceAccount", namespace, &name).await;
+        let _ = kube.delete("v1", "Secret", namespace, &name).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn run() -> AgentRun {
+        serde_json::from_value(serde_json::json!({
+            "id": "r1", "project": "helsinki", "appName": "air", "endpointName": "air",
+            "endpointSlug": "air", "endpoints": [], "profile": "analyst", "kind": "data",
+            "unattended": false, "appClass": "ui", "visibility": "project", "prompt": "p",
+            "promptDigest": "sha256:p", "dataNeeds": [], "allowsWrite": false, "branch": "b",
+            "pathPrefix": "p/", "status": "building", "ticketHash": "x", "files": {},
+            "steps": 0, "tokensUsed": 0, "createdBy": "ana@hel.fi", "origin": "person",
+            "starter": null, "createdAt": "2026-10-25T00:00:00Z", "expiresAt": "2099-01-01T00:00:00Z",
+        }))
+        .expect("a run")
+    }
+
+    #[test]
+    fn the_workspace_env_reads_every_ticket_variable_from_the_runs_secret() {
+        let env = workspace_env(&run(), "http://proxy:8080", "m", "agent-run-r1");
+        let from_secret: Vec<&str> = env
+            .as_array()
+            .expect("a list")
+            .iter()
+            .filter(|var| {
+                var["valueFrom"]["secretKeyRef"]
+                    == serde_json::json!({ "name": "agent-run-r1", "key": "ticket" })
+            })
+            .filter_map(|var| var["name"].as_str())
+            .collect();
+        assert_eq!(
+            from_secret,
+            ["JC_RUN_TICKET", "OH_SESSION_API_KEYS_0", "LLM_API_KEY"]
+        );
+    }
+
+    #[test]
+    fn the_ticket_secret_is_opaque_and_named_as_the_run() {
+        let secret = ticket_secret("agent-run-r1", "dev", &serde_json::json!({}), "tk-live");
+        assert_eq!(secret["type"], "Opaque");
+        assert_eq!(secret["metadata"]["name"], "agent-run-r1");
+        assert_eq!(
+            secret["stringData"],
+            serde_json::json!({ "ticket": "tk-live" })
+        );
     }
 }

@@ -66,6 +66,16 @@ pub enum SecretError {
         /// The secret the manifest names.
         name: String,
     },
+    /// A reference the platform's own rule refuses, a reserved or process variable among them
+    /// (PL-16, T-5702). The Portal mirrors a manifest that fails validation, so the runner's
+    /// environment checks each reference again rather than trust the write door.
+    #[error("the reference to '{name}' is refused: {reason}")]
+    Refused {
+        /// The secret the manifest names.
+        name: String,
+        /// What the rule said, naming the field.
+        reason: String,
+    },
     /// Two pipelines want one variable from different references.
     #[error("'{variable}' is claimed by {pipeline} and by {other} from different references; one runner has one environment, so rename one of them")]
     Clash {
@@ -166,6 +176,12 @@ impl Resolver {
             if reference.env_var.is_none() {
                 return Err(SecretError::NoEnvVar {
                     name: reference.name.clone(),
+                });
+            }
+            if let Err(err) = reference.validate("secretRef") {
+                return Err(SecretError::Refused {
+                    name: reference.name.clone(),
+                    reason: err.to_string(),
                 });
             }
         }
@@ -468,6 +484,32 @@ mod tests {
             )
             .expect_err("no envVar");
         assert!(matches!(error, SecretError::NoEnvVar { .. }), "{error}");
+    }
+
+    /// T-5702 (F-POR3-014): a manifest pushed straight to the forge reaches the runner's
+    /// environment even when it fails validation; `JC_CLIENT_SECRET_OTHER` would shadow another
+    /// project's pipeline client secret.
+    #[test]
+    fn a_reserved_or_process_env_var_is_refused_before_a_backend_is_asked() {
+        let resolver = Resolver::new(Backend::Sops {
+            age_key_file: PathBuf::from("/nonexistent"),
+        });
+        // `LD_PRELOAD` and `HTTPS_PROXY` are refused the same way with the jc-core pin that
+        // carries the process-variable rule (platform T-5702): the check is the same call.
+        let error = resolver
+            .environment(
+                Path::new("/nonexistent"),
+                &[SecretRef {
+                    name: "mqtt-mesto".to_owned(),
+                    key: Some("password".to_owned()),
+                    env_var: Some("JC_CLIENT_SECRET_OTHER".to_owned()),
+                }],
+            )
+            .expect_err("a reserved variable");
+        assert!(
+            matches!(&error, SecretError::Refused { name, reason } if name == "mqtt-mesto" && reason.contains("secretRef.envVar")),
+            "{error}"
+        );
     }
 
     #[test]

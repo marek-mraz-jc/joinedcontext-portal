@@ -115,7 +115,14 @@ fn unreachable(
         }
         if let Some(reference) = &source.endpoint_ref {
             let name = reference.name();
+            // Another project's Endpoint (PL-90) is that project's to admit, when the run
+            // renders: a same-named Endpoint here says nothing about it (T-5702).
+            if reference.namespace().is_some_and(|owner| owner != project) {
+                continue;
+            }
+            // An Endpoint this project does not hold is no read the person holds either.
             let Some(endpoint) = mirror.get(project, "Endpoint", name) else {
+                lacks(format!("source Endpoint {name}"));
                 continue;
             };
             let public = endpoint
@@ -375,6 +382,26 @@ mod tests {
             message.contains("No access to target Endpoint ep-b"),
             "{message}"
         );
+    }
+
+    /// T-5702 (F-POR3-005): the reference's project was ignored, so another project's
+    /// Endpoint was judged by a same-named one here, and an Endpoint nobody holds was skipped.
+    #[test]
+    fn a_source_endpoint_is_judged_in_its_own_project_or_counted_missing() {
+        let state = world();
+        let foreign = json!({ "endpointRef": { "kind": "Endpoint", "name": "ep-b", "namespace": "praha" },
+                              "query": { "type": "Vehicle" } });
+        assert_eq!(
+            refusal(&state, &pipeline(foreign, "ep-a"), Verb::Propose),
+            None
+        );
+        let message = refusal(
+            &state,
+            &pipeline(endpoint_source("ep-gone"), "ep-a"),
+            Verb::Propose,
+        )
+        .expect("refused");
+        assert!(message.contains("source Endpoint ep-gone"), "{message}");
     }
 
     #[test]
