@@ -76,6 +76,19 @@ async fn no_claims(server: &MockServer) {
         .await;
 }
 
+/// The build Jobs the cluster holds when the pass lists them.
+async fn build_jobs(server: &MockServer, items: Value) {
+    Mock::given(method("GET"))
+        .and(path(format!("/apis/batch/v1/namespaces/{NS}/jobs")))
+        .and(query_param(
+            "labelSelector",
+            "app.kubernetes.io/component=build-pod,joinedcontext.com/build-app",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "items": items })))
+        .mount(server)
+        .await;
+}
+
 fn body(request: &Request) -> Value {
     serde_json::from_slice(&request.body).expect("a JSON body")
 }
@@ -122,6 +135,7 @@ async fn a_queued_app_build_gets_one_pod_its_own_cache_and_its_repositorys_token
         .mount(&server)
         .await;
     no_claims(&server).await;
+    build_jobs(&server, json!([])).await;
 
     let (kube, forge) = clients(&server);
     let pass = dispatch_once(
@@ -381,4 +395,122 @@ async fn a_retired_apps_cache_goes_and_a_live_apps_stays() {
     assert!(pass.removed.is_empty());
     let requests = empty.received_requests().await.expect("recorded");
     assert_eq!(requests.len(), 1, "only the queue was read");
+}
+
+/// Five queued builds of five Apps, as one seed sync leaves them (T-5815): `ids` are the forge
+/// job ids, `build-{app}-{id}` the Jobs, none of which exists yet.
+async fn five_queued(server: &MockServer) -> Vec<(&'static str, u64)> {
+    let builds = vec![
+        ("weather", 520),
+        ("quality", 522),
+        ("planner", 524),
+        ("transport", 526),
+        ("forecast", 528),
+    ];
+    let jobs: Vec<Value> = builds
+        .iter()
+        .map(|(app, id)| job(*id, &format!("helsinki_{app}"), "app-build-rust"))
+        .collect();
+    Mock::given(method("GET"))
+        .and(path("/api/v1/orgs/joinedcontext/actions/jobs"))
+        .respond_with(queued(Value::Array(jobs)))
+        .mount(server)
+        .await;
+    for (app, id) in &builds {
+        let job_path = format!("/apis/batch/v1/namespaces/{NS}/jobs/build-{app}-{id}");
+        Mock::given(method("GET"))
+            .and(path(job_path.clone()))
+            .respond_with(ResponseTemplate::new(404))
+            .up_to_n_times(1)
+            .mount(server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(job_path))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({ "metadata": { "name": format!("build-{app}-{id}"), "uid": format!("{app}-uid") } }),
+            ))
+            .mount(server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!(
+                "/api/v1/repos/joinedcontext/helsinki_{app}/actions/runners/registration-token"
+            )))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "token": REGISTRATION })),
+            )
+            .mount(server)
+            .await;
+    }
+    Mock::given(method("PATCH"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .mount(server)
+        .await;
+    no_claims(server).await;
+    builds
+}
+
+fn five_apps(builds: &[(&str, u64)]) -> Mirror {
+    let apps: Vec<(&str, &str)> = builds.iter().map(|(app, _)| ("helsinki", *app)).collect();
+    mirror(&apps)
+}
+
+fn minted(requests: &[Request]) -> usize {
+    requests
+        .iter()
+        .filter(|r| r.method.as_str() == "POST" && r.url.path().ends_with("/registration-token"))
+        .count()
+}
+
+#[tokio::test]
+async fn five_queued_builds_start_one_job_and_the_rest_wait_in_the_queue() {
+    let server = MockServer::start().await;
+    let builds = five_queued(&server).await;
+    // Finished and departing Jobs hold no requests and do not count.
+    build_jobs(
+        &server,
+        json!([
+            { "metadata": { "name": "build-old-1" },
+              "status": { "conditions": [{ "type": "Complete", "status": "True" }] } },
+            { "metadata": { "name": "build-old-2" },
+              "status": { "conditions": [{ "type": "Failed", "status": "True" }] } },
+            { "metadata": { "name": "build-old-3", "deletionTimestamp": "2026-10-26T19:00:00Z" } },
+        ]),
+    )
+    .await;
+
+    let (kube, forge) = clients(&server);
+    let pass = dispatch_once(&kube, &forge, &five_apps(&builds), &settings())
+        .await
+        .expect("the pass");
+    assert_eq!(pass.started, ["build-weather-520"], "one build at a time");
+    let requests = server.received_requests().await.expect("recorded");
+    assert_eq!(minted(&requests), 1, "no token for a build that waits");
+    let lists = requests
+        .iter()
+        .filter(|r| r.url.path() == format!("/apis/batch/v1/namespaces/{NS}/jobs"))
+        .count();
+    assert_eq!(lists, 1, "the running Jobs are read once per pass");
+}
+
+#[tokio::test]
+async fn a_running_build_holds_every_queued_one_back() {
+    let server = MockServer::start().await;
+    let builds = five_queued(&server).await;
+    build_jobs(
+        &server,
+        json!([{ "metadata": { "name": "build-earlier-519" }, "status": { "active": 1 } }]),
+    )
+    .await;
+
+    let (kube, forge) = clients(&server);
+    let pass = dispatch_once(&kube, &forge, &five_apps(&builds), &settings())
+        .await
+        .expect("the pass");
+    assert!(pass.started.is_empty(), "{:?}", pass.started);
+    let requests = server.received_requests().await.expect("recorded");
+    assert_eq!(minted(&requests), 0);
+    assert!(
+        requests.iter().all(|r| r.method.as_str() == "GET"),
+        "nothing applied while a build runs"
+    );
 }
