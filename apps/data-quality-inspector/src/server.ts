@@ -79,8 +79,6 @@ export interface Server {
   correct(entity: string, attribute: string, value: string | number | boolean, note: string): Promise<Resolution | null>;
   history(): Promise<HistoryRow[]>;
   runs(): Promise<Runs>;
-  /** A run now; the server refuses one within ten minutes of the last. */
-  runNow(): Promise<number>;
   /** A URL the run's full report can be downloaded from for two minutes. */
   reportUrl(id: number): Promise<string>;
 }
@@ -112,7 +110,6 @@ async function call<T>(url: string, method = "GET", body?: unknown): Promise<T> 
 export function server(base: string): Server {
   return {
     runs: () => call<Runs>(`${base}/runs`),
-    runNow: async () => (await call<{ id: number }>(`${base}/runs`, "POST")).id,
     reportUrl: async (id) => (await call<{ url: string }>(`${base}/runs/${id}/report`)).url,
     me: () => call<Me | null>(`${base}/me`),
     resolutions: () => call<Resolution[]>(`${base}/resolutions`),

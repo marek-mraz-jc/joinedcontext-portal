@@ -12,9 +12,8 @@ describe("the App's server", () => {
     expect(apiBase("../x")).toBe("/api");
   });
 
-  it("reads the runs, makes one, reads a report's URL, and an answer that is not a success is a Problem with its detail", async () => {
+  it("reads the runs, reads a report's URL, and an answer that is not a success is a Problem with its detail", async () => {
     const fetch = vi.fn(async (url: string, init?: RequestInit) => {
-      if (url === "/api/runs" && init?.method === "POST") return json(201, { id: 4 });
       if (url === "/api/runs") return json(200, { runs: [], stale: false });
       if (url === "/api/runs/4/report") return json(200, { url: "https://store.test/r.json" });
       if (url === "/api/runs/5/report") return json(404, { title: "Not Found", detail: "no such run" });
@@ -24,7 +23,6 @@ describe("the App's server", () => {
     const api = server("/api");
     expect(await api.runs()).toEqual({ runs: [], stale: false });
     expect(fetch.mock.calls[0]?.[1]).toMatchObject({ method: "GET", credentials: "same-origin" });
-    expect(await api.runNow()).toBe(4);
     expect(await api.reportUrl(4)).toBe("https://store.test/r.json");
     const refused = await api.reportUrl(5).catch((error: unknown) => error);
     expect(refused).toBeInstanceOf(Problem);

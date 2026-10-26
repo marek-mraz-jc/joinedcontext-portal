@@ -16,16 +16,14 @@ function when(lang: Lang, iso: string): string {
 
 /**
  * Quality over time (T-3354): every run the App's server kept, the newest first, with its
- * completeness, validity and findings, a run now on request, and each run's full per-entity
- * report as a file.
+ * completeness, validity and findings, and each run's full per-entity report as a file. The
+ * server's daily job makes the runs (T-3579): a run takes longer than a request may.
  */
 export function Trend({ lang, server }: { lang: Lang; server: Server }) {
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [stale, setStale] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [said, setSaid] = useState<{ text: string; problem: boolean } | null>(null);
-  const [nonce, setNonce] = useState(0);
+  const [said, setSaid] = useState<string | null>(null);
 
   useEffect(() => {
     let gone = false;
@@ -41,41 +39,22 @@ export function Trend({ lang, server }: { lang: Lang; server: Server }) {
     return () => {
       gone = true;
     };
-  }, [server, nonce]);
-
-  const runNow = async () => {
-    setBusy(true);
-    setSaid(null);
-    try {
-      await server.runNow();
-      setSaid({ text: t(lang, "ran"), problem: false });
-      setNonce((n) => n + 1);
-    } catch (error) {
-      setSaid({ text: t(lang, "runFailed", { reason: reason(error) }), problem: true });
-    } finally {
-      setBusy(false);
-    }
-  };
+  }, [server]);
 
   const download = async (run: Run) => {
     try {
       window.open(await server.reportUrl(run.id), "_blank", "noopener");
     } catch (error) {
-      setSaid({ text: t(lang, "reportFailed", { reason: reason(error) }), problem: true });
+      setSaid(t(lang, "reportFailed", { reason: reason(error) }));
     }
   };
 
   return (
     <Card title={t(lang, "trend")}>
       <p className="app-note">{t(lang, "trendNote")}</p>
-      <div className="app-trend-actions">
-        <button type="button" className="jc-button" disabled={busy} onClick={() => void runNow()}>
-          {busy ? t(lang, "running") : t(lang, "runNow")}
-        </button>
-      </div>
       {said && (
-        <p className={said.problem ? "jc-problem" : "app-note"} role={said.problem ? "alert" : "status"}>
-          {said.text}
+        <p className="jc-problem" role="alert">
+          {said}
         </p>
       )}
       {failed ? (

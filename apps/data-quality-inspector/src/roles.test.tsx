@@ -42,7 +42,6 @@ function show(language = "en", who: Roles["who"] = null, before: (server: Server
   window.history.replaceState(null, "", `/?lang=${language}#quality?type=BikeHireDockingStation`);
   server = Object.assign(roles(who), {
     runs: async () => ({ runs: [], stale: false }),
-    runNow: async () => 1,
     reportUrl: async () => "https://store.test/r.json",
   });
   before(server);

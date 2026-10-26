@@ -51,19 +51,15 @@ test("clicking back button returns to overview tiles and updates hash to #qualit
   expect(new URL(page.url()).hash).toBe("#quality");
 });
 
-// T-3354: the runs the App's server keeps, a run now still there after a reload, and a run's full
-// report downloaded from the store.
-test("a run now is kept, after a reload too, and its full report opens", async ({ page }) => {
+// T-3354: the runs the App's daily job keeps (T-3579: no run on request), and a run's full report
+// downloaded from the store.
+test("the kept runs are listed and a run's full report opens", async ({ page }) => {
   const { outside, missing, problems } = await serve(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${BASE}?lang=en`);
   const trend = page.getByRole("table", { name: "Quality over time: the runs the server keeps" });
-  await expect(trend.getByRole("row")).toHaveCount(2);
-  await page.getByRole("button", { name: "Inspect now" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "The run is done." })).toBeVisible();
   await expect(trend.getByRole("row")).toHaveCount(3);
-  await page.reload();
-  await expect(trend.getByRole("row")).toHaveCount(3);
+  await expect(page.getByRole("button", { name: "Inspect now" })).toHaveCount(0);
   await page.context().route("http://portal.test/store/**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "{}" }));
   const popup = page.waitForEvent("popup");
   await trend.getByRole("button", { name: /^Download the full report of the run at 21 Oct 2030/ }).click();
