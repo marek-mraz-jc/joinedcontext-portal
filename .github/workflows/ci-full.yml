@@ -222,9 +222,17 @@ jobs:
           before=$(date -u -d '7 days ago' +%Y-%m-%d)
           node scripts/web-performance.mjs urls dev.joinedcontext.com | while read -r slug url; do
             for run in 1 2 3; do
-              npx --yes --before="$before" lighthouse@12.8.2 "$url" --quiet --only-categories=performance \
-                --chrome-flags="--headless=new --no-sandbox" --output=json \
-                --output-path="$RUNNER_TEMP/lighthouse/$slug-$run.json" || true
+              report="$RUNNER_TEMP/lighthouse/$slug-$run.json"
+              # A run Lighthouse itself broke (Chrome never opened its debugging port, so no report;
+              # NO_NAVSTART or a protocol timeout in the trace) is tried again, up to three times:
+              # it hit a different page each night (T-5745). A page that does not load keeps failing.
+              for _ in 1 2 3; do
+                rm -f "$report"
+                npx --yes --before="$before" lighthouse@12.8.2 "$url" --quiet --only-categories=performance \
+                  --chrome-flags="--headless=new --no-sandbox" --output=json --output-path="$report" || true
+                [ -s "$report" ] || continue
+                jq -e '.runtimeError.code | IN("NO_NAVSTART", "NO_TRACING_STARTED", "PROTOCOL_TIMEOUT")' "$report" >/dev/null || break
+              done
             done
           done
       - name: every public page under its ceiling
