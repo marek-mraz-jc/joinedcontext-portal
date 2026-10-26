@@ -38,6 +38,7 @@ use serde_json::{json, Value};
 
 use super::app_clients::{audience_mapper, drift, managed, Admin, ClientOutcome};
 use super::groups::{MANAGED_BY, MANAGED_VALUE};
+use super::streams::Bentos;
 use crate::store::{ListOptions, Mirror};
 
 /// The client attribute naming the account a managed workload client belongs to,
@@ -188,6 +189,10 @@ pub fn audiences(
 enum Reach {
     /// The doors its roles open, by [`audiences`].
     Roles(ServiceAccountSpec),
+    /// The Endpoints a Pipeline names, by slug, by [`named_endpoints`]: never every Endpoint of
+    /// the spaces its derived roles scope, which grew a Bratislava token past the edge's header
+    /// limit (T-5757).
+    Pipeline(Vec<String>),
     /// One Endpoint and nothing else: an App's job principal (AP-159).
     Endpoint(String),
     /// The Portal's internal listener and nothing else: a project's pipeline-test harness
@@ -263,12 +268,21 @@ fn bound(mirror: &Mirror) -> Vec<BoundAccount> {
 }
 
 /// Every Pipeline's own account, derived as the gateway derives it (PL-19): bound to its own
-/// Kubernetes ServiceAccount in the runner's `namespace`, its roles the spaces its outputs and
-/// Endpoint source touch, so its client's audiences are those spaces' Endpoints; and each
-/// project's harness principal beside them (T-4050).
-fn pipeline_accounts(mirror: &Mirror, namespace: &str) -> Vec<BoundAccount> {
+/// Kubernetes ServiceAccount in the runner's `namespace`, its audiences the Endpoints it names
+/// ([`named_endpoints`], T-5757), its mapping read from `bentos`; and each project's harness
+/// principal beside them (T-4050).
+fn pipeline_accounts(mirror: &Mirror, namespace: &str, bentos: &Bentos) -> Vec<BoundAccount> {
     let mut accounts = Vec::new();
     for project in mirror.namespaces() {
+        let slugs: BTreeMap<String, String> = mirror
+            .list(&project, "Endpoint", &ListOptions::default())
+            .items
+            .into_iter()
+            .filter_map(|endpoint| {
+                let slug = endpoint.spec.get("slug").and_then(Value::as_str)?;
+                (!slug.is_empty()).then(|| (endpoint.metadata.name, slug.to_owned()))
+            })
+            .collect();
         let space_of = |endpoint: &str| {
             mirror
                 .get(&project, "Endpoint", endpoint)
@@ -288,6 +302,13 @@ fn pipeline_accounts(mirror: &Mirror, namespace: &str) -> Vec<BoundAccount> {
             if envelope.metadata.name == jc_core::kinds::pipeline_identity::HARNESS {
                 continue;
             }
+            let mapping = format!(
+                "{}\n{}",
+                envelope.spec,
+                bentos
+                    .get(&(project.clone(), envelope.metadata.name.clone()))
+                    .map_or("", String::as_str)
+            );
             let Ok(spec) = serde_json::from_value::<jc_core::kinds::PipelineSpec>(envelope.spec)
             else {
                 continue;
@@ -312,7 +333,7 @@ fn pipeline_accounts(mirror: &Mirror, namespace: &str) -> Vec<BoundAccount> {
             accounts.push(BoundAccount {
                 project: project.clone(),
                 name: derived.name,
-                reach: Reach::Roles(derived.account),
+                reach: Reach::Pipeline(named_endpoints(&spec, &mapping, &slugs)),
                 auth: Auth::Workload(binding),
                 reports: true,
             });
@@ -321,6 +342,61 @@ fn pipeline_accounts(mirror: &Mirror, namespace: &str) -> Vec<BoundAccount> {
     }
     accounts.sort_by(|a, b| (&a.project, &a.name).cmp(&(&b.project, &b.name)));
     accounts
+}
+
+/// The slugs of the Endpoints a Pipeline names (T-5757): its outputs' and its Endpoint source's,
+/// as [`jc_core::kinds::pipeline_identity::derive`] resolves them, and each slug of `slugs` (its
+/// project's Endpoints by name) that `mapping`, its manifest and `bento.yaml` text, calls as
+/// `api/endpoint/{slug}`. A slug of another project, or none, names nothing. Sorted, no repeats.
+fn named_endpoints(
+    spec: &jc_core::kinds::PipelineSpec,
+    mapping: &str,
+    slugs: &BTreeMap<String, String>,
+) -> Vec<String> {
+    let own: BTreeSet<&str> = slugs.values().map(String::as_str).collect();
+    let called = mapping.split("api/endpoint/").skip(1).filter_map(|rest| {
+        let end = rest
+            .find(|c: char| !c.is_ascii_alphanumeric())
+            .unwrap_or(rest.len());
+        own.get(&rest[..end]).copied()
+    });
+    let declared = spec
+        .outputs()
+        .into_iter()
+        .map(|output| output.target_endpoint.local_id().to_owned())
+        .chain(
+            spec.source
+                .as_ref()
+                .and_then(|source| source.endpoint_ref.as_ref())
+                .map(|endpoint| endpoint.name().to_owned()),
+        )
+        .filter_map(|name| slugs.get(&name).map(String::as_str))
+        .collect::<Vec<_>>();
+    declared
+        .into_iter()
+        .chain(called)
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+/// `found` with every MQTT broker whose roles name the account (ADR-N-048 §2.7) and, for a
+/// pipeline identity, the Portal's internal listener its streams' outcome, rejected and samples
+/// sinks post to (T-4038; the listener still admits it only for its own project's pipelines,
+/// T-3193). Sorted, no repeats.
+fn reporting(mirror: &Mirror, account: &BoundAccount, mut found: Vec<String>) -> Vec<String> {
+    found.extend(super::mqtt_brokers::audiences_of(
+        mirror,
+        &account.project,
+        &account.name,
+    ));
+    if account.reports {
+        found.push(crate::auth::internal::INTERNAL_AUDIENCE.to_owned());
+    }
+    found.sort();
+    found.dedup();
+    found
 }
 
 /// A project's pipeline-test harness principal (PL-43, T-4050): `pl-pipeline-test`, bound like a
@@ -407,7 +483,7 @@ fn service_accounts(accounts: Vec<BoundAccount>, label: &str) -> Vec<Value> {
 /// The Kubernetes ServiceAccount of every Pipeline's own account in `namespace` (PL-19).
 pub fn pipeline_service_accounts(mirror: &Mirror, namespace: &str) -> Vec<Value> {
     service_accounts(
-        pipeline_accounts(mirror, namespace),
+        pipeline_accounts(mirror, namespace, &Bentos::new()),
         PIPELINE_IDENTITY_LABEL,
     )
 }
@@ -608,8 +684,9 @@ impl WorkloadClientSync {
 
     /// Brings every bound account's client to what [`desired`] and [`audiences`] say, deletes the
     /// managed workload clients no bound account names, and answers one outcome per account
-    /// touched (`*` for a failure before any was looked at).
-    pub async fn converge(&self, mirror: &Mirror) -> Vec<ClientOutcome> {
+    /// touched (`*` for a failure before any was looked at). `bentos` is the mapping beside each
+    /// Pipeline, read for the Endpoints it calls (T-5757).
+    pub async fn converge(&self, mirror: &Mirror, bentos: &Bentos) -> Vec<ClientOutcome> {
         let mut outcomes = Vec::new();
         let token = match self.admin.token().await {
             Ok(token) => token,
@@ -641,7 +718,7 @@ impl WorkloadClientSync {
 
         let mut accounts = bound(mirror);
         if let Some(namespace) = &self.pipelines {
-            accounts.extend(pipeline_accounts(mirror, namespace));
+            accounts.extend(pipeline_accounts(mirror, namespace, bentos));
         }
         if let Some(namespace) = &self.app_jobs {
             accounts.extend(app_job_accounts(mirror, namespace));
@@ -656,23 +733,12 @@ impl WorkloadClientSync {
                 continue;
             }
             let audiences = match &account.reach {
-                Reach::Roles(spec) => {
-                    // And every MQTT broker whose roles name the account (ADR-N-048 §2.7).
-                    let mut found = audiences(mirror, &account.project, spec, &self.portal);
-                    found.extend(super::mqtt_brokers::audiences_of(
-                        mirror,
-                        &account.project,
-                        &account.name,
-                    ));
-                    // Its streams' outcome, rejected and samples sinks (T-4038); the listener
-                    // still admits it only for its own project's pipelines (T-3193).
-                    if account.reports {
-                        found.push(crate::auth::internal::INTERNAL_AUDIENCE.to_owned());
-                    }
-                    found.sort();
-                    found.dedup();
-                    found
-                }
+                Reach::Roles(spec) => reporting(
+                    mirror,
+                    account,
+                    audiences(mirror, &account.project, spec, &self.portal),
+                ),
+                Reach::Pipeline(slugs) => reporting(mirror, account, slugs.clone()),
                 Reach::Endpoint(slug) => vec![slug.clone()],
                 Reach::Internal => vec![crate::auth::internal::INTERNAL_AUDIENCE.to_owned()],
             };
