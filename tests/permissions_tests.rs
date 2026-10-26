@@ -807,9 +807,29 @@ fn a_projects_readers_and_writers_come_from_the_bindings_that_reach_it() {
         "viewer",
         json!({ "rules": [{ "kinds": ["Pipeline", "Endpoint"], "verbs": ["read"] }] }),
     );
+    let steward = org(
+        "Role",
+        "steward",
+        json!({ "rules": [{ "kinds": ["Endpoint"], "verbs": ["approve"] }] }),
+    );
     let mirror = mirror_with(vec![
         viewer,
+        steward,
         developer_role(),
+        binding(
+            "review-here",
+            "steward",
+            json!([{ "user": "Steward@hel.fi" }]),
+            json!({ "project": "ovzdusie" }),
+            None,
+        ),
+        binding(
+            "review-one-space",
+            "steward",
+            json!([{ "user": "spacesteward@hel.fi" }]),
+            json!({ "contextSpace": "air" }),
+            None,
+        ),
         org(
             "Group",
             "air-team",
@@ -865,11 +885,15 @@ fn a_projects_readers_and_writers_come_from_the_bindings_that_reach_it() {
         members.readers,
         set(&["auditor@hel.fi", "eva@hel.fi", "reader@hel.fi"])
     );
-    assert_eq!(members.writers, set(&["eva@hel.fi"]));
+    assert_eq!(members.writers, set(&["eva@hel.fi", "steward@hel.fi"]));
+    // Who reviews a Change of the project, a preview's readers besides its author (CC-91): only
+    // an approve grant at the project or the organization, never a proposer or a one-space one.
+    assert_eq!(members.approvers, set(&["steward@hel.fi"]));
     // A project nobody is bound to has the organization's readers and nobody else.
     let other = project_members(&mirror, "nowhere", now);
     assert_eq!(other.readers, set(&["auditor@hel.fi"]));
     assert!(other.writers.is_empty());
+    assert!(other.approvers.is_empty());
 }
 
 /// T-2852 (PF-59, R20, EP-83): asking for a catalogue draft is no oracle for another project's

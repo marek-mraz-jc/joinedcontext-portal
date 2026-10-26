@@ -118,7 +118,14 @@ async fn starting_renders_the_project_with_its_prefix_and_every_pipeline_paused(
     let preview = body(&started.text);
     assert_eq!(preview["state"], "running");
     assert_eq!(preview["prefix"], "ws-air-v2-");
-    let minted = jcctl::loader::preview_slug_salted("ws-air-v2-", "", SLUG);
+    let record = state.workspaces.get("air-v2").await.unwrap().unwrap();
+    let salt = record.preview.expect("the start stored its salt").salt;
+    // The slug the view shows is the one the gateway mints with the same salt (CC-92).
+    let minted = jcctl::loader::preview_slug_salted("ws-air-v2-", &salt, SLUG);
+    assert_ne!(
+        minted,
+        jcctl::loader::preview_slug_salted("ws-air-v2-", "", SLUG)
+    );
     assert_eq!(
         preview["endpoints"],
         json!([{
@@ -341,4 +348,105 @@ async fn a_gone_branch_fails_the_start_and_an_expired_workspace_is_not_served() 
     // Expiry is judged when the gateway asks; a workspace past its TTL drops out (CC-81).
     state.workspaces.delete("air-v2").await.unwrap();
     assert!(previews::served(&state).await.unwrap().items.is_empty());
+}
+
+const STEWARD: &str = "5e1a2b3c-0000-4000-8000-000000000001";
+const DEVELOPER: &str = "5e1a2b3c-0000-4000-8000-000000000002";
+const READER: &str = "5e1a2b3c-0000-4000-8000-000000000003";
+
+/// A Role granting `verbs` on Endpoints and its binding of `user` at the project `ovzdusie`.
+fn bound(state: &AppState, user: &str, verbs: &[&str]) {
+    let role = format!("role-{user}");
+    state.mirror.upsert(common::envelope(
+        "Role",
+        &role,
+        joinedcontext_portal::permissions::ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["Endpoint"], "verbs": verbs }] }),
+    ));
+    state.mirror.upsert(common::envelope(
+        "RoleBinding",
+        &format!("bind-{user}"),
+        joinedcontext_portal::permissions::ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": user }], "role": role, "scope": { "project": PROJECT } }),
+    ));
+}
+
+/// T-5760 (CC-91, CC-92): the gateway is told who reads the preview, its author and the
+/// reviewers of its project, and the salt its slugs are minted with; a proposer, a reader and
+/// a stranger are not listed, so the gateway answers them the unknown-slug 404.
+#[tokio::test]
+async fn the_gateway_list_names_the_author_and_the_reviewers_and_a_salt() {
+    let (_server, state) = world().await;
+    bound(&state, STEWARD, &["approve"]);
+    bound(&state, DEVELOPER, &["propose"]);
+    bound(&state, READER, &["read"]);
+    send(&state, owner(), "POST", &preview_uri("air-v2"), None).await;
+    let served = previews::served(&state).await.unwrap().items;
+    assert_eq!(served.len(), 1);
+    let readers: Vec<&str> = served[0].readers.iter().map(String::as_str).collect();
+    // By Keycloak id (ADR-N-061): the author's session `sub`, the steward's binding subject.
+    assert_eq!(readers, [STEWARD, owner().subject.as_str()]);
+    let salt = &served[0].salt;
+    assert!(salt.len() >= 22, "{} characters", salt.len());
+    assert!(context_gateway::previews::valid_salt(salt));
+    assert_eq!(stored_salt(&state).await, *salt);
+    // The entry is what the gateway reads: its own type, which refuses an unknown field.
+    let entry = serde_json::to_value(&served[0]).unwrap();
+    let read: context_gateway::previews::Preview = serde_json::from_value(entry).unwrap();
+    assert_eq!(read.readers, served[0].readers);
+    assert_eq!(read.salt, *salt);
+    assert!(!read.readers.contains(DEVELOPER) && !read.readers.contains(READER));
+    assert!(
+        !read.readers.contains(&owner().username),
+        "a username is no reader"
+    );
+}
+
+async fn stored_salt(state: &AppState) -> String {
+    let record = state.workspaces.get("air-v2").await.unwrap().unwrap();
+    record.preview.expect("a started preview has a salt").salt
+}
+
+/// T-5760 (CC-92): a preview started again mints a new salt, so the slugs of the earlier run
+/// never answer again, and the view shows the new slug.
+#[tokio::test]
+async fn a_restarted_preview_gets_a_new_salt_and_new_slugs() {
+    let (_server, state) = world().await;
+    let first = send(&state, owner(), "POST", &preview_uri("air-v2"), None).await;
+    assert_eq!(first.status, StatusCode::ACCEPTED, "{}", first.text);
+    let before = stored_salt(&state).await;
+    let stopped = send(&state, owner(), "DELETE", &preview_uri("air-v2"), None).await;
+    assert!(stopped.status.is_success(), "{}", stopped.text);
+    let again = send(&state, owner(), "POST", &preview_uri("air-v2"), None).await;
+    assert_eq!(again.status, StatusCode::ACCEPTED, "{}", again.text);
+    let after = stored_salt(&state).await;
+    assert_ne!(before, after);
+    let slug = &body(&again.text)["endpoints"][0]["slug"];
+    assert_eq!(
+        *slug,
+        jcctl::loader::preview_slug_salted("ws-air-v2-", &after, SLUG)
+    );
+    assert_ne!(
+        *slug,
+        jcctl::loader::preview_slug_salted("ws-air-v2-", &before, SLUG)
+    );
+    assert_eq!(previews::served(&state).await.unwrap().items[0].salt, after);
+}
+
+/// T-5760: the salt stays inside the Portal and the gateway's list; the workspace API, which
+/// every reader of the workspace sees, never carries it.
+#[tokio::test]
+async fn the_workspace_api_never_shows_the_salt() {
+    let (_server, state) = world().await;
+    send(&state, owner(), "POST", &preview_uri("air-v2"), None).await;
+    let salt = stored_salt(&state).await;
+    for uri in [
+        format!("/api/v1/projects/{PROJECT}/workspaces"),
+        format!("/api/v1/projects/{PROJECT}/workspaces/air-v2"),
+        preview_uri("air-v2"),
+    ] {
+        let read = send(&state, owner(), "GET", &uri, None).await;
+        assert!(read.status.is_success(), "{uri}: {}", read.text);
+        assert!(!read.text.contains(&salt), "{uri} carries the salt");
+    }
 }
