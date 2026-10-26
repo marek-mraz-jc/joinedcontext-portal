@@ -339,6 +339,12 @@ function writerOf(
   return null;
 }
 
+/** Whether a DataModel ships the generated JSON Schema the gateway serves its attributes from (DM-61). */
+function hasJsonSchema(model: Manifest | undefined): boolean {
+  const artifacts = model?.spec.artifacts;
+  return typeof artifacts === "object" && artifacts !== null && typeof (artifacts as { jsonSchema?: unknown }).jsonSchema === "string";
+}
+
 /** An endpoint's slug, which its gateway path is named by (EP-55). */
 function slugOf(endpoint: Manifest | undefined): string | undefined {
   return typeof endpoint?.spec.slug === "string" ? endpoint.spec.slug : undefined;
@@ -677,8 +683,10 @@ function SpaceData({
   const { name: copy } = useWorkspace();
   // Decisions are asked only for a type with a field a person could correct: a class of no slot
   // (a draft model, like a catalogue's) has no attribute an endpoint serves, and the gateway
-  // answers that question with a 400 (T-5753).
-  const correctable = !copy && slots.some((slot) => !slot.formula);
+  // answers that question with a 400 (T-5753). The gateway reads the served attributes from the
+  // model's generated JSON Schema, so a model that ships none (the catalogue's) is not asked
+  // either, whatever slots its LinkML names (T-5769).
+  const correctable = !copy && hasJsonSchema(model) && slots.some((slot) => !slot.formula);
   const tables = useQueries({
     queries: endpoints
       .slice(0, MAX_ACCESS_READS)

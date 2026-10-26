@@ -58,6 +58,7 @@ const MODELS = list([
     linkml: "./bb-air-quality.linkml.yaml",
     version: "2.1.0",
     classes: ["AirQualityObserved", "AirQualityStation"],
+    artifacts: { jsonSchema: "./bb-air-quality.v2.schema.json" },
   }),
 ]);
 
@@ -1086,6 +1087,17 @@ describe("the space's own data", () => {
   it("asks no endpoint for its decisions on a type whose model names no field", async () => {
     const source = ["id: https://banskabystrica.sk/models/air", "name: bb-air-quality", "classes:", "  AirQualityObserved:", "    description: a draft", ""].join("\n");
     const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200 }, { source });
+    await screen.findByRole("grid");
+    await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => urlOf(input).pathname.endsWith("/datamodels/bb-air-quality/source"))).toBe(true));
+    expect(fetchMock.mock.calls.filter(([input]) => urlOf(input).pathname.endsWith("/access/attributes"))).toEqual([]);
+  });
+
+  // T-5769: Helsinki's catalogue model names slots but ships no JSON Schema, the gateway's only
+  // source of served attributes, and every endpoint answered the question with a 400.
+  it("asks no endpoint for its decisions when the model ships no JSON Schema", async () => {
+    const source = ["id: https://banskabystrica.sk/models/air", "name: bb-air-quality", "classes:", "  AirQualityObserved:", "    slots: [pm10]", "slots:", "  pm10:", "    range: float", ""].join("\n");
+    const models = list([manifest("DataModel", "bb-air-quality", { linkml: "./bb-air-quality.linkml.yaml", version: "0.1.0", classes: ["AirQualityObserved"] })]);
+    const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200 }, { source, models });
     await screen.findByRole("grid");
     await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => urlOf(input).pathname.endsWith("/datamodels/bb-air-quality/source"))).toBe(true));
     expect(fetchMock.mock.calls.filter(([input]) => urlOf(input).pathname.endsWith("/access/attributes"))).toEqual([]);
