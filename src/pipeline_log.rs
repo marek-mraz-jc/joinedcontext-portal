@@ -741,22 +741,34 @@ impl LogStore {
         }
     }
 
-    /// Every (project, pipeline) with at least one run kept (T-4421).
-    pub async fn ran(&self) -> Result<HashSet<Key>, sqlx::Error> {
+    /// Every (project, pipeline) with at least one run kept (T-4421), with the time of its newest
+    /// run's last line: a pipeline whose next due time after it has passed missed a run while no
+    /// Portal held it (T-5778).
+    pub async fn ran(&self) -> Result<HashMap<Key, chrono::DateTime<chrono::Utc>>, sqlx::Error> {
         match &self.inner {
-            Inner::Postgres(pool) => Ok(sqlx::query_as::<_, (String, String)>(
-                "SELECT DISTINCT project, pipeline FROM pipeline_runs",
+            Inner::Postgres(pool) => Ok(sqlx::query_as::<_, (String, String, time::OffsetDateTime)>(
+                "SELECT project, pipeline, max(last_at) FROM pipeline_runs GROUP BY project, pipeline",
             )
             .fetch_all(pool)
             .await?
             .into_iter()
+            .filter_map(|(project, pipeline, last)| {
+                let last = chrono::DateTime::from_timestamp(last.unix_timestamp(), 0)?;
+                Some(((project, pipeline), last))
+            })
             .collect()),
             Inner::Memory(map) => Ok(map
                 .read()
                 .unwrap_or_else(|e| e.into_inner())
                 .iter()
-                .filter(|(_, memory)| !memory.runs.is_empty())
-                .map(|(key, _)| key.clone())
+                .filter_map(|(key, memory)| {
+                    let last = memory
+                        .runs
+                        .iter()
+                        .filter_map(|run| chrono::DateTime::parse_from_rfc3339(&run.last_at).ok())
+                        .max()?;
+                    Some((key.clone(), last.with_timezone(&chrono::Utc)))
+                })
                 .collect()),
         }
     }
@@ -1325,12 +1337,11 @@ mod tests {
             .await
             .expect("append");
         let ran = store.ran().await.expect("read");
-        assert_eq!(
-            ran,
-            [("slovensko".to_owned(), "susr-as".to_owned())]
-                .into_iter()
-                .collect()
-        );
+        let keys: Vec<&Key> = ran.keys().collect();
+        assert_eq!(keys, [&("slovensko".to_owned(), "susr-as".to_owned())]);
+        // T-5778: with the time of its last line, which the queue reads for a missed due time.
+        let last = ran[&("slovensko".to_owned(), "susr-as".to_owned())];
+        assert!((chrono::Utc::now() - last).num_seconds().abs() < 60);
     }
 
     /// T-5048: the health tab shows the newest failed or rejected line, never a sent one.
