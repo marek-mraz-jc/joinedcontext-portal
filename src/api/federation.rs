@@ -121,10 +121,30 @@ pub enum EdgeKind {
 }
 
 /// The federation of one project, as the `jc_federation_graph` operation answers it (AG-59, T-0840).
-pub fn graph_of(state: &AppState, project: &str) -> FederationGraph {
+///
+/// Drawn for one reader (T-5698): a manifest `effective` does not read is no node, and an edge
+/// that starts or ends at one is not drawn, so a reader bound to one context space sees no other
+/// space's names. A reference to a manifest nobody stored still draws its dangling edge.
+pub fn graph_of(
+    state: &AppState,
+    project: &str,
+    effective: &crate::permissions::Effective,
+) -> FederationGraph {
     let project = project.to_owned();
     let opts = ListOptions::default();
-    let of = |kind: &str| state.mirror.list(&project, kind, &opts).items;
+    let hidden = std::cell::RefCell::new(BTreeSet::new());
+    let of = |kind: &str| {
+        let (readable, unreadable): (Vec<_>, Vec<_>) = state
+            .mirror
+            .list(&project, kind, &opts)
+            .items
+            .into_iter()
+            .partition(|env| effective.may_read_envelope(kind, env));
+        hidden
+            .borrow_mut()
+            .extend(unreadable.iter().map(|env| id(kind, &env.metadata.name)));
+        readable
+    };
 
     let mut graph = Builder::default();
     for space in of("ContextSpace") {
@@ -205,6 +225,10 @@ pub fn graph_of(state: &AppState, project: &str) -> FederationGraph {
         graph.node(app, "App", None);
     }
 
+    let hidden = hidden.into_inner();
+    graph
+        .edges
+        .retain(|edge| !hidden.contains(&edge.from) && !hidden.contains(&edge.to));
     graph.finish()
 }
 

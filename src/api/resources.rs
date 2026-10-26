@@ -97,9 +97,6 @@ pub async fn list(
     if !effective.may_read_some(kind_info.kind) {
         return Err(not_found());
     }
-    // A grant narrowed to one Organization's own settings reads its own manifests alone
-    // (ADR-N-058 section 2.4).
-    let item_by_item = !effective.may_read(kind_info.kind);
 
     let limit = match query.limit {
         Some(0) => return Err(ApiError::BadRequest("limit must be greater than 0".into())),
@@ -141,12 +138,10 @@ pub async fn list(
             .list(&project, kind_info.kind, &opts),
         (None, None) => state.mirror.list(&project, kind_info.kind, &opts),
     };
-    if item_by_item {
-        page.items.retain(|env| {
-            serde_json::to_value(env)
-                .is_ok_and(|manifest| effective.may_read_manifest(kind_info.kind, &manifest))
-        });
-    }
+    // Item by item: a grant bound to one context space reads that space's manifests alone, and
+    // one narrowed to an Organization's own settings its own (ADR-N-058 section 2.4, T-5698).
+    page.items
+        .retain(|env| effective.may_read_envelope(kind_info.kind, env));
 
     let remaining_item_count = if page.continue_token.is_some() {
         Some(page.remaining)
@@ -226,13 +221,9 @@ pub async fn get_resource(
         (None, None) => state.mirror.get(&project, kind_info.kind, &name),
     }
     .ok_or_else(not_found)?;
-    // A grant narrowed to one Organization's own settings reads its own manifests alone
-    // (ADR-N-058 section 2.4).
-    if !effective.may_read(kind_info.kind)
-        && !app_group
-        && !serde_json::to_value(&envelope)
-            .is_ok_and(|manifest| effective.may_read_manifest(kind_info.kind, &manifest))
-    {
+    // A grant bound to one context space, or narrowed to one Organization's own settings, reads
+    // its own manifests alone (ADR-N-058 section 2.4, T-5698).
+    if !app_group && !effective.may_read_envelope(kind_info.kind, &envelope) {
         return Err(not_found());
     }
 

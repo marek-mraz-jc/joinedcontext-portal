@@ -10,6 +10,7 @@ use axum::http::{header, HeaderMap, StatusCode};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::api::entity_trash::readable;
@@ -125,18 +126,31 @@ async fn entity_readable(
     space: &str,
     urn: &str,
 ) -> Result<(), ApiError> {
+    read_as_person(state, headers, space, urn).await.map(drop)
+}
+
+/// The entity `urn` of `space` as the caller reads it: through the gateway with the caller's own
+/// token, so their Policy hides what it hides (attributes, rows) and the Portal's own account
+/// reads nothing for them (T-3284, T-5698). A session without the person's token, a hidden and a
+/// missing entity all answer the same `404`.
+pub(crate) async fn read_as_person(
+    state: &AppState,
+    headers: &HeaderMap,
+    space: &str,
+    urn: &str,
+) -> Result<Value, ApiError> {
     let base = state.config.gateway_url.as_deref().ok_or_else(|| {
         ApiError::Unavailable(
-            "this Portal has no gateway address (JC_PORTAL_GATEWAY_URL), so it cannot tell \
-             whether you may read the entity"
+            "this Portal has no gateway address (JC_PORTAL_GATEWAY_URL), so it cannot read the \
+             entity as you"
                 .into(),
         )
     })?;
     let token = crate::agents::identity::persons_token(headers, state.config.trust_edge_token)
         .ok_or_else(|| {
             ApiError::NotFound(
-                "an entity's comments are read with your own access token, which this session \
-                 does not carry; sign in through the platform's address"
+                "an entity is read here with your own access token, which this session does \
+                 not carry; sign in through the platform's address"
                     .into(),
             )
         })?;
@@ -158,7 +172,9 @@ async fn entity_readable(
             ApiError::Unavailable("the gateway did not answer; try again shortly".into())
         })?;
     match answer.status().as_u16() {
-        200..=299 => Ok(()),
+        200..=299 => answer.json().await.map_err(|_| {
+            ApiError::Unavailable("the gateway answered an entity that is not JSON".into())
+        }),
         401 | 403 | 404 => Err(ApiError::NotFound(format!(
             "no entity {urn} you may read in space '{space}'"
         ))),

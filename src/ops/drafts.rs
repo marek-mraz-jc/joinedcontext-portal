@@ -835,6 +835,29 @@ async fn draft_workspace_visible(
     Ok(())
 }
 
+/// The saved draft `draft` of `project` when `identity` reads its manifest; a draft of a space
+/// the caller is not bound to answers the same 404 as one that does not exist (PF-59, R20,
+/// T-5698). What jc_draft_get filters with, for every door that runs a saved draft.
+pub(crate) async fn readable_draft(
+    state: &AppState,
+    identity: &crate::auth::session::Identity,
+    project: &str,
+    draft: &DraftRef,
+) -> Result<Draft, OpError> {
+    let effective = crate::permissions::for_request(state, identity, project);
+    draft_store(state)
+        .get(project, &draft.kind, &draft.name)
+        .await
+        .map_err(draft_error)?
+        .filter(|saved| effective.may_read_manifest(&saved.kind, &saved.manifest))
+        .ok_or_else(|| {
+            OpError::Api(ApiError::NotFound(format!(
+                "draft '{}/{}' not found in project '{project}'",
+                draft.kind, draft.name
+            )))
+        })
+}
+
 pub(crate) fn draft_error(err: DraftError) -> OpError {
     match err {
         DraftError::Conflict { current } => OpError::Conflict(json!({

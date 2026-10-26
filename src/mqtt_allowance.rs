@@ -25,11 +25,10 @@ pub fn effective(mirror: &Mirror, project: &str) -> (MqttAllowance, LimitOrigin)
     {
         return (own, LimitOrigin::Project);
     }
-    mirror
-        .list(ORG_NAMESPACE, "Organization", &ListOptions::default())
-        .items
-        .into_iter()
-        .find_map(|organization| read(&organization.spec, "/limits/mqtt"))
+    // The project's own Organization, never the first one that has limits (ADR-N-058, T-5698).
+    crate::permissions::organization_of(mirror, project)
+        .and_then(|organization| mirror.get(ORG_NAMESPACE, "Organization", &organization))
+        .and_then(|organization| read(&organization.spec, "/limits/mqtt"))
         .map_or((MqttAllowance::default(), LimitOrigin::Default), |org| {
             (org, LimitOrigin::Organization)
         })
@@ -245,6 +244,28 @@ mod tests {
             ));
         }
         mirror
+    }
+
+    /// T-5698: with two Organizations a project runs on its own Organization's allowance, never
+    /// on the first one listed that has limits.
+    #[test]
+    fn a_project_takes_the_allowance_of_its_own_organization() {
+        let mirror = holding(None, None, &[]);
+        mirror.upsert(envelope(
+            "Organization",
+            "aaa",
+            ORG_NAMESPACE,
+            json!({"domain": "aaa.fi", "limits": {"mqtt": {"enabled": true, "brokers": 5}}}),
+        ));
+        mirror.upsert(envelope(
+            "Organization",
+            "hel",
+            ORG_NAMESPACE,
+            json!({"domain": "hel.fi", "limits": {"mqtt": {"enabled": false}}}),
+        ));
+        let (allowance, origin) = effective(&mirror, "helsinki");
+        assert_eq!(origin, LimitOrigin::Organization);
+        assert_eq!(allowance, MqttAllowance::default());
     }
 
     fn refused(mirror: &Mirror, name: &str, spec: &Value) -> String {
