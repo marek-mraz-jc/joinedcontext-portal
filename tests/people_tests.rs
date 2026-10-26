@@ -1546,3 +1546,97 @@ async fn a_disabled_person_is_refused_before_their_token_expires() {
         .iter()
         .any(|(s, _)| s == "pia-id"));
 }
+
+const JANA_ID: &str = "00000000-0000-4000-8000-00000000000a";
+
+/// ADR-N-061 (T-5711): the names behind ids go to whoever updates people or approves groups, and
+/// to nobody else; an id that is not one is refused naming the field.
+#[tokio::test]
+async fn names_behind_ids_are_read_by_a_people_admin_or_a_group_approver_alone() {
+    let (kc, gitea) = (realm(true).await, forge().await);
+    Mock::given(method("GET"))
+        .and(path(format!("{ADMIN}/users/{JANA_ID}")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(user(JANA_ID, "jana@hel.fi")))
+        .mount(&kc)
+        .await;
+    let state = state_with(&kc, &gitea);
+    let names = format!("{PEOPLE}/names?ids={JANA_ID}");
+
+    for who in ["pia", "ada"] {
+        let read = send(&state, person(who), "GET", &names, None).await;
+        assert_eq!(read.status, StatusCode::OK, "{who}: {}", read.text);
+        let body: Value = serde_json::from_str(&read.text).expect("json");
+        assert_eq!(body["items"], json!([{ "id": JANA_ID, "name": "F L" }]));
+    }
+    let refused = send(&state, person("jana"), "GET", &names, None).await;
+    assert_eq!(refused.status, StatusCode::FORBIDDEN, "{}", refused.text);
+    assert!(!refused.text.contains("F L"), "{}", refused.text);
+    let bad = send(
+        &state,
+        person("pia"),
+        "GET",
+        &format!("{PEOPLE}/names?ids=jana@hel.fi"),
+        None,
+    )
+    .await;
+    assert_eq!(bad.status, StatusCode::UNPROCESSABLE_ENTITY, "{}", bad.text);
+    assert!(bad.text.contains("ids:"), "{}", bad.text);
+}
+
+/// ADR-N-061 (T-5711): the dry run over the organization's repository rewrites every address a
+/// realm user carries into that user's id and lists the rest; it proposes nothing, and only a
+/// people administrator runs it.
+#[tokio::test]
+async fn the_migration_dry_run_plans_the_rewrite_and_proposes_nothing() {
+    let (kc, gitea) = (realm(true).await, forge().await);
+    let state = state_with(&kc, &gitea);
+    let mut pia = person("pia");
+    pia.second_factor = true;
+    let answer = send(
+        &state,
+        pia,
+        "POST",
+        &format!("{PEOPLE}/name-by-id?dryRun=true"),
+        None,
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+    let plan: Value = serde_json::from_str(&answer.text).expect("json");
+    let organization = &plan["repositories"][0];
+    assert_eq!(organization["repository"], "organization");
+    assert_eq!(organization["change"], Value::Null);
+    let manifests: Vec<&str> = organization["manifests"]
+        .as_array()
+        .expect("manifests")
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    for named in [
+        "RoleBinding org/admins",
+        "RoleBinding org/people-admins",
+        "RoleBinding org/jana-alone",
+        "Group org/stewards",
+    ] {
+        assert!(manifests.contains(&named), "{named}: {manifests:?}");
+    }
+    // eva is in the group and nobody in the realm carries her address.
+    assert_eq!(plan["unresolved"], json!(["eva@hel.fi"]));
+    let proposed = gitea
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|r| r.method.as_str() != "GET")
+        .count();
+    assert_eq!(proposed, 0, "a dry run writes nothing to the forge");
+
+    let jana = send(
+        &state,
+        person("jana"),
+        "POST",
+        &format!("{PEOPLE}/name-by-id?dryRun=true"),
+        None,
+    )
+    .await;
+    assert_eq!(jana.status, StatusCode::FORBIDDEN, "{}", jana.text);
+}

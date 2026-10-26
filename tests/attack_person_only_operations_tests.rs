@@ -658,6 +658,8 @@ async fn a_bearer_token_never_deletes_a_person_or_removes_their_second_factor() 
         ("POST", format!("{person}/remove-second-factor")),
         ("DELETE", format!("{person}/consents/jc-hub")),
         ("POST", "/api/v1/organization/people/remove".to_owned()),
+        // ADR-N-061: the move of people to ids is an administrator's, proposed in a session.
+        ("POST", "/api/v1/organization/people/name-by-id".to_owned()),
     ];
     for (who, token) in tokens() {
         for (http, uri) in &doors {

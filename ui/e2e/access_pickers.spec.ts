@@ -16,10 +16,14 @@ const manifest = (kind: string, name: string, namespace: string, spec: unknown =
   spec,
 });
 const KINDS = ["ContextSpace", "Endpoint", "Group", "Person", "Pipeline", "Policy", "Role", "RoleBinding", "ServiceAccount"];
+// People are named by their Keycloak id in manifests (ADR-N-061).
+const JANA = "a1b2c3d4-0000-4000-8000-000000000001";
+const PETRA = "a1b2c3d4-0000-4000-8000-000000000002";
+const MAREK = "a1b2c3d4-0000-4000-8000-000000000003";
 const PEOPLE = [
-  { id: "1", email: "jana.novak@example.org", firstName: "Jana", lastName: "Novák", enabled: true, emailVerified: true, requiredActions: [] },
-  { id: "2", email: "petra.kral@example.org", firstName: "Petra", lastName: "Kráľ", enabled: true, emailVerified: true, requiredActions: [] },
-  { id: "3", email: "marek.bily@example.org", firstName: "Marek", lastName: "Biely", enabled: true, emailVerified: true, requiredActions: [] },
+  { id: JANA, email: "jana.novak@example.org", firstName: "Jana", lastName: "Novák", enabled: true, emailVerified: true, requiredActions: [] },
+  { id: PETRA, email: "petra.kral@example.org", firstName: "Petra", lastName: "Kráľ", enabled: true, emailVerified: true, requiredActions: [] },
+  { id: MAREK, email: "marek.bily@example.org", firstName: "Marek", lastName: "Biely", enabled: true, emailVerified: true, requiredActions: [] },
 ];
 
 // A Change on the group that waits for approval, as the changes list names it (T-5605).
@@ -48,7 +52,7 @@ async function mock(page: Page, people = PEOPLE, open: unknown[] = []): Promise<
     if (path.endsWith("/auth/me")) return json({ subject: "s1", username: "admin", name: "Ada Admin", email: "admin@example.org", roles: [] });
     if (path === "/api/v1/projects") return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "helsinki" }] });
     if (path.endsWith("/permissions/me")) {
-      return json({ project: "org", grants: [{ role: "org-admin", binding: "admins", scope: "organization", rule: { kinds: KINDS, verbs: ["read", "propose", "approve", "delete"] } }] });
+      return json({ project: "org", grants: [{ role: "org-admin", binding: "admins", scope: "organization", rule: { kinds: KINDS, verbs: ["read", "propose", "update", "approve", "delete"] } }] });
     }
     if (path === "/api/v1/preferences") return json({ firstRunDismissed: true });
     if (path === "/api/v1/organization/people") {
@@ -56,8 +60,23 @@ async function mock(page: Page, people = PEOPLE, open: unknown[] = []): Promise<
       const found = people.filter((p) => `${p.firstName} ${p.lastName} ${p.email}`.toLowerCase().includes(search));
       return json({ items: found, total: found.length });
     }
-    if (path === "/api/v1/projects/org/groups") return json(LIST([manifest("Group", "stewards", "org", { members: [{ user: "jana.novak@example.org" }] }), manifest("Group", "analysts", "org", { members: [] })]));
-    if (path === "/api/v1/projects/org/groups/stewards") return json(manifest("Group", "stewards", "org", { members: [{ user: "jana.novak@example.org" }] }));
+    if (path === "/api/v1/organization/people/names") {
+      const ids = (url.searchParams.get("ids") ?? "").split(",");
+      const items = people.filter((p) => ids.includes(p.id)).map((p) => ({ id: p.id, name: `${p.firstName} ${p.lastName}` }));
+      return json({ items });
+    }
+    if (path === "/api/v1/organization/people/name-by-id") {
+      const dry = url.searchParams.get("dryRun") === "true";
+      return json({
+        repositories: [
+          { repository: "organization", manifests: ["Group org/stewards", "RoleBinding org/admins"], ...(dry ? {} : { change: "chg-0000003b" }) },
+          { repository: "helsinki", manifests: ["Policy helsinki/air-readers"], ...(dry ? {} : { change: "chg-0000003c" }) },
+        ],
+        unresolved: ["jan.horak@example.org"],
+      });
+    }
+    if (path === "/api/v1/projects/org/groups") return json(LIST([manifest("Group", "stewards", "org", { members: [{ user: JANA }] }), manifest("Group", "analysts", "org", { members: [] })]));
+    if (path === "/api/v1/projects/org/groups/stewards") return json(manifest("Group", "stewards", "org", { members: [{ user: JANA }] }));
     if (path === "/api/v1/projects/org/roles") return json(LIST([manifest("Role", "steward", "org", { rules: [{ kinds: ["Endpoint"], verbs: ["read", "propose"] }] }), manifest("Role", "reader", "org", { rules: [{ kinds: ["Endpoint"], verbs: ["read"] }] })]));
     if (path === "/api/v1/projects/helsinki/endpoints") return json(LIST([manifest("Endpoint", "air", "helsinki", { slug: "air-quality", contextSpaceRef: "air" })]));
     if (path === "/api/v1/organization/datamodels") {
@@ -113,7 +132,7 @@ for (const width of [1440, 400]) {
       await shot(page, `grant-chosen-${width}`);
     });
 
-    test("grant a role: someone not signed in yet is named only by a full e-mail", async ({ page }) => {
+    test("grant a role: someone not in the organization yet is sent to the People page to be invited", async ({ page }) => {
       await mock(page, []);
       await page.goto("/organization/members?lang=en");
       await page.getByRole("button", { name: "Grant a role" }).first().click();
@@ -122,16 +141,16 @@ for (const width of [1440, 400]) {
       await expect(page.getByText(/Nobody matches/)).toBeVisible();
       await shot(page, `grant-empty-${width}`);
       await person.fill("eva");
-      await expect(page.getByText(/Type the person/)).toBeVisible();
+      await expect(page.getByText("Type a name or the person's full e-mail address.")).toBeVisible();
       await person.fill("eva.new@example.org");
-      await expect(page.getByText("Use eva.new@example.org (not signed in yet)")).toBeVisible();
+      await expect(page.getByText("Nobody with eva.new@example.org is in the organization yet: invite them on the People page first")).toBeVisible();
       await shot(page, `grant-invite-${width}`);
     });
 
     test("a group's new member is picked, the members already in it are not offered", async ({ page }) => {
       await mock(page);
       await page.goto("/organization/groups/stewards?lang=en");
-      const person = page.getByRole("combobox", { name: "E-mail of the person" });
+      const person = page.getByRole("combobox", { name: "Person" });
       await person.click();
       await expect(page.getByRole("option", { name: /Petra Kráľ/ })).toBeVisible();
       await expect(page.getByRole("option", { name: /Jana Novák/ })).toHaveCount(0);
@@ -142,18 +161,17 @@ for (const width of [1440, 400]) {
       const proposed = await mock(page);
       await page.goto("/organization/groups/stewards?lang=en");
       await shot(page, `group-members-empty-${width}`);
-      await paste(page, "E-mail of the person", "petra.kral@example.org\nmarek.bily@example.org\njana.novak@example.org\njan.horak@example.org\njana.novak");
+      await paste(page, "Person", "petra.kral@example.org\nmarek.bily@example.org\njana.novak@example.org\njan.horak@example.org\njana.novak");
       await page.getByRole("option", { name: "Add the e-mails of the list (4)" }).click();
-      await expect(page.getByText("Not added, these are not e-mail addresses: jana.novak.", { exact: false })).toBeVisible();
+      await expect(page.getByText(/Not added, nobody in the organization has these addresses: .*jan\.horak@example\.org/)).toBeVisible();
       await shot(page, `group-members-pasted-${width}`);
-      await page.getByRole("button", { name: "Add members (3)" }).click();
+      await page.getByRole("button", { name: "Add members (2)" }).click();
       await expect(page.getByRole("link", { name: "Review it in Approvals" })).toBeVisible();
       expect(proposed).toHaveLength(1);
       expect((proposed[0] as { spec: { members: unknown[] } }).spec.members).toEqual([
-        { user: "jana.novak@example.org" },
-        { user: "petra.kral@example.org" },
-        { user: "marek.bily@example.org" },
-        { user: "jan.horak@example.org" },
+        { user: JANA },
+        { user: PETRA },
+        { user: MAREK },
       ]);
       await shot(page, `group-members-proposed-${width}`);
       expect(await axeViolations(page)).toEqual([]);
@@ -164,9 +182,36 @@ for (const width of [1440, 400]) {
       await page.goto("/organization/groups/stewards?lang=en");
       await expect(page.getByRole("link", { name: "Open change chg-0000001f" })).toBeVisible();
       await expect(page.getByRole("button", { name: "Add member" })).toHaveAttribute("aria-disabled", "true");
-      await expect(page.getByRole("button", { name: "Remove jana.novak@example.org from the group" })).toHaveAttribute("aria-disabled", "true");
+      await expect(page.getByRole("button", { name: `Remove Jana Novák (${JANA}) from the group` })).toHaveAttribute("aria-disabled", "true");
       await shot(page, `group-members-waiting-${width}`);
       expect(proposed).toEqual([]);
+    });
+
+    test("a group's page names each member beside their id", async ({ page }) => {
+      await mock(page);
+      await page.goto("/organization/groups/stewards?lang=en");
+      await expect(page.getByText(`Jana Novák (${JANA})`).first()).toBeVisible();
+      expect(await axeViolations(page)).toEqual([]);
+      await shot(page, `group-names-${width}`);
+    });
+
+    test("people: an administrator checks which manifests still name people by e-mail, then proposes one Change per repository", async ({ page }) => {
+      await mock(page);
+      await page.goto("/organization/people?lang=en");
+      const panel = page.getByRole("region", { name: "Name people by id" });
+      await expect(panel.getByRole("button", { name: "Propose the Changes" })).toHaveAttribute("aria-disabled", "true");
+      await shot(page, `name-by-id-start-${width}`);
+      await panel.getByRole("button", { name: "Check the repositories" }).click();
+      await expect(panel.getByText("3 manifest(s) in 2 repository(ies) still name people by e-mail or username:")).toBeVisible();
+      await expect(panel.getByText(/jan\.horak@example\.org/)).toBeVisible();
+      await panel.scrollIntoViewIfNeeded();
+      await shot(page, `name-by-id-checked-${width}`);
+      await panel.getByRole("button", { name: "Propose the Changes" }).click();
+      await expect(panel.getByText("Proposed 2 Change(s); each waits for approval:")).toBeVisible();
+      await expect(panel.getByRole("link", { name: "Change chg-0000003b" })).toHaveAttribute("href", "/projects/org/approvals/chg-0000003b");
+      await expect(panel.getByRole("link", { name: "Change chg-0000003c" })).toHaveAttribute("href", "/projects/helsinki/approvals/chg-0000003c");
+      expect(await axeViolations(page)).toEqual([]);
+      await shot(page, `name-by-id-proposed-${width}`);
     });
 
     test("try a person: the group and the entity type are picked", async ({ page }) => {

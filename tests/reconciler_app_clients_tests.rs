@@ -553,6 +553,78 @@ async fn the_apps_roles_become_client_roles_mapped_to_its_groups_and_users_and_n
     );
 }
 
+/// ADR-N-061 (T-5711): an App names a person by their Keycloak user id. The holder of that id
+/// keeps the role, a holder whose username spells the id loses it, a known id is mapped by that
+/// id, and an id the realm does not have is a warning, never a lookup by e-mail or username.
+#[tokio::test]
+async fn an_apps_role_member_named_by_keycloak_id_is_matched_by_the_id_alone() {
+    const JANA: &str = "0000000a-0000-4000-8000-00000000000a";
+    const PETRA: &str = "0000000b-0000-4000-8000-00000000000b";
+    const GHOST: &str = "0000000c-0000-4000-8000-00000000000c";
+    let keycloak = realm().await;
+    client_in_place(&keycloak).await;
+    answer(
+        &keycloak,
+        "/clients/uuid-a/roles",
+        json!([{ "id": "r-viewer", "name": "viewer" }]),
+    )
+    .await;
+    answer(&keycloak, "/clients/uuid-a/roles/viewer/groups", json!([])).await;
+    answer(
+        &keycloak,
+        "/clients/uuid-a/roles/viewer/users",
+        json!([
+            { "id": JANA, "username": "jana", "email": "jana@hel.fi" },
+            { "id": "u-mallory", "username": PETRA, "email": "mallory@hel.fi" },
+        ]),
+    )
+    .await;
+    answer(
+        &keycloak,
+        &format!("/users/{PETRA}"),
+        json!({ "id": PETRA, "username": "petra" }),
+    )
+    .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/users/{GHOST}")))
+        .respond_with(ResponseTemplate::new(404))
+        .mount(&keycloak)
+        .await;
+    answer(
+        &keycloak,
+        "/clients/uuid-a/protocol-mappers/models",
+        json!([mapper("m-1", "app-alerts"), groups_held()]),
+    )
+    .await;
+    writes_succeed(&keycloak).await;
+
+    let run = sync(&keycloak)
+        .converge(&mirror_with(vec![alerts(json!({
+            "roles": [{ "name": "viewer" }],
+            "access": [
+                { "role": "viewer", "subjects": [{ "user": JANA }, { "user": PETRA }, { "user": GHOST }] },
+            ],
+        }))]))
+        .await;
+
+    let outcome = &run.outcomes[0];
+    assert_eq!(outcome.error, None, "{outcome:?}");
+    let mut writes = wrote(&keycloak).await;
+    writes.sort();
+    let mut expected = vec![
+        format!("DELETE {REALM}/users/u-mallory/role-mappings/clients/uuid-a"),
+        format!("POST {REALM}/users/{PETRA}/role-mappings/clients/uuid-a"),
+    ];
+    expected.sort();
+    assert_eq!(writes, expected, "jana keeps her mapping by id");
+    assert_eq!(outcome.warnings.len(), 1, "{:?}", outcome.warnings);
+    assert!(
+        outcome.warnings[0].contains(GHOST),
+        "{:?}",
+        outcome.warnings
+    );
+}
+
 #[tokio::test]
 async fn the_audiences_are_the_app_and_every_endpoint_it_reads_and_nothing_else() {
     let keycloak = realm().await;

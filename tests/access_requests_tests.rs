@@ -141,7 +141,15 @@ async fn send(
     uri: &str,
     body: Option<Value>,
 ) -> common::Answer {
-    common::send(state, common::person(who), verb, uri, body).await
+    let mut person = common::person(who);
+    person.subject = id_of(who);
+    common::send(state, person, verb, uri, body).await
+}
+
+/// The Keycloak user id (a UUID, ADR-N-061) the test gives the person signed in as `who`.
+fn id_of(who: &str) -> String {
+    let hex: String = who.bytes().take(6).map(|b| format!("{b:02x}")).collect();
+    format!("00000000-0000-4000-8000-{hex:0>12}")
 }
 
 /// PL-90, PL-91, PL-93: request, approve as a Change of Helsinki, revoke; nothing is granted
@@ -808,12 +816,40 @@ async fn a_person_asks_on_the_endpoint_and_an_owner_approves() {
     assert_eq!(bundle.len(), 1, "{bundle:?}");
     assert_eq!(
         bundle[0]["spec"]["assignee"],
-        json!({ "kind": "user", "id": "eve" })
+        json!({ "kind": "user", "id": id_of("eve") })
     );
     assert_eq!(
         bundle[0]["spec"]["information"],
         json!([{ "entities": [{ "type": "AirQualityObserved" }] }])
     );
+
+    // A request filed before ADR-N-061 names the person by username: approving it would write
+    // that name into Git, so it is refused and the owner is told what to do.
+    let legacy = joinedcontext_portal::access_requests::AccessRequest {
+        id: joinedcontext_portal::access_requests::new_id(),
+        requester: joinedcontext_portal::access_requests::Requester::Person("eve".into()),
+        state: "pending".into(),
+        decided_by: None,
+        decided_at: None,
+        change: None,
+        ..stored.clone()
+    };
+    joinedcontext_portal::access_requests::insert(state.db.as_ref().expect("db"), &legacy)
+        .await
+        .expect("insert");
+    let refused = send(
+        &state,
+        "otto",
+        "POST",
+        &format!(
+            "/api/v1/projects/{HELSINKI}/access-requests/{}/approve",
+            legacy.id
+        ),
+        None,
+    )
+    .await;
+    assert_eq!(refused.status, StatusCode::CONFLICT, "{}", refused.text);
+    assert!(refused.text.contains("request again"), "{}", refused.text);
 
     // The owner who asks for themself does not approve their own request (CC-34).
     let own = send(

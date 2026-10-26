@@ -69,6 +69,7 @@ pub mod mutate;
 pub mod ops;
 pub mod organization_limits;
 pub mod people;
+pub mod people_ids;
 pub mod permissions;
 pub mod pipeline_templates;
 pub mod pipeline_test;
@@ -137,6 +138,7 @@ pub fn router() -> Router<AppState> {
         .merge(ops::router())
         .merge(permissions::router())
         .merge(people::router())
+        .merge(people_ids::router())
         .merge(access_attributes::router())
         .merge(access_simulate::router())
         .merge(access_explore::router())

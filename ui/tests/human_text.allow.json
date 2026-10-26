@@ -159,12 +159,6 @@
       ],
       "reason": "the OGC standard's own name"
     },
-    "ckan.publications.datastore": {
-      "rules": [
-        "kind"
-      ],
-      "reason": "DataStore is CKAN's own name for the feature, the one the catalogue's administrator knows"
-    },
     "datasources.type.websocket": {
       "rules": [
         "kind"

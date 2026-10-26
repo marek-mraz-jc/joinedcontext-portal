@@ -194,7 +194,7 @@ pub(crate) async fn resolve(
             let person = admin.get(id).await?;
             let (groups, roles) = admin.groups_and_realm_roles(id).await?;
             Resolved {
-                user: Some(person.username),
+                user: Some(person.id),
                 groups,
                 roles,
                 service_account: None,

@@ -2643,6 +2643,122 @@
         }
       }
     },
+    "/api/v1/organization/people/name-by-id": {
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Name People by Id",
+        "description": "Proposes, per repository, one Change rewriting every Group member, RoleBinding and role subject and Policy user assignee that names a person by e-mail or username into their Keycloak user id (ADR-N-061), and lists the addresses no user carries. `dryRun=true` answers the plan alone. Needs `update` on Person.",
+        "operationId": "name_by_id",
+        "parameters": [
+          {
+            "name": "dryRun",
+            "in": "query",
+            "description": "`true` answers the plan and proposes nothing.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan, and the Change of each repository unless a dry run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationPlan"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks update on Person, or is not a person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client or forge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/people/names": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Resolve Person Names",
+        "description": "Answers the name behind each Keycloak user id a manifest names. Needs `update` on Person or `approve` on Group.",
+        "operationId": "person_names",
+        "parameters": [
+          {
+            "name": "ids",
+            "in": "query",
+            "description": "Comma-separated Keycloak user ids, at most 100. Optional so the right is checked first.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The names of the ids the realm knows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonNames"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller neither updates people nor approves groups",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "An id is not a Keycloak user id, or more than 100",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/people/remove": {
       "post": {
         "tags": [
@@ -16662,7 +16778,7 @@
           "spaces"
         ],
         "summary": "Propose a Data Subject's Erasure",
-        "description": "Proposes erasing the data subject from the space: once another person with `approve` on the ContextSpace approves it (DM-142), the personal Attributes (or the whole Entity of a personal class) of every Entity naming it go from the broker's current state and every version, the CKAN DataStore copy, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers with the proposal, `proposed` and nothing erased, which expires after 7 days; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.",
+        "description": "Proposes erasing the data subject from the space: once another person with `approve` on the ContextSpace approves it (DM-142), the personal Attributes (or the whole Entity of a personal class) of every Entity naming it go from the broker's current state and every version, the Portal's trash and comments and the assistant's stored conversations (DM-126). Answers with the proposal, `proposed` and nothing erased, which expires after 7 days; the erasure log keeps the subject's keyed hash, never the value (DM-127). For the space's owners; audited with the reason.",
         "operationId": "erase_subject",
         "parameters": [
           {
@@ -23956,8 +24072,7 @@
           "catalog",
           "publish",
           "missing",
-          "attributes",
-          "datastoreAvailable"
+          "attributes"
         ],
         "properties": {
           "attributes": {
@@ -23970,10 +24085,6 @@
           "catalog": {
             "type": "object",
             "description": "The drafted `spec.catalog` (EP-78), or the one the Endpoint already declares."
-          },
-          "datastoreAvailable": {
-            "type": "boolean",
-            "description": "The Endpoint serves `csv`, so its rows can be mirrored into the CKAN DataStore (EP-65)."
           },
           "endpoint": {
             "type": "string"
@@ -24424,13 +24535,6 @@
           },
           "name": {
             "type": "string"
-          },
-          "previewUrl": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The DataStore preview, on a resource with an active sheet (EP-65)."
           },
           "url": {
             "type": "string"
@@ -25662,24 +25766,6 @@
           }
         ],
         "description": "The ticket, handed to the workspace and to nobody else. It is in the create answer because\nthe caller is the Portal's own UI in the one deployment that has no cluster to schedule in;\nin a cluster the Job env is the only carrier and this field is absent."
-      },
-      "DataStoreStatus": {
-        "type": "object",
-        "description": "The declared row mirror.",
-        "required": [
-          "representation",
-          "refresh"
-        ],
-        "properties": {
-          "refresh": {
-            "type": "string",
-            "description": "How the mirror is kept current."
-          },
-          "representation": {
-            "type": "string",
-            "description": "The tabular representation the rows are read through."
-          }
-        }
       },
       "DataView": {
         "type": "object",
@@ -28635,6 +28721,28 @@
           "did-web"
         ]
       },
+      "MigrationPlan": {
+        "type": "object",
+        "required": [
+          "repositories",
+          "unresolved"
+        ],
+        "properties": {
+          "repositories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RepositoryPlan"
+            }
+          },
+          "unresolved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Addresses and usernames no Keycloak user carries: they stay as they are, and the\nreconciler leaves a group naming one as the realm holds it until somebody fixes it."
+          }
+        }
+      },
       "ModelChange": {
         "type": "object",
         "description": "Single detected difference between the published model and the candidate LinkML source.",
@@ -29673,6 +29781,38 @@
             "items": {
               "$ref": "#/components/schemas/PlatformRole"
             }
+          }
+        }
+      },
+      "PersonName": {
+        "type": "object",
+        "description": "One id and the name of the person behind it.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "First and last name; the e-mail when the realm holds no name."
+          }
+        }
+      },
+      "PersonNames": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonName"
+            },
+            "description": "The ids the realm knows; an id it does not know is left out."
           }
         }
       },
@@ -31445,17 +31585,6 @@
             ],
             "description": "Where the dataset is in the catalogue, once it is published."
           },
-          "datastore": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/DataStoreStatus",
-                "description": "The row mirror, when the endpoint asks for one (EP-65)."
-              }
-            ]
-          },
           "endpoint": {
             "type": "string",
             "description": "The endpoint that declares the publication."
@@ -31938,6 +32067,34 @@
           }
         },
         "additionalProperties": false
+      },
+      "RepositoryPlan": {
+        "type": "object",
+        "description": "What the migration rewrites in one repository.",
+        "required": [
+          "repository",
+          "manifests"
+        ],
+        "properties": {
+          "change": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Change proposed for it; absent in a dry run."
+          },
+          "manifests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`Kind namespace/name` of each manifest the Change rewrites."
+          },
+          "repository": {
+            "type": "string",
+            "description": "`organization`, or the project whose own repository it is."
+          }
+        }
       },
       "Requestable": {
         "type": "object",

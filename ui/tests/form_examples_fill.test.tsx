@@ -61,8 +61,8 @@ describe("a list field's example", () => {
 
     const values = screen.getAllByRole("textbox").map((field) => (field as HTMLInputElement).value);
     expect(
-      values.some((value) => /^name\.surname@city\.example$/.test(value)),
-      `the member's address holds the example: ${JSON.stringify(values)}`,
+      values.some((value) => value === "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e"),
+      `the member's id holds the example: ${JSON.stringify(values)}`,
     ).toBe(true);
     expect(
       values.some((value) => value.startsWith("[") || value.includes("object Object")),

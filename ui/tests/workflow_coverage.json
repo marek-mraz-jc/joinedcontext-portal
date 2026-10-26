@@ -174,6 +174,16 @@
           "POST /api/v1/organization/people/{id}/sign-out"
         ]
       },
+      "name-by-id": {
+        "live": {
+          "spec": "organization.spec.ts",
+          "test": "an administrator checks which manifests still name people by e-mail, and nothing is proposed"
+        },
+        "personOnly": "moving a repository's people from e-mails to ids is a Change an administrator proposes in a session; a second person approves it (ADR-N-061)",
+        "routes": [
+          "POST /api/v1/organization/people/name-by-id"
+        ]
+      },
       "remove": {
         "live": {
           "spec": "readiness.spec.ts",
