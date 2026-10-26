@@ -28,6 +28,7 @@ spec:
     - heritageStatus
     - managerName
     - districtName
+    - location
     relationshipNames:
     - name
     - bridgeCode
@@ -40,6 +41,7 @@ spec:
     - heritageStatus
     - managerName
     - districtName
+    - location
   operations:
   - queryEntity
   - retrieveEntity

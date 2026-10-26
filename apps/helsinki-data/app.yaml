@@ -35,6 +35,6 @@ spec:
         kind: ContextSpace
         name: helsinki
       types: [PointOfInterest, CityWork, Event, Alert, OnStreetParking, AdministrativeArea, WaterQualityObserved, AirQualityObserved, WeatherObserved]
-      attrs: [name, serviceCategory, address, openingHours, url, dateModified, permitKind, permitStatus, permitNumber, permitStart, permitEnd, startDate, endDate, eventStatus, category, subCategory, dateIssued, validFrom, validTo, zoneCode, districtCode, divisionLevel, temperature, dateObserved, pm10, pm25, airQualityIndex, roadSurfaceTemperature, relativeHumidity, windSpeed, windDirection, precipitation]
+      attrs: [name, serviceCategory, address, openingHours, url, dateModified, permitKind, permitStatus, permitNumber, permitStart, permitEnd, startDate, endDate, eventStatus, category, subCategory, dateIssued, validFrom, validTo, zoneCode, districtCode, divisionLevel, temperature, dateObserved, pm10, pm25, airQualityIndex, roadSurfaceTemperature, relativeHumidity, windSpeed, windDirection, precipitation, location]
       operations: [queryEntity, retrieveEntity]
       representations: [ngsi-ld, csv, ogc-features]
