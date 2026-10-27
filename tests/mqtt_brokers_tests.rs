@@ -317,7 +317,19 @@ spec:
   entryPoints: [mqtts]
 ";
 
-const PORT_ROUTE: &str = "\
+/// The same release with a port: the 8883 route and the port's passthrough route, which carries
+/// the Certificate's revision here as the Deployment does in the chart.
+const PORT_TEMPLATE: &str = "\
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: __RELEASE__
+  namespace: jc-mqtt
+  labels:
+    app.kubernetes.io/instance: __RELEASE__
+spec:
+  entryPoints: [mqtts]
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRouteTCP
@@ -326,12 +338,17 @@ metadata:
   namespace: jc-mqtt
   labels:
     app.kubernetes.io/instance: __RELEASE__
+  annotations:
+    joinedcontext.com/tls-revision: \"__TLS_REVISION__\"
 spec:
   entryPoints: [mqtt-__PORT__]
+  tls:
+    passthrough: true
 ";
 
-/// T-5856: a broker with a port gets its entrypoint route applied; one whose manifest dropped
-/// its port loses that route and keeps its 8883 one; a refused manifest keeps both.
+/// T-5856: a broker with a port gets the port template, its Certificate's revision filled in;
+/// one whose manifest dropped its port loses what only a port renders and keeps its 8883 route;
+/// a refused manifest keeps both.
 #[tokio::test]
 async fn a_port_is_routed_while_named_and_its_route_goes_when_the_manifest_drops_it() {
     let server = MockServer::start().await;
@@ -341,7 +358,7 @@ async fn a_port_is_routed_while_named_and_its_route_goes_when_the_manifest_drops
         )))
         .respond_with(
             ResponseTemplate::new(200)
-                .set_body_json(json!({ "data": { TEMPLATE_KEY: ROUTE, PORT_KEY: PORT_ROUTE } })),
+                .set_body_json(json!({ "data": { TEMPLATE_KEY: ROUTE, PORT_KEY: PORT_TEMPLATE } })),
         )
         .mount(&server)
         .await;
@@ -360,6 +377,15 @@ async fn a_port_is_routed_while_named_and_its_route_goes_when_the_manifest_drops
             route("mqtt-helsinki-cameras-port", "mqtt-helsinki-cameras"),
             route("mqtt-helsinki-doors", "mqtt-helsinki-doors"),
             route("mqtt-helsinki-doors-port", "mqtt-helsinki-doors"),
+        ] })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/apis/cert-manager.io/v1/namespaces/{NAMESPACE}/certificates"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "items": [
+            { "metadata": { "name": "mqtt-helsinki-cameras" }, "status": { "revision": 4 } },
         ] })))
         .mount(&server)
         .await;
@@ -397,6 +423,25 @@ async fn a_port_is_routed_while_named_and_its_route_goes_when_the_manifest_drops
         .expect("the port route applied");
     let body: Value = serde_json::from_slice(&port.body).expect("json");
     assert_eq!(body["spec"]["entryPoints"], json!(["mqtt-18835"]));
+    assert_eq!(body["spec"]["tls"], json!({ "passthrough": true }));
+    assert_eq!(
+        body["metadata"]["annotations"]["joinedcontext.com/tls-revision"],
+        "4"
+    );
+    let certificates = received
+        .iter()
+        .filter(|r| r.url.path().ends_with("/certificates"))
+        .map(|r| r.url.query().unwrap_or_default().to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        certificates.len(),
+        1,
+        "read for the broker with a port only"
+    );
+    assert!(
+        certificates[0].contains("mqtt-helsinki-cameras"),
+        "{certificates:?}"
+    );
     assert_eq!(
         calls(&received, "DELETE"),
         [format!("{routes}/mqtt-helsinki-doors-port")]
