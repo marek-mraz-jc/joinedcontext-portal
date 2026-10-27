@@ -390,24 +390,26 @@ pub fn objects_of(
     spec: &MqttBrokerSpec,
     tls_revision: Option<u64>,
 ) -> Result<Vec<Value>, String> {
-    let mut objects = if let Some(hostname) = &spec.hostname {
-        hostname_objects(templates, broker, spec, hostname)?
-    } else if let Some(port) = spec.port {
-        let port_template = templates.port.as_deref().ok_or_else(|| {
-            format!("{TEMPLATE} has no {PORT_KEY} for spec.port {port}: the deployment renders it")
-        })?;
-        render(
-            &port_template
-                .replace("__PORT__", &port.to_string())
-                .replace(
-                    "__TLS_REVISION__",
-                    &tls_revision.map(|r| r.to_string()).unwrap_or_default(),
-                ),
-            broker,
-            spec,
-        )?
-    } else {
-        render(&templates.plain, broker, spec)?
+    let mut objects = match (&spec.hostname, spec.port) {
+        (Some(hostname), _) => hostname_objects(templates, broker, spec, hostname)?,
+        (None, None) => render(&templates.plain, broker, spec)?,
+        (None, Some(port)) => {
+            let port_template = templates.port.as_deref().ok_or_else(|| {
+                format!(
+                    "{TEMPLATE} has no {PORT_KEY} for spec.port {port}: the deployment renders it"
+                )
+            })?;
+            render(
+                &port_template
+                    .replace("__PORT__", &port.to_string())
+                    .replace(
+                        "__TLS_REVISION__",
+                        &tls_revision.map(|r| r.to_string()).unwrap_or_default(),
+                    ),
+                broker,
+                spec,
+            )?
+        }
     };
     restrict_sources(&mut objects, broker, spec)?;
     Ok(objects)

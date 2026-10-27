@@ -102,8 +102,8 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
   const spec = (broker.spec ?? {}) as {
     roles?: Role[];
     port?: number;
-    allowedSources?: string[];
     hostname?: string;
+    allowedSources?: string[];
     mode?: string;
     capture?: { messagesPerTopic?: number; window?: string };
   };
