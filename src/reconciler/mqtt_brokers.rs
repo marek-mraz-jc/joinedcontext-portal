@@ -417,7 +417,11 @@ impl MqttBrokers {
                 .map(template_kinds)
                 .unwrap_or_default(),
         );
-        kinds.insert((SOURCES_KIND.0.to_owned(), SOURCES_KIND.1.to_owned()));
+        // Only a template with an edge route can have stamped a middleware: a cluster without
+        // Traefik's CRDs (an nginx ingress class) has no such list to read.
+        if kinds.iter().any(|(_, kind)| kind == "IngressRouteTCP") {
+            kinds.insert((SOURCES_KIND.0.to_owned(), SOURCES_KIND.1.to_owned()));
+        }
         for (api_version, kind) in &kinds {
             let listed = match self
                 .kube
