@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect } from "@playwright/test";
-import type { APIRequestContext, Browser, BrowserContext, Locator, Page, Response } from "@playwright/test";
+import type { APIRequestContext, Browser, BrowserContext, Locator, Page, Request, Response } from "@playwright/test";
 import { edgeRetryMs } from "../../tests/pageChecks";
 import { answerOtp, submitted } from "./totp";
 
@@ -238,8 +238,9 @@ export async function goSignedIn(
 /**
  * Opens a page for the walker to judge, true when the edge still refuses it with 429 after two
  * loads again (T-5078). Otherwise it waits for the page a person looks at: the first heading, the
- * lists that read after it, and while index.html's fallback is the document (a script the edge
- * refused), a load again after `retryMs`, twice at most (T-5069).
+ * lists that read after it, the permissions document its write controls follow (T-5834), and
+ * while index.html's fallback is the document (a script the edge refused), a load again after
+ * `retryMs`, twice at most (T-5069).
  *
  * A load the edge refused anywhere, the document or one of its chunks, waits the edge's window out
  * and loads again, twice at most: the Portal reloads itself once for a refused chunk and that
@@ -252,7 +253,17 @@ export async function openToJudge(page: Page, address: string, retryMs = 20_000,
   const watch = (response: Response) => {
     if (response.status() === 429 && ["document", "script", "stylesheet"].includes(response.request().resourceType())) refused ??= response;
   };
+  // Until permissions/me answers, PermissionGuard leaves a write control as it is (PF-51): a page
+  // judged before that answer showed the viewer pressable writes the answer refuses (T-5834).
+  const asking = new Set<Request>();
+  const ask = (request: Request) => {
+    if (request.url().endsWith("/permissions/me")) asking.add(request);
+  };
+  const answered = (request: Request) => asking.delete(request);
   page.on("response", watch);
+  page.on("request", ask);
+  page.on("requestfinished", answered);
+  page.on("requestfailed", answered);
   try {
     let answer = await page.goto(address, { waitUntil: "load" });
     for (let retry = 0; ; retry++) {
@@ -260,6 +271,7 @@ export async function openToJudge(page: Page, address: string, retryMs = 20_000,
         await settle(page, retryMs);
         await page.waitForTimeout(1500);
         await afterSelfReload(page, retryMs);
+        for (const deadline = Date.now() + 30_000; asking.size > 0 && Date.now() < deadline; ) await page.waitForTimeout(200);
       }
       if (!refused) return false;
       if (retry === 2) return true;
@@ -270,6 +282,9 @@ export async function openToJudge(page: Page, address: string, retryMs = 20_000,
     }
   } finally {
     page.off("response", watch);
+    page.off("request", ask);
+    page.off("requestfinished", answered);
+    page.off("requestfailed", answered);
   }
 }
 
