@@ -194,6 +194,16 @@ export function pageFindings(options: PageCheckOptions): string[] {
 
 /** A finding the walkers excuse: a route, a check, and the open task that owes the fix. */
 /**
+ * The tab holds no Portal document at all (no index.html `#root`): the page checks and axe would judge an
+ * empty document and report its missing lang, title and h1 as the page's (T-5855: the 15:15Z walk judged a
+ * blank tab on /organization/roles that never asked the edge for the page). Self-contained for `page.evaluate`.
+ */
+export function shellFinding(): string[] {
+  if (document.getElementById("root")) return [];
+  return [`boot: the tab shows no Portal page (${location.href.slice(0, 120)}, no #root, title "${document.title.slice(0, 60)}")`];
+}
+
+/**
  * A write control the viewer can press, or one refused without a reason (UI-44). A tab is a place
  * to go, and a control that only edits the draft in hand writes nothing: a term added to the filter
  * being tried, a condition of the grid's filter panel (FilterPanel, T-5005), a colour rule of one's
