@@ -8,7 +8,9 @@
 use jc_core::kinds::mqtt_broker::release_name;
 use jc_core::kinds::MqttBrokerSpec;
 use joinedcontext_portal::apps::kube::KubeClient;
-use joinedcontext_portal::reconciler::mqtt_brokers::{Broker, MqttBrokers, PORT_KEY, TEMPLATE_KEY};
+use joinedcontext_portal::reconciler::mqtt_brokers::{
+    Broker, MqttBrokers, HOSTNAME_KEY, PORT_KEY, TEMPLATE_KEY,
+};
 use serde_json::{json, Value};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
@@ -57,6 +59,7 @@ fn broker(project: &str, name: &str, connections: u32) -> Broker {
         name: name.to_owned(),
         release: release_name(project, name),
         spec: Ok(spec),
+        certificate: None,
     }
 }
 
@@ -73,6 +76,17 @@ fn held(kind: &str, releases: &[&str]) -> Value {
         "kind": kind,
         "metadata": { "name": release, "labels": { "app.kubernetes.io/instance": release } },
     })).collect::<Vec<_>>() })
+}
+
+/// No broker holds an edge filter (PF-129) yet; the reconciler lists the kind to retire one.
+async fn no_edge_filters(server: &MockServer) {
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/apis/traefik.io/v1alpha1/namespaces/{NAMESPACE}/middlewaretcps"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "items": [] })))
+        .mount(server)
+        .await;
 }
 
 async fn cluster(template: Option<&str>, releases: &[&str]) -> MockServer {
@@ -105,6 +119,7 @@ async fn cluster(template: Option<&str>, releases: &[&str]) -> MockServer {
             .mount(&server)
             .await;
     }
+    no_edge_filters(&server).await;
     for verb in ["PATCH", "DELETE"] {
         Mock::given(method(verb))
             .respond_with(ResponseTemplate::new(200).set_body_string("{}"))
@@ -271,6 +286,7 @@ async fn without_the_template_nothing_is_applied_or_removed_and_the_run_says_why
 #[tokio::test]
 async fn an_apply_the_api_server_refuses_is_that_brokers_failure_alone() {
     let server = MockServer::start().await;
+    no_edge_filters(&server).await;
     Mock::given(method("GET"))
         .and(path(format!(
             "/api/v1/namespaces/{NAMESPACE}/configmaps/broker-template"
@@ -460,4 +476,136 @@ async fn a_port_is_routed_while_named_and_its_route_goes_when_the_manifest_drops
             format!("/apis/traefik.io/v1alpha1/namespaces/{NAMESPACE}/middlewaretcps/mqtt-helsinki-doors-sources"),
         ]
     );
+}
+
+const HOSTNAME_TEMPLATE: &str = "\
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: __RELEASE__
+  namespace: jc-mqtt
+  labels:
+    app.kubernetes.io/instance: __RELEASE__
+spec:
+  secretName: __RELEASE__-tls
+  dnsNames: [__HOSTNAME__]
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: __RELEASE__
+  namespace: jc-mqtt
+  labels:
+    app.kubernetes.io/instance: __RELEASE__
+spec:
+  entryPoints: [mqtts]
+  routes:
+    - match: HostSNI(`__HOSTNAME__`)
+  tls:
+    secretName: __TLS_SECRET__
+";
+
+/// T-5874: a custom hostname is routed by its name with a Certificate issued by HTTP-01, and waits
+/// for DNS until that Certificate is Ready; with the admin's certificate the route serves it and
+/// the issued Certificate goes.
+#[tokio::test]
+async fn a_custom_hostname_is_routed_by_its_name_and_waits_for_dns_until_issued() {
+    let server = MockServer::start().await;
+    no_edge_filters(&server).await;
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/api/v1/namespaces/{NAMESPACE}/configmaps/broker-template"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(
+            json!({ "data": { TEMPLATE_KEY: ROUTE, HOSTNAME_KEY: HOSTNAME_TEMPLATE } }),
+        ))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/apis/cert-manager.io/v1/namespaces/{NAMESPACE}/certificates"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "items": [
+            { "metadata": { "name": "mqtt-helsinki-cameras",
+                "labels": { "app.kubernetes.io/instance": "mqtt-helsinki-cameras" } },
+              "status": { "conditions": [{ "type": "Ready", "status": "False" }] } },
+            { "metadata": { "name": "mqtt-helsinki-doors",
+                "labels": { "app.kubernetes.io/instance": "mqtt-helsinki-doors" } },
+              "status": { "conditions": [{ "type": "Ready", "status": "True" }] } },
+        ] })))
+        .mount(&server)
+        .await;
+    for verb in ["GET", "PATCH", "DELETE"] {
+        Mock::given(method(verb))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "items": [] })))
+            .mount(&server)
+            .await;
+    }
+    let on = |project: &str, name: &str, hostname: &str, certificate: Option<&str>| {
+        let mut broker = broker(project, name, 10);
+        if let Ok(spec) = broker.spec.as_mut() {
+            spec.hostname = Some(hostname.to_owned());
+        }
+        broker.certificate = certificate.map(str::to_owned);
+        broker
+    };
+    let brokers = [
+        on("helsinki", "cameras", "mqtt.helsinki.example", None),
+        on(
+            "helsinki",
+            "doors",
+            "doors.helsinki.example",
+            Some("helsinki-doors-cert"),
+        ),
+    ];
+    let reconciler = reconciler(&server);
+    let failed = reconciler.converge(&brokers, true).await;
+    assert!(failed.is_empty(), "{failed:?}");
+
+    let received = server.received_requests().await.expect("recorded");
+    let patched = |suffix: &str| -> Value {
+        let request = received
+            .iter()
+            .find(|r| r.method.as_str() == "PATCH" && r.url.path().ends_with(suffix))
+            .unwrap_or_else(|| panic!("{suffix} applied"));
+        serde_json::from_slice(&request.body).expect("json")
+    };
+    let certificate = patched("/certificates/mqtt-helsinki-cameras");
+    assert_eq!(
+        certificate["spec"]["dnsNames"],
+        json!(["mqtt.helsinki.example"])
+    );
+    let route = patched("/ingressroutetcps/mqtt-helsinki-cameras");
+    assert_eq!(
+        route["spec"]["routes"][0]["match"],
+        "HostSNI(`mqtt.helsinki.example`)"
+    );
+    assert_eq!(
+        route["spec"]["tls"]["secretName"],
+        "mqtt-helsinki-cameras-tls"
+    );
+    let route = patched("/ingressroutetcps/mqtt-helsinki-doors");
+    assert_eq!(route["spec"]["tls"]["secretName"], "helsinki-doors-cert");
+    assert!(
+        !calls(&received, "PATCH").contains(&format!(
+            "/apis/cert-manager.io/v1/namespaces/{NAMESPACE}/certificates/mqtt-helsinki-doors"
+        )),
+        "the admin's certificate is served, none issued"
+    );
+    assert!(
+        calls(&received, "DELETE").contains(&format!(
+            "/apis/cert-manager.io/v1/namespaces/{NAMESPACE}/certificates/mqtt-helsinki-doors"
+        )),
+        "the issued Certificate the admin's replaced goes"
+    );
+
+    let waiting = reconciler.waiting_for_dns(&brokers).await;
+    assert_eq!(
+        waiting.keys().collect::<Vec<_>>(),
+        ["helsinki/cameras"],
+        "the admin's certificate waits for nothing"
+    );
+    assert!(waiting["helsinki/cameras"]
+        .starts_with("waiting for DNS: point a CNAME from mqtt.helsinki.example"));
 }

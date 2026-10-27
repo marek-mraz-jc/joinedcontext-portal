@@ -176,6 +176,10 @@ describe("the broker's address", () => {
     expect(brokerAddress("cameras", "espoo", "portal.example.org", 18830)).toBe("cameras.espoo.mqtt.example.org:18830");
     expect(brokerAddress("cameras", "espoo", "localhost")).toBeUndefined();
   });
+
+  it("is the city's own name on 8883 for a custom hostname, wherever the Portal runs (T-5874)", () => {
+    expect(brokerAddress("cameras", "espoo", "localhost", undefined, "mqtt.espoo.example")).toBe("mqtt.espoo.example:8883");
+  });
 });
 
 describe("the MQTT brokers page", () => {
@@ -247,6 +251,32 @@ describe("what a broker measures (T-4043)", () => {
         return url.pathname.endsWith("/mqttbrokers") ? json(list([CAMERAS])) : undefined;
       },
     });
+
+  it("says what the city does next while its custom hostname waits for DNS, and the city's address (T-5874)", async () => {
+    const waiting = {
+      ...CAMERAS,
+      spec: { ...(CAMERAS as { spec: object }).spec, address: "customHostname", hostname: "mqtt.espoo.example" },
+      status: { phase: "Pending", conditions: [{ type: "Ready", status: "False", reason: "WaitingForDns", message: "waiting for DNS" }] },
+    };
+    renderPage(<MqttBrokersPage project={PROJECT} />, {
+      path: `/projects/${PROJECT}/mqttbrokers`,
+      answer: (url) => (url.pathname.endsWith("/mqttbrokers") ? json(list([waiting])) : undefined),
+    });
+    expect(await screen.findByText(en.mqttbrokers.connect.waitingForDnsTitle)).toBeInTheDocument();
+    const alert = document.querySelector("[data-dns='waiting']") as HTMLElement;
+    expect(alert.textContent).toContain("Point a CNAME record from mqtt.espoo.example");
+    expect(screen.getAllByText("mqtt.espoo.example:8883").length).toBeGreaterThan(0);
+  });
+
+  it("shows no DNS notice once the hostname's certificate is issued", async () => {
+    const served = { ...CAMERAS, spec: { ...(CAMERAS as { spec: object }).spec, address: "customHostname", hostname: "mqtt.espoo.example" } };
+    renderPage(<MqttBrokersPage project={PROJECT} />, {
+      path: `/projects/${PROJECT}/mqttbrokers`,
+      answer: (url) => (url.pathname.endsWith("/mqttbrokers") ? json(list([served])) : undefined),
+    });
+    expect((await screen.findAllByText("mqtt.espoo.example:8883")).length).toBeGreaterThan(0);
+    expect(document.querySelector("[data-dns='waiting']")).toBeNull();
+  });
 
   it("shows the publishers, the rate and each account's connected clients", async () => {
     show(() =>

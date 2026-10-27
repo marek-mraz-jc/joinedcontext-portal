@@ -9694,6 +9694,9 @@
       "brokerRef": "Vyberte {broker} ako broker platformy MQTT zdroja údajov.",
       "certificate": "Certifikát",
       "certificateIssued": "Vydáva ho platforma pre {host} od verejnej certifikačnej autority; zariadenia ho overia systémovými CA.",
+      "waitingForDnsTitle": "Čaká sa na DNS",
+      "waitingForDns": "Nasmerujte záznam CNAME z {host} na {target}. Platforma vydá certifikát pre {host}, hneď ako sa názov preloží na ňu; zariadenia sa potom pripájajú na {host}:8883.",
+      "waitingForDnsNoTarget": "Nasmerujte záznam CNAME z {host} na platformovú adresu tohto brokera. Platforma vydá certifikát pre {host}, hneď ako sa názov preloží na ňu; zariadenia sa potom pripájajú na {host}:8883.",
       "example": "Vyskúšajte",
       "copyExample": "Kopírovať príkaz",
       "exampleHint": "Najprv nastavte TOKEN na prístupový token klienta zariadenia; Portál ho nikdy nezobrazí."

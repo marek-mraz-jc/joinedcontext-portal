@@ -121,6 +121,49 @@ test.describe("MQTT brokers", () => {
     }
   });
 
+  test("a steward reads that a custom hostname waits for DNS and where devices will connect (T-5874)", async ({ page }) => {
+    await stubApi(page);
+    await page.route("**/api/v1/projects/helsinki/mqttbrokers", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          apiVersion: API,
+          kind: "List",
+          items: [
+            item(
+              "MqttBroker",
+              "cameras",
+              {
+                address: "customHostname",
+                hostname: "mqtt.helsinki.example",
+                roles: [{ name: "cams", serviceAccounts: ["cam-1"], publish: ["cameras/${clientid}/frames"] }],
+              },
+              {
+                phase: "Pending",
+                conditions: [{ type: "Ready", status: "False", reason: "WaitingForDns", message: "waiting for DNS" }],
+              },
+            ),
+          ],
+        }),
+      }),
+    );
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/projects/${PROJECT}/mqttbrokers?lang=en`);
+    const notice = page.locator("[data-dns='waiting']");
+    await expect(notice).toContainText("Waiting for DNS");
+    await expect(notice).toContainText("Point a CNAME record from mqtt.helsinki.example");
+    await expect(page.getByText("mqtt.helsinki.example:8883", { exact: true }).first()).toBeVisible();
+    expect(await axeViolations(page)).toEqual([]);
+    const shots = process.env.T5874_SHOTS;
+    if (shots) {
+      for (const width of [1440, 400]) {
+        await page.setViewportSize({ width, height: width === 400 ? 860 : 900 });
+        await notice.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `${shots}/mqtt-hostname-waiting-for-dns-${width}.png`, fullPage: true });
+      }
+    }
+  });
+
   test("a steward fences a broker to the city's networks and a bad range is named at the field (PF-129)", async ({ page }) => {
     await stubApi(page);
     await page.route("**/api/v1/projects/helsinki/permissions/me", (route) =>

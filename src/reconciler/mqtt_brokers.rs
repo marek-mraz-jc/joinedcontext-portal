@@ -36,6 +36,10 @@ pub const TEMPLATE_KEY: &str = "objects.yaml";
 /// annotated with `__TLS_REVISION__`, its Certificate's `status.revision`, so a renewed
 /// certificate rolls the broker, which reads it only at start.
 pub const PORT_KEY: &str = "objects-port.yaml";
+/// The key of the same objects for a broker on a custom hostname (ADR-N-048 §2.11, T-5874): the
+/// 8883 route by `__HOSTNAME__` serving the Secret `__TLS_SECRET__`, and a Certificate issued by
+/// HTTP-01 for that name, which the reconciler drops when the admin's certificateRef serves it.
+pub const HOSTNAME_KEY: &str = "objects-hostname.yaml";
 /// The dedicated ports the edge serves: each one a Traefik entrypoint `mqtt-<port>`. The rest
 /// of `DEDICATED_PORTS` stays reserved, so a broker given one of them is not applied.
 pub const SERVED_PORTS: std::ops::RangeInclusive<u16> = 18830..=18839;
@@ -56,6 +60,9 @@ pub struct Broker {
     pub release: String,
     /// `Err` with the reason when the platform refuses the manifest.
     pub spec: Result<MqttBrokerSpec, String>,
+    /// The admin's certificate Secret its custom hostname is served with; `None` while
+    /// cert-manager issues one by HTTP-01, and for every other address.
+    pub certificate: Option<String>,
 }
 
 impl Broker {
@@ -97,6 +104,7 @@ pub fn declared(mirror: &Mirror) -> Vec<Broker> {
                         project: project.clone(),
                         name,
                         spec,
+                        certificate: None,
                     }
                 })
                 .collect::<Vec<_>>()
@@ -130,7 +138,65 @@ pub fn declared(mirror: &Mirror) -> Vec<Broker> {
             }
         }
     }
+    judge_hostnames(mirror, &mut brokers);
     brokers
+}
+
+/// A custom hostname is served by one broker of the one project its quota assigns it to, the
+/// first project in name order when two quotas list it (ADR-N-048 §2.11, T-5874). The refusal
+/// names no other project: the broker's status is read by its own project's members.
+fn judge_hostnames(mirror: &Mirror, brokers: &mut [Broker]) {
+    let holders = crate::mqtt_allowance::hostname_holders(mirror);
+    let mut served: BTreeMap<String, String> = BTreeMap::new();
+    for broker in brokers {
+        let Some(hostname) = broker
+            .spec
+            .as_ref()
+            .ok()
+            .and_then(|spec| spec.hostname.clone())
+        else {
+            continue;
+        };
+        let judged = match holders.get(&hostname).and_then(|all| all.first()) {
+            None => Err(format!(
+                "spec.hostname `{hostname}` is not assigned to project `{}`: an organization \
+                 admin adds it to the project's spec.quotas.mqtt.customHostnames",
+                broker.project
+            )),
+            Some(holder) if holder.project != broker.project => Err(format!(
+                "spec.hostname `{hostname}` is assigned to another project as well, which \
+                 serves it; a hostname serves one project only (ADR-N-048 §2.11): an \
+                 organization admin takes it off one of the two"
+            )),
+            Some(_) if served.contains_key(&hostname) => Err(format!(
+                "spec.hostname `{hostname}` is already served by {}; a hostname serves one \
+                 broker",
+                served[&hostname]
+            )),
+            Some(holder) => certificate_secret(holder.certificate.as_deref()),
+        };
+        match judged {
+            Ok(certificate) => {
+                served.insert(hostname, broker.label());
+                broker.certificate = certificate;
+            }
+            Err(reason) => broker.spec = Err(reason),
+        }
+    }
+}
+
+/// The admin's certificate Secret, a DNS label in the brokers' namespace that is none of the
+/// platform's own `mqtt-…` Secrets, so a quota can never serve another broker's certificate.
+fn certificate_secret(name: Option<&str>) -> Result<Option<String>, String> {
+    let Some(name) = name else { return Ok(None) };
+    if name.starts_with("mqtt-") || jc_core::names::validate_dns1123_label(name).is_err() {
+        return Err(format!(
+            "the certificateRef of this hostname, `{name}`, is no Secret the edge may serve: \
+             name a DNS label that does not start with `mqtt-`, the admin's own certificate \
+             Secret in the brokers' namespace"
+        ));
+    }
+    Ok(Some(name.to_owned()))
 }
 
 /// The project's MQTT allowance, judged in name order like a quota: a broker past what is left
@@ -228,20 +294,30 @@ pub fn render(
     Ok(objects)
 }
 
-/// Every object of one broker: the template's, or for a broker with `spec.port` the one of
-/// [`PORT_KEY`] with `__PORT__` and `__TLS_REVISION__` filled, which a template without that key
-/// refuses. `tls_revision` is the Certificate's `status.revision`, a number or nothing yet.
+/// The three templates of [`TEMPLATE`]: the plain one, and the keys a deployment that predates a
+/// door may lack.
+#[derive(Debug, Clone, Default)]
+pub struct Templates {
+    pub plain: String,
+    pub port: Option<String>,
+    pub hostname: Option<String>,
+}
+
+/// Every object of one broker: the template's; for a broker with `spec.port` the one of
+/// [`PORT_KEY`] with `__PORT__` and `__TLS_REVISION__` filled; for one with `spec.hostname` the
+/// one of [`HOSTNAME_KEY`]. A template without the key the broker needs refuses it.
+/// `tls_revision` is the Certificate's `status.revision`, a number or nothing yet.
 pub fn objects_of(
-    template: &str,
-    port_template: Option<&str>,
+    templates: &Templates,
     broker: &Broker,
     spec: &MqttBrokerSpec,
     tls_revision: Option<u64>,
 ) -> Result<Vec<Value>, String> {
-    let mut objects = match spec.port {
-        None => render(template, broker, spec)?,
-        Some(port) => {
-            let port_template = port_template.ok_or_else(|| {
+    let mut objects = match (&spec.hostname, spec.port) {
+        (Some(hostname), _) => hostname_objects(templates, broker, spec, hostname)?,
+        (None, None) => render(&templates.plain, broker, spec)?,
+        (None, Some(port)) => {
+            let port_template = templates.port.as_deref().ok_or_else(|| {
                 format!(
                     "{TEMPLATE} has no {PORT_KEY} for spec.port {port}: the deployment renders it"
                 )
@@ -322,6 +398,37 @@ fn restrict_sources(
     Ok(())
 }
 
+/// A custom hostname's objects: the route serves `<release>-tls`, which its Certificate's HTTP-01
+/// issue writes, or the admin's Secret, and then no Certificate is rendered.
+fn hostname_objects(
+    templates: &Templates,
+    broker: &Broker,
+    spec: &MqttBrokerSpec,
+    hostname: &str,
+) -> Result<Vec<Value>, String> {
+    let template = templates.hostname.as_deref().ok_or_else(|| {
+        format!(
+            "{TEMPLATE} has no {HOSTNAME_KEY} for spec.hostname {hostname}: the deployment \
+             renders it"
+        )
+    })?;
+    let secret = broker
+        .certificate
+        .clone()
+        .unwrap_or_else(|| format!("{}-tls", broker.release));
+    let mut objects = render(
+        &template
+            .replace("__HOSTNAME__", hostname)
+            .replace("__TLS_SECRET__", &secret),
+        broker,
+        spec,
+    )?;
+    if broker.certificate.is_some() {
+        objects.retain(|object| object["kind"] != "Certificate");
+    }
+    Ok(objects)
+}
+
 /// What tells two objects of a release apart: kind and name.
 fn identity(object: &Value) -> (String, String) {
     (
@@ -367,19 +474,15 @@ impl MqttBrokers {
     /// has one, by `{project}/{name}`, and `*` for one that touched them all.
     pub async fn converge(&self, brokers: &[Broker], retire: bool) -> BTreeMap<String, String> {
         let mut failed = BTreeMap::new();
-        let (template, port_template) =
-            match self.kube.get_config_map(&self.namespace, TEMPLATE).await {
-                Ok(Some(map)) => (
-                    map["data"][TEMPLATE_KEY].as_str().map(str::to_owned),
-                    map["data"][PORT_KEY].as_str().map(str::to_owned),
-                ),
-                Ok(None) => (None, None),
-                Err(err) => {
-                    failed.insert("*".to_owned(), format!("reading {TEMPLATE}: {err}"));
-                    return failed;
-                }
-            };
-        let Some(template) = template else {
+        let map = match self.kube.get_config_map(&self.namespace, TEMPLATE).await {
+            Ok(map) => map.unwrap_or_default(),
+            Err(err) => {
+                failed.insert("*".to_owned(), format!("reading {TEMPLATE}: {err}"));
+                return failed;
+            }
+        };
+        let key = |key: &str| map["data"][key].as_str().map(str::to_owned);
+        let Some(plain) = key(TEMPLATE_KEY) else {
             failed.insert(
                 "*".to_owned(),
                 format!(
@@ -389,14 +492,16 @@ impl MqttBrokers {
             );
             return failed;
         };
+        let templates = Templates {
+            plain,
+            port: key(PORT_KEY),
+            hostname: key(HOSTNAME_KEY),
+        };
         // The objects of each broker applied whole: whatever else its release holds is stale.
         let mut applied: BTreeMap<&str, BTreeSet<(String, String)>> = BTreeMap::new();
         for broker in brokers {
             let Ok(spec) = &broker.spec else { continue };
-            match self
-                .apply(&template, port_template.as_deref(), broker, spec)
-                .await
-            {
+            match self.apply(&templates, broker, spec).await {
                 Ok(kept) => {
                     applied.insert(&broker.release, kept);
                 }
@@ -410,13 +515,10 @@ impl MqttBrokers {
         }
         // A refused manifest keeps its release: only a broker no manifest names is gone.
         let held: BTreeSet<&str> = brokers.iter().map(|b| b.release.as_str()).collect();
-        let mut kinds = template_kinds(&template);
-        kinds.extend(
-            port_template
-                .as_deref()
-                .map(template_kinds)
-                .unwrap_or_default(),
-        );
+        let mut kinds = template_kinds(&templates.plain);
+        for extra in [&templates.port, &templates.hostname].into_iter().flatten() {
+            kinds.extend(template_kinds(extra));
+        }
         // Only a template with an edge route can have stamped a middleware: a cluster without
         // Traefik's CRDs (an nginx ingress class) has no such list to read.
         if kinds.iter().any(|(_, kind)| kind == "IngressRouteTCP") {
@@ -462,8 +564,7 @@ impl MqttBrokers {
     /// Applies every object of one broker and answers what it applied, by kind and name.
     async fn apply(
         &self,
-        template: &str,
-        port_template: Option<&str>,
+        templates: &Templates,
         broker: &Broker,
         spec: &MqttBrokerSpec,
     ) -> Result<BTreeSet<(String, String)>, String> {
@@ -471,7 +572,7 @@ impl MqttBrokers {
             Some(_) => self.tls_revision(&broker.release).await?,
             None => None,
         };
-        let objects = objects_of(template, port_template, broker, spec, revision)?;
+        let objects = objects_of(templates, broker, spec, revision)?;
         for object in &objects {
             self.kube
                 .apply_mqtt(&self.namespace, object)
@@ -483,6 +584,34 @@ impl MqttBrokers {
 
     /// The `status.revision` of a broker's Certificate, `None` before its first issue.
     async fn tls_revision(&self, release: &str) -> Result<Option<u64>, String> {
+        Ok(self
+            .certificate(release)
+            .await?
+            .and_then(|c| c["status"]["revision"].as_u64()))
+    }
+
+    /// Each applied broker on a custom hostname whose HTTP-01 certificate is not issued yet, by
+    /// `{project}/{name}`, with what the city does next ([`dns_wait`]). A broker whose
+    /// Certificate cannot be read is left out: the next wave reads it again.
+    pub async fn waiting_for_dns(&self, brokers: &[Broker]) -> BTreeMap<String, String> {
+        let mut waiting = BTreeMap::new();
+        for broker in brokers {
+            let Ok(spec) = &broker.spec else { continue };
+            let (Some(hostname), None) = (&spec.hostname, &broker.certificate) else {
+                continue;
+            };
+            let Ok(certificate) = self.certificate(&broker.release).await else {
+                continue;
+            };
+            if let Some(message) = dns_wait(certificate.as_ref(), hostname) {
+                waiting.insert(broker.label(), message);
+            }
+        }
+        waiting
+    }
+
+    /// A broker's Certificate, `None` when there is none.
+    async fn certificate(&self, release: &str) -> Result<Option<Value>, String> {
         let selector = format!("{SELECTOR},{INSTANCE}={release}");
         let listed = self
             .kube
@@ -495,10 +624,26 @@ impl MqttBrokers {
             .await
             .map_err(|err| format!("reading the Certificate of {release}: {err}"))?;
         Ok(listed
-            .iter()
-            .find(|c| c["metadata"]["name"].as_str() == Some(release))
-            .and_then(|c| c["status"]["revision"].as_u64()))
+            .into_iter()
+            .find(|c| c["metadata"]["name"].as_str() == Some(release)))
     }
+}
+
+/// What a custom hostname's Certificate says the city still has to do, or `None` once it is
+/// `Ready`: cert-manager proves the name by HTTP-01 only after the name resolves to the edge.
+pub fn dns_wait(certificate: Option<&Value>, hostname: &str) -> Option<String> {
+    let ready = certificate
+        .and_then(|c| c["status"]["conditions"].as_array())
+        .into_iter()
+        .flatten()
+        .any(|condition| condition["type"] == "Ready" && condition["status"] == "True");
+    (!ready).then(|| {
+        format!(
+            "waiting for DNS: point a CNAME from {hostname} at the broker's platform address; \
+             the certificate for {hostname} is issued by HTTP-01 once the name resolves to the \
+             edge, and devices then connect on {hostname}:8883"
+        )
+    })
 }
 
 /// The client a broker should have: bearer-only, so it signs in nobody and holds no secret; it is
@@ -891,9 +1036,12 @@ spec:
         let cameras = &brokers[1];
         let mut spec = cameras.spec.clone().expect("valid");
         spec.port = Some(18835);
-        let port = port_text();
-        let objects =
-            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(2)).expect("renders");
+        let port = Templates {
+            plain: TEMPLATE_TEXT.to_owned(),
+            port: Some(port_text()),
+            hostname: None,
+        };
+        let objects = objects_of(&port, cameras, &spec, Some(2)).expect("renders");
         assert_eq!(objects.len(), 4);
         assert_eq!(objects[3]["metadata"]["name"], "mqtt-helsinki-cameras-port");
         assert_eq!(objects[3]["spec"]["entryPoints"], json!(["mqtt-18835"]));
@@ -905,20 +1053,203 @@ spec:
         assert_eq!(annotation(&objects), json!("2"));
         // Before the first issue there is no revision; a renewal changes the annotation, so the
         // Deployment's pod template, so the broker restarts and reads the new certificate.
-        let first = objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, None).expect("renders");
+        let first = objects_of(&port, cameras, &spec, None).expect("renders");
         assert_eq!(annotation(&first), json!(""));
-        let renewed =
-            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(3)).expect("renders");
+        let renewed = objects_of(&port, cameras, &spec, Some(3)).expect("renders");
         assert_eq!(annotation(&renewed), json!("3"));
         assert_ne!(objects[1], renewed[1]);
-        let err =
-            objects_of(TEMPLATE_TEXT, None, cameras, &spec, None).expect_err("no port template");
+        let plain_only = Templates {
+            plain: TEMPLATE_TEXT.to_owned(),
+            ..Templates::default()
+        };
+        let err = objects_of(&plain_only, cameras, &spec, None).expect_err("no port template");
         assert!(err.contains("has no objects-port.yaml"), "{err}");
         spec.port = None;
-        let plain =
-            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(3)).expect("renders");
+        let plain = objects_of(&port, cameras, &spec, Some(3)).expect("renders");
         assert_eq!(plain.len(), 3);
         assert_eq!(annotation(&plain), Value::Null);
+    }
+
+    /// [`TEMPLATE_TEXT`] on a custom hostname: the Certificate for the city's name, and the
+    /// 8883 route by that name serving `__TLS_SECRET__`.
+    fn hostname_text() -> String {
+        TEMPLATE_TEXT.replace("__NAME__.__PROJECT__.mqtt.dev.example", "__HOSTNAME__")
+            + "\
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: __RELEASE__
+  labels:
+    app.kubernetes.io/instance: __RELEASE__
+spec:
+  routes:
+    - match: HostSNI(`__HOSTNAME__`)
+  tls:
+    secretName: __TLS_SECRET__
+"
+    }
+
+    /// Helsinki's quota assigns `mqtt.helsinki.example` (with the admin's certificate when
+    /// `certificate` is set) and `mqtt.shared.example`, which `espoo`, first in name order, holds
+    /// too; `cameras` serves `hostname`.
+    fn hostname_mirror(hostname: &str, certificate: Option<&str>) -> Mirror {
+        let mirror = mirror();
+        let mut own = json!({"name": "mqtt.helsinki.example"});
+        if let Some(certificate) = certificate {
+            own["certificateRef"] = json!({"name": certificate});
+        }
+        let quota = |hostnames: Value| {
+            json!({ "organizationRef": { "name": "hel" }, "quotas": { "mqtt": {
+                "enabled": true, "brokers": 3, "connections": 20000, "messagesPerSecond": 100000, "addresses": ["platform", "customHostname"],
+                "customHostnames": hostnames
+            } } })
+        };
+        mirror.upsert(envelope(
+            "Project",
+            crate::permissions::ORG_NAMESPACE,
+            "helsinki",
+            quota(json!([own, {"name": "mqtt.shared.example"}])),
+        ));
+        mirror.upsert(envelope(
+            "Project",
+            crate::permissions::ORG_NAMESPACE,
+            "espoo",
+            quota(json!([{"name": "mqtt.shared.example"}])),
+        ));
+        let mut spec = broker_spec(&["cam-north"], None);
+        spec["address"] = json!("customHostname");
+        spec["hostname"] = json!(hostname);
+        mirror.upsert(envelope("MqttBroker", "helsinki", "cameras", spec));
+        mirror
+    }
+
+    #[test]
+    fn a_custom_hostname_gets_its_route_and_an_http01_certificate_or_the_admins_secret() {
+        let brokers = declared(&hostname_mirror("mqtt.helsinki.example", None));
+        let cameras = brokers
+            .iter()
+            .find(|b| b.label() == "helsinki/cameras")
+            .expect("held");
+        let spec = cameras
+            .spec
+            .clone()
+            .expect("the project's own hostname is served");
+        assert_eq!(cameras.certificate, None);
+        let templates = Templates {
+            plain: TEMPLATE_TEXT.to_owned(),
+            port: None,
+            hostname: Some(hostname_text()),
+        };
+        let objects = objects_of(&templates, cameras, &spec, None).expect("renders");
+        let kinds: Vec<&str> = objects
+            .iter()
+            .map(|o| o["kind"].as_str().unwrap_or(""))
+            .collect();
+        assert_eq!(
+            kinds,
+            ["ConfigMap", "Deployment", "Certificate", "IngressRouteTCP"]
+        );
+        assert_eq!(
+            objects[2]["spec"]["dnsNames"],
+            json!(["mqtt.helsinki.example"])
+        );
+        assert_eq!(
+            objects[3]["spec"]["routes"][0]["match"],
+            "HostSNI(`mqtt.helsinki.example`)"
+        );
+        assert_eq!(
+            objects[3]["spec"]["tls"]["secretName"],
+            "mqtt-helsinki-cameras-tls"
+        );
+
+        // The admin's certificate: the route serves it, and no Certificate is issued.
+        let brokers = declared(&hostname_mirror(
+            "mqtt.helsinki.example",
+            Some("helsinki-mqtt-cert"),
+        ));
+        let cameras = brokers
+            .iter()
+            .find(|b| b.label() == "helsinki/cameras")
+            .expect("held");
+        assert_eq!(cameras.certificate.as_deref(), Some("helsinki-mqtt-cert"));
+        let objects = objects_of(&templates, cameras, &spec, None).expect("renders");
+        assert!(objects.iter().all(|o| o["kind"] != "Certificate"));
+        assert_eq!(
+            objects[2]["spec"]["tls"]["secretName"],
+            "helsinki-mqtt-cert"
+        );
+
+        let plain_only = Templates {
+            plain: TEMPLATE_TEXT.to_owned(),
+            ..Templates::default()
+        };
+        let err = objects_of(&plain_only, cameras, &spec, None).expect_err("no hostname template");
+        assert!(err.contains("has no objects-hostname.yaml"), "{err}");
+    }
+
+    #[test]
+    fn a_hostname_another_project_holds_or_a_platform_secret_is_refused() {
+        let brokers = declared(&hostname_mirror("mqtt.shared.example", None));
+        let cameras = brokers
+            .iter()
+            .find(|b| b.label() == "helsinki/cameras")
+            .expect("held");
+        let reason = cameras.spec.clone().expect_err("espoo holds it first");
+        assert!(
+            reason.contains("is assigned to another project as well"),
+            "{reason}"
+        );
+        assert!(
+            !reason.contains("espoo"),
+            "the holder stays unnamed: {reason}"
+        );
+
+        let brokers = declared(&hostname_mirror(
+            "mqtt.helsinki.example",
+            Some("mqtt-espoo-gates-tls"),
+        ));
+        let cameras = brokers
+            .iter()
+            .find(|b| b.label() == "helsinki/cameras")
+            .expect("held");
+        let reason = cameras
+            .spec
+            .clone()
+            .expect_err("a platform Secret is refused");
+        assert!(reason.contains("does not start with `mqtt-`"), "{reason}");
+
+        // Two brokers of the project on one hostname: the first in name order serves it.
+        let mirror = hostname_mirror("mqtt.helsinki.example", None);
+        let mut spec = broker_spec(&["cam-south"], None);
+        spec["address"] = json!("customHostname");
+        spec["hostname"] = json!("mqtt.helsinki.example");
+        mirror.upsert(envelope("MqttBroker", "helsinki", "doors", spec));
+        let brokers = declared(&mirror);
+        let doors = brokers
+            .iter()
+            .find(|b| b.label() == "helsinki/doors")
+            .expect("held");
+        let reason = doors.spec.clone().expect_err("served by cameras");
+        assert!(
+            reason.contains("already served by helsinki/cameras"),
+            "{reason}"
+        );
+    }
+
+    #[test]
+    fn a_hostname_waits_for_dns_until_its_certificate_is_ready() {
+        let waiting = dns_wait(None, "mqtt.city.example").expect("no Certificate yet");
+        assert!(
+            waiting.starts_with("waiting for DNS: point a CNAME from mqtt.city.example"),
+            "{waiting}"
+        );
+        let pending = json!({"status": {"conditions": [
+            {"type": "Ready", "status": "False", "reason": "DoesNotExist"}
+        ]}});
+        assert!(dns_wait(Some(&pending), "mqtt.city.example").is_some());
+        let ready = json!({"status": {"conditions": [{"type": "Ready", "status": "True"}]}});
+        assert_eq!(dns_wait(Some(&ready), "mqtt.city.example"), None);
     }
 
     /// PF-129: a broker with allowedSources gets its own MiddlewareTCP, named on both of its
@@ -943,17 +1274,19 @@ spec:
   routes:
     - match: HostSNI(`__NAME__.__PROJECT__.mqtt.dev.example`)
 ";
-        let port = port_text() + sni;
-        let plain =
-            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(1)).expect("renders");
+        let templates = Templates {
+            plain: TEMPLATE_TEXT.to_owned(),
+            port: Some(port_text() + sni),
+            hostname: None,
+        };
+        let plain = objects_of(&templates, cameras, &spec, Some(1)).expect("renders");
         assert!(plain.iter().all(|o| o["kind"] != "MiddlewareTCP"));
         assert!(plain
             .iter()
             .all(|o| o["spec"]["routes"][0].get("middlewares").is_none()));
 
         spec.allowed_sources = vec!["203.0.113.0/24".into(), "2001:0db8::/48".into()];
-        let objects =
-            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(1)).expect("renders");
+        let objects = objects_of(&templates, cameras, &spec, Some(1)).expect("renders");
         let middleware = objects
             .iter()
             .find(|o| o["kind"] == "MiddlewareTCP")
@@ -996,9 +1329,26 @@ spec:
         assert_eq!(hash(&plain), hash(&objects));
         // An unreadable list is refused whole, never applied open.
         spec.allowed_sources = vec!["203.0.113.1/24".into()];
-        let err =
-            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(1)).expect_err("refused");
+        let err = objects_of(&templates, cameras, &spec, Some(1)).expect_err("refused");
         assert!(err.contains("spec.allowedSources"), "{err}");
+        // A custom hostname broker is fenced the same way on its 8883 route by the city's name.
+        spec.allowed_sources = vec!["203.0.113.0/24".into()];
+        spec.port = None;
+        spec.hostname = Some("mqtt.helsinki.example".into());
+        let templates = Templates {
+            hostname: Some(hostname_text()),
+            ..templates
+        };
+        let objects = objects_of(&templates, cameras, &spec, None).expect("renders");
+        assert!(objects.iter().any(|o| o["kind"] == "MiddlewareTCP"));
+        let route = objects
+            .iter()
+            .find(|o| o["kind"] == "IngressRouteTCP")
+            .expect("the hostname route");
+        assert_eq!(
+            route["spec"]["routes"][0]["middlewares"],
+            json!([{ "name": "mqtt-helsinki-cameras-sources" }])
+        );
     }
 
     #[test]
