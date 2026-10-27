@@ -6,6 +6,8 @@
 //! manifests, not from connected devices, so the refusal happens before a `Change` exists on
 //! every door, and the reconciler judges the same numbers before it renders.
 
+use std::collections::BTreeMap;
+
 use jc_core::kinds::{MqttAllowance, MqttBrokerSpec, MqttUsage};
 use serde_json::Value;
 
@@ -32,6 +34,44 @@ pub fn effective(mirror: &Mirror, project: &str) -> (MqttAllowance, LimitOrigin)
         .map_or((MqttAllowance::default(), LimitOrigin::Default), |org| {
             (org, LimitOrigin::Organization)
         })
+}
+
+/// A project a custom hostname is assigned to, and the admin's certificate Secret for it when
+/// its `certificateRef` names one (absent: cert-manager issues one by HTTP-01).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostnameHolder {
+    pub project: String,
+    pub certificate: Option<String>,
+}
+
+/// Every custom hostname a Project's own `spec.quotas.mqtt` assigns, with each project listing
+/// it in name order (ADR-N-048 §2.11, T-5874). A hostname is the city's: the first project
+/// serves it, and a second one is refused on the Project's write and in the reconciler.
+pub fn hostname_holders(mirror: &Mirror) -> BTreeMap<String, Vec<HostnameHolder>> {
+    let mut projects = mirror
+        .list(ORG_NAMESPACE, "Project", &ListOptions::default())
+        .items;
+    projects.sort_by(|a, b| a.metadata.name.cmp(&b.metadata.name));
+    let mut holders: BTreeMap<String, Vec<HostnameHolder>> = BTreeMap::new();
+    for project in projects {
+        let Some(Ok(allowance)) = project
+            .spec
+            .pointer("/quotas/mqtt")
+            .map(|v| serde_json::from_value::<MqttAllowance>(v.clone()))
+        else {
+            continue;
+        };
+        for hostname in allowance.custom_hostnames {
+            holders
+                .entry(hostname.name)
+                .or_default()
+                .push(HostnameHolder {
+                    project: project.metadata.name.clone(),
+                    certificate: hostname.certificate_ref.map(|r| r.name),
+                });
+        }
+    }
+    holders
 }
 
 /// The project's brokers whose manifest reads, sorted by name.
@@ -186,7 +226,34 @@ fn check_project(
                 "{e}; the operator moves the bound in the deployment \
                  (portal.organizationBounds), never the Portal (PF-97)"
             ))
-        })
+        })?;
+    hostnames_free(&state.mirror, project_name, &allowance)
+}
+
+/// Refuses a custom hostname another project's quota assigns, naming the field and the holder: a
+/// hostname serves one project only (ADR-N-048 §2.11, T-5874).
+fn hostnames_free(
+    mirror: &Mirror,
+    project_name: &str,
+    allowance: &MqttAllowance,
+) -> Result<(), ApiError> {
+    let holders = hostname_holders(mirror);
+    for (i, hostname) in allowance.custom_hostnames.iter().enumerate() {
+        let other = holders
+            .get(&hostname.name)
+            .into_iter()
+            .flatten()
+            .find(|holder| holder.project != project_name);
+        if let Some(holder) = other {
+            return Err(ApiError::Conflict(format!(
+                "spec.quotas.mqtt.customHostnames[{i}].name: `{}` is assigned to project `{}`; \
+                 a hostname serves one project only (ADR-N-048 §2.11), so take it off that \
+                 project first",
+                hostname.name, holder.project
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Which broker holds each dedicated port of the project, by name order (API/01 §47).
@@ -367,5 +434,48 @@ mod tests {
         assert_eq!(usage(&held, None).connections, 30);
         assert_eq!(usage(&held, Some("a")).connections, 20);
         assert!(ports_in_use(&held).is_empty());
+    }
+
+    /// T-5874: a custom hostname is held by one project only; the first in name order serves
+    /// it, and a second project's quota naming it is refused with the field and the holder.
+    #[test]
+    fn a_custom_hostname_is_assigned_to_one_project_only() {
+        let hostnames = |names: &[&str]| {
+            json!({"enabled": true, "addresses": ["customHostname"],
+                   "customHostnames": names.iter().map(|n| json!({"name": n})).collect::<Vec<_>>()})
+        };
+        let mirror = holding(None, Some(hostnames(&["mqtt.helsinki.example"])), &[]);
+        mirror.upsert(envelope(
+            "Project",
+            "espoo",
+            ORG_NAMESPACE,
+            json!({"organizationRef": {"name": "hel"}, "quotas": {"mqtt": {
+                "enabled": true, "addresses": ["customHostname"],
+                "customHostnames": [{"name": "mqtt.espoo.example", "certificateRef": {"name": "espoo-mqtt-cert"}}]
+            }}}),
+        ));
+        let holders = hostname_holders(&mirror);
+        assert_eq!(
+            holders["mqtt.espoo.example"],
+            vec![HostnameHolder {
+                project: "espoo".into(),
+                certificate: Some("espoo-mqtt-cert".into()),
+            }]
+        );
+        assert_eq!(holders["mqtt.helsinki.example"][0].project, "helsinki");
+
+        let own: MqttAllowance =
+            serde_json::from_value(hostnames(&["mqtt.helsinki.example"])).expect("reads");
+        assert!(hostnames_free(&mirror, "helsinki", &own).is_ok());
+        let taken: MqttAllowance =
+            serde_json::from_value(hostnames(&["mqtt.helsinki.example", "mqtt.espoo.example"]))
+                .expect("reads");
+        let Err(ApiError::Conflict(reason)) = hostnames_free(&mirror, "helsinki", &taken) else {
+            panic!("a hostname another project holds is refused");
+        };
+        assert!(
+            reason.starts_with("spec.quotas.mqtt.customHostnames[1].name: `mqtt.espoo.example` is assigned to project `espoo`"),
+            "{reason}"
+        );
     }
 }

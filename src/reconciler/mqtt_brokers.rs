@@ -16,7 +16,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use jc_core::kinds::mqtt_broker::release_name;
+use jc_core::kinds::mqtt_broker::{certificate_release_name, release_name};
+use jc_core::kinds::MqttDeviceAuth;
 use jc_core::kinds::{MqttAllowance, MqttBrokerSpec, MqttUsage};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -36,6 +37,15 @@ pub const TEMPLATE_KEY: &str = "objects.yaml";
 /// annotated with `__TLS_REVISION__`, its Certificate's `status.revision`, so a renewed
 /// certificate rolls the broker, which reads it only at start.
 pub const PORT_KEY: &str = "objects-port.yaml";
+/// The key of the same objects for a broker on a custom hostname (ADR-N-048 §2.11, T-5874): the
+/// 8883 route by `__HOSTNAME__` serving the Secret `__TLS_SECRET__`, and a Certificate issued by
+/// HTTP-01 for that name, which the reconciler drops when the admin's certificateRef serves it.
+pub const HOSTNAME_KEY: &str = "objects-hostname.yaml";
+/// The key of a broker's certificate door (ADR-N-048 §2.12, T-5875): its own release
+/// `<release>-cert` on `cert.<name>.<project>.mqtt.<domain>`, RMQTT asking each device for a
+/// certificate of the project CA `__CLIENT_CA__` (key `__CLIENT_CA_KEY__`), stamped beside the
+/// broker's own objects when its `deviceAuth` names `clientCertificate`.
+pub const CERTIFICATE_KEY: &str = "objects-certificate.yaml";
 /// The dedicated ports the edge serves: each one a Traefik entrypoint `mqtt-<port>`. The rest
 /// of `DEDICATED_PORTS` stays reserved, so a broker given one of them is not applied.
 pub const SERVED_PORTS: std::ops::RangeInclusive<u16> = 18830..=18839;
@@ -56,6 +66,22 @@ pub struct Broker {
     pub release: String,
     /// `Err` with the reason when the platform refuses the manifest.
     pub spec: Result<MqttBrokerSpec, String>,
+    /// The admin's certificate Secret its custom hostname is served with; `None` while
+    /// cert-manager issues one by HTTP-01, and for every other address.
+    pub certificate: Option<String>,
+    /// The certificate door, when the broker's `deviceAuth` names `clientCertificate`.
+    pub door: Option<Door>,
+}
+
+/// A broker's certificate door (ADR-N-048 §2.12): its release and the project CA's Secret.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Door {
+    /// `mqtt-{project}-{name}-cert`, bounded: its objects and its ServiceAccount.
+    pub release: String,
+    /// The Secret in the brokers' namespace holding the project's device client CA certificate.
+    pub ca_secret: String,
+    /// The key of that Secret holding the certificate, `ca.crt` unless clientCaRef names one.
+    pub ca_key: String,
 }
 
 impl Broker {
@@ -97,6 +123,8 @@ pub fn declared(mirror: &Mirror) -> Vec<Broker> {
                         project: project.clone(),
                         name,
                         spec,
+                        certificate: None,
+                        door: None,
                     }
                 })
                 .collect::<Vec<_>>()
@@ -130,7 +158,121 @@ pub fn declared(mirror: &Mirror) -> Vec<Broker> {
             }
         }
     }
+    judge_hostnames(mirror, &mut brokers);
+    judge_doors(mirror, &mut brokers);
     brokers
+}
+
+/// The certificate door of each broker whose `deviceAuth` names `clientCertificate`, with the
+/// client CA its project's allowance names (ADR-N-048 §2.12, T-5875). A door whose release is
+/// another broker's (one named `<name>-cert`) refuses the broker: the gateway would read that
+/// release as the other broker's token door, and both would write the same objects.
+fn judge_doors(mirror: &Mirror, brokers: &mut [Broker]) {
+    let releases: BTreeMap<String, String> = brokers
+        .iter()
+        .map(|broker| (broker.release.clone(), broker.label()))
+        .collect();
+    for broker in brokers {
+        let Ok(spec) = &broker.spec else { continue };
+        if !spec
+            .effective_device_auth()
+            .contains(&MqttDeviceAuth::ClientCertificate)
+        {
+            continue;
+        }
+        let release = certificate_release_name(&broker.project, &broker.name);
+        let (allowance, _) = crate::mqtt_allowance::effective(mirror, &broker.project);
+        let judged = match (releases.get(&release), allowance.client_ca_ref) {
+            (Some(holder), _) => Err(format!(
+                "spec.deviceAuth clientCertificate needs the release {release} for the \
+                 certificate door, which is the broker {holder}'s; rename one of the two"
+            )),
+            (None, None) => Err(format!(
+                "spec.deviceAuth clientCertificate needs the project's clientCaRef: an \
+                 organization admin sets spec.quotas.mqtt.clientCaRef on project `{}`",
+                broker.project
+            )),
+            (None, Some(ca)) => ca_secret(&ca.name).map(|ca_secret| Door {
+                release,
+                ca_secret,
+                ca_key: ca.key.unwrap_or_else(|| "ca.crt".to_owned()),
+            }),
+        };
+        match judged {
+            Ok(door) => broker.door = Some(door),
+            Err(reason) => broker.spec = Err(reason),
+        }
+    }
+}
+
+/// The project CA's Secret, a DNS label in the brokers' namespace that is none of the platform's
+/// own `mqtt-…` Secrets, so a quota can never mount another broker's certificate or key.
+fn ca_secret(name: &str) -> Result<String, String> {
+    if name.starts_with("mqtt-") || jc_core::names::validate_dns1123_label(name).is_err() {
+        return Err(format!(
+            "the clientCaRef `{name}` is no Secret a broker may mount: name a DNS label that \
+             does not start with `mqtt-`, the admin's CA certificate Secret in the brokers' \
+             namespace"
+        ));
+    }
+    Ok(name.to_owned())
+}
+
+/// A custom hostname is served by one broker of the one project its quota assigns it to, the
+/// first project in name order when two quotas list it (ADR-N-048 §2.11, T-5874). The refusal
+/// names no other project: the broker's status is read by its own project's members.
+fn judge_hostnames(mirror: &Mirror, brokers: &mut [Broker]) {
+    let holders = crate::mqtt_allowance::hostname_holders(mirror);
+    let mut served: BTreeMap<String, String> = BTreeMap::new();
+    for broker in brokers {
+        let Some(hostname) = broker
+            .spec
+            .as_ref()
+            .ok()
+            .and_then(|spec| spec.hostname.clone())
+        else {
+            continue;
+        };
+        let judged = match holders.get(&hostname).and_then(|all| all.first()) {
+            None => Err(format!(
+                "spec.hostname `{hostname}` is not assigned to project `{}`: an organization \
+                 admin adds it to the project's spec.quotas.mqtt.customHostnames",
+                broker.project
+            )),
+            Some(holder) if holder.project != broker.project => Err(format!(
+                "spec.hostname `{hostname}` is assigned to another project as well, which \
+                 serves it; a hostname serves one project only (ADR-N-048 §2.11): an \
+                 organization admin takes it off one of the two"
+            )),
+            Some(_) if served.contains_key(&hostname) => Err(format!(
+                "spec.hostname `{hostname}` is already served by {}; a hostname serves one \
+                 broker",
+                served[&hostname]
+            )),
+            Some(holder) => certificate_secret(holder.certificate.as_deref()),
+        };
+        match judged {
+            Ok(certificate) => {
+                served.insert(hostname, broker.label());
+                broker.certificate = certificate;
+            }
+            Err(reason) => broker.spec = Err(reason),
+        }
+    }
+}
+
+/// The admin's certificate Secret, a DNS label in the brokers' namespace that is none of the
+/// platform's own `mqtt-…` Secrets, so a quota can never serve another broker's certificate.
+fn certificate_secret(name: Option<&str>) -> Result<Option<String>, String> {
+    let Some(name) = name else { return Ok(None) };
+    if name.starts_with("mqtt-") || jc_core::names::validate_dns1123_label(name).is_err() {
+        return Err(format!(
+            "the certificateRef of this hostname, `{name}`, is no Secret the edge may serve: \
+             name a DNS label that does not start with `mqtt-`, the admin's own certificate \
+             Secret in the brokers' namespace"
+        ));
+    }
+    Ok(Some(name.to_owned()))
 }
 
 /// The project's MQTT allowance, judged in name order like a quota: a broker past what is left
@@ -228,35 +370,44 @@ pub fn render(
     Ok(objects)
 }
 
-/// Every object of one broker: the template's, or for a broker with `spec.port` the one of
-/// [`PORT_KEY`] with `__PORT__` and `__TLS_REVISION__` filled, which a template without that key
-/// refuses. `tls_revision` is the Certificate's `status.revision`, a number or nothing yet.
+/// The three templates of [`TEMPLATE`]: the plain one, and the keys a deployment that predates a
+/// door may lack.
+#[derive(Debug, Clone, Default)]
+pub struct Templates {
+    pub plain: String,
+    pub port: Option<String>,
+    pub hostname: Option<String>,
+    pub certificate: Option<String>,
+}
+
+/// Every object of one broker: the template's; for a broker with `spec.port` the one of
+/// [`PORT_KEY`] with `__PORT__` and `__TLS_REVISION__` filled; for one with `spec.hostname` the
+/// one of [`HOSTNAME_KEY`]. A template without the key the broker needs refuses it.
+/// `tls_revision` is the Certificate's `status.revision`, a number or nothing yet.
 pub fn objects_of(
-    template: &str,
-    port_template: Option<&str>,
+    templates: &Templates,
     broker: &Broker,
     spec: &MqttBrokerSpec,
     tls_revision: Option<u64>,
 ) -> Result<Vec<Value>, String> {
-    let mut objects = match spec.port {
-        None => render(template, broker, spec)?,
-        Some(port) => {
-            let port_template = port_template.ok_or_else(|| {
-                format!(
-                    "{TEMPLATE} has no {PORT_KEY} for spec.port {port}: the deployment renders it"
-                )
-            })?;
-            render(
-                &port_template
-                    .replace("__PORT__", &port.to_string())
-                    .replace(
-                        "__TLS_REVISION__",
-                        &tls_revision.map(|r| r.to_string()).unwrap_or_default(),
-                    ),
-                broker,
-                spec,
-            )?
-        }
+    let mut objects = if let Some(hostname) = &spec.hostname {
+        hostname_objects(templates, broker, spec, hostname)?
+    } else if let Some(port) = spec.port {
+        let port_template = templates.port.as_deref().ok_or_else(|| {
+            format!("{TEMPLATE} has no {PORT_KEY} for spec.port {port}: the deployment renders it")
+        })?;
+        render(
+            &port_template
+                .replace("__PORT__", &port.to_string())
+                .replace(
+                    "__TLS_REVISION__",
+                    &tls_revision.map(|r| r.to_string()).unwrap_or_default(),
+                ),
+            broker,
+            spec,
+        )?
+    } else {
+        render(&templates.plain, broker, spec)?
     };
     restrict_sources(&mut objects, broker, spec)?;
     Ok(objects)
@@ -322,6 +473,73 @@ fn restrict_sources(
     Ok(())
 }
 
+/// The objects of a broker's certificate door: the template of [`CERTIFICATE_KEY`] with the
+/// door's release, the CA Secret and the door Certificate's `status.revision` filled, behind the
+/// broker's `allowedSources` filter of its own.
+pub fn door_objects(
+    templates: &Templates,
+    broker: &Broker,
+    spec: &MqttBrokerSpec,
+    door: &Door,
+    tls_revision: Option<u64>,
+) -> Result<Vec<Value>, String> {
+    let template = templates.certificate.as_deref().ok_or_else(|| {
+        format!(
+            "{TEMPLATE} has no {CERTIFICATE_KEY} for spec.deviceAuth clientCertificate: the \
+             deployment renders it"
+        )
+    })?;
+    let at_door = Broker {
+        release: door.release.clone(),
+        ..broker.clone()
+    };
+    let mut objects = render(
+        &template
+            .replace("__CLIENT_CA_KEY__", &door.ca_key)
+            .replace("__CLIENT_CA__", &door.ca_secret)
+            .replace(
+                "__TLS_REVISION__",
+                &tls_revision.map(|r| r.to_string()).unwrap_or_default(),
+            ),
+        &at_door,
+        spec,
+    )?;
+    // The door admits the broker's networks only, as its token release does (PF-129).
+    restrict_sources(&mut objects, &at_door, spec)?;
+    Ok(objects)
+}
+
+/// A custom hostname's objects: the route serves `<release>-tls`, which its Certificate's HTTP-01
+/// issue writes, or the admin's Secret, and then no Certificate is rendered.
+fn hostname_objects(
+    templates: &Templates,
+    broker: &Broker,
+    spec: &MqttBrokerSpec,
+    hostname: &str,
+) -> Result<Vec<Value>, String> {
+    let template = templates.hostname.as_deref().ok_or_else(|| {
+        format!(
+            "{TEMPLATE} has no {HOSTNAME_KEY} for spec.hostname {hostname}: the deployment \
+             renders it"
+        )
+    })?;
+    let secret = broker
+        .certificate
+        .clone()
+        .unwrap_or_else(|| format!("{}-tls", broker.release));
+    let mut objects = render(
+        &template
+            .replace("__HOSTNAME__", hostname)
+            .replace("__TLS_SECRET__", &secret),
+        broker,
+        spec,
+    )?;
+    if broker.certificate.is_some() {
+        objects.retain(|object| object["kind"] != "Certificate");
+    }
+    Ok(objects)
+}
+
 /// What tells two objects of a release apart: kind and name.
 fn identity(object: &Value) -> (String, String) {
     (
@@ -367,19 +585,15 @@ impl MqttBrokers {
     /// has one, by `{project}/{name}`, and `*` for one that touched them all.
     pub async fn converge(&self, brokers: &[Broker], retire: bool) -> BTreeMap<String, String> {
         let mut failed = BTreeMap::new();
-        let (template, port_template) =
-            match self.kube.get_config_map(&self.namespace, TEMPLATE).await {
-                Ok(Some(map)) => (
-                    map["data"][TEMPLATE_KEY].as_str().map(str::to_owned),
-                    map["data"][PORT_KEY].as_str().map(str::to_owned),
-                ),
-                Ok(None) => (None, None),
-                Err(err) => {
-                    failed.insert("*".to_owned(), format!("reading {TEMPLATE}: {err}"));
-                    return failed;
-                }
-            };
-        let Some(template) = template else {
+        let map = match self.kube.get_config_map(&self.namespace, TEMPLATE).await {
+            Ok(map) => map.unwrap_or_default(),
+            Err(err) => {
+                failed.insert("*".to_owned(), format!("reading {TEMPLATE}: {err}"));
+                return failed;
+            }
+        };
+        let key = |key: &str| map["data"][key].as_str().map(str::to_owned);
+        let Some(plain) = key(TEMPLATE_KEY) else {
             failed.insert(
                 "*".to_owned(),
                 format!(
@@ -389,16 +603,28 @@ impl MqttBrokers {
             );
             return failed;
         };
+        let templates = Templates {
+            plain,
+            port: key(PORT_KEY),
+            hostname: key(HOSTNAME_KEY),
+            certificate: key(CERTIFICATE_KEY),
+        };
         // The objects of each broker applied whole: whatever else its release holds is stale.
         let mut applied: BTreeMap<&str, BTreeSet<(String, String)>> = BTreeMap::new();
         for broker in brokers {
             let Ok(spec) = &broker.spec else { continue };
-            match self
-                .apply(&template, port_template.as_deref(), broker, spec)
-                .await
-            {
+            match self.apply(&templates, broker, spec).await {
                 Ok(kept) => {
                     applied.insert(&broker.release, kept);
+                }
+                Err(err) => {
+                    failed.insert(broker.label(), err);
+                }
+            }
+            let Some(door) = &broker.door else { continue };
+            match self.apply_door(&templates, broker, spec, door).await {
+                Ok(kept) => {
+                    applied.insert(&door.release, kept);
                 }
                 Err(err) => {
                     failed.insert(broker.label(), err);
@@ -409,14 +635,24 @@ impl MqttBrokers {
             return failed;
         }
         // A refused manifest keeps its release: only a broker no manifest names is gone.
-        let held: BTreeSet<&str> = brokers.iter().map(|b| b.release.as_str()).collect();
-        let mut kinds = template_kinds(&template);
-        kinds.extend(
-            port_template
-                .as_deref()
-                .map(template_kinds)
-                .unwrap_or_default(),
-        );
+        // A door is held while its broker names clientCertificate and the manifest is accepted;
+        // a refused manifest keeps a door it had, as it keeps its release.
+        let mut held: BTreeSet<String> = BTreeSet::new();
+        for broker in brokers {
+            held.insert(broker.release.clone());
+            match (&broker.spec, &broker.door) {
+                (Ok(_), Some(door)) => held.insert(door.release.clone()),
+                (Err(_), _) => held.insert(certificate_release_name(&broker.project, &broker.name)),
+                (Ok(_), None) => false,
+            };
+        }
+        let mut kinds = template_kinds(&templates.plain);
+        for extra in [&templates.port, &templates.hostname, &templates.certificate]
+            .into_iter()
+            .flatten()
+        {
+            kinds.extend(template_kinds(extra));
+        }
         // Only a template with an edge route can have stamped a middleware: a cluster without
         // Traefik's CRDs (an nginx ingress class) has no such list to read.
         if kinds.iter().any(|(_, kind)| kind == "IngressRouteTCP") {
@@ -462,8 +698,7 @@ impl MqttBrokers {
     /// Applies every object of one broker and answers what it applied, by kind and name.
     async fn apply(
         &self,
-        template: &str,
-        port_template: Option<&str>,
+        templates: &Templates,
         broker: &Broker,
         spec: &MqttBrokerSpec,
     ) -> Result<BTreeSet<(String, String)>, String> {
@@ -471,7 +706,26 @@ impl MqttBrokers {
             Some(_) => self.tls_revision(&broker.release).await?,
             None => None,
         };
-        let objects = objects_of(template, port_template, broker, spec, revision)?;
+        let objects = objects_of(templates, broker, spec, revision)?;
+        for object in &objects {
+            self.kube
+                .apply_mqtt(&self.namespace, object)
+                .await
+                .map_err(|err| err.to_string())?;
+        }
+        Ok(objects.iter().map(identity).collect())
+    }
+
+    /// Applies every object of one broker's certificate door and answers what it applied.
+    async fn apply_door(
+        &self,
+        templates: &Templates,
+        broker: &Broker,
+        spec: &MqttBrokerSpec,
+        door: &Door,
+    ) -> Result<BTreeSet<(String, String)>, String> {
+        let revision = self.tls_revision(&door.release).await?;
+        let objects = door_objects(templates, broker, spec, door, revision)?;
         for object in &objects {
             self.kube
                 .apply_mqtt(&self.namespace, object)
@@ -483,6 +737,34 @@ impl MqttBrokers {
 
     /// The `status.revision` of a broker's Certificate, `None` before its first issue.
     async fn tls_revision(&self, release: &str) -> Result<Option<u64>, String> {
+        Ok(self
+            .certificate(release)
+            .await?
+            .and_then(|c| c["status"]["revision"].as_u64()))
+    }
+
+    /// Each applied broker on a custom hostname whose HTTP-01 certificate is not issued yet, by
+    /// `{project}/{name}`, with what the city does next ([`dns_wait`]). A broker whose
+    /// Certificate cannot be read is left out: the next wave reads it again.
+    pub async fn waiting_for_dns(&self, brokers: &[Broker]) -> BTreeMap<String, String> {
+        let mut waiting = BTreeMap::new();
+        for broker in brokers {
+            let Ok(spec) = &broker.spec else { continue };
+            let (Some(hostname), None) = (&spec.hostname, &broker.certificate) else {
+                continue;
+            };
+            let Ok(certificate) = self.certificate(&broker.release).await else {
+                continue;
+            };
+            if let Some(message) = dns_wait(certificate.as_ref(), hostname) {
+                waiting.insert(broker.label(), message);
+            }
+        }
+        waiting
+    }
+
+    /// A broker's Certificate, `None` when there is none.
+    async fn certificate(&self, release: &str) -> Result<Option<Value>, String> {
         let selector = format!("{SELECTOR},{INSTANCE}={release}");
         let listed = self
             .kube
@@ -495,10 +777,26 @@ impl MqttBrokers {
             .await
             .map_err(|err| format!("reading the Certificate of {release}: {err}"))?;
         Ok(listed
-            .iter()
-            .find(|c| c["metadata"]["name"].as_str() == Some(release))
-            .and_then(|c| c["status"]["revision"].as_u64()))
+            .into_iter()
+            .find(|c| c["metadata"]["name"].as_str() == Some(release)))
     }
+}
+
+/// What a custom hostname's Certificate says the city still has to do, or `None` once it is
+/// `Ready`: cert-manager proves the name by HTTP-01 only after the name resolves to the edge.
+pub fn dns_wait(certificate: Option<&Value>, hostname: &str) -> Option<String> {
+    let ready = certificate
+        .and_then(|c| c["status"]["conditions"].as_array())
+        .into_iter()
+        .flatten()
+        .any(|condition| condition["type"] == "Ready" && condition["status"] == "True");
+    (!ready).then(|| {
+        format!(
+            "waiting for DNS: point a CNAME from {hostname} at the broker's platform address; \
+             the certificate for {hostname} is issued by HTTP-01 once the name resolves to the \
+             edge, and devices then connect on {hostname}:8883"
+        )
+    })
 }
 
 /// The client a broker should have: bearer-only, so it signs in nobody and holds no secret; it is
@@ -891,9 +1189,13 @@ spec:
         let cameras = &brokers[1];
         let mut spec = cameras.spec.clone().expect("valid");
         spec.port = Some(18835);
-        let port = port_text();
-        let objects =
-            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(2)).expect("renders");
+        let port = Templates {
+            plain: TEMPLATE_TEXT.to_owned(),
+            port: Some(port_text()),
+            hostname: None,
+            certificate: None,
+        };
+        let objects = objects_of(&port, cameras, &spec, Some(2)).expect("renders");
         assert_eq!(objects.len(), 4);
         assert_eq!(objects[3]["metadata"]["name"], "mqtt-helsinki-cameras-port");
         assert_eq!(objects[3]["spec"]["entryPoints"], json!(["mqtt-18835"]));
@@ -905,18 +1207,19 @@ spec:
         assert_eq!(annotation(&objects), json!("2"));
         // Before the first issue there is no revision; a renewal changes the annotation, so the
         // Deployment's pod template, so the broker restarts and reads the new certificate.
-        let first = objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, None).expect("renders");
+        let first = objects_of(&port, cameras, &spec, None).expect("renders");
         assert_eq!(annotation(&first), json!(""));
-        let renewed =
-            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(3)).expect("renders");
+        let renewed = objects_of(&port, cameras, &spec, Some(3)).expect("renders");
         assert_eq!(annotation(&renewed), json!("3"));
         assert_ne!(objects[1], renewed[1]);
-        let err =
-            objects_of(TEMPLATE_TEXT, None, cameras, &spec, None).expect_err("no port template");
+        let plain_only = Templates {
+            plain: TEMPLATE_TEXT.to_owned(),
+            ..Templates::default()
+        };
+        let err = objects_of(&plain_only, cameras, &spec, None).expect_err("no port template");
         assert!(err.contains("has no objects-port.yaml"), "{err}");
         spec.port = None;
-        let plain =
-            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(3)).expect("renders");
+        let plain = objects_of(&port, cameras, &spec, Some(3)).expect("renders");
         assert_eq!(plain.len(), 3);
         assert_eq!(annotation(&plain), Value::Null);
     }
@@ -943,17 +1246,20 @@ spec:
   routes:
     - match: HostSNI(`__NAME__.__PROJECT__.mqtt.dev.example`)
 ";
-        let port = port_text() + sni;
-        let plain =
-            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(1)).expect("renders");
+        let port = Templates {
+            plain: TEMPLATE_TEXT.to_owned(),
+            port: Some(port_text() + sni),
+            hostname: None,
+            certificate: None,
+        };
+        let plain = objects_of(&port, cameras, &spec, Some(1)).expect("renders");
         assert!(plain.iter().all(|o| o["kind"] != "MiddlewareTCP"));
         assert!(plain
             .iter()
             .all(|o| o["spec"]["routes"][0].get("middlewares").is_none()));
 
         spec.allowed_sources = vec!["203.0.113.0/24".into(), "2001:0db8::/48".into()];
-        let objects =
-            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(1)).expect("renders");
+        let objects = objects_of(&port, cameras, &spec, Some(1)).expect("renders");
         let middleware = objects
             .iter()
             .find(|o| o["kind"] == "MiddlewareTCP")
@@ -996,9 +1302,191 @@ spec:
         assert_eq!(hash(&plain), hash(&objects));
         // An unreadable list is refused whole, never applied open.
         spec.allowed_sources = vec!["203.0.113.1/24".into()];
-        let err =
-            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(1)).expect_err("refused");
+        let err = objects_of(&port, cameras, &spec, Some(1)).expect_err("refused");
         assert!(err.contains("spec.allowedSources"), "{err}");
+    }
+
+    /// [`TEMPLATE_TEXT`] on a custom hostname: the Certificate for the city's name, and the
+    /// 8883 route by that name serving `__TLS_SECRET__`.
+    fn hostname_text() -> String {
+        TEMPLATE_TEXT.replace("__NAME__.__PROJECT__.mqtt.dev.example", "__HOSTNAME__")
+            + "\
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: __RELEASE__
+  labels:
+    app.kubernetes.io/instance: __RELEASE__
+spec:
+  routes:
+    - match: HostSNI(`__HOSTNAME__`)
+  tls:
+    secretName: __TLS_SECRET__
+"
+    }
+
+    /// Helsinki's quota assigns `mqtt.helsinki.example` (with the admin's certificate when
+    /// `certificate` is set) and `mqtt.shared.example`, which `espoo`, first in name order, holds
+    /// too; `cameras` serves `hostname`.
+    fn hostname_mirror(hostname: &str, certificate: Option<&str>) -> Mirror {
+        let mirror = mirror();
+        let mut own = json!({"name": "mqtt.helsinki.example"});
+        if let Some(certificate) = certificate {
+            own["certificateRef"] = json!({"name": certificate});
+        }
+        let quota = |hostnames: Value| {
+            json!({ "organizationRef": { "name": "hel" }, "quotas": { "mqtt": {
+                "enabled": true, "brokers": 3, "connections": 20000, "messagesPerSecond": 100000, "addresses": ["platform", "customHostname"],
+                "customHostnames": hostnames
+            } } })
+        };
+        mirror.upsert(envelope(
+            "Project",
+            crate::permissions::ORG_NAMESPACE,
+            "helsinki",
+            quota(json!([own, {"name": "mqtt.shared.example"}])),
+        ));
+        mirror.upsert(envelope(
+            "Project",
+            crate::permissions::ORG_NAMESPACE,
+            "espoo",
+            quota(json!([{"name": "mqtt.shared.example"}])),
+        ));
+        let mut spec = broker_spec(&["cam-north"], None);
+        spec["address"] = json!("customHostname");
+        spec["hostname"] = json!(hostname);
+        mirror.upsert(envelope("MqttBroker", "helsinki", "cameras", spec));
+        mirror
+    }
+
+    #[test]
+    fn a_custom_hostname_gets_its_route_and_an_http01_certificate_or_the_admins_secret() {
+        let brokers = declared(&hostname_mirror("mqtt.helsinki.example", None));
+        let cameras = brokers
+            .iter()
+            .find(|b| b.label() == "helsinki/cameras")
+            .expect("held");
+        let spec = cameras
+            .spec
+            .clone()
+            .expect("the project's own hostname is served");
+        assert_eq!(cameras.certificate, None);
+        let templates = Templates {
+            plain: TEMPLATE_TEXT.to_owned(),
+            port: None,
+            hostname: Some(hostname_text()),
+            certificate: None,
+        };
+        let objects = objects_of(&templates, cameras, &spec, None).expect("renders");
+        let kinds: Vec<&str> = objects
+            .iter()
+            .map(|o| o["kind"].as_str().unwrap_or(""))
+            .collect();
+        assert_eq!(
+            kinds,
+            ["ConfigMap", "Deployment", "Certificate", "IngressRouteTCP"]
+        );
+        assert_eq!(
+            objects[2]["spec"]["dnsNames"],
+            json!(["mqtt.helsinki.example"])
+        );
+        assert_eq!(
+            objects[3]["spec"]["routes"][0]["match"],
+            "HostSNI(`mqtt.helsinki.example`)"
+        );
+        assert_eq!(
+            objects[3]["spec"]["tls"]["secretName"],
+            "mqtt-helsinki-cameras-tls"
+        );
+
+        // The admin's certificate: the route serves it, and no Certificate is issued.
+        let brokers = declared(&hostname_mirror(
+            "mqtt.helsinki.example",
+            Some("helsinki-mqtt-cert"),
+        ));
+        let cameras = brokers
+            .iter()
+            .find(|b| b.label() == "helsinki/cameras")
+            .expect("held");
+        assert_eq!(cameras.certificate.as_deref(), Some("helsinki-mqtt-cert"));
+        let objects = objects_of(&templates, cameras, &spec, None).expect("renders");
+        assert!(objects.iter().all(|o| o["kind"] != "Certificate"));
+        assert_eq!(
+            objects[2]["spec"]["tls"]["secretName"],
+            "helsinki-mqtt-cert"
+        );
+
+        let plain_only = Templates {
+            plain: TEMPLATE_TEXT.to_owned(),
+            ..Templates::default()
+        };
+        let err = objects_of(&plain_only, cameras, &spec, None).expect_err("no hostname template");
+        assert!(err.contains("has no objects-hostname.yaml"), "{err}");
+    }
+
+    #[test]
+    fn a_hostname_another_project_holds_or_a_platform_secret_is_refused() {
+        let brokers = declared(&hostname_mirror("mqtt.shared.example", None));
+        let cameras = brokers
+            .iter()
+            .find(|b| b.label() == "helsinki/cameras")
+            .expect("held");
+        let reason = cameras.spec.clone().expect_err("espoo holds it first");
+        assert!(
+            reason.contains("is assigned to another project as well"),
+            "{reason}"
+        );
+        assert!(
+            !reason.contains("espoo"),
+            "the holder stays unnamed: {reason}"
+        );
+
+        let brokers = declared(&hostname_mirror(
+            "mqtt.helsinki.example",
+            Some("mqtt-espoo-gates-tls"),
+        ));
+        let cameras = brokers
+            .iter()
+            .find(|b| b.label() == "helsinki/cameras")
+            .expect("held");
+        let reason = cameras
+            .spec
+            .clone()
+            .expect_err("a platform Secret is refused");
+        assert!(reason.contains("does not start with `mqtt-`"), "{reason}");
+
+        // Two brokers of the project on one hostname: the first in name order serves it.
+        let mirror = hostname_mirror("mqtt.helsinki.example", None);
+        let mut spec = broker_spec(&["cam-south"], None);
+        spec["address"] = json!("customHostname");
+        spec["hostname"] = json!("mqtt.helsinki.example");
+        mirror.upsert(envelope("MqttBroker", "helsinki", "doors", spec));
+        let brokers = declared(&mirror);
+        let doors = brokers
+            .iter()
+            .find(|b| b.label() == "helsinki/doors")
+            .expect("held");
+        let reason = doors.spec.clone().expect_err("served by cameras");
+        assert!(
+            reason.contains("already served by helsinki/cameras"),
+            "{reason}"
+        );
+    }
+
+    #[test]
+    fn a_hostname_waits_for_dns_until_its_certificate_is_ready() {
+        let waiting = dns_wait(None, "mqtt.city.example").expect("no Certificate yet");
+        assert!(
+            waiting.starts_with("waiting for DNS: point a CNAME from mqtt.city.example"),
+            "{waiting}"
+        );
+        let pending = json!({"status": {"conditions": [
+            {"type": "Ready", "status": "False", "reason": "DoesNotExist"}
+        ]}});
+        assert!(dns_wait(Some(&pending), "mqtt.city.example").is_some());
+        let ready = json!({"status": {"conditions": [{"type": "Ready", "status": "True"}]}});
+        assert_eq!(dns_wait(Some(&ready), "mqtt.city.example"), None);
     }
 
     #[test]
@@ -1167,5 +1655,212 @@ spec:
         }
         assert!(want.get("secret").is_none());
         assert_eq!(want["attributes"][BROKER_ATTRIBUTE], "espoo/cameras");
+    }
+
+    /// The door's template as the chart renders it, reduced: the ConfigMap naming the CA's
+    /// Secret and key, and the pod's revision annotation.
+    const DOOR_TEXT: &str = "\
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: __RELEASE__
+  labels:
+    app.kubernetes.io/instance: __RELEASE__
+data:
+  ca: \"__CLIENT_CA__/__CLIENT_CA_KEY__\"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: __RELEASE__
+  labels:
+    app.kubernetes.io/instance: __RELEASE__
+spec:
+  template:
+    metadata:
+      annotations:
+        joinedcontext.com/tls-revision: \"__TLS_REVISION__\"
+";
+
+    /// Helsinki's quota lets devices use client certificates of the CA in `ca`; `cameras` names
+    /// `deviceAuth`, and `extra` is one more broker of helsinki.
+    fn door_mirror(ca: &str, device_auth: Value, extra: Option<&str>) -> Mirror {
+        let mirror = mirror();
+        mirror.upsert(envelope(
+            "Project",
+            crate::permissions::ORG_NAMESPACE,
+            "helsinki",
+            json!({ "organizationRef": { "name": "hel" }, "quotas": { "mqtt": {
+                "enabled": true, "brokers": 3, "connections": 20000, "messagesPerSecond": 100000,
+                "deviceAuth": ["token", "clientCertificate"], "clientCaRef": { "name": ca }
+            } } }),
+        ));
+        let mut spec = broker_spec(&["cam-north"], None);
+        spec["deviceAuth"] = device_auth;
+        mirror.upsert(envelope("MqttBroker", "helsinki", "cameras", spec));
+        if let Some(name) = extra {
+            mirror.upsert(envelope(
+                "MqttBroker",
+                "helsinki",
+                name,
+                broker_spec(&["cam-north"], None),
+            ));
+        }
+        mirror
+    }
+
+    fn helsinki_cameras(brokers: &[Broker]) -> &Broker {
+        brokers
+            .iter()
+            .find(|b| b.label() == "helsinki/cameras")
+            .expect("held")
+    }
+
+    /// T-5875: a broker whose deviceAuth names clientCertificate gets its certificate door, the
+    /// release `<release>-cert` stamped from objects-certificate.yaml with the project's CA; one
+    /// with tokens alone gets none, and a template without the key refuses the door by name.
+    #[test]
+    fn a_certificate_broker_gets_its_door_with_the_projects_client_ca() {
+        let brokers = declared(&door_mirror(
+            "helsinki-device-ca",
+            json!(["token", "clientCertificate"]),
+            None,
+        ));
+        let cameras = helsinki_cameras(&brokers);
+        let spec = cameras.spec.clone().expect("accepted");
+        let door = cameras.door.clone().expect("a door");
+        assert_eq!(
+            door,
+            Door {
+                release: "mqtt-helsinki-cameras-cert".into(),
+                ca_secret: "helsinki-device-ca".into(),
+                ca_key: "ca.crt".into(),
+            }
+        );
+        let templates = Templates {
+            plain: TEMPLATE_TEXT.to_owned(),
+            certificate: Some(DOOR_TEXT.to_owned()),
+            ..Templates::default()
+        };
+        let objects = door_objects(&templates, cameras, &spec, &door, Some(2)).expect("renders");
+        assert_eq!(objects.len(), 2);
+        for object in &objects {
+            assert_eq!(object["metadata"]["name"], "mqtt-helsinki-cameras-cert");
+        }
+        assert_eq!(objects[0]["data"]["ca"], "helsinki-device-ca/ca.crt");
+        assert_eq!(
+            objects[1]["spec"]["template"]["metadata"]["annotations"]
+                ["joinedcontext.com/tls-revision"],
+            "2"
+        );
+        let plain_only = Templates {
+            plain: TEMPLATE_TEXT.to_owned(),
+            ..Templates::default()
+        };
+        let err =
+            door_objects(&plain_only, cameras, &spec, &door, None).expect_err("no door template");
+        assert!(err.contains("has no objects-certificate.yaml"), "{err}");
+
+        let tokens = declared(&door_mirror("helsinki-device-ca", json!(["token"]), None));
+        assert_eq!(helsinki_cameras(&tokens).door, None);
+        assert!(helsinki_cameras(&tokens).spec.is_ok());
+    }
+
+    /// PF-129 at the door: a broker's allowedSources put the door's own MiddlewareTCP on the
+    /// door's route, so a certificate device outside the networks is closed at the edge too.
+    #[test]
+    fn the_door_admits_only_the_brokers_allowed_sources() {
+        let brokers = declared(&door_mirror(
+            "helsinki-device-ca",
+            json!(["clientCertificate"]),
+            None,
+        ));
+        let cameras = helsinki_cameras(&brokers);
+        let mut spec = cameras.spec.clone().expect("accepted");
+        spec.allowed_sources = vec!["203.0.113.0/24".into()];
+        let door = cameras.door.clone().expect("a door");
+        let route = "\
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: __RELEASE__
+  namespace: jc-mqtt
+  labels:
+    app.kubernetes.io/instance: __RELEASE__
+spec:
+  entryPoints: [mqtts]
+  routes:
+    - match: HostSNI(`cert.__NAME__.__PROJECT__.mqtt.dev.example`)
+";
+        let templates = Templates {
+            plain: TEMPLATE_TEXT.to_owned(),
+            certificate: Some(DOOR_TEXT.to_owned() + route),
+            ..Templates::default()
+        };
+        let objects = door_objects(&templates, cameras, &spec, &door, None).expect("renders");
+        let middleware = objects
+            .iter()
+            .find(|object| object["kind"] == "MiddlewareTCP")
+            .expect("the door's filter");
+        assert_eq!(
+            middleware["metadata"]["name"],
+            "mqtt-helsinki-cameras-cert-sources"
+        );
+        assert_eq!(
+            middleware["metadata"]["labels"][INSTANCE],
+            "mqtt-helsinki-cameras-cert"
+        );
+        assert_eq!(
+            middleware["spec"]["ipAllowList"]["sourceRange"],
+            json!(["203.0.113.0/24"])
+        );
+        let route = objects
+            .iter()
+            .find(|object| object["kind"] == "IngressRouteTCP")
+            .expect("the door's route");
+        assert_eq!(
+            route["spec"]["routes"][0]["middlewares"],
+            json!([{ "name": "mqtt-helsinki-cameras-cert-sources" }])
+        );
+    }
+
+    /// A door whose release is another broker's, or a CA Secret that is one of the platform's
+    /// own, refuses the broker with the reason; the other broker keeps its release.
+    #[test]
+    fn a_door_on_another_brokers_release_or_a_platform_secret_is_refused() {
+        let brokers = declared(&door_mirror(
+            "helsinki-device-ca",
+            json!(["clientCertificate"]),
+            Some("cameras-cert"),
+        ));
+        let err = helsinki_cameras(&brokers)
+            .spec
+            .clone()
+            .expect_err("refused");
+        assert!(
+            err.contains("mqtt-helsinki-cameras-cert") && err.contains("helsinki/cameras-cert"),
+            "{err}"
+        );
+        let other = brokers
+            .iter()
+            .find(|b| b.label() == "helsinki/cameras-cert")
+            .expect("held");
+        assert!(other.spec.is_ok() && other.door.is_none());
+
+        let brokers = declared(&door_mirror(
+            "mqtt-helsinki-cameras-tls",
+            json!(["clientCertificate"]),
+            None,
+        ));
+        let err = helsinki_cameras(&brokers)
+            .spec
+            .clone()
+            .expect_err("refused");
+        assert!(
+            err.contains("clientCaRef `mqtt-helsinki-cameras-tls`"),
+            "{err}"
+        );
     }
 }

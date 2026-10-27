@@ -82,7 +82,15 @@ interface Role {
  * or a dedicated port (ADR-N-048 §5). The domain is the one the Portal is served under
  * (`portal.<domain>`); on any other host it is not known and no address is shown.
  */
-export function brokerAddress(name: string, project: string, hostname: string, port?: number): string | undefined {
+export function brokerAddress(
+  name: string,
+  project: string,
+  hostname: string,
+  port?: number,
+  customHostname?: string,
+): string | undefined {
+  // A city's own name answers on 8883 wherever the Portal runs (ADR-N-048 §2.11, T-5874).
+  if (customHostname) return `${customHostname}:8883`;
   if (!hostname.startsWith("portal.")) return undefined;
   const domain = hostname.slice("portal.".length);
   return `${name}.${project}.mqtt.${domain}:${port ?? 8883}`;
@@ -95,13 +103,17 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
     roles?: Role[];
     port?: number;
     allowedSources?: string[];
+    hostname?: string;
     mode?: string;
     capture?: { messagesPerTopic?: number; window?: string };
   };
   const mode = spec.mode ?? "ingest";
   const sources = spec.allowedSources ?? [];
   const roles = spec.roles ?? [];
-  const address = brokerAddress(name, project, window.location.hostname, spec.port);
+  const address = brokerAddress(name, project, window.location.hostname, spec.port, spec.hostname);
+  // The CNAME target of a custom hostname: the broker's platform name, which the edge's DNS answers.
+  const platformHost = brokerAddress(name, project, window.location.hostname)?.split(":")[0];
+  const waitingForDns = (broker.status?.conditions ?? []).some((c) => c.reason === "WaitingForDns");
   const devices = [...new Set(roles.flatMap((role) => role.serviceAccounts ?? []))];
   const caption = t("mqttbrokers.acl.caption", { broker: name });
   const [testing, setTesting] = useState(false);
@@ -127,6 +139,13 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
             {t(`mqttAllowance.mode.${mode}`, { defaultValue: mode })}
           </Badge>
         </div>
+        {waitingForDns && spec.hostname ? (
+          <Alert tone="info" title={t("mqttbrokers.connect.waitingForDnsTitle")} data-dns="waiting">
+            {platformHost
+              ? t("mqttbrokers.connect.waitingForDns", { host: spec.hostname, target: platformHost })
+              : t("mqttbrokers.connect.waitingForDnsNoTarget", { host: spec.hostname })}
+          </Alert>
+        ) : null}
         {mode === "capture" ? (
           <p className="text-body text-fg-muted">
             {t("mqttbrokers.capture.kept", {

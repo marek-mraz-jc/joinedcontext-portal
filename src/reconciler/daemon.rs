@@ -2000,6 +2000,8 @@ impl Syncer {
                 .iter()
                 .filter_map(|broker| Some((broker.label(), broker.spec.clone().err()?)))
                 .collect();
+            // A custom hostname whose certificate is not issued yet (T-5874).
+            let mut waiting = BTreeMap::new();
             if let Some(releases) = self.mqtt_brokers.as_ref() {
                 let retire = scratch.unstaged.is_empty();
                 for (broker, error) in releases.converge(&brokers, retire).await {
@@ -2008,6 +2010,7 @@ impl Syncer {
                     }
                     failed.entry(broker).or_insert(error);
                 }
+                waiting = releases.waiting_for_dns(&brokers).await;
             }
             if let Some(clients) = self.mqtt_clients.as_ref() {
                 for outcome in clients.converge(&brokers).await {
@@ -2024,8 +2027,20 @@ impl Syncer {
                 }
             }
             for broker in &brokers {
-                let Some(error) = failed.get(&broker.label()) else {
-                    continue;
+                let condition = match (failed.get(&broker.label()), waiting.get(&broker.label())) {
+                    (Some(error), _) if broker.spec.is_err() => super::streams::make_condition(
+                        "Ready",
+                        "False",
+                        "Invalid",
+                        &format!("{error}; the broker's running release, if any, is unchanged"),
+                    ),
+                    (Some(error), _) => {
+                        super::streams::make_condition("Ready", "False", "NotApplied", error)
+                    }
+                    (None, Some(message)) => {
+                        super::streams::make_condition("Ready", "False", "WaitingForDns", message)
+                    }
+                    (None, None) => continue,
                 };
                 let Some(mut envelope) =
                     self.mirror.get(&broker.project, "MqttBroker", &broker.name)
@@ -2033,16 +2048,7 @@ impl Syncer {
                     continue;
                 };
                 if let Some(status) = envelope.status.as_mut() {
-                    status.conditions = vec![if broker.spec.is_err() {
-                        super::streams::make_condition(
-                            "Ready",
-                            "False",
-                            "Invalid",
-                            &format!("{error}; the broker's running release, if any, is unchanged"),
-                        )
-                    } else {
-                        super::streams::make_condition("Ready", "False", "NotApplied", error)
-                    }];
+                    status.conditions = vec![condition];
                 }
                 transitions.keep(&mut envelope);
                 self.mirror.upsert(envelope);

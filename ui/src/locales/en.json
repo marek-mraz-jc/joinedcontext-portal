@@ -9694,6 +9694,9 @@
       "brokerRef": "Pick {broker} as the platform broker of an MQTT data source.",
       "certificate": "Certificate",
       "certificateIssued": "Issued by the platform for {host} from a public certificate authority; devices check it with their system CA store.",
+      "waitingForDnsTitle": "Waiting for DNS",
+      "waitingForDns": "Point a CNAME record from {host} at {target}. The platform issues the certificate for {host} as soon as the name resolves to it; devices then connect on {host}:8883.",
+      "waitingForDnsNoTarget": "Point a CNAME record from {host} at this broker's platform address. The platform issues the certificate for {host} as soon as the name resolves to it; devices then connect on {host}:8883.",
       "example": "Try it",
       "copyExample": "Copy the command",
       "exampleHint": "Set TOKEN to an access token of the device's client first (Add device below shows how); the Portal never shows one."
@@ -9872,7 +9875,9 @@
         "no_role": "The account holds no role of this broker.",
         "no_subscription": "There is nothing this subscriber may read.",
         "source_address": "The device's address is outside the broker's allowed source networks.",
-        "no_realm": "The gateway has no realm to check tokens with."
+        "no_realm": "The gateway has no realm to check tokens with.",
+        "token_not_allowed": "This broker admits devices by client certificate only.",
+        "certificate": "The certificate is not a device certificate of this project, or the device sent a password to the certificate address."
       }
     },
     "noAccounts": "No service account of this project that you can read. Add a device from the broker's page, or create one under Project settings, Service accounts."
