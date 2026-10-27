@@ -2,7 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect } from "@playwright/test";
 import type { APIRequestContext, Browser, BrowserContext, Locator, Page, Request, Response } from "@playwright/test";
-import { edgeRetryMs } from "../../tests/pageChecks";
+import { axeViolations } from "../axe";
+import { blankDocument, edgeRetryMs, pageFindings, viewerWriteFindings } from "../../tests/pageChecks";
 import { answerOtp, submitted } from "./totp";
 
 /**
@@ -286,6 +287,87 @@ export async function openToJudge(page: Page, address: string, retryMs = 20_000,
     page.off("requestfinished", answered);
     page.off("requestfailed", answered);
   }
+}
+
+/** What the walker opened at an address: the edge's refusal, or the document and its one finding. */
+export interface Opened {
+  edgeRefused: boolean;
+  /** The tab still shows a blank shell after the load again: no page to judge. */
+  blank: boolean;
+  /** The `document` finding, when the first load was not a page (T-5857). */
+  document: string[];
+}
+
+/** The page document's answer as the walker saw it: status, body size and time to the answer. */
+interface DocumentAnswer {
+  status: number;
+  bytes: number;
+  ms: number;
+}
+
+function describeAnswer(answer: DocumentAnswer | undefined): string {
+  return answer ? `${answer.status}, ${answer.bytes} B in ${answer.ms} ms` : "no answer";
+}
+
+/**
+ * `openToJudge` for the walker, keeping the page document's last answer. A document answered
+ * non-2xx, or a blank shell (`blankDocument`), is loaded once again after `againMs`: one load in a
+ * rollout window made three a11y findings and three tasks on /organization/roles (T-5853..T-5855),
+ * and the walker kept no status to name its cause. Either way it is one `document` finding.
+ */
+export async function openToWalk(
+  page: Page,
+  address: string,
+  retryMs = 20_000,
+  fresh: () => void = () => undefined,
+  againMs = 5_000,
+): Promise<Opened> {
+  let last: Response | undefined;
+  const watch = (response: Response) => {
+    const request = response.request();
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) last = response;
+  };
+  const answer = async (): Promise<DocumentAnswer | undefined> => {
+    if (!last) return undefined;
+    const body = await last.body().catch(() => Buffer.alloc(0));
+    return { status: last.status(), bytes: body.length, ms: Math.max(0, Math.round(last.request().timing().responseStart)) };
+  };
+  const bad = async (seen: DocumentAnswer | undefined) =>
+    !seen || seen.status < 200 || seen.status > 299 || (await page.evaluate(blankDocument));
+  page.on("response", watch);
+  try {
+    if (await openToJudge(page, address, retryMs, fresh)) return { edgeRefused: true, blank: false, document: [] };
+    const first = await answer();
+    if (!(await bad(first))) return { edgeRefused: false, blank: false, document: [] };
+    const said = `document: the page answered ${describeAnswer(first)}`;
+    await page.waitForTimeout(againMs);
+    fresh();
+    last = undefined;
+    if (await openToJudge(page, address, retryMs, fresh)) return { edgeRefused: true, blank: false, document: [] };
+    const second = await answer();
+    if (await bad(second)) {
+      return { edgeRefused: false, blank: true, document: [`${said}, and ${describeAnswer(second)} on the load again ${againMs / 1000} s later`] };
+    }
+    return { edgeRefused: false, blank: false, document: [`${said}; blank on first load, fine on retry`] };
+  } finally {
+    page.off("response", watch);
+  }
+}
+
+/**
+ * What the walker finds on a page it opened with `openToWalk`: the edge's refusal, or the document
+ * finding, then the page checks, axe's serious and critical violations and, for a viewer, the write
+ * controls (UI-44). A blank shell skips the checks: they judge an empty document (T-5857).
+ */
+export async function judgeOpened(page: Page, opened: Opened, options: { namespaces: string[]; viewer: boolean }): Promise<string[]> {
+  if (opened.edgeRefused) return ["boot: the edge refused the page with 429 Too Many Requests, after two loads again"];
+  if (opened.blank) return opened.document;
+  return [
+    ...opened.document,
+    ...(await page.evaluate(pageFindings, { namespaces: options.namespaces, layout: true })),
+    ...(await axeViolations(page)).filter((violation) => /\((serious|critical)\)/.test(violation)).map((violation) => `axe: ${violation.slice(0, 200)}`),
+    ...(options.viewer ? await page.evaluate(viewerWriteFindings, true) : []),
+  ];
 }
 
 /**

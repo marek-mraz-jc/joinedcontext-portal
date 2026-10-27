@@ -23,10 +23,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import type { Page, Response } from "@playwright/test";
-import { axeViolations } from "../axe";
-import { pageFindings, shellFinding, unexcused, viewerWriteFindings } from "../../tests/pageChecks";
+import { unexcused } from "../../tests/pageChecks";
 import type { Excused } from "../../tests/pageChecks";
-import { STEWARD, VIEWER, afterSelfReload, hiddenSections, inHiddenSection, journeyMarkerOnPortalOnly, openToJudge, signIn } from "./portal";
+import { STEWARD, VIEWER, afterSelfReload, hiddenSections, inHiddenSection, journeyMarkerOnPortalOnly, judgeOpened, openToWalk, signIn } from "./portal";
+import type { Opened } from "./portal";
 import { secretMasks, shot, writeIndex } from "./shoot";
 import { Tab } from "./tab";
 import { P, visits } from "./walk-routes";
@@ -123,34 +123,27 @@ for (const [who, person] of [
       // Each address loads once per language and is judged at every width by resizing the open page:
       // a reload per width doubled the walk, and the walk after a rollout has 15 minutes (T-4950).
       for (const lang of LANGS) for (const visit of all) {
-        let edgeRefused = false;
+        let opened: Opened = { edgeRefused: false, blank: false, document: [] };
         for (const [index, size] of WIDTHS.entries()) {
           current = [];
           const judged = await tab.run(async (page) => {
             await page.setViewportSize(size);
             if (index === 0) {
-              // A load the edge refused is judged again after its window, without what it logged.
-              edgeRefused = await openToJudge(page, `${visit.address}${visit.address.includes("?") ? "&" : "?"}lang=${lang}`, undefined, () => {
+              // A load the edge refused is judged again after its window, without what it logged; a
+              // blank or non-2xx document once more after 5 s, as one `document` finding (T-5857).
+              opened = await openToWalk(page, `${visit.address}${visit.address.includes("?") ? "&" : "?"}lang=${lang}`, undefined, () => {
                 current = [];
               });
             } else {
               await page.waitForTimeout(300);
-              if (!edgeRefused) await afterSelfReload(page);
+              if (!opened.edgeRefused) await afterSelfReload(page);
             }
-            // A tab with no Portal document is reported as that alone: axe would name its empty <html> (T-5855).
-            const noShell = edgeRefused ? [] : await page.evaluate(shellFinding);
-            const findings = edgeRefused
-              ? ["boot: the edge refused the page with 429 Too Many Requests, after two loads again"]
-              : noShell.length > 0
-                ? [...current, ...noShell]
-                : [
-                  ...current,
-                  ...(await page.evaluate(pageFindings, { namespaces: NAMESPACES, layout: true })),
-                  ...(await axeViolations(page))
-                    .filter((violation) => /\((serious|critical)\)/.test(violation))
-                    .map((violation) => `axe: ${violation.slice(0, 200)}`),
-                  ...(who === "viewer" && !OWN.has(visit.route) ? await page.evaluate(viewerWriteFindings, true) : []),
-                ];
+            // A blank load is reported once, at the first width: the others resize the same empty tab.
+            const viewer = who === "viewer" && !OWN.has(visit.route);
+            const findings =
+              index > 0 && opened.blank
+                ? current
+                : [...current, ...(await judgeOpened(page, index === 0 ? opened : { ...opened, document: [] }, { namespaces: NAMESPACES, viewer }))];
             const screenshot = test.info().outputPath(`${who}-${lang}-${size.width}${visit.address.replace(/[^a-z0-9]+/gi, "-")}.png`);
             await page.screenshot({ path: screenshot, fullPage: true, mask: secretMasks(page) });
             await shot(page, { area: "portal", route: visit.address, state: "open", who, lang });
