@@ -368,7 +368,8 @@ describe("one source's pages and documents (T-3057, AG-113)", () => {
     const { writes } = renderAt("/projects/banskabystrica/knowledge/bb-web");
     const exclude = await screen.findByRole("button", { name: "Leave out of answers" });
     expect(exclude).toHaveAttribute("aria-disabled", "true");
-    expect(exclude).toHaveAccessibleDescription("Select pages or documents first.");
+    // "Checking your access…" first, while the rights are read (T-5833).
+    await waitFor(() => expect(exclude).toHaveAccessibleDescription("Select pages or documents first."));
     await userEvent.click(exclude);
     expect(writes).toEqual([]);
   });

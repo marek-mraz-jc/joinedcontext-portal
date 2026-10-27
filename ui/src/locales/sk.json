@@ -6249,6 +6249,7 @@
     "pickedClear": "Upravovať všetko"
   },
   "permissions": {
+    "checking": "Overuje sa váš prístup…",
     "denied": "Vypnuté: vaša rola nedovoľuje ''{verb}'' na ''{kind}'' v tomto projekte",
     "deniedOrganization": "Len administrátor organizácie môže {action}: {kinds}.",
     "action": {

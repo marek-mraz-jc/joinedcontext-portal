@@ -6249,6 +6249,7 @@
     "pickedClear": "Edit everything"
   },
   "permissions": {
+    "checking": "Checking your access…",
     "denied": "Disabled: your role does not permit ''{verb}'' on ''{kind}'' in this project",
     "deniedOrganization": "Only an organization administrator can {action} {kinds}.",
     "action": {

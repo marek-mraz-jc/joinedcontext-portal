@@ -58,8 +58,8 @@ describe("the permission guard", () => {
     // The control is re-rendered once the document arrives, so it is queried after the wait.
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /New endpoint/ })).toHaveAttribute(
-        "aria-disabled",
-        "true",
+        "title",
+        expect.stringMatching(/^Disabled: /),
       );
     });
     const button = screen.getByRole("button", { name: /New endpoint/ });
@@ -94,8 +94,8 @@ describe("the permission guard", () => {
     renderGuard(EDITOR, "Pipeline");
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /New endpoint/ })).toHaveAttribute(
-        "aria-disabled",
-        "true",
+        "title",
+        expect.stringMatching(/^Disabled: /),
       );
     });
     expect(screen.getByRole("button", { name: /New endpoint/ })).toHaveAccessibleDescription(
@@ -109,8 +109,8 @@ describe("the permission guard", () => {
     renderGuard(EDITOR, "Endpoint", "delete");
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /New endpoint/ })).toHaveAttribute(
-        "aria-disabled",
-        "true",
+        "title",
+        expect.stringMatching(/^Disabled: /),
       );
     });
     expect(screen.getByRole("button", { name: /New endpoint/ })).toHaveAccessibleDescription(
@@ -122,6 +122,55 @@ describe("the permission guard", () => {
     renderGuard(EDITOR, "Endpoint", "propose");
     await waitFor(() => {
       expect(screen.getAllByRole("button", { name: /New endpoint/ }).at(-1)).toBeEnabled();
+    });
+  });
+
+  // T-5833: the walker's viewer pressed "Add a source" on a slow dev, before the document said no.
+  it("is disabled, saying it checks, while the document is on its way", async () => {
+    let answer: (response: Response) => void = () => undefined;
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => (answer = resolve)));
+    vi.stubGlobal("fetch", fetchMock);
+    const onClick = vi.fn();
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <I18nextProvider i18n={i18n}>
+          <PermissionGuard project="helsinki" kind="Endpoint" verb="propose">
+            <Button onClick={onClick}>New endpoint</Button>
+          </PermissionGuard>
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+    const button = screen.getByRole("button", { name: /New endpoint/ });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAccessibleDescription(en.permissions.checking);
+    await userEvent.click(button);
+    expect(onClick).not.toHaveBeenCalled();
+
+    answer(new Response(JSON.stringify(EDITOR), { status: 200, headers: { "Content-Type": "application/json" } }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New endpoint" })).not.toHaveAttribute("aria-disabled");
+    });
+  });
+
+  it("leaves the control to the API when the document could not be read", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(new Response('{"title":"Bad Gateway"}', { status: 502, headers: { "Content-Type": "application/problem+json" } }))),
+    );
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <I18nextProvider i18n={i18n}>
+          <PermissionGuard project="helsinki" kind="Endpoint" verb="propose">
+            <Button>New endpoint</Button>
+          </PermissionGuard>
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New endpoint" })).not.toHaveAttribute("aria-disabled");
     });
   });
 
@@ -158,7 +207,7 @@ describe("the permission guard", () => {
     ] as const) {
       const reason = `Disabled: your role does not permit '${verb}' on 'Endpoint' in this project`;
       await waitFor(() => {
-        expect(screen.getByRole("button", { name })).toHaveAttribute("aria-disabled", "true");
+        expect(screen.getByRole("button", { name })).toHaveAttribute("title", reason);
       });
       const button = screen.getByRole("button", { name });
       expect(button).toHaveAttribute("title", reason);

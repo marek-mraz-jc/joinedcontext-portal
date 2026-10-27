@@ -26,8 +26,9 @@ export function deniedReason(t: Translate, project: string, verb: Verb, kind: st
  * Disabled with a reason (T-0603, UI-44, PF-50, PF-51): a control whose verb the caller's
  * effective permissions deny stays where it is, disabled, and says which verb on which kind the
  * role lacks. The guard reflects `permissions/me` and decides nothing: the same request sent
- * directly is the API's 403. While the document has not arrived, and for a bootstrap
- * administrator, the control renders as it is.
+ * directly is the API's 403. While the first read is on its way the control is disabled with
+ * "Checking your access…" (T-5833: a viewer on a slow Portal pressed "Add a source" before the
+ * document said no); a read that failed, and a bootstrap administrator, leave it as it is.
  *
  * It hands the reason to the control rather than wrapping it. `Button` carries `disabledReason`
  * for exactly this: it makes itself `aria-disabled` instead of `disabled`, so it keeps its place
@@ -48,7 +49,10 @@ export function PermissionGuard({
   children: ReactElement<{ disabled?: boolean; disabledReason?: string }>;
 }): JSX.Element {
   const { t } = useTranslation();
-  const { can } = usePermissions(project);
+  const { can, checking } = usePermissions(project);
+  if (checking) {
+    return cloneElement(children, { disabled: true, disabledReason: t("permissions.checking") });
+  }
   if (can(kind, verb)) {
     return children;
   }
