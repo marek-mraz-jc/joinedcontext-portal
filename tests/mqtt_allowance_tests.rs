@@ -304,3 +304,33 @@ async fn a_role_naming_an_account_that_is_not_there_or_not_readable_is_refused_b
         "an account the steward reads: {status} {text}"
     );
 }
+
+/// PF-129, T-5870: a broker's allowedSources is judged at the door by jc-core: a range with host
+/// bits set is refused naming the field and the network it meant, a valid list is proposed.
+#[tokio::test]
+async fn allowed_sources_are_refused_at_the_door_naming_the_field_when_a_range_is_bad() {
+    let state = state().await;
+    state.mirror.upsert(envelope(
+        "Organization",
+        "hel",
+        ORG_NAMESPACE,
+        organization(json!({ "enabled": true, "brokers": 5, "connections": 1500 })),
+    ));
+    let mut bad = broker(10);
+    bad["allowedSources"] = json!(["203.0.113.1/24"]);
+    let (status, text) = propose_broker(&state, "fenced", bad).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{text}");
+    assert!(text.contains("spec.allowedSources"), "{text}");
+    assert!(text.contains("the network is 203.0.113.0/24"), "{text}");
+    for list in [json!(["0.0.0.0/0"]), json!(["sensors.city.example/24"])] {
+        let mut bad = broker(10);
+        bad["allowedSources"] = list;
+        let (status, text) = propose_broker(&state, "fenced", bad).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{text}");
+        assert!(text.contains("spec.allowedSources"), "{text}");
+    }
+    let mut good = broker(10);
+    good["allowedSources"] = json!(["203.0.113.0/24", "2001:db8::/48"]);
+    let (status, text) = propose_broker(&state, "fenced", good).await;
+    assert!(status.is_success(), "{status} {text}");
+}

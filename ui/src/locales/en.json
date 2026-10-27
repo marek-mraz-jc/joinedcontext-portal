@@ -9669,6 +9669,7 @@
       "messagesPerSecond": "Messages per second per device",
       "maxConnections": "Connections at most",
       "port": "Dedicated port",
+      "allowedSources": "Allowed source networks",
       "mode": "What the broker does",
       "capture": "Kept messages",
       "messagesPerTopic": "Messages kept per topic",
@@ -9685,6 +9686,7 @@
       "address": "Address",
       "copy": "Copy address",
       "noAddress": "Shown when the Portal is opened at its own address (portal.<domain>).",
+      "anySource": "Any address with a valid token",
       "client": "Client id and user name",
       "password": "Password",
       "token": "An access token of the device's own client, fetched with its key; never a stored password.",
@@ -9869,6 +9871,7 @@
         "other_project": "The account belongs to another project.",
         "no_role": "The account holds no role of this broker.",
         "no_subscription": "There is nothing this subscriber may read.",
+        "source_address": "The device's address is outside the broker's allowed source networks.",
         "no_realm": "The gateway has no realm to check tokens with."
       }
     },

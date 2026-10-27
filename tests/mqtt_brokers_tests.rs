@@ -380,6 +380,17 @@ async fn a_port_is_routed_while_named_and_its_route_goes_when_the_manifest_drops
         ] })))
         .mount(&server)
         .await;
+    // A middleware the doors broker stamped while it carried allowedSources: gone with the list.
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/apis/traefik.io/v1alpha1/namespaces/{NAMESPACE}/middlewaretcps"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "items": [
+            { "kind": "MiddlewareTCP", "metadata": { "name": "mqtt-helsinki-doors-sources",
+                "labels": { "app.kubernetes.io/instance": "mqtt-helsinki-doors" } } },
+        ] })))
+        .mount(&server)
+        .await;
     Mock::given(method("GET"))
         .and(path(format!(
             "/apis/cert-manager.io/v1/namespaces/{NAMESPACE}/certificates"
@@ -444,6 +455,9 @@ async fn a_port_is_routed_while_named_and_its_route_goes_when_the_manifest_drops
     );
     assert_eq!(
         calls(&received, "DELETE"),
-        [format!("{routes}/mqtt-helsinki-doors-port")]
+        [
+            format!("{routes}/mqtt-helsinki-doors-port"),
+            format!("/apis/traefik.io/v1alpha1/namespaces/{NAMESPACE}/middlewaretcps/mqtt-helsinki-doors-sources"),
+        ]
     );
 }

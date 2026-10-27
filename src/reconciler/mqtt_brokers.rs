@@ -238,22 +238,88 @@ pub fn objects_of(
     spec: &MqttBrokerSpec,
     tls_revision: Option<u64>,
 ) -> Result<Vec<Value>, String> {
-    let Some(port) = spec.port else {
-        return render(template, broker, spec);
+    let mut objects = match spec.port {
+        None => render(template, broker, spec)?,
+        Some(port) => {
+            let port_template = port_template.ok_or_else(|| {
+                format!(
+                    "{TEMPLATE} has no {PORT_KEY} for spec.port {port}: the deployment renders it"
+                )
+            })?;
+            render(
+                &port_template
+                    .replace("__PORT__", &port.to_string())
+                    .replace(
+                        "__TLS_REVISION__",
+                        &tls_revision.map(|r| r.to_string()).unwrap_or_default(),
+                    ),
+                broker,
+                spec,
+            )?
+        }
     };
-    let port_template = port_template.ok_or_else(|| {
-        format!("{TEMPLATE} has no {PORT_KEY} for spec.port {port}: the deployment renders it")
-    })?;
-    render(
-        &port_template
-            .replace("__PORT__", &port.to_string())
-            .replace(
-                "__TLS_REVISION__",
-                &tls_revision.map(|r| r.to_string()).unwrap_or_default(),
-            ),
-        broker,
-        spec,
-    )
+    restrict_sources(&mut objects, broker, spec)?;
+    Ok(objects)
+}
+
+/// The kind of the per-broker edge filter (PF-129): a Traefik `MiddlewareTCP` whose
+/// `ipAllowList` admits the broker's `allowedSources` and nothing else.
+pub const SOURCES_KIND: (&str, &str) = ("traefik.io/v1alpha1", "MiddlewareTCP");
+
+/// A broker with `allowedSources` gets a `MiddlewareTCP` `{release}-sources` of its own, named on
+/// every route of each of its `IngressRouteTCP`s (8883 by SNI and the dedicated port), so Traefik
+/// closes a connection from any other address before TLS (PF-129). Without the list nothing is
+/// added, and the retirement removes a middleware the broker no longer renders.
+fn restrict_sources(
+    objects: &mut Vec<Value>,
+    broker: &Broker,
+    spec: &MqttBrokerSpec,
+) -> Result<(), String> {
+    let ranges = spec.source_ranges().map_err(|err| err.to_string())?;
+    if ranges.is_empty() {
+        return Ok(());
+    }
+    let name = format!("{}-sources", broker.release);
+    let mut namespace = None;
+    let mut routed = false;
+    for object in objects.iter_mut() {
+        if object["kind"] != "IngressRouteTCP" {
+            continue;
+        }
+        namespace =
+            namespace.or_else(|| object["metadata"]["namespace"].as_str().map(str::to_owned));
+        let routes = object["spec"]["routes"]
+            .as_array_mut()
+            .ok_or_else(|| format!("{TEMPLATE}'s IngressRouteTCP holds no routes"))?;
+        for route in routes {
+            route["middlewares"] = json!([{ "name": name }]);
+            routed = true;
+        }
+    }
+    if !routed {
+        return Ok(());
+    }
+    let mut labels: serde_json::Map<String, Value> = SELECTOR
+        .split(',')
+        .filter_map(|pair| pair.split_once('='))
+        .map(|(key, value)| (key.to_owned(), json!(value)))
+        .collect();
+    labels.insert(INSTANCE.to_owned(), json!(broker.release));
+    let mut metadata = json!({ "name": name, "labels": labels });
+    if let Some(namespace) = namespace {
+        metadata["namespace"] = json!(namespace);
+    }
+    let ranges: Vec<String> = ranges
+        .iter()
+        .map(|range| format!("{}/{}", range.network, range.prefix))
+        .collect();
+    objects.push(json!({
+        "apiVersion": SOURCES_KIND.0,
+        "kind": SOURCES_KIND.1,
+        "metadata": metadata,
+        "spec": { "ipAllowList": { "sourceRange": ranges } },
+    }));
+    Ok(())
 }
 
 /// What tells two objects of a release apart: kind and name.
@@ -351,6 +417,11 @@ impl MqttBrokers {
                 .map(template_kinds)
                 .unwrap_or_default(),
         );
+        // Only a template with an edge route can have stamped a middleware: a cluster without
+        // Traefik's CRDs (an nginx ingress class) has no such list to read.
+        if kinds.iter().any(|(_, kind)| kind == "IngressRouteTCP") {
+            kinds.insert((SOURCES_KIND.0.to_owned(), SOURCES_KIND.1.to_owned()));
+        }
         for (api_version, kind) in &kinds {
             let listed = match self
                 .kube
@@ -848,6 +919,86 @@ spec:
             objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(3)).expect("renders");
         assert_eq!(plain.len(), 3);
         assert_eq!(annotation(&plain), Value::Null);
+    }
+
+    /// PF-129: a broker with allowedSources gets its own MiddlewareTCP, named on both of its
+    /// routes, with the ranges as jc-core reads them; one without the list gets none.
+    #[test]
+    fn allowed_sources_put_the_brokers_own_middleware_on_each_of_its_routes() {
+        let brokers = declared(&mirror());
+        let cameras = &brokers[1];
+        let mut spec = cameras.spec.clone().expect("valid");
+        spec.port = Some(18835);
+        let sni = "\
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: __RELEASE__
+  namespace: jc-mqtt
+  labels:
+    app.kubernetes.io/instance: __RELEASE__
+spec:
+  entryPoints: [mqtts]
+  routes:
+    - match: HostSNI(`__NAME__.__PROJECT__.mqtt.dev.example`)
+";
+        let port = port_text() + sni;
+        let plain =
+            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(1)).expect("renders");
+        assert!(plain.iter().all(|o| o["kind"] != "MiddlewareTCP"));
+        assert!(plain
+            .iter()
+            .all(|o| o["spec"]["routes"][0].get("middlewares").is_none()));
+
+        spec.allowed_sources = vec!["203.0.113.0/24".into(), "2001:0db8::/48".into()];
+        let objects =
+            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(1)).expect("renders");
+        let middleware = objects
+            .iter()
+            .find(|o| o["kind"] == "MiddlewareTCP")
+            .expect("a middleware");
+        assert_eq!(middleware["apiVersion"], "traefik.io/v1alpha1");
+        assert_eq!(
+            middleware["metadata"]["name"],
+            "mqtt-helsinki-cameras-sources"
+        );
+        assert_eq!(middleware["metadata"]["namespace"], "jc-mqtt");
+        assert_eq!(
+            middleware["metadata"]["labels"],
+            json!({
+                "app.kubernetes.io/part-of": "mqtt-brokers",
+                "app.kubernetes.io/managed-by": "joinedcontext-portal",
+                "app.kubernetes.io/instance": "mqtt-helsinki-cameras",
+            })
+        );
+        assert_eq!(
+            middleware["spec"],
+            json!({ "ipAllowList": { "sourceRange": ["203.0.113.0/24", "2001:db8::/48"] } })
+        );
+        let routes: Vec<&Value> = objects
+            .iter()
+            .filter(|o| o["kind"] == "IngressRouteTCP")
+            .collect();
+        assert_eq!(routes.len(), 2, "8883 by SNI and the dedicated port");
+        for route in routes {
+            assert_eq!(
+                route["spec"]["routes"][0]["middlewares"],
+                json!([{ "name": "mqtt-helsinki-cameras-sources" }]),
+                "{}",
+                route["metadata"]["name"]
+            );
+        }
+        // The hash the broker restarts on is the template's alone: a new list moves no pod.
+        let hash = |objects: &[Value]| {
+            objects[1]["spec"]["template"]["metadata"]["annotations"]["checksum/config"].clone()
+        };
+        assert_eq!(hash(&plain), hash(&objects));
+        // An unreadable list is refused whole, never applied open.
+        spec.allowed_sources = vec!["203.0.113.1/24".into()];
+        let err =
+            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(1)).expect_err("refused");
+        assert!(err.contains("spec.allowedSources"), "{err}");
     }
 
     #[test]

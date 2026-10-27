@@ -14,6 +14,16 @@ import { DNS1123 } from "./kinds";
 /** The dedicated ports a broker may ask for (`DEDICATED_PORTS`). */
 export const DEDICATED_PORTS = { min: 18830, max: 18849 } as const;
 
+/**
+ * One network of `allowedSources` (PF-129): an IPv4 or IPv6 address and a prefix. The field catches
+ * a typo; jc-core still refuses host bits, a hostname and every-address ranges with the field named.
+ */
+export const SOURCE_RANGE =
+  "^((25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}/(3[0-2]|[12]?\\d)|[0-9A-Fa-f:.]*:[0-9A-Fa-f:.]*/(12[0-8]|1[01]\\d|[1-9]?\\d))$";
+
+/** The most networks a broker may list (`MAX_ALLOWED_SOURCES`). */
+export const MAX_ALLOWED_SOURCES = 32;
+
 /** A device subscribes under its own client id only, with no wildcard before it. */
 export const DEVICE_SUBSCRIBE = "^[^+#]*\\$\\{clientid\\}";
 
@@ -29,6 +39,7 @@ export interface MqttBrokerForm {
   roles?: MqttRoleForm[];
   limits?: { maxMessageBytes?: number; messagesPerSecond?: number; maxConnections?: number };
   port?: number;
+  allowedSources?: string[];
   mode?: string;
   capture?: { messagesPerTopic?: number; window?: string };
 }
@@ -124,6 +135,12 @@ export function mqttBrokerSchema(t: (key: string) => string, language = "en"): J
         },
       },
       port: { type: "integer", title: title("port"), minimum: DEDICATED_PORTS.min, maximum: DEDICATED_PORTS.max },
+      allowedSources: {
+        type: "array",
+        title: title("allowedSources"),
+        maxItems: MAX_ALLOWED_SOURCES,
+        items: { type: "string", minLength: 1, maxLength: 43, pattern: SOURCE_RANGE },
+      },
     },
   };
 }
@@ -157,6 +174,7 @@ export function toMqttBrokerManifest(project: string, form: MqttBrokerForm, stor
       }),
       ...(Object.keys(limits).length > 0 ? { limits } : {}),
       ...(typeof form.port === "number" ? { port: form.port } : {}),
+      ...(list(form.allowedSources).length > 0 ? { allowedSources: list(form.allowedSources) } : {}),
       ...(form.mode && form.mode !== "ingest" ? { mode: form.mode } : {}),
       ...(form.mode === "capture" && Object.keys(capture).length > 0 ? { capture } : {}),
     },
@@ -177,6 +195,7 @@ export function fromMqttBrokerManifest(manifest: unknown): MqttBrokerForm {
     })),
     ...(spec.limits ? { limits: spec.limits } : {}),
     ...(typeof spec.port === "number" ? { port: spec.port } : {}),
+    ...(spec.allowedSources?.length ? { allowedSources: spec.allowedSources } : {}),
     mode: spec.mode ?? "ingest",
     ...(spec.capture ? { capture: spec.capture } : {}),
   };

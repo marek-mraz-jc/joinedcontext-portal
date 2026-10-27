@@ -145,6 +145,29 @@ describe("the broker form", () => {
     expect(pattern.test("#")).toBe(false);
     expect([schema.properties.port.minimum, schema.properties.port.maximum]).toEqual([18830, 18849]);
   });
+
+  it("takes allowedSources as CIDR ranges at the field and carries them to the manifest and back (PF-129)", () => {
+    const schema = mqttBrokerSchema((key) => key) as {
+      properties: { allowedSources: { maxItems: number; items: { pattern: string } } };
+    };
+    const range = new RegExp(schema.properties.allowedSources.items.pattern);
+    for (const ok of ["203.0.113.0/24", "198.51.100.7/32", "2001:db8::/48", "::ffff:203.0.113.0/120"]) {
+      expect(range.test(ok)).toBe(true);
+    }
+    for (const bad of ["203.0.113.0", "sensors.city.example/24", "203.0.113.0/33", "256.1.1.1/8", "2001:db8::/129", ""]) {
+      expect(range.test(bad)).toBe(false);
+    }
+    expect(schema.properties.allowedSources.maxItems).toBe(32);
+    const manifest = toMqttBrokerManifest("espoo", {
+      name: "cameras",
+      roles: [{ name: "camera", serviceAccounts: ["cam-1"], publish: ["cameras/${clientid}/#"] }],
+      allowedSources: [" 203.0.113.0/24 ", undefined as unknown as string, ""],
+    }) as { spec: { allowedSources?: string[] } };
+    expect(manifest.spec.allowedSources).toEqual(["203.0.113.0/24"]);
+    expect(fromMqttBrokerManifest(manifest).allowedSources).toEqual(["203.0.113.0/24"]);
+    const open = toMqttBrokerManifest("espoo", { name: "cameras", roles: [], allowedSources: [] }) as { spec: object };
+    expect(open.spec).not.toHaveProperty("allowedSources");
+  });
 });
 
 describe("the broker's address", () => {
