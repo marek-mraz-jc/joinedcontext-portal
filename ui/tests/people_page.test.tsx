@@ -373,8 +373,9 @@ describe("a person's page", () => {
     const sent: Sent[] = [];
     renderPage(<PersonPage id="jana-id" />, { path: "/organization/people/jana-id", answer: answer(sent) });
 
+    // The guard refuses while the rights are read (T-5833): open once the answer is in.
     const edit = await screen.findByRole("button", { name: P.edit });
-    expectOpen(edit);
+    await waitFor(() => expectOpen(edit));
     await user.click(edit);
     const dialog = await screen.findByRole("dialog", { name: "Edit Jana Nováková" });
     const last = within(dialog).getByRole("textbox", { name: new RegExp(P.form.lastName) });

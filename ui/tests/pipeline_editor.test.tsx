@@ -294,7 +294,10 @@ const targetPick = (dialog: HTMLElement) =>
   within(section(dialog, "workbench-target-title")).getByLabelText(en.pipelines.field.targetEndpoint);
 
 async function openNew() {
-  await user.click(await screen.findByRole("button", { name: en.pipelines.add }));
+  const add = await screen.findByRole("button", { name: en.pipelines.add });
+  // The guard refuses while the rights are read (T-5833).
+  await waitFor(() => expect(add).not.toHaveAttribute("aria-disabled"));
+  await user.click(add);
   const dialog = await findFormPage();
   // The selects are filled from the project's lists once they arrive: the target is the
   // workbench's last step, the source its first (T-2754, T-2709).
@@ -1188,7 +1191,9 @@ describe("the pipeline editor against the UI contract", () => {
     await i18n.changeLanguage(locale);
     renderPipelines();
 
-    await user.click(await screen.findByRole("button", { name: i18n.t("pipelines.add") }));
+    const add = await screen.findByRole("button", { name: i18n.t("pipelines.add") });
+    await waitFor(() => expect(add).not.toHaveAttribute("aria-disabled"));
+    await user.click(add);
     const dialog = await findFormPage();
     await within(within(section(dialog, "workbench-target-title")).getByLabelText(i18n.t("pipelines.field.targetEndpoint"))).findByRole("option", {
       name: "public-air",

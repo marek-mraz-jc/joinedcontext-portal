@@ -144,6 +144,9 @@ export function usePermissions(project: string) {
   return {
     data: query.data,
     isLoading: query.isPending,
+    // The first read is on its way: no document yet and none failed (T-5833). A disabled query
+    // (no project) is never checking.
+    checking: query.isLoading,
     // The 404 of a project no binding of the caller covers (PF-59): a known answer, reading nothing.
     denied: query.error instanceof ApiError && query.error.status === 404,
     can: (kind: string, verb: Verb) => allows(query.data, kind, verb),

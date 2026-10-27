@@ -6249,6 +6249,7 @@
     "pickedClear": "Alles bearbeiten"
   },
   "permissions": {
+    "checking": "Ihr Zugriff wird geprüft…",
     "denied": "Deaktiviert: Ihre Rolle erlaubt ''{verb}'' auf ''{kind}'' in diesem Projekt nicht",
     "deniedOrganization": "Nur die Organisationsadministration kann {kinds} {action}.",
     "action": {

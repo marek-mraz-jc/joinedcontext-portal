@@ -137,6 +137,34 @@ test.describe("the knowledge sources", () => {
     await expect(p.getByRole("table")).toHaveCount(0);
   });
 
+  // T-5833: the walker's viewer pressed "Add a source" on a slow Portal before its rights were read.
+  test("a viewer is offered no add while the rights are read, then told why", async ({ page: p }) => {
+    await stubApi(p, ["read"]);
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await p.route("**/api/v1/projects/helsinki/permissions/me", async (route) => {
+      await held;
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(grants(["read"])) });
+    });
+    for (const width of [1440, 400]) {
+      await p.setViewportSize({ width, height: 900 });
+      if (width === 1440) await p.goto("/projects/helsinki/knowledge?lang=en");
+      const add = p.getByRole("button", { name: "Add a source" }).first();
+      await expect(add).toHaveAttribute("aria-disabled", "true");
+      await expect(add).toHaveAccessibleDescription("Checking your access…");
+      await p.screenshot({ path: test.info().outputPath(`knowledge-viewer-checking-${width}.png`), fullPage: true });
+    }
+    await p.getByRole("button", { name: "Add a source" }).first().click({ force: true });
+    await expect(p).toHaveURL(/\/projects\/helsinki\/knowledge(\?|$)/);
+    release();
+    for (const width of [1440, 400]) {
+      await p.setViewportSize({ width, height: 900 });
+      const add = p.getByRole("button", { name: "Add a source" }).first();
+      await expect(add).toHaveAccessibleDescription(/does not permit 'propose' on 'KnowledgeSource'/);
+      await p.screenshot({ path: test.info().outputPath(`knowledge-viewer-refused-${width}.png`), fullPage: true });
+    }
+  });
+
   test("lists each source with what the assistant holds, and a source not crawled yet says so", async ({ page: p }) => {
     await stubApi(p);
     await p.goto("/projects/helsinki/knowledge?lang=en");
