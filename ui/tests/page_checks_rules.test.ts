@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { edgeRetryMs, pageFindings } from "./pageChecks";
+import { edgeRetryMs, pageFindings, shellFinding } from "./pageChecks";
 
 // T-4950: the rules that make a page explain itself, each with a page that passes and one that fails.
 const findings = (check: string) =>
@@ -16,6 +16,18 @@ describe("the walkers' boot check", () => {
     expect(pageFindings({ namespaces: [], layout: false })).toEqual([
       "boot: the Portal did not load, The Portal did not load. Load the page again.",
     ]);
+  });
+});
+
+describe("the walkers' shell check", () => {
+  it("names a tab holding no Portal document instead of judging its lang, title and h1 (T-5855)", () => {
+    document.title = "";
+    expect(shellFinding()).toEqual([`boot: the tab shows no Portal page (${location.href}, no #root, title "")`]);
+  });
+
+  it("passes a tab with the Portal's root", () => {
+    document.body.innerHTML = `<div id="root"><main><h1>Roles</h1></main></div>`;
+    expect(shellFinding()).toEqual([]);
   });
 });
 

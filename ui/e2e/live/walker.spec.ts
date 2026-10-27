@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import type { Page, Response } from "@playwright/test";
 import { axeViolations } from "../axe";
-import { pageFindings, unexcused, viewerWriteFindings } from "../../tests/pageChecks";
+import { pageFindings, shellFinding, unexcused, viewerWriteFindings } from "../../tests/pageChecks";
 import type { Excused } from "../../tests/pageChecks";
 import { STEWARD, VIEWER, afterSelfReload, hiddenSections, inHiddenSection, journeyMarkerOnPortalOnly, openToJudge, signIn } from "./portal";
 import { secretMasks, shot, writeIndex } from "./shoot";
@@ -137,14 +137,20 @@ for (const [who, person] of [
               await page.waitForTimeout(300);
               if (!edgeRefused) await afterSelfReload(page);
             }
-            const findings = edgeRefused ? ["boot: the edge refused the page with 429 Too Many Requests, after two loads again"] : [
-              ...current,
-              ...(await page.evaluate(pageFindings, { namespaces: NAMESPACES, layout: true })),
-              ...(await axeViolations(page))
-                .filter((violation) => /\((serious|critical)\)/.test(violation))
-                .map((violation) => `axe: ${violation.slice(0, 200)}`),
-              ...(who === "viewer" && !OWN.has(visit.route) ? await page.evaluate(viewerWriteFindings, true) : []),
-            ];
+            // A tab with no Portal document is reported as that alone: axe would name its empty <html> (T-5855).
+            const noShell = edgeRefused ? [] : await page.evaluate(shellFinding);
+            const findings = edgeRefused
+              ? ["boot: the edge refused the page with 429 Too Many Requests, after two loads again"]
+              : noShell.length > 0
+                ? [...current, ...noShell]
+                : [
+                  ...current,
+                  ...(await page.evaluate(pageFindings, { namespaces: NAMESPACES, layout: true })),
+                  ...(await axeViolations(page))
+                    .filter((violation) => /\((serious|critical)\)/.test(violation))
+                    .map((violation) => `axe: ${violation.slice(0, 200)}`),
+                  ...(who === "viewer" && !OWN.has(visit.route) ? await page.evaluate(viewerWriteFindings, true) : []),
+                ];
             const screenshot = test.info().outputPath(`${who}-${lang}-${size.width}${visit.address.replace(/[^a-z0-9]+/gi, "-")}.png`);
             await page.screenshot({ path: screenshot, fullPage: true, mask: secretMasks(page) });
             await shot(page, { area: "portal", route: visit.address, state: "open", who, lang });
