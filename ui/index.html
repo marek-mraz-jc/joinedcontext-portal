@@ -7,7 +7,7 @@
     <title>joinedcontext Portal</title>
     <!-- T-4201: shown only when the app has not drawn itself after 8 s (its entry script did not
          load); React replaces the contents of #root on its first render. No script: the CSP allows
-         none inline, and it allows inline style. -->
+         none inline; this style applies by the nonce vite stamps on it (T-5828). -->
     <style>
       #boot-failed { opacity: 0; animation: boot-failed-show 0s 8s forwards; max-width: 32rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; }
       @keyframes boot-failed-show { to { opacity: 1; } }

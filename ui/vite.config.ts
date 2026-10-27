@@ -53,6 +53,9 @@ function preloadLatinFont(): Plugin {
 
 export default defineConfig({
   plugins: [publicLocales(), preloadLatinFont(), react(), tailwindcss()],
+  // The Portal writes each answer's CSP nonce over this slot (src/csp.rs NONCE_SLOT, T-5828): on
+  // the shell's tags and in <meta property="csp-nonce"> for src/cspNonce.ts.
+  html: { cspNonce: "__JC_CSP_NONCE__" },
   // `@joinedcontext/sdk` is linked from this repository (T-1439) and carries its own `react` in
   // `sdk/node_modules`. Without deduping, a component from it renders against a second copy of
   // React whose hook dispatcher is null — every hook inside the grid throws "invalid hook call"
