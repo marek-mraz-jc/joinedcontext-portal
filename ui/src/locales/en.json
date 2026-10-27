@@ -9875,7 +9875,9 @@
         "no_role": "The account holds no role of this broker.",
         "no_subscription": "There is nothing this subscriber may read.",
         "source_address": "The device's address is outside the broker's allowed source networks.",
-        "no_realm": "The gateway has no realm to check tokens with."
+        "no_realm": "The gateway has no realm to check tokens with.",
+        "token_not_allowed": "This broker admits devices by client certificate only.",
+        "certificate": "The certificate is not a device certificate of this project, or the device sent a password to the certificate address."
       }
     },
     "noAccounts": "No service account of this project that you can read. Add a device from the broker's page, or create one under Project settings, Service accounts."

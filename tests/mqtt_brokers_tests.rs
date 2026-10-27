@@ -60,6 +60,7 @@ fn broker(project: &str, name: &str, connections: u32) -> Broker {
         release: release_name(project, name),
         spec: Ok(spec),
         certificate: None,
+        door: None,
     }
 }
 
