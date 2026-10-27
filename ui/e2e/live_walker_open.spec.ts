@@ -64,3 +64,21 @@ test("the walker reports a page the edge refuses on every load", async ({ page }
   );
   expect(await openToJudge(page, "http://portal.test/", 1_000)).toBe(true);
 });
+
+// T-5834: the walker judged "Add an assistant" on /projects/helsinki/knowledge as pressable by the
+// viewer at 1440 and refused at 400. The heading drew, permissions/me answered after the walker's
+// 1.5 s, and until then PermissionGuard leaves a control as it is (PF-51). Here the answer takes 3 s.
+test("the walker judges a page's controls after its permissions document answered", async ({ page }) => {
+  test.setTimeout(60_000);
+  const portal =
+    '<main><h1>Knowledge</h1><button id="add">Add an assistant</button></main><script>fetch("/api/v1/projects/helsinki/permissions/me").then(() => document.getElementById("add").setAttribute("aria-disabled", "true"));</script>';
+  await page.route("http://portal.test/**", async (route) => {
+    if (route.request().url().endsWith("/permissions/me")) {
+      await new Promise((resolve) => setTimeout(resolve, 3_000));
+      return route.fulfill({ body: '{"grants":[]}', contentType: "application/json" });
+    }
+    return route.fulfill({ body: portal, contentType: "text/html" });
+  });
+  expect(await openToJudge(page, "http://portal.test/projects/helsinki/knowledge", 1_000)).toBe(false);
+  expect(await page.locator("#add").getAttribute("aria-disabled")).toBe("true");
+});
