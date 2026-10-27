@@ -75,6 +75,29 @@ async fn the_portal_sends_a_csp_without_unsafe_inline_scripts() {
     );
 }
 
+/// T-5828 (ZAP 10055): a `<style>` element applies only with the answer's own nonce, so markup
+/// injected into a page cannot bring a stylesheet; a nonce is never reused across answers.
+#[tokio::test]
+async fn the_portal_takes_no_inline_stylesheet_without_its_nonce() {
+    let first = policy().await;
+    let styles = directive(&first, "style-src").expect("styles have their own directive");
+    assert!(
+        !styles.contains("unsafe-inline"),
+        "a stylesheet may not be inline without the nonce: {first}"
+    );
+    let nonce = styles
+        .split_whitespace()
+        .find_map(|source| source.strip_prefix("'nonce-")?.strip_suffix('\''))
+        .expect("style-src names the answer's nonce");
+    assert!(nonce.len() >= 22, "a nonce of 128 bits: {nonce}");
+    assert!(
+        !policy().await.contains(nonce),
+        "every answer gets a nonce of its own"
+    );
+    // Monaco's `style="top:..."` attributes: an attribute holds no selector.
+    assert_eq!(directive(&first, "style-src-attr"), Some("'unsafe-inline'"));
+}
+
 #[tokio::test]
 async fn the_portal_cannot_be_framed_by_another_origin() {
     let policy = policy().await;

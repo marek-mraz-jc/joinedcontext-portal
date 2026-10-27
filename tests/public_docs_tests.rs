@@ -36,8 +36,21 @@ async fn the_websocket_guide_answers_without_a_session() {
         "{body:.300}"
     );
     assert!(
-        policy.is_some_and(|policy| policy.contains("default-src 'self'")),
+        policy
+            .as_ref()
+            .is_some_and(|policy| policy.contains("default-src 'self'")),
         "the page keeps the Portal's Content-Security-Policy"
+    );
+    // its one stylesheet applies by its hash, with no 'unsafe-inline' (T-5828)
+    let policy = policy.unwrap_or_default();
+    let style = body
+        .split("<style>")
+        .nth(1)
+        .and_then(|rest| rest.split("</style>").next())
+        .expect("the page has its stylesheet");
+    assert!(
+        policy.contains(&joinedcontext_portal::agents::kit::script_hash(style)),
+        "{policy}"
     );
     // the footer names the docs commit the deployment pins and the release it belongs to
     let docs = joinedcontext_portal::public_docs::docs_commit();

@@ -45,14 +45,20 @@ pub fn app(state: AppState) -> Router {
         },
         None => "'self'".to_owned(),
     };
-    let content_security_policy = HeaderValue::from_str(&format!(
+    // `style-src` takes a `<style>` element only with the answer's nonce (crate::csp, T-5828) or,
+    // for the public docs pages, the hash of their one stylesheet. Style *attributes* stay
+    // allowed (`style-src-attr`): Monaco writes `style="top:..."` through innerHTML and no nonce
+    // or hash can cover an attribute; an attribute holds no selector, so it cannot read the page.
+    let content_security_policy: std::sync::Arc<str> = format!(
         "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; \
-         frame-src {frame_src}; form-action 'self'; img-src 'self' data: blob:; \
-         style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src {connect_src}; \
-         worker-src 'self' blob:",
+             frame-src {frame_src}; form-action 'self'; img-src 'self' data: blob:; \
+             style-src 'self' 'nonce-{slot}' {docs_style}; style-src-attr 'unsafe-inline'; \
+             font-src 'self' data:; connect-src {connect_src}; worker-src 'self' blob:",
+        slot = crate::csp::NONCE_SLOT,
+        docs_style = crate::public_docs::style_source(),
         connect_src = connect_src(&state.config)
-    ))
-    .expect("an origin serializes to header-safe ASCII");
+    )
+    .into();
 
     // A static app carries its own Content Security Policy and its own framing rule, built from
     // its manifest (AP-12); the Portal's would override them, so those two headers are set on
@@ -71,9 +77,9 @@ pub fn app(state: AppState) -> Router {
             HeaderName::from_static("x-frame-options"),
             HeaderValue::from_static("SAMEORIGIN"),
         ))
-        .layer(SetResponseHeaderLayer::overriding(
-            header::CONTENT_SECURITY_POLICY,
+        .layer(from_fn_with_state(
             content_security_policy,
+            crate::csp::middleware,
         ))
         // Outside the two framing headers, so it is the one place that may relax them, and only
         // for a public form's page whose Endpoint names the sites (EP-101).
