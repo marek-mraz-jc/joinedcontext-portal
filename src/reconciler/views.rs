@@ -1265,7 +1265,7 @@ fn rule_document(sources: &Sources, project: &str, space: &str) -> Value {
     let mut policies: Vec<Value> = sources
         .policies_of(project, space)
         .iter()
-        .map(|(name, policy)| policy_document(format!("{project}/{name}"), policy, None))
+        .map(|(name, policy)| policy_document(project, format!("{project}/{name}"), policy, None))
         .collect();
     let mut views = Map::new();
     for e in sources
@@ -1295,7 +1295,12 @@ fn rule_document(sources: &Sources, project: &str, space: &str) -> Value {
                 continue;
             };
             let id = format!("{project}/{name}@{slug}");
-            policies.push(policy_document(id.clone(), policy, Some(&narrowed)));
+            policies.push(policy_document(
+                project,
+                id.clone(),
+                policy,
+                Some(&narrowed),
+            ));
             ids.push(id);
         }
         views.insert(slug, json!(ids));
@@ -1312,9 +1317,9 @@ fn rule_document(sources: &Sources, project: &str, space: &str) -> Value {
     json!({ "policies": policies, "views": views })
 }
 
-/// One Policy as the engine reads it (README section 2), under `id`, its `temporalQ` the
-/// `window` when one is given (already intersected with the Policy's own).
-fn policy_document(id: String, policy: &PolicySpec, window: Option<&str>) -> Value {
+/// One Policy of `project` as the engine reads it (README section 2), under `id`, its `temporalQ`
+/// the `window` when one is given (already intersected with the Policy's own).
+fn policy_document(project: &str, id: String, policy: &PolicySpec, window: Option<&str>) -> Value {
     let mut clauses: Vec<&str> = Vec::new();
     for op in permitted(policy) {
         for clause in operation(op).0 {
@@ -1335,7 +1340,7 @@ fn policy_document(id: String, policy: &PolicySpec, window: Option<&str>) -> Val
     );
     doc.insert(
         "assignee".into(),
-        json!({"kind": policy.assignee.kind.as_str(), "id": policy.assignee.id}),
+        json!({"kind": policy.assignee.kind.as_str(), "id": assignee_id(project, policy)}),
     );
     doc.insert("operations".into(), json!(clauses));
     if let Some(validity) = &policy.validity {
@@ -1372,6 +1377,18 @@ const GATEWAY_CLAUSES: &[&str] = &[
 
 /// A rule document plus the one policy that admits the gateway's own hops; `@` keeps its id
 /// apart from every `{project}/{name}`.
+/// The assignee as the gateway pins the caller: a bare `serviceAccount` is the account of the
+/// Policy's own project, `{project}/{name}`, as the gateway sends `x-jc-client`; a same-named
+/// account of another project the Endpoint admits never matches it (PL-92, F-SEC1-003, T-5860).
+fn assignee_id(project: &str, policy: &PolicySpec) -> String {
+    let id = &policy.assignee.id;
+    if policy.assignee.kind == PrincipalKind::ServiceAccount && !id.contains('/') {
+        format!("{project}/{id}")
+    } else {
+        id.clone()
+    }
+}
+
 fn with_gateway(mut document: Value) -> Value {
     if let Some(policies) = document["policies"].as_array_mut() {
         policies.push(json!({
@@ -5103,6 +5120,29 @@ mod tests {
         );
         assert_eq!(get("/q/policy/city-air").await.0, 404);
         assert_eq!(get("/q/schemas/city-air").await.0, 404);
+    }
+
+    /// F-SEC1-003 (T-5860, PL-92): the engine compares `x-jc-client`, which the gateway sends
+    /// as `{project}/{name}`, with the assignee as written, so a bare serviceAccount assignee is
+    /// rendered as its Policy's own project's account; a qualified one and other kinds stay.
+    #[test]
+    fn a_bare_service_account_assignee_is_rendered_as_its_own_projects_account() {
+        let to = |kind: &str, id: &str| policy(json!({"assignee": {"kind": kind, "id": id}}));
+        let s = sources(vec![
+            ("own", to("serviceAccount", "pl-buses")),
+            ("shared", to("serviceAccount", "fleet/pl-buses")),
+            ("readers", to("role", "reader")),
+        ]);
+        let doc = rule_document(&s, "city", "air");
+        let assignee = |id: &str| {
+            doc["policies"]
+                .as_array()
+                .and_then(|all| all.iter().find(|p| p["id"] == id))
+                .map(|p| p["assignee"]["id"].clone())
+        };
+        assert_eq!(assignee("city/own"), Some(json!("city/pl-buses")), "{doc}");
+        assert_eq!(assignee("city/shared"), Some(json!("fleet/pl-buses")));
+        assert_eq!(assignee("city/readers"), Some(json!("reader")));
     }
 
     /// DM-90: a space that can quarantine narrows every permit but the owner's and the
