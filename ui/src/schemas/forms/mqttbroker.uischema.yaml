@@ -25,7 +25,7 @@ spec:
       kurzlebigen Token an, und jede Rolle sagt, in welche Topics ihre Accounts veröffentlichen oder
       welche sie abonnieren dürfen. Eine Pipeline liest den Broker innerhalb der Plattform; der
       Broker hat kein eigenes Passwort.
-  order: [name, mode, capture, roles, limits, port]
+  order: [name, mode, capture, roles, allowedSources, limits, port]
   groups:
     - title:
         en: The broker
@@ -44,11 +44,11 @@ spec:
         cs: Kdo smí co
         de: Wer was darf
       description:
-        en: "One role per group of devices: the accounts that hold it and the topics they may use."
-        sk: "Jedna rola na skupinu zariadení: účty, ktoré ju majú, a témy, ktoré smú používať."
-        cs: "Jedna role na skupinu zařízení: účty, které ji mají, a témata, která smějí používat."
-        de: "Eine Rolle je Gerätegruppe: die Accounts mit dieser Rolle und die Topics, die sie nutzen dürfen."
-      fields: [roles]
+        en: "One role per group of devices: the accounts that hold it and the topics they may use, and the networks devices may connect from."
+        sk: "Jedna rola na skupinu zariadení: účty, ktoré ju majú, a témy, ktoré smú používať, a siete, z ktorých sa zariadenia smú pripojiť."
+        cs: "Jedna role na skupinu zařízení: účty, které ji mají, a témata, která smějí používat, a sítě, ze kterých se zařízení smějí připojit."
+        de: "Eine Rolle je Gerätegruppe: die Accounts mit dieser Rolle, die Topics, die sie nutzen dürfen, und die Netze, aus denen sich Geräte verbinden dürfen."
+      fields: [roles, allowedSources]
     - title:
         en: Limits and port
         sk: Limity a port
@@ -153,3 +153,10 @@ spec:
         sk: Vlastný port od 18830 do 18849 pre zariadenia, ktoré nevedia poslať názov hostiteľa; prázdne použije 8883 podľa názvu. Napr. 18830.
         cs: Vlastní port od 18830 do 18849 pro zařízení, která neumějí poslat název hostitele; prázdné použije 8883 podle názvu. Např. 18830.
         de: Ein eigener Port von 18830 bis 18849 für Geräte, die keinen Hostnamen senden können; leer gilt 8883 nach Namen. Z. B. 18830.
+    allowedSources:
+      placeholder: 203.0.113.0/24
+      help:
+        en: "Networks devices may connect from, one CIDR range each, at most 32; empty lets any address connect with a valid token. Others are cut off before TLS. E.g. 203.0.113.0/24 or 2001:db8::/48."
+        sk: "Siete, z ktorých sa zariadenia smú pripojiť, jeden rozsah CIDR v každom poli, najviac 32; prázdne pripustí akúkoľvek adresu s platným tokenom. Ostatné sa odpoja pred TLS. Napr. 203.0.113.0/24 alebo 2001:db8::/48."
+        cs: "Sítě, ze kterých se zařízení smějí připojit, jeden rozsah CIDR v každém poli, nejvýše 32; prázdné připustí jakoukoli adresu s platným tokenem. Ostatní se odpojí před TLS. Např. 203.0.113.0/24 nebo 2001:db8::/48."
+        de: "Netze, aus denen sich Geräte verbinden dürfen, ein CIDR-Bereich je Eintrag, höchstens 32; leer lässt jede Adresse mit gültigem Token zu. Andere werden vor TLS getrennt. Z. B. 203.0.113.0/24 oder 2001:db8::/48."

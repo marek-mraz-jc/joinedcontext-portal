@@ -9669,6 +9669,7 @@
       "messagesPerSecond": "Nachrichten pro Sekunde je Gerät",
       "maxConnections": "Höchstens Verbindungen",
       "port": "Eigener Port",
+      "allowedSources": "Erlaubte Quellnetze",
       "mode": "Was der Broker tut",
       "capture": "Aufbewahrte Nachrichten",
       "messagesPerTopic": "Nachrichten je Thema",
@@ -9685,6 +9686,7 @@
       "address": "Adresse",
       "copy": "Adresse kopieren",
       "noAddress": "Wird angezeigt, wenn das Portal unter seiner eigenen Adresse (portal.<domain>) geöffnet ist.",
+      "anySource": "Jede Adresse mit gültigem Token",
       "client": "Client-ID und Benutzername",
       "password": "Passwort",
       "token": "Ein Access-Token des eigenen Clients des Geräts, mit seinem Schlüssel geholt; nie ein gespeichertes Passwort.",
@@ -9869,6 +9871,7 @@
         "other_project": "Das Konto gehört zu einem anderen Projekt.",
         "no_role": "Das Konto hat keine Rolle dieses Brokers.",
         "no_subscription": "Dieser Abonnent darf nichts lesen.",
+        "source_address": "Die Adresse des Geräts liegt außerhalb der erlaubten Quellnetze des Brokers.",
         "no_realm": "Das Gateway hat keinen Realm zur Tokenprüfung."
       }
     },
