@@ -9669,6 +9669,7 @@
       "messagesPerSecond": "Správ za sekundu na zariadenie",
       "maxConnections": "Najviac spojení",
       "port": "Vlastný port",
+      "allowedSources": "Povolené zdrojové siete",
       "mode": "Čo broker robí",
       "capture": "Uchované správy",
       "messagesPerTopic": "Uchovaných správ na tému",
@@ -9685,6 +9686,7 @@
       "address": "Adresa",
       "copy": "Kopírovať adresu",
       "noAddress": "Zobrazí sa, keď je Portál otvorený na vlastnej adrese (portal.<doména>).",
+      "anySource": "Akákoľvek adresa s platným tokenom",
       "client": "ID klienta a používateľské meno",
       "password": "Heslo",
       "token": "Prístupový token vlastného klienta zariadenia, získaný jeho kľúčom; nikdy uložené heslo.",
@@ -9872,6 +9874,7 @@
         "other_project": "Účet patrí inému projektu.",
         "no_role": "Účet nemá žiadnu rolu tohto brokera.",
         "no_subscription": "Tento odberateľ nemá čo čítať.",
+        "source_address": "Adresa zariadenia je mimo povolených zdrojových sietí brokera.",
         "no_realm": "Brána nemá realm na overenie tokenov."
       }
     },

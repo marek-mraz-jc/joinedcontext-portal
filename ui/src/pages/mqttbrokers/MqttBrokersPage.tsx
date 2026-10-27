@@ -103,10 +103,12 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
     roles?: Role[];
     port?: number;
     hostname?: string;
+    allowedSources?: string[];
     mode?: string;
     capture?: { messagesPerTopic?: number; window?: string };
   };
   const mode = spec.mode ?? "ingest";
+  const sources = spec.allowedSources ?? [];
   const roles = spec.roles ?? [];
   const address = brokerAddress(name, project, window.location.hostname, spec.port, spec.hostname);
   // The CNAME target of a custom hostname: the broker's platform name, which the edge's DNS answers.
@@ -193,6 +195,14 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
               </>
             ) : (
               t("mqttbrokers.connect.noAddress")
+            )}
+          </dd>
+          <dt className="text-fg-muted">{t("mqttbrokers.field.allowedSources")}</dt>
+          <dd className="break-words" data-testid="broker-sources">
+            {sources.length > 0 ? (
+              <span className="font-mono">{sources.join(", ")}</span>
+            ) : (
+              t("mqttbrokers.connect.anySource")
             )}
           </dd>
           <dt className="text-fg-muted">{t("mqttbrokers.connect.certificate")}</dt>

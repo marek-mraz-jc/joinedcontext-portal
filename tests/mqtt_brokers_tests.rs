@@ -78,6 +78,17 @@ fn held(kind: &str, releases: &[&str]) -> Value {
     })).collect::<Vec<_>>() })
 }
 
+/// No broker holds an edge filter (PF-129) yet; the reconciler lists the kind to retire one.
+async fn no_edge_filters(server: &MockServer) {
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/apis/traefik.io/v1alpha1/namespaces/{NAMESPACE}/middlewaretcps"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "items": [] })))
+        .mount(server)
+        .await;
+}
+
 async fn cluster(template: Option<&str>, releases: &[&str]) -> MockServer {
     let server = MockServer::start().await;
     let map = format!("/api/v1/namespaces/{NAMESPACE}/configmaps/broker-template");
@@ -108,6 +119,7 @@ async fn cluster(template: Option<&str>, releases: &[&str]) -> MockServer {
             .mount(&server)
             .await;
     }
+    no_edge_filters(&server).await;
     for verb in ["PATCH", "DELETE"] {
         Mock::given(method(verb))
             .respond_with(ResponseTemplate::new(200).set_body_string("{}"))
@@ -274,6 +286,7 @@ async fn without_the_template_nothing_is_applied_or_removed_and_the_run_says_why
 #[tokio::test]
 async fn an_apply_the_api_server_refuses_is_that_brokers_failure_alone() {
     let server = MockServer::start().await;
+    no_edge_filters(&server).await;
     Mock::given(method("GET"))
         .and(path(format!(
             "/api/v1/namespaces/{NAMESPACE}/configmaps/broker-template"
@@ -355,6 +368,7 @@ spec:
 #[tokio::test]
 async fn a_port_is_routed_while_named_and_its_route_goes_when_the_manifest_drops_it() {
     let server = MockServer::start().await;
+    no_edge_filters(&server).await;
     Mock::given(method("GET"))
         .and(path(format!(
             "/api/v1/namespaces/{NAMESPACE}/configmaps/broker-template"
@@ -485,6 +499,7 @@ spec:
 #[tokio::test]
 async fn a_custom_hostname_is_routed_by_its_name_and_waits_for_dns_until_issued() {
     let server = MockServer::start().await;
+    no_edge_filters(&server).await;
     Mock::given(method("GET"))
         .and(path(format!(
             "/api/v1/namespaces/{NAMESPACE}/configmaps/broker-template"

@@ -68,13 +68,14 @@ const CREATED_ONLY: (&str, &str, &str) = ("v1", "ConfigMap", "configmaps");
 /// What one MQTT edge broker's release is made of (ADR-N-048 §2.6, T-3994), reachable only through
 /// the `*_mqtt` methods: in the brokers' namespace, by a name that starts `mqtt-`, so a template
 /// that asked for anything else is refused before a request is made.
-const MQTT_KINDS: [(&str, &str, &str); 10] = [
+const MQTT_KINDS: [(&str, &str, &str); 11] = [
     ("v1", "ServiceAccount", "serviceaccounts"),
     ("v1", "ConfigMap", "configmaps"),
     ("v1", "Service", "services"),
     ("apps/v1", "Deployment", "deployments"),
     ("cert-manager.io/v1", "Certificate", "certificates"),
     ("traefik.io/v1alpha1", "IngressRouteTCP", "ingressroutetcps"),
+    ("traefik.io/v1alpha1", "MiddlewareTCP", "middlewaretcps"),
     ("policy.linkerd.io/v1beta3", "Server", "servers"),
     ("policy.linkerd.io/v1beta3", "HTTPRoute", "httproutes"),
     (
@@ -832,7 +833,7 @@ mod tests {
         assert!(created_or_applied(object_kind(&role), &role).is_err());
     }
 
-    /// T-3994: a broker's release reaches its nine kinds by an `mqtt-` name and nothing else,
+    /// T-3994: a broker's release reaches its eleven kinds by an `mqtt-` name and nothing else,
     /// and none of the five it adds becomes reachable by `apply`.
     #[test]
     fn a_brokers_kinds_are_its_own_and_named_mqtt() {

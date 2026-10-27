@@ -164,6 +164,79 @@ test.describe("MQTT brokers", () => {
     }
   });
 
+  test("a steward fences a broker to the city's networks and a bad range is named at the field (PF-129)", async ({ page }) => {
+    await stubApi(page);
+    await page.route("**/api/v1/projects/helsinki/permissions/me", (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ project: PROJECT, bootstrap: true, grants: [] }) }),
+    );
+    await page.route("**/api/v1/projects/helsinki/drafts/MqttBroker/*", async (route) => {
+      const manifest = (route.request().postDataJSON() as { manifest?: unknown } | null)?.manifest ?? null;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ project: PROJECT, kind: "MqttBroker", name: "sensors", manifest, verdict: null, touchedBy: "aino.virtanen", touchedKind: "person", version: 1, updatedAt: "2026-10-27T18:00:00Z" }),
+      });
+    });
+    const shots = process.env.T5870_SHOTS;
+    const shoot = async (state: string) => {
+      if (!shots) return;
+      for (const width of [1440, 400]) {
+        await page.setViewportSize({ width, height: width === 400 ? 860 : 900 });
+        await page.locator("#root_allowedSources__description").scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `${shots}/mqtt-broker-sources-${state}-${width}.png` });
+      }
+      await page.setViewportSize({ width: 1440, height: 900 });
+    };
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/projects/${PROJECT}/mqttbrokers/new?lang=en`);
+    await expect(page.getByRole("heading", { level: 1, name: "New MQTT broker" })).toBeVisible();
+    await page.locator("#root_name").fill("sensors");
+    await page.locator("#root_roles_0_name").fill("sensors");
+    await page.locator("#root_roles_0_serviceAccounts_0").selectOption("cam-1");
+    const help = page.locator("#root_allowedSources__description");
+    await expect(help).toContainText("E.g. 203.0.113.0/24");
+    await shoot("empty");
+    await help.locator("xpath=following::button[normalize-space()='Add'][1]").click();
+    const range = page.locator("#root_allowedSources_0");
+    await range.fill("sensors.city.example/24");
+    await range.blur();
+    await expect(page.getByText(/must match pattern|does not match|format/i).first()).toBeVisible();
+    await shoot("error");
+    await range.fill("203.0.113.0/24");
+    await range.blur();
+    await expect(page.getByText(/must match pattern|does not match|format/i)).toHaveCount(0);
+    expect(await axeViolations(page)).toEqual([]);
+    await shoot("filled");
+  });
+
+  test("the broker list shows the networks a broker admits, or any address", async ({ page }) => {
+    LISTS.mqttbrokers.push(
+      item(
+        "MqttBroker",
+        "fenced",
+        { roles: [{ name: "cams", serviceAccounts: ["cam-1"], publish: ["cameras/${clientid}/frames"] }], allowedSources: ["203.0.113.0/24", "2001:db8::/48"] },
+        { phase: "Live" },
+      ),
+    );
+    try {
+      await stubApi(page);
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(`/projects/${PROJECT}/mqttbrokers?lang=en`);
+      const sources = page.getByTestId("broker-sources");
+      await expect(sources.first()).toHaveText("Any address with a valid token");
+      await expect(sources.nth(1)).toHaveText("203.0.113.0/24, 2001:db8::/48");
+      const shots = process.env.T5870_SHOTS;
+      if (shots) {
+        for (const width of [1440, 400]) {
+          await page.setViewportSize({ width, height: width === 400 ? 860 : 900 });
+          await sources.nth(1).scrollIntoViewIfNeeded();
+          await page.screenshot({ path: `${shots}/mqtt-broker-sources-list-${width}.png` });
+        }
+      }
+    } finally {
+      LISTS.mqttbrokers.pop();
+    }
+  });
+
   test("a steward who reads no account is told where one comes from", async ({ page }) => {
     await stubApi(page);
     await page.route("**/api/v1/projects/helsinki/permissions/me", (route) =>

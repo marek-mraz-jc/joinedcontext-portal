@@ -559,7 +559,7 @@ pub struct Refusal {
     #[schema(value_type = String, format = DateTime)]
     pub at: DateTime<Utc>,
     /// `no_token`, `expired`, `wrong_audience`, `invalid_token`, `wrong_client`,
-    /// `unknown_account`, `other_project`, `no_role`, `no_subscription` or `no_realm`.
+    /// `unknown_account`, `other_project`, `no_role`, `no_subscription`, `source_address` or `no_realm`.
     pub reason: String,
     pub account: Option<String>,
 }
