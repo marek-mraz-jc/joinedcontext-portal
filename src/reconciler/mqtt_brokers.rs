@@ -31,6 +31,12 @@ use crate::store::{ListOptions, Mirror};
 pub const TEMPLATE: &str = "broker-template";
 /// Its key.
 pub const TEMPLATE_KEY: &str = "objects.yaml";
+/// The key of a broker's dedicated-port route, `__PORT__` its port, added only for a broker
+/// with a served `spec.port` (ADR-N-048 §2.5, T-5856).
+pub const PORT_KEY: &str = "port.yaml";
+/// The dedicated ports the edge serves: each one a Traefik entrypoint `mqtt-<port>`. The rest
+/// of `DEDICATED_PORTS` stays reserved, so a broker given one of them is not applied.
+pub const SERVED_PORTS: std::ops::RangeInclusive<u16> = 18830..=18839;
 /// The labels every object of a broker the reconciler made carries, and the ones it retires by.
 pub const SELECTOR: &str =
     "app.kubernetes.io/part-of=mqtt-brokers,app.kubernetes.io/managed-by=joinedcontext-portal";
@@ -101,6 +107,15 @@ pub fn declared(mirror: &Mirror) -> Vec<Broker> {
         let Some(port) = broker.spec.as_ref().ok().and_then(|spec| spec.port) else {
             continue;
         };
+        if !SERVED_PORTS.contains(&port) {
+            broker.spec = Err(format!(
+                "spec.port {port} is reserved but not served: the edge serves {}-{} (ADR-N-048 \
+                 §2.5); pick one of those",
+                SERVED_PORTS.start(),
+                SERVED_PORTS.end()
+            ));
+            continue;
+        }
         match ports.get(&port) {
             Some(holder) => {
                 broker.spec = Err(format!(
@@ -211,6 +226,33 @@ pub fn render(
     Ok(objects)
 }
 
+/// Every object of one broker: the template's, and for a broker with `spec.port` the route of
+/// [`PORT_KEY`] with `__PORT__` filled, which a template without that key refuses.
+pub fn objects_of(
+    template: &str,
+    port_template: Option<&str>,
+    broker: &Broker,
+    spec: &MqttBrokerSpec,
+) -> Result<Vec<Value>, String> {
+    let mut objects = render(template, broker, spec)?;
+    if let Some(port) = spec.port {
+        let port_template = port_template.ok_or_else(|| {
+            format!("{TEMPLATE} has no {PORT_KEY} for spec.port {port}: the deployment renders it")
+        })?;
+        objects.extend(render(
+            &port_template.replace("__PORT__", &port.to_string()),
+            broker,
+            spec,
+        )?);
+    }
+    Ok(objects)
+}
+
+/// The name of a broker's dedicated-port route, as the template's [`PORT_KEY`] names it.
+fn port_route(release: &str) -> String {
+    format!("{release}-port")
+}
+
 /// The kinds a release is made of, read from the template itself: what a retired broker left.
 fn template_kinds(template: &str) -> BTreeSet<(String, String)> {
     serde_norway::Deserializer::from_str(template)
@@ -240,18 +282,23 @@ impl MqttBrokers {
     }
 
     /// Applies every broker the platform accepts and, when `retire` holds, removes the objects of
-    /// every release no manifest names any more. Answers the failure of each broker that has one,
+    /// every release no manifest names any more, and the port route of a broker that names no
+    /// port any more. Answers the failure of each broker that has one,
     /// by `{project}/{name}`, and `*` for one that touched them all.
     pub async fn converge(&self, brokers: &[Broker], retire: bool) -> BTreeMap<String, String> {
         let mut failed = BTreeMap::new();
-        let template = match self.kube.get_config_map(&self.namespace, TEMPLATE).await {
-            Ok(Some(map)) => map["data"][TEMPLATE_KEY].as_str().map(str::to_owned),
-            Ok(None) => None,
-            Err(err) => {
-                failed.insert("*".to_owned(), format!("reading {TEMPLATE}: {err}"));
-                return failed;
-            }
-        };
+        let (template, port_template) =
+            match self.kube.get_config_map(&self.namespace, TEMPLATE).await {
+                Ok(Some(map)) => (
+                    map["data"][TEMPLATE_KEY].as_str().map(str::to_owned),
+                    map["data"][PORT_KEY].as_str().map(str::to_owned),
+                ),
+                Ok(None) => (None, None),
+                Err(err) => {
+                    failed.insert("*".to_owned(), format!("reading {TEMPLATE}: {err}"));
+                    return failed;
+                }
+            };
         let Some(template) = template else {
             failed.insert(
                 "*".to_owned(),
@@ -264,7 +311,7 @@ impl MqttBrokers {
         };
         for broker in brokers {
             let Ok(spec) = &broker.spec else { continue };
-            let objects = match render(&template, broker, spec) {
+            let objects = match objects_of(&template, port_template.as_deref(), broker, spec) {
                 Ok(objects) => objects,
                 Err(err) => {
                     failed.insert(broker.label(), err);
@@ -283,6 +330,12 @@ impl MqttBrokers {
         }
         // A refused manifest keeps its release: only a broker no manifest names is gone.
         let held: BTreeSet<&str> = brokers.iter().map(|b| b.release.as_str()).collect();
+        // A port the manifest gave up closes: that broker's port route goes with the rest.
+        let closed: BTreeSet<String> = brokers
+            .iter()
+            .filter(|b| b.spec.as_ref().is_ok_and(|spec| spec.port.is_none()))
+            .map(|b| port_route(&b.release))
+            .collect();
         for (api_version, kind) in &template_kinds(&template) {
             let listed = match self
                 .kube
@@ -302,7 +355,7 @@ impl MqttBrokers {
                 let Some(name) = object["metadata"]["name"].as_str() else {
                     continue;
                 };
-                if held.contains(release) {
+                if held.contains(release) && !closed.contains(name) {
                     continue;
                 }
                 if let Err(err) = self
@@ -638,6 +691,80 @@ spec:
         assert!(
             refused.contains("18830 is already held by espoo/cameras"),
             "{refused}"
+        );
+    }
+
+    #[test]
+    fn a_reserved_port_the_edge_does_not_serve_leaves_the_broker_unapplied_with_the_range() {
+        let mirror = mirror();
+        mirror.upsert(envelope(
+            "Organization",
+            crate::permissions::ORG_NAMESPACE,
+            "hel",
+            json!({ "domain": "hel.fi", "limits": { "mqtt": {
+                "enabled": true, "brokers": 2, "connections": 20000, "messagesPerSecond": 100000,
+                "addresses": ["platform", "dedicatedPort"], "ports": [18830, 18845]
+            } } }),
+        ));
+        mirror.upsert(envelope(
+            "MqttBroker",
+            "espoo",
+            "cameras",
+            broker_spec(&["cam-north"], Some(18845)),
+        ));
+        let brokers = declared(&mirror);
+        let espoo = brokers
+            .iter()
+            .find(|b| b.project == "espoo")
+            .expect("espoo");
+        let refused = espoo.spec.as_ref().expect_err("refused");
+        assert!(
+            refused.contains("18845 is reserved but not served") && refused.contains("18830-18839"),
+            "{refused}"
+        );
+        let helsinki = brokers
+            .iter()
+            .find(|b| b.label() == "helsinki/cameras")
+            .expect("helsinki");
+        assert_eq!(
+            helsinki.spec.as_ref().ok().and_then(|s| s.port),
+            Some(18830)
+        );
+    }
+
+    const PORT_TEXT: &str = "\
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: __RELEASE__-port
+  labels:
+    app.kubernetes.io/instance: __RELEASE__
+spec:
+  entryPoints: [mqtt-__PORT__]
+  routes:
+    - match: HostSNI(`*`)
+";
+
+    #[test]
+    fn a_broker_with_a_port_gets_its_entrypoint_route_and_one_without_none() {
+        let brokers = declared(&mirror());
+        let cameras = &brokers[1];
+        let mut spec = cameras.spec.clone().expect("valid");
+        spec.port = Some(18835);
+        let objects = objects_of(TEMPLATE_TEXT, Some(PORT_TEXT), cameras, &spec).expect("renders");
+        assert_eq!(objects.len(), 4);
+        assert_eq!(objects[3]["metadata"]["name"], "mqtt-helsinki-cameras-port");
+        assert_eq!(objects[3]["spec"]["entryPoints"], json!(["mqtt-18835"]));
+        assert_eq!(port_route(&cameras.release), "mqtt-helsinki-cameras-port");
+        let err = objects_of(TEMPLATE_TEXT, None, cameras, &spec).expect_err("no port.yaml");
+        assert!(err.contains("has no port.yaml"), "{err}");
+        spec.port = None;
+        assert_eq!(
+            objects_of(TEMPLATE_TEXT, Some(PORT_TEXT), cameras, &spec)
+                .expect("renders")
+                .len(),
+            3
         );
     }
 
