@@ -9872,7 +9872,9 @@
         "other_project": "Účet patří jinému projektu.",
         "no_role": "Účet nemá žádnou roli tohoto brokera.",
         "no_subscription": "Tento odběratel nemá co číst.",
-        "no_realm": "Brána nemá realm k ověření tokenů."
+        "no_realm": "Brána nemá realm k ověření tokenů.",
+        "token_not_allowed": "Tento broker přijímá zařízení jen s klientským certifikátem.",
+        "certificate": "Certifikát není certifikátem zařízení tohoto projektu, nebo zařízení poslalo heslo na adresu pro certifikáty."
       }
     },
     "noAccounts": "V projektu není servisní účet, který můžete číst. Přidejte zařízení na stránce brokeru nebo vytvořte účet v Nastavení projektu, Servisní účty."

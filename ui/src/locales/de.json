@@ -9872,7 +9872,9 @@
         "other_project": "Das Konto gehört zu einem anderen Projekt.",
         "no_role": "Das Konto hat keine Rolle dieses Brokers.",
         "no_subscription": "Dieser Abonnent darf nichts lesen.",
-        "no_realm": "Das Gateway hat keinen Realm zur Tokenprüfung."
+        "no_realm": "Das Gateway hat keinen Realm zur Tokenprüfung.",
+        "token_not_allowed": "Dieser Broker lässt Geräte nur mit Client-Zertifikat zu.",
+        "certificate": "Das Zertifikat ist kein Gerätezertifikat dieses Projekts, oder das Gerät hat an die Zertifikatsadresse ein Passwort gesendet."
       }
     },
     "noAccounts": "Kein Dienstkonto dieses Projekts, das Sie lesen dürfen. Fügen Sie auf der Seite des Brokers ein Gerät hinzu oder legen Sie eines unter Projekteinstellungen, Dienstkonten an."
