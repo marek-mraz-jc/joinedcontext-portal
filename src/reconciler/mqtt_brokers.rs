@@ -31,6 +31,14 @@ use crate::store::{ListOptions, Mirror};
 pub const TEMPLATE: &str = "broker-template";
 /// Its key.
 pub const TEMPLATE_KEY: &str = "objects.yaml";
+/// The key of the same objects for a broker with a served `spec.port` (ADR-N-048 §2.5, T-5856):
+/// a TLS listener in RMQTT and a passthrough route on the entrypoint `mqtt-__PORT__`, the pod
+/// annotated with `__TLS_REVISION__`, its Certificate's `status.revision`, so a renewed
+/// certificate rolls the broker, which reads it only at start.
+pub const PORT_KEY: &str = "objects-port.yaml";
+/// The dedicated ports the edge serves: each one a Traefik entrypoint `mqtt-<port>`. The rest
+/// of `DEDICATED_PORTS` stays reserved, so a broker given one of them is not applied.
+pub const SERVED_PORTS: std::ops::RangeInclusive<u16> = 18830..=18839;
 /// The labels every object of a broker the reconciler made carries, and the ones it retires by.
 pub const SELECTOR: &str =
     "app.kubernetes.io/part-of=mqtt-brokers,app.kubernetes.io/managed-by=joinedcontext-portal";
@@ -101,6 +109,15 @@ pub fn declared(mirror: &Mirror) -> Vec<Broker> {
         let Some(port) = broker.spec.as_ref().ok().and_then(|spec| spec.port) else {
             continue;
         };
+        if !SERVED_PORTS.contains(&port) {
+            broker.spec = Err(format!(
+                "spec.port {port} is reserved but not served: the edge serves {}-{} (ADR-N-048 \
+                 §2.5); pick one of those",
+                SERVED_PORTS.start(),
+                SERVED_PORTS.end()
+            ));
+            continue;
+        }
         match ports.get(&port) {
             Some(holder) => {
                 broker.spec = Err(format!(
@@ -211,6 +228,45 @@ pub fn render(
     Ok(objects)
 }
 
+/// Every object of one broker: the template's, or for a broker with `spec.port` the one of
+/// [`PORT_KEY`] with `__PORT__` and `__TLS_REVISION__` filled, which a template without that key
+/// refuses. `tls_revision` is the Certificate's `status.revision`, a number or nothing yet.
+pub fn objects_of(
+    template: &str,
+    port_template: Option<&str>,
+    broker: &Broker,
+    spec: &MqttBrokerSpec,
+    tls_revision: Option<u64>,
+) -> Result<Vec<Value>, String> {
+    let Some(port) = spec.port else {
+        return render(template, broker, spec);
+    };
+    let port_template = port_template.ok_or_else(|| {
+        format!("{TEMPLATE} has no {PORT_KEY} for spec.port {port}: the deployment renders it")
+    })?;
+    render(
+        &port_template
+            .replace("__PORT__", &port.to_string())
+            .replace(
+                "__TLS_REVISION__",
+                &tls_revision.map(|r| r.to_string()).unwrap_or_default(),
+            ),
+        broker,
+        spec,
+    )
+}
+
+/// What tells two objects of a release apart: kind and name.
+fn identity(object: &Value) -> (String, String) {
+    (
+        object["kind"].as_str().unwrap_or_default().to_owned(),
+        object["metadata"]["name"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned(),
+    )
+}
+
 /// The kinds a release is made of, read from the template itself: what a retired broker left.
 fn template_kinds(template: &str) -> BTreeSet<(String, String)> {
     serde_norway::Deserializer::from_str(template)
@@ -240,18 +296,23 @@ impl MqttBrokers {
     }
 
     /// Applies every broker the platform accepts and, when `retire` holds, removes the objects of
-    /// every release no manifest names any more. Answers the failure of each broker that has one,
-    /// by `{project}/{name}`, and `*` for one that touched them all.
+    /// every release no manifest names any more, and those an applied broker no longer renders
+    /// (a dropped port's route, listener and Server). Answers the failure of each broker that
+    /// has one, by `{project}/{name}`, and `*` for one that touched them all.
     pub async fn converge(&self, brokers: &[Broker], retire: bool) -> BTreeMap<String, String> {
         let mut failed = BTreeMap::new();
-        let template = match self.kube.get_config_map(&self.namespace, TEMPLATE).await {
-            Ok(Some(map)) => map["data"][TEMPLATE_KEY].as_str().map(str::to_owned),
-            Ok(None) => None,
-            Err(err) => {
-                failed.insert("*".to_owned(), format!("reading {TEMPLATE}: {err}"));
-                return failed;
-            }
-        };
+        let (template, port_template) =
+            match self.kube.get_config_map(&self.namespace, TEMPLATE).await {
+                Ok(Some(map)) => (
+                    map["data"][TEMPLATE_KEY].as_str().map(str::to_owned),
+                    map["data"][PORT_KEY].as_str().map(str::to_owned),
+                ),
+                Ok(None) => (None, None),
+                Err(err) => {
+                    failed.insert("*".to_owned(), format!("reading {TEMPLATE}: {err}"));
+                    return failed;
+                }
+            };
         let Some(template) = template else {
             failed.insert(
                 "*".to_owned(),
@@ -262,19 +323,19 @@ impl MqttBrokers {
             );
             return failed;
         };
+        // The objects of each broker applied whole: whatever else its release holds is stale.
+        let mut applied: BTreeMap<&str, BTreeSet<(String, String)>> = BTreeMap::new();
         for broker in brokers {
             let Ok(spec) = &broker.spec else { continue };
-            let objects = match render(&template, broker, spec) {
-                Ok(objects) => objects,
+            match self
+                .apply(&template, port_template.as_deref(), broker, spec)
+                .await
+            {
+                Ok(kept) => {
+                    applied.insert(&broker.release, kept);
+                }
                 Err(err) => {
                     failed.insert(broker.label(), err);
-                    continue;
-                }
-            };
-            for object in &objects {
-                if let Err(err) = self.kube.apply_mqtt(&self.namespace, object).await {
-                    failed.insert(broker.label(), err.to_string());
-                    break;
                 }
             }
         }
@@ -283,7 +344,14 @@ impl MqttBrokers {
         }
         // A refused manifest keeps its release: only a broker no manifest names is gone.
         let held: BTreeSet<&str> = brokers.iter().map(|b| b.release.as_str()).collect();
-        for (api_version, kind) in &template_kinds(&template) {
+        let mut kinds = template_kinds(&template);
+        kinds.extend(
+            port_template
+                .as_deref()
+                .map(template_kinds)
+                .unwrap_or_default(),
+        );
+        for (api_version, kind) in &kinds {
             let listed = match self
                 .kube
                 .list_mqtt(api_version, kind, &self.namespace, SELECTOR)
@@ -302,7 +370,10 @@ impl MqttBrokers {
                 let Some(name) = object["metadata"]["name"].as_str() else {
                     continue;
                 };
-                if held.contains(release) {
+                let stale = applied
+                    .get(release)
+                    .is_some_and(|kept| !kept.contains(&(kind.clone(), name.to_owned())));
+                if held.contains(release) && !stale {
                     continue;
                 }
                 if let Err(err) = self
@@ -315,6 +386,47 @@ impl MqttBrokers {
             }
         }
         failed
+    }
+
+    /// Applies every object of one broker and answers what it applied, by kind and name.
+    async fn apply(
+        &self,
+        template: &str,
+        port_template: Option<&str>,
+        broker: &Broker,
+        spec: &MqttBrokerSpec,
+    ) -> Result<BTreeSet<(String, String)>, String> {
+        let revision = match spec.port {
+            Some(_) => self.tls_revision(&broker.release).await?,
+            None => None,
+        };
+        let objects = objects_of(template, port_template, broker, spec, revision)?;
+        for object in &objects {
+            self.kube
+                .apply_mqtt(&self.namespace, object)
+                .await
+                .map_err(|err| err.to_string())?;
+        }
+        Ok(objects.iter().map(identity).collect())
+    }
+
+    /// The `status.revision` of a broker's Certificate, `None` before its first issue.
+    async fn tls_revision(&self, release: &str) -> Result<Option<u64>, String> {
+        let selector = format!("{SELECTOR},{INSTANCE}={release}");
+        let listed = self
+            .kube
+            .list_mqtt(
+                "cert-manager.io/v1",
+                "Certificate",
+                &self.namespace,
+                &selector,
+            )
+            .await
+            .map_err(|err| format!("reading the Certificate of {release}: {err}"))?;
+        Ok(listed
+            .iter()
+            .find(|c| c["metadata"]["name"].as_str() == Some(release))
+            .and_then(|c| c["status"]["revision"].as_u64()))
     }
 }
 
@@ -639,6 +751,103 @@ spec:
             refused.contains("18830 is already held by espoo/cameras"),
             "{refused}"
         );
+    }
+
+    #[test]
+    fn a_reserved_port_the_edge_does_not_serve_leaves_the_broker_unapplied_with_the_range() {
+        let mirror = mirror();
+        mirror.upsert(envelope(
+            "Organization",
+            crate::permissions::ORG_NAMESPACE,
+            "hel",
+            json!({ "domain": "hel.fi", "limits": { "mqtt": {
+                "enabled": true, "brokers": 2, "connections": 20000, "messagesPerSecond": 100000,
+                "addresses": ["platform", "dedicatedPort"], "ports": [18830, 18845]
+            } } }),
+        ));
+        mirror.upsert(envelope(
+            "MqttBroker",
+            "espoo",
+            "cameras",
+            broker_spec(&["cam-north"], Some(18845)),
+        ));
+        let brokers = declared(&mirror);
+        let espoo = brokers
+            .iter()
+            .find(|b| b.project == "espoo")
+            .expect("espoo");
+        let refused = espoo.spec.as_ref().expect_err("refused");
+        assert!(
+            refused.contains("18845 is reserved but not served") && refused.contains("18830-18839"),
+            "{refused}"
+        );
+        let helsinki = brokers
+            .iter()
+            .find(|b| b.label() == "helsinki/cameras")
+            .expect("helsinki");
+        assert_eq!(
+            helsinki.spec.as_ref().ok().and_then(|s| s.port),
+            Some(18830)
+        );
+    }
+
+    /// [`TEMPLATE_TEXT`] with a port: the pod annotated with the certificate's revision, and
+    /// the passthrough route on the port's entrypoint.
+    fn port_text() -> String {
+        TEMPLATE_TEXT.replace(
+            "checksum/config: __CONFIG_HASH__",
+            "checksum/config: __CONFIG_HASH__\n        joinedcontext.com/tls-revision: \"__TLS_REVISION__\"",
+        ) + "\
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: __RELEASE__-port
+  labels:
+    app.kubernetes.io/instance: __RELEASE__
+spec:
+  entryPoints: [mqtt-__PORT__]
+  routes:
+    - match: HostSNI(`*`)
+  tls:
+    passthrough: true
+"
+    }
+
+    #[test]
+    fn a_broker_with_a_port_takes_the_port_template_and_one_without_the_plain_one() {
+        let brokers = declared(&mirror());
+        let cameras = &brokers[1];
+        let mut spec = cameras.spec.clone().expect("valid");
+        spec.port = Some(18835);
+        let port = port_text();
+        let objects =
+            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(2)).expect("renders");
+        assert_eq!(objects.len(), 4);
+        assert_eq!(objects[3]["metadata"]["name"], "mqtt-helsinki-cameras-port");
+        assert_eq!(objects[3]["spec"]["entryPoints"], json!(["mqtt-18835"]));
+        let annotation = |objects: &[Value]| {
+            objects[1]["spec"]["template"]["metadata"]["annotations"]
+                ["joinedcontext.com/tls-revision"]
+                .clone()
+        };
+        assert_eq!(annotation(&objects), json!("2"));
+        // Before the first issue there is no revision; a renewal changes the annotation, so the
+        // Deployment's pod template, so the broker restarts and reads the new certificate.
+        let first = objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, None).expect("renders");
+        assert_eq!(annotation(&first), json!(""));
+        let renewed =
+            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(3)).expect("renders");
+        assert_eq!(annotation(&renewed), json!("3"));
+        assert_ne!(objects[1], renewed[1]);
+        let err =
+            objects_of(TEMPLATE_TEXT, None, cameras, &spec, None).expect_err("no port template");
+        assert!(err.contains("has no objects-port.yaml"), "{err}");
+        spec.port = None;
+        let plain =
+            objects_of(TEMPLATE_TEXT, Some(&port), cameras, &spec, Some(3)).expect("renders");
+        assert_eq!(plain.len(), 3);
+        assert_eq!(annotation(&plain), Value::Null);
     }
 
     #[test]

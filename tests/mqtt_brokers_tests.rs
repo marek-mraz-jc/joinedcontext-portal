@@ -8,7 +8,7 @@
 use jc_core::kinds::mqtt_broker::release_name;
 use jc_core::kinds::MqttBrokerSpec;
 use joinedcontext_portal::apps::kube::KubeClient;
-use joinedcontext_portal::reconciler::mqtt_brokers::{Broker, MqttBrokers, TEMPLATE_KEY};
+use joinedcontext_portal::reconciler::mqtt_brokers::{Broker, MqttBrokers, PORT_KEY, TEMPLATE_KEY};
 use serde_json::{json, Value};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
@@ -302,4 +302,148 @@ async fn an_apply_the_api_server_refuses_is_that_brokers_failure_alone() {
         .await;
     assert_eq!(failed.keys().collect::<Vec<_>>(), ["espoo/cameras"]);
     assert!(failed["espoo/cameras"].contains("forbidden"));
+}
+
+const ROUTE: &str = "\
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: __RELEASE__
+  namespace: jc-mqtt
+  labels:
+    app.kubernetes.io/instance: __RELEASE__
+spec:
+  entryPoints: [mqtts]
+";
+
+/// The same release with a port: the 8883 route and the port's passthrough route, which carries
+/// the Certificate's revision here as the Deployment does in the chart.
+const PORT_TEMPLATE: &str = "\
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: __RELEASE__
+  namespace: jc-mqtt
+  labels:
+    app.kubernetes.io/instance: __RELEASE__
+spec:
+  entryPoints: [mqtts]
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: __RELEASE__-port
+  namespace: jc-mqtt
+  labels:
+    app.kubernetes.io/instance: __RELEASE__
+  annotations:
+    joinedcontext.com/tls-revision: \"__TLS_REVISION__\"
+spec:
+  entryPoints: [mqtt-__PORT__]
+  tls:
+    passthrough: true
+";
+
+/// T-5856: a broker with a port gets the port template, its Certificate's revision filled in;
+/// one whose manifest dropped its port loses what only a port renders and keeps its 8883 route;
+/// a refused manifest keeps both.
+#[tokio::test]
+async fn a_port_is_routed_while_named_and_its_route_goes_when_the_manifest_drops_it() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/api/v1/namespaces/{NAMESPACE}/configmaps/broker-template"
+        )))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({ "data": { TEMPLATE_KEY: ROUTE, PORT_KEY: PORT_TEMPLATE } })),
+        )
+        .mount(&server)
+        .await;
+    let route = |name: &str, release: &str| {
+        json!({ "kind": "IngressRouteTCP", "metadata": {
+            "name": name, "labels": { "app.kubernetes.io/instance": release } } })
+    };
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/apis/traefik.io/v1alpha1/namespaces/{NAMESPACE}/ingressroutetcps"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "items": [
+            route("mqtt-espoo-cameras", "mqtt-espoo-cameras"),
+            route("mqtt-espoo-cameras-port", "mqtt-espoo-cameras"),
+            route("mqtt-helsinki-cameras", "mqtt-helsinki-cameras"),
+            route("mqtt-helsinki-cameras-port", "mqtt-helsinki-cameras"),
+            route("mqtt-helsinki-doors", "mqtt-helsinki-doors"),
+            route("mqtt-helsinki-doors-port", "mqtt-helsinki-doors"),
+        ] })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/apis/cert-manager.io/v1/namespaces/{NAMESPACE}/certificates"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "items": [
+            { "metadata": { "name": "mqtt-helsinki-cameras" }, "status": { "revision": 4 } },
+        ] })))
+        .mount(&server)
+        .await;
+    for verb in ["PATCH", "DELETE"] {
+        Mock::given(method(verb))
+            .respond_with(ResponseTemplate::new(200).set_body_string("{}"))
+            .mount(&server)
+            .await;
+    }
+    let mut cameras = broker("helsinki", "cameras", 10);
+    if let Ok(spec) = cameras.spec.as_mut() {
+        spec.port = Some(18835);
+    }
+    let brokers = [
+        refused("espoo", "cameras"),
+        cameras,
+        broker("helsinki", "doors", 10),
+    ];
+    let failed = reconciler(&server).converge(&brokers, true).await;
+    assert!(failed.is_empty(), "{failed:?}");
+
+    let received = server.received_requests().await.expect("recorded");
+    let routes = format!("/apis/traefik.io/v1alpha1/namespaces/{NAMESPACE}/ingressroutetcps");
+    assert_eq!(
+        calls(&received, "PATCH"),
+        [
+            format!("{routes}/mqtt-helsinki-cameras"),
+            format!("{routes}/mqtt-helsinki-cameras-port"),
+            format!("{routes}/mqtt-helsinki-doors"),
+        ]
+    );
+    let port = received
+        .iter()
+        .find(|r| r.method.as_str() == "PATCH" && r.url.path().ends_with("-port"))
+        .expect("the port route applied");
+    let body: Value = serde_json::from_slice(&port.body).expect("json");
+    assert_eq!(body["spec"]["entryPoints"], json!(["mqtt-18835"]));
+    assert_eq!(body["spec"]["tls"], json!({ "passthrough": true }));
+    assert_eq!(
+        body["metadata"]["annotations"]["joinedcontext.com/tls-revision"],
+        "4"
+    );
+    let certificates = received
+        .iter()
+        .filter(|r| r.url.path().ends_with("/certificates"))
+        .map(|r| r.url.query().unwrap_or_default().to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        certificates.len(),
+        1,
+        "read for the broker with a port only"
+    );
+    assert!(
+        certificates[0].contains("mqtt-helsinki-cameras"),
+        "{certificates:?}"
+    );
+    assert_eq!(
+        calls(&received, "DELETE"),
+        [format!("{routes}/mqtt-helsinki-doors-port")]
+    );
 }
