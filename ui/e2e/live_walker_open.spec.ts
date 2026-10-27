@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { openToJudge } from "./live/portal";
+import type { Page } from "@playwright/test";
+import { judgeOpened, openToJudge, openToWalk } from "./live/portal";
 
 // T-5185: the walker judged /projects/helsinki/policies/new as "boot: the Portal did not load". The
 // page drew its heading, then the Portal reloaded itself for a chunk it could not load (T-4949), and
@@ -81,4 +82,49 @@ test("the walker judges a page's controls after its permissions document answere
   });
   expect(await openToJudge(page, "http://portal.test/projects/helsinki/knowledge", 1_000)).toBe(false);
   expect(await page.locator("#add").getAttribute("aria-disabled")).toBe("true");
+});
+
+// T-5857: one blank load of /organization/roles in a rollout window became three walker findings
+// (one-h1, document-title, html-has-lang) and three tasks, with no status to name the cause. Now
+// the walker keeps the document's answer, loads a blank or non-2xx page once more, and says so once.
+const ROLES = '<!doctype html><html lang="en"><head><title>Roles</title></head><body><div id="root"><main><h1>Roles</h1><p>Who may do what in the organization.</p></main></div></body></html>';
+const BAD_GATEWAY = "<html><body><h1>502 Bad Gateway</h1></body></html>";
+const A11Y = /one-h1|document-title|html-has-lang/;
+
+async function walkStub(page: Page, documents: string[]): Promise<{ findings: string[]; loads: number }> {
+  let loads = 0;
+  await page.route("http://portal.test/**", (route) => {
+    const bad = documents[loads] === "502";
+    loads += 1;
+    return route.fulfill({ status: bad ? 502 : 200, body: bad ? BAD_GATEWAY : ROLES, contentType: "text/html" });
+  });
+  const opened = await openToWalk(page, "http://portal.test/organization/roles?lang=en", 1_000, undefined, 100);
+  return { findings: await judgeOpened(page, opened, { namespaces: [], viewer: false }), loads };
+}
+
+test("the walker reports a page document answered 502 once as one document finding, fine on retry", async ({ page }) => {
+  test.setTimeout(60_000);
+  const { findings, loads } = await walkStub(page, ["502", "200"]);
+  const documents = findings.filter((finding) => finding.startsWith("document:"));
+  expect(documents).toHaveLength(1);
+  expect(documents[0]).toMatch(/^document: the page answered 502, \d+ B in \d+ ms; blank on first load, fine on retry$/);
+  expect(findings.filter((finding) => A11Y.test(finding))).toEqual([]);
+  expect(loads).toBe(2);
+});
+
+test("the walker reports a page document answered 502 twice as one document finding, not fine on retry", async ({ page }) => {
+  test.setTimeout(60_000);
+  const { findings, loads } = await walkStub(page, ["502", "502"]);
+  expect(findings).toHaveLength(1);
+  expect(findings[0]).toMatch(/^document: the page answered 502, \d+ B in \d+ ms, and 502, \d+ B in \d+ ms on the load again/);
+  expect(findings[0]).not.toContain("fine on retry");
+  expect(loads).toBe(2);
+});
+
+test("the walker judges a normal page without a document finding", async ({ page }) => {
+  test.setTimeout(60_000);
+  const { findings, loads } = await walkStub(page, ["200"]);
+  expect(findings.filter((finding) => finding.startsWith("document:"))).toEqual([]);
+  expect(findings.filter((finding) => A11Y.test(finding))).toEqual([]);
+  expect(loads).toBe(1);
 });
