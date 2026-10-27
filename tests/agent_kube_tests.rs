@@ -329,7 +329,7 @@ async fn the_ticket_secret_holds_the_ticket_and_is_owned_by_the_job() {
 }
 
 #[tokio::test]
-async fn the_network_policy_names_the_two_peers_and_nothing_else() {
+async fn the_network_policy_names_dns_the_proxy_and_the_mesh_control_plane_and_nothing_else() {
     let requests = schedule().await;
     let policy = applied(&requests, &policy_path());
     let spec = &policy["spec"];
@@ -342,22 +342,49 @@ async fn the_network_policy_names_the_two_peers_and_nothing_else() {
     assert_eq!(spec["policyTypes"], json!(["Ingress", "Egress"]));
 
     let egress = spec["egress"].as_array().expect("egress rules");
-    assert_eq!(egress.len(), 2, "DNS and the proxy, and nothing else");
+    assert_eq!(
+        spec["egress"],
+        json!([
+            {
+                "to": [{
+                    "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": "kube-system" } },
+                    "podSelector": { "matchLabels": { "k8s-app": "kube-dns" } }
+                }],
+                "ports": [
+                    { "protocol": "UDP", "port": 53 },
+                    { "protocol": "TCP", "port": 53 }
+                ]
+            },
+            {
+                "to": [{
+                    "podSelector": { "matchLabels": { "app.kubernetes.io/name": "agent-runner-proxy" } }
+                }],
+                "ports": [
+                    { "protocol": "TCP", "port": PROXY_PORT },
+                    { "protocol": "TCP", "port": 4143 }
+                ]
+            },
+            {
+                "to": [{
+                    "namespaceSelector": { "matchLabels": { "kubernetes.io/metadata.name": "linkerd" } }
+                }],
+                "ports": [
+                    { "protocol": "TCP", "port": 8080 },
+                    { "protocol": "TCP", "port": 8086 },
+                    { "protocol": "TCP", "port": 8090 }
+                ]
+            }
+        ]),
+        "DNS, the credential proxy (by the label its pods really carry, its port and the mesh \
+         inbound port) and the Linkerd control plane (identity, destination, policy), and no \
+         fourth peer"
+    );
     for rule in egress {
         assert!(
             rule["to"].as_array().is_some_and(|to| !to.is_empty()),
             "AG-40: a rule with no 'to' opens the port on every address in the cluster: {rule}"
         );
     }
-    let proxy_rule = egress
-        .iter()
-        .find(|rule| rule["ports"][0]["port"] == json!(PROXY_PORT))
-        .expect("a rule for the credential proxy");
-    assert_eq!(
-        proxy_rule["to"][0]["podSelector"]["matchLabels"]["app.kubernetes.io/name"],
-        json!("agent-runner-proxy"),
-        "the label the proxy's pods really carry, or the workspace reaches no proxy at all"
-    );
 
     let ingress = spec["ingress"].as_array().expect("ingress rules");
     assert_eq!(ingress.len(), 1, "the Portal drives the agent server");
