@@ -59,6 +59,7 @@ pub mod knowledge;
 pub mod knowledge_usage;
 pub mod kpi_check;
 pub mod live;
+pub mod mcp_confirmations;
 pub mod mcp_elicitations;
 pub mod mqtt_allowance;
 pub mod mqtt_bindings;
@@ -156,6 +157,7 @@ pub fn router() -> Router<AppState> {
         .merge(space_usage::router())
         .merge(space_retention::router())
         .merge(erasures::router())
+        .merge(mcp_confirmations::router())
         .merge(mcp_elicitations::router())
         .merge(access_requests::router())
         .merge(data_views::router())

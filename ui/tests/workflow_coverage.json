@@ -1480,7 +1480,8 @@
         },
         "personOnly": "accepting or declining an AI client's call is the person's own decision in their session; the client that asks never answers it (AG-63)",
         "routes": [
-          "POST /api/v1/projects/{project}/mcp-elicitations/{id}/decision"
+          "POST /api/v1/projects/{project}/mcp-elicitations/{id}/decision",
+          "POST /api/v1/mcp-confirmations/{id}/decision"
         ]
       }
     },

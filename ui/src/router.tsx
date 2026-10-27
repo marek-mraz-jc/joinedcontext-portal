@@ -31,6 +31,7 @@ import { ActivityPage } from "./routes/ActivityPage";
 import { HealthPage } from "./pages/health/HealthLog";
 const ApprovalsPage = lazy(() => import("./routes/ApprovalsPage").then((module) => ({ default: module.ApprovalsPage })));
 const McpElicitationPage = lazy(() => import("./pages/mcp/McpElicitationPage").then((module) => ({ default: module.McpElicitationPage })));
+const McpConfirmationPage = lazy(() => import("./pages/mcp/McpElicitationPage").then((module) => ({ default: module.McpConfirmationPage })));
 const ApprovalDetailPage = lazy(() => import("./routes/ApprovalDetailPage").then((module) => ({ default: module.ApprovalDetailPage })));
 const ModelsPage = lazy(() => import("./pages/models/ModelsPage").then((module) => ({ default: module.ModelsPage })));
 const ModelsList = lazy(() => import("./pages/models/ModelsList").then((module) => ({ default: module.ModelsList })));
@@ -548,6 +549,19 @@ const mcpElicitationRoute = createRoute({
         <McpElicitationPage project={project} id={id} />
       </Shell>
     );
+  },
+});
+
+/**
+ * A context broker's MCP write, decided by the person (T-5829): the broker's question names no
+ * project, so the page opens in the project the person works in, or in the public frame.
+ */
+const mcpConfirmationRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/mcp-confirmations/$id",
+  component: function McpConfirmationRoute() {
+    const { id } = mcpConfirmationRoute.useParams();
+    return <SignedInCatalogue>{() => <McpConfirmationPage id={id} />}</SignedInCatalogue>;
   },
 });
 
@@ -1349,6 +1363,7 @@ export const routeTree = rootRoute.addChildren([
     approvalsRoute,
     approvalDetailRoute,
     mcpElicitationRoute,
+    mcpConfirmationRoute,
     playgroundRoute,
     allEndpointsRoute,
     organizationRoute,

@@ -596,6 +596,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mcp-confirmations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a Broker MCP Write's Question
+         * @description The question a context broker's MCP write tool asked, for the person whose client asked it: the view, the tool, the words the client showed, when it expires and the decision so far (T-5829). Another person's question, an answered or an expired one is 404; a bearer token is refused.
+         */
+        get: operations["get_confirmation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp-confirmations/{id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide a Broker MCP Write's Question
+         * @description The person whose client asked records `accept` or `decline` on the broker, in the name of the Portal session's subject; the client's retry runs the write or ends it on that decision (T-5829). A decision may be changed until the retry. Another person's question, an answered or an expired one is 404; a bearer token is refused.
+         */
+        post: operations["decide_confirmation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications": {
         parameters: {
             query?: never;
@@ -6072,6 +6112,23 @@ export interface components {
             /** @description Type of condition (e.g. Reconciled, Ready). */
             type: string;
         };
+        /** @description One broker question as its page shows it to the person who asked. */
+        Confirmation: {
+            decision?: null | components["schemas"]["ElicitationDecision"];
+            /**
+             * Format: int64
+             * @description Unix seconds after which the broker no longer takes a decision.
+             */
+            expiresAt: number;
+            /** @description The question's id, 32 hex digits. */
+            id: string;
+            /** @description The words the client was handed, shown again on the page. */
+            message: string;
+            /** @description The MCP tool that would run, `create_entity`. */
+            tool: string;
+            /** @description The broker view the write goes through, `bb-air`. */
+            view: string;
+        };
         /**
          * @description What to do with a resource the project already has (MF-23).
          * @enum {string}
@@ -10774,6 +10831,142 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    get_confirmation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The question's id, 32 hex digits */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The open question */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Confirmation"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A bearer token, not the person's session */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No open question of this person by that id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A broker did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    decide_confirmation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The question's id, 32 hex digits */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "decision": "accept"
+                 *     }
+                 */
+                "application/json": components["schemas"]["DecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description The question with the decision recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Confirmation"];
+                };
+            };
+            /** @description A body that is not `{"decision": "accept"}` or `decline` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A bearer token, not the person's session */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No open question of this person by that id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A broker did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
         };

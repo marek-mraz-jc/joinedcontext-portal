@@ -36,6 +36,7 @@ const PAGES = [
   `/projects/${PROJECT}/approvals`,
   `/projects/${PROJECT}/approvals/chg-1a2b3c4d`,
   `/projects/${PROJECT}/mcp-elicitations/eli-0a1b2c3d4e5f6a7b`,
+  "/mcp-confirmations/0a1b2c3d4e5f60718293a4b5c6d7e8f9",
   "/endpoints",
   "/organization",
   "/organization/settings",

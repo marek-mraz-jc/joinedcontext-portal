@@ -512,6 +512,17 @@ routes:
     values: {"id": "eli-0a1b2c3d4e5f6a7b"}
     body: {"decision": "accept"}
     note: "the fixture holds no question, so every person's 404 is the unknown id; a bearer token is refused before the lookup; tests/mcp_portal_tests.rs plays the real question"
+  - route: GET /mcp-confirmations/{id}
+    rule: "the asking person's own session: the broker question's x-jc-subject (T-5829)"
+    expect: [401, 404, 404, 404, 404, 404, 404, 403]
+    values: {"id": "0a1b2c3d4e5f60718293a4b5c6d7e8f9"}
+    note: "the fixture reaches no broker holding a question, so every person's 404 is the unknown id; a bearer token is refused before the broker is asked; tests/mcp_confirmations_tests.rs plays the real question"
+  - route: POST /mcp-confirmations/{id}/decision
+    rule: "the asking person's own session: the broker question's x-jc-subject (T-5829)"
+    expect: [403, 404, 404, 404, 404, 404, 404, 403]
+    values: {"id": "0a1b2c3d4e5f60718293a4b5c6d7e8f9"}
+    body: {"decision": "accept"}
+    note: "the fixture reaches no broker holding a question, so every person's 404 is the unknown id; a bearer token is refused before the broker is asked; tests/mcp_confirmations_tests.rs plays the real question"
   - route: POST /projects/{project}/spaces/{space}/erasures
     rule: "space-read, then approve on ContextSpace in the space (DM-126)"
     expect: [403, 403, allow, allow, allow, allow, 404, 403]

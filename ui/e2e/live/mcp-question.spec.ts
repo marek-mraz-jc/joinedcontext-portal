@@ -26,3 +26,22 @@ test("a person opens an MCP call's question that is not open for them, is told w
     await context.close();
   }
 });
+
+// T-5829: the broker's question (Antares T-5816) is read from the broker; an id no broker holds
+// for this person is the same "no longer open" page, and the session decides nothing on it.
+test("a person opens a broker MCP write's question that is not open for them, is told what to do, and decides nothing", async ({ browser }, info) => {
+  const id = "00000000000000000000000000000000";
+  const { context, page } = await signIn(browser, STEWARD, `/mcp-confirmations/${id}?lang=en`);
+  try {
+    await expect(page.getByRole("heading", { name: "This question is no longer open" })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole("link", { name: "Back to the Portal" })).toBeVisible();
+    await info.attach("mcp-confirmation-gone.png", { body: await page.screenshot(), contentType: "image/png" });
+    const decided = await page.request.post(`/api/v1/mcp-confirmations/${id}/decision`, {
+      data: { decision: "accept" },
+      headers: { "x-csrf-token": await csrf(context) },
+    });
+    expect(decided.status()).toBe(404);
+  } finally {
+    await context.close();
+  }
+});
