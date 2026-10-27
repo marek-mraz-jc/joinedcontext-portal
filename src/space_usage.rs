@@ -192,6 +192,11 @@ impl Counter {
         )
     }
 
+    /// The client every admin call to a broker goes through, with the brokers' timeout.
+    pub fn http(&self) -> &reqwest::Client {
+        &self.http
+    }
+
     /// The brokers' admin token, read on every ask: a rotated Secret needs no restart.
     pub fn token(&self) -> Result<String, String> {
         self.token_file

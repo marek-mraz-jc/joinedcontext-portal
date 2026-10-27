@@ -10525,5 +10525,11 @@
     "gone": "This question is no longer open",
     "goneHint": "It was answered, it expired after ten minutes, or another person's client asked it. Ask your AI client to send its call again for a new question.",
     "home": "Back to the project"
+  },
+  "mcpConfirmation": {
+    "lead": "Your AI client asked to write data through a view of the context broker. The write runs only if you accept here.",
+    "view": "View",
+    "tool": "Tool",
+    "home": "Back to the Portal"
   }
 }

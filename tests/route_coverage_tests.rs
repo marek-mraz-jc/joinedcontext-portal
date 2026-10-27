@@ -280,6 +280,8 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/projects/{project}/spaces/{space}/subjects/export", "a data subject's Entities with their history, for the space's owner, the subject in the body and never the URL (T-4668, DM-124)"),
 ("GET", "/projects/{project}/mcp-elicitations/{id}", "the question an MCP call asked, for the person whose client asked it (T-5699, AG-63)"),
 ("POST", "/projects/{project}/mcp-elicitations/{id}/decision", "the person accepts or declines an MCP call's question in their own session (T-5699, AG-63)"),
+("GET", "/mcp-confirmations/{id}", "the question a broker's MCP write asked, read from the broker for the person whose client asked it (T-5829)"),
+("POST", "/mcp-confirmations/{id}/decision", "the person accepts or declines a broker MCP write in their own session, recorded on the broker in the session subject's name (T-5829)"),
 ("POST", "/projects/{project}/spaces/{space}/erasures", "a data subject's erasure across the broker, CKAN, the Portal's copies and the stored conversations, logged by keyed hash (T-4668, DM-126)"),
 ("GET", "/projects/{project}/spaces/{space}/erasures/{id}", "one erasure's state per store, for the space's owner (T-4668, DM-127)"),
 ("GET", "/projects/{project}/spaces/{space}/erasures", "the space's erasures, proposals waiting for a second owner included (T-5356, DM-142)"),

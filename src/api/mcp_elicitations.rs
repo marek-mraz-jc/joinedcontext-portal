@@ -24,7 +24,7 @@ pub struct DecisionRequest {
 
 /// A question is decided by the person at the keyboard, never with a token a client holds:
 /// that client is the one asking (AG-63, AG-133).
-fn refuse_bearer(user: &CurrentUser) -> Result<(), ApiError> {
+pub(crate) fn refuse_bearer(user: &CurrentUser) -> Result<(), ApiError> {
     if user.0.identity.client.is_some() {
         return Err(ApiError::Denied(
             "an MCP call's question is answered by the person in the Portal, never with a \

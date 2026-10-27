@@ -10525,5 +10525,11 @@
     "gone": "Diese Frage ist nicht mehr offen",
     "goneHint": "Sie wurde beantwortet, ist nach zehn Minuten abgelaufen oder wurde vom Client einer anderen Person gestellt. Bitten Sie Ihren KI-Client, den Aufruf erneut zu senden.",
     "home": "Zurück zum Projekt"
+  },
+  "mcpConfirmation": {
+    "lead": "Ihr KI-Client möchte Daten über eine Ansicht des Context Brokers schreiben. Der Schreibvorgang läuft nur, wenn Sie ihn hier annehmen.",
+    "view": "Ansicht",
+    "tool": "Werkzeug",
+    "home": "Zurück zum Portal"
   }
 }

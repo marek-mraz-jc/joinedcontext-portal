@@ -10525,5 +10525,11 @@
     "gone": "Tato otázka už není otevřená",
     "goneHint": "Byla zodpovězena, po deseti minutách vypršela, nebo ji položil klient jiné osoby. Požádejte AI klienta, aby volání poslal znovu a položil novou otázku.",
     "home": "Zpět na projekt"
+  },
+  "mcpConfirmation": {
+    "lead": "Váš AI klient chce zapsat data přes pohled kontextového brokera. Zápis proběhne, jen pokud ho zde přijmete.",
+    "view": "Pohled",
+    "tool": "Nástroj",
+    "home": "Zpět na portál"
   }
 }

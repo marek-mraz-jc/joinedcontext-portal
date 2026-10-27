@@ -1,9 +1,10 @@
 /**
- * The page behind an MCP call's question (AG-63, T-5699): the person whose AI client asked reads
- * what the call would do, opens what it would change, and accepts or declines it here with their
- * own session. The client's next call reads this decision; nothing the client says accepts.
+ * The pages behind an MCP write's question (AG-63, T-5699, T-5829): the person whose AI client
+ * asked reads what the call would do and accepts or declines it here with their own session. The
+ * client's next call reads this decision; nothing the client says accepts. A Portal call's
+ * question lives in a project; a context broker's (T-5829) on the broker, read through the Portal.
  */
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -13,37 +14,40 @@ import { ResourcePageFailed } from "../../components/ui/PageState";
 
 type Decision = "accept" | "decline";
 
-export function McpElicitationPage({ project, id }: { project: string; id: string }): JSX.Element {
+interface Asked {
+  message: string;
+  expiresAt: number;
+  decision?: Decision | null;
+}
+
+function McpDecision<Q extends Asked>({
+  queryKey,
+  read,
+  decide: send,
+  lead,
+  rows,
+  look,
+  home,
+}: {
+  queryKey: readonly unknown[];
+  read: () => Promise<Q>;
+  decide: (decision: Decision) => Promise<Q>;
+  lead: string;
+  /** The facts of the call, label and value, in the order they are shown. */
+  rows: (asked: Q) => [string, ReactNode][];
+  /** A link to what the call changes, when the Portal has a page of it. */
+  look?: (asked: Q) => string;
+  home: ReactNode;
+}): JSX.Element {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
-  const key = ["mcp-elicitation", project, id];
-  const question = useQuery({
-    queryKey: key,
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/mcp-elicitations/{id}", {
-          params: { path: { project, id } },
-        }),
-      ),
-    retry: false,
-  });
+  const question = useQuery({ queryKey, queryFn: read, retry: false });
   const decide = useMutation({
-    mutationFn: async (decision: Decision) =>
-      unwrap(
-        await api.POST("/api/v1/projects/{project}/mcp-elicitations/{id}/decision", {
-          params: { path: { project, id } },
-          body: { decision },
-        }),
-      ),
-    onSuccess: (answered) => queryClient.setQueryData(key, answered),
+    mutationFn: send,
+    onSuccess: (answered) => queryClient.setQueryData(queryKey, answered),
   });
   const title = t("mcpElicitation.title");
-  const home = (
-    <Link to="/projects/$project/home" params={{ project }} className="focus-ring text-body text-primary-soft-fg underline hover:no-underline">
-      {t("mcpElicitation.home")}
-    </Link>
-  );
-  const header = <PageHeader title={title} description={t("mcpElicitation.lead")} />;
+  const header = <PageHeader title={title} description={lead} />;
 
   if (question.isPending) {
     return (
@@ -64,6 +68,7 @@ export function McpElicitationPage({ project, id }: { project: string; id: strin
             title={t("mcpElicitation.gone")}
             description={t("mcpElicitation.goneHint")}
           />
+          {home}
         </section>
       );
     }
@@ -71,7 +76,7 @@ export function McpElicitationPage({ project, id }: { project: string; id: strin
       <section aria-label={title}>
         <ResourcePageFailed
           title={title}
-          description={t("mcpElicitation.lead")}
+          description={lead}
           error={question.error}
           onRetry={() => {
             void question.refetch();
@@ -91,20 +96,24 @@ export function McpElicitationPage({ project, id }: { project: string; id: strin
     <section aria-label={title} className="space-y-6">
       {header}
       <div className="space-y-4 rounded-lg border border-border p-4">
-        <p className="text-body" data-testid="mcp-elicitation-message">
+        <p className="text-body break-words" data-testid="mcp-elicitation-message">
           {asked.message}
         </p>
         <dl className="grid gap-2 text-body sm:grid-cols-[auto_1fr]">
-          <dt className="text-fg-muted">{t("mcpElicitation.operation")}</dt>
-          <dd>
-            <code>{asked.operation}</code>
-          </dd>
+          {rows(asked).map(([label, value]) => (
+            <div key={label} className="contents">
+              <dt className="text-fg-muted">{label}</dt>
+              <dd className="break-words">{value}</dd>
+            </div>
+          ))}
           <dt className="text-fg-muted">{t("mcpElicitation.expires")}</dt>
           <dd>{expires}</dd>
         </dl>
-        <a href={safeHref(asked.resource)} className="focus-ring text-body text-primary-soft-fg underline hover:no-underline">
-          {t("mcpElicitation.look")}
-        </a>
+        {look ? (
+          <a href={safeHref(look(asked))} className="focus-ring text-body text-primary-soft-fg underline hover:no-underline">
+            {t("mcpElicitation.look")}
+          </a>
+        ) : null}
       </div>
       {asked.decision ? (
         <Alert
@@ -137,5 +146,70 @@ export function McpElicitationPage({ project, id }: { project: string; id: strin
       </div>
       {home}
     </section>
+  );
+}
+
+const homeLink = "focus-ring text-body text-primary-soft-fg underline hover:no-underline";
+
+export function McpElicitationPage({ project, id }: { project: string; id: string }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <McpDecision
+      queryKey={["mcp-elicitation", project, id]}
+      read={async () =>
+        unwrap(
+          await api.GET("/api/v1/projects/{project}/mcp-elicitations/{id}", {
+            params: { path: { project, id } },
+          }),
+        )
+      }
+      decide={async (decision) =>
+        unwrap(
+          await api.POST("/api/v1/projects/{project}/mcp-elicitations/{id}/decision", {
+            params: { path: { project, id } },
+            body: { decision },
+          }),
+        )
+      }
+      lead={t("mcpElicitation.lead")}
+      rows={(asked) => [[t("mcpElicitation.operation"), <code key="op">{asked.operation}</code>]]}
+      look={(asked) => asked.resource}
+      home={
+        <Link to="/projects/$project/home" params={{ project }} className={homeLink}>
+          {t("mcpElicitation.home")}
+        </Link>
+      }
+    />
+  );
+}
+
+/** A context broker's MCP write (T-5829): its view and tool, decided on the broker by the Portal. */
+export function McpConfirmationPage({ id }: { id: string }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <McpDecision
+      queryKey={["mcp-confirmation", id]}
+      read={async () =>
+        unwrap(await api.GET("/api/v1/mcp-confirmations/{id}", { params: { path: { id } } }))
+      }
+      decide={async (decision) =>
+        unwrap(
+          await api.POST("/api/v1/mcp-confirmations/{id}/decision", {
+            params: { path: { id } },
+            body: { decision },
+          }),
+        )
+      }
+      lead={t("mcpConfirmation.lead")}
+      rows={(asked) => [
+        [t("mcpConfirmation.view"), <code key="view">{asked.view}</code>],
+        [t("mcpConfirmation.tool"), <code key="tool">{asked.tool}</code>],
+      ]}
+      home={
+        <Link to="/" className={homeLink}>
+          {t("mcpConfirmation.home")}
+        </Link>
+      }
+    />
   );
 }

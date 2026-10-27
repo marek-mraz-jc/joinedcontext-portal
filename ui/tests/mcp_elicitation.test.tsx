@@ -11,7 +11,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { McpElicitationPage } from "../src/pages/mcp/McpElicitationPage";
+import { McpConfirmationPage, McpElicitationPage } from "../src/pages/mcp/McpElicitationPage";
 import { expectNoViolations } from "./checks";
 import { InRouter } from "./pageHarness";
 
@@ -88,5 +88,88 @@ describe("the MCP question page", () => {
     expect(await screen.findByText(en.mcpElicitation.gone)).toBeInTheDocument();
     expect(screen.getByText(en.mcpElicitation.goneHint)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: en.mcpElicitation.accept })).toBeNull();
+  });
+});
+
+const BROKER_ID = "0a1b2c3d4e5f60718293a4b5c6d7e8f9";
+const BROKER_PAGE = `/api/v1/mcp-confirmations/${BROKER_ID}`;
+
+function serveBroker(status: number) {
+  const posted: unknown[] = [];
+  let question: Record<string, unknown> = {
+    id: BROKER_ID,
+    view: "bb-air",
+    tool: "create_entity",
+    message: "Create the Entity urn:ngsi-ld:AirQualityObserved:1 in view bb-air.",
+    expiresAt: 1_900_000_000,
+    decision: null,
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const request = input as Request;
+      const url = new URL(request.url ?? String(input), "http://localhost");
+      const reply = (body: unknown, code = 200) =>
+        new Response(JSON.stringify(body), { status: code, headers: { "Content-Type": "application/json" } });
+      if (url.pathname === BROKER_PAGE && status !== 200) return reply({ status, title: "Error", detail: "no open question" }, status);
+      if (url.pathname === BROKER_PAGE) return reply(question);
+      if (url.pathname === `${BROKER_PAGE}/decision`) {
+        const body = (await request.json()) as { decision: string };
+        posted.push(body);
+        question = { ...question, decision: body.decision };
+        return reply(question);
+      }
+      return reply({}, 404);
+    }),
+  );
+  return posted;
+}
+
+const showBroker = () =>
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <I18nextProvider i18n={i18n}>
+        <InRouter>
+          <McpConfirmationPage id={BROKER_ID} />
+        </InRouter>
+      </I18nextProvider>
+    </QueryClientProvider>,
+  );
+
+describe("the broker MCP write page (T-5829)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shows the view and tool and records accept and decline, with no subject in the body", async () => {
+    const posted = serveBroker(200);
+    const { container } = showBroker();
+    expect(await screen.findByTestId("mcp-elicitation-message")).toHaveTextContent("AirQualityObserved:1");
+    expect(screen.getByText("bb-air")).toBeInTheDocument();
+    expect(screen.getByText("create_entity")).toBeInTheDocument();
+    expect(screen.getByText(en.mcpConfirmation.lead)).toBeInTheDocument();
+    await expectNoViolations(container);
+    await userEvent.click(screen.getByRole("button", { name: en.mcpElicitation.accept }));
+    expect(await screen.findByText(en.mcpElicitation.accepted)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: en.mcpElicitation.decline }));
+    expect(await screen.findByText(en.mcpElicitation.declined)).toBeInTheDocument();
+    expect(posted).toEqual([{ decision: "accept" }, { decision: "decline" }]);
+  });
+
+  it("says what to do when the question is not open for this person, with a way back", async () => {
+    serveBroker(404);
+    showBroker();
+    expect(await screen.findByText(en.mcpElicitation.goneHint)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: en.mcpConfirmation.home })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.mcpElicitation.accept })).toBeNull();
+  });
+
+  it("offers a retry when a broker did not answer", async () => {
+    serveBroker(503);
+    showBroker();
+    expect(await screen.findByRole("button", { name: /try again|retry/i })).toBeInTheDocument();
   });
 });

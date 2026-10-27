@@ -1650,6 +1650,175 @@
         ]
       }
     },
+    "/api/v1/mcp-confirmations/{id}": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Read a Broker MCP Write's Question",
+        "description": "The question a context broker's MCP write tool asked, for the person whose client asked it: the view, the tool, the words the client showed, when it expires and the decision so far (T-5829). Another person's question, an answered or an expired one is 404; a bearer token is refused.",
+        "operationId": "get_confirmation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The question's id, 32 hex digits",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The open question",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Confirmation"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A bearer token, not the person's session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No open question of this person by that id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A broker did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mcp-confirmations/{id}/decision": {
+      "post": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Decide a Broker MCP Write's Question",
+        "description": "The person whose client asked records `accept` or `decline` on the broker, in the name of the Portal session's subject; the client's retry runs the write or ends it on that decision (T-5829). A decision may be changed until the retry. Another person's question, an answered or an expired one is 404; a bearer token is refused.",
+        "operationId": "decide_confirmation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The question's id, 32 hex digits",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              },
+              "example": {
+                "decision": "accept"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The question with the decision recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Confirmation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A body that is not `{\"decision\": \"accept\"}` or `decline`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A bearer token, not the person's session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No open question of this person by that id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A broker did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notifications": {
       "get": {
         "tags": [
@@ -25587,6 +25756,51 @@
           }
         },
         "additionalProperties": false
+      },
+      "Confirmation": {
+        "type": "object",
+        "description": "One broker question as its page shows it to the person who asked.",
+        "required": [
+          "id",
+          "view",
+          "tool",
+          "message",
+          "expiresAt"
+        ],
+        "properties": {
+          "decision": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ElicitationDecision",
+                "description": "`None` until the person decided."
+              }
+            ]
+          },
+          "expiresAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix seconds after which the broker no longer takes a decision."
+          },
+          "id": {
+            "type": "string",
+            "description": "The question's id, 32 hex digits."
+          },
+          "message": {
+            "type": "string",
+            "description": "The words the client was handed, shown again on the page."
+          },
+          "tool": {
+            "type": "string",
+            "description": "The MCP tool that would run, `create_entity`."
+          },
+          "view": {
+            "type": "string",
+            "description": "The broker view the write goes through, `bb-air`."
+          }
+        }
       },
       "ConflictPolicy": {
         "type": "string",
