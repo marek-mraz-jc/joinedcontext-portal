@@ -8486,7 +8486,8 @@ export interface components {
             at: string;
             /**
              * @description `no_token`, `expired`, `wrong_audience`, `invalid_token`, `wrong_client`,
-             *     `unknown_account`, `other_project`, `no_role`, `no_subscription` or `no_realm`.
+             *     `unknown_account`, `other_project`, `no_role`, `no_subscription`, `no_realm`,
+             *     `source_address`, `token_not_allowed` or `certificate`.
              */
             reason: string;
         };

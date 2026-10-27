@@ -32380,7 +32380,7 @@
           },
           "reason": {
             "type": "string",
-            "description": "`no_token`, `expired`, `wrong_audience`, `invalid_token`, `wrong_client`,\n`unknown_account`, `other_project`, `no_role`, `no_subscription` or `no_realm`."
+            "description": "`no_token`, `expired`, `wrong_audience`, `invalid_token`, `wrong_client`,\n`unknown_account`, `other_project`, `no_role`, `no_subscription`, `no_realm`,\n`source_address`, `token_not_allowed` or `certificate`."
           }
         }
       },
