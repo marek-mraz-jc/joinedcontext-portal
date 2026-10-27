@@ -9692,6 +9692,9 @@
       "brokerRef": "{broker} als Plattform-Broker einer MQTT-Datenquelle wählen.",
       "certificate": "Zertifikat",
       "certificateIssued": "Von der Plattform für {host} bei einer öffentlichen Zertifizierungsstelle ausgestellt; Geräte prüfen es mit ihrem System-CA-Speicher.",
+      "waitingForDnsTitle": "Warten auf DNS",
+      "waitingForDns": "Richten Sie einen CNAME-Eintrag von {host} auf {target} ein. Die Plattform stellt das Zertifikat für {host} aus, sobald der Name auf sie auflöst; Geräte verbinden sich dann mit {host}:8883.",
+      "waitingForDnsNoTarget": "Richten Sie einen CNAME-Eintrag von {host} auf die Plattformadresse dieses Brokers ein. Die Plattform stellt das Zertifikat für {host} aus, sobald der Name auf sie auflöst; Geräte verbinden sich dann mit {host}:8883.",
       "example": "Ausprobieren",
       "copyExample": "Befehl kopieren",
       "exampleHint": "Setzen Sie zuerst TOKEN auf ein Zugriffstoken des Geräte-Clients; das Portal zeigt nie eines."

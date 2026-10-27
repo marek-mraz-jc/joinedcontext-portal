@@ -9692,6 +9692,9 @@
       "brokerRef": "Pick {broker} as the platform broker of an MQTT data source.",
       "certificate": "Certificate",
       "certificateIssued": "Issued by the platform for {host} from a public certificate authority; devices check it with their system CA store.",
+      "waitingForDnsTitle": "Waiting for DNS",
+      "waitingForDns": "Point a CNAME record from {host} at {target}. The platform issues the certificate for {host} as soon as the name resolves to it; devices then connect on {host}:8883.",
+      "waitingForDnsNoTarget": "Point a CNAME record from {host} at this broker's platform address. The platform issues the certificate for {host} as soon as the name resolves to it; devices then connect on {host}:8883.",
       "example": "Try it",
       "copyExample": "Copy the command",
       "exampleHint": "Set TOKEN to an access token of the device's client first (Add device below shows how); the Portal never shows one."

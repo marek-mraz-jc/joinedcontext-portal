@@ -638,6 +638,7 @@ mod tests {
             name: name.to_owned(),
             release: format!("mqtt-p-{name}"),
             spec,
+            certificate: None,
         }
     }
 
