@@ -1363,11 +1363,48 @@ pub async fn get_dataset(
     Ok(cached(&headers, detail(&state, &catalogue, &found).await))
 }
 
-/// A cell of the sample: text as it is, anything else as compact JSON.
+/// The members of a postal address in the order a letter writes them; any other member follows.
+const ADDRESS_ORDER: [&str; 6] = [
+    "streetAddress",
+    "postOfficeBoxNumber",
+    "postalCode",
+    "addressLocality",
+    "addressRegion",
+    "addressCountry",
+];
+
+/// A cell of the sample as a person reads it (UI-16): text as it is, a list and a structured value
+/// as their parts joined by commas (an address in postal order), a point as latitude, longitude,
+/// any other geometry by its type's name.
 fn cell(value: Option<&Value>) -> String {
+    let join = |parts: Vec<String>| {
+        parts
+            .into_iter()
+            .filter(|p| !p.is_empty())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
     match value {
         None | Some(Value::Null) => String::new(),
         Some(Value::String(s)) => s.clone(),
+        Some(Value::Array(items)) => join(items.iter().map(|v| cell(Some(v))).collect()),
+        Some(geometry) if is_geometry(geometry) => {
+            let c = &geometry["coordinates"];
+            match (&geometry["type"], c.get(0), c.get(1)) {
+                (Value::String(t), Some(lon), Some(lat)) if t == "Point" => format!("{lat}, {lon}"),
+                _ => cell(geometry.get("type")),
+            }
+        }
+        Some(Value::Object(members)) => {
+            let mut keys: Vec<&String> = members.keys().collect();
+            keys.sort_by_key(|k| {
+                ADDRESS_ORDER
+                    .iter()
+                    .position(|a| a == k)
+                    .unwrap_or(ADDRESS_ORDER.len())
+            });
+            join(keys.into_iter().map(|k| cell(members.get(k))).collect())
+        }
         Some(other) => other.to_string(),
     }
 }
@@ -2188,7 +2225,7 @@ classes:
     }
 
     #[test]
-    fn the_sample_puts_id_and_type_first_and_writes_nested_values_as_json() {
+    fn the_sample_puts_id_and_type_first_and_writes_nested_values_as_text() {
         let sample = table(
             "KeyPerformanceIndicator",
             &[
@@ -2201,7 +2238,36 @@ classes:
             sample.rows[0],
             vec!["urn:a", "KeyPerformanceIndicator", "12", "", ""]
         );
-        assert_eq!(sample.rows[1][3], r#"{"type":"Point"}"#);
+        assert_eq!(sample.rows[1][3], "Point");
+        // The walker's raw-json finding on /catalogue/bbsk-podujatia (T-5850): no cell is JSON.
+        let event = table(
+            "Event",
+            &[json!({
+                "id": "urn:e",
+                "type": "Event",
+                "address": {
+                    "addressCountry": "SK", "addressLocality": "Brezno",
+                    "addressRegion": "Banskobystrický kraj", "postalCode": "977 01",
+                    "streetAddress": "Námestie gen. M.R.Štefánika 7/9"
+                },
+                "category": ["exhibition-museum", "music"],
+                "location": { "type": "Point", "coordinates": [19.64271, 48.807343] },
+                "area": { "type": "Polygon", "coordinates": [[[0, 0], [1, 0], [0, 1], [0, 0]]] },
+                "count": [1, null, true]
+            })],
+        );
+        assert_eq!(
+            event.rows[0],
+            vec![
+                "urn:e",
+                "Event",
+                "Námestie gen. M.R.Štefánika 7/9, 977 01, Brezno, Banskobystrický kraj, SK",
+                "Polygon",
+                "exhibition-museum, music",
+                "1, true",
+                "48.807343, 19.64271",
+            ]
+        );
         let many: Vec<Value> = (0..30)
             .map(|i| json!({ "id": format!("urn:{i}") }))
             .collect();
