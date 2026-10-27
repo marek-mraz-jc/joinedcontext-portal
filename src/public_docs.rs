@@ -246,6 +246,12 @@ fn short(commit: &str) -> &str {
     commit.get(..12).unwrap_or(commit)
 }
 
+/// The CSP source that admits the pages' one stylesheet, its hash, so the Portal's policy needs
+/// no `'unsafe-inline'` for them (T-5828).
+pub fn style_source() -> String {
+    crate::agents::kit::script_hash(STYLE)
+}
+
 const STYLE: &str = "body{font:16px/1.6 system-ui,sans-serif;max-width:52rem;margin:0 auto;\
 padding:1rem;color:#1b1f24;background:#fff}pre,code{font-family:ui-monospace,monospace}\
 pre{overflow-x:auto;padding:.75rem;background:#f4f5f7}table{border-collapse:collapse;\

@@ -1,3 +1,5 @@
+// First: the stylesheets later modules create need the page's CSP nonce (T-5828).
+import "./cspNonce";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
