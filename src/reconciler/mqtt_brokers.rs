@@ -1306,6 +1306,24 @@ spec:
         spec.allowed_sources = vec!["203.0.113.1/24".into()];
         let err = objects_of(&port, cameras, &spec, Some(1)).expect_err("refused");
         assert!(err.contains("spec.allowedSources"), "{err}");
+        // A custom hostname broker is fenced the same way on its 8883 route by the city's name.
+        spec.allowed_sources = vec!["203.0.113.0/24".into()];
+        spec.port = None;
+        spec.hostname = Some("mqtt.helsinki.example".into());
+        let templates = Templates {
+            hostname: Some(hostname_text()),
+            ..port
+        };
+        let objects = objects_of(&templates, cameras, &spec, None).expect("renders");
+        assert!(objects.iter().any(|o| o["kind"] == "MiddlewareTCP"));
+        let route = objects
+            .iter()
+            .find(|o| o["kind"] == "IngressRouteTCP")
+            .expect("the hostname route");
+        assert_eq!(
+            route["spec"]["routes"][0]["middlewares"],
+            json!([{ "name": "mqtt-helsinki-cameras-sources" }])
+        );
     }
 
     /// [`TEMPLATE_TEXT`] on a custom hostname: the Certificate for the city's name, and the
