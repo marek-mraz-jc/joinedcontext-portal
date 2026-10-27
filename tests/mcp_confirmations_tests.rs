@@ -191,3 +191,23 @@ async fn a_broker_that_does_not_answer_is_a_503_not_a_missing_question() {
         read.text
     );
 }
+
+#[tokio::test]
+async fn an_oversized_broker_answer_is_a_503_never_read_whole() {
+    let server = MockServer::start().await;
+    let mut huge = question(Value::Null);
+    huge["message"] = json!("x".repeat(300 * 1024));
+    Mock::given(method("GET"))
+        .and(path(ASKED))
+        .respond_with(ResponseTemplate::new(200).set_body_json(huge))
+        .mount(&server)
+        .await;
+    let state = state(&server.uri(), None, "huge");
+    let read = send(&state, person("ana"), "GET", PAGE, None).await;
+    assert_eq!(
+        read.status,
+        StatusCode::SERVICE_UNAVAILABLE,
+        "{}",
+        read.text
+    );
+}

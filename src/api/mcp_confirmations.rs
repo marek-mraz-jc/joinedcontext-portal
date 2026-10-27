@@ -13,6 +13,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use utoipa::ToSchema;
@@ -115,6 +116,54 @@ fn brokers(state: &AppState) -> Vec<String> {
         .collect()
 }
 
+/// The most a broker's answer about one question may hold; the words it carries are far shorter.
+const MAX_ANSWER: usize = 256 * 1024;
+
+/// Sends `method` for question `id` to `broker` and reads its answer, at most [`MAX_ANSWER`]
+/// bytes: `None` when the broker does not hold the question, `Err` (logged) when it did not
+/// answer, refused, or answered something that is no question.
+async fn ask(
+    state: &AppState,
+    token: &str,
+    method: Method,
+    broker: &str,
+    id: &str,
+    body: Option<&serde_json::Value>,
+) -> Result<Option<Asked>, ()> {
+    let mut request = state
+        .space_usage
+        .http()
+        .request(method, format!("{broker}/q/mcp-confirmations/{id}"))
+        .bearer_auth(token);
+    if let Some(body) = body {
+        request = request.json(body);
+    }
+    let mut response = request.send().await.map_err(|err| {
+        tracing::warn!(error = %err.without_url(), "a broker did not answer an MCP question call");
+    })?;
+    match response.status() {
+        reqwest::StatusCode::OK => {}
+        reqwest::StatusCode::NOT_FOUND => return Ok(None),
+        status => {
+            tracing::warn!(%status, "a broker refused an MCP question call");
+            return Err(());
+        }
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|err| {
+        tracing::warn!(error = %err.without_url(), "a broker's MCP question broke off");
+    })? {
+        if bytes.len().saturating_add(chunk.len()) > MAX_ANSWER {
+            tracing::warn!("a broker's MCP question passed {MAX_ANSWER} bytes");
+            return Err(());
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    serde_json::from_slice(&bytes).map(Some).map_err(|err| {
+        tracing::warn!(error = %err, "a broker's MCP question did not parse");
+    })
+}
+
 /// The broker holding question `id` and the question, when `subject` asked it.
 async fn find(state: &AppState, id: &str, subject: &str) -> Result<(String, Asked), ApiError> {
     if !well_formed(id) {
@@ -130,38 +179,16 @@ async fn find(state: &AppState, id: &str, subject: &str) -> Result<(String, Aske
     })?;
     let mut missed = false;
     for broker in brokers {
-        let answer = state
-            .space_usage
-            .http()
-            .get(format!("{broker}/q/mcp-confirmations/{id}"))
-            .bearer_auth(&token)
-            .send()
-            .await;
-        let response = match answer {
-            Ok(response) => response,
-            Err(err) => {
-                tracing::warn!(error = %err.without_url(), "a broker did not answer an MCP question read");
-                missed = true;
-                continue;
+        match ask(state, &token, Method::GET, &broker, id, None).await {
+            Ok(Some(asked)) => {
+                return match asked.id == id && asked.asked_by(subject) {
+                    true => Ok((broker, asked)),
+                    false => Err(not_open(id)),
+                };
             }
-        };
-        match response.status() {
-            reqwest::StatusCode::OK => {}
-            reqwest::StatusCode::NOT_FOUND => continue,
-            status => {
-                tracing::warn!(%status, "a broker refused an MCP question read");
-                missed = true;
-                continue;
-            }
+            Ok(None) => {}
+            Err(()) => missed = true,
         }
-        let asked: Asked = response.json().await.map_err(|err| {
-            tracing::warn!(error = %err.without_url(), "a broker's MCP question did not parse");
-            unreachable()
-        })?;
-        return match asked.id == id && asked.asked_by(subject) {
-            true => Ok((broker, asked)),
-            false => Err(not_open(id)),
-        };
     }
     Err(if missed { unreachable() } else { not_open(id) })
 }
@@ -219,28 +246,12 @@ pub(crate) async fn decide_confirmation(
     let subject = &user.0.identity.subject;
     let (broker, _) = find(&state, &id, subject).await?;
     let token = state.space_usage.token().map_err(|_| unreachable())?;
-    let response = state
-        .space_usage
-        .http()
-        .put(format!("{broker}/q/mcp-confirmations/{id}"))
-        .bearer_auth(&token)
-        .json(&json!({ "decision": request.decision, "subject": { SUBJECT: subject } }))
-        .send()
-        .await
-        .map_err(|err| {
-            tracing::warn!(error = %err.without_url(), "a broker did not answer an MCP decision");
-            unreachable()
-        })?;
-    match response.status() {
-        reqwest::StatusCode::OK => {}
-        reqwest::StatusCode::NOT_FOUND => return Err(not_open(&id)),
-        status => {
-            tracing::warn!(%status, "a broker refused an MCP decision");
-            return Err(unreachable());
-        }
+    let body = json!({ "decision": request.decision, "subject": { SUBJECT: subject } });
+    match ask(&state, &token, Method::PUT, &broker, &id, Some(&body)).await {
+        Ok(Some(asked)) => Ok(Json(asked.shown())),
+        Ok(None) => Err(not_open(&id)),
+        Err(()) => Err(unreachable()),
     }
-    let asked: Asked = response.json().await.map_err(|_| unreachable())?;
-    Ok(Json(asked.shown()))
 }
 
 pub fn router() -> Router<AppState> {
