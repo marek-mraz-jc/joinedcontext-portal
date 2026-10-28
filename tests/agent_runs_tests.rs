@@ -726,7 +726,7 @@ async fn two_endpoints_of_one_space_each_serve_the_type_and_bound_only_what_both
     let (status, problem) = call(&app, &cookie, Method::POST, &uri, Some(hidden_by_both)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{problem}");
     assert!(
-        problem["errors"][0].as_str().is_some_and(
+        problem["errors"][0]["message"].as_str().is_some_and(
             |e| e.contains("hidden by endpoint 'helsinki-bikes-ops' and 'helsinki-bikes'")
         ),
         "{problem}"
@@ -787,7 +787,7 @@ async fn endpoint_names_are_checked_and_each_endpoint_bounds_its_own_needs() {
     let (status, problem) = call(&app, &cookie, Method::POST, &uri, Some(hidden)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{problem}");
     assert!(
-        problem["errors"][0]
+        problem["errors"][0]["message"]
             .as_str()
             .is_some_and(|e| e.contains("hidden by endpoint 'helsinki-kpi'")),
         "{problem}"
@@ -1203,8 +1203,7 @@ async fn a_need_the_app_kind_cannot_parse_is_refused_before_the_run_exists() {
     assert!(
         errors
             .iter()
-            .filter_map(Value::as_str)
-            .any(|error| error.contains("dataNeeds[0]")),
+            .any(|error| error.to_string().contains("dataNeeds[0]")),
         "the need is named: {problem}"
     );
 }
@@ -1692,7 +1691,7 @@ async fn a_code_run_previews_its_files_as_one_document() {
     let errors = problem["errors"].as_array().expect("every problem listed");
     assert_eq!(errors.len(), 1, "{problem}");
     assert!(
-        errors[0]
+        errors[0]["message"]
             .as_str()
             .unwrap()
             .starts_with("src/App.tsx:1:19: 'chart.js' may not be imported here"),
@@ -1917,7 +1916,7 @@ async fn a_function_of_the_run_answers_through_jc_functions() {
     let (status, problem) = call(&app, &cookie, Method::POST, &summary, body.clone()).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{problem}");
     assert!(
-        problem["errors"][0]
+        problem["errors"][0]["message"]
             .as_str()
             .is_some_and(|e| e.starts_with("functions/broken.ts:")),
         "{problem}"

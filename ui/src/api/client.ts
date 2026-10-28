@@ -8,7 +8,38 @@ import { announceSessionEnded } from "./sessionEnded";
 import { announceStepUp, createStepUpMiddleware } from "./stepUp";
 import i18n from "../i18n";
 
-export type ProblemDetails = components["schemas"]["ProblemDetails"];
+/** The problem document as the server sends it: `errors[]` holds `{path, message}` (AG-146). */
+export type WireProblem = components["schemas"]["ProblemDetails"];
+/** A problem as pages read it: each of `errors[]` one line, `path: message` (see problemLines). */
+export type ProblemDetails = Omit<WireProblem, "errors"> & { errors?: string[] | null };
+
+/**
+ * The server's `errors[{path, message}]` as the lines pages mark fields with (T-5949): a member
+ * whose message is the problem's own detail reads as its bare path (`spec.allowedProjects`),
+ * the rest as `path: message`, a finding about the whole request as its message. A line the
+ * server sent as plain text stays as it came.
+ */
+export function problemLines(problem: unknown): string[] {
+  if (typeof problem !== "object" || problem === null) return [];
+  const { errors, detail } = problem as { errors?: unknown; detail?: unknown };
+  if (!Array.isArray(errors)) return [];
+  return errors.flatMap((error: unknown): string[] => {
+    if (typeof error === "string") return [error];
+    if (typeof error !== "object" || error === null) return [];
+    const { path, message } = error as { path?: unknown; message?: unknown };
+    const at = typeof path === "string" ? path : "";
+    const said = typeof message === "string" ? message : "";
+    if (at && (said === "" || said === detail)) return [at];
+    return [at && said ? `${at}: ${said}` : at || said].filter((line) => line !== "");
+  });
+}
+
+/** A refusal's document with `errors[]` read as lines (problemLines). */
+export function asProblem(error: unknown): Partial<ProblemDetails> {
+  if (typeof error !== "object" || error === null) return {};
+  const wire = error as Partial<WireProblem>;
+  return { ...wire, errors: Array.isArray(wire.errors) ? problemLines(wire) : undefined };
+}
 
 /**
  * One requirement or decision reference as the server's texts cite them: `AP-44`, `T-2636`,
@@ -32,21 +63,22 @@ export class ApiError extends Error {
   /** The edge's `X-Request-Id` of the answer, the reference a failure page shows (T-2747). */
   readonly requestId?: string;
 
-  constructor(status: number, message: string, problem?: ProblemDetails, requestId?: string) {
+  constructor(status: number, message: string, problem?: WireProblem | ProblemDetails, requestId?: string) {
     // Every refusal a page shows is one of these, read as `message` or as `problem.detail`.
     super(forPeople(message));
     this.name = "ApiError";
     this.status = status;
     this.requestId = requestId;
     // A problem is the server's answer, read as it came: a field it left out stays out.
-    this.problem = problem && {
-      ...problem,
-      ...(typeof problem.title === "string" ? { title: forPeople(problem.title) } : {}),
-      ...(typeof problem.detail === "string" ? { detail: forPeople(problem.detail) } : {}),
-      ...(Array.isArray(problem.errors)
-        ? { errors: problem.errors.map((error) => (typeof error === "string" ? forPeople(error) : error)) }
-        : {}),
-    };
+    if (problem) {
+      const { errors, ...rest } = problem;
+      this.problem = {
+        ...rest,
+        ...(typeof problem.title === "string" ? { title: forPeople(problem.title) } : {}),
+        ...(typeof problem.detail === "string" ? { detail: forPeople(problem.detail) } : {}),
+        ...(Array.isArray(errors) ? { errors: problemLines(problem).map(forPeople) } : errors === null ? { errors: null } : {}),
+      };
+    }
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
@@ -164,7 +196,7 @@ export async function unwrap<T>(result: {
     return undefined as T;
   }
 
-  let problem: ProblemDetails | undefined;
+  let problem: WireProblem | undefined;
   if (
     typeof result.error === "object" &&
     result.error !== null &&
@@ -173,7 +205,7 @@ export async function unwrap<T>(result: {
       "status" in result.error ||
       "type" in result.error)
   ) {
-    problem = result.error as ProblemDetails;
+    problem = result.error as WireProblem;
   }
 
   const status =

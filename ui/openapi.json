@@ -3151,6 +3151,15 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "validate_only",
+            "in": "query",
+            "description": "`true` (AIP-163) is `dryRun=true` under the name every write takes (T-5949).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -40614,6 +40623,22 @@
           }
         }
       },
+      "FieldError": {
+        "type": "object",
+        "description": "One violation: the member it is about and what is wrong with it (AG-146). `path` is the\nmember's dotted path (`spec.history[1]`), or empty when the finding is about the whole request.",
+        "required": [
+          "path",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
       "FileConflict": {
         "type": "object",
         "description": "One file both the workspace and main changed since the workspace's base (CC-80). `fields`\nlists what a person has to choose; empty means the two sides merge on their own, which\nupdating from main does.",
@@ -44874,9 +44899,9 @@
               "null"
             ],
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/FieldError"
             },
-            "description": "Every violation of one request, when there is more than one thing to say. A form marks\nall its bad fields from this in one pass instead of one round trip per mistake (CC-24)."
+            "description": "Every violation of one request, when there is more than one thing to say. A form marks\nall its bad fields from this in one pass instead of one round trip per mistake (CC-24),\nand a model corrects its input by `path` (AG-146, T-5949)."
           },
           "hint": {
             "type": [

@@ -1,5 +1,5 @@
 import { api } from "./client";
-import type { ProblemDetails } from "./client";
+import { asProblem, type ProblemDetails } from "./client";
 import type { Change } from "./manifest";
 import type { components } from "./schema";
 
@@ -60,7 +60,6 @@ export async function writeModelSource(options: {
   if (!options.dryRun && response.status === 202 && data) {
     return { kind: "proposed", change: data as Change };
   }
-  const problem: Partial<ProblemDetails> =
-    typeof error === "object" && error !== null ? (error as Partial<ProblemDetails>) : {};
+  const problem: Partial<ProblemDetails> = asProblem(error);
   return { kind: "refused", status: response.status, problem };
 }

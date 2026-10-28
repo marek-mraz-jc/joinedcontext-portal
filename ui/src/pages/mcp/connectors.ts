@@ -1,7 +1,7 @@
 // A person's own MCP connectors (UI-98, EP-123, ADR-N-043 §7, T-4531): kept in their preferences,
 // served at `/api/mcp/me/{name}` to their token alone, each one narrowing what they may read.
 import { useEffect, useSyncExternalStore } from "react";
-import { api } from "../../api/client";
+import { api, problemLines } from "../../api/client";
 import type { components } from "../../api/schema";
 import type { Manifest } from "../../api/manifest";
 import { mcpOrigin } from "../../components/endpoints/links";
@@ -176,7 +176,7 @@ export async function saveConnectors(change: (current: Connector[]) => Connector
     const problem = answer.error as { detail?: unknown; errors?: unknown } | undefined;
     const refusal: ConnectorRefusal = new Error(typeof problem?.detail === "string" ? problem.detail : "refused");
     // The field the server names, so the page shows its refusal beside that field (T-4948).
-    refusal.fields = Array.isArray(problem?.errors) ? problem.errors.filter((f): f is string => typeof f === "string") : [];
+    refusal.fields = problemLines(problem);
     throw refusal;
   }
   publish(answer.data.connectors ?? []);

@@ -4,7 +4,7 @@
  * before it reaches the screen; the server code keeps them, which the compliance matrix reads.
  */
 import { describe, expect, it } from "vitest";
-import { ApiError, forPeople } from "../src/api/client";
+import { ApiError, forPeople, problemLines } from "../src/api/client";
 import en from "../src/locales/en.json";
 import sk from "../src/locales/sk.json";
 import cs from "../src/locales/cs.json";
@@ -54,6 +54,30 @@ describe("requirement ids on the screen (T-2756)", () => {
     expect(error.problem?.title).toBe("Forbidden");
     expect(error.problem?.errors).toEqual(["name is taken", "no such space"]);
     expect(new ApiError(500, "HTTP 500").problem).toBeUndefined();
+  });
+});
+
+describe("field errors with their paths (T-5949, AG-146)", () => {
+  it("reads errors[{path, message}] as the lines a form marks its fields with", () => {
+    const detail = "the request names 3 problems";
+    const error = new ApiError(400, detail, {
+      status: 400,
+      title: "Invalid Request",
+      type: "https://joinedcontext.com/errors/invalid-request",
+      detail,
+      errors: [
+        { path: "spec.allowedProjects", message: detail },
+        { path: "types[0]", message: "names no type of the model (EP-12)" },
+        { path: "", message: "the manifest is empty" },
+      ],
+    });
+    expect(error.problem?.errors).toEqual(["spec.allowedProjects", "types[0]: names no type of the model", "the manifest is empty"]);
+  });
+
+  it("keeps a plain line and skips what is neither a line nor a member", () => {
+    expect(problemLines({ errors: ["subject", 7, null, { path: 3 }] })).toEqual(["subject"]);
+    expect(problemLines({ errors: "spec" })).toEqual([]);
+    expect(problemLines(undefined)).toEqual([]);
   });
 });
 
