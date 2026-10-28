@@ -38734,7 +38734,8 @@
           "clientIsBoundary",
           "state",
           "createdAt",
-          "url"
+          "url",
+          "limits"
         ],
         "properties": {
           "allowedClients": {
@@ -38765,6 +38766,10 @@
             ],
             "format": "date-time"
           },
+          "limits": {
+            "$ref": "#/components/schemas/ConnectorLimits",
+            "description": "What the connector may spend; shown on My connectors."
+          },
           "name": {
             "type": "string"
           },
@@ -38793,6 +38798,34 @@
           },
           "writes": {
             "type": "boolean"
+          }
+        }
+      },
+      "ConnectorLimits": {
+        "type": "object",
+        "description": "What one connector may spend (T-5968): its own calls a minute, calls at once and answer size.\nThe person's own budget (`PERSON_LIMITS`) holds across all their connectors and `/api/v1/mcp`\ntogether, so a second connector adds no calls. Counted on the verified token's subject and the\nconnector id from the path, never on a header.",
+        "required": [
+          "callsPerMinute",
+          "parallelCalls",
+          "resultBytes"
+        ],
+        "properties": {
+          "callsPerMinute": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Tool calls a minute; the call past it answers 429 with `Retry-After`.",
+            "minimum": 0
+          },
+          "parallelCalls": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Calls answered at once; the next answers 429 until one ends.",
+            "minimum": 0
+          },
+          "resultBytes": {
+            "type": "integer",
+            "description": "The largest tool answer in bytes; a larger one is refused as a 413 tool error naming\nwhat to narrow.",
+            "minimum": 0
           }
         }
       },
