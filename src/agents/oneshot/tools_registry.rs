@@ -1361,15 +1361,7 @@ mod tests {
         let summaries: Vec<OperationSummary> = ops
             .iter()
             .filter(|op| op.name == "jc_catalog_search" || op.name == "jc_endpoint_propose")
-            .map(|op| OperationSummary {
-                name: op.name.to_string(),
-                title: op.title.to_string(),
-                description: op.description.to_string(),
-                input_schema: (op.input)(),
-                output_schema: (op.output)(),
-                annotations: op.annotations,
-                lane: op.lane,
-            })
+            .map(crate::ops::summary)
             .collect();
         let text = section(&summaries);
         assert!(text.contains("`jc_catalog_search`"), "{text}");

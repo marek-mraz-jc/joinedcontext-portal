@@ -275,14 +275,16 @@ export function titleIn(title: string, spec: string, helpers: readonly string[])
 }
 
 /** Every mutating operation of an OpenAPI document, as `METHOD /path`. */
+/** The entry of one registry operation (T-5948): the `/ops/{name}` door documented per name. */
+const OPERATION_ENTRY = /^\/api\/v1\/projects\/\{project\}\/ops\/jc_[a-z_]+$/;
+
 export function mutatingRoutes(openapi: { paths: Record<string, Record<string, unknown>> }): string[] {
-  return Object.entries(openapi.paths)
-    .flatMap(([path, operations]) =>
-      Object.keys(operations)
-        .filter((method) => ["post", "put", "patch", "delete"].includes(method))
-        .map((method) => `${method.toUpperCase()} ${path}`),
-    )
-    .sort();
+  const routes = Object.entries(openapi.paths).flatMap(([path, operations]) =>
+    Object.keys(operations)
+      .filter((method) => ["post", "put", "patch", "delete"].includes(method))
+      .map((method) => `${method.toUpperCase()} ${path.replace(OPERATION_ENTRY, "/api/v1/projects/{project}/ops/{name}")}`),
+  );
+  return [...new Set(routes)].sort();
 }
 
 /** One step of the workflow matrix, as `gate_workflows.test.ts` holds it to the tree. */

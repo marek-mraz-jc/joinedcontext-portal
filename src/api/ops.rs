@@ -188,6 +188,11 @@ mod tests {
                 idempotent_hint: true,
             },
             lane: Lane::Green,
+            requires: crate::ops::Requires {
+                verb: "read".into(),
+                kind: "*".into(),
+                checked_by: "project".into(),
+            },
         };
         let val = serde_json::to_value(&summary).expect("serialize summary");
         assert_eq!(val["name"], "jc_catalog_search");

@@ -87,9 +87,7 @@ fn openapi_sha() -> &'static str {
     static SHA: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     SHA.get_or_init(|| {
         use sha2::Digest;
-        use utoipa::OpenApi;
-        let mut json =
-            serde_json::to_string_pretty(&crate::openapi::ApiDoc::openapi()).unwrap_or_default();
+        let mut json = crate::openapi::document_text();
         json.push('\n');
         format!("{:x}", sha2::Sha256::digest(json.as_bytes()))
     })
