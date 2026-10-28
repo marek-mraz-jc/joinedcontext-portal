@@ -41,6 +41,21 @@ sha=$(curl -fsS -m 20 "$PORTAL_URL/api/v1/version" | jq -r '.portal.commit // em
 dir=$evidence/$sha
 [ -e "$dir/summary.json" ] && { echo "rollout-walk: $sha walked already ($dir)"; exit 0; }
 
+# T-5993: Chromium makes its renderers the kernel OOM killer's first victims, so on a host short of
+# memory (workers linking ~6 GB test binaries beside the walk) every try of a commit met "Page
+# crashed" within the same 15 minutes and filed "wrote no report" for a Portal that was fine. Under
+# WALK_MIN_AVAILABLE_MIB the walk waits for a later tick, at most WALK_DEFER_MAX ticks (12, an hour at
+# the cron's 5 min), then walks anyway, so a host that stays short still gets its walk and its report.
+min_free=${WALK_MIN_AVAILABLE_MIB:-6144}
+available=$(awk '$1=="MemAvailable:"{print int($2/1024)}' "${WALK_MEMINFO:-/proc/meminfo}" 2>/dev/null)
+deferred=$(cat "$evidence/deferred" 2>/dev/null || echo 0)
+if [[ $available =~ ^[0-9]+$ ]] && [ "$available" -lt "$min_free" ] && [ "$deferred" -lt "${WALK_DEFER_MAX:-12}" ]; then
+  echo "$(( deferred + 1 ))" >"$evidence/deferred"
+  echo "rollout-walk: host has $available MiB available, under $min_free: walk of $sha deferred ($(( deferred + 1 )) of ${WALK_DEFER_MAX:-12})" >&2
+  exit 1
+fi
+rm -f "$evidence/deferred"
+
 PORTAL_PASSWORD=$(awk '$1=="demo.steward@hel.fi"{print $2}' "$users")
 VIEWER_PASSWORD=$(awk '$1=="demo.viewer@hel.fi"{print $2}' "$users")
 # The steward signs in with TOTP (deployment T-5120): its seed is a third column of the users file or,
