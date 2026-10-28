@@ -133,6 +133,41 @@ pub const DEFAULT_CEILING: Ceiling = Ceiling {
     personal_data: false,
 };
 
+/// What one connector may spend (T-5968): its own calls a minute, calls at once and answer size.
+/// The person's own budget (`PERSON_LIMITS`) holds across all their connectors and `/api/v1/mcp`
+/// together, so a second connector adds no calls. Counted on the verified token's subject and the
+/// connector id from the path, never on a header.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[schema(as = ConnectorLimits)]
+pub struct Limits {
+    /// Tool calls a minute; the call past it answers 429 with `Retry-After`.
+    pub calls_per_minute: u32,
+    /// Calls answered at once; the next answers 429 until one ends.
+    pub parallel_calls: u32,
+    /// The largest tool answer in bytes; a larger one is refused as a 413 tool error naming
+    /// what to narrow.
+    pub result_bytes: usize,
+}
+
+/// Every connector's limits (T-5968). Decided (worker-t5968, owner may override): constants in
+/// code until a DelegationPolicy lowers them (T-5953); a person's 120 calls a minute (AG-60)
+/// split so one runaway connector leaves the person half for the others; 4 at once covers a
+/// model's parallel tool calls (Claude and ChatGPT issue 2-4 per turn); 1 MiB is ~250k tokens,
+/// past any model context a tool answer should fill, under the route's 4 MiB.
+pub const DEFAULT_LIMITS: Limits = Limits {
+    calls_per_minute: 60,
+    parallel_calls: 4,
+    result_bytes: 1024 * 1024,
+};
+
+/// One person's budget over all their connectors and `/api/v1/mcp` (AG-60, T-5968).
+pub const PERSON_LIMITS: Limits = Limits {
+    calls_per_minute: 120,
+    parallel_calls: 8,
+    result_bytes: 4 * 1024 * 1024,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 #[schema(as = ConnectorAccess)]
@@ -248,6 +283,8 @@ pub struct Connector {
     pub last_used_at: Option<DateTime<Utc>>,
     /// The MCP address a client adds: `https://portal.{domain}/c/{id}`.
     pub url: String,
+    /// What the connector may spend; shown on My connectors.
+    pub limits: Limits,
 }
 
 impl Connector {
@@ -433,6 +470,7 @@ impl Record {
             created_at: self.created_at,
             last_used_at: self.last_used_at,
             url: address(base, &self.id),
+            limits: DEFAULT_LIMITS,
         }
     }
 }

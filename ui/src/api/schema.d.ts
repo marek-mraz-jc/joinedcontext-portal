@@ -7661,6 +7661,8 @@ export interface components {
             id: string;
             /** Format: date-time */
             lastUsedAt?: string | null;
+            /** @description What the connector may spend; shown on My connectors. */
+            limits: components["schemas"]["ConnectorLimits"];
             name: string;
             owner: string;
             scope: components["schemas"]["ConnectorScopeItem"][];
@@ -7670,6 +7672,29 @@ export interface components {
             /** @description The MCP address a client adds: `https://portal.{domain}/c/{id}`. */
             url: string;
             writes: boolean;
+        };
+        /**
+         * @description What one connector may spend (T-5968): its own calls a minute, calls at once and answer size.
+         *     The person's own budget (`PERSON_LIMITS`) holds across all their connectors and `/api/v1/mcp`
+         *     together, so a second connector adds no calls. Counted on the verified token's subject and the
+         *     connector id from the path, never on a header.
+         */
+        ConnectorLimits: {
+            /**
+             * Format: int32
+             * @description Tool calls a minute; the call past it answers 429 with `Retry-After`.
+             */
+            callsPerMinute: number;
+            /**
+             * Format: int32
+             * @description Calls answered at once; the next answers 429 until one ends.
+             */
+            parallelCalls: number;
+            /**
+             * @description The largest tool answer in bytes; a larger one is refused as a 413 tool error naming
+             *     what to narrow.
+             */
+            resultBytes: number;
         };
         ConnectorList: {
             items: components["schemas"]["ConnectorGrant"][];
