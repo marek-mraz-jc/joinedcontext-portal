@@ -219,7 +219,10 @@ impl ApiError {
         let this = match self {
             Self::VerdictRequired(body) => {
                 let status = StatusCode::CONFLICT;
-                return (status, with_problem_members(body, status, "verdict-required"));
+                return (
+                    status,
+                    with_problem_members(body, status, "verdict-required"),
+                );
             }
             other => other,
         };
