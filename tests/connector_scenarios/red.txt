@@ -32,7 +32,6 @@ S-28 T-5956 no plan_change for a Role
 S-29 T-5956 no plan_change for a ServiceAccount with its secretRef
 S-30 T-5948 no tool answers who may write to an Endpoint
 S-31 T-5953 no DelegationPolicy ceiling or approval queue
-S-32 T-5950 no connector grant rechecked on the next call
 S-33 T-5956 no plan_change for publish.ckan
 S-34 T-5956 no plan_change for catalog.harvest false
 S-35 T-5956 no plan_change refusing a duplicate quality rule name
@@ -45,11 +44,7 @@ S-41 T-5959 no browser UI action tools (navigate, open_form)
 S-43 T-5956 the workspace preview and propose need plan_change/apply_change
 S-44 T-5960 approve is refused, but the answer carries no link to the change's Portal approval page
 S-45 T-5956 jc_project_export is org-admin only (UI-87); import as one change request needs apply_change
-S-46 T-5951 no connector to create at /c/{id}
-S-47 T-5950 no connector owner check at /c/{id}
-S-48 T-5954 no allowed-client binding per connector
 S-49 T-5955 no read-only connector token refused below the tools
-S-50 T-5950 no connector revoke and per-connector audit
 S-51 T-5971 no secretRef form link; a key pasted in chat is not refused by a plan tool
 S-53 T-5974 no revert plan tool
 S-54 T-5975 no connectors to revoke when a person is disabled

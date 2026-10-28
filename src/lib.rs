@@ -22,6 +22,7 @@ pub mod capped;
 pub mod catalog;
 pub mod change;
 pub mod config;
+pub mod connectors;
 pub mod dashboards;
 pub mod dataset_score;
 pub mod db;
