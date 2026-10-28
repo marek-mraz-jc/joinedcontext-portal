@@ -7773,6 +7773,11 @@ export interface components {
         ConnectorScopeItem: {
             access: components["schemas"]["ConnectorAccess"];
             endpoint?: string | null;
+            /**
+             * @description Whether answers through this item keep the attributes the model marks `personalData`
+             *     (DM-122): off by default, and only where the organization's ceiling allows it (AG-158).
+             */
+            personalData?: boolean;
             pipeline?: string | null;
             /** @description A project slug, e.g. `doprava`. */
             project: string;

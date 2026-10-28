@@ -39136,6 +39136,10 @@
               "null"
             ]
           },
+          "personalData": {
+            "type": "boolean",
+            "description": "Whether answers through this item keep the attributes the model marks `personalData`\n(DM-122): off by default, and only where the organization's ceiling allows it (AG-158)."
+          },
           "pipeline": {
             "type": [
               "string",

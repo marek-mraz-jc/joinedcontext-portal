@@ -122,12 +122,15 @@ pub struct Ceiling {
     pub segments: &'static [&'static str],
     pub writes: bool,
     pub max_days: i64,
+    /// Whether a scope item may tick `personalData` (AG-158).
+    pub personal_data: bool,
 }
 
 pub const DEFAULT_CEILING: Ceiling = Ceiling {
     segments: &["data-read"],
     writes: false,
     max_days: 30,
+    personal_data: false,
 };
 
 /// What one connector may spend (T-5968): its own calls a minute, calls at once and answer size.
@@ -188,6 +191,10 @@ pub struct ScopeItem {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pipeline: Option<String>,
     pub access: ItemAccess,
+    /// Whether answers through this item keep the attributes the model marks `personalData`
+    /// (DM-122): off by default, and only where the organization's ceiling allows it (AG-158).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub personal_data: bool,
 }
 
 impl ScopeItem {
@@ -390,6 +397,24 @@ impl Connector {
         }
     }
 
+    /// Whether a call in `project` with `args` may answer the attributes the model marks
+    /// personal (AG-158): a ticked item of the project that reaches the call's Endpoint, named
+    /// by `endpoint` or `name`. A ticked space or pipeline item does not reach one.
+    pub fn shows_personal(&self, project: &str, args: &Value) -> bool {
+        let endpoint = ["endpoint", "name"]
+            .iter()
+            .find_map(|key| args.get(*key).and_then(Value::as_str));
+        self.scope.iter().any(|i| {
+            i.project == project
+                && i.personal_data
+                && match i.narrowing() {
+                    None => true,
+                    Some(("Endpoint", name)) => name == "*" || Some(name) == endpoint,
+                    Some(_) => false,
+                }
+        })
+    }
+
     fn named(&self, project: &str) -> String {
         self.scope
             .iter()
@@ -493,6 +518,7 @@ pub fn validate(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Re
     }
     validate_segments(&new.segments, ceiling)?;
     validate_scope(new)?;
+    validate_personal(&new.scope, ceiling)?;
     if new.writes && !ceiling.writes {
         return Err(above_ceiling(
             "writes",
@@ -581,6 +607,17 @@ fn validate_scope(new: &NewConnector) -> Result<(), ApiError> {
         }
     }
     Ok(())
+}
+
+/// A `personalData` tick needs a ceiling that allows it (AG-158).
+fn validate_personal(scope: &[ScopeItem], ceiling: &Ceiling) -> Result<(), ApiError> {
+    match scope.iter().position(|item| item.personal_data) {
+        Some(i) if !ceiling.personal_data => Err(above_ceiling(
+            &format!("scope[{i}].personalData"),
+            "your organization keeps the attributes a model marks personalData out of AI connector answers; untick it, or ask an organization admin for a DelegationPolicy that allows it".into(),
+        )),
+        _ => Ok(()),
+    }
 }
 
 fn validate_clients(clients: &[String]) -> Result<(), ApiError> {
@@ -997,6 +1034,7 @@ mod tests {
             endpoint: endpoint.map(str::to_owned),
             pipeline: None,
             access: ItemAccess::Read,
+            personal_data: false,
         }
     }
 
@@ -1179,6 +1217,53 @@ mod tests {
         let mut bad = new(&["data-read"], false, 1);
         bad.allowed_clients = vec!["evil\nclient".into()];
         invalid(bad, "allowedClients[0]");
+    }
+
+    #[test]
+    fn a_personal_data_tick_needs_a_ceiling_that_allows_it() {
+        let now = Utc::now();
+        let mut ticked = new(&["data-read"], false, 1);
+        ticked.scope[0].personal_data = true;
+        match validate(&ticked, &DEFAULT_CEILING, now) {
+            Err(ApiError::Denied(why)) => {
+                assert!(why.starts_with("scope[0].personalData"), "{why}")
+            }
+            other => panic!("{other:?}"),
+        }
+        let allows = Ceiling {
+            personal_data: true,
+            ..DEFAULT_CEILING
+        };
+        assert!(validate(&ticked, &allows, now).is_ok());
+    }
+
+    #[test]
+    fn personal_attributes_show_only_through_a_ticked_item_that_reaches_the_endpoint() {
+        let ticked = |endpoint: Option<&str>| ScopeItem {
+            personal_data: true,
+            ..item("doprava", endpoint)
+        };
+        let args = |endpoint: &str| json!({ "project": "doprava", "endpoint": endpoint });
+        let plain = connector(&["data-read"], vec![item("doprava", None)]);
+        assert!(!plain.shows_personal("doprava", &args("hlasenia")));
+        let whole = connector(&["data-read"], vec![ticked(None)]);
+        assert!(whole.shows_personal("doprava", &args("hlasenia")));
+        assert!(!whole.shows_personal("skolstvo", &args("hlasenia")));
+        let one = connector(
+            &["data-read"],
+            vec![ticked(Some("hlasenia")), item("doprava", Some("scitace"))],
+        );
+        assert!(one.shows_personal("doprava", &args("hlasenia")));
+        assert!(!one.shows_personal("doprava", &args("scitace")));
+        assert!(!one.shows_personal("doprava", &json!({ "project": "doprava" })));
+        let space = connector(
+            &["data-read"],
+            vec![ScopeItem {
+                space: Some("doprava".into()),
+                ..ticked(None)
+            }],
+        );
+        assert!(!space.shows_personal("doprava", &args("hlasenia")));
     }
 
     #[test]
