@@ -56,6 +56,9 @@ pub(super) fn offered(
         .into_iter()
         .filter(|op| crate::ops::find(&op.name).is_some_and(|operation| access.names(operation)))
         .filter(|op| opens_a_change(&op.name).is_none())
+        // T-5948: kind schemas reach MCP clients (tools/list, jc_schema_get), not this prompt,
+        // which keeps its 4k-token turn (AG-72) until T-5958 replaces it.
+        .filter(|op| op.name != crate::ops::schemas::GET)
         .collect()
 }
 
@@ -1361,15 +1364,7 @@ mod tests {
         let summaries: Vec<OperationSummary> = ops
             .iter()
             .filter(|op| op.name == "jc_catalog_search" || op.name == "jc_endpoint_propose")
-            .map(|op| OperationSummary {
-                name: op.name.to_string(),
-                title: op.title.to_string(),
-                description: op.description.to_string(),
-                input_schema: (op.input)(),
-                output_schema: (op.output)(),
-                annotations: op.annotations,
-                lane: op.lane,
-            })
+            .map(crate::ops::summary)
             .collect();
         let text = section(&summaries);
         assert!(text.contains("`jc_catalog_search`"), "{text}");
