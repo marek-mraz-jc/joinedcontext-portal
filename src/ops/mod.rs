@@ -246,34 +246,6 @@ const ORGANIZATION_OPERATIONS: &[&str] = &[
     "jc_project_create",
 ];
 
-/// What is wrong with a registry entry, empty when nothing is (T-5948). A write needs a verb:
-/// one held on a kind the registry names, the route's or the organization's check, or the verb
-/// inferred on the kind its input names (`kind: "*"`). A write naming a kind without a verb would
-/// be gated on some other kind, and an input schema that is not a closed object is not one the
-/// door can hold to (T-1659).
-pub fn problems(op: &Operation) -> Vec<String> {
-    let mut found = Vec::new();
-    let checked_elsewhere = ORGANIZATION_OPERATIONS.contains(&op.name)
-        || resources::CHECKED_BY_THE_ROUTE.contains(&op.name);
-    if op.verb.is_none() && !op.annotations.read_only_hint && op.kind != "*" && !checked_elsewhere {
-        found.push(format!("{} writes {} but names no verb", op.name, op.kind));
-    }
-    if op.verb == Some(Verb::Read) && !op.annotations.read_only_hint {
-        found.push(format!("{} writes with only the read verb", op.name));
-    }
-    let input = (op.input)();
-    if input["type"] != "object" || input["additionalProperties"] != json!(false) {
-        found.push(format!("{}'s input schema is not a closed object", op.name));
-    }
-    if let Err(err) = jsonschema::validator_for(&input) {
-        found.push(format!(
-            "{}'s input schema does not compile: {err}",
-            op.name
-        ));
-    }
-    found
-}
-
 /// A request a client can send first: the schema's own example, else each required member at
 /// its first enum value, its default, or the smallest value of its type (MF-40).
 pub fn example_of(schema: &Value) -> Value {
@@ -799,6 +771,45 @@ fn init_registry() -> Vec<Operation> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What is wrong with a registry entry, empty when nothing is (T-5948). A write needs a verb:
+    /// one held on a kind the registry names, the route's or the organization's check, or the verb
+    /// inferred on the kind its input names (`kind: "*"`). A write naming a kind without a verb would
+    /// be gated on some other kind, and an input schema that is not a closed object is not one the
+    /// door can hold to (T-1659).
+    fn problems(op: &Operation) -> Vec<String> {
+        let mut found = Vec::new();
+        let checked_elsewhere = ORGANIZATION_OPERATIONS.contains(&op.name)
+            || resources::CHECKED_BY_THE_ROUTE.contains(&op.name);
+        if op.verb.is_none()
+            && !op.annotations.read_only_hint
+            && op.kind != "*"
+            && !checked_elsewhere
+        {
+            found.push(format!("{} writes {} but names no verb", op.name, op.kind));
+        }
+        if op.verb == Some(Verb::Read) && !op.annotations.read_only_hint {
+            found.push(format!("{} writes with only the read verb", op.name));
+        }
+        let input = (op.input)();
+        if input["type"] != "object" || input["additionalProperties"] != json!(false) {
+            found.push(format!("{}'s input schema is not a closed object", op.name));
+        }
+        if let Err(err) = jsonschema::validator_for(&input) {
+            found.push(format!(
+                "{}'s input schema does not compile: {err}",
+                op.name
+            ));
+        }
+        found
+    }
+
+    #[test]
+    fn every_registry_entry_is_sound() {
+        let found: Vec<String> = registry().iter().flat_map(problems).collect();
+        assert!(found.is_empty(), "{}", found.join("\n"));
+        assert!(find("jc_schema_get").is_some(), "get_schema is registered");
+    }
 
     /// T-5948: the rule a client reads is the gate's: a registry verb, the route's, the
     /// organization's, or the project's with the verb a write's name implies.
