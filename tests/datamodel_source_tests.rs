@@ -396,7 +396,7 @@ slots:
     assert!(detail.contains("breaking change"), "{detail}");
     let errors = problem["errors"].as_array().unwrap();
     assert!(
-        errors.iter().any(|e| e.as_str().unwrap().contains("pm10")),
+        errors.iter().any(|e| e.to_string().contains("pm10")),
         "errors must name removed slot pm10"
     );
 }
