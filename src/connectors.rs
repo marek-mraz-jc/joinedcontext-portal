@@ -1017,8 +1017,13 @@ impl ConnectorStore {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    /// A live connector with no scope, for another module's tests to name.
+    pub(crate) fn sample() -> Connector {
+        connector(&["context"], vec![])
+    }
 
     fn op(name: &str) -> &'static Operation {
         crate::ops::find(name).expect("registered")

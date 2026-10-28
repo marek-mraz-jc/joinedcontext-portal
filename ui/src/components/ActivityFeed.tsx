@@ -139,6 +139,7 @@ export function ActivityFeed({
   );
   const [source, setSource] = useState("");
   const [severity, setSeverity] = useState("");
+  const [connector, setConnector] = useState("");
   const [tailing, setTailing] = useState(!compact);
   const [live, setLive] = useState<ActivityEvent[]>([]);
   const [arrived, setArrived] = useState(0);
@@ -149,9 +150,10 @@ export function ActivityFeed({
       kind: kind || fixed?.kind,
       source: source || fixed?.source,
       severity: (severity || fixed?.severity) as Severity | undefined,
+      connector: connector || fixed?.connector,
       limit,
     }),
-    [fixed, kind, source, severity, limit],
+    [fixed, kind, source, severity, connector, limit],
   );
 
   const page = useQuery({
@@ -163,6 +165,14 @@ export function ActivityFeed({
         }),
       ),
   });
+
+  // The connector filter offers the reader's own connectors; the server lists only those.
+  const connectors = useQuery({
+    queryKey: ["connectors"],
+    enabled: !compact,
+    queryFn: async () => unwrap(await api.GET("/api/v1/connectors", {})),
+  });
+  const ownConnectors = connectors.data?.items ?? [];
 
   // A filter change starts the tail again: what arrived under the old filter is not this list.
   const filterKey = JSON.stringify(activitySearch(query));
@@ -300,6 +310,30 @@ export function ActivityFeed({
           {(["info", "warning", "error"] as const).map((option) => (
             <option key={option} value={option}>
               {t(`activity.severity.${option}`)}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field
+        id={`${ids}-connector`}
+        label={t("activity.filter.connector")}
+        description={
+          ownConnectors.length > 0
+            ? t("activity.filter.connectorHint")
+            : t("activity.filter.connectorNone")
+        }
+        className="w-56"
+      >
+        <Select
+          id={`${ids}-connector`}
+          value={connector}
+          disabled={ownConnectors.length === 0}
+          onChange={(event) => setConnector(event.target.value)}
+        >
+          <option value="">{t("activity.filter.all")}</option>
+          {ownConnectors.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.name}
             </option>
           ))}
         </Select>

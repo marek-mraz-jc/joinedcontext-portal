@@ -647,7 +647,10 @@ async fn tools_call(
     id: Value,
     params: &Value,
 ) -> Value {
-    let via = crate::change::ProposedVia::mcp(caller.identity.client.as_deref());
+    // The connector comes from the stored grant the verified token was checked against
+    // (T-5973), never from the call's arguments.
+    let via = crate::change::ProposedVia::mcp(caller.identity.client.as_deref())
+        .through(caller.access.as_ref().and_then(|a| a.connector()));
     let mut answer = None;
     let envelope = crate::change::PROPOSED_VIA
         .scope(
@@ -1149,6 +1152,10 @@ async fn record_call(
         "channel": via.channel,
         "client": via.client,
     });
+    if let (Some(id), Some(name)) = (&via.connector, &via.connector_name) {
+        details["connector"] = json!(id);
+        details["connectorName"] = json!(name);
+    }
     if let Some(answer) = answer {
         details["answer"] = json!(answer);
     }

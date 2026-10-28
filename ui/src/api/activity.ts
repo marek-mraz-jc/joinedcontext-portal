@@ -55,6 +55,8 @@ export interface ActivityQuery {
   severity?: Severity;
   since?: string;
   object?: string;
+  /** Only the calls and changes of one connector, by its id (T-5973). */
+  connector?: string;
   limit?: number;
   cursor?: string;
 }

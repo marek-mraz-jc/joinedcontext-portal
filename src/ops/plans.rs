@@ -520,6 +520,19 @@ async fn apply(
             moved.join(", ")
         ))));
     }
+    // Every commit and merge request the apply opens names the plan it took (T-5973).
+    match crate::change::ProposedVia::current() {
+        Some(via) => {
+            crate::change::PROPOSED_VIA
+                .scope(via.with_plan(&input.plan_id), open(caller, state, &plan))
+                .await
+        }
+        None => open(caller, state, &plan).await,
+    }
+}
+
+/// Opens each change of a plan whose base still holds.
+async fn open(caller: &Caller, state: &AppState, plan: &Plan) -> Result<Value, OpError> {
     let workspace = plan.workspace.as_deref();
     let mut opened = Vec::new();
     for item in &plan.items {

@@ -10,13 +10,13 @@ import { api, queryKeys, unwrap } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { PlanDiffViewer } from "../components/diff/PlanDiffViewer";
+import { ProposedViaBadge, ProposedViaHint } from "../components/ProposedViaBadge";
 import { PublicationPreview } from "../pages/catalogue/PublicationPreview";
 import { applyFields } from "../pages/catalogue/publish";
 import { localized } from "../api/manifest";
 import type { components } from "../api/schema";
 import {
   Alert,
-  Badge,
   Button,
   Dialog,
   ExternalLink,
@@ -186,9 +186,7 @@ export function ApprovalDetailPage({
             <LifecycleBadge kind="phase" value={proposal.status.phase} />
             {/* An AI client proposed it for the author (AG-137): the approver reads that first. */}
             {proposal.status.proposedVia ? (
-              <Badge tone="accent" data-testid="change-proposed-via">
-                {t("approvals.proposedVia.badge", { client: proposal.status.proposedVia.client })}
-              </Badge>
+              <ProposedViaBadge via={proposal.status.proposedVia} />
             ) : null}
           </div>
         }
@@ -220,12 +218,7 @@ export function ApprovalDetailPage({
             ) : null}
           </dd>
           {proposal.status.proposedVia ? (
-            <dd className="mt-1 text-xs text-fg-muted">
-              {t("approvals.proposedVia.hint", {
-                client: proposal.status.proposedVia.client,
-                author: proposal.author.name,
-              })}
-            </dd>
+            <ProposedViaHint via={proposal.status.proposedVia} author={proposal.author.name} />
           ) : null}
         </div>
         {proposal.workspace ? (

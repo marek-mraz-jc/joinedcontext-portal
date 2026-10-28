@@ -124,6 +124,16 @@ pub struct ProposedVia {
     pub channel: String,
     /// The token's `azp`, at most 64 characters of `[A-Za-z0-9._:-]`.
     pub client: String,
+    /// The connector the call came through (AG-144), from the stored grant the token was
+    /// checked against, never from the call's arguments.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connector: Option<String>,
+    /// That connector's name, a DNS-1123 label.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connector_name: Option<String>,
+    /// The plan `jc_change_apply` took (T-5956): the diff the person's AI client showed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan: Option<String>,
 }
 
 tokio::task_local! {
@@ -145,7 +155,26 @@ impl ProposedVia {
         Self {
             channel: "mcp".to_owned(),
             client,
+            connector: None,
+            connector_name: None,
+            plan: None,
         }
+    }
+
+    /// The connector a call comes through, as the verified token and the stored grant name it.
+    pub fn through(mut self, connector: Option<&crate::connectors::Connector>) -> Self {
+        if let Some(connector) = connector.filter(|c| valid_client(&c.id) && valid_client(&c.name))
+        {
+            self.connector = Some(connector.id.clone());
+            self.connector_name = Some(connector.name.clone());
+        }
+        self
+    }
+
+    /// The plan an apply took; a plan id outside the charset is left unsaid.
+    pub fn with_plan(mut self, plan: &str) -> Self {
+        self.plan = valid_client(plan).then(|| plan.to_owned());
+        self
     }
 
     /// The channel of the call being served, outside any [`PROPOSED_VIA`] scope none.
@@ -153,9 +182,20 @@ impl ProposedVia {
         PROPOSED_VIA.try_with(Clone::clone).ok()
     }
 
-    /// The Git trailer line (ADR-N-060 §2.2): `Proposed-Via: mcp; client=mcp-mobile`.
+    /// The Git trailer line (ADR-N-060 §2.2): `Proposed-Via: mcp; client=mcp-mobile`, then
+    /// `; connector=<id>; connectorName=<name>; plan=<id>` for a change a connector opened (T-5973).
     pub fn trailer(&self) -> String {
-        format!("{TRAILER}{}; client={}", self.channel, self.client)
+        let mut line = format!("{TRAILER}{}; client={}", self.channel, self.client);
+        for (key, value) in [
+            ("connector", &self.connector),
+            ("connectorName", &self.connector_name),
+            ("plan", &self.plan),
+        ] {
+            if let Some(value) = value {
+                line.push_str(&format!("; {key}={value}"));
+            }
+        }
+        line
     }
 
     /// `message` with the trailer of the call being served, unchanged outside one.
@@ -170,12 +210,18 @@ impl ProposedVia {
     /// trailer in its last, unchanged outside one.
     pub fn sign_body(body: &str) -> std::borrow::Cow<'_, str> {
         match Self::current() {
-            Some(via) => format!(
-                "Proposed through an AI client over MCP (client `{}`).\n\n{body}\n\n{}",
-                via.client,
-                via.trailer()
-            )
-            .into(),
+            Some(via) => {
+                let connector = match &via.connector_name {
+                    Some(name) => format!(" through connector `{name}`"),
+                    None => String::new(),
+                };
+                format!(
+                    "Proposed through an AI client over MCP (client `{}`){connector}.\n\n{body}\n\n{}",
+                    via.client,
+                    via.trailer()
+                )
+                .into()
+            }
             None => body.into(),
         }
     }
@@ -187,11 +233,27 @@ impl ProposedVia {
             .lines()
             .rev()
             .find_map(|l| l.trim().strip_prefix(TRAILER))?;
-        let (channel, client) = line.split_once("; client=")?;
-        (channel == "mcp" && valid_client(client)).then(|| Self {
-            channel: channel.to_owned(),
-            client: client.to_owned(),
-        })
+        let (channel, rest) = line.split_once("; client=")?;
+        let mut parts = rest.split("; ");
+        let client = parts.next()?;
+        if channel != "mcp" || !valid_client(client) {
+            return None;
+        }
+        let mut via = Self::mcp(Some(client));
+        for part in parts {
+            let (key, value) = part.split_once('=')?;
+            if !valid_client(value) {
+                return None;
+            }
+            let slot = match key {
+                "connector" => &mut via.connector,
+                "connectorName" => &mut via.connector_name,
+                "plan" => &mut via.plan,
+                _ => return None,
+            };
+            *slot = Some(value.to_owned());
+        }
+        Some(via)
     }
 }
 
@@ -743,10 +805,7 @@ mod tests {
         assert!(body.starts_with("Proposed through an AI client over MCP (client `mcp-mobile`)."));
         assert_eq!(
             ProposedVia::in_body(&body),
-            Some(ProposedVia {
-                channel: "mcp".to_owned(),
-                client: "mcp-mobile".to_owned()
-            })
+            Some(ProposedVia::mcp(Some("mcp-mobile")))
         );
     }
 
@@ -773,6 +832,59 @@ mod tests {
             None
         );
         assert_eq!(ProposedVia::in_body("Proposed-Via: person; client=x"), None);
+    }
+
+    #[test]
+    fn a_change_a_connector_opened_names_it_and_its_plan_in_the_trailer_and_the_body() {
+        let connector = crate::connectors::Connector {
+            id: "abcdefghijklmnopqrstuvwxyz".into(),
+            name: "doprava-in-claude".into(),
+            ..crate::connectors::tests::sample()
+        };
+        let via = ProposedVia::mcp(Some("claude-code"))
+            .through(Some(&connector))
+            .with_plan("p2345234523452345234523452");
+        assert_eq!(
+            via.trailer(),
+            "Proposed-Via: mcp; client=claude-code; connector=abcdefghijklmnopqrstuvwxyz; \
+             connectorName=doprava-in-claude; plan=p2345234523452345234523452"
+        );
+        let body = format!("Proposed update.\n\n{}", via.trailer());
+        assert_eq!(ProposedVia::in_body(&body), Some(via.clone()));
+        let status = ChangeStatus::new(
+            Lane::Yellow,
+            ChangePhase::PendingApproval,
+            PlanSummary::default(),
+        )
+        .proposed_through(&body);
+        assert_eq!(
+            serde_json::to_value(&status).expect("serialize")["proposedVia"],
+            json!({
+                "channel": "mcp",
+                "client": "claude-code",
+                "connector": "abcdefghijklmnopqrstuvwxyz",
+                "connectorName": "doprava-in-claude",
+                "plan": "p2345234523452345234523452",
+            })
+        );
+        // A hand edit that adds a key or a value outside the charset shows nothing it cannot check.
+        assert_eq!(
+            ProposedVia::in_body("Proposed-Via: mcp; client=c; owner=root"),
+            None
+        );
+        assert_eq!(
+            ProposedVia::in_body("Proposed-Via: mcp; client=c; connectorName=<b>x</b>"),
+            None
+        );
+        // A connector name outside the charset is never written.
+        let odd = crate::connectors::Connector {
+            name: "x\ny".into(),
+            ..connector
+        };
+        assert_eq!(
+            ProposedVia::mcp(Some("c")).through(Some(&odd)).connector,
+            None
+        );
     }
 
     #[test]

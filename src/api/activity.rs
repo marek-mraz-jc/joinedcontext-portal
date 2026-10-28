@@ -49,6 +49,8 @@ pub struct ActivityQuery {
     pub since: Option<String>,
     /// One object the events belong to, as `{plural}/{name}`.
     pub object: Option<String>,
+    /// Only the calls and changes of one connector, by its id (T-5973).
+    pub connector: Option<String>,
     pub limit: Option<i64>,
     pub cursor: Option<String>,
 }
@@ -73,6 +75,18 @@ impl ActivityQuery {
                 )));
             }
         }
+        if let Some(connector) = &self.connector {
+            if connector.len() != 26
+                || !connector
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || (b'2'..=b'7').contains(&b))
+            {
+                return Err(ApiError::BadRequest(format!(
+                    "connector '{connector}' is not a connector id: 26 characters of a-z and 2-7, \
+                     as My connectors shows it"
+                )));
+            }
+        }
         let cursor = match &self.cursor {
             Some(text) => Some(Cursor::decode(text).ok_or_else(|| {
                 ApiError::BadRequest("that cursor is not one this Portal handed out".into())
@@ -93,6 +107,7 @@ impl ActivityQuery {
             severity: self.severity,
             since,
             object: self.object,
+            connector: self.connector,
             limit: self.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT),
             cursor,
             reach: None,
@@ -593,6 +608,35 @@ mod tests {
         }
         .into_filter()
         .is_err());
+    }
+
+    #[test]
+    fn a_connector_filter_takes_only_a_connector_id() {
+        let filter = ActivityQuery {
+            connector: Some("abcdefghijklmnopqrstuvwxyz".into()),
+            ..Default::default()
+        }
+        .into_filter()
+        .expect("a filter");
+        assert_eq!(
+            filter.connector.as_deref(),
+            Some("abcdefghijklmnopqrstuvwxyz")
+        );
+        for bad in [
+            "doprava-in-claude",
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+            "' OR 1=1 --",
+        ] {
+            let refused = ActivityQuery {
+                connector: Some(bad.into()),
+                ..Default::default()
+            }
+            .into_filter();
+            assert!(
+                matches!(&refused, Err(ApiError::BadRequest(why)) if why.starts_with("connector")),
+                "{bad}: {refused:?}"
+            );
+        }
     }
 
     #[test]
