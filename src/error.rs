@@ -127,11 +127,14 @@ pub fn with_problem_members(
     serde_json::Value::Object(document)
 }
 
+/// The media type of every problem answer (RFC 9457 §3).
+const PROBLEM_JSON: &str = "application/problem+json";
+
 /// The problem answer of [`with_problem_members`].
 pub fn problem_response(body: serde_json::Value, status: StatusCode, slug: &str) -> Response {
     (
         status,
-        [(header::CONTENT_TYPE, "application/problem+json")],
+        [(header::CONTENT_TYPE, PROBLEM_JSON)],
         axum::Json(with_problem_members(body, status, slug)),
     )
         .into_response()
@@ -189,18 +192,17 @@ pub enum ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        // A 412 names the current version, so the caller can read it and retry (T-5949 + main).
         let etag = match &self {
             Self::PreconditionFailed { etag, .. } => Some(etag.clone()),
             _ => None,
         };
-        let (status, content_type, body) = self.into_document();
+        let (status, body) = self.into_document();
         let body = serde_json::to_string(&body).unwrap_or_else(|_| {
             r#"{"type":"https://joinedcontext.com/errors/internal-error","title":"Internal Server Error","status":500}"#.to_string()
         });
         let mut builder = Response::builder()
             .status(status)
-            .header(header::CONTENT_TYPE, content_type);
+            .header(header::CONTENT_TYPE, PROBLEM_JSON);
         if let Some(etag) = etag {
             builder = builder.header(header::ETAG, etag);
         }
@@ -211,16 +213,16 @@ impl IntoResponse for ApiError {
 }
 
 impl ApiError {
-    /// The answer's status, content type and document: the problem a REST door answers and an
+    /// The answer's status and document: the problem a REST door answers and an
     /// MCP tool error carries as its structured content, so both read alike (AG-146, T-5949).
-    pub fn into_document(self) -> (StatusCode, &'static str, serde_json::Value) {
+    pub fn into_document(self) -> (StatusCode, serde_json::Value) {
         let this = match self {
             Self::VerdictRequired(body) => {
+                let status = StatusCode::CONFLICT;
                 return (
-                    StatusCode::CONFLICT,
-                    "application/problem+json",
-                    with_problem_members(body, StatusCode::CONFLICT, "verdict-required"),
-                )
+                    status,
+                    with_problem_members(body, status, "verdict-required"),
+                );
             }
             other => other,
         };
@@ -283,14 +285,12 @@ impl ApiError {
                 Some(msg),
             ),
             Self::Conflict(msg) => (StatusCode::CONFLICT, "conflict", "Conflict", Some(msg)),
-            Self::PreconditionFailed { detail, .. } => {
-                (
-                    StatusCode::PRECONDITION_FAILED,
-                    "precondition-failed",
-                    "Precondition Failed",
-                    Some(detail),
-                )
-            }
+            Self::PreconditionFailed { detail, .. } => (
+                StatusCode::PRECONDITION_FAILED,
+                "precondition-failed",
+                "Precondition Failed",
+                Some(detail),
+            ),
             // Answered above with its own document; kept here so the match stays exhaustive.
             Self::VerdictRequired(body) => (
                 StatusCode::CONFLICT,
@@ -357,7 +357,7 @@ impl ApiError {
         let body = serde_json::to_value(&problem).unwrap_or_else(|_| {
             serde_json::json!({"type": "https://joinedcontext.com/errors/internal-error", "title": "Internal Server Error", "status": 500})
         });
-        (status, "application/problem+json", body)
+        (status, body)
     }
 }
 
@@ -469,13 +469,12 @@ mod tests {
 
     #[tokio::test]
     async fn an_invalid_request_answers_every_field_with_its_path() {
-        let (status, content_type, body) = ApiError::Invalid {
+        let (status, body) = ApiError::Invalid {
             detail: "2 members are wrong".into(),
             errors: vec!["spec.name: too long".into(), "spec.space".into()],
         }
         .into_document();
         assert_eq!(status, StatusCode::BAD_REQUEST);
-        assert_eq!(content_type, "application/problem+json");
         assert_eq!(
             body["errors"],
             serde_json::json!([
@@ -488,9 +487,8 @@ mod tests {
     #[test]
     fn a_document_of_its_own_becomes_a_problem_and_keeps_its_members() {
         let verdict = serde_json::json!({ "error": "verdict_required", "check": "jc_manifest_dry_run", "detail": "check it" });
-        let (status, content_type, body) = ApiError::VerdictRequired(verdict).into_document();
+        let (status, body) = ApiError::VerdictRequired(verdict).into_document();
         assert_eq!(status, StatusCode::CONFLICT);
-        assert_eq!(content_type, "application/problem+json");
         assert_eq!(
             body["type"],
             "https://joinedcontext.com/errors/verdict-required"

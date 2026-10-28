@@ -1237,7 +1237,7 @@ fn conflict_result(val: &Value) -> Value {
 /// member it names and calls again (AG-146, T-5949).
 fn problem_result(err: crate::ops::OpError) -> Value {
     let said = err.to_string();
-    let (_, _, problem) = err.into_api_error().into_document();
+    let (_, problem) = err.into_api_error().into_document();
     json!({
         "isError": true,
         "content": [{ "type": "text", "text": said }],
