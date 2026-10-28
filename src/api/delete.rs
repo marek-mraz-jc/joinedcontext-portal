@@ -259,6 +259,7 @@ impl DeleteOutcome {
         ("name" = String, Path, description = "Resource name"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
         ("confirm" = Option<String>, Query, description = "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)"),
+        ("If-Match" = Option<String>, Header, description = "The ETag of the manifest as read; a stale one is 412 and opens no Change (API/13 section 3)"),
     ),
     responses(
         (status = 202, description = "Change proposal accepted", body = Change),
@@ -266,6 +267,7 @@ impl DeleteOutcome {
         (status = 400, description = "Bad request", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
         (status = 404, description = "Not found", body = ProblemDetails),
+        (status = 412, description = "If-Match is not the manifest's current ETag, which the answer carries", body = ProblemDetails),
         (status = 409, description = "Conflict - blocking dependents", body = ProblemDetails),
         (status = 503, description = "Git forge unavailable", body = ProblemDetails),
     )
@@ -276,8 +278,19 @@ pub async fn delete_resource(
     State(state): State<AppState>,
     Path((project, plural, name)): Path<(String, String, String)>,
     Query(dry_run_q): Query<DryRunQuery>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Response, ApiError> {
     let is_dry = dry_run::is_dry_run(&dry_run_q)?;
+    crate::api::resources::check_if_match(
+        &state,
+        &user.0.identity,
+        &project,
+        &plural,
+        &name,
+        dry_run_q.workspace.as_deref(),
+        &headers,
+    )
+    .await?;
     match delete_with_identity(
         &user.0.identity,
         &state,
@@ -889,6 +902,7 @@ mod tests {
             State(state.clone()),
             Path(("ovzdusie".into(), "unknownplural".into(), "mobility".into())),
             Query(DryRunQuery::default()),
+            axum::http::HeaderMap::new(),
         )
         .await
         .unwrap_err();
@@ -903,6 +917,7 @@ mod tests {
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "nonexistent".into())),
             Query(DryRunQuery::default()),
+            axum::http::HeaderMap::new(),
         )
         .await
         .unwrap_err();
@@ -941,8 +956,10 @@ mod tests {
             Query(DryRunQuery {
                 workspace: None,
                 dry_run: Some("All".into()),
+                validate_only: None,
                 confirm: None,
             }),
+            axum::http::HeaderMap::new(),
         )
         .await
         .expect("dry run deletion should succeed even when victim self-references in spec");
@@ -993,6 +1010,7 @@ mod tests {
             State(state.clone()),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery::default()),
+            axum::http::HeaderMap::new(),
         )
         .await
         .unwrap_err();
@@ -1030,6 +1048,7 @@ mod tests {
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery::default()),
+            axum::http::HeaderMap::new(),
         )
         .await
         .unwrap_err();
@@ -1067,6 +1086,7 @@ mod tests {
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery::default()),
+            axum::http::HeaderMap::new(),
         )
         .await
         .unwrap_err();
@@ -1160,6 +1180,7 @@ mod tests {
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery::default()),
+            axum::http::HeaderMap::new(),
         )
         .await
         .expect("delete should succeed");
@@ -1225,6 +1246,7 @@ mod tests {
             State(state),
             Path(("ovzdusie".into(), "spaces".into(), "mobility".into())),
             Query(DryRunQuery::default()),
+            axum::http::HeaderMap::new(),
         )
         .await
         .unwrap_err();

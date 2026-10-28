@@ -693,3 +693,44 @@ async fn a_form_checks_and_writes_its_draft_into_the_owners_workspace() {
     );
     drop(server);
 }
+
+/// `validate_only=true` checks a form's draft inside a workspace as `dryRun=All` does, and
+/// writes nothing to the copy's branch (T-5949, AIP-163).
+#[tokio::test]
+async fn validate_only_checks_a_draft_in_a_workspace_and_writes_nothing() {
+    let (server, state) = world().await;
+    opened(&state).await;
+    let mut proposal = json!({
+        "apiVersion": "joinedcontext.com/v1alpha1",
+        "kind": "ContextSpace",
+        "metadata": { "name": "air", "namespace": PROJECT },
+        "spec": { "isSandbox": true, "defaultLocale": "en", "ttlDays": 12 }
+    });
+    proposal["draft"] = json!({ "kind": "ContextSpace", "name": "air" });
+    let uri = "/api/v1/projects/ovzdusie/spaces/air";
+    let writes = |requests: Vec<wiremock::Request>| {
+        requests
+            .iter()
+            .filter(|r| r.method.as_str() != "GET")
+            .count()
+    };
+    let before = writes(server.received_requests().await.unwrap_or_default());
+    let checked = send(
+        &state,
+        steward(),
+        "PUT",
+        &format!("{uri}?validate_only=true&workspace=air-v2"),
+        Some(proposal.clone()),
+    )
+    .await;
+    assert_eq!(checked.status, StatusCode::OK, "{}", checked.text);
+    assert_eq!(
+        body(&checked.text)["verdict"]["ok"],
+        true,
+        "{}",
+        checked.text
+    );
+    assert!(body(&checked.text)["branch"].is_null(), "{}", checked.text);
+    let after = writes(server.received_requests().await.unwrap_or_default());
+    assert_eq!(after, before, "validate_only wrote to the forge");
+}

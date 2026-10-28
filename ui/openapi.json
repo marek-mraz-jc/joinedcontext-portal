@@ -3256,6 +3256,15 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "validate_only",
+            "in": "query",
+            "description": "`true` (AIP-163) is `dryRun=true` under the name every write takes (T-5949).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -22843,6 +22852,11 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
+                  "filter": {
+                    "description": "AIP-160 subset over manifest fields, as the REST list takes it, e.g. labels.team = \"air\" AND spec.schedule:*",
+                    "maxLength": 2000,
+                    "type": "string"
+                  },
                   "kind": {
                     "description": "The manifest kind, e.g. Pipeline",
                     "maxLength": 128,
@@ -33268,6 +33282,33 @@
             }
           },
           {
+            "name": "filter",
+            "in": "query",
+            "description": "AIP-160 subset over manifest fields, e.g. labels.team = \"air\" AND spec.schedule:*",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "orderBy",
+            "in": "query",
+            "description": "One field, optionally followed by desc; default metadata.name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "The nextCursor of the previous page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "labelSelector",
             "in": "query",
             "description": "Label selector",
@@ -33335,7 +33376,7 @@
             }
           },
           "400": {
-            "description": "A bad selector or limit, a revision that is not a commit id, or one beside a workspace",
+            "description": "A bad filter, orderBy, cursor, selector or limit, a revision that is not a commit id, or one beside a workspace",
             "content": {
               "application/json": {
                 "schema": {
@@ -33576,11 +33617,23 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "description": "An ETag of an earlier read: 304 when the manifest is unchanged",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Resource envelope",
+            "description": "Resource envelope, with its strong ETag",
             "content": {
               "application/json": {
                 "schema": {
@@ -33588,6 +33641,9 @@
                 }
               }
             }
+          },
+          "304": {
+            "description": "Unchanged since the ETag sent in If-None-Match"
           },
           "400": {
             "description": "A revision that is not a commit id, or one beside a workspace",
@@ -33672,6 +33728,18 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag of the manifest as read; a stale one is 412 and opens no Change (API/13 section 3)",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         ],
@@ -33764,6 +33832,16 @@
               }
             }
           },
+          "412": {
+            "description": "If-Match is not the manifest's current ETag, which the answer carries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "415": {
             "description": "Unsupported media type",
             "content": {
@@ -33838,6 +33916,18 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag of the manifest as read; a stale one is 412 and opens no Change (API/13 section 3)",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
@@ -33911,6 +34001,16 @@
               }
             }
           },
+          "412": {
+            "description": "If-Match is not the manifest's current ETag, which the answer carries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "503": {
             "description": "Git forge unavailable",
             "content": {
@@ -33974,6 +34074,18 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag of the manifest as read; a stale one is 412 and opens no Change (API/13 section 3)",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         ],
@@ -34046,6 +34158,16 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "If-Match is not the manifest's current ETag, which the answer carries",
             "content": {
               "application/json": {
                 "schema": {
@@ -38745,7 +38867,8 @@
           "clientIsBoundary",
           "state",
           "createdAt",
-          "url"
+          "url",
+          "limits"
         ],
         "properties": {
           "aboveCeiling": {
@@ -38793,6 +38916,10 @@
             ],
             "format": "date-time"
           },
+          "limits": {
+            "$ref": "#/components/schemas/ConnectorLimits",
+            "description": "What the connector may spend; shown on My connectors."
+          },
           "name": {
             "type": "string"
           },
@@ -38828,6 +38955,34 @@
           },
           "writes": {
             "type": "boolean"
+          }
+        }
+      },
+      "ConnectorLimits": {
+        "type": "object",
+        "description": "What one connector may spend (T-5968): its own calls a minute, calls at once and answer size.\nThe person's own budget (`PERSON_LIMITS`) holds across all their connectors and `/api/v1/mcp`\ntogether, so a second connector adds no calls. Counted on the verified token's subject and the\nconnector id from the path, never on a header.",
+        "required": [
+          "callsPerMinute",
+          "parallelCalls",
+          "resultBytes"
+        ],
+        "properties": {
+          "callsPerMinute": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Tool calls a minute; the call past it answers 429 with `Retry-After`.",
+            "minimum": 0
+          },
+          "parallelCalls": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Calls answered at once; the next answers 429 until one ends.",
+            "minimum": 0
+          },
+          "resultBytes": {
+            "type": "integer",
+            "description": "The largest tool answer in bytes; a larger one is refused as a 413 tool error naming\nwhat to narrow.",
+            "minimum": 0
           }
         }
       },
@@ -40613,6 +40768,22 @@
           },
           "theirs": {
             "type": "object"
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "description": "One violation: the member it is about and what is wrong with it (AG-146). `path` is the\nmember's dotted path (`spec.history[1]`), or empty when the finding is about the whole request.",
+        "required": [
+          "path",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
           }
         }
       },
@@ -44876,9 +45047,9 @@
               "null"
             ],
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/FieldError"
             },
-            "description": "Every violation of one request, when there is more than one thing to say. A form marks\nall its bad fields from this in one pass instead of one round trip per mistake (CC-24)."
+            "description": "Every violation of one request, when there is more than one thing to say. A form marks\nall its bad fields from this in one pass instead of one round trip per mistake (CC-24),\nand a model corrects its input by `path` (AG-146, T-5949)."
           },
           "hint": {
             "type": [
@@ -45967,6 +46138,13 @@
           },
           "metadata": {
             "$ref": "#/components/schemas/ListMeta"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `cursor` of the next page; absent on the last one (API/13 section 2)."
           }
         }
       },

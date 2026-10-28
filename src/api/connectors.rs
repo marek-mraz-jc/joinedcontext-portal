@@ -411,17 +411,24 @@ pub async fn approve_connector(
 mod tests {
     use super::*;
     use crate::config::Config;
+    use crate::permissions::ORG_NAMESPACE;
     use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
-    use serde_json::json;
+    use crate::store::Mirror;
+    use serde_json::{json, Value};
+    use std::sync::Arc;
 
-    fn manifest(kind: &str, name: &str, spec: serde_json::Value) -> ResourceEnvelope {
+    fn envelope(kind: &str, name: &str, namespace: &str, spec: Value) -> ResourceEnvelope {
         ResourceEnvelope {
             api_version: API_VERSION.to_owned(),
             kind: kind.to_owned(),
-            metadata: ObjectMeta::new(name, ORG_NAMESPACE),
+            metadata: ObjectMeta::new(name, namespace),
             spec,
             status: None,
         }
+    }
+
+    fn manifest(kind: &str, name: &str, spec: Value) -> ResourceEnvelope {
+        envelope(kind, name, ORG_NAMESPACE, spec)
     }
 
     fn person(email: &str) -> Identity {
@@ -517,5 +524,95 @@ mod tests {
         let mut workload = person("service-account-pipeline");
         workload.groups = vec![state.config.bootstrap_admins.clone()];
         assert!(administrator(&state, &workload).is_err());
+    }
+
+    fn user(username: &str) -> CurrentUser {
+        CurrentUser(crate::auth::session::Session {
+            identity: Identity {
+                client: None,
+                subject: format!("f:1:{username}"),
+                username: username.to_owned(),
+                email: None,
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+                second_factor: false,
+            },
+            expires_at: 0,
+            issued_at: 0,
+            id_token: String::new(),
+            access_expires_at: 0,
+            refresh_token: None,
+        })
+    }
+
+    fn body(name: &str) -> Result<Json<NewConnector>, JsonRejection> {
+        let expires = chrono::Utc::now() + chrono::Duration::days(7);
+        Ok(Json(
+            serde_json::from_value(json!({
+                "name": name, "segments": ["data-read"],
+                "scope": [{ "project": "doprava", "access": "read" }],
+                "expiresAt": expires.to_rfc3339(),
+            }))
+            .expect("a valid request"),
+        ))
+    }
+
+    fn dry(run: Option<&str>) -> Query<CreateParams> {
+        Query(CreateParams {
+            dry_run: run.map(str::to_owned),
+        })
+    }
+
+    #[tokio::test]
+    async fn create_refuses_workloads_strangers_and_bad_dry_runs_then_keeps_the_owners() {
+        let mirror = Arc::new(Mirror::new());
+        mirror.upsert(envelope(
+            "Role",
+            "reader",
+            ORG_NAMESPACE,
+            json!({ "rules": [{ "kinds": ["*"], "verbs": ["read"] }] }),
+        ));
+        mirror.upsert(envelope(
+            "RoleBinding",
+            "reader",
+            ORG_NAMESPACE,
+            json!({ "subjects": [{ "user": "ana" }], "role": "reader", "scope": { "project": "doprava" } }),
+        ));
+        let state = AppState::new(Config::for_tests(), None).with_mirror(mirror);
+        let create = |who: &str, run: Option<&str>, name: &str| {
+            create_connector(user(who), State(state.clone()), dry(run), body(name))
+        };
+
+        let workload = create("service-account-etl", None, "a").await;
+        assert!(matches!(workload, Err(ApiError::Denied(why)) if why.contains("AG-142")));
+        let stranger = create("bob", None, "a").await;
+        assert!(
+            matches!(stranger, Err(ApiError::Denied(why)) if why.starts_with("scope[0].project"))
+        );
+        let bad_name = create("ana", None, "Not A Label").await;
+        assert!(matches!(bad_name, Err(ApiError::Invalid { errors, .. }) if errors == ["name"]));
+        let bad_run = create("ana", Some("Some"), "a").await;
+        assert!(matches!(bad_run, Err(ApiError::Invalid { errors, .. }) if errors == ["dryRun"]));
+
+        let checked = create("ana", Some("All"), "a").await.expect("dry run");
+        assert_eq!(checked.status(), StatusCode::OK);
+        assert!(state
+            .connectors
+            .of_owner("f:1:ana", "")
+            .await
+            .expect("list")
+            .is_empty());
+        let created = create("ana", None, "a").await.expect("created");
+        assert_eq!(created.status(), StatusCode::CREATED);
+        assert_eq!(
+            state
+                .connectors
+                .of_owner("f:1:ana", "")
+                .await
+                .expect("list")
+                .len(),
+            1
+        );
     }
 }

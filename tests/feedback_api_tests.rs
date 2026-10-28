@@ -171,7 +171,12 @@ async fn what_cannot_be_kept_is_refused_naming_the_field() {
     ] {
         let (status, answer) = post(&state, "jana", body).await;
         assert_eq!(status, 400, "{answer}");
-        assert_eq!(answer["errors"], json!([field]), "{answer}");
+        assert_eq!(answer["errors"][0]["path"], json!(field), "{answer}");
+        assert_eq!(
+            answer["errors"].as_array().map(Vec::len),
+            Some(1),
+            "{answer}"
+        );
     }
     let (status, _) = post(
         &state,

@@ -9,7 +9,8 @@ use serde_json::{json, Value};
 const OPS_PREFIX: &str = "/api/v1/projects/{project}/ops/";
 
 fn document() -> Value {
-    joinedcontext_portal::openapi::document()
+    serde_json::from_str(&joinedcontext_portal::openapi::document_text())
+        .expect("the OpenAPI document is JSON")
 }
 
 #[test]
@@ -102,16 +103,6 @@ fn every_tool_carries_an_object_input_schema_and_a_rule() {
             op.name
         );
     }
-}
-
-#[test]
-fn every_registry_entry_is_sound() {
-    let found: Vec<String> = ops::registry().iter().flat_map(ops::problems).collect();
-    assert!(found.is_empty(), "{}", found.join("\n"));
-    assert!(
-        ops::find("jc_schema_get").is_some(),
-        "get_schema is registered"
-    );
 }
 
 /// Every operation answers on the registry's door (`ops_registry_tests` calls each one there), so

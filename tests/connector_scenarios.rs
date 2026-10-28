@@ -34,6 +34,9 @@ use joinedcontext_portal::server;
 use joinedcontext_portal::state::AppState;
 use joinedcontext_portal::store::Mirror;
 
+#[path = "connector_scenarios/model.rs"]
+mod model;
+
 const CATALOGUE: &str = include_str!("connector_scenarios/scenarios.yaml");
 const RED: &str = include_str!("connector_scenarios/red.txt");
 const REALM_PATH: &str = "/realms/banskabystrica";
@@ -354,6 +357,8 @@ struct Harness {
     connector: std::sync::Mutex<Option<String>>,
     /// The manifests the running scenario added, removed when it ends.
     added: std::sync::Mutex<Vec<ResourceKey>>,
+    /// The forge, CSV source and identity provider; the model lane counts the forge writes.
+    server: &'static MockServer,
 }
 
 impl Harness {
@@ -441,6 +446,7 @@ impl Harness {
             mirror,
             connector: std::sync::Mutex::default(),
             added: std::sync::Mutex::default(),
+            server,
         }
     }
 
@@ -1018,4 +1024,90 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
         (status, mine["items"].as_array().map(Vec::len)),
         (StatusCode::OK, Some(2))
     );
+}
+
+/// A flood of one connector stops at its own minute; a person's connectors together stop at the
+/// person's (T-5968). Each refusal is a 429 problem+json with `Retry-After`, audited, and the
+/// connector shows its limits.
+#[tokio::test]
+async fn a_flood_hits_429_at_the_connector_and_then_the_person_limit() {
+    let harness = Harness::start(1).await;
+    let own = project_of(1);
+    let expires = (chrono::Utc::now() + chrono::Duration::days(7)).to_rfc3339();
+    let portal = harness.token_for("viewer", AUDIENCE, AUDIENCE);
+    let mut ids = Vec::new();
+    for name in ["a", "b", "c"] {
+        let ask = json!({ "name": name, "segments": ["data-read"],
+                          "scope": [{ "project": own, "access": "read" }], "expiresAt": expires });
+        let (status, made) = harness
+            .send("POST", "/api/v1/connectors", portal.clone(), Some(ask))
+            .await;
+        assert_eq!(status, StatusCode::CREATED, "{made}");
+        assert_eq!(
+            made["limits"],
+            json!({ "callsPerMinute": 60, "parallelCalls": 4, "resultBytes": 1_048_576 })
+        );
+        ids.push(made["id"].as_str().expect("id").to_owned());
+    }
+    let ping = json!({ "jsonrpc": "2.0", "id": 1, "method": "ping" });
+    let call = |id: &str| {
+        let token = harness
+            .token_for("viewer", &format!("https://portal.test/c/{id}"), CLIENT)
+            .expect("token");
+        harness.app.clone().oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/c/{id}"))
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(ping.to_string()))
+                .expect("request"),
+        )
+    };
+    let refusal = |response: axum::response::Response| async move {
+        let status = response.status();
+        let headers = response.headers().clone();
+        let bytes = response
+            .into_body()
+            .collect()
+            .await
+            .expect("body")
+            .to_bytes();
+        let body: Value = serde_json::from_slice(&bytes).expect("json");
+        assert_eq!(status, StatusCode::TOO_MANY_REQUESTS, "{body}");
+        assert_eq!(headers[header::CONTENT_TYPE], "application/problem+json");
+        let wait: i64 = headers[header::RETRY_AFTER]
+            .to_str()
+            .expect("text")
+            .parse()
+            .expect("seconds");
+        assert!((1..=60).contains(&wait), "{wait}");
+        body["detail"].as_str().expect("detail").to_owned()
+    };
+    for (index, id) in ids.iter().take(2).enumerate() {
+        for n in 0..60 {
+            let response = call(id).await.expect("answer");
+            assert_eq!(response.status(), StatusCode::OK, "{id} call {n}");
+        }
+        let detail = refusal(call(id).await.expect("answer")).await;
+        if index == 0 {
+            assert!(detail.contains("this connector made 60 calls"), "{detail}");
+        } else {
+            // b's 61st is past both: the person's shared minute is named first.
+            assert!(detail.contains("over all your connectors"), "{detail}");
+        }
+    }
+    // a and b spent the person's 120: c, never called, is refused at its first call.
+    let detail = refusal(call(&ids[2]).await.expect("answer")).await;
+    assert!(detail.contains("120 MCP calls"), "{detail}");
+    let (status, calls) = harness
+        .send(
+            "GET",
+            &format!("/api/v1/connectors/{}/activity", ids[2]),
+            portal,
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(calls.to_string().contains("refused: rate limit"), "{calls}");
 }

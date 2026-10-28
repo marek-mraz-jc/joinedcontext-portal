@@ -19,8 +19,8 @@ use axum::{Json, Router};
 use serde_json::{json, Value};
 
 use super::{
-    dispatch, error, json_response, rate_limited, result, too_large, tool_definition,
-    MAX_CALLS_PER_MINUTE, MAX_REQUEST_BYTES, MAX_RESPONSE_BYTES,
+    dispatch, error, json_response, result, too_large, tool_definition, MAX_REQUEST_BYTES,
+    MAX_RESPONSE_BYTES,
 };
 use crate::connectors::{self, Call, Connector};
 use crate::error::ApiError;
@@ -181,16 +181,31 @@ fn audited(message: &Value) -> (String, Option<String>) {
     (tool, (!target.is_empty()).then(|| target.join("/")))
 }
 
+/// A call past one of the connector's or the person's limits: 429 problem+json with
+/// `Retry-After` in seconds (T-5968).
+fn limited(why: &str, wait: i64) -> Response {
+    let mut response = ApiError::TooManyRequests(why.to_owned()).into_response();
+    if let Ok(value) = wait.to_string().parse() {
+        response.headers_mut().insert(header::RETRY_AFTER, value);
+    }
+    response
+}
+
 fn refused_call(id: Value, why: &str) -> Value {
+    tool_problem(id, 403, "forbidden", "Forbidden", why)
+}
+
+/// A tool error the model reads and can act on, its problem in `structuredContent`.
+fn tool_problem(id: Value, status: u16, slug: &str, title: &str, why: &str) -> Value {
     result(
         id,
         json!({
             "isError": true,
             "content": [{ "type": "text", "text": why }],
             "structuredContent": {
-                "type": "https://joinedcontext.com/problems/forbidden",
-                "title": "Forbidden",
-                "status": 403,
+                "type": format!("https://joinedcontext.com/problems/{slug}"),
+                "title": title,
+                "status": status,
                 "detail": why,
             }
         }),
@@ -249,13 +264,57 @@ async fn judge(
         );
         return (too_large(&why), "refused: too large".to_owned());
     }
-    if !state.mcp_call_allowed(
-        &identity.subject,
-        MAX_CALLS_PER_MINUTE,
+    // The person's window first: it is the one their other connectors and `/api/v1/mcp` share.
+    let (person, own, limits) = (
+        identity.subject.clone(),
+        format!("\u{0}c/{}", connector.id),
+        connector.limits,
+    );
+    let person_limits = connectors::PERSON_LIMITS;
+    if let Err((which, wait)) = state.mcp_admit(
+        &[
+            (&person, person_limits.calls_per_minute),
+            (&own, limits.calls_per_minute),
+        ],
         crate::auth::session::now_unix(),
     ) {
-        return (rate_limited(), "refused: rate limit".to_owned());
+        let why = if which == 0 {
+            format!(
+                "you made {} MCP calls in this minute over all your connectors, your limit; \
+                 calls open again in {wait} seconds",
+                person_limits.calls_per_minute
+            )
+        } else {
+            format!(
+                "this connector made {} calls in this minute, its limit; calls open again in \
+                 {wait} seconds",
+                limits.calls_per_minute
+            )
+        };
+        return (limited(&why, wait), "refused: rate limit".to_owned());
     }
+    let _in_flight = match state.mcp_enter(&[
+        (&person, person_limits.parallel_calls),
+        (&own, limits.parallel_calls),
+    ]) {
+        Ok(held) => held,
+        Err(which) => {
+            let why = if which == 0 {
+                format!(
+                    "{} of your calls are running now, the most at once over all your \
+                     connectors; send this one when one of them has answered",
+                    person_limits.parallel_calls
+                )
+            } else {
+                format!(
+                    "{} calls of this connector are running now, its most at once; send this \
+                     one when one of them has answered",
+                    limits.parallel_calls
+                )
+            };
+            return (limited(&why, 1), "refused: parallel calls".to_owned());
+        }
+    };
     let method = message["method"].as_str().unwrap_or("");
     let id = message.get("id").cloned().unwrap_or(Value::Null);
     if !message.is_object() || method == "notifications/initialized" || message.get("id").is_none()
@@ -327,7 +386,7 @@ async fn judge(
                 );
             }
             let response = dispatch(state.clone(), caller, body).await;
-            verdict_of(response).await
+            verdict_of(response, id, limits.result_bytes).await
         }
         _ => (
             dispatch(state.clone(), caller, body).await,
@@ -344,8 +403,9 @@ fn caller(connector: &Connector, identity: crate::auth::session::Identity) -> cr
     }
 }
 
-/// The verdict of a dispatched call, read off its envelope; the answer goes back unchanged.
-async fn verdict_of(response: Response) -> (Response, String) {
+/// The verdict of a dispatched call, read off its envelope; the answer goes back unchanged
+/// unless it is larger than the connector's `result_bytes` (T-5968).
+async fn verdict_of(response: Response, id: Value, result_bytes: usize) -> (Response, String) {
     let (parts, body) = response.into_parts();
     let Ok(bytes) = axum::body::to_bytes(body, MAX_RESPONSE_BYTES).await else {
         return (
@@ -353,6 +413,18 @@ async fn verdict_of(response: Response) -> (Response, String) {
             "error".to_owned(),
         );
     };
+    if bytes.len() > result_bytes {
+        let why = format!(
+            "the answer is {} bytes; this connector returns at most {result_bytes}. Ask for \
+             fewer items (limit), fewer attributes (attrs) or one resource by name",
+            bytes.len()
+        );
+        let answer = tool_problem(id, 413, "payload-too-large", "Payload Too Large", &why);
+        return (
+            json_response(StatusCode::OK, &answer),
+            "refused: result size".to_owned(),
+        );
+    }
     let envelope: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
     let verdict = if !parts.status.is_success() || envelope.get("error").is_some() {
         "error"
@@ -370,6 +442,36 @@ async fn verdict_of(response: Response) -> (Response, String) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn an_answer_past_the_connector_result_size_is_a_413_tool_error() {
+        let answer = result(
+            json!(7),
+            json!({ "content": [{ "type": "text", "text": "x".repeat(100) }] }),
+        );
+        let response = || json_response(StatusCode::OK, &answer);
+        let (kept, verdict) = verdict_of(response(), json!(7), 1_000).await;
+        assert_eq!(
+            (kept.status(), verdict.as_str()),
+            (StatusCode::OK, "allowed")
+        );
+        let (refused, verdict) = verdict_of(response(), json!(7), 50).await;
+        assert_eq!(verdict, "refused: result size");
+        let bytes = axum::body::to_bytes(refused.into_body(), 10_000)
+            .await
+            .expect("body");
+        let body: Value = serde_json::from_slice(&bytes).expect("json");
+        assert_eq!(body["id"], 7);
+        assert_eq!(body["result"]["isError"], true);
+        assert_eq!(body["result"]["structuredContent"]["status"], 413);
+        let detail = body["result"]["structuredContent"]["detail"]
+            .as_str()
+            .expect("detail");
+        assert!(
+            detail.contains("at most 50") && detail.contains("(limit)"),
+            "{detail}"
+        );
+    }
 
     #[test]
     fn the_audit_keeps_identifiers_and_drops_input_values() {
