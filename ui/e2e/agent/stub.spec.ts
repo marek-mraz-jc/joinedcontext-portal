@@ -22,6 +22,7 @@ document.getElementById("go").onclick = () => {
   const q = document.getElementById("q").value;
   document.getElementById("hits").innerHTML = q ? '<li><a href="#air">Air quality ' + q + '</a></li>' : "";
   document.getElementById("propose").hidden = false;
+  fetch("/api/v1/projects/p/drafts/DataSource/air", { method: "PUT", body: "{}" });
 };
 document.getElementById("propose").onclick = async () => {
   const answer = await fetch("/api/v1/projects/p/datasources", { method: "POST", body: "{}" });
@@ -35,7 +36,13 @@ test("the user agent plays recorded actions to done, with one retry and one held
 }) => {
   const dir = mkdtempSync(join(tmpdir(), "ui-agent-"));
   const held: string[] = [];
-  await holdWrites(context, ["stub.test"], held);
+  const drafts = new Set<string>();
+  // A draft passes the hold (to this stub answer) and is recorded for removeDrafts.
+  await context.route(
+    "https://stub.test/api/v1/projects/p/drafts/**",
+    (route) => route.fulfill({ status: 200, body: "{}" }),
+  );
+  await holdWrites(context, ["stub.test"], held, drafts);
   await context.route("https://stub.test/", (route) =>
     route.fulfill({ contentType: "text/html", body: PAGE }),
   );
@@ -84,6 +91,7 @@ test("the user agent plays recorded actions to done, with one retry and one held
   ]);
   expect(run.steps[1].retried).toBe(true);
   expect(run.heldWrites).toEqual(["POST /api/v1/projects/p/datasources"]);
+  expect([...drafts]).toEqual(["/api/v1/projects/p/drafts/DataSource/air"]);
   expect(run.steps[2].result).toContain(
     "a new tab opened, now on https://stub.test/licence",
   );

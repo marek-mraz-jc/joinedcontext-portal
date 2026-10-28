@@ -14,7 +14,7 @@
  */
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { BrowserContext, Page } from "@playwright/test";
+import type { APIRequestContext, BrowserContext, Page } from "@playwright/test";
 import { parse } from "yaml";
 import { secretMasks } from "../live/shoot";
 import { ACTION_HELP, allowedUrl, nextAction, redact } from "./actions";
@@ -109,6 +109,7 @@ export const PERSONAS: Record<string, string> = {
 const LANG_NAME: Record<string, string> = { en: "English", sk: "Slovak" };
 const MAX_TREE = 14_000;
 const ACTION_MS = 60_000;
+const EDGE_WAIT_MS = 65_000;
 // Two model calls of up to 2 x 90 s each, the tree, the shot and the action.
 const STEP_MS = 480_000;
 
@@ -183,6 +184,7 @@ export async function holdWrites(
   context: BrowserContext,
   hosts: string[],
   held: string[],
+  drafts: Set<string> = new Set(),
 ): Promise<void> {
   await context.route(
     (url) => hosts.includes(url.host) && url.pathname.startsWith("/api/"),
@@ -195,6 +197,15 @@ export async function holdWrites(
         url.pathname.includes("/drafts") ||
         READ_POSTS.test(url.pathname) ||
         (url.pathname.endsWith("/mcp") && mcpReadOnly(request.postData()));
+      // A form saves what it holds as a draft; the run deletes each one after it (removeDrafts).
+      if (
+        write &&
+        /\/api\/v1\/projects\/[^/]+\/drafts\/[^/]+\/[^/]+$/.test(
+          url.pathname,
+        ) &&
+        request.method() !== "DELETE"
+      )
+        drafts.add(url.pathname);
       if (!write || read) return route.fallback();
       held.push(`${request.method()} ${url.pathname}`);
       return route.fulfill({
@@ -209,6 +220,26 @@ export async function holdWrites(
       });
     },
   );
+}
+
+/**
+ * Deletes the drafts a run's forms saved (holdWrites records them): left on dev they pile up and
+ * slow the drafts route for everyone (T-2248). Returns the paths a delete did not remove.
+ */
+export async function removeDrafts(
+  request: APIRequestContext,
+  drafts: Set<string>,
+  csrfToken: string,
+): Promise<string[]> {
+  const left: string[] = [];
+  for (const path of drafts) {
+    const answer = await request.delete(path, {
+      headers: { "x-csrf-token": csrfToken },
+    });
+    if (!answer.ok() && answer.status() !== 404)
+      left.push(`${path} (${answer.status()})`);
+  }
+  return left;
 }
 
 async function tree(page: Page): Promise<string> {
@@ -309,8 +340,18 @@ export async function runScenario(options: {
   // What a person sees beside the page: a file saved and a tab opened (a "Download" link opens one).
   const events: string[] = [];
   const saving: Promise<void>[] = [];
+  // The edge limits requests per address (the swarm shares one): a page it refused with 429 is
+  // waited out once and loaded again before the model sees it, as walk-citizen does.
+  let refused = false;
   const watch = (p: Page) =>
     p
+      .on("response", (response) => {
+        if (
+          response.status() === 429 &&
+          response.request().isNavigationRequest()
+        )
+          refused = true;
+      })
       .on(
         "filechooser",
         () =>
@@ -346,6 +387,14 @@ export async function runScenario(options: {
   const once = async (n: number): Promise<boolean> => {
     const t0 = Date.now();
     const shot = `step-${String(n).padStart(2, "0")}.png`;
+    if (refused) {
+      refused = false;
+      await page.waitForTimeout(EDGE_WAIT_MS);
+      await page.reload({ waitUntil: "load" });
+      events.push(
+        `the edge answered 429; the runner waited ${EDGE_WAIT_MS / 1000} s and loaded the page again`,
+      );
+    }
     await page.screenshot({
       path: join(dir, shot),
       fullPage: false,

@@ -19,11 +19,13 @@ import {
   holdWrites,
   loadScenario,
   openRouterModel,
+  removeDrafts,
   runScenario,
 } from "../agent/run";
 import {
   EDITOR,
   VIEWER,
+  csrf,
   goSignedIn,
   journeyMarkerOnPortalOnly,
 } from "./portal";
@@ -66,6 +68,9 @@ function who(persona: string): {
 }
 
 test.describe("user agent", () => {
+  // One retry: a sign-in that meets the edge's 429 or a mid-rollout chunk ("Part of the Portal did
+  // not load") fails before the model is asked anything.
+  test.describe.configure({ retries: 1 });
   test.skip(
     SCENARIOS.length === 0,
     "set AGENT_SCENARIOS to run the user agent (it spends model tokens)",
@@ -86,7 +91,8 @@ test.describe("user agent", () => {
           });
           await journeyMarkerOnPortalOnly(context, PORTAL.host);
           const held: string[] = [];
-          await holdWrites(context, HOSTS, held);
+          const drafts = new Set<string>();
+          await holdWrites(context, HOSTS, held, drafts);
           const page = await context.newPage();
           const first = `${start}${start.includes("?") ? "&" : "?"}lang=${lang}`;
           // An anonymous "/" answers the catalogue, which has no /login hop: sign in through the demo
@@ -129,6 +135,16 @@ test.describe("user agent", () => {
             run.secretsHidden,
             "credential-shaped text on a page the model read",
           ).toBe(0);
+          if (person && drafts.size > 0) {
+            const left = await removeDrafts(
+              context.request,
+              drafts,
+              await csrf(context),
+            );
+            expect(left, "drafts this run saved and could not delete").toEqual(
+              [],
+            );
+          }
           await context.close();
         });
       }
