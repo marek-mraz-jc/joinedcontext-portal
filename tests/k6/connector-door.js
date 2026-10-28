@@ -93,7 +93,14 @@ export function mix() {
   const connector = plan.connectors[n % plan.connectors.length];
   const tool = TOOLS[n % TOOLS.length];
   const res = call(connector, tool);
-  check(res, { answered: (r) => answered(r, connector, tool) }, { tool });
+  check(
+    res,
+    {
+      'not limited': (r) => r.status !== 429,
+      answered: (r) => answered(r, connector, tool),
+    },
+    { tool },
+  );
 }
 
 export function revoke() {
@@ -124,6 +131,9 @@ export function handleSummary(data) {
       `  ${tool.padEnd(17)} p50 ${v['p(50)'].toFixed(1)} ms  p95 ${v['p(95)'].toFixed(1)} ms  ` +
         `p99 ${v['p(99)'].toFixed(1)} ms  max ${v.max.toFixed(1)} ms  ${ok ? 'ok' : 'OVER BUDGET'}`,
     );
+  }
+  for (const c of data.root_group.checks || []) {
+    if (c.fails > 0) lines.push(`  check "${c.name}": ${c.fails} of ${c.passes + c.fails} failed`);
   }
   const revoke = data.metrics.revoke_proven;
   lines.push(`  revoke: ${revoke && revoke.values.count === 1 ? 'next call refused' : 'NOT PROVEN'}`);
