@@ -56,6 +56,9 @@ pub(super) fn offered(
         .into_iter()
         .filter(|op| crate::ops::find(&op.name).is_some_and(|operation| access.names(operation)))
         .filter(|op| opens_a_change(&op.name).is_none())
+        // T-5948: kind schemas reach MCP clients (tools/list, jc_schema_get), not this prompt,
+        // which keeps its 4k-token turn (AG-72) until T-5958 replaces it.
+        .filter(|op| op.name != crate::ops::schemas::GET)
         .collect()
 }
 
