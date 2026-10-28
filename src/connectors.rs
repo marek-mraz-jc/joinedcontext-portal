@@ -375,7 +375,7 @@ fn names_its_object(op: &Operation) -> bool {
 /// Whether a client id binds: a published client whose redirect URIs no local program can use
 /// (AG-153). Claude Code's own document and realm clients are loopback, so "intended for" only.
 // ponytail: the hosts of today's two vendors; T-5954 records the exact CIMD ids.
-fn binds(client: &str) -> bool {
+pub fn binds(client: &str) -> bool {
     let Ok(url) = url::Url::parse(client) else {
         return false;
     };
@@ -723,6 +723,40 @@ impl ConnectorStore {
             }
         }
         Ok(record.view(base, now))
+    }
+
+    /// Replaces the grant of the owner's connector `id` that is not revoked (an expired one
+    /// lives again under a new `expiresAt`); `false` when there is none. The name stays.
+    pub async fn update(&self, id: &str, owner: &str, new: NewConnector) -> Result<bool, ApiError> {
+        let grant = GrantDoc {
+            segments: new.segments,
+            scope: new.scope,
+            writes: new.writes,
+            expires_at: new.expires_at,
+            allowed_clients: new.allowed_clients,
+        };
+        match &self.inner {
+            Inner::Postgres(pool) => {
+                let done = sqlx::query(
+                    "UPDATE connectors SET grant_doc = $3 WHERE id = $1 AND owner = $2 AND revoked_at IS NULL",
+                )
+                .bind(id)
+                .bind(owner)
+                .bind(sqlx::types::Json(&grant))
+                .execute(pool)
+                .await
+                .map_err(db_error)?;
+                Ok(done.rows_affected() == 1)
+            }
+            Inner::Memory(rows) => {
+                let mut rows = Self::memory(rows);
+                let found = rows
+                    .0
+                    .iter_mut()
+                    .find(|r| r.id == id && r.owner == owner && r.revoked_at.is_none());
+                Ok(found.map(|r| r.grant = grant).is_some())
+            }
+        }
     }
 
     /// The connector `id`, whoever owns it: the caller compares the owner.

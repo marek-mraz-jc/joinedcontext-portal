@@ -248,6 +248,12 @@ function UserMenu() {
             {t("connectors.title")}
           </Link>
         </MenuItem>
+        <MenuItem asChild>
+          <Link to="/ai-connectors">
+            <Icon name="access" className="size-4" />
+            {t("aiConnectors.title")}
+          </Link>
+        </MenuItem>
         {/* The way back to what the first run offered (T-3233, T-3236). */}
         <MenuItem
           onSelect={() => {
