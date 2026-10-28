@@ -116,6 +116,28 @@ jobs:
         env: { JC_PREVIEW_OUT: "${{ runner.temp }}/preview" }
       - run: cargo doc --workspace --no-deps
         env: { RUSTDOCFLAGS: "-D warnings" }
+  # The connector scenarios run by a model (T-5961, GOAL-connectors): each scenario's `says` and a
+  # connector of its segment, graded on the doors' answers and the forge's writes, never on the
+  # model's words. Today's assistant model only (~USD 0.5 a run, the OpenRouter key is capped at
+  # USD 20); candidates run by hand with JC_MODEL_EVAL_MODELS (tests/connector_scenarios/model.rs).
+  # The table, with tokens and USD per scenario, goes to the job summary. The pass rate is a reading: the job is red only when the
+  # model API refuses (a missing OPENROUTER_API_KEY secret says so in the log).
+  model-evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: >-
+          cargo test --locked --test connector_scenarios -- --ignored --exact
+          model::the_model_lane_runs_every_scenario --nocapture
+        env:
+          OPENROUTER_API_KEY: "${{ secrets.OPENROUTER_API_KEY }}"
+          JC_MODEL_EVAL_MODELS: google/gemini-3.8-flash
+          JC_MODEL_EVAL_OUT: "${{ runner.temp }}/model-evals.md"
+      - if: always()
+        run: cat "${{ runner.temp }}/model-evals.md" >> "$GITHUB_STEP_SUMMARY" || true
   wasm-apps:
     # The Helsinki server WASM Apps on the real host (T-3346..T-3350, ADR-N-044): each App's
     # component, its migrations run twice as its owner, its routes against Postgres and RustFS and

@@ -1,0 +1,21 @@
+{
+  "scenario": "S-44",
+  "model": "anthropic/claude-haiku-5.5",
+  "door": "mcp",
+  "project": "t-scn-44",
+  "writers": [],
+  "calls": [
+    {
+      "tool": "jc_change_get",
+      "project": "t-scn-44",
+      "refused": true,
+      "answer": "{\"id\":1,\"jsonrpc\":\"2.0\",\"result\":{\"_meta\":{\"joinedcontext.com/grounding\":{\"drift\":\"unsynced\",\"evaluatedAt\":\"2026-10-28T21:09:59Z\",\"revision\":null,\"syncedAt\":null}},\"content\":[{\"text\":\"bad request: invalid change id '42'; expected 'chg-' or 'chg-org-' followed by 8 lowercase hex digits\",\"type\":\"text\"}],\"isError\":true}}"
+    }
+  ],
+  "writes": [],
+  "text": "I can't approve change request 42. My tools can only read changes, pipelines, activity, and SyncSource status. There's no approve action.\n\nI also couldn't look it up. The ID \"42\" isn't valid here. Change IDs take the form `chg-` or `chg-org-` followed by 8 lowercase hex digits, so the request was rejected before reaching the change.\n\nTo approve it, you'd need to use the joinedcontext UI or CLI directly. If you send me the full change ID, I can check its state and details first so you know what you're approving. I can also list the project's open changes if you're not sure of the ID.",
+  "error": null,
+  "tokens": 3599,
+  "cost_usd": 0.0,
+  "seconds": 3.736662838
+}
