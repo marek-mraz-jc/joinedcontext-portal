@@ -518,6 +518,7 @@ pub fn validate(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Re
     }
     validate_segments(&new.segments, ceiling)?;
     validate_scope(new)?;
+    validate_personal(&new.scope, ceiling)?;
     if new.writes && !ceiling.writes {
         return Err(above_ceiling(
             "writes",
@@ -598,12 +599,6 @@ fn validate_scope(new: &NewConnector) -> Result<(), ApiError> {
                 ));
             }
         }
-        if item.personal_data && !ceiling.personal_data {
-            return Err(above_ceiling(
-                &format!("scope[{i}].personalData"),
-                "your organization keeps the attributes a model marks personalData out of AI connector answers; untick it, or ask an organization admin for a DelegationPolicy that allows it".into(),
-            ));
-        }
         if item.access == ItemAccess::Write && !new.writes {
             return Err(invalid(
                 &format!("scope[{i}].access"),
@@ -612,6 +607,17 @@ fn validate_scope(new: &NewConnector) -> Result<(), ApiError> {
         }
     }
     Ok(())
+}
+
+/// A `personalData` tick needs a ceiling that allows it (AG-158).
+fn validate_personal(scope: &[ScopeItem], ceiling: &Ceiling) -> Result<(), ApiError> {
+    match scope.iter().position(|item| item.personal_data) {
+        Some(i) if !ceiling.personal_data => Err(above_ceiling(
+            &format!("scope[{i}].personalData"),
+            "your organization keeps the attributes a model marks personalData out of AI connector answers; untick it, or ask an organization admin for a DelegationPolicy that allows it".into(),
+        )),
+        _ => Ok(()),
+    }
 }
 
 fn validate_clients(clients: &[String]) -> Result<(), ApiError> {
