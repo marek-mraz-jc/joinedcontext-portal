@@ -88,6 +88,8 @@ pub struct AppState {
     /// Comments on a space's entities and the notifications of their mentions (API/01 §35).
     pub comments: Arc<crate::entity_comments::CommentStore>,
     pub feedback: Arc<crate::feedback::FeedbackStore>,
+    /// People's connectors and their audit (AG-142, AG-147).
+    pub connectors: Arc<crate::connectors::ConnectorStore>,
     /// The alerts people chose, their incidents and notices (API/01 §37, T-3261).
     pub alerts: Arc<crate::alerts::AlertStore>,
     /// The health log of every project's resources (T-5067).
@@ -220,6 +222,7 @@ impl AppState {
             trash: Arc::new(crate::entity_trash::TrashStore::new(None)),
             comments: Arc::new(crate::entity_comments::CommentStore::new(None)),
             feedback: Arc::new(crate::feedback::FeedbackStore::new(None)),
+            connectors: Arc::new(crate::connectors::ConnectorStore::new(None)),
             alerts: Arc::new(crate::alerts::AlertStore::new(None)),
             health_log: Arc::new(crate::health_log::HealthStore::new(None)),
             link_check: Arc::new(crate::link_check::LinkStore::new(None)),
@@ -999,6 +1002,7 @@ impl AppState {
         self.trash = Arc::new(crate::entity_trash::TrashStore::new(db.clone()));
         self.comments = Arc::new(crate::entity_comments::CommentStore::new(db.clone()));
         self.feedback = Arc::new(crate::feedback::FeedbackStore::new(db.clone()));
+        self.connectors = Arc::new(crate::connectors::ConnectorStore::new(db.clone()));
         self.alerts = Arc::new(crate::alerts::AlertStore::new(db.clone()));
         self.health_log = Arc::new(crate::health_log::HealthStore::new(db.clone()));
         self.link_check = Arc::new(crate::link_check::LinkStore::new(db.clone()));

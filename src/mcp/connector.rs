@@ -1,0 +1,375 @@
+//! One connector's MCP server at `/c/{id}` (AG-143..AG-147, ADR-N-064 §3.3, API/14 §3).
+//!
+//! The same JSON-RPC as `/api/v1/mcp`, answered as the connector's owner narrowed by the
+//! connector. Each call is judged in the order API/14 §3 lists: the token (signature, issuer,
+//! expiry, audience = this connector's address), the owner, the state, the client, then the tool
+//! and its target. Nothing is cached across calls: the record is read and the owner's bindings
+//! decide again every time, so a revoke, an expiry or a role the owner lost holds from the next
+//! call. Every call past the token writes one audit row (connector, person, client, tool, target,
+//! verdict, duration) and never a token, a header or an input value.
+
+use std::time::Instant;
+
+use axum::body::{Body, Bytes};
+use axum::extract::{Path, State};
+use axum::http::{header, HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Response};
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use serde_json::{json, Value};
+
+use super::{
+    dispatch, error, json_response, rate_limited, result, too_large, tool_definition,
+    MAX_CALLS_PER_MINUTE, MAX_REQUEST_BYTES, MAX_RESPONSE_BYTES,
+};
+use crate::connectors::{self, Call, Connector};
+use crate::error::ApiError;
+use crate::state::AppState;
+
+/// The methods a connector serves. Resources, prompts and tasks read the platform past the
+/// connector's scope check, so they stay the Portal MCP's (deny by default).
+const METHODS: &[&str] = &["initialize", "ping", "tools/list", "tools/call"];
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/c/{id}",
+            post(handle_connector).get(|| async { StatusCode::METHOD_NOT_ALLOWED }),
+        )
+        .route(
+            "/c/{id}/.well-known/oauth-protected-resource",
+            get(connector_metadata),
+        )
+        .layer(super::browser_clients())
+}
+
+fn base(state: &AppState) -> String {
+    state
+        .config
+        .public_base_url
+        .as_str()
+        .trim_end_matches('/')
+        .to_owned()
+}
+
+/// One answer for an id that does not exist and for another person's connector (AG-143).
+fn unknown() -> Response {
+    ApiError::NotFound("no such connector".into()).into_response()
+}
+
+fn unauthorized(address: &str) -> Response {
+    let mut response = ApiError::Unauthorized.into_response();
+    if let Ok(value) =
+        format!("Bearer resource_metadata=\"{address}/.well-known/oauth-protected-resource\"")
+            .parse()
+    {
+        response
+            .headers_mut()
+            .insert(header::WWW_AUTHENTICATE, value);
+    }
+    response
+}
+
+/// RFC 9728 metadata naming the connector as the resource a client asks a token for (RFC 8707).
+pub async fn connector_metadata(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+    if !connectors::is_id(&id) {
+        return unknown();
+    }
+    let authorization_servers: Vec<String> = state
+        .config
+        .oidc
+        .iter()
+        .map(|oidc| oidc.issuer.as_str().trim_end_matches('/').to_owned())
+        .collect();
+    Json(json!({
+        "resource": connectors::address(&base(&state), &id),
+        "authorization_servers": authorization_servers,
+        "bearer_methods_supported": ["header"],
+    }))
+    .into_response()
+}
+
+/// The MCP door of one connector.
+pub async fn handle_connector(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let started = Instant::now();
+    let address = connectors::address(&base(&state), &id);
+    let token = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .map(str::trim)
+        .filter(|t| !t.is_empty());
+    let (Some(token), Some(verifier)) = (token, state.bearer.as_ref()) else {
+        return unauthorized(&address);
+    };
+    // The audience is the connector's own address: a Portal token, or one for another
+    // connector, is not a token for this one (AG-143).
+    let Ok((session, _)) = verifier.verify_for_audience(token, &address).await else {
+        return unauthorized(&address);
+    };
+    if state.is_revoked(&session) {
+        return unauthorized(&address);
+    }
+    if !connectors::is_id(&id) {
+        return unknown();
+    }
+    let connector = match state.connectors.get(&id, &base(&state)).await {
+        Ok(Some(c)) => c,
+        Ok(None) => return unknown(),
+        Err(err) => return err.into_response(),
+    };
+    let message: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
+    let (tool, target) = audited(&message);
+    let identity = session.identity;
+    let (response, verdict) = if connector.owner != identity.subject {
+        (unknown(), "refused: not the owner".to_owned())
+    } else {
+        judge(&state, &connector, identity.clone(), &message, body).await
+    };
+    let call = Call {
+        at: chrono::Utc::now(),
+        subject: identity.subject,
+        client: identity.client,
+        tool,
+        target,
+        verdict,
+        duration_ms: i32::try_from(started.elapsed().as_millis()).unwrap_or(i32::MAX),
+    };
+    if let Err(err) = state.connectors.record(&connector.id, call).await {
+        tracing::warn!(connector = %connector.id, error = %err, "a connector call is not in its audit");
+    }
+    response
+}
+
+/// The tool (or method) and the `project/kind/name` a call names, identifiers only (AG-147).
+fn audited(message: &Value) -> (String, Option<String>) {
+    let method = message["method"].as_str().unwrap_or("");
+    let params = &message["params"];
+    let tool = match method {
+        "tools/call" => params["name"].as_str().unwrap_or(""),
+        other => other,
+    };
+    let word = |v: &Value| {
+        v.as_str()
+            .filter(|s| s.len() <= 63 && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'))
+            .map(str::to_owned)
+    };
+    let args = &params["arguments"];
+    let target: Vec<String> = [
+        word(&args["project"]).or_else(|| word(&params["project"])),
+        word(&args["kind"]),
+        word(&args["name"]),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    let tool = if !tool.is_empty()
+        && tool.len() <= 64
+        && tool
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"_/-".contains(&b))
+    {
+        tool.to_owned()
+    } else {
+        "unknown".to_owned()
+    };
+    (tool, (!target.is_empty()).then(|| target.join("/")))
+}
+
+fn refused_call(id: Value, why: &str) -> Value {
+    result(
+        id,
+        json!({
+            "isError": true,
+            "content": [{ "type": "text", "text": why }],
+            "structuredContent": {
+                "type": "https://joinedcontext.com/problems/forbidden",
+                "title": "Forbidden",
+                "status": 403,
+                "detail": why,
+            }
+        }),
+    )
+}
+
+/// The owner's call, narrowed by the connector: the answer and its verdict.
+async fn judge(
+    state: &AppState,
+    connector: &Connector,
+    identity: crate::auth::session::Identity,
+    message: &Value,
+    body: Bytes,
+) -> (Response, String) {
+    if !connector.is_active() {
+        let why = format!(
+            "this connector is {}; create a new one on the My connectors page",
+            connector.state
+        );
+        return (
+            ApiError::Denied(why).into_response(),
+            format!("refused: {}", connector.state),
+        );
+    }
+    let client = identity.client.as_deref().unwrap_or("");
+    if !connector.allowed_clients.is_empty()
+        && !connector.allowed_clients.iter().any(|c| c == client)
+    {
+        let why = format!(
+            "this connector answers only {}; the token was obtained by {}",
+            connector.allowed_clients.join(", "),
+            if client.is_empty() {
+                "no named client"
+            } else {
+                client
+            }
+        );
+        return (
+            ApiError::Denied(why).into_response(),
+            "refused: client".to_owned(),
+        );
+    }
+    if body.len() > MAX_REQUEST_BYTES {
+        let why = format!(
+            "the request is {} bytes; this route reads at most {MAX_REQUEST_BYTES}",
+            body.len()
+        );
+        return (too_large(&why), "refused: too large".to_owned());
+    }
+    if !state.mcp_call_allowed(
+        &identity.subject,
+        MAX_CALLS_PER_MINUTE,
+        crate::auth::session::now_unix(),
+    ) {
+        return (rate_limited(), "refused: rate limit".to_owned());
+    }
+    let method = message["method"].as_str().unwrap_or("");
+    let id = message.get("id").cloned().unwrap_or(Value::Null);
+    if !message.is_object() || method == "notifications/initialized" || message.get("id").is_none()
+    {
+        return (
+            dispatch(state.clone(), caller(connector, identity), body).await,
+            "allowed".to_owned(),
+        );
+    }
+    if !METHODS.contains(&method) {
+        let answer = error(
+            id,
+            -32601,
+            "a connector serves initialize, ping, tools/list and tools/call",
+        );
+        return (
+            json_response(StatusCode::OK, &answer),
+            "refused: method".to_owned(),
+        );
+    }
+    let params = &message["params"];
+    let project = params["arguments"]["project"]
+        .as_str()
+        .or_else(|| params["project"].as_str())
+        .map(str::to_owned);
+    let caller = caller(connector, identity);
+    match method {
+        "tools/list" => {
+            let project = project.unwrap_or_else(|| {
+                connector
+                    .projects()
+                    .first()
+                    .map(|p| (*p).to_owned())
+                    .unwrap_or_default()
+            });
+            let tools: Vec<Value> = crate::ops::listing(&caller, state, &project)
+                .iter()
+                .filter(|summary| {
+                    crate::ops::find(&summary.name).is_some_and(|op| connector.lists(op, &project))
+                })
+                .map(tool_definition)
+                .collect();
+            let answer = result(id, json!({ "tools": tools }));
+            (json_response(StatusCode::OK, &answer), "allowed".to_owned())
+        }
+        "tools/call" => {
+            let name = params["name"].as_str().unwrap_or("");
+            let target = match (crate::ops::find(name), project.as_deref()) {
+                (Some(op), Some(project)) => {
+                    connector.admits(op, project, &params["arguments"]).err()
+                }
+                _ => None,
+            };
+            if let Some(why) = target {
+                let answer = refused_call(id, &why);
+                return (
+                    json_response(StatusCode::OK, &answer),
+                    "refused: target".to_owned(),
+                );
+            }
+            let response = dispatch(state.clone(), caller, body).await;
+            verdict_of(response).await
+        }
+        _ => (
+            dispatch(state.clone(), caller, body).await,
+            "allowed".to_owned(),
+        ),
+    }
+}
+
+fn caller(connector: &Connector, identity: crate::auth::session::Identity) -> crate::ops::Caller {
+    crate::ops::Caller {
+        identity,
+        via: crate::ops::Via::Mcp,
+        access: Some(connector.access()),
+    }
+}
+
+/// The verdict of a dispatched call, read off its envelope; the answer goes back unchanged.
+async fn verdict_of(response: Response) -> (Response, String) {
+    let (parts, body) = response.into_parts();
+    let Ok(bytes) = axum::body::to_bytes(body, MAX_RESPONSE_BYTES).await else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            "error".to_owned(),
+        );
+    };
+    let envelope: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    let verdict = if !parts.status.is_success() || envelope.get("error").is_some() {
+        "error"
+    } else if envelope["result"]["isError"] == json!(true) {
+        "refused: tool"
+    } else {
+        "allowed"
+    };
+    (
+        Response::from_parts(parts, Body::from(bytes)),
+        verdict.to_owned(),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_audit_keeps_identifiers_and_drops_input_values() {
+        let (tool, target) = audited(&json!({
+            "method": "tools/call",
+            "params": { "name": "jc_resource_get", "arguments": {
+                "project": "doprava", "kind": "Endpoint", "name": "counters",
+                "q": "secret-looking value" } }
+        }));
+        assert_eq!(tool, "jc_resource_get");
+        assert_eq!(target.as_deref(), Some("doprava/Endpoint/counters"));
+        // A name that is not an identifier is not kept: it could be anything the model typed.
+        let (_, target) = audited(&json!({
+            "method": "tools/call",
+            "params": { "name": "jc_resource_get", "arguments": {
+                "project": "doprava", "name": "Bearer eyJhbGciOi..." } }
+        }));
+        assert_eq!(target.as_deref(), Some("doprava"));
+        let (tool, target) = audited(&json!({ "method": "tools/list", "params": {} }));
+        assert_eq!((tool.as_str(), target), ("tools/list", None));
+    }
+}
