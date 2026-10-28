@@ -327,6 +327,14 @@ pub fn audiences_of(mirror: &Mirror, project: &str, account: &str) -> Vec<String
         .collect()
 }
 
+/// RMQTT 0.24's `max_packet_size` for a broker: one cap for every packet, CONNECT included, so
+/// the payload cap plus the PUBLISH header (topic, packet id, properties) and never under a
+/// CONNECT whose password is a Keycloak access token (1183 bytes on dev, T-5883). The chart's
+/// own render computes the same (deployment components/mqtt-brokers brokers.yaml).
+fn packet_bytes(max_message_bytes: u32) -> u32 {
+    max_message_bytes.saturating_add(512).max(4096)
+}
+
 /// The template's objects for one broker: the sentinels filled, and `checksum/config` the hash of
 /// everything else, so a change of any value restarts the broker and nothing else does.
 pub fn render(
@@ -338,7 +346,10 @@ pub fn render(
         .replace("__RELEASE__", &broker.release)
         .replace("__PROJECT__", &broker.project)
         .replace("__NAME__", &broker.name)
-        .replace("__MAX_BYTES__", &spec.limits.max_message_bytes.to_string())
+        .replace(
+            "__MAX_BYTES__",
+            &packet_bytes(spec.limits.max_message_bytes).to_string(),
+        )
         .replace(
             "__PER_SECOND__",
             &spec.limits.messages_per_second.to_string(),
@@ -1689,6 +1700,13 @@ spec:
     }
 
     #[test]
+    fn the_packet_cap_holds_the_payload_its_header_and_a_token_connect() {
+        assert_eq!(packet_bytes(1024), 4096);
+        assert_eq!(packet_bytes(65536), 66048);
+        assert_eq!(packet_bytes(u32::MAX), u32::MAX);
+    }
+
+    #[test]
     fn the_template_is_filled_and_a_change_of_limits_changes_the_hash() {
         let brokers = declared(&mirror());
         let broker = &brokers[1];
@@ -1698,7 +1716,7 @@ spec:
         assert_eq!(objects[0]["metadata"]["name"], "mqtt-helsinki-cameras");
         let toml = objects[0]["data"]["rmqtt.toml"].as_str().expect("toml");
         assert!(
-            toml.contains("\"2048B\"") && toml.contains("= 1000"),
+            toml.contains("\"4096B\"") && toml.contains("= 1000"),
             "{toml}"
         );
         assert_eq!(
