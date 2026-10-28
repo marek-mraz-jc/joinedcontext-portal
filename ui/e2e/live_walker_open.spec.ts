@@ -128,3 +128,65 @@ test("the walker judges a normal page without a document finding", async ({ page
   expect(findings.filter((finding) => A11Y.test(finding))).toEqual([]);
   expect(loads).toBe(1);
 });
+
+// T-5937: in the walk after the 474a7f1 rollout, /projects/helsinki/settings/roles/new drew its
+// shell while all nine of its /api reads answered 502, and the walker filed nine tasks (T-5937..
+// T-5944) for one load. A load whose every /api read is 5xx is loaded once again, and fine then it
+// is one `api` finding; still 5xx, the `http` findings of the load again stand.
+const READS = `${ROLES.replace("</body>", "<script>fetch('/api/v1/branding');fetch('/api/v1/projects');</script></body>")}`;
+
+async function walkReads(page: Page, reads: number[]): Promise<{ findings: string[]; loads: number }> {
+  let loads = 0;
+  let current: string[] = [];
+  page.on("response", (response) => {
+    if (response.url().includes("/api/") && response.status() >= 400) current.push(`http: ${response.status()} ${new URL(response.url()).pathname}`);
+  });
+  await page.route("http://portal.test/**", (route) => {
+    if (!route.request().url().includes("/api/")) {
+      loads += 1;
+      return route.fulfill({ status: 200, body: READS, contentType: "text/html" });
+    }
+    return route.fulfill({ status: reads[loads - 1] ?? 200, body: "{}", contentType: "application/json" });
+  });
+  const opened = await openToWalk(page, "http://portal.test/projects/helsinki/settings/roles/new?lang=en", 1_000, () => {
+    current = [];
+  }, 100);
+  return { findings: [...current, ...(await judgeOpened(page, opened, { namespaces: [], viewer: false }))], loads };
+}
+
+test("the walker reports a load whose every /api read answered 502 once as one api finding, fine on retry", async ({ page }) => {
+  test.setTimeout(60_000);
+  const { findings, loads } = await walkReads(page, [502, 200]);
+  expect(findings.filter((finding) => finding.startsWith("http:"))).toEqual([]);
+  expect(findings.filter((finding) => finding.startsWith("api:"))).toEqual(["api: all 2 /api reads answered 502; fine on retry"]);
+  expect(loads).toBe(2);
+});
+
+test("the walker keeps the http findings of a load whose /api reads answered 502 twice", async ({ page }) => {
+  test.setTimeout(60_000);
+  const { findings, loads } = await walkReads(page, [502, 502]);
+  expect(findings.filter((finding) => finding.startsWith("http:")).sort()).toEqual(["http: 502 /api/v1/branding", "http: 502 /api/v1/projects"]);
+  expect(findings.filter((finding) => finding.startsWith("api:"))).toEqual([]);
+  expect(loads).toBe(2);
+});
+
+test("the walker keeps the http finding of one route answering 502 beside reads that answered", async ({ page }) => {
+  test.setTimeout(60_000);
+  let loads = 0;
+  const current: string[] = [];
+  page.on("response", (response) => {
+    if (response.url().includes("/api/") && response.status() >= 400) current.push(`http: ${response.status()} ${new URL(response.url()).pathname}`);
+  });
+  await page.route("http://portal.test/**", (route) => {
+    if (!route.request().url().includes("/api/")) {
+      loads += 1;
+      return route.fulfill({ status: 200, body: READS, contentType: "text/html" });
+    }
+    const failing = route.request().url().endsWith("/branding");
+    return route.fulfill({ status: failing ? 502 : 200, body: "{}", contentType: "application/json" });
+  });
+  const opened = await openToWalk(page, "http://portal.test/projects/helsinki/settings/roles/new?lang=en", 1_000, undefined, 100);
+  expect(opened.document).toEqual([]);
+  expect(current).toEqual(["http: 502 /api/v1/branding"]);
+  expect(loads).toBe(1);
+});
