@@ -62,6 +62,7 @@ pub struct DropDraftResponse {
 
 fn caller_of(user: CurrentUser, front: Front) -> Caller {
     Caller {
+        bearer: None,
         identity: user.0.identity,
         via: match front {
             Front::Portal | Front::Edge => Via::Session,
