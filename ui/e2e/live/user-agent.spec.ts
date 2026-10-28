@@ -28,6 +28,15 @@ const LANGS = list(process.env.AGENT_LANGS, "en");
 const MODEL = process.env.AGENT_MODEL ?? "anthropic/claude-haiku-5.5";
 const OUT = process.env.AGENT_OUT ?? "test-results/ui-agent";
 
+/**
+ * What a scenario's person knows that no page tells them (a person adding "a CSV from the city
+ * website" has its address): a public CSV this installation serves itself, so the run reads no
+ * outside site.
+ */
+const GIVEN: Record<string, string> = {
+  "S-62": `The CSV file is published at https://api.${DOMAIN}/api/endpoint/mluyob4nz52lok3ssk7pgn5vwt/file.csv (hourly air quality of Banská Bystrica); name the new dataset "t-agent air quality".`,
+};
+
 /** Who signs in for a persona, and where the run starts. */
 function who(persona: string): { person?: { user: string; password: string }; start: string } {
   if (persona.startsWith("citizen") || persona === "journalist") return { start: `https://${DOMAIN}/` };
@@ -61,7 +70,7 @@ test.describe("user agent", () => {
           if (person) await goSignedIn(page, person, `/projects/helsinki/explore?lang=${lang}`);
           await page.goto(first, { waitUntil: "load" });
           const dir = join(OUT, `${id}-${persona}-${lang}-${width}-${MODEL.replace(/[^a-z0-9.]+/gi, "_")}`);
-          const run = await runScenario({ page, scenario, persona, width, lang, model: openRouterModel(MODEL), dir, hosts: HOSTS, held });
+          const run = await runScenario({ page, scenario, given: GIVEN[id], persona, width, lang, model: openRouterModel(MODEL), dir, hosts: HOSTS, held });
           console.log(`${id} ${lang} ${width} ${MODEL}: ${run.outcome} in ${run.steps.length} steps, ${run.ms} ms, USD ${run.costUsd}: ${run.answer}`);
           expect(run.secretsHidden, "credential-shaped text on a page the model read").toBe(0);
           await context.close();

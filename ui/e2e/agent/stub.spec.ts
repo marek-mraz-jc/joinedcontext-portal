@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { holdWrites, recordedModel, runScenario } from "./run";
+import { holdWrites, mcpReadOnly, recordedModel, runScenario } from "./run";
 
 const PAGE = `<!doctype html><html lang="en"><title>Open data</title><main>
 <h1>Open data</h1>
@@ -74,4 +74,12 @@ test("the user agent stops at twice the step budget and on a missing control", a
   expect(run.outcome).toBe("budget");
   expect(run.steps).toHaveLength(4);
   expect(run.steps[0].result).toBe('no button named "Nowhere" is on the page');
+});
+
+test("the write hold passes MCP reads and holds MCP writes", () => {
+  expect(mcpReadOnly('{"jsonrpc":"2.0","id":1,"method":"tools/list"}')).toBe(true);
+  expect(mcpReadOnly('[{"method":"initialize"},{"method":"tools/call","params":{"name":"query_entities"}}]')).toBe(true);
+  expect(mcpReadOnly('{"method":"tools/call","params":{"name":"create_entity"}}')).toBe(false);
+  expect(mcpReadOnly('{"method":"tools/call","params":{"name":"jc_change_approve"}}')).toBe(false);
+  expect(mcpReadOnly("not json")).toBe(false);
 });

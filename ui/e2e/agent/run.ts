@@ -101,10 +101,11 @@ const LANG_NAME: Record<string, string> = { en: "English", sk: "Slovak" };
 const MAX_TREE = 14_000;
 const HISTORY = 15;
 
-function system(scenario: Scenario, persona: string, lang: string): string {
+function system(scenario: Scenario, persona: string, lang: string, given?: string): string {
   return [
     `You are ${PERSONAS[persona] ?? persona}. You use a web browser to get one thing done, alone, the way that person would.`,
     `Your goal: ${scenario.says}`,
+    ...(given ? [`What you know before you start: ${given}`] : []),
     `The interface language is ${LANG_NAME[lang] ?? lang}; read and type in it.`,
     "Each turn you get the page address, its accessibility tree (role, accessible name, text) and what you did so far.",
     "Pick the single next action a real person would take. Prefer visible links, buttons and search over typing addresses.",
@@ -115,11 +116,30 @@ function system(scenario: Scenario, persona: string, lang: string): string {
 }
 
 /**
- * Stops every write to `/api/` on `hosts` except a dry run (`dryRun=All`) and a draft, and records
- * it, so a run opens no Change, sends no invitation and deletes nothing. Only the sign-in and the
- * CSRF hop pass (READ_POSTS); an assistant question is held too, since its tools may propose.
+ * Stops every write to `/api/` on `hosts` and records it, so a run opens no Change, sends no
+ * invitation and deletes nothing. What passes: a dry run (`dryRun=All`), a draft, the sign-in and
+ * CSRF hops, the read POSTs the pages make (an Endpoint's data preview) and an MCP call that only
+ * reads (READ_MCP). An assistant question is held: its tools may propose.
  */
-const READ_POSTS = /^\/api\/v1\/csrf\b|^\/auth\//;
+const READ_POSTS = /^\/api\/v1\/csrf\b|^\/auth\/|^\/api\/v1\/projects\/[^/]+\/endpoints\/[^/]+\/preview$/;
+const READ_MCP = /^(initialize|ping|notifications\/.*|tools\/list|resources\/(list|read|templates\/list)|prompts\/list)$/;
+const READ_TOOL = /^(list_|get_|query_|retrieve_|describe_|search|summarize|area_overview)/;
+
+/** Whether an MCP JSON-RPC body (one call or a batch) only lists or reads. */
+export function mcpReadOnly(body: string | null): boolean {
+  let calls: unknown;
+  try {
+    calls = JSON.parse(body ?? "");
+  } catch {
+    return false;
+  }
+  return [calls].flat().every((call) => {
+    const { method, params } = (call ?? {}) as { method?: unknown; params?: { name?: unknown } };
+    if (typeof method !== "string") return false;
+    return READ_MCP.test(method) || (method === "tools/call" && typeof params?.name === "string" && READ_TOOL.test(params.name));
+  });
+}
+
 export async function holdWrites(context: BrowserContext, hosts: string[], held: string[]): Promise<void> {
   await context.route(
     (url) => hosts.includes(url.host) && url.pathname.startsWith("/api/"),
@@ -127,9 +147,12 @@ export async function holdWrites(context: BrowserContext, hosts: string[], held:
       const request = route.request();
       const url = new URL(request.url());
       const write = !["GET", "HEAD", "OPTIONS"].includes(request.method());
-      if (!write || url.searchParams.get("dryRun") === "All" || url.pathname.includes("/drafts") || READ_POSTS.test(url.pathname)) {
-        return route.fallback();
-      }
+      const read =
+        url.searchParams.get("dryRun") === "All" ||
+        url.pathname.includes("/drafts") ||
+        READ_POSTS.test(url.pathname) ||
+        (url.pathname.endsWith("/mcp") && mcpReadOnly(request.postData()));
+      if (!write || read) return route.fallback();
       held.push(`${request.method()} ${url.pathname}`);
       return route.fulfill({
         status: 409,
@@ -190,7 +213,7 @@ async function act(page: Page, action: Action, start: string, hosts: string[]): 
 
 /** Plays one scenario on an already opened page; writes `<dir>/run.json` and `<dir>/step-NN.png`. */
 export async function runScenario(
-  options: { page: Page; scenario: Scenario; persona: string; width: number; lang: string; model: Model; dir: string; hosts: string[]; held?: string[] },
+  options: { page: Page; scenario: Scenario; given?: string; persona: string; width: number; lang: string; model: Model; dir: string; hosts: string[]; held?: string[] },
 ): Promise<RunResult> {
   const { scenario, persona, width, lang, model, dir, hosts } = options;
   mkdirSync(dir, { recursive: true });
@@ -231,7 +254,7 @@ export async function runScenario(
     const done = steps.slice(-HISTORY).map((s) => `${s.n}. ${JSON.stringify(s.action)} -> ${s.result}`).join("\n") || "(nothing yet)";
     const prompt = `Step ${n} of at most ${budget * 2} (target ${budget}).\nAddress: ${page.url()}\nTitle: ${await page.title()}\n\nDone so far:\n${done}\n\nAccessibility tree:\n${masked.text}`;
     const { action, retried } = await nextAction(async (note) => {
-      const messages: Message[] = [{ role: "system", content: system(scenario, persona, lang) }, { role: "user", content: prompt }];
+      const messages: Message[] = [{ role: "system", content: system(scenario, persona, lang, options.given) }, { role: "user", content: prompt }];
       if (note) messages.push({ role: "user", content: note });
       const reply = await model.ask(messages);
       tokens.in += reply.inTokens;
