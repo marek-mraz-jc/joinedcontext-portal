@@ -253,8 +253,9 @@ async fn a_panic_while_the_mirror_is_held_does_not_shut_the_mirror() {
 // -------------------------------------------------------------------------------------------------
 
 /// The server binds the address it is given, answers on it, and gives the port back when it stops. A
-/// Portal with no agent settings opens no second port — the internal listener is only for the agent
-/// runner (`src/server.rs:157`), and a port that is not open is the cheapest access control there is.
+/// Portal with no realm opens no second port: every route of the internal listener answers only a
+/// workload token of the realm (T-5869, `server::internal_listener_opens`), and a port that is not
+/// open is the cheapest access control there is.
 #[tokio::test]
 async fn the_server_binds_answers_and_opens_no_second_port_without_an_agent_runner() {
     // Port 0: the operating system picks one, so this case cannot collide with anything.
@@ -265,8 +266,8 @@ async fn the_server_binds_answers_and_opens_no_second_port_without_an_agent_runn
     let mut config = Config::for_tests();
     config.bind = bind;
     assert!(
-        config.agent_settings.is_none(),
-        "this case is about a Portal with no agent runner",
+        config.agent_settings.is_none() && config.oidc.is_none(),
+        "this case is about a Portal with no agent runner and no realm",
     );
 
     let serving = tokio::spawn(joinedcontext_portal::server::serve(config));
