@@ -378,7 +378,7 @@ mod tests {
         use axum::http::Method;
         let connectors = crate::config::Config::for_tests().connector_clients;
         for method in [Method::POST, Method::PUT, Method::PATCH, Method::DELETE] {
-            for client in ["mcp-mobile", "mcp-hub"] {
+            for client in ["mcp-mobile", "mcp-hub", "mcp-local"] {
                 match refuse_connector_write(&connectors, client, &method) {
                     Err(ApiError::Denied(message)) => {
                         assert!(message.contains("/api/v1/mcp"), "{message}");
@@ -391,7 +391,9 @@ mod tests {
             assert!(refuse_connector_write(&connectors, "mcp-mobile-x", &method).is_ok());
         }
         for method in [Method::GET, Method::HEAD, Method::OPTIONS] {
-            assert!(refuse_connector_write(&connectors, "mcp-mobile", &method).is_ok());
+            for client in ["mcp-mobile", "mcp-hub", "mcp-local"] {
+                assert!(refuse_connector_write(&connectors, client, &method).is_ok());
+            }
         }
     }
 

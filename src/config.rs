@@ -1974,8 +1974,10 @@ fn broker_url_template(raw: &str) -> Result<String, ConfigError> {
 }
 
 /// The Keycloak clients of the MCP connectors the platform ships (deployment
-/// components/context-gateway/keycloak-clients.yaml): the person's connector and the hub's.
-pub const CONNECTOR_CLIENTS: [&str; 2] = ["mcp-mobile", "mcp-hub"];
+/// components/context-gateway/keycloak-clients.yaml): the person's connector on a phone or the
+/// web (`mcp-mobile`), on their computer (`mcp-local`, Claude Code and IDEs) and the hub's.
+/// The `edge` client also holds `mcp:portal`, but its token is the Portal login itself.
+pub const CONNECTOR_CLIENTS: [&str; 3] = ["mcp-mobile", "mcp-hub", "mcp-local"];
 
 /// [`CONNECTOR_CLIENTS`] and the names `extra` adds, each once.
 fn connector_clients(extra: Option<String>) -> Vec<String> {
@@ -3114,7 +3116,7 @@ mod tests {
     fn the_connector_clients_are_the_defaults_plus_what_the_deployment_adds() {
         assert_eq!(
             Config::from_vars(|_| None).unwrap().connector_clients,
-            ["mcp-mobile", "mcp-hub"]
+            ["mcp-mobile", "mcp-hub", "mcp-local"]
         );
         for value in ["", " , ", "mcp-mobile"] {
             let config = Config::from_vars(|k| match k {
@@ -3124,7 +3126,7 @@ mod tests {
             .unwrap();
             assert_eq!(
                 config.connector_clients,
-                ["mcp-mobile", "mcp-hub"],
+                ["mcp-mobile", "mcp-hub", "mcp-local"],
                 "{value:?}"
             );
         }
@@ -3135,7 +3137,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             config.connector_clients,
-            ["mcp-mobile", "mcp-hub", "claude-desktop"]
+            ["mcp-mobile", "mcp-hub", "mcp-local", "claude-desktop"]
         );
     }
 
