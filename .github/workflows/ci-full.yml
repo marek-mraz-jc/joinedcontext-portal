@@ -151,6 +151,35 @@ jobs:
           JC_WASM_TEST_S3: http://127.0.0.1:19000
           JC_WASM_TEST_S3_KEY: ci-root
           JC_WASM_TEST_S3_SECRET: ci-root-secret
+  connector-load:
+    # The connector door's budget (T-5978, AG-143): a release Portal with 1,000 connectors over
+    # 50 projects and its stores in Postgres, k6 holding tools/list and two read tools at 60 calls
+    # a second; p95 over the budget, a dropped arrival, a wrong answer or a rights change not
+    # holding at the next call fails the job (tests/k6/connector-door.js).
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: jc
+          POSTGRES_PASSWORD: jc
+          POSTGRES_DB: jc_portal_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U jc"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: grafana/setup-k6-action@43b9fc21641a76002687994433dd586f56e791b1 # v1.2.2
+        with: { k6-version: "2.3.0" }
+      - run: cargo test --locked --release --test connector_scenarios -- --ignored --exact the_connector_door_holds_its_budget_under_load --nocapture
+        env:
+          JC_PORTAL_TEST_DATABASE_URL: postgres://jc:jc@127.0.0.1:5432/jc_portal_test
   readme:
     # Every command the README tells a newcomer to type is run here (T-2144, TS-19). A
     # renamed crate, a moved script or a flag that no longer exists then fails a lane rather
