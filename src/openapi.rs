@@ -1,6 +1,6 @@
 use axum::response::IntoResponse;
 use axum::routing::get;
-use axum::{Json, Router};
+use axum::Router;
 use utoipa::openapi::schema::{Array, Ref, Schema};
 use utoipa::openapi::RefOr;
 use utoipa::{Modify, OpenApi};
@@ -748,6 +748,95 @@ impl Modify for JcCoreSchemas {
     }
 }
 
+/// Every registry operation as its own entry (AG-59, AG-146, T-5948): the input and output schemas,
+/// the title and description `tools/list` publishes, and the rule the door applies
+/// (`x-jc-requires`), all from the one summary `ops::summary` makes, so the OpenAPI document and
+/// the MCP tool list cannot say two different things. The generic `/ops/{name}` entry stays for
+/// callers that pick the operation at run time. The entries go in as JSON, after utoipa built the
+/// rest: its schema types drop keywords a registry schema uses (`examples`, `oneOf` members), and a
+/// copy that loses them would no longer be the schema the door enforces.
+pub fn document_text() -> String {
+    static TEXT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    TEXT.get_or_init(render).clone()
+}
+
+fn render() -> String {
+    let mut api = ApiDoc::openapi();
+    let entries: Vec<(String, serde_json::Value)> = crate::ops::registry()
+        .iter()
+        .map(|op| {
+            let path = format!("/api/v1/projects/{{project}}/ops/{}", op.name);
+            (path, operation_entry(&crate::ops::summary(op)))
+        })
+        .collect();
+    // A placeholder per entry keeps utoipa's member order for the rest of the document, so the
+    // committed `ui/openapi.json` changes only where an operation is added.
+    for (path, _) in &entries {
+        api.paths
+            .paths
+            .insert(path.clone(), utoipa::openapi::PathItem::default());
+    }
+    let mut text = serde_json::to_string_pretty(&api).unwrap_or_default();
+    for (path, entry) in entries {
+        let placeholder = format!("    {}: {{}}", serde_json::Value::from(path.as_str()));
+        let body = serde_json::to_string_pretty(&entry)
+            .unwrap_or_default()
+            .replace('\n', "\n    ");
+        let filled = format!("    {}: {body}", serde_json::Value::from(path.as_str()));
+        text = text.replacen(&placeholder, &filled, 1);
+    }
+    text
+}
+
+/// [`document_text`] as JSON.
+pub fn document() -> serde_json::Value {
+    serde_json::from_str(&document_text()).unwrap_or_default()
+}
+
+/// The OpenAPI path item of one operation, as JSON.
+pub fn operation_entry(op: &crate::ops::OperationSummary) -> serde_json::Value {
+    let problem = |description: &str| {
+        serde_json::json!({
+            "description": description,
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProblemDetails" } } }
+        })
+    };
+    serde_json::json!({
+        "post": {
+            "tags": ["ops"],
+            "operationId": op.name,
+            "summary": op.title,
+            "description": op.description,
+            "parameters": [{
+                "name": "project", "in": "path", "required": true,
+                "description": "Project slug", "schema": { "type": "string" }
+            }],
+            "requestBody": {
+                "required": true,
+                "content": { "application/json": {
+                    "schema": op.input_schema,
+                    "example": crate::ops::example_of(&op.input_schema)
+                } }
+            },
+            "responses": {
+                "200": {
+                    "description": "The operation's answer",
+                    "content": { "application/json": { "schema": op.output_schema } }
+                },
+                "202": {
+                    "description": "The change the operation opened, waiting for a person's approval",
+                    "content": { "application/json": { "schema": { "type": "object" } } }
+                },
+                "401": problem("Unauthorized"),
+                "403": problem("Forbidden: the caller lacks what x-jc-requires names"),
+                "404": problem("The project or an object the input names is not there"),
+                "422": problem("The input does not match the schema; the problem names the path")
+            },
+            "x-jc-requires": op.requires
+        }
+    })
+}
+
 /// The refusal every session write shares (PF-50, T-1656). The CSRF guard stands in front of
 /// every write the API router mounts, and every write needs a verb the caller may lack, so each
 /// one can answer `403` with the problem body whatever its own annotation lists. The
@@ -834,9 +923,50 @@ pub fn conditions_ref() -> Array {
     responses((status = 200, description = "The OpenAPI 3.1 document of this Portal"))
 )]
 pub async fn openapi_json() -> impl IntoResponse {
-    Json(ApiDoc::openapi())
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        document_text(),
+    )
 }
 
 pub fn router() -> Router<AppState> {
     Router::new().route("/api/v1/openapi.json", get(openapi_json))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// T-5948: one entry per operation, filled where utoipa left its placeholder, and the text
+    /// stays valid JSON with the generic door beside the entries.
+    #[test]
+    fn every_operation_has_its_entry_in_the_document() {
+        let doc = document();
+        let paths = doc["paths"].as_object().expect("paths");
+        for op in crate::ops::registry() {
+            let entry = &paths[&format!("/api/v1/projects/{{project}}/ops/{}", op.name)]["post"];
+            assert_eq!(entry["operationId"], op.name);
+            assert_eq!(
+                entry["requestBody"]["content"]["application/json"]["schema"],
+                (op.input)()
+            );
+            assert_eq!(
+                entry["x-jc-requires"]["verb"],
+                crate::ops::requires(op).verb
+            );
+        }
+        assert!(paths.contains_key("/api/v1/projects/{project}/ops/{name}"));
+        let op = crate::ops::find("jc_schema_get").expect("registered");
+        let entry = operation_entry(&crate::ops::summary(op));
+        assert_eq!(
+            entry["post"]["requestBody"]["content"]["application/json"]["example"],
+            json!({ "kind": "Pipeline" })
+        );
+        let text = document_text();
+        let unfilled = crate::ops::registry()
+            .iter()
+            .find(|op| text.contains(&format!("/ops/{}\": {{}}", op.name)));
+        assert!(unfilled.is_none(), "a placeholder was left unfilled");
+    }
 }

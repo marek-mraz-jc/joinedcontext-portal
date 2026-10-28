@@ -919,3 +919,60 @@ async fn the_services_catalog_is_one_read_only_operation() {
         "{refused:?}"
     );
 }
+
+/// T-5948, AG-146: `get_schema` answers every kind jc-core registers through the same door every
+/// operation has, and a kind the platform lacks is refused at the input schema with its path.
+#[tokio::test]
+async fn get_schema_answers_every_kind_of_jc_core() {
+    let config = Config::for_tests();
+    let state = AppState::new(config.clone(), None);
+    state.mirror.upsert(ResourceEnvelope {
+        api_version: API_VERSION.into(),
+        kind: "Project".into(),
+        metadata: ObjectMeta::new("ovzdusie", joinedcontext_portal::permissions::ORG_NAMESPACE),
+        spec: json!({ "organizationRef": { "name": "bb" } }),
+        status: None,
+    });
+    let app = server::app(state);
+    let cookie = session_cookie(
+        &config,
+        "steward.user",
+        Some("steward@banskabystrica.sk"),
+        vec!["portal-approver"],
+        vec![],
+    );
+    let post = |body: Value| {
+        Request::builder()
+            .method("POST")
+            .uri("/api/v1/projects/ovzdusie/ops/jc_schema_get")
+            .header(header::COOKIE, &cookie)
+            .header(CSRF_HEADER, TEST_CSRF_TOKEN)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body.to_string()))
+            .expect("request")
+    };
+    let kinds: Vec<&str> = jc_core::registry::KINDS.iter().map(|k| k.kind).collect();
+    assert!(kinds.len() >= 30, "{kinds:?}");
+    for kind in &kinds {
+        let resp = app
+            .clone()
+            .oneshot(post(json!({ "kind": kind })))
+            .await
+            .expect("response");
+        assert_eq!(resp.status(), StatusCode::OK, "{kind}");
+        let body: Value =
+            serde_json::from_slice(&resp.into_body().collect().await.expect("body").to_bytes())
+                .expect("json");
+        assert_eq!(body["kind"], *kind);
+        assert!(
+            body["schema"]["properties"]["spec"].is_object(),
+            "{kind}: {body}"
+        );
+    }
+    let resp = app
+        .clone()
+        .oneshot(post(json!({ "kind": "NoSuchKind" })))
+        .await
+        .expect("response");
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}

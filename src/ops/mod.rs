@@ -25,6 +25,7 @@ pub mod previews;
 pub mod proposals;
 pub mod resources;
 pub mod runs;
+pub mod schemas;
 pub mod space_complete;
 pub mod sync_sources;
 pub mod verdict;
@@ -182,6 +183,136 @@ pub struct OperationSummary {
     pub output_schema: Value,
     pub annotations: OperationAnnotations,
     pub lane: Lane,
+    pub requires: Requires,
+}
+
+/// What a call of an operation needs of the caller, as [`permitted`] and [`may_try`] decide it
+/// (T-5948): the verb, the kind it is held on, and who decides. Published in `GET …/ops`, in
+/// `tools/list` and on the operation's OpenAPI entry, so a client sees the rule the door applies.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Requires {
+    /// A verb of the platform's set, e.g. `propose`.
+    pub verb: String,
+    /// The kind the verb is held on; `*` is the kind the input names, or any kind.
+    pub kind: String,
+    /// `registry` (the verb above), `route` (the REST route's own check), `organization` (a right
+    /// over the organization's people or projects) or `project` (a grant in the project).
+    pub checked_by: String,
+}
+
+/// The verb a verbless write needs, as [`missing_right`] asks it: a delete deletes, anything else
+/// proposes.
+fn inferred_verb(name: &str) -> Verb {
+    if name.ends_with("_delete") {
+        Verb::Delete
+    } else {
+        Verb::Propose
+    }
+}
+
+/// The rule [`permitted`] and [`may_try`] apply to `op`, in words a client reads.
+pub fn requires(op: &Operation) -> Requires {
+    let rule = |verb: Verb, kind: &str, by: &str| Requires {
+        verb: crate::permissions::verb_name(verb).to_owned(),
+        kind: kind.to_owned(),
+        checked_by: by.to_owned(),
+    };
+    let verb_of_write = || {
+        if op.annotations.read_only_hint {
+            Verb::Read
+        } else {
+            inferred_verb(op.name)
+        }
+    };
+    match (op.kind, op.verb) {
+        (kind, Some(verb)) => rule(verb, kind, "registry"),
+        _ if ORGANIZATION_OPERATIONS.contains(&op.name) => {
+            rule(verb_of_write(), op.kind, "organization")
+        }
+        _ if resources::CHECKED_BY_THE_ROUTE.contains(&op.name) => {
+            rule(verb_of_write(), op.kind, "route")
+        }
+        _ => rule(verb_of_write(), op.kind, "project"),
+    }
+}
+
+/// The operations [`organization_right`] decides.
+const ORGANIZATION_OPERATIONS: &[&str] = &[
+    "jc_person_create",
+    "jc_person_edit",
+    "jc_person_disable",
+    "jc_person_enable",
+    "jc_person_sign_out",
+    "jc_project_create",
+];
+
+/// What is wrong with a registry entry, empty when nothing is (T-5948). A write needs a verb:
+/// one held on a kind the registry names, the route's or the organization's check, or the verb
+/// inferred on the kind its input names (`kind: "*"`). A write naming a kind without a verb would
+/// be gated on some other kind, and an input schema that is not a closed object is not one the
+/// door can hold to (T-1659).
+pub fn problems(op: &Operation) -> Vec<String> {
+    let mut found = Vec::new();
+    let checked_elsewhere = ORGANIZATION_OPERATIONS.contains(&op.name)
+        || resources::CHECKED_BY_THE_ROUTE.contains(&op.name);
+    if op.verb.is_none() && !op.annotations.read_only_hint && op.kind != "*" && !checked_elsewhere {
+        found.push(format!("{} writes {} but names no verb", op.name, op.kind));
+    }
+    if op.verb == Some(Verb::Read) && !op.annotations.read_only_hint {
+        found.push(format!("{} writes with only the read verb", op.name));
+    }
+    let input = (op.input)();
+    if input["type"] != "object" || input["additionalProperties"] != json!(false) {
+        found.push(format!("{}'s input schema is not a closed object", op.name));
+    }
+    if let Err(err) = jsonschema::validator_for(&input) {
+        found.push(format!(
+            "{}'s input schema does not compile: {err}",
+            op.name
+        ));
+    }
+    found
+}
+
+/// A request a client can send first: the schema's own example, else each required member at
+/// its first enum value, its default, or the smallest value of its type (MF-40).
+pub fn example_of(schema: &Value) -> Value {
+    if let Some(example) = schema["examples"].get(0).or_else(|| schema.get("example")) {
+        return example.clone();
+    }
+    if let Some(value) = schema.get("const").or_else(|| schema.get("default")) {
+        return value.clone();
+    }
+    if let Some(first) = schema["enum"].get(0) {
+        return first.clone();
+    }
+    if let Some(first) = schema["oneOf"].get(0).or_else(|| schema["anyOf"].get(0)) {
+        return example_of(first);
+    }
+    let kind = match &schema["type"] {
+        Value::Array(types) => types.first().cloned().unwrap_or(Value::Null),
+        other => other.clone(),
+    };
+    match kind.as_str() {
+        Some("string") => json!("example"),
+        Some("integer") | Some("number") => schema.get("minimum").cloned().unwrap_or(json!(1)),
+        Some("boolean") => json!(false),
+        Some("array") => {
+            let least = schema["minItems"].as_u64().unwrap_or(0);
+            Value::Array((0..least).map(|_| example_of(&schema["items"])).collect())
+        }
+        Some("null") => Value::Null,
+        _ => {
+            let mut object = serde_json::Map::new();
+            for name in schema["required"].as_array().into_iter().flatten() {
+                if let Some(name) = name.as_str() {
+                    object.insert(name.to_owned(), example_of(&schema["properties"][name]));
+                }
+            }
+            Value::Object(object)
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -458,12 +589,7 @@ fn missing_right(
     effective: &crate::permissions::Effective,
     named: Option<&str>,
 ) -> Option<String> {
-    use jc_core::kinds::Verb;
-    let verb = if name.ends_with("_delete") {
-        Verb::Delete
-    } else {
-        Verb::Propose
-    };
+    let verb = inferred_verb(name);
     let kind = if name == "jc_project_delete" {
         Some("Project")
     } else {
@@ -493,16 +619,22 @@ pub fn listing(caller: &Caller, state: &AppState, project: &str) -> Vec<Operatio
         .iter()
         .filter(|op| caller.may_run(op).is_ok())
         .filter(|op| may_try(op, &caller.identity, state, project, None).is_ok())
-        .map(|op| OperationSummary {
-            name: op.name.to_string(),
-            title: op.title.to_string(),
-            description: op.description.to_string(),
-            input_schema: (op.input)(),
-            output_schema: (op.output)(),
-            annotations: op.annotations,
-            lane: op.lane,
-        })
+        .map(summary)
         .collect()
+}
+
+/// One operation as `GET …/ops`, `tools/list` and the OpenAPI document publish it.
+pub fn summary(op: &Operation) -> OperationSummary {
+    OperationSummary {
+        name: op.name.to_string(),
+        title: op.title.to_string(),
+        description: op.description.to_string(),
+        input_schema: (op.input)(),
+        output_schema: (op.output)(),
+        annotations: op.annotations,
+        lane: op.lane,
+        requires: requires(op),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -640,12 +772,96 @@ fn init_registry() -> Vec<Operation> {
     operations.extend(sync_sources::operations());
     operations.extend(workspaces::operations());
     operations.extend(people::operations());
+    operations.extend(schemas::operations());
     operations
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-5948: the rule a client reads is the gate's: a registry verb, the route's, the
+    /// organization's, or the project's with the verb a write's name implies.
+    #[test]
+    fn each_operation_publishes_the_rule_its_gate_applies() {
+        let rule = |name: &str| requires(find(name).expect(name));
+        assert_eq!(
+            rule("jc_pipeline_propose"),
+            Requires {
+                verb: "propose".into(),
+                kind: "Pipeline".into(),
+                checked_by: "registry".into()
+            }
+        );
+        assert_eq!(rule("jc_resource_delete").verb, "delete");
+        assert_eq!(rule("jc_resource_delete").checked_by, "route");
+        assert_eq!(rule("jc_person_disable").checked_by, "organization");
+        assert_eq!(rule("jc_catalog_search").verb, "read");
+        assert_eq!(rule("jc_draft_drop").checked_by, "project");
+        let found: Vec<String> = registry().iter().flat_map(problems).collect();
+        assert!(found.is_empty(), "{found:?}");
+    }
+
+    #[test]
+    fn a_write_naming_a_kind_without_a_verb_is_a_problem() {
+        let base = find("jc_resource_list").expect("registered");
+        let write = Operation {
+            name: "jc_thing_write",
+            title: base.title,
+            description: base.description,
+            input: base.input,
+            output: base.output,
+            annotations: annotations(false, false, false),
+            kind: "Pipeline",
+            verb: None,
+            lane: Lane::Yellow,
+            validate: base.validate,
+            run: base.run,
+        };
+        assert!(problems(&write)[0].contains("names no verb"));
+        let read_write = Operation {
+            verb: Some(Verb::Read),
+            input: || json!({ "type": "object" }),
+            ..write
+        };
+        let found = problems(&read_write);
+        assert!(
+            found.iter().any(|p| p.contains("only the read verb")),
+            "{found:?}"
+        );
+        assert!(
+            found.iter().any(|p| p.contains("closed object")),
+            "{found:?}"
+        );
+    }
+
+    #[test]
+    fn an_example_is_made_from_the_schema() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "kind": { "type": "string", "enum": ["Pipeline", "Endpoint"] },
+                "name": { "type": "string" },
+                "limit": { "type": "integer", "minimum": 5 },
+                "dry": { "type": "boolean", "default": true },
+                "needs": { "type": "array", "minItems": 2, "items": { "type": "string" } },
+                "either": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+                "optional": { "type": "string" }
+            },
+            "required": ["kind", "name", "limit", "dry", "needs", "either"]
+        });
+        assert_eq!(
+            example_of(&schema),
+            json!({
+                "kind": "Pipeline", "name": "example", "limit": 5, "dry": true,
+                "needs": ["example", "example"], "either": null
+            })
+        );
+        assert_eq!(
+            example_of(&json!({ "examples": [{ "q": "air" }] })),
+            json!({ "q": "air" })
+        );
+    }
 
     /// T-1659, AG-64: the door enforces the schema it publishes. A bounded string past its
     /// bound and a member the schema does not name are refused with the path to them, before

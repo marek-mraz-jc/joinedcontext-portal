@@ -63,7 +63,7 @@ fn spec_path() -> PathBuf {
 }
 
 fn rendered() -> String {
-    let mut json = serde_json::to_string_pretty(&ApiDoc::openapi()).expect("serialise the spec");
+    let mut json = joinedcontext_portal::openapi::document_text();
     json.push('\n');
     json
 }
@@ -449,8 +449,7 @@ pub fn internal_router() -> Router<AppState> {
 /// protocol's shape and documents that.
 #[test]
 fn every_write_documents_its_refusals() {
-    let spec: serde_json::Value =
-        serde_json::to_value(ApiDoc::openapi()).expect("the document serializes");
+    let spec: serde_json::Value = joinedcontext_portal::openapi::document();
     let mut missing = Vec::new();
     for (path, item) in spec["paths"].as_object().expect("paths") {
         if path.starts_with("/api/v1/webhooks/")
@@ -484,8 +483,7 @@ fn every_write_documents_its_refusals() {
 /// the body's own schema accepts. The example sits on the body or on the schema it names.
 #[test]
 fn every_request_body_has_an_example_that_validates_against_its_schema() {
-    let spec: serde_json::Value =
-        serde_json::to_value(ApiDoc::openapi()).expect("the document serializes");
+    let spec: serde_json::Value = joinedcontext_portal::openapi::document();
     let components = spec["components"].clone();
     let mut missing = Vec::new();
     let mut wrong = Vec::new();
@@ -524,8 +522,14 @@ fn every_request_body_has_an_example_that_validates_against_its_schema() {
                 }
                 // A manifest in an example, whole or under `manifest`, is one its kind's own
                 // typed parse accepts (MF-37): the envelope's schema leaves `spec` open.
+                // A bare `{kind}` names a kind (get_schema, T-5948) and is not a manifest.
                 let manifest = example.get("manifest").unwrap_or(example);
-                if let Some(kind) = manifest.get("kind").and_then(|k| k.as_str()) {
+                let names_only_a_kind = manifest.as_object().is_some_and(|m| m.len() == 1);
+                if let Some(kind) = manifest
+                    .get("kind")
+                    .and_then(|k| k.as_str())
+                    .filter(|_| !names_only_a_kind)
+                {
                     let yaml = serde_json::to_string(manifest).expect("an example serializes");
                     if let Some(Err(err)) = jc_core::registry::validate_yaml(kind, &yaml) {
                         wrong.push(format!("{call} ({media}): the {kind} is not one: {err}"));

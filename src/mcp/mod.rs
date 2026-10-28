@@ -298,27 +298,7 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
         "tools/list" => {
             let project = project_of(&params, &state, &caller);
             let ops = crate::ops::listing(&caller, &state, &project);
-            let tools: Vec<Value> = ops
-                .into_iter()
-                .map(|op| {
-                    json!({
-                        "name": op.name,
-                        "title": op.title,
-                        "description": op.description,
-                        "inputSchema": mcp_input_schema(op.input_schema),
-                        "outputSchema": op.output_schema,
-                        "annotations": {
-                            "readOnlyHint": op.annotations.read_only_hint,
-                            "destructiveHint": op.annotations.destructive_hint,
-                            "idempotentHint": op.annotations.idempotent_hint,
-                        },
-                        // AG-60: a call that leaves the Portal and waits is served as a task.
-                        "execution": {
-                            "taskSupport": if tasks::is_long(&op.name) { "required" } else { "forbidden" }
-                        }
-                    })
-                })
-                .collect();
+            let tools: Vec<Value> = ops.iter().map(tool_definition).collect();
 
             json_response(StatusCode::OK, &result(id, json!({ "tools": tools })))
         }
@@ -1003,6 +983,29 @@ async fn read_resource(
     }
 }
 
+/// One registry operation as an MCP tool (AG-59, T-5948): the OpenAPI entry of the same operation
+/// is built from the same summary, and `ops_registry_tests` diffs the two.
+pub fn tool_definition(op: &crate::ops::OperationSummary) -> Value {
+    json!({
+        "name": op.name,
+        "title": op.title,
+        "description": op.description,
+        "inputSchema": mcp_input_schema(op.input_schema.clone()),
+        "outputSchema": op.output_schema,
+        "annotations": {
+            "readOnlyHint": op.annotations.read_only_hint,
+            "destructiveHint": op.annotations.destructive_hint,
+            "idempotentHint": op.annotations.idempotent_hint,
+        },
+        // AG-60: a call that leaves the Portal and waits is served as a task.
+        "execution": {
+            "taskSupport": if tasks::is_long(&op.name) { "required" } else { "forbidden" }
+        },
+        // The rule the door applies to the call, as `GET …/ops` names it.
+        "_meta": { "joinedcontext.com/requires": op.requires }
+    })
+}
+
 /// Ensures the tool's input schema exposes `project` as a required parameter for MCP callers.
 fn mcp_input_schema(mut schema: Value) -> Value {
     if !schema.is_object() {
@@ -1288,6 +1291,18 @@ fn rate_limited() -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-5948: a tool is its registry entry, with the project the MCP door needs and the rule
+    /// the door applies.
+    #[test]
+    fn a_tool_is_its_registry_entry() {
+        let op = crate::ops::find("jc_schema_get").expect("registered");
+        let tool = tool_definition(&crate::ops::summary(op));
+        assert_eq!(tool["name"], "jc_schema_get");
+        assert_eq!(tool["inputSchema"]["required"], json!(["kind", "project"]));
+        assert_eq!(tool["annotations"]["readOnlyHint"], true);
+        assert_eq!(tool["_meta"]["joinedcontext.com/requires"]["verb"], "read");
+    }
     use crate::reconciler::SyncStatus;
 
     /// AG-12: the three states of the mirror an answer can be grounded in, each one word.
