@@ -15,13 +15,29 @@
  */
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { holdWrites, loadScenario, openRouterModel, runScenario } from "../agent/run";
-import { EDITOR, VIEWER, goSignedIn, journeyMarkerOnPortalOnly } from "./portal";
+import {
+  holdWrites,
+  loadScenario,
+  openRouterModel,
+  runScenario,
+} from "../agent/run";
+import {
+  EDITOR,
+  VIEWER,
+  goSignedIn,
+  journeyMarkerOnPortalOnly,
+} from "./portal";
 
-const PORTAL = new URL(process.env.PORTAL_URL ?? "https://portal.dev.joinedcontext.com");
+const PORTAL = new URL(
+  process.env.PORTAL_URL ?? "https://portal.dev.joinedcontext.com",
+);
 const DOMAIN = PORTAL.hostname.replace(/^portal\./, "");
 const HOSTS = [PORTAL.host, DOMAIN, `opendata.${DOMAIN}`, `api.${DOMAIN}`];
-const list = (value: string | undefined, fallback: string) => (value ?? fallback).split(",").map((s) => s.trim()).filter(Boolean);
+const list = (value: string | undefined, fallback: string) =>
+  (value ?? fallback)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 const SCENARIOS = list(process.env.AGENT_SCENARIOS, "");
 const WIDTHS = list(process.env.AGENT_WIDTHS, "1440,400").map(Number);
 const LANGS = list(process.env.AGENT_LANGS, "en");
@@ -38,14 +54,22 @@ const GIVEN: Record<string, string> = {
 };
 
 /** Who signs in for a persona, and where the run starts. */
-function who(persona: string): { person?: { user: string; password: string }; start: string } {
-  if (persona.startsWith("citizen") || persona === "journalist") return { start: `https://${DOMAIN}/` };
-  if (persona === "viewer" || persona === "analyst") return { person: VIEWER, start: "/" };
+function who(persona: string): {
+  person?: { user: string; password: string };
+  start: string;
+} {
+  if (persona.startsWith("citizen") || persona === "journalist")
+    return { start: `https://${DOMAIN}/` };
+  if (persona === "viewer" || persona === "analyst")
+    return { person: VIEWER, start: "/" };
   return { person: EDITOR, start: "/" };
 }
 
 test.describe("user agent", () => {
-  test.skip(SCENARIOS.length === 0, "set AGENT_SCENARIOS to run the user agent (it spends model tokens)");
+  test.skip(
+    SCENARIOS.length === 0,
+    "set AGENT_SCENARIOS to run the user agent (it spends model tokens)",
+  );
   for (const id of SCENARIOS) {
     for (const lang of LANGS) {
       for (const width of WIDTHS) {
@@ -66,13 +90,45 @@ test.describe("user agent", () => {
           const page = await context.newPage();
           const first = `${start}${start.includes("?") ? "&" : "?"}lang=${lang}`;
           // An anonymous "/" answers the catalogue, which has no /login hop: sign in through the demo
-          // people's project helsinki, then start where the persona starts.
-          if (person) await goSignedIn(page, person, `/projects/helsinki/explore?lang=${lang}`);
+          // people's project helsinki, at desktop width and in English (goSignedIn waits for the
+          // "Main navigation" landmark, behind Menu on a phone and named in Slovak there), then
+          // start where the persona starts, at its width and in its language.
+          if (person) {
+            await page.setViewportSize({ width: 1440, height: 900 });
+            await goSignedIn(
+              page,
+              person,
+              "/projects/helsinki/explore?lang=en",
+            );
+            await page.setViewportSize({
+              width,
+              height: width < 600 ? 860 : 900,
+            });
+          }
           await page.goto(first, { waitUntil: "load" });
-          const dir = join(OUT, `${id}-${persona}-${lang}-${width}-${MODEL.replace(/[^a-z0-9.]+/gi, "_")}`);
-          const run = await runScenario({ page, scenario, given: GIVEN[id], persona, width, lang, model: openRouterModel(MODEL), dir, hosts: HOSTS, held });
-          console.log(`${id} ${lang} ${width} ${MODEL}: ${run.outcome} in ${run.steps.length} steps, ${run.ms} ms, USD ${run.costUsd}: ${run.answer}`);
-          expect(run.secretsHidden, "credential-shaped text on a page the model read").toBe(0);
+          const dir = join(
+            OUT,
+            `${id}-${persona}-${lang}-${width}-${MODEL.replace(/[^a-z0-9.]+/gi, "_")}`,
+          );
+          const run = await runScenario({
+            page,
+            scenario,
+            given: GIVEN[id],
+            persona,
+            width,
+            lang,
+            model: openRouterModel(MODEL),
+            dir,
+            hosts: HOSTS,
+            held,
+          });
+          console.log(
+            `${id} ${lang} ${width} ${MODEL}: ${run.outcome} in ${run.steps.length} steps, ${run.ms} ms, USD ${run.costUsd}: ${run.answer}`,
+          );
+          expect(
+            run.secretsHidden,
+            "credential-shaped text on a page the model read",
+          ).toBe(0);
           await context.close();
         });
       }
