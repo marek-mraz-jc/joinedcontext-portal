@@ -1,3 +1,4 @@
+pub mod filter;
 pub mod selector;
 
 use serde::{Deserialize, Serialize};
@@ -29,6 +30,21 @@ pub struct ResourceEnvelope {
 impl ResourceEnvelope {
     pub fn strip_status(&mut self) {
         self.status = None;
+    }
+
+    /// The strong `ETag` of the manifest (API/13 section 3): a SHA-256 over its JSON without
+    /// `status`, which the Portal computes and Git never holds. Every member is a struct field or
+    /// a sorted map, so the same manifest always hashes the same.
+    pub fn etag(&self) -> String {
+        use sha2::{Digest, Sha256};
+        let manifest = Self {
+            status: None,
+            ..self.clone()
+        };
+        let bytes = serde_json::to_vec(&manifest).unwrap_or_default();
+        let digest = Sha256::digest(bytes);
+        let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
+        format!("\"{hex}\"")
     }
 
     pub fn key(&self) -> ResourceKey {
