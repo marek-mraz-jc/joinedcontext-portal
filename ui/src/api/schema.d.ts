@@ -11766,6 +11766,8 @@ export interface operations {
             query?: {
                 /** @description `true` answers the plan and proposes nothing. */
                 dryRun?: boolean;
+                /** @description `true` (AIP-163) is `dryRun=true` under the name every write takes (T-5949). */
+                validate_only?: boolean;
             };
             header?: never;
             path?: never;

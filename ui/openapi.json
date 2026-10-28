@@ -2829,6 +2829,15 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "validate_only",
+            "in": "query",
+            "description": "`true` (AIP-163) is `dryRun=true` under the name every write takes (T-5949).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
