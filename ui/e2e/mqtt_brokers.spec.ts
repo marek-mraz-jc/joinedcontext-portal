@@ -208,6 +208,57 @@ test.describe("MQTT brokers", () => {
     await shoot("filled");
   });
 
+  test("a steward raises the connections one address may hold for a NAT'd fleet (T-5888)", async ({ page }) => {
+    await stubApi(page);
+    await page.route("**/api/v1/projects/helsinki/permissions/me", (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ project: PROJECT, bootstrap: true, grants: [] }) }),
+    );
+    const drafted: unknown[] = [];
+    await page.route("**/api/v1/projects/helsinki/drafts/MqttBroker/*", async (route) => {
+      const manifest = (route.request().postDataJSON() as { manifest?: unknown } | null)?.manifest ?? null;
+      drafted.push(manifest);
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ project: PROJECT, kind: "MqttBroker", name: "sensors", manifest, verdict: null, touchedBy: "aino.virtanen", touchedKind: "person", version: 1, updatedAt: "2026-10-28T05:00:00Z" }),
+      });
+    });
+    const shots = process.env.T5888_SHOTS;
+    const field = page.locator("#root_limits_connectionsPerAddress");
+    const shoot = async (state: string) => {
+      if (!shots) return;
+      for (const width of [1440, 400]) {
+        await page.setViewportSize({ width, height: width === 400 ? 860 : 900 });
+        await field.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `${shots}/mqtt-broker-per-address-${state}-${width}.png` });
+      }
+      await page.setViewportSize({ width: 1440, height: 900 });
+    };
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/projects/${PROJECT}/mqttbrokers/new?lang=en`);
+    await expect(page.getByRole("heading", { level: 1, name: "New MQTT broker" })).toBeVisible();
+    await page.locator("#root_name").fill("sensors");
+    await page.locator("#root_roles_0_name").fill("sensors");
+    await page.locator("#root_roles_0_serviceAccounts_0").selectOption("cam-1");
+    // The limits sit in a folded group: a steward opens it to raise one.
+    await page.getByRole("group", { name: "Limits and port" }).getByText("Limits and port", { exact: true }).click();
+    await expect(page.getByLabel("Connections per source address")).toBeVisible();
+    await expect(page.locator("#root_limits_connectionsPerAddress__description")).toContainText("Empty is 20. E.g. 50.");
+    await shoot("empty");
+    await field.fill("0");
+    await field.blur();
+    await expect(field).toHaveAttribute("aria-invalid", "true");
+    await expect(page.locator("#root_limits_connectionsPerAddress__error")).toBeVisible();
+    await shoot("error");
+    await field.fill("50");
+    await field.blur();
+    await expect(page.locator("#root_limits_connectionsPerAddress__error")).toHaveCount(0);
+    await expect
+      .poll(() => JSON.stringify(drafted.at(-1) ?? null))
+      .toContain('"connectionsPerAddress":50');
+    expect(await axeViolations(page)).toEqual([]);
+    await shoot("filled");
+  });
+
   test("the broker list shows the networks a broker admits, or any address", async ({ page }) => {
     LISTS.mqttbrokers.push(
       item(

@@ -9668,6 +9668,7 @@
       "maxMessageBytes": "Größte Nachricht (Bytes)",
       "messagesPerSecond": "Nachrichten pro Sekunde je Gerät",
       "maxConnections": "Höchstens Verbindungen",
+      "connectionsPerAddress": "Verbindungen je Quelladresse",
       "port": "Eigener Port",
       "allowedSources": "Erlaubte Quellnetze",
       "mode": "Was der Broker tut",

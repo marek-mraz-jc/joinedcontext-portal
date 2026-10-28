@@ -9668,6 +9668,7 @@
       "maxMessageBytes": "Najväčšia správa (bajty)",
       "messagesPerSecond": "Správ za sekundu na zariadenie",
       "maxConnections": "Najviac spojení",
+      "connectionsPerAddress": "Spojení z jednej adresy",
       "port": "Vlastný port",
       "allowedSources": "Povolené zdrojové siete",
       "mode": "Čo broker robí",

@@ -168,6 +168,21 @@ describe("the broker form", () => {
     const open = toMqttBrokerManifest("espoo", { name: "cameras", roles: [], allowedSources: [] }) as { spec: object };
     expect(open.spec).not.toHaveProperty("allowedSources");
   });
+
+  it("takes connectionsPerAddress in 1..10000 and carries it to the manifest and back (T-5888)", () => {
+    const schema = mqttBrokerSchema((key) => key) as {
+      properties: { limits: { properties: { connectionsPerAddress: { minimum: number; maximum: number } } } };
+    };
+    const field = schema.properties.limits.properties.connectionsPerAddress;
+    expect([field.minimum, field.maximum]).toEqual([1, 10_000]);
+    const manifest = toMqttBrokerManifest("espoo", {
+      name: "cameras",
+      roles: [{ name: "camera", serviceAccounts: ["cam-1"], publish: ["cameras/${clientid}/#"] }],
+      limits: { connectionsPerAddress: 50 },
+    }) as { spec: { limits?: object } };
+    expect(manifest.spec.limits).toEqual({ connectionsPerAddress: 50 });
+    expect(fromMqttBrokerManifest(manifest).limits).toEqual({ connectionsPerAddress: 50 });
+  });
 });
 
 describe("the broker's address", () => {
