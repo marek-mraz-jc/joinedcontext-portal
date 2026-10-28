@@ -249,18 +249,18 @@ async fn api_cache_control_middleware(request: Request, next: Next) -> Response 
     response
 }
 
-/// The listener the credential proxy calls back on (AG-52).
-///
-/// A second listener rather than a path on the first: the edge routes `config.bind` and routes
-/// nothing here, so the two calls that carry a run's ticket hash are not on the public URL
-/// scheme at all. It carries no session layer, no CSRF guard and no static host — the proxy's
-/// bearer is the whole of its authentication, checked inside the handlers.
 /// Whether [`serve`] opens the internal listener: only a Portal that verifies tokens can answer
 /// any route on it.
 fn internal_listener_opens(state: &AppState) -> bool {
     state.bearer.is_some()
 }
 
+/// The listener the credential proxy calls back on (AG-52).
+///
+/// A second listener rather than a path on the first: the edge routes `config.bind` and routes
+/// nothing here, so the two calls that carry a run's ticket hash are not on the public URL
+/// scheme at all. It carries no session layer, no CSRF guard and no static host — the proxy's
+/// bearer is the whole of its authentication, checked inside the handlers.
 pub fn internal_app(state: AppState) -> Router {
     Router::new()
         .merge(api::internal::router())
