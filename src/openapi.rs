@@ -329,6 +329,11 @@ use crate::tools::model_tools::{
         crate::api::datasource_test::test_datasource,
         crate::api::assistant::propose_endpoint,
         crate::mcp::handle_mcp,
+        crate::api::connectors::list_connectors,
+        crate::api::connectors::create_connector,
+        crate::api::connectors::get_connector,
+        crate::api::connectors::revoke_connector,
+        crate::api::connectors::connector_activity,
     ),
     components(schemas(
         crate::api::access_attributes::AttributeExplained,
@@ -715,6 +720,7 @@ use crate::tools::model_tools::{
         (name = "ops", description = "One operation registry behind every door (AG-59, ADR-N-021)"),
         (name = "drafts", description = "Shared manifest drafts every window shares (AG-61, UI-47)"),
         (name = "preferences", description = "The signed-in person's own UI preferences"),
+        (name = "connectors", description = "A person's scoped connectors, each an MCP server at /c/{id} (AG-142, ADR-N-064)"),
         (name = "access", description = "ServiceAccounts, their API keys and effective grants"),
         (name = "basemap", description = "Map tiles and styles for application views, proxied so no coordinate leaves the platform (AP-67)"),
         (name = "knowledge", description = "What the knowledge assistant holds of a project's sources, read and steered (API/01 §34, AG-113)")

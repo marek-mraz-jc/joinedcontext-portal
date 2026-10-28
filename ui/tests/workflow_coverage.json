@@ -1731,6 +1731,28 @@
           "POST /api/v1/projects/{project}/endpoints/{name}/access-requests"
         ]
       }
+    },
+    "connector": {
+      "create": {
+        "live": {
+          "spec": "connectors.spec.ts",
+          "test": "a person creates a read-only connector, revokes it and finds it refused"
+        },
+        "personOnly": "a connector is a person's own grant to an AI client; a connector never creates, widens or revokes one (AG-151)",
+        "routes": [
+          "POST /api/v1/connectors"
+        ]
+      },
+      "revoke": {
+        "live": {
+          "spec": "connectors.spec.ts",
+          "test": "a person creates a read-only connector, revokes it and finds it refused"
+        },
+        "personOnly": "a connector is a person's own grant to an AI client; a connector never creates, widens or revokes one (AG-151)",
+        "routes": [
+          "DELETE /api/v1/connectors/{id}"
+        ]
+      }
     }
   },
   "unclaimed": {
