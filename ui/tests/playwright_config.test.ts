@@ -40,3 +40,13 @@ describe("playwright.config PW_ONLY", () => {
     expect(projects).toEqual(["chromium", "gallery"]);
   });
 });
+
+describe("playwright.live.config", () => {
+  // The live walker runs in containers whose /dev/shm is 64 MB: without this flag the tab
+  // crashed on dev's large pages and the walk wrote no report (T-5992).
+  it("keeps Chromium's shared memory off /dev/shm", async () => {
+    const config = (await import("../playwright.live.config")).default;
+    const args = (config.projects ?? []).map((project) => project.use?.launchOptions?.args);
+    expect(args).toEqual([["--disable-dev-shm-usage"]]);
+  });
+});
