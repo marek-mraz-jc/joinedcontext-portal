@@ -29,7 +29,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
-use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, ResourceKey, API_VERSION};
 use joinedcontext_portal::server;
 use joinedcontext_portal::state::AppState;
 use joinedcontext_portal::store::Mirror;
@@ -116,6 +116,29 @@ struct Step {
     /// Texts the answer must not carry.
     #[serde(default)]
     absent: Vec<String>,
+    /// A Portal REST call instead of an MCP one (`/api/v1` + path); `{connector}` stands for the
+    /// connector this scenario created last.
+    #[serde(default)]
+    rest: Option<Rest>,
+    /// `connector`: the MCP request goes to that connector's `/c/{id}` with a token for its address.
+    #[serde(default)]
+    via: Option<String>,
+    /// The OAuth client the token is obtained by, when not `mcp-local`.
+    #[serde(default)]
+    client: Option<String>,
+    /// A fixture change instead of a request: the persona loses their binding in the project, as
+    /// a merged RoleBinding change leaves it.
+    #[serde(default)]
+    unbind: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Rest {
+    method: String,
+    path: String,
+    #[serde(default)]
+    body: Value,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -314,6 +337,9 @@ struct Harness {
     app: axum::Router,
     issuer: String,
     signer: EncodingKey,
+    mirror: std::sync::Arc<Mirror>,
+    /// The connector the running scenario created last.
+    connector: std::sync::Mutex<Option<String>>,
 }
 
 impl Harness {
@@ -384,7 +410,7 @@ impl Harness {
         let state = AppState::from_config(config)
             .await
             .expect("state")
-            .with_mirror(mirror)
+            .with_mirror(mirror.clone())
             .with_gitea(std::sync::Arc::new(
                 joinedcontext_portal::git::GiteaClient::new(
                     server.uri().parse().expect("mock url"),
@@ -398,11 +424,18 @@ impl Harness {
             app: server::app(state),
             issuer,
             signer,
+            mirror,
+            connector: std::sync::Mutex::default(),
         }
     }
 
     /// The persona's token, as the connector client obtains it; `None` for anonymous.
     fn token(&self, persona: &str) -> Option<String> {
+        self.token_for(persona, AUDIENCE, CLIENT)
+    }
+
+    /// The persona's token for `audience`, obtained by `client`.
+    fn token_for(&self, persona: &str, audience: &str, client: &str) -> Option<String> {
         assert!(PERSONAS.contains(&persona), "unknown persona {persona}");
         if persona == "anonymous" {
             return None;
@@ -417,8 +450,8 @@ impl Harness {
         let user = user_of(persona);
         let claims = json!({
             "iss": self.issuer,
-            "aud": AUDIENCE,
-            "azp": CLIENT,
+            "aud": audience,
+            "azp": client,
             "sub": format!("sub-scn-{persona}"),
             "preferred_username": user,
             "email": user,
@@ -435,17 +468,33 @@ impl Harness {
 
     /// One JSON-RPC request through the MCP door: the HTTP status and the body.
     async fn rpc(&self, persona: &str, body: Value) -> (StatusCode, Value) {
+        let token = self.token(persona);
+        self.send("POST", "/api/v1/mcp", token, Some(body)).await
+    }
+
+    /// One HTTP request with an optional bearer: the status and the body.
+    async fn send(
+        &self,
+        method: &str,
+        uri: &str,
+        token: Option<String>,
+        body: Option<Value>,
+    ) -> (StatusCode, Value) {
         let mut request = Request::builder()
-            .method("POST")
-            .uri("/api/v1/mcp")
+            .method(method)
+            .uri(uri)
             .header(header::CONTENT_TYPE, "application/json");
-        if let Some(token) = self.token(persona) {
+        if let Some(token) = token {
             request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
         }
         let response = self
             .app
             .clone()
-            .oneshot(request.body(Body::from(body.to_string())).expect("request"))
+            .oneshot(
+                request
+                    .body(body.map_or_else(Body::empty, |b| Body::from(b.to_string())))
+                    .expect("request"),
+            )
             .await
             .expect("the router answers");
         let status = response.status();
@@ -470,7 +519,59 @@ impl Harness {
             Some("other") => OTHER,
             Some(other) => return Err(format!("project `{other}` is neither own nor other")),
         };
-        let fill = |text: &str| text.replace("{project}", project);
+        let connector = self
+            .connector
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+            .unwrap_or_default();
+        let in7days = (chrono::Utc::now() + chrono::Duration::days(7)).to_rfc3339();
+        let fill = |text: &str| {
+            text.replace("{project}", project)
+                .replace("{connector}", &connector)
+                .replace("{in7days}", &in7days)
+        };
+        if let Some(who) = &step.unbind {
+            let key = ResourceKey {
+                namespace: ORG_NAMESPACE.to_owned(),
+                kind: "RoleBinding".to_owned(),
+                name: format!("scn-{who}-{project}"),
+            };
+            return match self.mirror.remove(&key) {
+                Some(_) => Ok(()),
+                None => Err(format!("unbind: {who} holds no binding in {project}")),
+            };
+        }
+        if let Some(rest) = &step.rest {
+            let body = serde_json::from_str::<Value>(&fill(&rest.body.to_string()))
+                .map_err(|e| format!("rest body: {e}"))?;
+            let uri = format!("/api/v1{}", fill(&rest.path));
+            // A person manages connectors in the Portal, whose own client obtains the token; an
+            // MCP client's token is refused on these routes (AG-151).
+            let token = self.token_for(
+                persona,
+                AUDIENCE,
+                step.client.as_deref().unwrap_or(AUDIENCE),
+            );
+            let (status, answer) = self
+                .send(&rest.method, &uri, token, (!body.is_null()).then_some(body))
+                .await;
+            if status == StatusCode::CREATED {
+                if let Some(id) = answer["id"].as_str() {
+                    *self.connector.lock().unwrap_or_else(|p| p.into_inner()) = Some(id.to_owned());
+                }
+            }
+            let what = format!("{} {uri}", rest.method);
+            return judged(
+                step,
+                &what,
+                persona,
+                project,
+                status.is_client_error(),
+                &answer.to_string(),
+                &fill,
+            );
+        }
         let args = serde_json::from_str::<Value>(&fill(&step.args.to_string()))
             .map_err(|e| format!("args: {e}"))?;
         let body = match &step.call {
@@ -483,23 +584,28 @@ impl Harness {
             None => json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list",
                             "params": { "project": project } }),
         };
-        let (status, answer) = self.rpc(persona, body).await;
+        let (status, answer) = match step.via.as_deref() {
+            None => self.rpc(persona, body).await,
+            Some("connector") => {
+                let address = format!("https://portal.test/c/{connector}");
+                let client = step.client.as_deref().unwrap_or(CLIENT);
+                let token = self.token_for(persona, &address, client);
+                self.send("POST", &format!("/c/{connector}"), token, Some(body))
+                    .await
+            }
+            Some(other) => return Err(format!("via `{other}` is not connector")),
+        };
         let refused = match status {
             StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => true,
+            StatusCode::NOT_FOUND if step.via.is_some() => true,
             StatusCode::OK => {
                 answer["result"]["isError"] == json!(true) || !answer["error"].is_null()
             }
             other => return Err(format!("the door answered {other}: {answer}")),
         };
         let what = step.call.as_deref().unwrap_or("tools/list");
-        if refused != step.refused {
-            return Err(format!(
-                "{what} as {persona} in {project}: refused={refused}, want {}: {answer}",
-                step.refused
-            ));
-        }
         // A tools/list step judges tool names, a call the whole answer.
-        let text = if step.call.is_none() {
+        let text = if step.call.is_none() && !refused {
             answer["result"]["tools"]
                 .as_array()
                 .map(|tools| {
@@ -513,17 +619,7 @@ impl Harness {
         } else {
             answer.to_string()
         };
-        for want in step.contains.iter().map(|t| fill(t)) {
-            if !text.contains(&want) {
-                return Err(format!("{what} as {persona}: `{want}` missing from {text}"));
-            }
-        }
-        for unwanted in step.absent.iter().map(|t| fill(t)) {
-            if text.contains(&unwanted) {
-                return Err(format!("{what} as {persona}: `{unwanted}` in {text}"));
-            }
-        }
-        Ok(())
+        judged(step, what, persona, project, refused, &text, &fill)
     }
 
     /// Runs a scenario's script. A scenario passes only with an expect step, and a deny step
@@ -541,6 +637,35 @@ impl Harness {
         }
         Ok(())
     }
+}
+
+/// Whether one answer holds what its step asks: the refusal, and the texts present and absent.
+fn judged(
+    step: &Step,
+    what: &str,
+    persona: &str,
+    project: &str,
+    refused: bool,
+    text: &str,
+    fill: &dyn Fn(&str) -> String,
+) -> Result<(), String> {
+    if refused != step.refused {
+        return Err(format!(
+            "{what} as {persona} in {project}: refused={refused}, want {}: {text}",
+            step.refused
+        ));
+    }
+    for want in step.contains.iter().map(|t| fill(t)) {
+        if !text.contains(&want) {
+            return Err(format!("{what} as {persona}: `{want}` missing from {text}"));
+        }
+    }
+    for unwanted in step.absent.iter().map(|t| fill(t)) {
+        if text.contains(&unwanted) {
+            return Err(format!("{what} as {persona}: `{unwanted}` in {text}"));
+        }
+    }
+    Ok(())
 }
 
 #[test]
@@ -651,4 +776,198 @@ async fn a_broken_expect_and_an_allowed_deny_both_fail() {
         .await
         .expect_err("a deny line needs its step");
     assert!(err.contains("no deny step"), "{err}");
+}
+
+/// The connector door's refusals in API/14 §3 order, and the management routes' own (T-5950).
+#[tokio::test]
+async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
+    let harness = Harness::start(1).await;
+    let own = project_of(1);
+    let expires = (chrono::Utc::now() + chrono::Duration::days(7)).to_rfc3339();
+    let ask = |name: &str| {
+        json!({ "name": name, "segments": ["data-read"],
+                "scope": [{ "project": own, "access": "read" }], "expiresAt": expires })
+    };
+    let portal = |persona: &str| harness.token_for(persona, AUDIENCE, AUDIENCE);
+    let (status, a) = harness
+        .send(
+            "POST",
+            "/api/v1/connectors",
+            portal("viewer"),
+            Some(ask("a")),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{a}");
+    let (_, b) = harness
+        .send(
+            "POST",
+            "/api/v1/connectors",
+            portal("viewer"),
+            Some(ask("b")),
+        )
+        .await;
+    let (a, b) = (a["id"].as_str().expect("id"), b["id"].as_str().expect("id"));
+    let door = |id: &str| format!("/c/{id}");
+    let address = |id: &str| format!("https://portal.test/c/{id}");
+    let list = json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {} });
+
+    // An MCP client's token creates no connector (AG-151), and neither does a dry run of one.
+    let mcp = harness.token("viewer");
+    let (status, _) = harness
+        .send("POST", "/api/v1/connectors", mcp.clone(), Some(ask("c")))
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, body) = harness
+        .send(
+            "POST",
+            "/api/v1/connectors?dryRun=All",
+            portal("viewer"),
+            Some(ask("c")),
+        )
+        .await;
+    assert_eq!((status, &body), (StatusCode::OK, &json!({ "valid": true })));
+
+    // No bearer: 401 naming the connector's own metadata.
+    let response = harness
+        .app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(door(a))
+                .body(Body::from(list.to_string()))
+                .expect("request"),
+        )
+        .await
+        .expect("answer");
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let challenge = response.headers()[header::WWW_AUTHENTICATE]
+        .to_str()
+        .expect("text");
+    assert!(
+        challenge.contains(&format!(
+            "{}/.well-known/oauth-protected-resource",
+            address(a)
+        )),
+        "{challenge}"
+    );
+    let (status, meta) = harness
+        .send(
+            "GET",
+            &format!("{}/.well-known/oauth-protected-resource", door(a)),
+            None,
+            None,
+        )
+        .await;
+    assert_eq!(
+        (status, meta["resource"].as_str()),
+        (StatusCode::OK, Some(address(a).as_str()))
+    );
+
+    // A Portal token, and a token for connector b, are no tokens for connector a.
+    for token in [
+        portal("viewer"),
+        mcp.clone(),
+        harness.token_for("viewer", &address(b), CLIENT),
+    ] {
+        let (status, _) = harness
+            .send("POST", &door(a), token, Some(list.clone()))
+            .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
+    // A connector's token is no token for the management routes either.
+    let token_a = harness.token_for("viewer", &address(a), CLIENT);
+    let (status, _) = harness
+        .send("GET", "/api/v1/connectors", token_a.clone(), None)
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    // Another person's token for a's address gets the answer of an id that does not exist.
+    let unknown = "aaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let (status, other) = harness
+        .send(
+            "POST",
+            &door(a),
+            harness.token_for("steward", &address(a), CLIENT),
+            Some(list.clone()),
+        )
+        .await;
+    let (status_unknown, none) = harness
+        .send(
+            "POST",
+            &door(unknown),
+            harness.token_for("viewer", &address(unknown), CLIENT),
+            Some(list.clone()),
+        )
+        .await;
+    assert_eq!((status, &other), (StatusCode::NOT_FOUND, &none));
+    assert_eq!(status_unknown, StatusCode::NOT_FOUND);
+
+    // Resources and prompts read past the scope check: a connector serves tools only.
+    let read = json!({ "jsonrpc": "2.0", "id": 2, "method": "resources/read",
+                       "params": { "uri": format!("jc://{own}/endpoints/{own}-counters") } });
+    let (status, answer) = harness
+        .send("POST", &door(a), token_a.clone(), Some(read))
+        .await;
+    assert_eq!(
+        (status, answer["error"]["code"].as_i64()),
+        (StatusCode::OK, Some(-32601))
+    );
+    let (status, answer) = harness
+        .send("POST", &door(a), token_a.clone(), Some(list.clone()))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{answer}");
+    assert!(answer.to_string().contains("jc_resource_list"), "{answer}");
+
+    // The audit names who, which client, what and the verdict; never the token.
+    let (status, calls) = harness
+        .send(
+            "GET",
+            &format!("/api/v1/connectors/{a}/activity"),
+            portal("viewer"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let text = calls.to_string();
+    for want in [
+        "refused: not the owner",
+        "sub-scn-steward",
+        "refused: method",
+        "\"tool\":\"tools/list\"",
+        "allowed",
+    ] {
+        assert!(text.contains(want), "{want} missing from {text}");
+    }
+    let token_text = token_a.expect("token");
+    assert!(
+        !text.contains(&token_text) && !text.contains("eyJ"),
+        "{text}"
+    );
+    // The activity of another person's connector is the same 404.
+    let (status, _) = harness
+        .send(
+            "GET",
+            &format!("/api/v1/connectors/{a}/activity"),
+            portal("steward"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = harness
+        .send(
+            "DELETE",
+            &format!("/api/v1/connectors/{a}"),
+            portal("steward"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, mine) = harness
+        .send("GET", "/api/v1/connectors", portal("viewer"), None)
+        .await;
+    assert_eq!(
+        (status, mine["items"].as_array().map(Vec::len)),
+        (StatusCode::OK, Some(2))
+    );
 }

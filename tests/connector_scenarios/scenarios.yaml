@@ -220,6 +220,29 @@
   says: "Remove jana from the project."
   expect: 'binding removed; jana''s connectors lose the project at their next call'
   deny: 'none'
+  script:
+    - proves: expect
+      as: viewer
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: jana-reads, segments: [data-read], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['https://portal.test/c/', '"state":"active"']
+    - proves: expect
+      as: viewer
+      via: connector
+      call: jc_resource_list
+      args: { kind: Endpoint }
+      contains: ['{project}-counters']
+    - proves: expect
+      unbind: viewer
+    - proves: expect
+      as: viewer
+      via: connector
+      call: jc_resource_list
+      args: { kind: Endpoint }
+      refused: true
+      absent: ['{project}-counters']
 
 - id: S-33
   segment: publish
@@ -330,18 +353,90 @@
   says: "(Portal) Create a connector: project Doprava, Endpoints X and Y, read only, 30 days, claude.ai only."
   expect: 'connector URL /c/{id}; tools/list over it shows read tools for X and Y only'
   deny: 'tick an Endpoint outside the ceiling -> not offered in the tree, refused by the API'
+  script:
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: doprava-counters, segments: [data-read], scope: [{ project: '{project}', endpoint: '{project}-counters', access: read }], expiresAt: '{in7days}', allowedClients: ['https://claude.ai/oauth/mcp-client-metadata'] }
+      contains: ['https://portal.test/c/', '"clientIsBoundary":true']
+    - proves: expect
+      via: connector
+      client: 'https://claude.ai/oauth/mcp-client-metadata'
+      contains: ['jc_resource_get', 'jc_kpi_compute']
+      absent: ['jc_resource_list', 'propose', 'delete', 'approve']
+    - proves: expect
+      via: connector
+      client: 'https://claude.ai/oauth/mcp-client-metadata'
+      call: jc_resource_get
+      args: { kind: Endpoint, name: '{project}-counters' }
+      contains: ['BikeCounter']
+    - proves: deny
+      via: connector
+      client: 'https://claude.ai/oauth/mcp-client-metadata'
+      call: jc_resource_get
+      args: { kind: Endpoint, name: 't-scn-other-counters' }
+      refused: true
+      contains: ['does not reach Endpoint t-scn-other-counters']
+    - proves: deny
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: other-counters, segments: [data-read], scope: [{ project: t-scn-other, endpoint: t-scn-other-counters, access: read }], expiresAt: '{in7days}' }
+      refused: true
+      contains: ['scope[0].project']
 - id: S-47
   segment: connector
   as: viewer
   says: "(another person) Use jana's connector URL with my own sign-in."
   expect: 'refused: token subject is not the connector owner'
   deny: 'this scenario IS the deny case'
+  script:
+    - proves: expect
+      as: viewer
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: jana-claude, segments: [data-read], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['https://portal.test/c/', '"state":"active"']
+    - proves: expect
+      as: viewer
+      via: connector
+      contains: ['jc_resource_list']
+    - proves: deny
+      as: steward
+      via: connector
+      refused: true
+      contains: ['no such connector']
+    - proves: deny
+      as: steward
+      rest:
+        method: GET
+        path: /connectors/{connector}
+      refused: true
+      contains: ['no such connector']
 - id: S-48
   segment: connector
   as: viewer
   says: "(Claude Code) Use a connector locked to claude.ai."
   expect: 'refused: client not allowed (azp)'
   deny: 'this scenario IS the deny case'
+  script:
+    - proves: expect
+      as: viewer
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: claude-only, segments: [data-read], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}', allowedClients: ['https://claude.ai/oauth/mcp-client-metadata'] }
+      contains: ['https://portal.test/c/', '"state":"active"']
+    - proves: expect
+      via: connector
+      client: 'https://claude.ai/oauth/mcp-client-metadata'
+      contains: ['jc_resource_list']
+    - proves: deny
+      via: connector
+      refused: true
+      contains: ['answers only https://claude.ai/oauth/mcp-client-metadata', 'mcp-local']
 - id: S-49
   segment: connector
   as: steward
@@ -354,6 +449,35 @@
   says: "Revoke the connector, then call it."
   expect: 'next call 401/403; the audit log lists every call with connector, person, client, tool, target, verdict'
   deny: 'this scenario IS the deny case'
+  script:
+    - proves: expect
+      as: steward
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: steward-reads, segments: [data-read], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['https://portal.test/c/', '"state":"active"']
+    - proves: expect
+      via: connector
+      call: jc_resource_list
+      args: { kind: Endpoint }
+      contains: ['{project}-counters']
+    - proves: expect
+      rest:
+        method: DELETE
+        path: /connectors/{connector}
+    - proves: deny
+      via: connector
+      call: jc_resource_list
+      args: { kind: Endpoint }
+      refused: true
+      contains: ['this connector is revoked']
+    - proves: expect
+      rest:
+        method: GET
+        path: /connectors/{connector}/activity
+      contains: ['"verdict":"allowed"', '"verdict":"refused: revoked"', '"tool":"jc_resource_list"', '"target":"{project}/Endpoint"', '"subject":"sub-scn-steward"', '"client":"mcp-local"']
+      absent: ['Bearer', 'eyJ']
 
 - id: S-51
   segment: pipeline
