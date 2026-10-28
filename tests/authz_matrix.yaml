@@ -367,6 +367,36 @@ routes:
     rule: "people-admin"
     expect: [403, 403, 403, 403, 403, allow, 403, 403]
     note: "revokes a person's consent to one client, as sign-out ends their sessions; no grant changes (API/01 §41)"
+  - route: GET /connectors
+    rule: "signed-in, own connectors only"
+    expect: [401, allow, allow, allow, allow, allow, allow, 403]
+  - route: POST /connectors
+    rule: "signed-in, own connectors only; scope within the caller's rights and the ceiling"
+    expect: [403, 400, 400, 400, 400, 400, 400, 403]
+    note: "the fixture sends no body, so every person's 400 is the missing connector; tests/connector_scenarios.rs creates real ones"
+  - route: GET /connectors/{id}
+    rule: "signed-in, own connectors only"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "the fixture holds no connector: every person's 404 is the unknown id, the same answer as another person's connector"
+  - route: DELETE /connectors/{id}
+    rule: "signed-in, own connectors only"
+    expect: [403, 404, 404, 404, 404, 404, 404, 404]
+    note: "the fixture holds no connector: every person's 404 is the unknown id"
+  - route: GET /connectors/{id}/activity
+    rule: "signed-in, own connectors only"
+    expect: [401, 404, 404, 404, 404, 404, 404, 404]
+    note: "the fixture holds no connector: every person's 404 is the unknown id"
+  - route: GET /c/{id}
+    rule: "public"
+    expect: [405, 405, 405, 405, 405, 405, 405, 405]
+  - route: POST /c/{id}
+    rule: "connector-owner"
+    expect: [401, 401, 401, 401, 401, 401, 401, 401]
+    note: "only a token whose audience is the connector's own address passes; tests/connector_scenarios.rs plays the owner, another person and a revoked connector"
+  - route: GET /c/{id}/.well-known/oauth-protected-resource
+    rule: "public"
+    expect: [404, 404, 404, 404, 404, 404, 404, 404]
+    note: "the fixture's id is no connector id, so 404; a real id answers the metadata"
   - route: GET /preferences
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
