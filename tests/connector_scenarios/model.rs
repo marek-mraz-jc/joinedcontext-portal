@@ -307,15 +307,7 @@ impl Harness {
                 }
             };
             transcript.tokens += answer["usage"]["total_tokens"].as_u64().unwrap_or(0);
-            let usage = &answer["usage"];
-            transcript.cost_usd +=
-                usage["cost"]
-                    .as_f64()
-                    .filter(|c| *c > 0.0)
-                    .unwrap_or_else(|| {
-                        let tokens = |k: &str| usage[k].as_f64().unwrap_or(0.0);
-                        tokens("prompt_tokens") * price.0 + tokens("completion_tokens") * price.1
-                    });
+            transcript.cost_usd += cost_of(&answer["usage"], price);
             let message = answer["choices"][0]["message"].clone();
             let calls = message["tool_calls"]
                 .as_array()
@@ -378,6 +370,19 @@ async fn price_of(http: &reqwest::Client, model: &str) -> (f64, f64) {
             .unwrap_or(0.0)
     };
     (per_token("prompt"), per_token("completion"))
+}
+
+/// What one answer cost: OpenRouter's `usage.cost`, or on a bring-your-own-key route (where
+/// `cost` is 0) the provider's `cost_details.upstream_inference_cost`, else the tokens at the
+/// listed price.
+fn cost_of(usage: &Value, price: (f64, f64)) -> f64 {
+    let positive = |v: &Value| v.as_f64().filter(|c| *c > 0.0);
+    positive(&usage["cost_details"]["upstream_inference_cost"])
+        .or_else(|| positive(&usage["cost"]))
+        .unwrap_or_else(|| {
+            let tokens = |k: &str| usage[k].as_f64().unwrap_or(0.0);
+            tokens("prompt_tokens") * price.0 + tokens("completion_tokens") * price.1
+        })
 }
 
 /// One chat completion; a 429 or 5xx is asked once more.
@@ -480,7 +485,7 @@ pub(super) fn table(scenarios: &[Scenario], runs: &[Transcript]) -> String {
 /// Runs every scenario (or `JC_MODEL_EVAL_ONLY`) with each model of `JC_MODEL_EVAL_MODELS` and
 /// prints the tables. It calls a paid model API, so it runs in ci-full's model-evals job and by
 /// hand, not in the fast lane; the pass rate is a reading, the run fails only when the model API
-/// refuses.
+/// refuses more than a tenth of the scenarios.
 #[tokio::test]
 #[ignore = "calls a model through OpenRouter: ci-full model-evals and by hand"]
 async fn the_model_lane_runs_every_scenario() {
@@ -510,6 +515,7 @@ async fn the_model_lane_runs_every_scenario() {
         .expect("http client");
     let mut report = String::from("## Connector scenarios, model lane (T-5961)\n\n");
     let mut errors = Vec::new();
+    let mut runs_total = 0;
     for model in &models {
         // A fresh harness per model: each model meets the same fixtures and an empty forge log.
         let mut runs = Vec::new();
@@ -545,14 +551,17 @@ async fn the_model_lane_runs_every_scenario() {
             }
             runs.push(t);
         }
+        runs_total += runs.len();
         report.push_str(&table(&scenarios, &runs));
     }
     println!("{report}");
     if let Ok(out) = std::env::var("JC_MODEL_EVAL_OUT") {
         std::fs::write(&out, &report).expect("report written");
     }
+    // A lone gateway timeout is a reading like any fail; a dead key or an empty account refuses
+    // every scenario.
     assert!(
-        errors.is_empty(),
+        errors.len() * 10 <= runs_total.max(1),
         "the model API refused:\n{}",
         errors.join("\n")
     );
@@ -562,7 +571,7 @@ fn recorded(text: &str) -> Transcript {
     serde_json::from_str(text).expect("a recorded transcript")
 }
 
-/// The grader on two recorded runs (claude-haiku-5.5, 2026-10-28) and on what a model could do
+/// The grader on recorded runs (gemini-3.8-flash, claude-haiku-5.5, deepseek-v4.1-flash, 2026-10-28) and on what a model could do
 /// wrong to the passing one: a refused write door answering, an injected write, a model error.
 #[test]
 fn the_grader_passes_a_recorded_pass_and_fails_a_recorded_fail() {
@@ -571,8 +580,10 @@ fn the_grader_passes_a_recorded_pass_and_fails_a_recorded_fail() {
     let pass = recorded(include_str!("transcripts/pass-S-44.json"));
     assert_eq!(grade(of("S-44"), &pass), Ok(()));
 
-    // S-42: the model read the activity before it listed the changes, so no activity answer
-    // shows the change list call the expect step names.
+    // S-42 twice: deepseek-v4.1-flash listed the changes, then read the activity that shows that
+    // call; gemini-3.8-flash read the activity first, so no activity answer shows it.
+    let s42 = recorded(include_str!("transcripts/pass-S-42.json"));
+    assert_eq!(grade(of("S-42"), &s42), Ok(()));
     let fail = recorded(include_str!("transcripts/fail-S-42.json"));
     let err = grade(of("S-42"), &fail).expect_err("the recorded fail fails");
     assert!(err.contains("jc_activity_list"), "{err}");
@@ -604,6 +615,13 @@ fn the_grader_passes_a_recorded_pass_and_fails_a_recorded_fail() {
     let mut refused = pass.clone();
     refused.error = Some("402: out of credit".into());
     assert!(grade(of("S-44"), &refused).is_err());
+
+    // A bring-your-own-key answer carries `cost` 0 and the provider's price beside it.
+    let byok = json!({ "cost": 0, "cost_details": { "upstream_inference_cost": 0.0021 },
+                       "prompt_tokens": 1000, "completion_tokens": 100 });
+    assert_eq!(cost_of(&byok, (1.0, 1.0)), 0.0021);
+    let listed = json!({ "cost": 0, "prompt_tokens": 1000, "completion_tokens": 100 });
+    assert!((cost_of(&listed, (1e-7, 5e-7)) - 0.00015).abs() < 1e-12);
 
     // The table counts each verdict once, under the scenario's segment.
     let table = table(&scenarios, &[pass, fail]);
