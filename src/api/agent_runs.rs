@@ -1745,7 +1745,16 @@ pub async fn call_function(
             }),
         )
         .await?;
-        return Ok((status, Json(serde_json::json!({ "error": error }))).into_response());
+        let slug = if status == StatusCode::UNAUTHORIZED {
+            "unauthorized"
+        } else {
+            "internal-error"
+        };
+        let mut body = serde_json::json!({ "error": error });
+        if let Some(message) = error["message"].as_str() {
+            body["detail"] = serde_json::json!(message);
+        }
+        return Ok(crate::error::problem_response(body, status, slug));
     }
     publish_event(
         &state,

@@ -449,7 +449,9 @@ pub fn internal_router() -> Router<AppState> {
 /// protocol's shape and documents that.
 #[test]
 fn every_write_documents_its_refusals() {
-    let spec: serde_json::Value = joinedcontext_portal::openapi::document();
+    let spec: serde_json::Value =
+        serde_json::from_str(&joinedcontext_portal::openapi::document_text())
+            .expect("the OpenAPI document is JSON");
     let mut missing = Vec::new();
     for (path, item) in spec["paths"].as_object().expect("paths") {
         if path.starts_with("/api/v1/webhooks/")
@@ -483,7 +485,9 @@ fn every_write_documents_its_refusals() {
 /// the body's own schema accepts. The example sits on the body or on the schema it names.
 #[test]
 fn every_request_body_has_an_example_that_validates_against_its_schema() {
-    let spec: serde_json::Value = joinedcontext_portal::openapi::document();
+    let spec: serde_json::Value =
+        serde_json::from_str(&joinedcontext_portal::openapi::document_text())
+            .expect("the OpenAPI document is JSON");
     let components = spec["components"].clone();
     let mut missing = Vec::new();
     let mut wrong = Vec::new();
