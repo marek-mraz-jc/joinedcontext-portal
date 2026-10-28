@@ -453,13 +453,38 @@ pub fn validate(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Re
             format!("name '{}' must be a DNS-1123 label of at most 63 characters, e.g. doprava-in-claude", new.name),
         ));
     }
-    if new.segments.is_empty() {
+    validate_segments(&new.segments, ceiling)?;
+    validate_scope(new)?;
+    if new.writes && !ceiling.writes {
+        return Err(above_ceiling(
+            "writes",
+            "your organization lets a connector read only; writes arrive with plan_change (T-5956)"
+                .into(),
+        ));
+    }
+    if new.expires_at <= now {
+        return Err(invalid(
+            "expiresAt",
+            "expiresAt must lie in the future".into(),
+        ));
+    }
+    if new.expires_at > now + Duration::days(ceiling.max_days) {
+        return Err(above_ceiling(
+            "expiresAt",
+            format!("a connector lives at most {} days", ceiling.max_days),
+        ));
+    }
+    validate_clients(&new.allowed_clients)
+}
+
+fn validate_segments(segments: &[String], ceiling: &Ceiling) -> Result<(), ApiError> {
+    if segments.is_empty() {
         return Err(invalid(
             "segments",
             "segments names at least one preset, e.g. data-read".into(),
         ));
     }
-    for (i, segment) in new.segments.iter().enumerate() {
+    for (i, segment) in segments.iter().enumerate() {
         let known = segment == ADMIN || SEGMENTS.iter().any(|(s, _, _)| s == segment);
         if !known {
             return Err(invalid(
@@ -477,6 +502,10 @@ pub fn validate(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Re
             ));
         }
     }
+    Ok(())
+}
+
+fn validate_scope(new: &NewConnector) -> Result<(), ApiError> {
     if new.scope.is_empty() || new.scope.len() > MAX_SCOPE {
         return Err(invalid("scope", format!("scope names 1 to {MAX_SCOPE} items, e.g. {{\"project\": \"doprava\", \"access\": \"read\"}}")));
     }
@@ -513,32 +542,17 @@ pub fn validate(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Re
             ));
         }
     }
-    if new.writes && !ceiling.writes {
-        return Err(above_ceiling(
-            "writes",
-            "your organization lets a connector read only; writes arrive with plan_change (T-5956)"
-                .into(),
-        ));
-    }
-    if new.expires_at <= now {
-        return Err(invalid(
-            "expiresAt",
-            "expiresAt must lie in the future".into(),
-        ));
-    }
-    if new.expires_at > now + Duration::days(ceiling.max_days) {
-        return Err(above_ceiling(
-            "expiresAt",
-            format!("a connector lives at most {} days", ceiling.max_days),
-        ));
-    }
-    if new.allowed_clients.len() > MAX_CLIENTS {
+    Ok(())
+}
+
+fn validate_clients(clients: &[String]) -> Result<(), ApiError> {
+    if clients.len() > MAX_CLIENTS {
         return Err(invalid(
             "allowedClients",
             format!("at most {MAX_CLIENTS} clients"),
         ));
     }
-    for (i, client) in new.allowed_clients.iter().enumerate() {
+    for (i, client) in clients.iter().enumerate() {
         let plain = client
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b"-._:/".contains(&b));
