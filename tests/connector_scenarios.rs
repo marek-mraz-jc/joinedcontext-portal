@@ -1050,7 +1050,11 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
             )
             .await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
-        assert_eq!(body["errors"], json!(["scope[0].endpoint"]), "{body}");
+        assert_eq!(
+            body["errors"][0]["path"],
+            json!("scope[0].endpoint"),
+            "{body}"
+        );
         refusals.push(body["detail"].as_str().map(|d| d.replace(&endpoint, "_")));
     }
     assert_eq!(
@@ -1080,7 +1084,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
         )
         .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{refused}");
-    assert_eq!(refused["errors"], json!(["scope[0].endpoint"]));
+    assert_eq!(refused["errors"][0]["path"], json!("scope[0].endpoint"));
     let (status, refused) = harness
         .send(
             "PATCH",
