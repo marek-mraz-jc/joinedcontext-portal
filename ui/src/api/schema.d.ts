@@ -3526,6 +3526,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/ops/jc_change_revert_plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Plan Revert
+         * @description Plans the undo of a merged Change: every file it touched back to what it was before, checked like jc_change_plan and applied with jc_change_apply; 409 naming the files main changed since
+         */
+        post: operations["jc_change_revert_plan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ops/jc_ckan_status": {
         parameters: {
             query?: never;
@@ -22960,6 +22980,99 @@ export interface operations {
                         url?: string;
                         /** @description Present when the draft was proposed without a fresh green verdict */
                         warning?: string;
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_change_revert_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "id": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description The merged Change to undo, e.g. chg-0000002a */
+                    id: string;
+                    /** @description Commit the revert into this workspace (a copy of the project) instead of opening change requests */
+                    workspace?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        baseEtag: string;
+                        diff: Record<string, never>[];
+                        /** Format: date-time */
+                        expiresAt: string;
+                        /** @enum {string} */
+                        lane?: "green" | "yellow" | "red";
+                        next?: string;
+                        planId: string;
+                        reverts?: string;
+                        verdict: Record<string, never>;
                     };
                 };
             };

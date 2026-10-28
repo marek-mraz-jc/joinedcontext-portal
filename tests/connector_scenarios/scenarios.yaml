@@ -652,6 +652,32 @@
   says: 'Undo yesterday''s schedule change of pipeline P.'
   expect: 'revert plan with the inverse diff; apply opens a revert change for approval (T-5974)'
   deny: 'connector without write -> plan only'
+  script:
+    # The harness has no Pipeline yet (T-5994): change 53 of the fixture flipped ContextSpace doprava
+    # to a sandbox. The revert is the same tool for every kind.
+    - proves: expect
+      call: jc_change_revert_plan
+      args: { id: chg-00000035 }
+      keep: planId
+      contains: ['"reverts":"chg-00000035"', 'spec.isSandbox']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests', 'pulls/77']
+      absent: ['"merged"']
+    # A connector carries only data-read until the DelegationPolicy ceiling (T-5953), so the
+    # writes-off half runs in src/ops/plans.rs (a revert plan is applied like any plan).
+    - proves: deny
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      refused: true
+      contains: ['is not there']
+    - proves: deny
+      as: viewer
+      call: jc_change_revert_plan
+      args: { id: chg-00000035 }
+      refused: true
+      contains: ['propose']
 - id: S-54
   segment: connector
   as: org-admin

@@ -402,6 +402,110 @@ async fn forge(server: &MockServer) {
         .await;
 }
 
+/// Merged changes of ContextSpaces in project `t-scn-53`, for the revert plans (S-53, T-5974):
+/// each file read at the commit the change was cut from (`base-N`), at its merge (`merge-N`) and
+/// on `main`. 53 (`chg-00000035`) flipped `doprava` to a sandbox and main still holds it; 54
+/// labelled it, and main has moved since; 55 deleted `archiv`, itself the revert of its creation;
+/// 56 changed another project's file; 57 came from a branch the Portal did not open.
+async fn merged_changes(server: &MockServer) {
+    use base64::Engine;
+    const REPO: &str = "/api/v1/repos/test-owner/test-repo";
+    let space = |name: &str, sandbox: bool, label: &str| {
+        format!(
+            "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: {name}\n  \
+             namespace: t-scn-53\n{label}spec:\n  isSandbox: {sandbox}\n"
+        )
+    };
+    let doprava = "projects/t-scn-53/spaces/doprava/space.yaml";
+    let archiv = "projects/t-scn-53/spaces/archiv/space.yaml";
+    let labelled = space("doprava", true, "  labels:\n    team: doprava\n");
+    let elsewhere = "projects/t-scn-other/spaces/doprava/space.yaml";
+    let changes = [
+        (
+            53,
+            "portal",
+            doprava,
+            "modified",
+            Some(space("doprava", false, "")),
+            Some(space("doprava", true, "")),
+        ),
+        (
+            54,
+            "portal",
+            doprava,
+            "modified",
+            Some(space("doprava", true, "")),
+            Some(labelled),
+        ),
+        (
+            55,
+            "portal",
+            archiv,
+            "deleted",
+            Some(space("archiv", true, "")),
+            None,
+        ),
+        (56, "portal", elsewhere, "modified", None, None),
+        (57, "hand", doprava, "modified", None, None),
+    ];
+    let mut main = BTreeMap::new();
+    main.insert(doprava, space("doprava", true, ""));
+    for (number, prefix, file, status, before, after) in changes {
+        let pull = json!({
+            "number": number,
+            "html_url": format!("https://gitea.example.sk/pulls/{number}"),
+            "state": "closed",
+            "title": format!("change {number}"),
+            "head": { "ref": format!("{prefix}/update-contextspace-{number}"), "sha": format!("head-{number}") },
+            "base": { "ref": "main" },
+            "created_at": "2026-10-27T09:14:22Z",
+            "closed_at": "2026-10-27T10:14:22Z",
+            "user": { "login": "scn.steward", "full_name": "Scenario Steward" },
+            "mergeable": false,
+            "merged": true,
+            "merge_commit_sha": format!("merge-{number}"),
+            "merge_base": format!("base-{number}")
+        });
+        let files = json!([{ "filename": file, "status": status }]);
+        for (route, body) in [
+            (format!("{REPO}/pulls/{number}"), pull),
+            (format!("{REPO}/pulls/{number}/files"), files),
+        ] {
+            Mock::given(method("GET"))
+                .and(path(route))
+                .respond_with(ResponseTemplate::new(200).set_body_json(body))
+                .mount(server)
+                .await;
+        }
+        for (at, text) in [
+            (format!("base-{number}"), before),
+            (format!("merge-{number}"), after),
+        ] {
+            let Some(text) = text else { continue };
+            Mock::given(method("GET"))
+                .and(path(format!("{REPO}/contents/{file}")))
+                .and(wiremock::matchers::query_param("ref", at))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "sha": format!("blob-{number}"),
+                    "content": base64::engine::general_purpose::STANDARD.encode(text)
+                })))
+                .mount(server)
+                .await;
+        }
+    }
+    for (file, text) in main {
+        Mock::given(method("GET"))
+            .and(path(format!("{REPO}/contents/{file}")))
+            .and(wiremock::matchers::query_param("ref", "main"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "sha": "blob-main",
+                "content": base64::engine::general_purpose::STANDARD.encode(text)
+            })))
+            .mount(server)
+            .await;
+    }
+}
+
 struct Harness {
     app: axum::Router,
     issuer: String,
@@ -462,6 +566,7 @@ impl Harness {
             .mount(server)
             .await;
         forge(server).await;
+        merged_changes(server).await;
         let csv_url = format!("http://localhost:{}/counters.csv", server.address().port());
 
         let mut config = Config::from_vars(|k| match k {
@@ -1132,6 +1237,54 @@ async fn an_apply_takes_only_its_own_unchanged_plan_and_never_approves() {
           "contains": ["/changes/0/op"] }
     ]);
     assert_eq!(harness.run(&scenario(elsewhere), &own).await, Ok(()));
+}
+
+/// A merged change is undone by a plan like any other (T-5974): the inverse of its files, checked,
+/// applied into a change request a person approves. Main moved since: 409 naming the file. The
+/// revert of a deletion that was itself a revert plans the create back. Without propose on the
+/// kind, in another project, or for a change still open: refused.
+#[tokio::test]
+async fn a_revert_plans_the_inverse_of_a_merged_change_and_opens_it_for_approval() {
+    let harness = Harness::start(53).await;
+    let own = project_of(53);
+    let scenario = |script: Value| -> Scenario {
+        serde_json::from_value(json!({
+            "id": "S-00", "segment": "operate", "as": "steward", "says": "selftest",
+            "expect": "selftest", "deny": "selftest", "script": script
+        }))
+        .expect("scenario")
+    };
+    let revert = |id: &str, extra: Value| {
+        let mut step =
+            json!({ "proves": "expect", "call": "jc_change_revert_plan", "args": { "id": id } });
+        for (k, v) in extra.as_object().expect("object") {
+            step[k] = v.clone();
+        }
+        step
+    };
+    let script = json!([
+        revert("chg-00000035", json!({ "keep": "planId",
+            "contains": ["\"reverts\":\"chg-00000035\"", "\"op\":\"replace\"", "spec.isSandbox"] })),
+        { "proves": "expect", "call": "jc_change_apply", "args": { "planId": "{planId}" },
+          "contains": ["changeRequests", "pulls/77"], "absent": ["\"merged\""] },
+        { "proves": "deny", "call": "jc_change_apply", "args": { "planId": "{planId}" },
+          "refused": true, "contains": ["is not there"] },
+        // Main moved past change 54: nothing planned, the file named.
+        revert("chg-00000036", json!({ "proves": "deny", "refused": true,
+            "contains": ["\"status\":409", "projects/t-scn-53/spaces/doprava/space.yaml"] })),
+        // Change 55 removed what an earlier change created: its revert creates it again.
+        revert("chg-00000037", json!({
+            "contains": ["\"op\":\"create\"", "archiv", "\"planId\""] })),
+        revert("chg-00000035", json!({ "proves": "deny", "as": "viewer", "refused": true,
+            "contains": ["propose"], "absent": ["\"planId\""] })),
+        revert("chg-00000035", json!({ "proves": "deny", "project": "other", "refused": true })),
+        revert("chg-0000002a", json!({ "proves": "deny", "refused": true, "contains": ["not merged"] })),
+        revert("chg-00000038", json!({ "proves": "deny", "refused": true,
+            "contains": ["\"status\":422", "projects/t-scn-other/spaces/doprava/space.yaml", "outside project t-scn-53"] })),
+        revert("chg-00000039", json!({ "proves": "deny", "refused": true,
+            "contains": ["\"status\":404", "chg-00000039"] }))
+    ]);
+    assert_eq!(harness.run(&scenario(script), &own).await, Ok(()));
 }
 
 /// A flood of one connector stops at its own minute; a person's connectors together stop at the

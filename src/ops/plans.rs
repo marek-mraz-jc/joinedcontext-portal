@@ -22,7 +22,7 @@ use super::{parse_input, Annotations, Caller, OpError, Operation};
 use crate::api::delete::{self, DeleteOutcome};
 use crate::api::mutate::{self, ProposeOutcome};
 use crate::change::{Lane, Operation as ChangeOp};
-use crate::connectors::{APPLY, PLAN};
+use crate::connectors::{APPLY, PLAN, REVERT};
 use crate::error::ApiError;
 use crate::state::AppState;
 
@@ -591,6 +591,188 @@ async fn apply(
     }))
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RevertInput {
+    id: String,
+    #[serde(default)]
+    workspace: Option<String>,
+}
+
+/// A file of the forge as a value: the YAML parsed, or its text when it is no YAML, so two reads
+/// of one file compare by content and not by formatting.
+async fn file_at(
+    forge: &crate::git::GiteaClient,
+    path: &str,
+    at: &str,
+) -> Result<Option<Value>, OpError> {
+    Ok(forge
+        .get_file(path, at)
+        .await
+        .map_err(ApiError::from)?
+        .map(|file| {
+            serde_norway::from_str::<Value>(&file.content).unwrap_or(Value::String(file.content))
+        }))
+}
+
+/// The kind and name a manifest names, when it is one of this Portal's kinds.
+fn manifest_names(manifest: &Value) -> Option<(String, String)> {
+    let kind = manifest.get("kind").and_then(Value::as_str)?;
+    let name = manifest.pointer("/metadata/name").and_then(Value::as_str)?;
+    crate::resource::by_kind(kind).map(|info| (info.kind.to_owned(), name.to_owned()))
+}
+
+/// The plan that undoes merged change `id` (T-5974, S-53): every file it touched goes back to what
+/// it was at the commit the change was cut from. A file main changed since the merge is a
+/// conflict, and a file that is no manifest of the project cannot be planned: both are named and
+/// nothing is kept. The revert is then an ordinary plan, so it is checked, held to the caller's
+/// rights and the connector's scope, and opened by `jc_change_apply` for a person to approve.
+async fn revert(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    input: RevertInput,
+) -> Result<Value, OpError> {
+    let missing = || {
+        OpError::Api(ApiError::NotFound(format!(
+            "change '{}' not found in project '{project}'",
+            input.id
+        )))
+    };
+    let effective = crate::permissions::for_request(state, &caller.identity, project);
+    if !effective.may_read_project() {
+        return Err(missing());
+    }
+    let (forge, number) = crate::api::changes::resolve_change(state, project, &input.id)?;
+    let pr = match forge.pull_request(number).await {
+        Ok(pr) => pr,
+        Err(crate::git::GitError::NotFound | crate::git::GitError::Api { status: 404, .. }) => {
+            return Err(missing())
+        }
+        Err(err) => return Err(OpError::Api(err.into())),
+    };
+    // Only a change the Portal opened is the Portal's to revert, as `/undo` holds (T-3274).
+    let branch = pr
+        .head_branch
+        .strip_prefix("refs/heads/")
+        .unwrap_or(&pr.head_branch);
+    if !branch.starts_with("portal/") && !branch.starts_with("workspace/") {
+        return Err(missing());
+    }
+    if !pr.merged || pr.merge_base.is_empty() {
+        return Err(OpError::Api(ApiError::Conflict(format!(
+            "change '{}' is not merged, so there is nothing to revert: reject it on its page instead",
+            input.id
+        ))));
+    }
+    let after = if pr.merge_commit_sha.is_empty() {
+        pr.head_ref().to_owned()
+    } else {
+        pr.merge_commit_sha.clone()
+    };
+    let home = format!("projects/{project}/");
+    let files = forge
+        .pull_request_files(number)
+        .await
+        .map_err(ApiError::from)?;
+    let mut changes = Vec::new();
+    let mut moved = Vec::new();
+    let mut outside = Vec::new();
+    for file in &files {
+        if !file.path.starts_with(&home) {
+            outside.push(format!(
+                "{}: outside project {project}; revert it in the forge",
+                file.path
+            ));
+            continue;
+        }
+        let before = file_at(&forge, &file.path, &pr.merge_base).await?;
+        let now = file_at(&forge, &file.path, &pr.base_branch).await?;
+        let made = file_at(&forge, &file.path, &after).await?;
+        let Some((kind, name)) = [&before, &made, &now]
+            .into_iter()
+            .find_map(|v| v.as_ref().and_then(manifest_names))
+        else {
+            outside.push(format!(
+                "{}: no manifest, so no plan can write it; revert it in the forge",
+                file.path
+            ));
+            continue;
+        };
+        // A narrowed connector hears of nothing outside its scope, a conflict included.
+        through_connector(caller, project, &kind, &name, false)?;
+        if now != made {
+            moved.push(file.path.clone());
+            continue;
+        }
+        let (op, manifest) = match (before, now.is_some()) {
+            (Some(before), true) => (Op::Replace, Some(before)),
+            (Some(before), false) => (Op::Create, Some(before)),
+            (None, true) => (Op::Delete, None),
+            (None, false) => continue,
+        };
+        // The revert writes what the original wrote, so it needs the same right on each item:
+        // a manifest put back is judged as its proposal is, its space and constraints included.
+        match &manifest {
+            Some(m) => {
+                let envelope =
+                    serde_json::from_value::<crate::resource::ResourceEnvelope>(m.clone())
+                        .map_err(|err| invalid("/id".into(), format!("{}: {err}", file.path)))?;
+                crate::api::import::authorize_manifest(
+                    state,
+                    &caller.identity,
+                    project,
+                    &effective,
+                    &envelope,
+                )?;
+            }
+            None => effective.check(&kind, jc_core::kinds::Verb::Delete, None)?,
+        }
+        changes.push(ChangeInput {
+            op,
+            kind,
+            name,
+            manifest,
+            patch: None,
+        });
+    }
+    if !moved.is_empty() {
+        return Err(OpError::Api(ApiError::Conflict(format!(
+            "main changed {} since change '{}' was merged, so a revert would undo that too; \
+             nothing was planned. Plan the change you want with {PLAN} instead",
+            moved.join(", "),
+            input.id
+        ))));
+    }
+    if !outside.is_empty() {
+        return Err(OpError::Api(ApiError::Unprocessable {
+            detail: format!(
+                "change '{}' touched files a plan cannot write; nothing was planned",
+                input.id
+            ),
+            errors: outside,
+        }));
+    }
+    if changes.is_empty() {
+        return Err(OpError::Api(ApiError::Conflict(format!(
+            "change '{}' left nothing to revert",
+            input.id
+        ))));
+    }
+    let mut answer = plan(
+        caller,
+        state,
+        project,
+        PlanInput {
+            changes,
+            workspace: input.workspace,
+        },
+    )
+    .await?;
+    answer["reverts"] = json!(input.id);
+    Ok(answer)
+}
+
 /// What an apply opened, as API/14 §4.3 names it; never an approval.
 fn opened_row(outcome: ProposeOutcome) -> Value {
     match outcome {
@@ -681,6 +863,24 @@ fn apply_output_schema() -> Value {
     })
 }
 
+fn revert_input_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "id": text("The merged Change to undo, e.g. chg-0000002a", TERM),
+            "workspace": text("Commit the revert into this workspace (a copy of the project) instead of opening change requests", NAME)
+        },
+        "required": ["id"],
+        "additionalProperties": false
+    })
+}
+
+fn revert_output_schema() -> Value {
+    let mut schema = plan_output_schema();
+    schema["properties"]["reverts"] = json!({ "type": "string" });
+    schema
+}
+
 pub fn operations() -> Vec<Operation> {
     vec![
         Operation {
@@ -700,6 +900,25 @@ pub fn operations() -> Vec<Operation> {
             validate: |val| parse_input::<PlanInput>(val.clone()).map(|_| ()),
             run: |caller, state, project, val| {
                 Box::pin(async move { plan(caller, state, project, parse_input(val)?).await })
+            },
+        },
+        Operation {
+            name: REVERT,
+            title: "Plan Revert",
+            description: "Plans the undo of a merged Change: every file it touched back to what it was before, checked like jc_change_plan and applied with jc_change_apply; 409 naming the files main changed since",
+            input: revert_input_schema,
+            output: revert_output_schema,
+            annotations: Annotations {
+                read_only_hint: false,
+                destructive_hint: false,
+                idempotent_hint: false,
+            },
+            kind: "*",
+            verb: None,
+            lane: Lane::Green,
+            validate: |val| parse_input::<RevertInput>(val.clone()).map(|_| ()),
+            run: |caller, state, project, val| {
+                Box::pin(async move { revert(caller, state, project, parse_input(val)?).await })
             },
         },
         Operation {
