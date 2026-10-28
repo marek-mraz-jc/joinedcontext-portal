@@ -370,3 +370,245 @@ async fn invalid_dry_run_query_value_returns_400() {
         .expect("detail")
         .contains("invalid dryRun value 'Foo'; 'All' is the only accepted value"));
 }
+
+/// One request's status and JSON body, with the session given.
+async fn answer(
+    app: &axum::Router,
+    cookie: &str,
+    method: &str,
+    uri: &str,
+    body: &serde_json::Value,
+) -> (StatusCode, serde_json::Value) {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(method)
+                .uri(uri)
+                .header(header::COOKIE, cookie)
+                .header(CSRF_HEADER, TEST_CSRF_TOKEN)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(body).expect("json")))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let status = response.status();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("bytes")
+        .to_bytes();
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null),
+    )
+}
+
+/// What a dry run decided, without the parts minted per call (the verdict's id and time).
+fn decided(body: &serde_json::Value) -> serde_json::Value {
+    json!({
+        "valid": body["valid"],
+        "lane": body["lane"],
+        "plan": body["plan"],
+        "findings": body["findings"],
+        "type": body["type"],
+        "errors": body["errors"],
+    })
+}
+
+fn manifest(kind: &str, name: &str, spec: serde_json::Value) -> serde_json::Value {
+    json!({
+        "apiVersion": API_VERSION,
+        "kind": kind,
+        "metadata": { "name": name, "namespace": "ovzdusie" },
+        "spec": spec,
+    })
+}
+
+/// `validate_only=true` (AIP-163) is `dryRun=All` on every route family of the resource API
+/// (T-5949): the same status and the same verdict, and nothing reaches Git.
+#[tokio::test]
+async fn validate_only_answers_what_dry_run_answers_and_writes_nothing() {
+    let server = MockServer::start().await;
+    let client = GiteaClient::new(
+        server.uri().parse().expect("url"),
+        "test-owner",
+        "test-repo",
+        "token-xyz",
+    )
+    .expect("client");
+    let config = Config::for_tests();
+    let state = AppState::new(config.clone(), None).with_gitea(Arc::new(client));
+    state.mirror.upsert(ResourceEnvelope {
+        api_version: API_VERSION.to_string(),
+        kind: "ContextSpace".to_string(),
+        metadata: ObjectMeta {
+            name: "mobility".to_string(),
+            namespace: Some("ovzdusie".to_string()),
+            ..Default::default()
+        },
+        spec: json!({ "isSandbox": false }),
+        status: None,
+    });
+    let app = server::app(state);
+    let cookie = session_and_csrf_cookies(&config);
+
+    let space = manifest("ContextSpace", "mobility", json!({ "isSandbox": true }));
+    let cases = [
+        (
+            "POST",
+            "/api/v1/projects/ovzdusie/spaces",
+            manifest("ContextSpace", "transit", json!({ "isSandbox": true })),
+        ),
+        (
+            "PUT",
+            "/api/v1/projects/ovzdusie/spaces/mobility",
+            space.clone(),
+        ),
+        (
+            "DELETE",
+            "/api/v1/projects/ovzdusie/spaces/mobility",
+            json!({}),
+        ),
+        (
+            "POST",
+            "/api/v1/projects/ovzdusie/pipelines",
+            manifest("Pipeline", "aq-ingest", json!({ "space": "mobility" })),
+        ),
+        (
+            "POST",
+            "/api/v1/projects/ovzdusie/datamodels",
+            manifest("DataModel", "air", json!({ "space": "mobility" })),
+        ),
+        (
+            "POST",
+            "/api/v1/projects/ovzdusie/endpoints",
+            manifest(
+                "Endpoint",
+                "air-quality-public-readers",
+                json!({ "space": "mobility" }),
+            ),
+        ),
+        (
+            "POST",
+            "/api/v1/projects/ovzdusie/policies",
+            manifest("Policy", "readers", json!({ "rules": [] })),
+        ),
+        (
+            "POST",
+            "/api/v1/projects/ovzdusie/rolebindings",
+            manifest(
+                "RoleBinding",
+                "readers",
+                json!({ "role": "viewer", "subjects": [] }),
+            ),
+        ),
+    ];
+    for (method, path, body) in cases {
+        let (dry, dry_body) =
+            answer(&app, &cookie, method, &format!("{path}?dryRun=All"), &body).await;
+        let (only, only_body) = answer(
+            &app,
+            &cookie,
+            method,
+            &format!("{path}?validate_only=true"),
+            &body,
+        )
+        .await;
+        assert_eq!(only, dry, "{method} {path}: {only_body}");
+        assert_eq!(decided(&only_body), decided(&dry_body), "{method} {path}");
+        if only.is_client_error() {
+            assert!(
+                only_body["type"].as_str().is_some(),
+                "{method} {path} refuses with a problem document: {only_body}"
+            );
+        }
+    }
+    assert_eq!(
+        decided(
+            &answer(
+                &app,
+                &cookie,
+                "POST",
+                "/api/v1/projects/ovzdusie/spaces?validate_only=true",
+                &manifest("ContextSpace", "transit", json!({ "isSandbox": true }))
+            )
+            .await
+            .1
+        )["valid"],
+        json!(true),
+        "a valid manifest validates"
+    );
+    let requests = server.received_requests().await.expect("recorded");
+    assert!(
+        requests.iter().all(|r| r.method.as_str() == "GET"),
+        "validate_only wrote to Git: {:?}",
+        requests
+            .iter()
+            .map(|r| format!("{} {}", r.method, r.url))
+            .collect::<Vec<_>>()
+    );
+}
+
+/// A caller without a role in the project learns no more by validating than by writing: the
+/// refusal comes before the checks, the same on both doors (T-5949, KNOWLEDGE T-5248).
+#[tokio::test]
+async fn validate_only_refuses_a_stranger_before_the_checks() {
+    let config = Config::for_tests();
+    let state = AppState::new(config.clone(), None);
+    let app = server::app(state);
+    let stranger = {
+        use axum::response::IntoResponse;
+        let now = session::now_unix();
+        let s = Session {
+            identity: Identity {
+                client: None,
+                subject: "f:1:someone".into(),
+                username: "someone".into(),
+                email: None,
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+                second_factor: false,
+            },
+            expires_at: now + 3600,
+            issued_at: now,
+            id_token: "id-token-placeholder".into(),
+            access_expires_at: now + 3600,
+            refresh_token: None,
+        };
+        let jar =
+            session::store(PrivateCookieJar::new(config.cookie_key.clone()), &s).expect("session");
+        let response = (jar, StatusCode::OK).into_response();
+        let session_cookie = response
+            .headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .filter_map(|v| v.to_str().ok()?.split(';').next().map(str::to_owned))
+            .collect::<Vec<_>>()
+            .join("; ");
+        format!("{session_cookie}; {CSRF_COOKIE}={TEST_CSRF_TOKEN}")
+    };
+    let body = manifest("ContextSpace", "transit", json!({ "isSandbox": true }));
+    let path = "/api/v1/projects/ovzdusie/spaces";
+    let (written, _) = answer(&app, &stranger, "POST", path, &body).await;
+    let (only, only_body) = answer(
+        &app,
+        &stranger,
+        "POST",
+        &format!("{path}?validate_only=true"),
+        &body,
+    )
+    .await;
+    assert!(
+        only.is_client_error() && only != StatusCode::OK,
+        "{only}: {only_body}"
+    );
+    assert_eq!(only, written, "{only_body}");
+    assert!(
+        only_body["plan"].is_null(),
+        "no plan for a stranger: {only_body}"
+    );
+}

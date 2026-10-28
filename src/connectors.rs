@@ -130,6 +130,41 @@ pub const DEFAULT_CEILING: Ceiling = Ceiling {
     max_days: 30,
 };
 
+/// What one connector may spend (T-5968): its own calls a minute, calls at once and answer size.
+/// The person's own budget (`PERSON_LIMITS`) holds across all their connectors and `/api/v1/mcp`
+/// together, so a second connector adds no calls. Counted on the verified token's subject and the
+/// connector id from the path, never on a header.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[schema(as = ConnectorLimits)]
+pub struct Limits {
+    /// Tool calls a minute; the call past it answers 429 with `Retry-After`.
+    pub calls_per_minute: u32,
+    /// Calls answered at once; the next answers 429 until one ends.
+    pub parallel_calls: u32,
+    /// The largest tool answer in bytes; a larger one is refused as a 413 tool error naming
+    /// what to narrow.
+    pub result_bytes: usize,
+}
+
+/// Every connector's limits (T-5968). Decided (worker-t5968, owner may override): constants in
+/// code until a DelegationPolicy lowers them (T-5953); a person's 120 calls a minute (AG-60)
+/// split so one runaway connector leaves the person half for the others; 4 at once covers a
+/// model's parallel tool calls (Claude and ChatGPT issue 2-4 per turn); 1 MiB is ~250k tokens,
+/// past any model context a tool answer should fill, under the route's 4 MiB.
+pub const DEFAULT_LIMITS: Limits = Limits {
+    calls_per_minute: 60,
+    parallel_calls: 4,
+    result_bytes: 1024 * 1024,
+};
+
+/// One person's budget over all their connectors and `/api/v1/mcp` (AG-60, T-5968).
+pub const PERSON_LIMITS: Limits = Limits {
+    calls_per_minute: 120,
+    parallel_calls: 8,
+    result_bytes: 4 * 1024 * 1024,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 #[schema(as = ConnectorAccess)]
@@ -241,6 +276,8 @@ pub struct Connector {
     pub last_used_at: Option<DateTime<Utc>>,
     /// The MCP address a client adds: `https://portal.{domain}/c/{id}`.
     pub url: String,
+    /// What the connector may spend; shown on My connectors.
+    pub limits: Limits,
 }
 
 impl Connector {
@@ -408,6 +445,7 @@ impl Record {
             created_at: self.created_at,
             last_used_at: self.last_used_at,
             url: address(base, &self.id),
+            limits: DEFAULT_LIMITS,
         }
     }
 }
@@ -453,13 +491,38 @@ pub fn validate(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Re
             format!("name '{}' must be a DNS-1123 label of at most 63 characters, e.g. doprava-in-claude", new.name),
         ));
     }
-    if new.segments.is_empty() {
+    validate_segments(&new.segments, ceiling)?;
+    validate_scope(new)?;
+    if new.writes && !ceiling.writes {
+        return Err(above_ceiling(
+            "writes",
+            "your organization lets a connector read only; writes arrive with plan_change (T-5956)"
+                .into(),
+        ));
+    }
+    if new.expires_at <= now {
+        return Err(invalid(
+            "expiresAt",
+            "expiresAt must lie in the future".into(),
+        ));
+    }
+    if new.expires_at > now + Duration::days(ceiling.max_days) {
+        return Err(above_ceiling(
+            "expiresAt",
+            format!("a connector lives at most {} days", ceiling.max_days),
+        ));
+    }
+    validate_clients(&new.allowed_clients)
+}
+
+fn validate_segments(segments: &[String], ceiling: &Ceiling) -> Result<(), ApiError> {
+    if segments.is_empty() {
         return Err(invalid(
             "segments",
             "segments names at least one preset, e.g. data-read".into(),
         ));
     }
-    for (i, segment) in new.segments.iter().enumerate() {
+    for (i, segment) in segments.iter().enumerate() {
         let known = segment == ADMIN || SEGMENTS.iter().any(|(s, _, _)| s == segment);
         if !known {
             return Err(invalid(
@@ -477,6 +540,10 @@ pub fn validate(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Re
             ));
         }
     }
+    Ok(())
+}
+
+fn validate_scope(new: &NewConnector) -> Result<(), ApiError> {
     if new.scope.is_empty() || new.scope.len() > MAX_SCOPE {
         return Err(invalid("scope", format!("scope names 1 to {MAX_SCOPE} items, e.g. {{\"project\": \"doprava\", \"access\": \"read\"}}")));
     }
@@ -513,32 +580,17 @@ pub fn validate(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Re
             ));
         }
     }
-    if new.writes && !ceiling.writes {
-        return Err(above_ceiling(
-            "writes",
-            "your organization lets a connector read only; writes arrive with plan_change (T-5956)"
-                .into(),
-        ));
-    }
-    if new.expires_at <= now {
-        return Err(invalid(
-            "expiresAt",
-            "expiresAt must lie in the future".into(),
-        ));
-    }
-    if new.expires_at > now + Duration::days(ceiling.max_days) {
-        return Err(above_ceiling(
-            "expiresAt",
-            format!("a connector lives at most {} days", ceiling.max_days),
-        ));
-    }
-    if new.allowed_clients.len() > MAX_CLIENTS {
+    Ok(())
+}
+
+fn validate_clients(clients: &[String]) -> Result<(), ApiError> {
+    if clients.len() > MAX_CLIENTS {
         return Err(invalid(
             "allowedClients",
             format!("at most {MAX_CLIENTS} clients"),
         ));
     }
-    for (i, client) in new.allowed_clients.iter().enumerate() {
+    for (i, client) in clients.iter().enumerate() {
         let plain = client
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b"-._:/".contains(&b));
