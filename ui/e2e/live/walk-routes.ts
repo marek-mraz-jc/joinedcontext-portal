@@ -52,7 +52,7 @@ export async function visits(page: Page, who: string): Promise<Visit[]> {
     { route: "/", address: "/" },
     { route: "/endpoints", address: "/endpoints" },
     { route: "/organization", address: "/organization" },
-    ...["/catalogue", "/glossary", "/connectors", "/playground"].map((route) => ({ route, address: route })),
+    ...["/catalogue", "/glossary", "/connectors", "/ai-connectors", "/playground"].map((route) => ({ route, address: route })),
     ...[...ORGANIZATION_TABS, ...(who === "steward" ? ["endpoints"] : [])].map((tab) => ({
       route: "/organization/$tab",
       address: `/organization/${tab}`,

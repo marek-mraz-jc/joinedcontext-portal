@@ -106,7 +106,11 @@
     "QGIS",
     "ArcGIS Pro",
     "Maximum",
-    "Minimum"
+    "Minimum",
+    "Claude Code",
+    "claude.ai",
+    "ChatGPT",
+    "VS Code (.vscode/mcp.json)"
   ],
   "cs": [
     "@context",
@@ -213,7 +217,11 @@
     "QGIS",
     "ArcGIS Pro",
     "Maximum",
-    "Minimum"
+    "Minimum",
+    "Claude Code",
+    "claude.ai",
+    "ChatGPT",
+    "VS Code (.vscode/mcp.json)"
   ],
   "de": [
     "@context",
@@ -356,6 +364,11 @@
     "ArcGIS Pro",
     "Maximum",
     "Median",
-    "Minimum"
+    "Minimum",
+    "Claude Code",
+    "claude.ai",
+    "ChatGPT",
+    "VS Code (.vscode/mcp.json)",
+    "Client"
   ]
 }
