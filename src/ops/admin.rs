@@ -395,6 +395,7 @@ pub fn operations() -> Vec<Operation> {
                         Query(crate::api::datamodels::SourcePutQuery {
                             version: input.version,
                             dry_run: input.dry_run.then(|| "all".to_owned()),
+                            validate_only: None,
                             space: input.space,
                         }),
                         input.source.into_bytes().into(),

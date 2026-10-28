@@ -341,9 +341,7 @@ async fn refused(state: &AppState, gitea: &wiremock::MockServer, manifest: Value
     let body: Value = serde_json::from_str(&answer.text).expect("a problem document");
     let errors = body["errors"].as_array().expect("one entry per member");
     assert!(
-        errors
-            .iter()
-            .any(|e| e.as_str().is_some_and(|e| e.contains(member))),
+        errors.iter().any(|e| e.to_string().contains(member)),
         "{member} named in {}",
         answer.text
     );
