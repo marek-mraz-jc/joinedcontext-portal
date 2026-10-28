@@ -11,6 +11,12 @@ pub use crate::auth::client_auth::ClientAuth;
 pub struct Config {
     /// The address to listen on (`JC_PORTAL_BIND`, default `0.0.0.0:8080`).
     pub bind: SocketAddr,
+    /// Where the internal listener binds (`JC_INTERNAL_BIND`, default `0.0.0.0:9090`). APISIX
+    /// routes nothing to it and a NetworkPolicy opens it to the named workloads alone (AG-52).
+    /// It opens whenever the Portal verifies tokens: every route on it answers only a workload
+    /// token of the realm, and the gateway's revocations poll needs it beside every gateway
+    /// that verifies tokens, agent runner or not (T-5869).
+    pub internal_bind: SocketAddr,
     /// The address a browser reaches this Portal at (`JC_PORTAL_PUBLIC_URL`, default
     /// `http://localhost:8080`). Every redirect URI, every link the Portal writes into a merge
     /// request and the host a generated application is served on are derived from it.
@@ -1149,10 +1155,9 @@ fn is_registry_host(value: &str) -> bool {
 /// Where a builder run happens and how the credential proxy reaches this Portal (ADR-N-020).
 ///
 /// `JC_AGENTS_NAMESPACE` and `JC_AGENT_PROXY_BASE` are set together or not at all;
-/// `JC_PORTAL_NAMESPACE` (default: the workspaces' own namespace), `JC_INTERNAL_BIND` (default
-/// `0.0.0.0:9090`), `JC_AGENT_RUN_TTL` (whole seconds, default `1200`) and
-/// `JC_AGENT_APPROVAL_TTL` (whole seconds a run waits for its change's approval, default
-/// `604800`) tune the rest. None of them is a secret: the proxy presents its own ServiceAccount
+/// `JC_PORTAL_NAMESPACE` (default: the workspaces' own namespace), `JC_AGENT_RUN_TTL` (whole
+/// seconds, default `1200`) and `JC_AGENT_APPROVAL_TTL` (whole seconds a run waits for its
+/// change's approval, default `604800`) tune the rest. None of them is a secret: the proxy presents its own ServiceAccount
 /// token, which is why `JC_AGENT_PROXY_TOKEN` is gone (T-2271).
 ///
 /// The namespace and the proxy are needed together: a workspace with no proxy has no way to
@@ -1171,9 +1176,6 @@ pub struct AgentSettings {
     /// Base URL of `jc-agent-proxy` as a workspace sees it, e.g.
     /// `http://jc-agent-proxy.agents.svc.cluster.local:8080`.
     pub proxy_base: String,
-    /// Where the internal listener binds. APISIX routes nothing to it, and a NetworkPolicy
-    /// opens it to the proxy alone (AG-52).
-    pub internal_bind: SocketAddr,
     /// Wall clock of one run, in seconds. The Job carries the same number as its
     /// `activeDeadlineSeconds`, so the two cannot disagree about when a run is over.
     pub run_ttl_secs: i64,
@@ -1189,7 +1191,6 @@ impl std::fmt::Debug for AgentSettings {
             .field("namespace", &self.namespace)
             .field("portal_namespace", &self.portal_namespace)
             .field("proxy_base", &self.proxy_base)
-            .field("internal_bind", &self.internal_bind)
             .field("run_ttl_secs", &self.run_ttl_secs)
             .field("approval_ttl_secs", &self.approval_ttl_secs)
             .finish()
@@ -1231,14 +1232,6 @@ fn agent_settings(
         });
     }
 
-    let internal_bind: SocketAddr = lookup("JC_INTERNAL_BIND")
-        .unwrap_or_else(|| Config::DEFAULT_INTERNAL_BIND.to_string())
-        .parse()
-        .map_err(|e: std::net::AddrParseError| ConfigError::Invalid {
-            var: "JC_INTERNAL_BIND",
-            reason: e.to_string(),
-        })?;
-
     let run_ttl_secs = match lookup("JC_AGENT_RUN_TTL") {
         Some(value) => value.parse::<i64>().map_err(|e| ConfigError::Invalid {
             var: "JC_AGENT_RUN_TTL",
@@ -1275,7 +1268,6 @@ fn agent_settings(
         namespace,
         portal_namespace,
         proxy_base: proxy_base.trim_end_matches('/').to_owned(),
-        internal_bind,
         run_ttl_secs,
         approval_ttl_secs,
     }))
@@ -1618,6 +1610,13 @@ impl Config {
                     var: "JC_PORTAL_BIND",
                     reason: e.to_string(),
                 })?;
+        let internal_bind: SocketAddr = lookup("JC_INTERNAL_BIND")
+            .unwrap_or_else(|| Self::DEFAULT_INTERNAL_BIND.to_string())
+            .parse()
+            .map_err(|e: std::net::AddrParseError| ConfigError::Invalid {
+                var: "JC_INTERNAL_BIND",
+                reason: e.to_string(),
+            })?;
 
         let url_str =
             lookup("JC_PORTAL_PUBLIC_URL").unwrap_or_else(|| Self::DEFAULT_PUBLIC_URL.to_string());
@@ -1798,6 +1797,7 @@ impl Config {
 
         Ok(Self {
             bind,
+            internal_bind,
             public_base_url,
             oidc,
             trust_edge_token,
@@ -1867,6 +1867,7 @@ impl Config {
     pub fn for_tests() -> Self {
         Self {
             bind: SocketAddr::from(([127, 0, 0, 1], 0)),
+            internal_bind: SocketAddr::from(([127, 0, 0, 1], 0)),
             public_base_url: Url::parse("http://localhost:8080")
                 .unwrap_or_else(|_| unreachable!("valid test url")),
             oidc: None,

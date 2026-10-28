@@ -249,6 +249,12 @@ async fn api_cache_control_middleware(request: Request, next: Next) -> Response 
     response
 }
 
+/// Whether [`serve`] opens the internal listener: only a Portal that verifies tokens can answer
+/// any route on it.
+fn internal_listener_opens(state: &AppState) -> bool {
+    state.bearer.is_some()
+}
+
 /// The listener the credential proxy calls back on (AG-52).
 ///
 /// A second listener rather than a path on the first: the edge routes `config.bind` and routes
@@ -316,13 +322,17 @@ pub async fn serve(config: Config) -> std::io::Result<()> {
         );
     }
 
-    // The internal listener runs beside the public one, on the same replica, and only when
-    // there is an agent runner to serve: a Portal without one opens no second port.
-    if let Some(settings) = state.config.agent_settings.as_ref() {
+    if state.config.agent_settings.is_some() {
         crate::agents::reaper::spawn_periodic(state.clone());
+    }
 
-        let internal = tokio::net::TcpListener::bind(settings.internal_bind).await?;
-        tracing::info!(bind = %settings.internal_bind, "portal internal listener listening");
+    // The internal listener runs beside the public one, on the same replica, whenever this Portal
+    // verifies tokens: every route on it answers a workload token of the realm and nothing else,
+    // so a Portal without a realm opens no second port. The gateway polls its revocations here
+    // whether or not an agent runner is deployed (T-5869, F-SEC1-024).
+    if internal_listener_opens(&state) {
+        let internal = tokio::net::TcpListener::bind(state.config.internal_bind).await?;
+        tracing::info!(bind = %state.config.internal_bind, "portal internal listener listening");
         let internal_router = internal_app(state.clone());
         tokio::spawn(async move {
             if let Err(err) = axum::serve(internal, internal_router)
@@ -386,5 +396,19 @@ mod tests {
         assert_eq!(connect_src(&config), "'self' https://api.dev.example.org");
         config.public_base_url = "https://dev.example.org/".parse().expect("a url");
         assert_eq!(connect_src(&config), "'self'");
+    }
+
+    /// The gateway's revocations poll needs the internal listener on every Portal with a realm,
+    /// agent runner or not; a Portal without a realm keeps the port closed (T-5869).
+    #[test]
+    fn the_internal_listener_opens_with_a_realm_and_without_an_agent_runner() {
+        let mut state = AppState::new(Config::for_tests(), None);
+        assert!(state.config.agent_settings.is_none());
+        assert!(!internal_listener_opens(&state));
+        let issuer: url::Url = "https://id.example.org/realms/r".parse().expect("a url");
+        state.bearer = Some(std::sync::Arc::new(
+            crate::auth::bearer::BearerVerifier::new(&issuer, "portal"),
+        ));
+        assert!(internal_listener_opens(&state));
     }
 }
