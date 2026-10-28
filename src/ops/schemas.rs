@@ -65,9 +65,12 @@ pub fn schema_of(kind: &str) -> Result<Value, OpError> {
     Ok(json!({ "kind": kind, "schema": schema }))
 }
 
+/// The registry name of get_schema (AG-146).
+pub const GET: &str = "jc_schema_get";
+
 pub fn operations() -> Vec<Operation> {
     vec![Operation {
-        name: "jc_schema_get",
+        name: GET,
         title: "Get Kind Schema",
         description: "Reads the JSON Schema of one manifest kind: its fields, their types and limits, never data",
         input: input_schema,
