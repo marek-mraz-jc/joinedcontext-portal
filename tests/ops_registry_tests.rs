@@ -269,16 +269,19 @@ async fn unknown_field_in_input_returns_422() {
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
     let bytes = resp.into_body().collect().await.unwrap().to_bytes();
     let error_body: Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(error_body["error"], "invalid_input");
+    assert_eq!(
+        error_body["type"], "https://joinedcontext.com/errors/unprocessable",
+        "{error_body}"
+    );
+    assert_eq!(
+        error_body["errors"][0]["path"], "extraneousField",
+        "{error_body}"
+    );
     assert!(
-        error_body["message"]
+        error_body["errors"][0]["message"]
             .as_str()
-            .unwrap()
-            .contains("extraneousField")
-            || error_body["path"]
-                .as_str()
-                .unwrap()
-                .contains("extraneousField")
+            .is_some_and(|message| message.contains("extraneousField")),
+        "{error_body}"
     );
 }
 

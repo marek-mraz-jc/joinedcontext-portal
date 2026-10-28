@@ -3632,6 +3632,7 @@ mod tests {
             Query(DryRunQuery {
                 workspace: None,
                 dry_run: Some("All".into()),
+                validate_only: None,
                 confirm: None,
             }),
             headers,

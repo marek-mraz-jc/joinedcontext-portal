@@ -400,7 +400,7 @@ async fn parameters_that_miss_the_schema_come_back_as_one_list_of_violations() {
     );
     let joined = errors
         .iter()
-        .filter_map(|e| e.as_str())
+        .map(|e| e.to_string())
         .collect::<Vec<_>>()
         .join(" | ");
     assert!(

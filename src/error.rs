@@ -20,9 +20,46 @@ pub struct ProblemDetails {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hint: Option<String>,
     /// Every violation of one request, when there is more than one thing to say. A form marks
-    /// all its bad fields from this in one pass instead of one round trip per mistake (CC-24).
+    /// all its bad fields from this in one pass instead of one round trip per mistake (CC-24),
+    /// and a model corrects its input by `path` (AG-146, T-5949).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub errors: Option<Vec<String>>,
+    pub errors: Option<Vec<FieldError>>,
+}
+
+/// One violation: the member it is about and what is wrong with it (AG-146). `path` is the
+/// member's dotted path (`spec.history[1]`), or empty when the finding is about the whole request.
+#[derive(Debug, Clone, Serialize, serde::Deserialize, ToSchema, PartialEq, Eq)]
+pub struct FieldError {
+    pub path: String,
+    pub message: String,
+}
+
+impl FieldError {
+    /// A violation line as the Portal writes it inside: `path: message`, a bare `path` (the
+    /// problem's `detail` says what is wrong), or a sentence about the whole request.
+    pub fn from_line(line: &str, detail: Option<&str>) -> Self {
+        let is_path = |text: &str| {
+            !text.is_empty()
+                && text.chars().all(|c| {
+                    c.is_ascii_alphanumeric()
+                        || matches!(c, '_' | '.' | '[' | ']' | '-' | '/' | '$' | '@' | '*')
+                })
+        };
+        match line.split_once(": ") {
+            Some((path, message)) if is_path(path) && !message.trim().is_empty() => Self {
+                path: path.to_owned(),
+                message: message.to_owned(),
+            },
+            _ if is_path(line) => Self {
+                path: line.to_owned(),
+                message: detail.unwrap_or("this member is not accepted").to_owned(),
+            },
+            _ => Self {
+                path: String::new(),
+                message: line.to_owned(),
+            },
+        }
+    }
 }
 
 /// The problem types only the Portal writes (T-4485, API/09); every other `type` it answers with is
@@ -100,15 +137,24 @@ pub enum ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
+        let (status, content_type, body) = self.into_document();
+        let body = serde_json::to_string(&body).unwrap_or_else(|_| {
+            r#"{"type":"https://joinedcontext.com/errors/internal-error","title":"Internal Server Error","status":500}"#.to_string()
+        });
+        Response::builder()
+            .status(status)
+            .header(header::CONTENT_TYPE, content_type)
+            .body(Body::from(body))
+            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+    }
+}
+
+impl ApiError {
+    /// The answer's status, content type and document: the problem a REST door answers and an
+    /// MCP tool error carries as its structured content, so both read alike (AG-146, T-5949).
+    pub fn into_document(self) -> (StatusCode, &'static str, serde_json::Value) {
         let this = match self {
-            Self::VerdictRequired(body) => {
-                return (
-                    StatusCode::CONFLICT,
-                    [(header::CONTENT_TYPE, "application/json")],
-                    axum::Json(body),
-                )
-                    .into_response()
-            }
+            Self::VerdictRequired(body) => return (StatusCode::CONFLICT, "application/json", body),
             other => other,
         };
         let mut errors = None;
@@ -218,6 +264,12 @@ impl IntoResponse for ApiError {
             }
         };
 
+        let errors = errors.map(|lines: Vec<String>| {
+            lines
+                .iter()
+                .map(|line| FieldError::from_line(line, detail.as_deref()))
+                .collect()
+        });
         let problem = ProblemDetails {
             r#type: format!("https://joinedcontext.com/errors/{slug}"),
             title: title.to_string(),
@@ -227,16 +279,10 @@ impl IntoResponse for ApiError {
             hint: hint_of(slug),
             errors,
         };
-
-        let body = serde_json::to_string(&problem).unwrap_or_else(|_| {
-            r#"{"type":"https://joinedcontext.com/errors/internal-error","title":"Internal Server Error","status":500}"#.to_string()
+        let body = serde_json::to_value(&problem).unwrap_or_else(|_| {
+            serde_json::json!({"type": "https://joinedcontext.com/errors/internal-error", "title": "Internal Server Error", "status": 500})
         });
-
-        Response::builder()
-            .status(status)
-            .header(header::CONTENT_TYPE, "application/problem+json")
-            .body(Body::from(body))
-            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+        (status, "application/problem+json", body)
     }
 }
 
@@ -310,6 +356,51 @@ mod tests {
             assert!(problem.hint.is_some_and(|hint| !hint.is_empty()), "{slug}");
         }
         assert_eq!(hint_of("no-such-slug"), None);
+    }
+
+    #[test]
+    fn every_violation_line_becomes_a_path_and_a_message() {
+        let detail = Some("the request names 2 problems");
+        assert_eq!(
+            FieldError::from_line("spec.history[1]: names no space", detail),
+            FieldError {
+                path: "spec.history[1]".into(),
+                message: "names no space".into()
+            }
+        );
+        assert_eq!(
+            FieldError::from_line("subject", detail),
+            FieldError {
+                path: "subject".into(),
+                message: "the request names 2 problems".into()
+            }
+        );
+        assert_eq!(
+            FieldError::from_line("slot 'temperature' has no range", detail),
+            FieldError {
+                path: String::new(),
+                message: "slot 'temperature' has no range".into()
+            }
+        );
+        assert_eq!(FieldError::from_line("ids:", None).path, "");
+    }
+
+    #[tokio::test]
+    async fn an_invalid_request_answers_every_field_with_its_path() {
+        let (status, content_type, body) = ApiError::Invalid {
+            detail: "2 members are wrong".into(),
+            errors: vec!["spec.name: too long".into(), "spec.space".into()],
+        }
+        .into_document();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(content_type, "application/problem+json");
+        assert_eq!(
+            body["errors"],
+            serde_json::json!([
+                {"path": "spec.name", "message": "too long"},
+                {"path": "spec.space", "message": "2 members are wrong"}
+            ])
+        );
     }
 
     #[tokio::test]

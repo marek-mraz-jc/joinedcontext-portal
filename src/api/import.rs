@@ -151,6 +151,9 @@ pub struct SpaceMapping {
 pub struct ImportQuery {
     #[serde(default)]
     pub dry_run: Option<String>,
+    /// `validate_only=true` (AIP-163): the same as `dryRun=All` (T-5949).
+    #[serde(default, rename = "validate_only")]
+    pub validate_only: Option<bool>,
     /// `git`: the archive of a `format=git` export, landing as a new project (MF-45).
     #[serde(default)]
     pub format: Option<String>,
@@ -1281,7 +1284,8 @@ pub async fn import(
     let request = Request::from_parts(parts, axum::body::Body::from(raw));
     if query.format.is_some() {
         let (bytes, mut input) = read_git_request(&state, request).await?;
-        input.dry_run |= query.dry_run.as_deref() == Some("All");
+        input.dry_run |=
+            query.dry_run.as_deref() == Some("All") || query.validate_only == Some(true);
         let (status, body) = if query.format.as_deref() == Some("app") {
             crate::api::app_transfer::import(&state, &user.0.identity, &project, &bytes, input)
                 .await?
@@ -1292,7 +1296,7 @@ pub async fn import(
         return Ok((status, Json(body)).into_response());
     }
     let (bytes, mut options) = read_request(&state, request).await?;
-    if query.dry_run.as_deref() == Some("All") {
+    if query.dry_run.as_deref() == Some("All") || query.validate_only == Some(true) {
         options.dry_run = true;
     }
     let (status, body) = import_bundle(&state, &user.0.identity, &project, &bytes, options).await?;

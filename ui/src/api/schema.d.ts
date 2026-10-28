@@ -6722,6 +6722,14 @@ export interface components {
             theirs: Record<string, never>;
         };
         /**
+         * @description One violation: the member it is about and what is wrong with it (AG-146). `path` is the
+         *     member's dotted path (`spec.history[1]`), or empty when the finding is about the whole request.
+         */
+        FieldError: {
+            message: string;
+            path: string;
+        };
+        /**
          * @description One file both the workspace and main changed since the workspace's base (CC-80). `fields`
          *     lists what a person has to choose; empty means the two sides merge on their own, which
          *     updating from main does.
@@ -8267,9 +8275,10 @@ export interface components {
             detail?: string | null;
             /**
              * @description Every violation of one request, when there is more than one thing to say. A form marks
-             *     all its bad fields from this in one pass instead of one round trip per mistake (CC-24).
+             *     all its bad fields from this in one pass instead of one round trip per mistake (CC-24),
+             *     and a model corrects its input by `path` (AG-146, T-5949).
              */
-            errors?: string[] | null;
+            errors?: components["schemas"]["FieldError"][] | null;
             /**
              * @description What the caller does about it, one English sentence: the catalogue's hint of the slug
              *     (API/00 §4, API/09); the Portal UI shows its own translation by the slug instead.

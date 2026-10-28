@@ -283,7 +283,12 @@ async fn a_connector_selects_only_projects_and_spaces_the_person_reads() {
             refused.text
         );
         let body: Value = serde_json::from_str(&refused.text).unwrap_or(Value::Null);
-        assert_eq!(body["errors"], json!([field]), "{value}: {}", refused.text);
+        assert_eq!(
+            body["errors"][0]["path"],
+            json!(field),
+            "{value}: {}",
+            refused.text
+        );
         assert!(
             body["detail"]
                 .as_str()

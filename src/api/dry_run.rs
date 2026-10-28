@@ -10,6 +10,10 @@ use crate::plan::PlanDiff;
 pub struct DryRunQuery {
     #[serde(default, rename = "dryRun")]
     pub dry_run: Option<String>,
+    /// `validate_only=true` (AIP-163) is `dryRun=All` under the name a connector's
+    /// `plan_change` and other API styles use: every check, nothing saved, the diff (T-5949).
+    #[serde(default)]
+    pub validate_only: Option<bool>,
     /// Write into this workspace's branch instead of opening a Change (API/01 §22, CC-76).
     #[serde(default)]
     pub workspace: Option<String>,
@@ -26,7 +30,7 @@ pub struct DryRunQuery {
 /// Any other value is rejected with 400 Bad Request naming `All` as the only accepted value.
 pub fn is_dry_run(q: &DryRunQuery) -> Result<bool, ApiError> {
     match q.dry_run.as_deref() {
-        None => Ok(false),
+        None => Ok(q.validate_only == Some(true)),
         Some("All") => Ok(true),
         Some(other) => Err(ApiError::BadRequest(format!(
             "invalid dryRun value '{other}'; 'All' is the only accepted value"
@@ -382,6 +386,7 @@ mod tests {
         let q = DryRunQuery {
             workspace: None,
             dry_run: None,
+            validate_only: None,
             confirm: None,
         };
         assert!(!is_dry_run(&q).expect("query should succeed"));
@@ -392,9 +397,28 @@ mod tests {
         let q = DryRunQuery {
             workspace: None,
             dry_run: Some("All".to_string()),
+            validate_only: None,
             confirm: None,
         };
         assert!(is_dry_run(&q).expect("query should succeed"));
+    }
+
+    #[test]
+    fn validate_only_is_a_dry_run_and_false_is_a_write() {
+        let only = |validate_only| DryRunQuery {
+            validate_only,
+            ..DryRunQuery::default()
+        };
+        assert!(is_dry_run(&only(Some(true))).expect("validate_only=true"));
+        assert!(!is_dry_run(&only(Some(false))).expect("validate_only=false"));
+        let both = DryRunQuery {
+            dry_run: Some("Foo".into()),
+            ..only(Some(true))
+        };
+        assert!(
+            is_dry_run(&both).is_err(),
+            "a bad dryRun is refused, not hidden"
+        );
     }
 
     #[test]
@@ -403,6 +427,7 @@ mod tests {
             let q = DryRunQuery {
                 workspace: None,
                 dry_run: Some(candidate.to_string()),
+                validate_only: None,
                 confirm: None,
             };
             let err = is_dry_run(&q).expect_err("should reject unsupported values");
