@@ -1,11 +1,20 @@
+use std::sync::LazyLock;
+
 use axum::extract::{Path, Query, State};
+use axum::http::{header, HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
+use base64::Engine as _;
+use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use sha2::{Digest, Sha256};
 use utoipa::ToSchema;
 
 use crate::auth::CurrentUser;
 use crate::error::{ApiError, ProblemDetails};
+use crate::resource::filter::{Filter, OrderBy};
 use crate::resource::selector::{FieldSelector, LabelSelector};
 use crate::resource::{by_plural, ResourceEnvelope, API_VERSION};
 use crate::state::AppState;
@@ -18,6 +27,9 @@ pub struct ResourceList {
     pub kind: String,
     pub metadata: ListMeta,
     pub items: Vec<ResourceEnvelope>,
+    /// The `cursor` of the next page; absent on the last one (API/13 section 2).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -31,6 +43,13 @@ pub struct ListMeta {
 
 #[derive(Debug, Deserialize)]
 pub struct ListQuery {
+    /// AIP-160 subset over the manifest (API/13 section 2).
+    #[serde(default)]
+    pub filter: Option<String>,
+    #[serde(default, rename = "orderBy")]
+    pub order_by: Option<String>,
+    #[serde(default)]
+    pub cursor: Option<String>,
     #[serde(default, rename = "labelSelector")]
     pub label_selector: Option<String>,
     #[serde(default, rename = "fieldSelector")]
@@ -65,6 +84,9 @@ pub struct GetQuery {
     params(
         ("project" = String, Path, description = "Project name"),
         ("plural" = String, Path, description = "Resource kind plural"),
+        ("filter" = Option<String>, Query, description = "AIP-160 subset over manifest fields, e.g. labels.team = \"air\" AND spec.schedule:*"),
+        ("orderBy" = Option<String>, Query, description = "One field, optionally followed by desc; default metadata.name"),
+        ("cursor" = Option<String>, Query, description = "The nextCursor of the previous page"),
         ("labelSelector" = Option<String>, Query, description = "Label selector"),
         ("fieldSelector" = Option<String>, Query, description = "Field selector"),
         ("limit" = Option<usize>, Query, description = "Page limit"),
@@ -74,7 +96,7 @@ pub struct GetQuery {
     ),
     responses(
         (status = 200, description = "List of resources", body = ResourceList),
-        (status = 400, description = "A bad selector or limit, a revision that is not a commit id, or one beside a workspace", body = ProblemDetails),
+        (status = 400, description = "A bad filter, orderBy, cursor, selector or limit, a revision that is not a commit id, or one beside a workspace", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
         (status = 404, description = "Resource not found", body = ProblemDetails)
     )
@@ -119,14 +141,25 @@ pub async fn list(
         _ => None,
     };
 
+    let listing = Listing::of(
+        &query,
+        kind_info.kind,
+        &user.0.identity.subject,
+        &project,
+        &plural,
+    )?;
+
+    // The store answers every manifest of the kind; the read check, the filter and the page run
+    // here in that order, so an object the caller may not read never shifts a page or shows in
+    // remainingItemCount (API/13 section 2).
     let opts = ListOptions {
         label_selector,
         field_selector,
-        limit,
-        continue_token: query.continue_token,
+        limit: None,
+        continue_token: None,
     };
 
-    let mut page = match (query.workspace.as_deref(), query.revision.as_deref()) {
+    let page = match (query.workspace.as_deref(), query.revision.as_deref()) {
         (Some(_), Some(_)) => return Err(both()),
         (Some(name), None) => {
             crate::ops::workspaces::mirror_of(&state, &user.0.identity, name, &project)
@@ -140,24 +173,240 @@ pub async fn list(
     };
     // Item by item: a grant bound to one context space reads that space's manifests alone, and
     // one narrowed to an Organization's own settings its own (ADR-N-058 section 2.4, T-5698).
-    page.items
-        .retain(|env| effective.may_read_envelope(kind_info.kind, env));
+    let readable = page
+        .items
+        .into_iter()
+        .filter(|env| effective.may_read_envelope(kind_info.kind, env));
+    Ok(Json(listing.page(
+        readable,
+        query.continue_token.as_deref(),
+        limit,
+    )))
+}
 
-    let remaining_item_count = if page.continue_token.is_some() {
-        Some(page.remaining)
-    } else {
-        None
+/// What a list query asks beyond the store's selectors: its filter, its order and where the page
+/// starts, each checked against the kind before anything is read.
+struct Listing {
+    filter: Option<Filter>,
+    order: OrderBy,
+    after: Option<CursorBody>,
+    query_id: String,
+}
+
+impl Listing {
+    fn of(
+        query: &ListQuery,
+        kind: &str,
+        subject: &str,
+        project: &str,
+        plural: &str,
+    ) -> Result<Self, ApiError> {
+        let schema = jc_core::registry::schema_of(kind);
+        let filter = match query.filter.as_deref().map(str::trim) {
+            Some(text) if !text.is_empty() => Some(
+                Filter::parse(text, schema.as_ref())
+                    .map_err(|e| ApiError::BadRequest(e.to_string()))?,
+            ),
+            _ => None,
+        };
+        let order = OrderBy::parse(
+            query.order_by.as_deref().unwrap_or_default(),
+            schema.as_ref(),
+        )
+        .map_err(|e| ApiError::BadRequest(format!("orderBy: {e}")))?;
+        let query_id = query_id(subject, project, plural, query);
+        let after = match (query.cursor.as_deref(), query.continue_token.as_deref()) {
+            (Some(_), Some(_)) => {
+                return Err(ApiError::BadRequest(
+                    "send cursor or continue, not both; cursor replaces continue".into(),
+                ))
+            }
+            (None, Some(_)) if order != OrderBy::default() => {
+                return Err(ApiError::BadRequest(
+                    "continue pages by metadata.name only; page an orderBy with cursor".into(),
+                ))
+            }
+            (Some(text), None) => Some(decode_cursor(text, &query_id)?),
+            _ => None,
+        };
+        Ok(Self {
+            filter,
+            order,
+            after,
+            query_id,
+        })
+    }
+
+    /// Filters, orders and cuts the manifests the caller may read into one page.
+    fn page(
+        &self,
+        readable: impl Iterator<Item = ResourceEnvelope>,
+        continue_token: Option<&str>,
+        limit: Option<usize>,
+    ) -> ResourceList {
+        let order = &self.order;
+        let mut rows: Vec<(Value, ResourceEnvelope)> = readable
+            .filter_map(|env| {
+                let doc = serde_json::to_value(&env).ok()?;
+                self.filter
+                    .as_ref()
+                    .is_none_or(|f| f.matches(&doc))
+                    .then(|| (order.key_of(&doc), env))
+            })
+            .collect();
+        rows.sort_by(|a, b| order.cmp((&a.0, &a.1.metadata.name), (&b.0, &b.1.metadata.name)));
+        if let Some(after) = &self.after {
+            rows.retain(|(key, env)| {
+                order.cmp((key, &env.metadata.name), (&after.key, &after.name))
+                    == std::cmp::Ordering::Greater
+            });
+        }
+        if let Some(token) = continue_token {
+            rows.retain(|(_, env)| env.metadata.name.as_str() > token);
+        }
+
+        let total = rows.len();
+        let limit = limit.unwrap_or(total);
+        rows.truncate(limit);
+        let more = total > limit;
+        let last = rows.last().filter(|_| more);
+        let next_cursor = last.map(|(key, env)| {
+            encode_cursor(&CursorBody {
+                query: self.query_id.clone(),
+                key: key.clone(),
+                name: env.metadata.name.clone(),
+            })
+        });
+        ResourceList {
+            api_version: API_VERSION.to_string(),
+            kind: "List".to_string(),
+            metadata: ListMeta {
+                continue_token: last.map(|(_, env)| env.metadata.name.clone()),
+                remaining_item_count: more.then(|| total - limit),
+            },
+            items: rows.into_iter().map(|(_, env)| env).collect(),
+            next_cursor,
+        }
+    }
+}
+
+/// Signs list cursors; a fresh key per process, so a restart ends every open listing with a
+/// `400` that says to start again.
+static CURSOR_KEY: LazyLock<Vec<u8>> =
+    LazyLock::new(|| crate::auth::csrf::new_token().into_bytes());
+
+/// Where a page ended, for the listing it was made for alone.
+#[derive(Debug, Serialize, Deserialize)]
+struct CursorBody {
+    #[serde(rename = "q")]
+    query: String,
+    #[serde(rename = "k")]
+    key: Value,
+    #[serde(rename = "n")]
+    name: String,
+}
+
+/// One listing: caller, project, kind and every parameter that shapes the order or the rows, so
+/// a cursor cannot be replayed under another filter, order or person.
+fn query_id(subject: &str, project: &str, plural: &str, query: &ListQuery) -> String {
+    let mut hash = Sha256::new();
+    for part in [
+        Some(subject),
+        Some(project),
+        Some(plural),
+        query.filter.as_deref().map(str::trim),
+        query.order_by.as_deref(),
+        query.label_selector.as_deref(),
+        query.field_selector.as_deref(),
+        query.workspace.as_deref(),
+        query.revision.as_deref(),
+    ] {
+        hash.update(part.unwrap_or_default().as_bytes());
+        hash.update([0]);
+    }
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(hash.finalize())
+}
+
+fn cursor_mac(payload: &str) -> Hmac<Sha256> {
+    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(&CURSOR_KEY).expect("any key length");
+    mac.update(payload.as_bytes());
+    mac
+}
+
+fn encode_cursor(body: &CursorBody) -> String {
+    let engine = base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    let payload = engine.encode(serde_json::to_vec(body).unwrap_or_default());
+    let tag = engine.encode(cursor_mac(&payload).finalize().into_bytes());
+    format!("{payload}.{tag}")
+}
+
+fn decode_cursor(text: &str, query_id: &str) -> Result<CursorBody, ApiError> {
+    let refused = || {
+        ApiError::BadRequest(
+            "that cursor is not one this listing handed out: list again without cursor, with the \
+             same filter and orderBy"
+                .into(),
+        )
     };
+    let engine = base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    let (payload, tag) = text.split_once('.').ok_or_else(refused)?;
+    let tag = engine.decode(tag).map_err(|_| refused())?;
+    cursor_mac(payload)
+        .verify_slice(&tag)
+        .map_err(|_| refused())?;
+    let body: CursorBody = engine
+        .decode(payload)
+        .ok()
+        .and_then(|raw| serde_json::from_slice(&raw).ok())
+        .ok_or_else(refused)?;
+    if body.query != query_id {
+        return Err(refused());
+    }
+    Ok(body)
+}
 
-    Ok(Json(ResourceList {
-        api_version: API_VERSION.to_string(),
-        kind: "List".to_string(),
-        metadata: ListMeta {
-            continue_token: page.continue_token,
-            remaining_item_count,
-        },
-        items: page.items,
-    }))
+/// `If-Match` of a `PUT`, `PATCH` or `DELETE` (API/13 section 3): a stale value is `412` with
+/// the current `ETag`. Checked only on a manifest the caller may read, so the answer never tells
+/// a caller that an unreadable object exists; the write's own door answers that case.
+pub async fn check_if_match(
+    state: &AppState,
+    identity: &crate::auth::session::Identity,
+    project: &str,
+    plural: &str,
+    name: &str,
+    workspace: Option<&str>,
+    headers: &HeaderMap,
+) -> Result<(), ApiError> {
+    let Some(sent) = headers.get(header::IF_MATCH) else {
+        return Ok(());
+    };
+    let sent = sent
+        .to_str()
+        .map_err(|_| ApiError::BadRequest("If-Match must be a quoted ETag or *".into()))?;
+    let Some(info) = by_plural(plural) else {
+        return Ok(());
+    };
+    let effective = crate::permissions::for_request(state, identity, project);
+    let current = match workspace {
+        Some(workspace) => crate::ops::workspaces::mirror_of(state, identity, workspace, project)
+            .await?
+            .get(project, info.kind, name),
+        None => state.mirror.get(project, info.kind, name),
+    };
+    let Some(current) = current.filter(|env| effective.may_read_envelope(info.kind, env)) else {
+        return Ok(());
+    };
+    let etag = current.etag();
+    if sent.trim() == "*" || sent.split(',').any(|value| value.trim() == etag) {
+        return Ok(());
+    }
+    Err(ApiError::PreconditionFailed {
+        detail: format!(
+            "{} '{name}' changed since it was read: read it again and send its ETag {etag} in If-Match",
+            info.kind
+        ),
+        etag,
+    })
 }
 
 #[utoipa::path(
@@ -172,9 +421,11 @@ pub async fn list(
         ("name" = String, Path, description = "Resource name"),
         ("workspace" = Option<String>, Query, description = "Read inside this workspace (CC-76)"),
         ("revision" = Option<String>, Query, description = "Read the project as it stood at this commit id (MF-11)"),
+        ("If-None-Match" = Option<String>, Header, description = "An ETag of an earlier read: 304 when the manifest is unchanged"),
     ),
     responses(
-        (status = 200, description = "Resource envelope", body = ResourceEnvelope),
+        (status = 200, description = "Resource envelope, with its strong ETag", body = ResourceEnvelope),
+        (status = 304, description = "Unchanged since the ETag sent in If-None-Match"),
         (status = 400, description = "A revision that is not a commit id, or one beside a workspace", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
         (status = 404, description = "Resource not found", body = ProblemDetails)
@@ -185,7 +436,8 @@ pub async fn get_resource(
     State(state): State<AppState>,
     Path((project, plural, name)): Path<(String, String, String)>,
     Query(query): Query<GetQuery>,
-) -> Result<Json<ResourceEnvelope>, ApiError> {
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
     // The same 404 body for an unknown plural and for a resource that exists but is not
     // visible: existence is never disclosed (R20).
     let not_found = || {
@@ -227,7 +479,15 @@ pub async fn get_resource(
         return Err(not_found());
     }
 
-    Ok(Json(envelope))
+    let etag = envelope.etag();
+    let unchanged = headers
+        .get(header::IF_NONE_MATCH)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|sent| sent.split(',').any(|v| v.trim() == etag || v.trim() == "*"));
+    if unchanged {
+        return Ok((StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response());
+    }
+    Ok(([(header::ETAG, etag)], Json(envelope)).into_response())
 }
 
 fn both() -> ApiError {
@@ -350,6 +610,7 @@ pub async fn list_endpoints_everywhere(
             remaining_item_count: None,
         },
         items,
+        next_cursor: None,
     }))
 }
 
@@ -367,4 +628,112 @@ pub fn router() -> Router<AppState> {
                 .patch(crate::api::mutate::patch)
                 .delete(crate::api::delete::delete_resource),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn query(filter: &str) -> ListQuery {
+        ListQuery {
+            filter: Some(filter.to_owned()),
+            order_by: None,
+            cursor: None,
+            label_selector: None,
+            field_selector: None,
+            limit: None,
+            continue_token: None,
+            revision: None,
+            workspace: None,
+        }
+    }
+
+    #[test]
+    fn a_cursor_reads_back_only_for_its_own_listing() {
+        let id = query_id(
+            "f:1:ana",
+            "ovzdusie",
+            "pipelines",
+            &query("labels.team = air"),
+        );
+        let text = encode_cursor(&CursorBody {
+            query: id.clone(),
+            key: Value::String("air".into()),
+            name: "a".into(),
+        });
+        let back = decode_cursor(&text, &id).expect("its own listing");
+        assert_eq!(
+            (back.name.as_str(), back.key),
+            ("a", Value::String("air".into()))
+        );
+
+        let other_filter = query_id(
+            "f:1:ana",
+            "ovzdusie",
+            "pipelines",
+            &query("labels.team = water"),
+        );
+        let other_caller = query_id(
+            "f:1:eva",
+            "ovzdusie",
+            "pipelines",
+            &query("labels.team = air"),
+        );
+        for other in [other_filter, other_caller] {
+            assert!(decode_cursor(&text, &other).is_err());
+        }
+        let (payload, tag) = text.split_once('.').expect("two parts");
+        let other = encode_cursor(&CursorBody {
+            query: id.clone(),
+            key: Value::String("air".into()),
+            name: "zzz".into(),
+        });
+        let forged = format!("{}.{tag}", other.split_once('.').expect("two parts").0);
+        for bad in [forged.as_str(), payload, "", "x.y", &format!("{payload}.")] {
+            assert!(decode_cursor(bad, &id).is_err(), "{bad} was accepted");
+        }
+    }
+
+    #[tokio::test]
+    async fn if_match_is_judged_only_where_the_caller_reads_the_manifest() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let identity = crate::auth::session::Identity {
+            client: None,
+            subject: "f:1:ana".into(),
+            username: "ana".into(),
+            email: None,
+            name: None,
+            roles: Vec::new(),
+            groups: Vec::new(),
+            second_factor: false,
+        };
+        let mut headers = HeaderMap::new();
+        let call = |headers: HeaderMap, plural: &'static str| {
+            let (state, identity) = (state.clone(), identity.clone());
+            async move {
+                check_if_match(&state, &identity, "ovzdusie", plural, "air", None, &headers).await
+            }
+        };
+        assert!(
+            call(headers.clone(), "pipelines").await.is_ok(),
+            "no If-Match"
+        );
+        headers.insert(header::IF_MATCH, "\"stale\"".parse().expect("header"));
+        assert!(
+            call(headers.clone(), "pipelines").await.is_ok(),
+            "nothing there to compare"
+        );
+        assert!(
+            call(headers.clone(), "nosuchplural").await.is_ok(),
+            "the door answers 404"
+        );
+        headers.insert(
+            header::IF_MATCH,
+            axum::http::HeaderValue::from_bytes(b"\xff").expect("opaque bytes"),
+        );
+        assert!(matches!(
+            call(headers, "pipelines").await,
+            Err(ApiError::BadRequest(_))
+        ));
+    }
 }

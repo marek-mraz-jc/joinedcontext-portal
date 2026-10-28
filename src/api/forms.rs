@@ -54,6 +54,7 @@ pub async fn list_forms(
             remaining_item_count: None,
         },
         items: page.items,
+        next_cursor: None,
     }))
 }
 

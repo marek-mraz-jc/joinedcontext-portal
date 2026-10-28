@@ -165,6 +165,10 @@ pub enum ApiError {
     SecondFactorRequired,
     #[error("conflict: {0}")]
     Conflict(String),
+    /// 412: the `If-Match` a write sent is not the manifest's current `ETag`, which the answer
+    /// carries so the caller can read again and retry (API/13 section 3).
+    #[error("precondition failed: {detail}")]
+    PreconditionFailed { detail: String, etag: String },
     /// 409 with the verdict gate's own document (PF-57): `error: verdict_required`, the check to
     /// run and why; the body the operations registry answers, so every door reads alike (T-0956).
     #[error("verdict required")]
@@ -185,13 +189,22 @@ pub enum ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
+        // A 412 names the current version, so the caller can read it and retry (T-5949 + main).
+        let etag = match &self {
+            Self::PreconditionFailed { etag, .. } => Some(etag.clone()),
+            _ => None,
+        };
         let (status, content_type, body) = self.into_document();
         let body = serde_json::to_string(&body).unwrap_or_else(|_| {
             r#"{"type":"https://joinedcontext.com/errors/internal-error","title":"Internal Server Error","status":500}"#.to_string()
         });
-        Response::builder()
+        let mut builder = Response::builder()
             .status(status)
-            .header(header::CONTENT_TYPE, content_type)
+            .header(header::CONTENT_TYPE, content_type);
+        if let Some(etag) = etag {
+            builder = builder.header(header::ETAG, etag);
+        }
+        builder
             .body(Body::from(body))
             .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
     }
@@ -270,6 +283,14 @@ impl ApiError {
                 Some(msg),
             ),
             Self::Conflict(msg) => (StatusCode::CONFLICT, "conflict", "Conflict", Some(msg)),
+            Self::PreconditionFailed { detail, .. } => {
+                (
+                    StatusCode::PRECONDITION_FAILED,
+                    "precondition-failed",
+                    "Precondition Failed",
+                    Some(detail),
+                )
+            }
             // Answered above with its own document; kept here so the match stays exhaustive.
             Self::VerdictRequired(body) => (
                 StatusCode::CONFLICT,
@@ -355,6 +376,13 @@ mod tests {
             (ApiError::SelfApproval("test".into()), StatusCode::FORBIDDEN),
             (ApiError::SecondFactorRequired, StatusCode::FORBIDDEN),
             (ApiError::Conflict("test".into()), StatusCode::CONFLICT),
+            (
+                ApiError::PreconditionFailed {
+                    detail: "test".into(),
+                    etag: "\"e\"".into(),
+                },
+                StatusCode::PRECONDITION_FAILED,
+            ),
             (
                 ApiError::TooManyRequests("test".into()),
                 StatusCode::TOO_MANY_REQUESTS,

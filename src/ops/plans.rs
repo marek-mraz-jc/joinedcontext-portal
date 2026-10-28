@@ -797,6 +797,7 @@ mod tests {
             created_at: Utc::now(),
             last_used_at: None,
             url: "https://portal.test/c/c1".into(),
+            limits: crate::connectors::DEFAULT_LIMITS,
         };
         let id = kept(&state.plans, "sub-jana", Some("c1"), TTL_MINUTES);
         let err = apply(

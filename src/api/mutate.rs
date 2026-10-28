@@ -2601,6 +2601,7 @@ pub async fn create(
         ("name" = String, Path, description = "Resource name"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
         ("confirm" = Option<String>, Query, description = "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)"),
+        ("If-Match" = Option<String>, Header, description = "The ETag of the manifest as read; a stale one is 412 and opens no Change (API/13 section 3)"),
     ),
     request_body(content = ResourceProposal, example = json!({
             "apiVersion": "joinedcontext.com/v1alpha1",
@@ -2619,6 +2620,7 @@ pub async fn create(
         (status = 400, description = "Bad request", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
         (status = 404, description = "Not found", body = ProblemDetails),
+        (status = 412, description = "If-Match is not the manifest's current ETag, which the answer carries", body = ProblemDetails),
         (status = 415, description = "Unsupported media type", body = ProblemDetails),
         (status = 503, description = "Git forge unavailable", body = ProblemDetails),
     )
@@ -2633,6 +2635,16 @@ pub async fn replace(
     body: Bytes,
 ) -> Result<Response, ApiError> {
     let is_dry = dry_run::is_dry_run(&dry_run_q)?;
+    crate::api::resources::check_if_match(
+        &state,
+        &user.0.identity,
+        &project,
+        &plural,
+        &name,
+        dry_run_q.workspace.as_deref(),
+        &headers,
+    )
+    .await?;
     let mut body_val = parse_body_to_value(&headers, &body)?;
     // Inside a copy the draft a form names is the copy's own, and the manifest beside it is what
     // the copy takes: written to its branch like any manifest, never a Change of its own (T-4868).
@@ -2671,6 +2683,7 @@ pub async fn replace(
         ("name" = String, Path, description = "Resource name"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
         ("confirm" = Option<String>, Query, description = "The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39)"),
+        ("If-Match" = Option<String>, Header, description = "The ETag of the manifest as read; a stale one is 412 and opens no Change (API/13 section 3)"),
     ),
     // Declared by hand: the handler takes the raw `Bytes` because the media type decides how the
     // body is parsed, and utoipa cannot derive a schema from that extractor.
@@ -2686,6 +2699,7 @@ pub async fn replace(
         (status = 400, description = "Bad request", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
         (status = 404, description = "Not found", body = ProblemDetails),
+        (status = 412, description = "If-Match is not the manifest's current ETag, which the answer carries", body = ProblemDetails),
         (status = 415, description = "Unsupported media type", body = ProblemDetails),
         (status = 503, description = "Git forge unavailable", body = ProblemDetails),
     )
@@ -2700,6 +2714,16 @@ pub async fn patch(
     body: Bytes,
 ) -> Result<Response, ApiError> {
     let is_dry = dry_run::is_dry_run(&dry_run_q)?;
+    crate::api::resources::check_if_match(
+        &state,
+        &user.0.identity,
+        &project,
+        &plural,
+        &name,
+        dry_run_q.workspace.as_deref(),
+        &headers,
+    )
+    .await?;
     let patch_val = parse_patch_to_value(&headers, &body)?;
 
     if patch_val.get("status").is_some() {

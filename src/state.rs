@@ -2,7 +2,7 @@
 //! back-channel logout marks.
 
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use axum::extract::FromRef;
 use axum_extra::extract::cookie::Key;
@@ -149,6 +149,8 @@ pub struct AppState {
     /// ponytail: per-replica map, like `revocations`; one bucket per subject is enough while
     /// the Portal is one replica.
     mcp_calls: Arc<RwLock<HashMap<String, (i64, u32)>>>,
+    /// The calls each key is answering right now (T-5968); a key leaves at zero.
+    mcp_in_flight: Arc<Mutex<HashMap<String, u32>>>,
     /// The MCP calls that outlive their request (AG-60): a client starts one, polls it and
     /// reads its result through `tasks/*`.
     pub mcp_tasks: crate::mcp::tasks::McpTasks,
@@ -244,6 +246,7 @@ impl AppState {
             app_tests: None,
             revocations: Arc::new(RwLock::new(HashMap::new())),
             mcp_calls: Arc::new(RwLock::new(HashMap::new())),
+            mcp_in_flight: Arc::default(),
             mcp_tasks: crate::mcp::tasks::McpTasks::new(),
             mcp_elicitations: crate::mcp::elicitation::McpElicitations::new(),
             wasm_apps: None,
@@ -1173,21 +1176,55 @@ impl AppState {
     /// (AG-60). The Portal counts for itself: the edge's bucket is keyed by the raw token and
     /// does not exist for a caller inside the cluster.
     pub fn mcp_call_allowed(&self, subject: &str, limit: u32, now: i64) -> bool {
+        self.mcp_admit(&[(subject, limit)], now).is_ok()
+    }
+
+    /// Counts one call in every window of `windows` (key, calls a minute) or in none: the first
+    /// window that is full refuses with its index and the seconds until it opens again
+    /// (T-5968). One person's connectors share the person's window, each also has its own.
+    pub fn mcp_admit(&self, windows: &[(&str, u32)], now: i64) -> Result<(), (usize, i64)> {
         let Ok(mut calls) = self.mcp_calls.write() else {
             // A poisoned lock must not open the door wider than it was.
-            return false;
+            return Err((0, 60));
         };
         // ponytail: a fixed window that restarts a minute after its first call; a sliding
         // window is the upgrade if bursts at the boundary ever matter.
-        let entry = calls.entry(subject.to_string()).or_insert((now, 0));
-        if now - entry.0 >= 60 {
-            *entry = (now, 0);
+        for (index, (key, limit)) in windows.iter().enumerate() {
+            let entry = calls.entry((*key).to_owned()).or_insert((now, 0));
+            if now - entry.0 >= 60 {
+                *entry = (now, 0);
+            }
+            if entry.1 >= *limit {
+                return Err((index, (entry.0 + 60 - now).max(1)));
+            }
         }
-        if entry.1 >= limit {
-            return false;
+        for (key, _) in windows {
+            if let Some(entry) = calls.get_mut(*key) {
+                entry.1 += 1;
+            }
         }
-        entry.1 += 1;
-        true
+        Ok(())
+    }
+
+    /// Holds one call in every key of `slots` (key, calls at once) until the guard drops, or
+    /// refuses with the index of the first full one (T-5968).
+    pub fn mcp_enter(&self, slots: &[(&str, u32)]) -> Result<InFlight, usize> {
+        let Ok(mut held) = self.mcp_in_flight.lock() else {
+            return Err(0);
+        };
+        if let Some(full) = slots
+            .iter()
+            .position(|(key, max)| held.get(*key).copied().unwrap_or(0) >= *max)
+        {
+            return Err(full);
+        }
+        for (key, _) in slots {
+            *held.entry((*key).to_owned()).or_default() += 1;
+        }
+        Ok(InFlight {
+            held: Arc::clone(&self.mcp_in_flight),
+            keys: slots.iter().map(|(key, _)| (*key).to_owned()).collect(),
+        })
     }
 
     /// The marks a token issued before them could still be valid against at `now`, by subject:
@@ -1237,10 +1274,69 @@ fn catalogue_host(config: &Config) -> String {
         .to_owned()
 }
 
+/// One call held by `AppState::mcp_enter`; dropping it frees its slots.
+pub struct InFlight {
+    held: Arc<Mutex<HashMap<String, u32>>>,
+    keys: Vec<String>,
+}
+
+impl Drop for InFlight {
+    fn drop(&mut self) {
+        let Ok(mut held) = self.held.lock() else {
+            return;
+        };
+        for key in &self.keys {
+            if let Some(count) = held.get_mut(key) {
+                *count = count.saturating_sub(1);
+                if *count == 0 {
+                    held.remove(key);
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::auth::session::{now_unix, Identity};
+
+    #[test]
+    fn mcp_windows_count_together_refuse_with_the_wait_and_reset_after_a_minute() {
+        let state = AppState::new(Config::for_tests(), None);
+        let windows = [("person", 3), ("connector", 2)];
+        assert_eq!(state.mcp_admit(&windows, 1_000), Ok(()));
+        assert_eq!(state.mcp_admit(&windows, 1_010), Ok(()));
+        // The connector's own window is full 10 s in: it opens again 50 s later.
+        assert_eq!(state.mcp_admit(&windows, 1_010), Err((1, 50)));
+        // The refused call counted in no window: the person has one call left.
+        assert_eq!(
+            state.mcp_admit(&[("person", 3), ("other", 2)], 1_020),
+            Ok(())
+        );
+        assert_eq!(
+            state.mcp_admit(&[("person", 3), ("other", 2)], 1_059),
+            Err((0, 1))
+        );
+        // A minute after its first call each window starts again.
+        assert_eq!(state.mcp_admit(&windows, 1_060), Ok(()));
+    }
+
+    #[test]
+    fn mcp_slots_hold_until_the_guard_drops_and_leave_no_key_behind() {
+        let state = AppState::new(Config::for_tests(), None);
+        let slots = [("person", 2), ("connector", 1)];
+        let first = state.mcp_enter(&slots).expect("free");
+        assert_eq!(state.mcp_enter(&slots).err(), Some(1));
+        let other = state
+            .mcp_enter(&[("person", 2), ("b", 1)])
+            .expect("person has one");
+        assert_eq!(state.mcp_enter(&[("person", 2), ("c", 1)]).err(), Some(0));
+        drop(first);
+        drop(other);
+        assert!(state.mcp_in_flight.lock().expect("lock").is_empty());
+        assert!(state.mcp_enter(&slots).is_ok());
+    }
 
     fn session(subject: &str, issued_at: i64) -> Session {
         Session {
