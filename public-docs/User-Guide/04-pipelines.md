@@ -197,12 +197,27 @@ When devices push their readings over MQTT, the project can run its own broker. 
 1. Click **New MQTT broker** and give it a **Name**.
 2. Under **Roles**, add one role per group of devices: its **Service accounts (devices)**, the topics it **May publish to** such as `sensors/+/air`, and the topics it **May subscribe to**.
 3. Choose **What the broker does**: **Ingest** (a pipeline reads each message), **Ingest and keep** (the broker also keeps the last messages under **Kept messages**) or **Two-way** (devices also receive messages).
-4. Set the **Limits**: **Largest message (bytes)**, **Messages per second per device** and **Connections at most**.
+4. Set the **Limits**: **Largest message (bytes)**, **Messages per second per device** and **Connections at most**. To admit devices only from your own networks, list them under **Allowed source networks**, one CIDR range per row (**Add** gives another) such as `203.0.113.0/24`; left empty, any address may connect with a valid token.
 5. Click **Propose change**.
 
 Open the broker once it is approved. **Topic access** shows which role may publish and subscribe where; the connect panel gives the **Address**, the **Client id and user name**, how to get the **Password** and **Certificate**, and a **Try it** command to send a test message; **Measured** shows how many devices are **Connected now**; **Connections** draws who talks to whom and marks a step that needs **Fix it**.
 
 When the page says **MQTT is off for this project**, an organization administrator turns it on under **Administration**, in the project's MQTT settings. The same administrator raises the number of brokers a project may have.
+
+### Giving devices a broker role
+
+The broker says what each role may do; a device's service account says that the device holds the role. To admit a fleet of air sensors to the role `air-sensor` of the broker `air`, add one binding to the fleet's service account and propose the change:
+
+```yaml
+# spec.roles of the ServiceAccount air-fleet-north (excerpt)
+- role: mqtt/air/air-sensor     # mqtt/*/air-sensor: every broker of the project with that role
+  scope:
+    project: bratislava         # always the account's own project
+  validity:
+    notAfter: "2027-03-31T23:59:59Z"
+```
+
+From the approval on, each device of `air-fleet-north` may publish where `air-sensor` allows, until the end of March 2027. Removing the binding, or letting `notAfter` pass, stops the device at its next publish; the broker manifest stays as it was. A broker that still lists `serviceAccounts` on a role keeps working for now, and `jcctl migrate` moves those names into bindings like the one above.
 
 ## Related
 

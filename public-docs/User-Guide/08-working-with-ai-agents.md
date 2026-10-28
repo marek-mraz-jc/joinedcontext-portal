@@ -13,6 +13,7 @@ routes:
   - /projects/$project/agentprofiles
   - /connectors
   - /projects/$project/mcp-elicitations/$id
+  - /mcp-confirmations/$id
 ---
 
 # Collaborating with Autonomous AI Agents
@@ -134,6 +135,8 @@ When your AI client asks to run an MCP call that changes the project, the call d
 4. Go back to your AI client. Its next try of the same call runs, or tells the client you declined.
 
 Nothing the client says counts as an answer: only your choice on this page does. If the page says **This question is no longer open**, the question was answered, it expired, or another person's client asked it: ask your client to send its call again.
+
+A write through an Endpoint's own MCP address, which the context broker answers, asks the same way on the page `/mcp-confirmations/<id>`: it shows the view and the tool the write goes through instead of an operation, and has no link to a Portal page. The broker runs the write only on the answer you record there; the page answers only the person whose client asked.
 
 ## 5. Knowledge Sources and Assistants
 

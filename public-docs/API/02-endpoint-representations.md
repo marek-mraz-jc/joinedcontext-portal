@@ -90,7 +90,10 @@ view of the Endpoint: `/api/endpoint/{endpointSlug}/ngsi-ld/v1/{rest}` to the vi
 `{endpointSlug}`, `/cs/{space}/ngsi-ld/v1/{rest}` to the view `cs-{space}`, with the caller's
 query as sent. The broker's policy engine decides and narrows the request under the caller the
 gateway verified, which the gateway pins in `x-jc-subject`, `x-jc-groups`, `x-jc-roles` and
-`x-jc-client`; a caller under a data-space agreement is its participant's DID alone, in `x-jc-did`
+`x-jc-client` (a project's account as `{project}/{name}`, the form a Policy assignee names it by,
+PL-92; the Portal writes a bare `serviceAccount` assignee into the view as the account of the
+Policy's own project, so two projects' same-named accounts never share a grant, T-5860); a caller
+under a data-space agreement is its participant's DID alone, in `x-jc-did`
 (DS-02: no role, no account, never the public caller); the caller's token and cookie do not reach
 the broker. The gateway keeps what is
 no grant decision: the audience and the token, the rate limit and a form's daily creates, the
@@ -130,7 +133,7 @@ anything reads them, whatever the client sent ([GW20](../Requirements/gateway-fi
 | `NGSILD-Results-Count` | response | the broker's count of the matching entities, forwarded only when the gateway dropped none of them; an answer the gateway narrowed carries no count, because the difference is the number of entities withheld ([R22](../Requirements/access-control.md)) |
 | `Link: <…/schema/v{major}/model.schema.json>; rel="describedby"; type="application/schema+json"` | response | where the shapes of what was just answered are, one pair per model major the endpoint publishes: the JSON Schema and, as a second `Link`, `model.shacl.ttl` with `type="text/turtle"`. On every data response of every representation — the NGSI-LD tree, `file.*`, the OGC items and the SensorThings sets — and on no refusal, because a `404` that named a schema would tell a caller who was refused that the endpoint exists ([EP-50](../Requirements/endpoints.md), [EP-03](../Requirements/endpoints.md)). The link is the same for every caller of one endpoint, so it changes no `Vary`; what the document behind it holds is projected to the grant when it is fetched ([EP-47](../Requirements/endpoints.md)) |
 | `Cache-Control: private, no-store` | response | every answer is one caller's, because it is the intersection of the URL with that caller's grants; a shared cache may not store it. A document the gateway wants revalidated instead of re-read carries `private, no-cache` with a strong `ETag` ([EP-51](../Requirements/endpoints.md), [R9](../Requirements/access-control.md)) |
-| `Vary: Authorization, Accept, Accept-Language, NGSILD-Results-Restricted` | response | what the answer differs by, so a cache keyed on the URL alone cannot mix two callers ([R9](../Requirements/access-control.md)). `Accept-Language` is among them because a `LanguageProperty` is flattened to the caller's own language in a GeoJSON feature (§6) and in the OGC landing page ([EP-37](../Requirements/endpoints.md), [EP-32](../Requirements/endpoints.md)) |
+| `Vary: Authorization, Accept, Accept-Language, NGSILD-Results-Restricted, Accept-Encoding` | response | what the answer differs by, so a cache keyed on the URL alone cannot mix two callers ([R9](../Requirements/access-control.md)). `Accept-Language` is among them because a `LanguageProperty` is flattened to the caller's own language in a GeoJSON feature (§6) and in the OGC landing page ([EP-37](../Requirements/endpoints.md), [EP-32](../Requirements/endpoints.md)); `Accept-Encoding` because the answer is gzip or br when asked ([API/00 §7](00-intro.md#7-response-compression), [EP-166](../Requirements/endpoints.md)) |
 | `X-Userinfo`, `X-Access-Token`, `X-Allowed-Scope-Ids`, `X-Endpoint-Slug`, `X-Consumer-Identity` | request | identity, established from the verified token only |
 
 The signal is asked for rather than volunteered because it tells a caller that something was
@@ -707,9 +710,12 @@ A prohibition covering the action ends it, whatever any permission says, and ans
 
 `resource.properties.attribute` (optional, one short name or IRI) narrows the question to one
 Attribute of `resource.type` (T-5527). A permission covers the Attribute when a selector covering
-the type lists it, or lists no Attribute (the whole Entity). A prohibition refuses its whole type,
-whichever Attributes it lists, because the engine refuses a real read or write of that type the same
-way; the answer never grants a cell the real request refuses. A write of the access-control
+the type lists it, or lists no Attribute (the whole Entity). A prohibition entry naming no Attribute
+refuses its whole type. An entry naming `propertyNames` or `relationshipNames` takes back only those
+Attributes (T-5842, as the gateway PDP since T-5586): the engine serves a read without them, so a
+`q` or `attrs` naming one selects nothing, and refuses whole a write touching one (a replace or
+upsert also counts the Attributes the stored Entity holds, a delete of the Entity all of them). The
+answer follows the engine and never grants a cell the real request refuses. A write of the access-control
 vocabulary ([GW29](../Requirements/gateway-firewall.md)) is never granted. Without `attribute` the
 check answers as before.
 

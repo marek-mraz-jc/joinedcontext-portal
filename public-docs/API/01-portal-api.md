@@ -880,6 +880,23 @@ A run is named by its due time, `2026-10-17T05:00:00Z`, and its log files every 
 
 The run waits its turn in its lane, so runs started for 97 pipelines go one after another. A second `POST` while the run waits answers the same run. A pipeline whose run is in the runner answers `409` and names that run. A pipeline that waits for pushes, and so always runs, answers `409` too, as does one the reconciler has not deployed. A caller without propose and approve on Pipeline gets `403`, and one who may not read the pipeline gets `404`. Each accepted `POST` writes one `pipeline.run` activity event with the actor, the run and `object: pipelines/{name}`.
 
+### 7c-2. Latest runs (PL-62, T-5818)
+
+```text
+GET  /api/v1/projects/{project}/pipeline-runs    the newest run of each pipeline the caller reads (read on Pipeline)
+```
+
+The pipelines list reads every row's last run with this one request, whatever the row count. One item per pipeline that ran, by name; a pipeline that never ran is absent. `run` has the fields of `GET .../pipelines/{name}/runs`:
+
+```json
+{ "items": [
+  { "pipeline": "podujatia-detva",
+    "run": { "run": "2026-10-26T06:00:00Z", "firstAt": "2026-10-26T06:00:00Z", "lastAt": "2026-10-26T06:00:04Z", "sent": 64, "rejected": 0, "failed": 0 } }
+] }
+```
+
+Each pipeline is filtered by read on Pipeline in the project or in the space its target Endpoint writes. A caller who cannot read the project gets `404`; one who reads no pipeline of it gets `403`; a run store that does not answer gives `503`.
+
 ### 7d. Source health (PL-62, T-5048)
 
 ```text
@@ -4050,7 +4067,7 @@ GET  /api/v1/projects/{project}/mqttbrokers/{name}/watch?account=&since=   → 2
   given, newest first, each `{at, reason, account}`; the account's connected clients and the
   broker's messages per second as §44 measures them. `reason` is one of `no_token`, `expired`,
   `wrong_audience`, `invalid_token`, `wrong_client`, `unknown_account`, `other_project`,
-  `no_role`, `no_subscription`, `no_realm`. `refusalsRead: false` with `reason` when the gateway
+  `no_role`, `no_subscription`, `source_address` (the address is outside `allowedSources`, PF-129), `no_realm`. `refusalsRead: false` with `reason` when the gateway
   did not answer; a refusal is never invented and an empty list then means "unknown".
 - The gateway counts each refusal of a broker the repository declares as
   `jc_mqtt_auth_refused_total{broker,reason}` and keeps the newest 50 per broker in memory: the

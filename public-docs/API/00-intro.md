@@ -147,6 +147,35 @@ Server-Timing: pdp;dur=0.000, broker;dur=11.420, total;dur=12.910
 
 Anonymous answers carry the header too. It tells a caller how long the gateway and the broker took, which the caller already measures from outside within a few milliseconds; it names no Policy and no rule.
 
+## 7. Response compression
+
+Send `Accept-Encoding: gzip` or `Accept-Encoding: br` and the gateway answers with that `Content-Encoding`; `Vary` names `Accept-Encoding` on every answer ([API/02](02-endpoint-representations.md)) (EP-166, T-5847). When the request accepts both, the answer is `br`, whatever their `q` values. An NGSI-LD page repeats its attribute names in every entity, so it packs well: a page of 100 `KeyPerformanceIndicator` entities of 75 427 bytes is 1 224 bytes in br and 2 612 bytes in gzip.
+
+The levels are the best size per CPU second measured on real answers (T-5849): brotli quality 2 and gzip level 1, the same in every environment. On the 421 758-byte page of 575 Helsinki `BikeHireDockingStation` entities, with the gateway's own codecs on one core:
+
+| Codec | Bytes | Time |
+|---|---|---|
+| gzip 1 (served) | 26 462 | 0.57 ms |
+| gzip 6 | 20 205 | 2.81 ms |
+| br 2 (served) | 20 444 | 1.05 ms |
+| br 4 | 19 626 | 1.36 ms |
+
+```bash
+curl -s --compressed "https://api.{domain}/api/endpoint/{slug}/ngsi-ld/v1/entities?type=KeyPerformanceIndicator&limit=100"
+```
+
+These answers stay plain whatever the request asks:
+
+| Answer | Why |
+|---|---|
+| a body of known size under 1 024 bytes | it would save under 700 bytes for the CPU of a whole compression |
+| `text/event-stream`, `image/*`, gRPC | a stream must flush per event; images are compressed already |
+| a WebSocket upgrade | the frames are not compressed either ([API/07](07-websocket.md)) |
+| an answer that already has `Content-Encoding` or `Content-Range` | never packed twice, never a partial range |
+| the OAuth answers (`/oauth/register`, `/oauth/token`, `/oauth/authorize`, the authorization server metadata) | a secret never shares a compressed length with text the request sent (BREACH); data answers are safe because the gateway reads a bearer header and never a cookie a third-party page could make a browser send |
+
+Request bodies are read as sent: a body with `Content-Encoding: gzip` is refused with `400`, never unpacked past the 4 MiB body bound. A client that wants plain bytes omits the header.
+
 ## Related
 
 - [R5](../Requirements/access-control.md) — referenced above.
