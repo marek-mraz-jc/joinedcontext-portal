@@ -456,6 +456,7 @@ pub async fn change_manifests_for(
             remaining_item_count: None,
         },
         items,
+        next_cursor: None,
     })
 }
 

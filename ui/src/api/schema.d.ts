@@ -10245,6 +10245,8 @@ export interface components {
             items: components["schemas"]["ResourceEnvelope"][];
             kind: string;
             metadata: components["schemas"]["ListMeta"];
+            /** @description The `cursor` of the next page; absent on the last one (API/13 section 2). */
+            nextCursor?: string | null;
         };
         /**
          * @description What a proposal of one resource sends: the manifest, and beside it the draft the form holds
@@ -26581,6 +26583,8 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
+                    /** @description AIP-160 subset over manifest fields, as the REST list takes it, e.g. labels.team = "air" AND spec.schedule:* */
+                    filter?: string;
                     /** @description The manifest kind, e.g. Pipeline */
                     kind: string;
                     /** @description Only the resources of this context space */
@@ -33517,6 +33521,12 @@ export interface operations {
     list: {
         parameters: {
             query?: {
+                /** @description AIP-160 subset over manifest fields, e.g. labels.team = "air" AND spec.schedule:* */
+                filter?: string;
+                /** @description One field, optionally followed by desc; default metadata.name */
+                orderBy?: string;
+                /** @description The nextCursor of the previous page */
+                cursor?: string;
                 /** @description Label selector */
                 labelSelector?: string;
                 /** @description Field selector */
@@ -33550,7 +33560,7 @@ export interface operations {
                     "application/json": components["schemas"]["ResourceList"];
                 };
             };
-            /** @description A bad selector or limit, a revision that is not a commit id, or one beside a workspace */
+            /** @description A bad filter, orderBy, cursor, selector or limit, a revision that is not a commit id, or one beside a workspace */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -33704,7 +33714,10 @@ export interface operations {
                 /** @description Read the project as it stood at this commit id (MF-11) */
                 revision?: string;
             };
-            header?: never;
+            header?: {
+                /** @description An ETag of an earlier read: 304 when the manifest is unchanged */
+                "If-None-Match"?: string | null;
+            };
             path: {
                 /** @description Project name */
                 project: string;
@@ -33717,7 +33730,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Resource envelope */
+            /** @description Resource envelope, with its strong ETag */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -33725,6 +33738,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ResourceEnvelope"];
                 };
+            };
+            /** @description Unchanged since the ETag sent in If-None-Match */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description A revision that is not a commit id, or one beside a workspace */
             400: {
@@ -33763,7 +33783,10 @@ export interface operations {
                 /** @description The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39) */
                 confirm?: string;
             };
-            header?: never;
+            header?: {
+                /** @description The ETag of the manifest as read; a stale one is 412 and opens no Change (API/13 section 3) */
+                "If-Match"?: string | null;
+            };
             path: {
                 /** @description Project name */
                 project: string;
@@ -33854,6 +33877,15 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description If-Match is not the manifest's current ETag, which the answer carries */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Unsupported media type */
             415: {
                 headers: {
@@ -33882,7 +33914,10 @@ export interface operations {
                 /** @description The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39) */
                 confirm?: string;
             };
-            header?: never;
+            header?: {
+                /** @description The ETag of the manifest as read; a stale one is 412 and opens no Change (API/13 section 3) */
+                "If-Match"?: string | null;
+            };
             path: {
                 /** @description Project name */
                 project: string;
@@ -33958,6 +33993,15 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description If-Match is not the manifest's current ETag, which the answer carries */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Git forge unavailable */
             503: {
                 headers: {
@@ -33977,7 +34021,10 @@ export interface operations {
                 /** @description The resource's name typed back: an administrator's own red-lane change is approved as it is proposed only with it (PF-58, CC-39) */
                 confirm?: string;
             };
-            header?: never;
+            header?: {
+                /** @description The ETag of the manifest as read; a stale one is 412 and opens no Change (API/13 section 3) */
+                "If-Match"?: string | null;
+            };
             path: {
                 /** @description Project name */
                 project: string;
@@ -34049,6 +34096,15 @@ export interface operations {
             };
             /** @description Not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description If-Match is not the manifest's current ETag, which the answer carries */
+            412: {
                 headers: {
                     [name: string]: unknown;
                 };
