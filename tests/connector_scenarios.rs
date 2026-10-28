@@ -48,7 +48,8 @@ const CONNECTOR_TASKS: &[&str] = &[
     "T-5946", "T-5948", "T-5949", "T-5950", "T-5951", "T-5952", "T-5953", "T-5954", "T-5955",
     "T-5956", "T-5957", "T-5958", "T-5959", "T-5960", "T-5961", "T-5962", "T-5964", "T-5965",
     "T-5966", "T-5967", "T-5968", "T-5969", "T-5970", "T-5971", "T-5972", "T-5973", "T-5974",
-    "T-5975", "T-5976", "T-5977", "T-5978", "T-5979", "T-5980",
+    "T-5975", "T-5976", "T-5977", "T-5978", "T-5979", "T-5980", "T-5994", "T-5995", "T-5996",
+    "T-5997", "T-5998",
 ];
 /// The kinds a persona's role names; `kinds: ["*"]` would match only the `*` kind.
 const KINDS: &[&str] = &[
@@ -130,6 +131,14 @@ struct Step {
     /// a merged RoleBinding change leaves it.
     #[serde(default)]
     unbind: Option<String>,
+    /// A member of the answer's `structuredContent` the later steps read as `{member}`, e.g.
+    /// `planId` for the apply after a plan (T-5956).
+    #[serde(default)]
+    keep: Option<String>,
+    /// A fixture change instead of a request: `Kind/name` of the step's project is edited
+    /// behind the connector's back, as another person's merged change leaves it.
+    #[serde(default)]
+    touch: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -331,6 +340,63 @@ async fn forge(server: &MockServer) {
             .mount(server)
             .await;
     }
+    // A change an apply opens: a branch, one commit of its files, a merge request (T-5956).
+    Mock::given(method("POST"))
+        .and(path(format!("{REPO}/branches")))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+        .mount(server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REPO}/contents")))
+        .respond_with(
+            ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "commit-1" } })),
+        )
+        .mount(server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REPO}/pulls")))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+            "number": 77, "html_url": "https://gitea.example.sk/pulls/77", "state": "open",
+            "mergeable": true, "merged": false
+        })))
+        .mount(server)
+        .await;
+    for verb in ["PUT", "POST", "DELETE"] {
+        Mock::given(method(verb))
+            .and(wiremock::matchers::path_regex(format!(
+                "^{REPO}/contents/.*"
+            )))
+            .respond_with(
+                ResponseTemplate::new(201)
+                    .set_body_json(json!({ "commit": { "sha": "commit-1" } })),
+            )
+            .mount(server)
+            .await;
+    }
+    for (route, body) in [
+        ("git/trees", json!({ "tree": [], "truncated": false })),
+        (
+            "branches",
+            json!({ "name": "main", "commit": { "id": "commit-0" } }),
+        ),
+    ] {
+        Mock::given(method("GET"))
+            .and(wiremock::matchers::path_regex(format!(
+                "^{REPO}/{route}/.*"
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(body))
+            .with_priority(9)
+            .mount(server)
+            .await;
+    }
+    Mock::given(method("GET"))
+        .and(wiremock::matchers::path_regex(format!(
+            "^{REPO}/contents/.*"
+        )))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({ "message": "not found" })))
+        .with_priority(9)
+        .mount(server)
+        .await;
 }
 
 struct Harness {
@@ -340,6 +406,8 @@ struct Harness {
     mirror: std::sync::Arc<Mirror>,
     /// The connector the running scenario created last.
     connector: std::sync::Mutex<Option<String>>,
+    /// What `keep` steps remembered, by member name.
+    kept: std::sync::Mutex<BTreeMap<String, String>>,
 }
 
 impl Harness {
@@ -426,6 +494,7 @@ impl Harness {
             signer,
             mirror,
             connector: std::sync::Mutex::default(),
+            kept: std::sync::Mutex::default(),
         }
     }
 
@@ -526,11 +595,32 @@ impl Harness {
             .clone()
             .unwrap_or_default();
         let in7days = (chrono::Utc::now() + chrono::Duration::days(7)).to_rfc3339();
+        let kept = self.kept.lock().unwrap_or_else(|p| p.into_inner()).clone();
         let fill = |text: &str| {
-            text.replace("{project}", project)
+            let mut text = text
+                .replace("{project}", project)
                 .replace("{connector}", &connector)
-                .replace("{in7days}", &in7days)
+                .replace("{in7days}", &in7days);
+            for (member, value) in &kept {
+                text = text.replace(&format!("{{{member}}}"), value);
+            }
+            text
         };
+        if let Some(target) = &step.touch {
+            let (kind, name) = target
+                .split_once('/')
+                .ok_or_else(|| format!("touch `{target}` is not Kind/name"))?;
+            let mut envelope = self
+                .mirror
+                .get(project, kind, &fill(name))
+                .ok_or_else(|| format!("touch: no {target} in {project}"))?;
+            envelope
+                .metadata
+                .labels
+                .insert("edited-by".to_owned(), "another-person".to_owned());
+            self.mirror.upsert(envelope);
+            return Ok(());
+        }
         if let Some(who) = &step.unbind {
             let key = ResourceKey {
                 namespace: ORG_NAMESPACE.to_owned(),
@@ -603,6 +693,15 @@ impl Harness {
             }
             other => return Err(format!("the door answered {other}: {answer}")),
         };
+        if let Some(member) = &step.keep {
+            let value = answer["result"]["structuredContent"][member.as_str()]
+                .as_str()
+                .ok_or_else(|| format!("keep: no {member} in {answer}"))?;
+            self.kept
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .insert(member.clone(), value.to_owned());
+        }
         let what = step.call.as_deref().unwrap_or("tools/list");
         // A tools/list step judges tool names, a call the whole answer.
         let text = if step.call.is_none() && !refused {
@@ -970,4 +1069,61 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
         (status, mine["items"].as_array().map(Vec::len)),
         (StatusCode::OK, Some(2))
     );
+}
+
+/// T-5956, AG-149: an apply takes only its own plan, once, with the base it was planned on; and it
+/// opens a change request a person approves, never an approval.
+#[tokio::test]
+async fn an_apply_takes_only_its_own_unchanged_plan_and_never_approves() {
+    let harness = Harness::start(1).await;
+    let own = project_of(1);
+    let scenario = |script: Value| -> Scenario {
+        serde_json::from_value(json!({
+            "id": "S-00", "segment": "context", "as": "steward", "says": "selftest",
+            "expect": "selftest", "deny": "selftest", "script": script
+        }))
+        .expect("scenario")
+    };
+    let plan = json!({ "proves": "expect", "call": "jc_change_plan", "keep": "planId",
+        "args": { "changes": [{ "op": "patch", "kind": "ContextSpace", "name": "doprava",
+                                "patch": { "spec": { "isSandbox": false } } }] },
+        "contains": ["\"planId\"", "spec.isSandbox"] });
+    let apply = |extra: Value| {
+        let mut step = json!({ "proves": "deny", "call": "jc_change_apply",
+                               "args": { "planId": "{planId}" } });
+        for (k, v) in extra.as_object().expect("object") {
+            step[k] = v.clone();
+        }
+        step
+    };
+    // The base moved between plan and apply: 409, nothing opened.
+    let moved = json!([
+        plan,
+        { "proves": "deny", "touch": "ContextSpace/doprava" },
+        apply(json!({ "refused": true, "contains": ["\"status\":409", "ContextSpace doprava changed"] }))
+    ]);
+    assert_eq!(harness.run(&scenario(moved), &own).await, Ok(()));
+    // Planned by the steward, applied by another person: not there for them, and still there
+    // for the steward, who applies it once.
+    let other = json!([
+        plan,
+        apply(json!({ "as": "project-admin", "refused": true, "contains": ["is not there"] })),
+        apply(
+            json!({ "proves": "expect", "contains": ["changeRequests", "pulls/77"],
+                      "absent": ["\"merged\"", "\"phase\":\"approved\""] })
+        ),
+        apply(json!({ "refused": true, "contains": ["is not there"] }))
+    ]);
+    assert_eq!(harness.run(&scenario(other), &own).await, Ok(()));
+    // A plan for another project's object is refused before any check runs.
+    let elsewhere = json!([
+        { "proves": "expect", "call": "jc_change_plan", "project": "other", "refused": true,
+          "args": { "changes": [{ "op": "patch", "kind": "ContextSpace", "name": "doprava",
+                                  "patch": { "spec": { "isSandbox": false } } }] } },
+        { "proves": "deny", "call": "jc_change_plan", "refused": true,
+          "args": { "changes": [{ "op": "create", "kind": "ContextSpace", "name": "doprava",
+                                  "manifest": { "kind": "ContextSpace" } }] },
+          "contains": ["/changes/0/op"] }
+    ]);
+    assert_eq!(harness.run(&scenario(elsewhere), &own).await, Ok(()));
 }

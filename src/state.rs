@@ -90,6 +90,8 @@ pub struct AppState {
     pub feedback: Arc<crate::feedback::FeedbackStore>,
     /// People's connectors and their audit (AG-142, AG-147).
     pub connectors: Arc<crate::connectors::ConnectorStore>,
+    /// Plans waiting for their apply (AG-149, T-5956).
+    pub plans: Arc<crate::ops::plans::PlanStore>,
     /// The alerts people chose, their incidents and notices (API/01 §37, T-3261).
     pub alerts: Arc<crate::alerts::AlertStore>,
     /// The health log of every project's resources (T-5067).
@@ -223,6 +225,7 @@ impl AppState {
             comments: Arc::new(crate::entity_comments::CommentStore::new(None)),
             feedback: Arc::new(crate::feedback::FeedbackStore::new(None)),
             connectors: Arc::new(crate::connectors::ConnectorStore::new(None)),
+            plans: Arc::default(),
             alerts: Arc::new(crate::alerts::AlertStore::new(None)),
             health_log: Arc::new(crate::health_log::HealthStore::new(None)),
             link_check: Arc::new(crate::link_check::LinkStore::new(None)),
