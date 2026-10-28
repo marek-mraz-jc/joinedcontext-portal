@@ -22738,6 +22738,11 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
+                  "filter": {
+                    "description": "AIP-160 subset over manifest fields, as the REST list takes it, e.g. labels.team = \"air\" AND spec.schedule:*",
+                    "maxLength": 2000,
+                    "type": "string"
+                  },
                   "kind": {
                     "description": "The manifest kind, e.g. Pipeline",
                     "maxLength": 128,
@@ -33162,6 +33167,33 @@
             }
           },
           {
+            "name": "filter",
+            "in": "query",
+            "description": "AIP-160 subset over manifest fields, e.g. labels.team = \"air\" AND spec.schedule:*",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "orderBy",
+            "in": "query",
+            "description": "One field, optionally followed by desc; default metadata.name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "The nextCursor of the previous page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "labelSelector",
             "in": "query",
             "description": "Label selector",
@@ -33229,7 +33261,7 @@
             }
           },
           "400": {
-            "description": "A bad selector or limit, a revision that is not a commit id, or one beside a workspace",
+            "description": "A bad filter, orderBy, cursor, selector or limit, a revision that is not a commit id, or one beside a workspace",
             "content": {
               "application/json": {
                 "schema": {
@@ -33470,11 +33502,23 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "description": "An ETag of an earlier read: 304 when the manifest is unchanged",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Resource envelope",
+            "description": "Resource envelope, with its strong ETag",
             "content": {
               "application/json": {
                 "schema": {
@@ -33482,6 +33526,9 @@
                 }
               }
             }
+          },
+          "304": {
+            "description": "Unchanged since the ETag sent in If-None-Match"
           },
           "400": {
             "description": "A revision that is not a commit id, or one beside a workspace",
@@ -33566,6 +33613,18 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag of the manifest as read; a stale one is 412 and opens no Change (API/13 section 3)",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         ],
@@ -33658,6 +33717,16 @@
               }
             }
           },
+          "412": {
+            "description": "If-Match is not the manifest's current ETag, which the answer carries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "415": {
             "description": "Unsupported media type",
             "content": {
@@ -33732,6 +33801,18 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag of the manifest as read; a stale one is 412 and opens no Change (API/13 section 3)",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
@@ -33805,6 +33886,16 @@
               }
             }
           },
+          "412": {
+            "description": "If-Match is not the manifest's current ETag, which the answer carries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "503": {
             "description": "Git forge unavailable",
             "content": {
@@ -33868,6 +33959,18 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The ETag of the manifest as read; a stale one is 412 and opens no Change (API/13 section 3)",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         ],
@@ -33940,6 +34043,16 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "If-Match is not the manifest's current ETag, which the answer carries",
             "content": {
               "application/json": {
                 "schema": {
@@ -45819,6 +45932,13 @@
           },
           "metadata": {
             "$ref": "#/components/schemas/ListMeta"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `cursor` of the next page; absent on the last one (API/13 section 2)."
           }
         }
       },
