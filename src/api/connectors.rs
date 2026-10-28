@@ -48,7 +48,7 @@ pub struct CreateParams {
     pub dry_run: Option<String>,
 }
 
-fn base(state: &AppState) -> String {
+pub(crate) fn base(state: &AppState) -> String {
     state
         .config
         .public_base_url

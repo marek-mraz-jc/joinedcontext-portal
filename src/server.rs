@@ -326,6 +326,8 @@ pub async fn serve(config: Config) -> std::io::Result<()> {
     if state.config.agent_settings.is_some() {
         crate::agents::reaper::spawn_periodic(state.clone());
     }
+    // The old personal connectors join the connector store once the mirror is in (T-5970).
+    tokio::spawn(crate::personal_connectors::move_when_ready(state.clone()));
 
     // The internal listener runs beside the public one, on the same replica, whenever this Portal
     // verifies tokens: every route on it answers a workload token of the realm and nothing else,
