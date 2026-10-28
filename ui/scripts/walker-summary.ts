@@ -88,7 +88,7 @@ function keyOf(rule: string, route: string, label: string): string {
 export function summarise(
   walks: Partial<Record<(typeof PEOPLE)[number], WalkEntry[]>>,
   run: string,
-  options: { previous?: WalkerSummary; merged?: string[] } = {},
+  options: { previous?: WalkerSummary; merged?: string[]; logs?: Partial<Record<(typeof PEOPLE)[number], string>> } = {},
 ): WalkerSummary {
   const found = new Map<string, { rule: string; route: string; label: string; seen: string[]; evidence: string; samples: string[] }>();
   const walked = new Set<string>();
@@ -97,7 +97,7 @@ export function summarise(
     const entries = walks[who];
     // No report at all: the walk itself did not run (sign-in, the Portal down, the time cap).
     if (entries === undefined || entries.length === 0) {
-      results.push({ key: `run ${who}`, verdict: "error", title: `Walker: the ${who}'s walk of dev wrote no report`, detail: "See the run log beside the evidence." });
+      results.push({ key: `run ${who}`, verdict: "error", title: `Walker: the ${who}'s walk of dev wrote no report`, detail: walkError(options.logs?.[who]) });
       continue;
     }
     results.push({ key: `run ${who}`, verdict: "pass", title: `Walker: the ${who}'s walk` });
@@ -141,6 +141,18 @@ export function summarise(
   return { check: "walker", repo: "joinedcontext-portal", run, requirements: ["UI-01", "UI-16"], admitted: ADMITTED, results };
 }
 
+/**
+ * Why a walk wrote no report, from its log's first Playwright error (T-5993: the filed task said only
+ * "See the run log", and the log was gone by the time a worker read it). A crashed tab is Chromium's
+ * renderer killed by the host's OOM killer, not a Portal page: the hint says where to look.
+ */
+export function walkError(log: string | undefined): string {
+  const error = log?.split("\n").find((line) => /^\s*Error: /.test(line))?.trim().slice(0, 300);
+  if (!error) return "See the run log beside the evidence.";
+  const crashed = /crashed/i.test(error) ? " A crashed tab is Chromium's renderer killed under host memory pressure (oom_kill in memory.events): compare with the host's free memory at the run's time before judging a page." : "";
+  return `${error}${crashed}`;
+}
+
 function read(path: string): WalkEntry[] | undefined {
   if (!existsSync(path)) return undefined;
   return JSON.parse(readFileSync(path, "utf8")) as WalkEntry[];
@@ -161,7 +173,8 @@ export function main(argv: string[]): number {
   const previous = previousPath && existsSync(previousPath) ? (JSON.parse(readFileSync(previousPath, "utf8")) as WalkerSummary) : undefined;
   const merged = (flag("--merged") ?? "").split(",").filter((id) => /^T-\d{4,5}$/.test(id));
   const walks = Object.fromEntries(PEOPLE.map((who) => [who, read(join(dir, `walker-${who}.json`))]));
-  process.stdout.write(`${JSON.stringify(summarise(walks, run, { previous, merged }), null, 2)}\n`);
+  const logs = Object.fromEntries(PEOPLE.map((who) => [who, existsSync(join(dir, `walk-${who}.log`)) ? readFileSync(join(dir, `walk-${who}.log`), "utf8") : undefined]));
+  process.stdout.write(`${JSON.stringify(summarise(walks, run, { previous, merged, logs }), null, 2)}\n`);
   return 0;
 }
 
