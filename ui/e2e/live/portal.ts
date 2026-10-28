@@ -314,6 +314,10 @@ function describeAnswer(answer: DocumentAnswer | undefined): string {
  * non-2xx, or a blank shell (`blankDocument`), is loaded once again after `againMs`: one load in a
  * rollout window made three a11y findings and three tasks on /organization/roles (T-5853..T-5855),
  * and the walker kept no status to name its cause. Either way it is one `document` finding.
+ * A load whose every /api read answered 5xx (two reads or more: the Portal, not one route, did not
+ * answer) is loaded once again too: fine then, it is one `api` finding instead of an `http` finding
+ * per read (nine tasks for one load on /projects/helsinki/settings/roles/new, T-5937); still 5xx,
+ * the `http` findings of the second load stand.
  */
 export async function openToWalk(
   page: Page,
@@ -323,10 +327,13 @@ export async function openToWalk(
   againMs = 5_000,
 ): Promise<Opened> {
   let last: Response | undefined;
+  let apis: number[] = [];
   const watch = (response: Response) => {
     const request = response.request();
     if (request.isNavigationRequest() && request.frame() === page.mainFrame()) last = response;
+    if (new URL(response.url()).pathname.startsWith("/api/")) apis.push(response.status());
   };
+  const unreachable = () => apis.length > 1 && apis.every((status) => status >= 500);
   const answer = async (): Promise<DocumentAnswer | undefined> => {
     if (!last) return undefined;
     const body = await last.body().catch(() => Buffer.alloc(0));
@@ -338,14 +345,20 @@ export async function openToWalk(
   try {
     if (await openToJudge(page, address, retryMs, fresh)) return { edgeRefused: true, blank: false, document: [] };
     const first = await answer();
-    if (!(await bad(first))) return { edgeRefused: false, blank: false, document: [] };
-    const said = `document: the page answered ${describeAnswer(first)}`;
+    const documentBad = await bad(first);
+    if (!documentBad && !unreachable()) return { edgeRefused: false, blank: false, document: [] };
+    const said = documentBad
+      ? `document: the page answered ${describeAnswer(first)}`
+      : `api: all ${apis.length} /api reads answered ${[...new Set(apis)].join(", ")}`;
     await page.waitForTimeout(againMs);
     fresh();
     last = undefined;
+    apis = [];
     if (await openToJudge(page, address, retryMs, fresh)) return { edgeRefused: true, blank: false, document: [] };
     const second = await answer();
-    if (await bad(second)) {
+    const secondBad = await bad(second);
+    if (!documentBad && !secondBad) return { edgeRefused: false, blank: false, document: unreachable() ? [] : [`${said}; fine on retry`] };
+    if (secondBad) {
       return { edgeRefused: false, blank: true, document: [`${said}, and ${describeAnswer(second)} on the load again ${againMs / 1000} s later`] };
     }
     return { edgeRefused: false, blank: false, document: [`${said}; blank on first load, fine on retry`] };
