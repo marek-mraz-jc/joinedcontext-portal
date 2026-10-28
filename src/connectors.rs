@@ -151,6 +151,7 @@ pub fn of_conversation(run_id: &str, owner: &str, project: &str, segment: &str) 
             endpoint: None,
             pipeline: None,
             access: ItemAccess::Read,
+            personal_data: false,
         }],
         writes: false,
         expires_at: now + Duration::hours(1),
