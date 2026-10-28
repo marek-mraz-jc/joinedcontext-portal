@@ -161,11 +161,11 @@ fn answer(name: &str, function: &str, outcome: serde_json::Value) -> Response {
     }
     if let Some(error) = outcome.get("error").filter(|error| !error.is_null()) {
         tracing::warn!(app = %name, function = %function, %error, "function failed");
-        return (
+        return crate::error::problem_response(
+            serde_json::json!({ "error": error }),
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": error })),
-        )
-            .into_response();
+            "internal-error",
+        );
     }
     let status = outcome["status"]
         .as_u64()
