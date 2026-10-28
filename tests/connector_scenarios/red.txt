@@ -51,7 +51,6 @@ S-48 T-5954 no allowed-client binding per connector
 S-49 T-5955 no read-only connector token refused below the tools
 S-50 T-5950 no connector revoke and per-connector audit
 S-51 T-5971 no secretRef form link; a key pasted in chat is not refused by a plan tool
-S-52 T-5972 Portal tool results carry no untrusted-data fence; no apply_change to withhold
 S-53 T-5974 no revert plan tool
 S-54 T-5975 no connectors to revoke when a person is disabled
 S-55 T-5976 no personalData filter on a data-read connector
