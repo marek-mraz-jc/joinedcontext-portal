@@ -53,12 +53,12 @@ pub mod tasks;
 
 /// Calls one bearer subject may make in a minute (AG-60). Generous for a working agent, far
 /// under what a loop costs: the edge's 1200 a minute is shared with the whole REST API.
-const MAX_CALLS_PER_MINUTE: u32 = 120;
+const MAX_CALLS_PER_MINUTE: u32 = crate::connectors::PERSON_LIMITS.calls_per_minute;
 /// The largest request this route reads: a manifest, a draft or a bundle of arguments.
 const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 /// The largest answer it writes. A list that does not fit is narrowed by the caller, never
 /// streamed out of the Portal's memory in one piece.
-const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
+const MAX_RESPONSE_BYTES: usize = crate::connectors::PERSON_LIMITS.result_bytes;
 
 /// What a browser-based MCP client is allowed to do cross-origin (T-0971).
 ///
