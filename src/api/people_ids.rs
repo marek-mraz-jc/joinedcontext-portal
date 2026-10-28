@@ -148,6 +148,9 @@ pub struct MigrateQuery {
     /// `true` answers the plan and proposes nothing.
     #[serde(default)]
     pub dry_run: bool,
+    /// `true` (AIP-163) is `dryRun=true` under the name every write takes (T-5949).
+    #[serde(default, rename = "validate_only")]
+    pub validate_only: bool,
 }
 
 /// What the migration rewrites in one repository.
@@ -333,7 +336,7 @@ pub async fn name_by_id(
     let plan = plan(&state.mirror, &users);
     let mut repositories = Vec::with_capacity(plan.repositories.len());
     for (repository, manifests) in &plan.repositories {
-        let change = if query.dry_run {
+        let change = if query.dry_run || query.validate_only {
             None
         } else {
             Some(
@@ -615,7 +618,10 @@ mod tests {
             name_by_id(
                 caller,
                 State(state()),
-                Query(MigrateQuery { dry_run: true }),
+                Query(MigrateQuery {
+                    dry_run: true,
+                    validate_only: false,
+                }),
             )
         };
         let bearer = run(caller(
@@ -628,5 +634,15 @@ mod tests {
         assert!(matches!(nobody, Err(ApiError::Denied(_))), "{nobody:?}");
         let admin = run(caller(None, &["portal-approver"])).await;
         assert!(matches!(admin, Err(ApiError::Unavailable(_))), "{admin:?}");
+    }
+
+    /// `validate_only=true` is the plan alone, refused to a stranger before anything (T-5949).
+    #[tokio::test]
+    async fn validate_only_is_the_dry_run_and_refuses_the_same_callers() {
+        let uri: axum::http::Uri = "/people/ids?validate_only=true".parse().expect("uri");
+        let Query(query) = Query::<MigrateQuery>::try_from_uri(&uri).expect("the query parses");
+        assert!(query.validate_only && !query.dry_run);
+        let nobody = name_by_id(caller(None, &[]), State(state()), Query(query)).await;
+        assert!(matches!(nobody, Err(ApiError::Denied(_))), "{nobody:?}");
     }
 }

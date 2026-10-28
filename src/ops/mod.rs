@@ -46,7 +46,6 @@ pub use verdict::*;
 
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use jc_core::kinds::Verb;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -206,12 +205,14 @@ impl IntoResponse for OpError {
     fn into_response(self) -> Response {
         match self {
             // The verdict gate's and the change's own documents travel whole (T-0956).
-            OpError::Conflict(val) => (
-                StatusCode::CONFLICT,
-                [(axum::http::header::CONTENT_TYPE, "application/json")],
-                Json(val),
-            )
-                .into_response(),
+            OpError::Conflict(val) => {
+                let slug = if val.get("error") == Some(&json!("verdict_required")) {
+                    "verdict-required"
+                } else {
+                    "conflict"
+                };
+                crate::error::problem_response(val, StatusCode::CONFLICT, slug)
+            }
             other => other.into_api_error().into_response(),
         }
     }

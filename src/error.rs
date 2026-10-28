@@ -89,6 +89,54 @@ pub fn hint_of(slug: &str) -> Option<String> {
         .map(|known| known.hint.to_owned())
 }
 
+/// A document a client reads by its own members (`error`, `check`, `reason`), made a problem
+/// document by adding the members it lacks (RFC 9457 §3.2 extension members), so every refusal
+/// is one of the catalogued types and its old readers still find what they read (T-5949).
+pub fn with_problem_members(
+    body: serde_json::Value,
+    status: StatusCode,
+    slug: &str,
+) -> serde_json::Value {
+    let mut document = match body {
+        serde_json::Value::Object(map) => map,
+        other => {
+            let mut map = serde_json::Map::new();
+            map.insert("error".to_owned(), other);
+            map
+        }
+    };
+    let known = jc_core::error::problem_type(slug)
+        .or_else(|| PORTAL_PROBLEM_TYPES.iter().find(|known| known.slug == slug));
+    let defaults = [
+        (
+            "type",
+            serde_json::json!(format!("https://joinedcontext.com/errors/{slug}")),
+        ),
+        (
+            "title",
+            serde_json::json!(known.map_or("Error", |known| known.title)),
+        ),
+        ("status", serde_json::json!(status.as_u16())),
+        ("hint", serde_json::json!(known.map(|known| known.hint))),
+    ];
+    for (member, value) in defaults {
+        if !value.is_null() {
+            document.entry(member).or_insert(value);
+        }
+    }
+    serde_json::Value::Object(document)
+}
+
+/// The problem answer of [`with_problem_members`].
+pub fn problem_response(body: serde_json::Value, status: StatusCode, slug: &str) -> Response {
+    (
+        status,
+        [(header::CONTENT_TYPE, "application/problem+json")],
+        axum::Json(with_problem_members(body, status, slug)),
+    )
+        .into_response()
+}
+
 /// Portal API error variants conforming to RFC 7807.
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
@@ -154,7 +202,13 @@ impl ApiError {
     /// MCP tool error carries as its structured content, so both read alike (AG-146, T-5949).
     pub fn into_document(self) -> (StatusCode, &'static str, serde_json::Value) {
         let this = match self {
-            Self::VerdictRequired(body) => return (StatusCode::CONFLICT, "application/json", body),
+            Self::VerdictRequired(body) => {
+                return (
+                    StatusCode::CONFLICT,
+                    "application/problem+json",
+                    with_problem_members(body, StatusCode::CONFLICT, "verdict-required"),
+                )
+            }
             other => other,
         };
         let mut errors = None;
@@ -401,6 +455,29 @@ mod tests {
                 {"path": "spec.space", "message": "2 members are wrong"}
             ])
         );
+    }
+
+    #[test]
+    fn a_document_of_its_own_becomes_a_problem_and_keeps_its_members() {
+        let verdict = serde_json::json!({ "error": "verdict_required", "check": "jc_manifest_dry_run", "detail": "check it" });
+        let (status, content_type, body) = ApiError::VerdictRequired(verdict).into_document();
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(content_type, "application/problem+json");
+        assert_eq!(
+            body["type"],
+            "https://joinedcontext.com/errors/verdict-required"
+        );
+        assert_eq!(body["status"], 409);
+        assert_eq!(body["error"], "verdict_required");
+        assert_eq!(body["check"], "jc_manifest_dry_run");
+        assert_eq!(body["detail"], "check it", "its own detail stays");
+        let failed = with_problem_members(
+            serde_json::json!({ "error": { "message": "boom" } }),
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal-error",
+        );
+        assert_eq!(failed["title"], "Internal Server Error");
+        assert_eq!(failed["error"]["message"], "boom");
     }
 
     #[tokio::test]
