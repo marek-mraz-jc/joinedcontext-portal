@@ -21,6 +21,7 @@ pub mod feed_shape;
 pub mod people;
 pub mod pipeline_steps;
 pub mod pipeline_templates;
+pub mod plans;
 pub mod previews;
 pub mod proposals;
 pub mod resources;
@@ -765,6 +766,7 @@ fn init_registry() -> Vec<Operation> {
     operations.extend(workspaces::operations());
     operations.extend(people::operations());
     operations.extend(schemas::operations());
+    operations.extend(plans::operations());
     operations
 }
 

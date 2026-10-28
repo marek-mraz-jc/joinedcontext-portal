@@ -17,6 +17,9 @@ use crate::state::AppState;
 pub struct Access {
     /// `None` when the profile has no access block: operations annotated read-only, nothing else.
     declared: Option<Declared>,
+    /// The connector this call comes through (AG-143): `jc_change_plan` and `jc_change_apply`
+    /// hold each change to its scope and its `writes` switch (AG-149, T-5956).
+    connector: Option<Box<crate::connectors::Connector>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,7 +70,19 @@ impl Access {
                 kinds: grants("kinds", "kind"),
                 endpoints: grants("endpoints", "name"),
             }),
+            connector: None,
         }
+    }
+
+    /// This narrowing, for calls through `connector`.
+    pub fn through(mut self, connector: crate::connectors::Connector) -> Self {
+        self.connector = Some(Box::new(connector));
+        self
+    }
+
+    /// The connector a call comes through, if it comes through one.
+    pub fn connector(&self) -> Option<&crate::connectors::Connector> {
+        self.connector.as_deref()
     }
 
     /// The profile's half. Without an access block: an operation annotated read-only. With one:
