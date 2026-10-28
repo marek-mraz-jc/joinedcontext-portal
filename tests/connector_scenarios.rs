@@ -34,6 +34,9 @@ use joinedcontext_portal::server;
 use joinedcontext_portal::state::AppState;
 use joinedcontext_portal::store::Mirror;
 
+#[path = "connector_scenarios/model.rs"]
+mod model;
+
 const CATALOGUE: &str = include_str!("connector_scenarios/scenarios.yaml");
 const RED: &str = include_str!("connector_scenarios/red.txt");
 const REALM_PATH: &str = "/realms/banskabystrica";
@@ -340,6 +343,8 @@ struct Harness {
     mirror: std::sync::Arc<Mirror>,
     /// The connector the running scenario created last.
     connector: std::sync::Mutex<Option<String>>,
+    /// The forge, CSV source and identity provider; the model lane counts the forge writes.
+    server: &'static MockServer,
 }
 
 impl Harness {
@@ -426,6 +431,7 @@ impl Harness {
             signer,
             mirror,
             connector: std::sync::Mutex::default(),
+            server,
         }
     }
 
