@@ -1511,6 +1511,48 @@
         }
       }
     },
+    "/api/v1/connectors/options": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "What My Connector May Reach",
+        "description": "The presets, the caller's ceiling and, per project the caller reads, the spaces, Endpoints and pipelines they read: what a new connector may name. Create checks every item again (T-5951, AG-150).",
+        "operationId": "connector_options",
+        "responses": {
+          "200": {
+            "description": "What a connector of the caller may name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorOptions"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A service account holds no connector",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors/{id}": {
       "get": {
         "tags": [
@@ -1606,6 +1648,106 @@
           },
           "404": {
             "description": "No live connector of the caller's with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Edit My Connector",
+        "description": "Changes the presets, scope, writes, expiry or allowed clients of the caller's connector that is not revoked; the result is checked as a new one is, against the ceiling and the caller's rights today (API/14 §2, T-5951).",
+        "operationId": "edit_connector",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The connector id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorPatch"
+              },
+              "example": {
+                "expiresAt": "2026-11-27T00:00:00Z",
+                "scope": [
+                  {
+                    "access": "read",
+                    "project": "doprava"
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The connector as it is now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorGrant"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field out of shape; errors names it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Above the ceiling, or a project the caller holds no right in; the detail names the field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No live connector of the caller's with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A scope item names an object the caller does not read",
             "content": {
               "application/json": {
                 "schema": {
@@ -37890,6 +38032,32 @@
           }
         }
       },
+      "CeilingView": {
+        "type": "object",
+        "required": [
+          "segments",
+          "writes",
+          "maxDays"
+        ],
+        "properties": {
+          "maxDays": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The longest life a connector may get, in days."
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The presets a connector of the caller may carry, e.g. `[\"data-read\"]`."
+          },
+          "writes": {
+            "type": "boolean",
+            "description": "Whether a connector of the caller may hold a write item."
+          }
+        }
+      },
       "Change": {
         "type": "object",
         "description": "The `Change` resource describing a proposed configuration update.",
@@ -38367,6 +38535,22 @@
           "version": {
             "type": "string",
             "description": "The version the space pins."
+          }
+        }
+      },
+      "ClientChoice": {
+        "type": "object",
+        "required": [
+          "id",
+          "isBoundary"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "isBoundary": {
+            "type": "boolean",
+            "description": "Whether naming it binds the connector (a published client id) or only says whom it is\nmeant for (a loopback client anyone can name, AG-153)."
           }
         }
       },
@@ -38851,6 +39035,89 @@
             }
           }
         }
+      },
+      "ConnectorOptions": {
+        "type": "object",
+        "description": "What the caller may put in a connector today: the ceiling, and per project they read the\nspaces, Endpoints and pipelines they read there (the \"My connectors\" tree, T-5951).",
+        "required": [
+          "segments",
+          "ceiling",
+          "projects",
+          "clients"
+        ],
+        "properties": {
+          "ceiling": {
+            "$ref": "#/components/schemas/CeilingView"
+          },
+          "clients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientChoice"
+            },
+            "description": "The realm's MCP clients a connector may be bound to, e.g. `mcp-local` (Claude Code)."
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectReach"
+            }
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Every preset a connector may name; those outside `ceiling.segments` need approval."
+          }
+        }
+      },
+      "ConnectorPatch": {
+        "type": "object",
+        "description": "The fields of a connector its owner may change (JSON merge patch, API/14 §2); the name stays.",
+        "properties": {
+          "allowedClients": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "RFC 3339, e.g. `2026-11-27T00:00:00Z`."
+          },
+          "scope": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ConnectorScopeItem"
+            }
+          },
+          "segments": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "writes": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
       },
       "ConnectorScopeItem": {
         "type": "object",
@@ -45119,6 +45386,39 @@
               "$ref": "#/components/schemas/QuotaUse"
             },
             "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ProjectReach": {
+        "type": "object",
+        "description": "One project the caller reads, with the objects of it they read, in name order.",
+        "required": [
+          "project",
+          "spaces",
+          "endpoints",
+          "pipelines"
+        ],
+        "properties": {
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "pipelines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "project": {
+            "type": "string"
+          },
+          "spaces": {
+            "type": "array",
+            "items": {
               "type": "string"
             }
           }
