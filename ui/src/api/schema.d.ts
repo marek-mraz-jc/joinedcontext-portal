@@ -471,6 +471,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Connectors
+         * @description The caller's connectors, newest first, revoked and expired ones included (API/14 §2).
+         */
+        get: operations["list_connectors"];
+        put?: never;
+        /**
+         * Create a Connector
+         * @description Creates a connector of the caller: an MCP server at `/c/{id}` reaching only its scope, with the caller's own rights read again at every call. At most 20 live connectors per person (AG-142, API/14 §2).
+         */
+        post: operations["create_connector"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connectors/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get My Connector */
+        get: operations["get_connector"];
+        put?: never;
+        post?: never;
+        /**
+         * Revoke My Connector
+         * @description The connector turns `revoked`; the next call through it is refused (AG-145).
+         */
+        delete: operations["revoke_connector"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connectors/{id}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Connector's Calls
+         * @description Every call through the connector, newest first, at most 200 of the last 30 days: person, client, tool, target, verdict, duration; never a token or an input value (AG-147).
+         */
+        get: operations["connector_activity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/endpoints": {
         parameters: {
             query?: never;
@@ -7560,6 +7625,67 @@ export interface components {
             name: string;
             select?: components["schemas"]["ConnectorSelect"];
         };
+        /** @enum {string} */
+        ConnectorAccess: "read" | "write";
+        /** @description One row of a connector's audit (AG-147). */
+        ConnectorCall: {
+            /** Format: date-time */
+            at: string;
+            client?: string | null;
+            /** Format: int32 */
+            durationMs: number;
+            /** @description The Keycloak subject of the token, the owner's unless the call was refused for it. */
+            subject: string;
+            /** @description `project/kind/name`, as far as the call names them. */
+            target?: string | null;
+            /** @description The tool, or the MCP method of a call that names none. */
+            tool: string;
+            /** @description `allowed`, `refused: <why>` or `error`. */
+            verdict: string;
+        };
+        ConnectorCalls: {
+            items: components["schemas"]["ConnectorCall"][];
+        };
+        /** @description A connector as its owner reads it (API/14 §1). */
+        ConnectorGrant: {
+            allowedClients: string[];
+            /**
+             * @description Whether the allowed clients bind the connector (claude.ai, ChatGPT) or only say whom it
+             *     is meant for (Claude Code, `mcp-local`): AG-153.
+             */
+            clientIsBoundary: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            id: string;
+            /** Format: date-time */
+            lastUsedAt?: string | null;
+            name: string;
+            owner: string;
+            scope: components["schemas"]["ConnectorScopeItem"][];
+            segments: string[];
+            /** @description `active`, `expired` or `revoked`. */
+            state: string;
+            /** @description The MCP address a client adds: `https://portal.{domain}/c/{id}`. */
+            url: string;
+            writes: boolean;
+        };
+        ConnectorList: {
+            items: components["schemas"]["ConnectorGrant"][];
+        };
+        /**
+         * @description One item of a connector's scope: a project, and at most one of a space, an Endpoint or a
+         *     pipeline in it (`*` for every one the owner reaches). Without one it is the whole project.
+         */
+        ConnectorScopeItem: {
+            access: components["schemas"]["ConnectorAccess"];
+            endpoint?: string | null;
+            pipeline?: string | null;
+            /** @description A project slug, e.g. `doprava`. */
+            project: string;
+            space?: string | null;
+        };
         /**
          * @description What a personal connector reaches: the McpServer selector fields (MF-55) and the person's
          *     favourite Endpoints. An Endpoint is selected when it matches every field given; the gateway
@@ -8860,6 +8986,22 @@ export interface components {
             project: string;
             scope: string;
             target: string;
+        };
+        /** @description What a person asks for when creating a connector (API/14 §1). */
+        NewConnector: {
+            /** @description OAuth client ids the connector answers, e.g. a CIMD URL `https://claude.ai/oauth/mcp-client-metadata`. */
+            allowedClients?: string[];
+            /**
+             * Format: date-time
+             * @description RFC 3339, e.g. `2026-11-27T00:00:00Z`.
+             */
+            expiresAt: string;
+            /** @description A DNS-1123 label unique among the person's connectors, e.g. `doprava-in-claude`. */
+            name: string;
+            scope: components["schemas"]["ConnectorScopeItem"][];
+            /** @description Presets, e.g. `["data-read"]`. */
+            segments: string[];
+            writes?: boolean;
         };
         /** @description The body a requester sends. */
         NewRequest: {
@@ -12004,6 +12146,274 @@ export interface operations {
                 };
             };
             /** @description No public Endpoint with this slug */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_connectors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's connectors */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorList"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A service account holds no connector */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    create_connector: {
+        parameters: {
+            query?: {
+                /** @description `All` validates only: nothing is kept. */
+                dryRun?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "allowedClients": [
+                 *         "https://claude.ai/oauth/mcp-client-metadata"
+                 *       ],
+                 *       "expiresAt": "2026-11-27T00:00:00Z",
+                 *       "name": "doprava-in-claude",
+                 *       "scope": [
+                 *         {
+                 *           "access": "read",
+                 *           "endpoint": "bike-counters",
+                 *           "project": "doprava"
+                 *         }
+                 *       ],
+                 *       "segments": [
+                 *         "data-read"
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["NewConnector"];
+            };
+        };
+        responses: {
+            /** @description dryRun=All: valid, nothing kept */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorGrant"];
+                };
+            };
+            /** @description A field out of shape; errors names it */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Above the organization's ceiling, or a project the caller holds no right in; the detail names the field */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A live connector of that name, or 20 live ones already */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A scope item names an object the project lacks */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_connector: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The connector id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The connector */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorGrant"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No connector of the caller's with this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    revoke_connector: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The connector id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Refused by the request guard */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No live connector of the caller's with this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    connector_activity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The connector id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The audit rows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorCalls"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No connector of the caller's with this id */
             404: {
                 headers: {
                     [name: string]: unknown;
