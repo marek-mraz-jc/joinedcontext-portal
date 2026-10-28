@@ -796,11 +796,6 @@ fn render() -> String {
     text
 }
 
-/// [`document_text`] as JSON.
-pub fn document() -> serde_json::Value {
-    serde_json::from_str(&document_text()).unwrap_or_default()
-}
-
 /// The OpenAPI path item of one operation, as JSON.
 pub fn operation_entry(op: &crate::ops::OperationSummary) -> serde_json::Value {
     let problem = |description: &str| {
@@ -950,7 +945,8 @@ mod tests {
     /// stays valid JSON with the generic door beside the entries.
     #[test]
     fn every_operation_has_its_entry_in_the_document() {
-        let doc = document();
+        let doc: serde_json::Value =
+            serde_json::from_str(&document_text()).expect("the document is JSON");
         let paths = doc["paths"].as_object().expect("paths");
         for op in crate::ops::registry() {
             let entry = &paths[&format!("/api/v1/projects/{{project}}/ops/{}", op.name)]["post"];

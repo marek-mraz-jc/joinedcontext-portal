@@ -49,6 +49,9 @@ pub struct SourcePutQuery {
     pub version: Option<String>,
     #[serde(default, rename = "dryRun")]
     pub dry_run: Option<String>,
+    /// `validate_only=true` (AIP-163): the same as `dryRun=All` (T-5949).
+    #[serde(default, rename = "validate_only")]
+    pub validate_only: Option<bool>,
     /// The space a model the project does not hold yet is created in (DM-57).
     pub space: Option<String>,
 }
@@ -859,7 +862,7 @@ pub async fn put_source(
         .dry_run
         .as_deref()
         .map(|s| s.eq_ignore_ascii_case("all") || s.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
+        .unwrap_or(query.validate_only == Some(true));
 
     let existing = state.mirror.get(&project, "DataModel", &name);
     let creating = existing.is_none();

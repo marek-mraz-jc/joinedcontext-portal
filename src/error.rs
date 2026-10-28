@@ -20,9 +20,46 @@ pub struct ProblemDetails {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hint: Option<String>,
     /// Every violation of one request, when there is more than one thing to say. A form marks
-    /// all its bad fields from this in one pass instead of one round trip per mistake (CC-24).
+    /// all its bad fields from this in one pass instead of one round trip per mistake (CC-24),
+    /// and a model corrects its input by `path` (AG-146, T-5949).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub errors: Option<Vec<String>>,
+    pub errors: Option<Vec<FieldError>>,
+}
+
+/// One violation: the member it is about and what is wrong with it (AG-146). `path` is the
+/// member's dotted path (`spec.history[1]`), or empty when the finding is about the whole request.
+#[derive(Debug, Clone, Serialize, serde::Deserialize, ToSchema, PartialEq, Eq)]
+pub struct FieldError {
+    pub path: String,
+    pub message: String,
+}
+
+impl FieldError {
+    /// A violation line as the Portal writes it inside: `path: message`, a bare `path` (the
+    /// problem's `detail` says what is wrong), or a sentence about the whole request.
+    pub fn from_line(line: &str, detail: Option<&str>) -> Self {
+        let is_path = |text: &str| {
+            !text.is_empty()
+                && text.chars().all(|c| {
+                    c.is_ascii_alphanumeric()
+                        || matches!(c, '_' | '.' | '[' | ']' | '-' | '/' | '$' | '@' | '*')
+                })
+        };
+        match line.split_once(": ") {
+            Some((path, message)) if is_path(path) && !message.trim().is_empty() => Self {
+                path: path.to_owned(),
+                message: message.to_owned(),
+            },
+            _ if is_path(line) => Self {
+                path: line.to_owned(),
+                message: detail.unwrap_or("this member is not accepted").to_owned(),
+            },
+            _ => Self {
+                path: String::new(),
+                message: line.to_owned(),
+            },
+        }
+    }
 }
 
 /// The problem types only the Portal writes (T-4485, API/09); every other `type` it answers with is
@@ -50,6 +87,57 @@ pub fn hint_of(slug: &str) -> Option<String> {
     jc_core::error::problem_type(slug)
         .or_else(|| PORTAL_PROBLEM_TYPES.iter().find(|known| known.slug == slug))
         .map(|known| known.hint.to_owned())
+}
+
+/// A document a client reads by its own members (`error`, `check`, `reason`), made a problem
+/// document by adding the members it lacks (RFC 9457 §3.2 extension members), so every refusal
+/// is one of the catalogued types and its old readers still find what they read (T-5949).
+pub fn with_problem_members(
+    body: serde_json::Value,
+    status: StatusCode,
+    slug: &str,
+) -> serde_json::Value {
+    let mut document = match body {
+        serde_json::Value::Object(map) => map,
+        other => {
+            let mut map = serde_json::Map::new();
+            map.insert("error".to_owned(), other);
+            map
+        }
+    };
+    let known = jc_core::error::problem_type(slug)
+        .or_else(|| PORTAL_PROBLEM_TYPES.iter().find(|known| known.slug == slug));
+    let defaults = [
+        (
+            "type",
+            serde_json::json!(format!("https://joinedcontext.com/errors/{slug}")),
+        ),
+        (
+            "title",
+            serde_json::json!(known.map_or("Error", |known| known.title)),
+        ),
+        ("status", serde_json::json!(status.as_u16())),
+        ("hint", serde_json::json!(known.map(|known| known.hint))),
+    ];
+    for (member, value) in defaults {
+        if !value.is_null() {
+            document.entry(member).or_insert(value);
+        }
+    }
+    serde_json::Value::Object(document)
+}
+
+/// The media type of every problem answer (RFC 9457 §3).
+const PROBLEM_JSON: &str = "application/problem+json";
+
+/// The problem answer of [`with_problem_members`].
+pub fn problem_response(body: serde_json::Value, status: StatusCode, slug: &str) -> Response {
+    (
+        status,
+        [(header::CONTENT_TYPE, PROBLEM_JSON)],
+        axum::Json(with_problem_members(body, status, slug)),
+    )
+        .into_response()
 }
 
 /// Portal API error variants conforming to RFC 7807.
@@ -104,19 +192,41 @@ pub enum ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
+        let etag = match &self {
+            Self::PreconditionFailed { etag, .. } => Some(etag.clone()),
+            _ => None,
+        };
+        let (status, body) = self.into_document();
+        let body = serde_json::to_string(&body).unwrap_or_else(|_| {
+            r#"{"type":"https://joinedcontext.com/errors/internal-error","title":"Internal Server Error","status":500}"#.to_string()
+        });
+        let mut builder = Response::builder()
+            .status(status)
+            .header(header::CONTENT_TYPE, PROBLEM_JSON);
+        if let Some(etag) = etag {
+            builder = builder.header(header::ETAG, etag);
+        }
+        builder
+            .body(Body::from(body))
+            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+    }
+}
+
+impl ApiError {
+    /// The answer's status and document: the problem a REST door answers and an
+    /// MCP tool error carries as its structured content, so both read alike (AG-146, T-5949).
+    pub fn into_document(self) -> (StatusCode, serde_json::Value) {
         let this = match self {
             Self::VerdictRequired(body) => {
+                let status = StatusCode::CONFLICT;
                 return (
-                    StatusCode::CONFLICT,
-                    [(header::CONTENT_TYPE, "application/json")],
-                    axum::Json(body),
-                )
-                    .into_response()
+                    status,
+                    with_problem_members(body, status, "verdict-required"),
+                );
             }
             other => other,
         };
         let mut errors = None;
-        let mut etag = None;
         let (status, slug, title, detail) = match this {
             Self::NotFound(msg) => (
                 StatusCode::NOT_FOUND,
@@ -175,15 +285,12 @@ impl IntoResponse for ApiError {
                 Some(msg),
             ),
             Self::Conflict(msg) => (StatusCode::CONFLICT, "conflict", "Conflict", Some(msg)),
-            Self::PreconditionFailed { detail, etag: current } => {
-                etag = Some(current);
-                (
-                    StatusCode::PRECONDITION_FAILED,
-                    "precondition-failed",
-                    "Precondition Failed",
-                    Some(detail),
-                )
-            }
+            Self::PreconditionFailed { detail, .. } => (
+                StatusCode::PRECONDITION_FAILED,
+                "precondition-failed",
+                "Precondition Failed",
+                Some(detail),
+            ),
             // Answered above with its own document; kept here so the match stays exhaustive.
             Self::VerdictRequired(body) => (
                 StatusCode::CONFLICT,
@@ -232,6 +339,12 @@ impl IntoResponse for ApiError {
             }
         };
 
+        let errors = errors.map(|lines: Vec<String>| {
+            lines
+                .iter()
+                .map(|line| FieldError::from_line(line, detail.as_deref()))
+                .collect()
+        });
         let problem = ProblemDetails {
             r#type: format!("https://joinedcontext.com/errors/{slug}"),
             title: title.to_string(),
@@ -241,20 +354,10 @@ impl IntoResponse for ApiError {
             hint: hint_of(slug),
             errors,
         };
-
-        let body = serde_json::to_string(&problem).unwrap_or_else(|_| {
-            r#"{"type":"https://joinedcontext.com/errors/internal-error","title":"Internal Server Error","status":500}"#.to_string()
+        let body = serde_json::to_value(&problem).unwrap_or_else(|_| {
+            serde_json::json!({"type": "https://joinedcontext.com/errors/internal-error", "title": "Internal Server Error", "status": 500})
         });
-
-        let mut builder = Response::builder()
-            .status(status)
-            .header(header::CONTENT_TYPE, "application/problem+json");
-        if let Some(etag) = etag {
-            builder = builder.header(header::ETAG, etag);
-        }
-        builder
-            .body(Body::from(body))
-            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+        (status, body)
     }
 }
 
@@ -335,6 +438,72 @@ mod tests {
             assert!(problem.hint.is_some_and(|hint| !hint.is_empty()), "{slug}");
         }
         assert_eq!(hint_of("no-such-slug"), None);
+    }
+
+    #[test]
+    fn every_violation_line_becomes_a_path_and_a_message() {
+        let detail = Some("the request names 2 problems");
+        assert_eq!(
+            FieldError::from_line("spec.history[1]: names no space", detail),
+            FieldError {
+                path: "spec.history[1]".into(),
+                message: "names no space".into()
+            }
+        );
+        assert_eq!(
+            FieldError::from_line("subject", detail),
+            FieldError {
+                path: "subject".into(),
+                message: "the request names 2 problems".into()
+            }
+        );
+        assert_eq!(
+            FieldError::from_line("slot 'temperature' has no range", detail),
+            FieldError {
+                path: String::new(),
+                message: "slot 'temperature' has no range".into()
+            }
+        );
+        assert_eq!(FieldError::from_line("ids:", None).path, "");
+    }
+
+    #[tokio::test]
+    async fn an_invalid_request_answers_every_field_with_its_path() {
+        let (status, body) = ApiError::Invalid {
+            detail: "2 members are wrong".into(),
+            errors: vec!["spec.name: too long".into(), "spec.space".into()],
+        }
+        .into_document();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            body["errors"],
+            serde_json::json!([
+                {"path": "spec.name", "message": "too long"},
+                {"path": "spec.space", "message": "2 members are wrong"}
+            ])
+        );
+    }
+
+    #[test]
+    fn a_document_of_its_own_becomes_a_problem_and_keeps_its_members() {
+        let verdict = serde_json::json!({ "error": "verdict_required", "check": "jc_manifest_dry_run", "detail": "check it" });
+        let (status, body) = ApiError::VerdictRequired(verdict).into_document();
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(
+            body["type"],
+            "https://joinedcontext.com/errors/verdict-required"
+        );
+        assert_eq!(body["status"], 409);
+        assert_eq!(body["error"], "verdict_required");
+        assert_eq!(body["check"], "jc_manifest_dry_run");
+        assert_eq!(body["detail"], "check it", "its own detail stays");
+        let failed = with_problem_members(
+            serde_json::json!({ "error": { "message": "boom" } }),
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal-error",
+        );
+        assert_eq!(failed["title"], "Internal Server Error");
+        assert_eq!(failed["error"]["message"], "boom");
     }
 
     #[tokio::test]

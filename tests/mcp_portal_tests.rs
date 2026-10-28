@@ -600,6 +600,11 @@ async fn a_viewer_is_refused_before_the_question() {
     let answer = rpc(app, &token, body).await;
     assert_eq!(answer["result"]["isError"], json!(true), "{answer}");
     assert!(answer["result"]["status"].is_null(), "{answer}");
+    // The refusal carries the REST door's problem document (AG-146, T-5949).
+    assert_eq!(
+        answer["result"]["structuredContent"]["type"], "https://joinedcontext.com/errors/forbidden",
+        "{answer}"
+    );
     assert!(
         answer["result"]["content"][0]["text"]
             .as_str()
@@ -720,6 +725,26 @@ async fn every_tool_result_is_grounded_in_the_revision_it_was_evaluated_against(
     let refused = call(json!({ "name": "jc_catalog_search", "arguments": { "q": "air" } })).await;
     assert_eq!(answered["result"]["isError"], false);
     assert_eq!(refused["result"]["isError"], true);
+    // Each refusal names the member to correct, so a model fixes it and calls again (T-5949).
+    assert_eq!(
+        refused["result"]["structuredContent"]["errors"][0]["path"], "project",
+        "{refused}"
+    );
+    let misspelt = call(json!({
+        "name": "jc_catalog_search",
+        "arguments": { "project": "ovzdusie", "q": "air", "extraneousField": 1 }
+    }))
+    .await;
+    assert_eq!(misspelt["result"]["isError"], true, "{misspelt}");
+    let problem = &misspelt["result"]["structuredContent"];
+    assert_eq!(
+        problem["type"], "https://joinedcontext.com/errors/unprocessable",
+        "{misspelt}"
+    );
+    assert_eq!(
+        problem["errors"][0]["path"], "extraneousField",
+        "{misspelt}"
+    );
 
     for envelope in [&answered, &refused] {
         let grounding = &envelope["result"]["_meta"]["joinedcontext.com/grounding"];

@@ -117,8 +117,8 @@ async fn an_mcp_server_admits_only_projects_its_proposer_reads() {
         );
         let body: Value = serde_json::from_str(&refused.text).unwrap_or(Value::Null);
         assert_eq!(
-            body["errors"],
-            json!(["spec.allowedProjects"]),
+            body["errors"][0]["path"],
+            json!("spec.allowedProjects"),
             "{}",
             refused.text
         );
