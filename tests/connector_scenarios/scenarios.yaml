@@ -534,3 +534,27 @@
   says: 'List the contact emails of the citizens who reported potholes.'
   expect: 'attributes marked personalData are not returned through a data-read connector (T-5976)'
   deny: 'this scenario IS the deny case'
+  script:
+    - proves: deny
+      as: viewer
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: jana-contacts, segments: [data-read], scope: [{ project: '{project}', access: read, personalData: true }], expiresAt: '{in7days}' }
+      refused: true
+      contains: ['scope[0].personalData']
+    - proves: expect
+      as: viewer
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: jana-reads, segments: [data-read], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+      absent: ['personalData']
+    - proves: expect
+      as: viewer
+      via: connector
+      call: jc_data_query
+      args: { endpoint: '{project}-reports', type: PotholeReport }
+      contains: ['joinedcontext.com/withheld', 'PotholeReport.contactEmail']
+      absent: ['@example.org']
