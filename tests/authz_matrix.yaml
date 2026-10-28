@@ -386,6 +386,13 @@ routes:
     rule: "signed-in, own connectors only"
     expect: [401, 404, 404, 404, 404, 404, 404, 404]
     note: "the fixture holds no connector: every person's 404 is the unknown id"
+  - route: GET /connectors/pending
+    rule: "an administrator of the connector ceiling: approve on DelegationPolicy, a person, no AI client's token"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: POST /connectors/{id}/approve
+    rule: "an administrator of the connector ceiling, not the owner, within their own rights (AG-150, PF-51)"
+    expect: [403, 403, 403, 403, 403, 404, 403, 403]
+    note: "the fixture holds no pending connector: the administrator's 404 is the unknown id; tests/connector_scenarios.rs S-31 approves a real one"
   - route: GET /c/{id}
     rule: "public"
     expect: [405, 405, 405, 405, 405, 405, 405, 405]

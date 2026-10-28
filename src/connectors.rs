@@ -17,9 +17,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use utoipa::ToSchema;
 
+use jc_core::envelope::Kind as _;
+use jc_core::kinds::{AboveCeiling, ConnectorVerb, DelegationPolicySpec, Segment};
+
 use crate::activity::{chrono_to_odt, odt_to_chrono};
 use crate::error::ApiError;
 use crate::ops::Operation;
+use crate::permissions::ORG_NAMESPACE;
 use crate::resource::is_dns1123;
 
 /// Live connectors one person may hold (T-5950).
@@ -115,20 +119,326 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
 /// `admin` is every segment above.
 pub const ADMIN: &str = "admin";
 
-/// What a person no DelegationPolicy names may put in a connector (ADR-N-064 §3.5, AG-150):
-/// `data-read`, reads only, 30 days, any client.
-// ponytail: the organization default for everyone; T-5953 reads the DelegationPolicy ceiling.
+/// The ceiling one person's connectors live under (AG-150, ADR-N-064 §5): the `DelegationPolicy`
+/// manifests of the organization that bind them, by Keycloak user id or by a Group, read from the
+/// mirror on every request, so a changed policy narrows existing connectors at their next call.
+/// Several policies give their union; none gives the organization default.
+///
+/// Decided (worker-t5953, owner may override): the default is the policy every person would get
+/// from an empty manifest: `data-read`, reads only, 30 days, any client, any project the person
+/// reads, requests above it refused; options: no connector at all (the feature stays dark until an
+/// administrator writes a policy), the person's full rights (defeats the ceiling).
 pub struct Ceiling {
-    pub segments: &'static [&'static str],
-    pub writes: bool,
-    pub max_days: i64,
+    /// The binding policies by name; empty for the organization default.
+    policies: Vec<(String, DelegationPolicySpec)>,
+    /// Policies that name the person but fail their kind's validation: they grant nothing, and
+    /// a person only they name gets nothing rather than the default, which could reach more.
+    broken: Vec<String>,
 }
 
-pub const DEFAULT_CEILING: Ceiling = Ceiling {
-    segments: &["data-read"],
-    writes: false,
-    max_days: 30,
-};
+/// The organization default as a policy: no `projects` list means every project the person reads.
+static DEFAULT: std::sync::LazyLock<DelegationPolicySpec> =
+    std::sync::LazyLock::new(default_policy);
+
+fn default_policy() -> DelegationPolicySpec {
+    DelegationPolicySpec {
+        subjects: Vec::new(),
+        projects: Vec::new(),
+        segments: None,
+        kinds: None,
+        endpoints: None,
+        writes: false,
+        max_expiry: None,
+        allowed_clients: None,
+        above_ceiling: AboveCeiling::Refuse,
+    }
+}
+
+/// Whether `policy` lets a connector carry the segment named `segment`.
+fn policy_segment(policy: &DelegationPolicySpec, segment: &str) -> bool {
+    policy.segments().iter().any(|s| {
+        matches!(s, Segment::Admin)
+            || serde_json::to_value(s)
+                .ok()
+                .as_ref()
+                .and_then(Value::as_str)
+                == Some(segment)
+    })
+}
+
+impl Ceiling {
+    /// The policies of the organization that bind `identity`: their `User` subject is its `sub`,
+    /// or a `Group` subject names a group of its token or a `Group` manifest listing the person.
+    pub fn of(mirror: &crate::store::Mirror, identity: &crate::auth::session::Identity) -> Self {
+        let options = crate::store::ListOptions::default();
+        let person = |user: &str| {
+            user.eq_ignore_ascii_case(&identity.username)
+                || identity
+                    .email
+                    .as_deref()
+                    .is_some_and(|e| user.eq_ignore_ascii_case(e))
+        };
+        let mut groups: Vec<String> = identity.groups.clone();
+        for env in mirror.list(ORG_NAMESPACE, "Group", &options).items {
+            if serde_json::from_value::<jc_core::kinds::GroupSpec>(env.spec)
+                .is_ok_and(|spec| spec.members.iter().any(|m| person(&m.user)))
+            {
+                groups.push(env.metadata.name);
+            }
+        }
+        let groups: Vec<&str> = groups.iter().map(String::as_str).collect();
+        let mut ceiling = Self::of_policies(Vec::new());
+        for env in mirror
+            .list(ORG_NAMESPACE, DelegationPolicySpec::KIND, &options)
+            .items
+        {
+            let name = env.metadata.name;
+            match serde_json::from_value::<DelegationPolicySpec>(env.spec) {
+                Ok(spec) if spec.binds(&identity.subject, &groups) => {
+                    if spec.validate().is_ok() {
+                        ceiling.policies.push((name, spec));
+                    } else {
+                        ceiling.broken.push(name);
+                    }
+                }
+                Ok(_) => {}
+                // Unreadable: nobody can tell whom it binds, so it binds nobody; the reconciler
+                // logs it as failing its kind's validation.
+                Err(_) => {}
+            }
+        }
+        ceiling
+    }
+
+    /// A ceiling of exactly these policies (tests and the harness build one by hand).
+    pub fn of_policies(policies: Vec<(String, DelegationPolicySpec)>) -> Self {
+        Self {
+            policies,
+            broken: Vec::new(),
+        }
+    }
+
+    /// The policies a check runs over: the binding ones, the default alone when none binds, and
+    /// none at all when only a broken one does.
+    fn each(&self) -> Vec<&DelegationPolicySpec> {
+        if self.policies.is_empty() && !self.broken.is_empty() {
+            Vec::new()
+        } else if self.policies.is_empty() {
+            vec![&*DEFAULT]
+        } else {
+            self.policies.iter().map(|(_, p)| p).collect()
+        }
+    }
+
+    /// The policy names a refusal and a `narrowedBy` mark cite, or the default's words.
+    pub fn named(&self) -> String {
+        if self.policies.is_empty() && !self.broken.is_empty() {
+            format!(
+                "DelegationPolicy {}, which fails its kind's validation and allows nothing until an administrator fixes it,",
+                self.broken.join(", ")
+            )
+        } else if self.policies.is_empty() {
+            "the organization default (no DelegationPolicy names you)".to_owned()
+        } else {
+            let names: Vec<&str> = self.policies.iter().map(|(n, _)| n.as_str()).collect();
+            format!("DelegationPolicy {}", names.join(", "))
+        }
+    }
+
+    fn allows_project(policy: &DelegationPolicySpec, project: &str) -> bool {
+        policy.projects.is_empty() || policy.projects.iter().any(|p| p == project)
+    }
+
+    pub fn allows_segment(&self, segment: &str) -> bool {
+        self.each().iter().any(|p| policy_segment(p, segment))
+    }
+
+    pub fn segments(&self) -> Vec<String> {
+        let mut all: Vec<String> = SEGMENTS
+            .iter()
+            .map(|(s, _, _)| (*s).to_owned())
+            .chain([ADMIN.to_owned()])
+            .filter(|s| self.allows_segment(s))
+            .collect();
+        all.dedup();
+        all
+    }
+
+    pub fn allows_project_name(&self, project: &str) -> bool {
+        self.each().iter().any(|p| Self::allows_project(p, project))
+    }
+
+    /// Whether some policy over `project` lets an item reach the Endpoint `endpoint` (`None` or
+    /// `*`: every Endpoint of the project, which a policy listing Endpoints does not allow).
+    pub fn allows_endpoint(&self, project: &str, endpoint: Option<&str>) -> bool {
+        self.each().iter().any(|p| {
+            Self::allows_project(p, project)
+                && p.endpoints.as_ref().is_none_or(|listed| {
+                    endpoint.is_some_and(|e| e != "*" && listed.iter().any(|l| l == e))
+                })
+        })
+    }
+
+    pub fn writes(&self) -> bool {
+        self.each().iter().any(|p| p.writes)
+    }
+
+    pub fn max_days(&self) -> i64 {
+        self.each()
+            .iter()
+            .map(|p| i64::from(p.max_expiry_days()))
+            .max()
+            .unwrap_or(i64::from(
+                jc_core::kinds::delegation_policy::DEFAULT_EXPIRY_DAYS,
+            ))
+    }
+
+    pub fn allows_client(&self, client: &str) -> bool {
+        self.each().iter().any(|p| p.allows_client(client))
+    }
+
+    /// Whether a connector naming no client fits: no policy lists clients it must name.
+    pub fn any_client(&self) -> bool {
+        self.each().iter().any(|p| p.allowed_clients.is_none())
+    }
+
+    /// Whether a request above the ceiling waits for an administrator instead of a `403`.
+    pub fn queues(&self) -> bool {
+        self.policies
+            .iter()
+            .any(|(_, p)| p.above_ceiling == AboveCeiling::Queue)
+    }
+
+    /// The ceiling's half of one call (AG-144): some policy reaches the project, a segment of
+    /// the connector it allows lists the tool, its verbs read the kind, and its Endpoints hold
+    /// the one the call names. `Err` names the policy and what it lacks.
+    pub fn admits(
+        &self,
+        connector: &Connector,
+        op: &Operation,
+        project: &str,
+        args: &Value,
+    ) -> Result<(), String> {
+        let kind = if op.kind == "*" {
+            args.get("kind").and_then(Value::as_str)
+        } else {
+            Some(op.kind)
+        };
+        let named = args.get("name").and_then(Value::as_str);
+        let endpoint = match kind {
+            Some("Endpoint") => named,
+            _ => args.get("endpoint").and_then(Value::as_str),
+        };
+        let fits = |p: &DelegationPolicySpec| {
+            let (tools, kinds) = reach_of(|s| {
+                connector.segments.iter().any(|c| c == s || c == ADMIN) && policy_segment(p, s)
+            });
+            Self::allows_project(p, project)
+                && tools.contains(&op.name)
+                && kind.is_none_or(|k| {
+                    op.name == "jc_schema_get"
+                        || (kinds.contains(&k) && p.verbs_for(k).contains(&ConnectorVerb::Read))
+                })
+                && p.endpoints.as_ref().is_none_or(|listed| {
+                    let touches = kind == Some("Endpoint") || endpoint.is_some();
+                    !touches || endpoint.is_some_and(|e| listed.iter().any(|l| l == e))
+                })
+        };
+        if self.each().into_iter().any(fits) {
+            Ok(())
+        } else {
+            Err(format!(
+                "{} does not let this connector run {} on {}in project {project}; an administrator widens the policy",
+                self.named(),
+                op.name,
+                kind.map(|k| format!("{k} ")).unwrap_or_default()
+            ))
+        }
+    }
+
+    /// Whether `tools/list` offers `op` in `project` under the ceiling: some policy reaches the
+    /// project and allows a segment of the connector listing the tool.
+    pub fn lists(&self, connector: &Connector, op: &Operation, project: &str) -> bool {
+        self.each().into_iter().any(|p| {
+            let (tools, _) = reach_of(|s| {
+                connector.segments.iter().any(|c| c == s || c == ADMIN) && policy_segment(p, s)
+            });
+            Self::allows_project(p, project) && tools.contains(&op.name)
+        })
+    }
+
+    /// Whether an administrator's approval stands in for the ceiling: the connector was approved
+    /// and a policy binding the owner still queues requests. A policy turned to `refuse`, or one
+    /// that no longer names the owner, takes every approval of theirs back at the next call.
+    pub fn honours(&self, connector: &Connector) -> bool {
+        connector.approval.is_some() && self.queues()
+    }
+
+    /// The ceiling's half of a call before its tool is read: the connector's age and the client.
+    pub fn door(
+        &self,
+        connector: &Connector,
+        client: &str,
+        now: DateTime<Utc>,
+    ) -> Result<(), String> {
+        if self.honours(connector) {
+            return Ok(());
+        }
+        if now > connector.created_at + Duration::days(self.max_days()) {
+            return Err(format!(
+                "{} lets a connector live {} days, and this one is older; create a new one on the My connectors page",
+                self.named(),
+                self.max_days()
+            ));
+        }
+        if !self.allows_client(client) {
+            return Err(format!(
+                "{} does not allow the client {}",
+                self.named(),
+                if client.is_empty() {
+                    "of this token (none named)"
+                } else {
+                    client
+                }
+            ));
+        }
+        Ok(())
+    }
+
+    /// What the ceiling takes from an existing connector today: one line per narrowed part, for
+    /// the `narrowedBy` marks (empty when the connector fits).
+    pub fn narrowing(&self, connector: &Connector) -> Vec<String> {
+        let mut marks = Vec::new();
+        for segment in &connector.segments {
+            if !self.allows_segment(segment) {
+                marks.push(format!("segment {segment}"));
+            }
+        }
+        for item in &connector.scope {
+            if !self.allows_project_name(&item.project) {
+                marks.push(format!("project {}", item.project));
+            } else if !self.allows_endpoint(&item.project, item.endpoint.as_deref()) {
+                marks.push(format!(
+                    "Endpoints of project {}: {}",
+                    item.project,
+                    item.endpoint.as_deref().unwrap_or("every one")
+                ));
+            }
+        }
+        if connector.writes && !self.writes() {
+            marks.push("writes".to_owned());
+        }
+        if connector.expires_at > connector.created_at + Duration::days(self.max_days()) {
+            marks.push(format!("expiry: at most {} days", self.max_days()));
+        }
+        for client in &connector.allowed_clients {
+            if !self.allows_client(client) {
+                marks.push(format!("client {client}"));
+            }
+        }
+        marks
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
@@ -203,6 +513,26 @@ struct GrantDoc {
     writes: bool,
     expires_at: DateTime<Utc>,
     allowed_clients: Vec<String>,
+    /// Above the ceiling, waiting for an administrator (AG-150); a record kept before T-5953 has
+    /// none of the three members below.
+    #[serde(default)]
+    pending: bool,
+    /// What the request asked above the ceiling, one line per field, for the approver.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    above: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    approval: Option<Approval>,
+}
+
+/// Who let a request above the ceiling through, and when.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[schema(as = ConnectorApproval)]
+pub struct Approval {
+    /// The approver's Keycloak user id.
+    pub by: String,
+    #[schema(value_type = String, format = DateTime)]
+    pub at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -233,8 +563,20 @@ pub struct Connector {
     /// Whether the allowed clients bind the connector (claude.ai, ChatGPT) or only say whom it
     /// is meant for (Claude Code, `mcp-local`): AG-153.
     pub client_is_boundary: bool,
-    /// `active`, `expired` or `revoked`.
+    /// `active`, `pending` (above the ceiling, waiting for an administrator), `expired` or
+    /// `revoked`.
     pub state: String,
+    /// What the request asked above the owner's DelegationPolicy ceiling; set while pending and
+    /// kept after an approval.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub above_ceiling: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval: Option<Approval>,
+    /// The parts of this connector the owner's DelegationPolicy ceiling takes away today, each
+    /// one line such as `segment pipeline`; calls run without them (AG-150, "narrowed by
+    /// policy"). Empty when it fits.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub narrowed_by: Vec<String>,
     #[schema(value_type = String, format = DateTime)]
     pub created_at: DateTime<Utc>,
     #[schema(value_type = Option<String>, format = DateTime)]
@@ -249,20 +591,8 @@ impl Connector {
     }
 
     /// The tools and kinds the segments reach.
-    fn reach(&self) -> (Vec<&'static str>, Vec<&'static str>) {
-        let mut tools = Vec::new();
-        let mut kinds = Vec::new();
-        for (segment, seg_tools, seg_kinds) in SEGMENTS {
-            if self.segments.iter().any(|s| s == segment || s == ADMIN) {
-                tools.extend_from_slice(seg_tools);
-                kinds.extend_from_slice(seg_kinds);
-            }
-        }
-        tools.sort_unstable();
-        tools.dedup();
-        kinds.sort_unstable();
-        kinds.dedup();
-        (tools, kinds)
+    pub fn reach(&self) -> (Vec<&'static str>, Vec<&'static str>) {
+        reach_of(|segment| self.segments.iter().any(|s| s == segment || s == ADMIN))
     }
 
     /// The narrowing a call through this connector carries, as an agent profile's access block
@@ -364,6 +694,23 @@ impl Connector {
     }
 }
 
+/// The tools and kinds of the segments `carries` picks.
+fn reach_of(carries: impl Fn(&str) -> bool) -> (Vec<&'static str>, Vec<&'static str>) {
+    let mut tools = Vec::new();
+    let mut kinds = Vec::new();
+    for (segment, seg_tools, seg_kinds) in SEGMENTS {
+        if carries(segment) {
+            tools.extend_from_slice(seg_tools);
+            kinds.extend_from_slice(seg_kinds);
+        }
+    }
+    tools.sort_unstable();
+    tools.dedup();
+    kinds.sort_unstable();
+    kinds.dedup();
+    (tools, kinds)
+}
+
 /// A tool whose call names one object by `name`: what a narrowed scope can hold it to.
 fn names_its_object(op: &Operation) -> bool {
     op.name == "jc_resource_get"
@@ -388,6 +735,8 @@ impl Record {
     fn view(&self, base: &str, now: DateTime<Utc>) -> Connector {
         let state = if self.revoked_at.is_some() {
             "revoked"
+        } else if self.grant.pending {
+            "pending"
         } else if self.grant.expires_at <= now {
             "expired"
         } else {
@@ -405,6 +754,9 @@ impl Record {
                 && self.grant.allowed_clients.iter().all(|c| binds(c)),
             allowed_clients: self.grant.allowed_clients.clone(),
             state: state.to_owned(),
+            above_ceiling: self.grant.above.clone(),
+            approval: self.grant.approval.clone(),
+            narrowed_by: Vec::new(),
             created_at: self.created_at,
             last_used_at: self.last_used_at,
             url: address(base, &self.id),
@@ -445,8 +797,15 @@ fn above_ceiling(field: &str, detail: String) -> ApiError {
 }
 
 /// Checks a request against its shape and the ceiling; the owner's rights over each scope item
-/// are the caller's half (`api::connectors`), since they need the Portal's state.
-pub fn validate(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Result<(), ApiError> {
+/// are the caller's half (`api::connectors`), since they need the Portal's state. A request above
+/// the ceiling is a `403` naming the field, or, when a policy of the owner queues such requests,
+/// `Ok` with one line per field above it: the connector is kept `pending` (AG-150).
+pub fn validate(
+    new: &NewConnector,
+    ceiling: &Ceiling,
+    now: DateTime<Utc>,
+) -> Result<Vec<String>, ApiError> {
+    let mut above: Vec<(String, String)> = Vec::new();
     if !is_dns1123(&new.name) || new.name.len() > 63 {
         return Err(invalid(
             "name",
@@ -467,12 +826,13 @@ pub fn validate(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Re
                 format!("'{segment}' is no segment; one of data-read, context, pipeline, access, publish, apps, operate, admin"),
             ));
         }
-        if !ceiling.segments.contains(&segment.as_str()) {
-            return Err(above_ceiling(
-                &format!("segments[{i}]"),
+        if !ceiling.allows_segment(segment) {
+            above.push((
+                format!("segments[{i}]"),
                 format!(
-                    "your organization lets a connector carry only {}",
-                    ceiling.segments.join(", ")
+                    "{} lets a connector carry only {}",
+                    ceiling.named(),
+                    ceiling.segments().join(", ")
                 ),
             ));
         }
@@ -506,6 +866,25 @@ pub fn validate(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Re
                 ));
             }
         }
+        if !ceiling.allows_project_name(&item.project) {
+            above.push((
+                format!("scope[{i}].project"),
+                format!(
+                    "{} does not let a connector reach project {}",
+                    ceiling.named(),
+                    item.project
+                ),
+            ));
+        } else if !ceiling.allows_endpoint(&item.project, item.endpoint.as_deref()) {
+            above.push((
+                format!("scope[{i}].endpoint"),
+                format!(
+                    "{} lets a connector reach only the Endpoints it lists in project {}: name one",
+                    ceiling.named(),
+                    item.project
+                ),
+            ));
+        }
         if item.access == ItemAccess::Write && !new.writes {
             return Err(invalid(
                 &format!("scope[{i}].access"),
@@ -513,11 +892,10 @@ pub fn validate(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Re
             ));
         }
     }
-    if new.writes && !ceiling.writes {
-        return Err(above_ceiling(
-            "writes",
-            "your organization lets a connector read only; writes arrive with plan_change (T-5956)"
-                .into(),
+    if new.writes && !ceiling.writes() {
+        above.push((
+            "writes".into(),
+            format!("{} lets a connector read only", ceiling.named()),
         ));
     }
     if new.expires_at <= now {
@@ -526,10 +904,21 @@ pub fn validate(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Re
             "expiresAt must lie in the future".into(),
         ));
     }
-    if new.expires_at > now + Duration::days(ceiling.max_days) {
-        return Err(above_ceiling(
+    let most = i64::from(jc_core::kinds::delegation_policy::MAX_EXPIRY_DAYS);
+    if new.expires_at > now + Duration::days(most) {
+        return Err(invalid(
             "expiresAt",
-            format!("a connector lives at most {} days", ceiling.max_days),
+            format!("a connector lives at most {most} days"),
+        ));
+    }
+    if new.expires_at > now + Duration::days(ceiling.max_days()) {
+        above.push((
+            "expiresAt".into(),
+            format!(
+                "{} lets a connector live at most {} days",
+                ceiling.named(),
+                ceiling.max_days()
+            ),
         ));
     }
     if new.allowed_clients.len() > MAX_CLIENTS {
@@ -548,8 +937,30 @@ pub fn validate(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Re
                 "a client is an OAuth client id: a realm client such as mcp-local or a CIMD https URL".into(),
             ));
         }
+        if !ceiling.allows_client(client) {
+            above.push((
+                format!("allowedClients[{i}]"),
+                format!("{} does not allow the client {client}", ceiling.named()),
+            ));
+        }
     }
-    Ok(())
+    if new.allowed_clients.is_empty() && !ceiling.any_client() {
+        above.push((
+            "allowedClients".into(),
+            format!(
+                "{} lets a connector answer only the clients it lists: name one",
+                ceiling.named()
+            ),
+        ));
+    }
+    match above.first() {
+        None => Ok(Vec::new()),
+        Some(_) if ceiling.queues() => Ok(above
+            .into_iter()
+            .map(|(field, why)| format!("{field}: {why}"))
+            .collect()),
+        Some((field, why)) => Err(above_ceiling(field, why.clone())),
+    }
 }
 
 /// One row of a connector's audit (AG-147).
@@ -652,10 +1063,12 @@ impl ConnectorStore {
     }
 
     /// Keeps a validated connector for `owner`; at most [`MAX_PER_PERSON`] live ones, one name each.
+    /// `above` is what the request asks above the ceiling: not empty, it is kept `pending`.
     pub async fn create(
         &self,
         owner: &str,
         new: NewConnector,
+        above: Vec<String>,
         base: &str,
     ) -> Result<Connector, ApiError> {
         let now = Utc::now();
@@ -669,6 +1082,9 @@ impl ConnectorStore {
                 writes: new.writes,
                 expires_at: new.expires_at,
                 allowed_clients: new.allowed_clients,
+                pending: !above.is_empty(),
+                above,
+                approval: None,
             },
             created_at: now,
             last_used_at: None,
@@ -775,6 +1191,70 @@ impl ConnectorStore {
                 .filter(|r| r.owner == owner)
                 .map(|r| r.view(base, now))
                 .collect()),
+        }
+    }
+
+    /// Every live connector waiting for an administrator, oldest first (AG-150).
+    pub async fn pending(&self, base: &str) -> Result<Vec<Connector>, ApiError> {
+        let now = Utc::now();
+        match &self.inner {
+            Inner::Postgres(pool) => {
+                let rows: Vec<Row> = sqlx::query_as(concat!(
+                    "SELECT ",
+                    columns!(),
+                    " FROM connectors WHERE revoked_at IS NULL AND (grant_doc->>'pending')::boolean \
+                     ORDER BY created_at LIMIT 200"
+                ))
+                .fetch_all(pool)
+                .await
+                .map_err(db_error)?;
+                Ok(rows
+                    .into_iter()
+                    .map(|row| record(row).view(base, now))
+                    .collect())
+            }
+            Inner::Memory(rows) => Ok(Self::memory(rows)
+                .0
+                .iter()
+                .filter(|r| r.revoked_at.is_none() && r.grant.pending)
+                .map(|r| r.view(base, now))
+                .collect()),
+        }
+    }
+
+    /// Lets the pending connector `id` through, naming its approver; `false` when it is not
+    /// pending (any more), so two approvals at once record one.
+    pub async fn approve(&self, id: &str, by: &str) -> Result<bool, ApiError> {
+        let approval = Approval {
+            by: by.to_owned(),
+            at: Utc::now(),
+        };
+        match &self.inner {
+            Inner::Postgres(pool) => {
+                let done = sqlx::query(
+                    "UPDATE connectors SET grant_doc = grant_doc || jsonb_build_object('pending', false, 'approval', $2::jsonb) \
+                     WHERE id = $1 AND revoked_at IS NULL AND (grant_doc->>'pending')::boolean",
+                )
+                .bind(id)
+                .bind(sqlx::types::Json(&approval))
+                .execute(pool)
+                .await
+                .map_err(db_error)?;
+                Ok(done.rows_affected() == 1)
+            }
+            Inner::Memory(rows) => {
+                let mut rows = Self::memory(rows);
+                let found = rows
+                    .0
+                    .iter_mut()
+                    .find(|r| r.id == id && r.revoked_at.is_none() && r.grant.pending);
+                Ok(found
+                    .map(|r| {
+                        r.grant.pending = false;
+                        r.grant.approval = Some(approval);
+                    })
+                    .is_some())
+            }
         }
     }
 
@@ -925,6 +1405,9 @@ mod tests {
                 writes: false,
                 expires_at: Utc::now() + Duration::days(1),
                 allowed_clients: vec![],
+                pending: false,
+                above: vec![],
+                approval: None,
             },
             created_at: Utc::now(),
             last_used_at: None,
@@ -1062,18 +1545,25 @@ mod tests {
     #[test]
     fn the_default_ceiling_refuses_more_than_data_read_for_thirty_days() {
         let now = Utc::now();
-        assert!(validate(&new(&["data-read"], false, 29), &DEFAULT_CEILING, now).is_ok());
-        let denied = |n: NewConnector, field: &str| match validate(&n, &DEFAULT_CEILING, now) {
-            Err(ApiError::Denied(why)) => assert!(why.starts_with(field), "{why}"),
-            other => panic!("{field}: {other:?}"),
-        };
+        assert!(validate(
+            &new(&["data-read"], false, 29),
+            &Ceiling::of_policies(vec![]),
+            now
+        )
+        .is_ok());
+        let denied =
+            |n: NewConnector, field: &str| match validate(&n, &Ceiling::of_policies(vec![]), now) {
+                Err(ApiError::Denied(why)) => assert!(why.starts_with(field), "{why}"),
+                other => panic!("{field}: {other:?}"),
+            };
         denied(new(&["pipeline"], false, 1), "segments[0]");
         denied(new(&["data-read"], true, 1), "writes");
         denied(new(&["data-read"], false, 31), "expiresAt");
-        let invalid = |n: NewConnector, field: &str| match validate(&n, &DEFAULT_CEILING, now) {
-            Err(ApiError::Invalid { errors, .. }) => assert_eq!(errors, vec![field.to_owned()]),
-            other => panic!("{field}: {other:?}"),
-        };
+        let invalid =
+            |n: NewConnector, field: &str| match validate(&n, &Ceiling::of_policies(vec![]), now) {
+                Err(ApiError::Invalid { errors, .. }) => assert_eq!(errors, vec![field.to_owned()]),
+                other => panic!("{field}: {other:?}"),
+            };
         invalid(new(&["everything"], false, 1), "segments[0]");
         invalid(new(&[], false, 1), "segments");
         invalid(new(&["data-read"], false, -1), "expiresAt");
@@ -1129,6 +1619,9 @@ mod tests {
                 writes: false,
                 expires_at: Utc::now() - Duration::seconds(1),
                 allowed_clients: vec![],
+                pending: false,
+                above: vec![],
+                approval: None,
             },
             created_at: Utc::now(),
             last_used_at: None,
@@ -1152,19 +1645,22 @@ mod tests {
         for n in 0..MAX_PER_PERSON {
             let mut ask = new(&["data-read"], false, 1);
             ask.name = format!("c{n}");
-            let made = store.create("jana", ask, base).await.expect("created");
+            let made = store
+                .create("jana", ask, vec![], base)
+                .await
+                .expect("created");
             first.get_or_insert(made.id);
         }
         let mut ask = new(&["data-read"], false, 1);
         ask.name = "one-more".into();
         assert!(matches!(
-            store.create("jana", ask, base).await,
+            store.create("jana", ask, vec![], base).await,
             Err(ApiError::Conflict(_))
         ));
         // Another person has their own twenty; a revoke frees a place and keeps the record.
         let mut ask = new(&["data-read"], false, 1);
         ask.name = "c0".into();
-        assert!(store.create("petra", ask, base).await.is_ok());
+        assert!(store.create("petra", ask, vec![], base).await.is_ok());
         let first = first.expect("one made");
         assert!(
             !store.revoke(&first, "petra").await.expect("revoke"),
@@ -1175,7 +1671,7 @@ mod tests {
         let mut ask = new(&["data-read"], false, 1);
         ask.name = "c0".into();
         assert!(
-            store.create("jana", ask, base).await.is_ok(),
+            store.create("jana", ask, vec![], base).await.is_ok(),
             "the name of a revoked one is free"
         );
         assert_eq!(
@@ -1204,5 +1700,261 @@ mod tests {
         );
         let used = store.get(&first, base).await.expect("get").expect("there");
         assert!(used.last_used_at.is_some());
+    }
+
+    /// A ceiling and the mirror it is read from: Group `analysts` (jana is a member) bound to
+    /// project doprava, data-read and pipeline, Endpoint counters, 90 days, claude.ai, queued.
+    fn analysts(queue: &str) -> (crate::store::Mirror, crate::auth::session::Identity) {
+        let mirror = crate::store::Mirror::new();
+        let envelope = |kind: &str, name: &str, spec: Value| crate::resource::ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.to_owned(),
+            kind: kind.to_owned(),
+            metadata: crate::resource::ObjectMeta::new(name, ORG_NAMESPACE),
+            spec,
+            status: None,
+        };
+        mirror.upsert(envelope(
+            "Group",
+            "analysts",
+            json!({ "members": [{ "user": "jana@hel.fi" }] }),
+        ));
+        mirror.upsert(envelope(
+            "DelegationPolicy",
+            "analysts-doprava",
+            json!({
+                "subjects": [{ "kind": "Group", "name": "analysts" }],
+                "projects": ["doprava"],
+                "segments": ["data-read", "pipeline"],
+                "endpoints": ["counters"],
+                "maxExpiry": "P90D",
+                "allowedClients": [CLAUDE],
+                "aboveCeiling": queue,
+            }),
+        ));
+        // A manifest its kind refuses (`*` in projects) binds nobody, and never widens.
+        mirror.upsert(envelope(
+            "DelegationPolicy",
+            "broken",
+            json!({ "subjects": [{ "kind": "User", "id": "sub-jana" }], "projects": ["*"],
+                    "segments": ["admin"], "writes": true }),
+        ));
+        let identity = crate::auth::session::Identity {
+            client: None,
+            subject: "sub-jana".into(),
+            username: "jana".into(),
+            email: Some("jana@hel.fi".into()),
+            name: None,
+            roles: vec![],
+            groups: vec![],
+            second_factor: false,
+        };
+        (mirror, identity)
+    }
+
+    const CLAUDE: &str = "https://claude.ai/oauth/mcp-client-metadata";
+
+    fn ask(segments: &[&str], endpoint: Option<&str>, days: i64) -> NewConnector {
+        let mut ask = new(segments, false, days);
+        ask.scope = vec![item("doprava", endpoint)];
+        ask.allowed_clients = vec![CLAUDE.into()];
+        ask
+    }
+
+    #[test]
+    fn a_delegation_policy_binds_by_group_and_bounds_each_field() {
+        let now = Utc::now();
+        let (mirror, jana) = analysts("refuse");
+        let ceiling = Ceiling::of(&mirror, &jana);
+        assert!(
+            ceiling.named().contains("analysts-doprava"),
+            "{}",
+            ceiling.named()
+        );
+        assert!(!ceiling.named().contains("broken"));
+        assert_eq!(ceiling.segments(), vec!["data-read", "pipeline"]);
+        assert!(
+            validate(&ask(&["pipeline"], Some("counters"), 89), &ceiling, now)
+                .is_ok_and(|above| above.is_empty())
+        );
+        let refused = |n: NewConnector, field: &str| match validate(&n, &ceiling, now) {
+            Err(ApiError::Denied(why)) => {
+                assert!(why.starts_with(field), "{why}");
+                assert!(why.contains("analysts-doprava"), "{why}");
+            }
+            other => panic!("{field}: {other:?}"),
+        };
+        refused(ask(&["access"], Some("counters"), 1), "segments[0]");
+        refused(ask(&["data-read"], None, 1), "scope[0].endpoint");
+        refused(ask(&["data-read"], Some("other"), 1), "scope[0].endpoint");
+        refused(ask(&["data-read"], Some("counters"), 91), "expiresAt");
+        let mut other = ask(&["data-read"], Some("counters"), 1);
+        other.scope[0].project = "skolstvo".into();
+        refused(other, "scope[0].project");
+        let mut writes = ask(&["data-read"], Some("counters"), 1);
+        writes.writes = true;
+        refused(writes, "writes");
+        let mut client = ask(&["data-read"], Some("counters"), 1);
+        client.allowed_clients = vec!["mcp-local".into()];
+        refused(client, "allowedClients[0]");
+        let mut none = ask(&["data-read"], Some("counters"), 1);
+        none.allowed_clients = vec![];
+        refused(none, "allowedClients");
+        // 365 days is the hard limit, whatever a policy says.
+        assert!(matches!(
+            validate(&ask(&["data-read"], Some("counters"), 366), &ceiling, now),
+            Err(ApiError::Invalid { .. })
+        ));
+        // Someone no policy names gets the organization default.
+        let mut petra = jana.clone();
+        petra.subject = "sub-petra".into();
+        petra.email = Some("petra@hel.fi".into());
+        petra.username = "petra".into();
+        let default = Ceiling::of(&mirror, &petra);
+        assert_eq!(default.segments(), vec!["data-read"]);
+        assert!(default.named().contains("organization default"));
+        assert!(default.allows_project_name("skolstvo") && !default.writes() && !default.queues());
+        assert_eq!(default.max_days(), 30);
+        // Someone only a broken policy names gets nothing, not the wider default.
+        let mut eva = petra.clone();
+        eva.subject = "sub-eva".into();
+        mirror.upsert(crate::resource::ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.to_owned(),
+            kind: "DelegationPolicy".into(),
+            metadata: crate::resource::ObjectMeta::new("eva-broken", ORG_NAMESPACE),
+            spec: json!({ "subjects": [{ "kind": "User", "id": "sub-eva" }], "projects": [] }),
+            status: None,
+        });
+        let nothing = Ceiling::of(&mirror, &eva);
+        assert!(nothing.segments().is_empty() && !nothing.allows_project_name("doprava"));
+        assert!(
+            nothing.named().contains("eva-broken"),
+            "{}",
+            nothing.named()
+        );
+        match validate(&new(&["data-read"], false, 1), &nothing, now) {
+            Err(ApiError::Denied(why)) => assert!(why.starts_with("segments[0]"), "{why}"),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_queued_policy_keeps_the_request_with_what_it_asks_above() {
+        let (mirror, jana) = analysts("queue");
+        let ceiling = Ceiling::of(&mirror, &jana);
+        let mut writes = ask(&["data-read"], Some("counters"), 1);
+        writes.writes = true;
+        let above = validate(&writes, &ceiling, Utc::now()).expect("queued");
+        assert_eq!(above.len(), 1);
+        assert!(above[0].starts_with("writes: "), "{above:?}");
+        // A field out of shape is still refused, never queued.
+        let mut bad = ask(&["data-read"], Some("counters"), 1);
+        bad.name = "Bad Name".into();
+        assert!(matches!(
+            validate(&bad, &ceiling, Utc::now()),
+            Err(ApiError::Invalid { .. })
+        ));
+    }
+
+    #[test]
+    fn the_ceiling_narrows_a_live_connector_at_its_next_call() {
+        let (mirror, jana) = analysts("refuse");
+        let ceiling = Ceiling::of(&mirror, &jana);
+        let mut live = connector(&["pipeline"], vec![item("doprava", Some("counters"))]);
+        live.allowed_clients = vec![CLAUDE.into()];
+        let metrics = op("jc_pipeline_metrics");
+        let get = op("jc_resource_get");
+        let counters = json!({ "kind": "Endpoint", "name": "counters" });
+        assert_eq!(ceiling.admits(&live, get, "doprava", &counters), Ok(()));
+        assert!(ceiling.lists(&live, metrics, "doprava"));
+        assert!(ceiling.narrowing(&live).is_empty());
+        assert_eq!(ceiling.door(&live, CLAUDE, Utc::now()), Ok(()));
+        // The administrator drops `pipeline` and the Endpoint from the policy: the same
+        // connector loses them at the next call, and its marks say so.
+        let narrowed = Ceiling::of_policies(vec![(
+            "analysts-doprava".into(),
+            serde_json::from_value(json!({
+                "subjects": [{ "kind": "Group", "name": "analysts" }],
+                "projects": ["doprava"], "endpoints": ["bikes"],
+            }))
+            .expect("policy"),
+        )]);
+        assert!(!narrowed.lists(&live, metrics, "doprava"));
+        let why = narrowed
+            .admits(&live, get, "doprava", &counters)
+            .expect_err("narrowed");
+        assert!(
+            why.contains("analysts-doprava") && why.contains("jc_resource_get"),
+            "{why}"
+        );
+        assert_eq!(
+            narrowed.narrowing(&live),
+            vec![
+                "segment pipeline".to_owned(),
+                "Endpoints of project doprava: counters".to_owned()
+            ]
+        );
+        // A project the policy does not list is refused at the call.
+        assert!(ceiling.admits(&live, get, "skolstvo", &counters).is_err());
+        // The door: a client the policy does not list, and a connector older than its maxExpiry.
+        assert!(ceiling.door(&live, "mcp-local", Utc::now()).is_err());
+        let mut old = live.clone();
+        old.created_at = Utc::now() - Duration::days(91);
+        let why = ceiling.door(&old, CLAUDE, Utc::now()).expect_err("too old");
+        assert!(why.contains("90 days"), "{why}");
+    }
+
+    #[test]
+    fn an_approval_stands_only_while_a_policy_still_queues() {
+        let (mirror, jana) = analysts("queue");
+        let mut approved = connector(&["access"], vec![item("doprava", None)]);
+        approved.approval = Some(Approval {
+            by: "sub-admin".into(),
+            at: Utc::now(),
+        });
+        let queued = Ceiling::of(&mirror, &jana);
+        assert!(queued.honours(&approved));
+        assert_eq!(queued.door(&approved, "", Utc::now()), Ok(()));
+        let (mirror, jana) = analysts("refuse");
+        let refused = Ceiling::of(&mirror, &jana);
+        assert!(!refused.honours(&approved));
+        assert!(refused.door(&approved, "", Utc::now()).is_err());
+    }
+
+    #[tokio::test]
+    async fn a_pending_connector_waits_for_one_approval() {
+        let store = ConnectorStore::new(None);
+        let base = "https://portal.test";
+        let made = store
+            .create(
+                "sub-jana",
+                new(&["data-read"], false, 1),
+                vec!["writes: above".into()],
+                base,
+            )
+            .await
+            .expect("kept");
+        assert_eq!(made.state, "pending");
+        assert_eq!(made.above_ceiling, vec!["writes: above".to_owned()]);
+        let waiting = store.pending(base).await.expect("pending");
+        assert_eq!(
+            waiting.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
+            vec![made.id.as_str()]
+        );
+        assert!(store.approve(&made.id, "sub-admin").await.expect("approve"));
+        assert!(
+            !store.approve(&made.id, "sub-other").await.expect("twice"),
+            "approved once"
+        );
+        let now = store
+            .get(&made.id, base)
+            .await
+            .expect("get")
+            .expect("there");
+        assert_eq!(now.state, "active");
+        assert_eq!(
+            now.approval.as_ref().map(|a| a.by.as_str()),
+            Some("sub-admin")
+        );
+        assert!(store.pending(base).await.expect("pending").is_empty());
     }
 }

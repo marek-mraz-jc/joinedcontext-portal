@@ -31,7 +31,6 @@ S-27 T-5956 no plan_change for a RoleBinding with within_own_rights
 S-28 T-5956 no plan_change for a Role
 S-29 T-5956 no plan_change for a ServiceAccount with its secretRef
 S-30 T-5948 no tool answers who may write to an Endpoint
-S-31 T-5953 no DelegationPolicy ceiling or approval queue
 S-33 T-5956 no plan_change for publish.ckan
 S-34 T-5956 no plan_change for catalog.harvest false
 S-35 T-5956 no plan_change refusing a duplicate quality rule name

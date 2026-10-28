@@ -126,6 +126,8 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/connectors/{id}", "a person manages their own connectors in the Portal; a connector never creates, widens or revokes one (AG-151, API/14 §2)"),
 ("DELETE", "/connectors/{id}", "a person manages their own connectors in the Portal; a connector never creates, widens or revokes one (AG-151, API/14 §2)"),
 ("GET", "/connectors/{id}/activity", "a person manages their own connectors in the Portal; a connector never creates, widens or revokes one (AG-151, API/14 §2)"),
+("GET", "/connectors/pending", "an administrator decides connector requests above the ceiling in the Portal; no AI client decides one (AG-150, AG-151)"),
+("POST", "/connectors/{id}/approve", "an administrator decides connector requests above the ceiling in the Portal; no AI client decides one (AG-150, AG-151)"),
 ("GET", "/c/{id}", "a connector's MCP door, which dispatches this registry narrowed by the connector (AG-143)"),
 ("POST", "/c/{id}", "a connector's MCP door, which dispatches this registry narrowed by the connector (AG-143)"),
 ("GET", "/c/{id}/.well-known/oauth-protected-resource", "the OAuth resource metadata an MCP client reads before it asks a token for the connector"),
