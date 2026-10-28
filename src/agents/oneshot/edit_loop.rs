@@ -93,48 +93,48 @@ fn tools() -> Vec<ToolSpec> {
     let path = json!({ "type": "string", "description": "the file, relative to the application" });
     vec![
         ToolSpec {
-            name: "list_files",
-            description: "Every file of the application with its size.",
+            name: "list_files".into(),
+            description: "Every file of the application with its size.".into(),
             input_schema: json!({ "type": "object", "properties": {} }),
         },
         ToolSpec {
-            name: "read_file",
-            description: "A file whole, or the lines from..to of it (1-based); read a file whole unless it is very long.",
+            name: "read_file".into(),
+            description: "A file whole, or the lines from..to of it (1-based); read a file whole unless it is very long.".into(),
             input_schema: json!({ "type": "object", "properties": { "path": path, "from": { "type": "integer" }, "to": { "type": "integer" } }, "required": ["path"] }),
         },
         ToolSpec {
-            name: "edit_file",
-            description: "Replaces one exact occurrence of search with replace; an empty search creates or overwrites the file.",
+            name: "edit_file".into(),
+            description: "Replaces one exact occurrence of search with replace; an empty search creates or overwrites the file.".into(),
             input_schema: json!({ "type": "object", "properties": { "path": path, "search": { "type": "string" }, "replace": { "type": "string" } }, "required": ["path", "search", "replace"] }),
         },
         ToolSpec {
-            name: "write_file",
-            description: "Writes a whole file.",
+            name: "write_file".into(),
+            description: "Writes a whole file.".into(),
             input_schema: json!({ "type": "object", "properties": { "path": path, "content": { "type": "string" } }, "required": ["path", "content"] }),
         },
         ToolSpec {
-            name: "delete_file",
-            description: "Removes a file.",
+            name: "delete_file".into(),
+            description: "Removes a file.".into(),
             input_schema: json!({ "type": "object", "properties": { "path": path }, "required": ["path"] }),
         },
         ToolSpec {
-            name: "check",
-            description: "Builds the application: ok, or every problem, one per line.",
+            name: "check".into(),
+            description: "Builds the application: ok, or every problem, one per line.".into(),
             input_schema: json!({ "type": "object", "properties": {} }),
         },
         ToolSpec {
-            name: "call_function",
-            description: "Runs functions/{name}.ts of the application with a JSON body and returns its status and answer.",
+            name: "call_function".into(),
+            description: "Runs functions/{name}.ts of the application with a JSON body and returns its status and answer.".into(),
             input_schema: json!({ "type": "object", "properties": { "name": { "type": "string" }, "body": {}, "query": { "type": "object" } }, "required": ["name"] }),
         },
         ToolSpec {
-            name: "preview_errors",
-            description: "The errors the preview frame reported since the last reload, oldest first.",
+            name: "preview_errors".into(),
+            description: "The errors the preview frame reported since the last reload, oldest first.".into(),
             input_schema: json!({ "type": "object", "properties": {} }),
         },
         ToolSpec {
-            name: "finish",
-            description: "Ends the turn with one sentence for the person.",
+            name: "finish".into(),
+            description: "Ends the turn with one sentence for the person.".into(),
             input_schema: json!({ "type": "object", "properties": { "message": { "type": "string" } }, "required": ["message"] }),
         },
     ]
@@ -775,7 +775,12 @@ impl Driver {
 
     /// One model call on the run's counters (AG-44) and as a `usage` event (SDK-20, API/04 §4),
     /// when the proxy did not count it already: see [`own_count`].
-    async fn record_call(&self, answer: &ToolAnswer, input: u64, step: u32) -> Result<(), String> {
+    pub(super) async fn record_call(
+        &self,
+        answer: &ToolAnswer,
+        input: u64,
+        step: u32,
+    ) -> Result<(), String> {
         let Some(tokens) = own_count(answer, input) else {
             return Ok(());
         };

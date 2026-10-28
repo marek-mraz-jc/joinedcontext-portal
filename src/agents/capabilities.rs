@@ -37,6 +37,10 @@ pub struct Capabilities {
     /// An endpoint not named here is `read`.
     #[serde(default)]
     pub endpoints: BTreeMap<String, EndpointAccess>,
+    /// The connector segment the conversation runs as (T-5958, API/14 §1), e.g. `pipeline`: the
+    /// assistant calls that segment's registry tools natively, checked as a connector's calls.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub segment: Option<String>,
 }
 
 /// The conversation's own tools that only read or ask: every preset has them. A registry
@@ -73,9 +77,15 @@ impl Capabilities {
                 "access names at most {MAX_NAMED} endpoints, as a conversation reads"
             ));
         }
-        match self.endpoints.keys().find(|name| !is_dns1123(name)) {
-            Some(name) => Err(format!("access names '{name}', which is no endpoint name")),
-            None => Ok(()),
+        if let Some(name) = self.endpoints.keys().find(|name| !is_dns1123(name)) {
+            return Err(format!("access names '{name}', which is no endpoint name"));
+        }
+        match self.segment.as_deref() {
+            Some(segment) if !crate::connectors::is_segment(segment) => Err(format!(
+                "segment '{segment}' is no segment; one of data-read, context, pipeline, access, \
+                 publish, apps, operate, admin"
+            )),
+            _ => Ok(()),
         }
     }
 
@@ -132,6 +142,7 @@ mod tests {
                 .iter()
                 .map(|(name, access)| ((*name).to_owned(), *access))
                 .collect(),
+            segment: None,
         }
     }
 
@@ -199,6 +210,7 @@ mod tests {
         let many = Capabilities {
             preset: Preset::Read,
             endpoints: many.into_iter().collect(),
+            segment: None,
         };
         assert!(many.check().is_err());
         let parsed: Result<Capabilities, _> =
@@ -208,5 +220,14 @@ mod tests {
             serde_json::from_str(r#"{"preset":"propose","endpoints":{"bikes":"readWrite"}}"#)
                 .expect("the documented shape");
         assert!(parsed.writes("bikes"));
+        // T-5958: a segment is one a connector may name, nothing else.
+        let segment = |name: &str| -> Capabilities {
+            serde_json::from_value(serde_json::json!({ "preset": "read", "segment": name }))
+                .expect("the documented shape")
+        };
+        assert_eq!(segment("pipeline").check(), Ok(()));
+        assert_eq!(segment("admin").check(), Ok(()));
+        let refused = segment("root").check().expect_err("an unknown segment");
+        assert!(refused.contains("'root'"), "{refused}");
     }
 }

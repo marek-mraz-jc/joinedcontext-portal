@@ -130,6 +130,40 @@ pub const APPLY: &str = "jc_change_apply";
 /// `admin` is every segment above.
 pub const ADMIN: &str = "admin";
 
+/// Whether `segment` is one a connector may name.
+pub fn is_segment(segment: &str) -> bool {
+    segment == ADMIN || SEGMENTS.iter().any(|(s, _, _)| *s == segment)
+}
+
+/// The connector a Portal assistant conversation runs as (T-5958, GOAL-connectors §6): the
+/// person's own, one segment, the run's project, no writes, never stored. Its [`Connector::access`]
+/// narrows every call the conversation makes exactly as `/c/{id}` narrows a client's.
+pub fn of_conversation(run_id: &str, owner: &str, project: &str, segment: &str) -> Connector {
+    let now = Utc::now();
+    Connector {
+        id: format!("conversation-{run_id}"),
+        name: format!("assistant {segment}"),
+        owner: owner.to_owned(),
+        segments: vec![segment.to_owned()],
+        scope: vec![ScopeItem {
+            project: project.to_owned(),
+            space: None,
+            endpoint: None,
+            pipeline: None,
+            access: ItemAccess::Read,
+        }],
+        writes: false,
+        expires_at: now + Duration::hours(1),
+        allowed_clients: Vec::new(),
+        client_is_boundary: false,
+        state: "active".to_owned(),
+        created_at: now,
+        last_used_at: None,
+        url: String::new(),
+        limits: PERSON_LIMITS,
+    }
+}
+
 /// What a person no DelegationPolicy names may put in a connector (ADR-N-064 §3.5, AG-150):
 /// `data-read`, reads only, 30 days, any client.
 // ponytail: the organization default for everyone; T-5953 reads the DelegationPolicy ceiling.
@@ -591,8 +625,7 @@ fn validate_segments(segments: &[String], ceiling: &Ceiling) -> Result<(), ApiEr
         ));
     }
     for (i, segment) in segments.iter().enumerate() {
-        let known = segment == ADMIN || SEGMENTS.iter().any(|(s, _, _)| s == segment);
-        if !known {
+        if !is_segment(segment) {
             return Err(invalid(
                 &format!("segments[{i}]"),
                 format!("'{segment}' is no segment; one of data-read, context, pipeline, access, publish, apps, operate, admin"),
