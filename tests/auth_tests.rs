@@ -1111,7 +1111,7 @@ async fn a_connector_token_is_refused_on_rest_writes_and_pointed_at_the_mcp_rout
             "/api/v1/projects/helsinki/access-requests/ar-1/approve",
         ),
     ];
-    for client in ["mcp-mobile", "mcp-hub"] {
+    for client in ["mcp-mobile", "mcp-hub", "mcp-local"] {
         for (method, uri) in writes {
             let (status, body) = send(method, uri, bearer(client)).await;
             assert_eq!(
