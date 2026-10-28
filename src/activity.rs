@@ -262,11 +262,11 @@ impl ActivityHub {
 
 /// sqlx is built with the `time` crate, the rest of the Portal speaks `chrono`; the drafts store
 /// converts the same way.
-fn odt_to_chrono(odt: time::OffsetDateTime) -> DateTime<Utc> {
+pub(crate) fn odt_to_chrono(odt: time::OffsetDateTime) -> DateTime<Utc> {
     DateTime::from_timestamp(odt.unix_timestamp(), odt.nanosecond()).unwrap_or_else(Utc::now)
 }
 
-fn chrono_to_odt(dt: DateTime<Utc>) -> time::OffsetDateTime {
+pub(crate) fn chrono_to_odt(dt: DateTime<Utc>) -> time::OffsetDateTime {
     time::OffsetDateTime::from_unix_timestamp(dt.timestamp())
         .unwrap_or_else(|_| time::OffsetDateTime::now_utc())
 }

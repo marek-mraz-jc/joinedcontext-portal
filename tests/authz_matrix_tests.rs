@@ -298,7 +298,7 @@ fn url(path: &str, row: &Row) -> (bool, String) {
     }
     if filled.starts_with("/internal/") {
         (true, filled)
-    } else if ["/apps/", "/metrics", "/.well-known/"]
+    } else if ["/apps/", "/metrics", "/.well-known/", "/c/"]
         .iter()
         .any(|root| filled.starts_with(root))
     {

@@ -47,6 +47,7 @@ use serde_json::{json, Value};
 use crate::error::ApiError;
 use crate::state::AppState;
 
+pub mod connector;
 pub mod elicitation;
 pub mod tasks;
 
