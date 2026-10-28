@@ -147,6 +147,12 @@ spec:
         sk: Koľko zariadení smie byť pripojených naraz; najviac 10000. Napr. 500.
         cs: Kolik zařízení smí být připojeno najednou; nejvýše 10000. Např. 500.
         de: Wie viele Geräte gleichzeitig verbunden sein dürfen; höchstens 10000. Z. B. 500.
+    limits.connectionsPerAddress:
+      help:
+        en: How many connections one source address may hold at once, at most the connections above; raise it for devices behind one NAT address. Empty is 20. E.g. 50.
+        sk: Koľko spojení smie jedna zdrojová adresa držať naraz, najviac počet spojení vyššie; zvýšte ho pre zariadenia za jednou NAT adresou. Prázdne je 20. Napr. 50.
+        cs: Kolik spojení smí jedna zdrojová adresa držet najednou, nejvýše počet spojení výše; zvyšte ho pro zařízení za jednou NAT adresou. Prázdné je 20. Např. 50.
+        de: Wie viele Verbindungen eine Quelladresse gleichzeitig halten darf, höchstens die Verbindungen oben; erhöhen Sie ihn für Geräte hinter einer NAT-Adresse. Leer ist 20. Z. B. 50.
     port:
       help:
         en: A port of its own from 18830 to 18849, for devices that cannot send a host name; empty uses 8883 by name. E.g. 18830.

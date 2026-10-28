@@ -9668,6 +9668,7 @@
       "maxMessageBytes": "Largest message (bytes)",
       "messagesPerSecond": "Messages per second per device",
       "maxConnections": "Connections at most",
+      "connectionsPerAddress": "Connections per source address",
       "port": "Dedicated port",
       "allowedSources": "Allowed source networks",
       "mode": "What the broker does",

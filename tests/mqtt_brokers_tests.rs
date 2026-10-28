@@ -332,6 +332,8 @@ metadata:
     app.kubernetes.io/instance: __RELEASE__
 spec:
   entryPoints: [mqtts]
+  routes:
+    - match: HostSNI(`__NAME__.__PROJECT__.mqtt.example`)
 ";
 
 /// The same release with a port: the 8883 route and the port's passthrough route, which carries
@@ -347,6 +349,8 @@ metadata:
     app.kubernetes.io/instance: __RELEASE__
 spec:
   entryPoints: [mqtts]
+  routes:
+    - match: HostSNI(`__NAME__.__PROJECT__.mqtt.example`)
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRouteTCP
@@ -359,6 +363,8 @@ metadata:
     joinedcontext.com/tls-revision: \"__TLS_REVISION__\"
 spec:
   entryPoints: [mqtt-__PORT__]
+  routes:
+    - match: HostSNI(`*`)
   tls:
     passthrough: true
 ";
@@ -443,6 +449,9 @@ async fn a_port_is_routed_while_named_and_its_route_goes_when_the_manifest_drops
             format!("{routes}/mqtt-helsinki-cameras"),
             format!("{routes}/mqtt-helsinki-cameras-port"),
             format!("{routes}/mqtt-helsinki-doors"),
+            // Every broker's per-address cap (T-5888).
+            format!("/apis/traefik.io/v1alpha1/namespaces/{NAMESPACE}/middlewaretcps/mqtt-helsinki-cameras-connections"),
+            format!("/apis/traefik.io/v1alpha1/namespaces/{NAMESPACE}/middlewaretcps/mqtt-helsinki-doors-connections"),
         ]
     );
     let port = received

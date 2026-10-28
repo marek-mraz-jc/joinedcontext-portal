@@ -37,7 +37,12 @@ export interface MqttRoleForm {
 export interface MqttBrokerForm {
   name?: string;
   roles?: MqttRoleForm[];
-  limits?: { maxMessageBytes?: number; messagesPerSecond?: number; maxConnections?: number };
+  limits?: {
+    maxMessageBytes?: number;
+    messagesPerSecond?: number;
+    maxConnections?: number;
+    connectionsPerAddress?: number;
+  };
   port?: number;
   allowedSources?: string[];
   mode?: string;
@@ -132,6 +137,9 @@ export function mqttBrokerSchema(t: (key: string) => string, language = "en"): J
           maxMessageBytes: limit("maxMessageBytes", 1024 * 1024),
           messagesPerSecond: limit("messagesPerSecond", 1000),
           maxConnections: limit("maxConnections", 10_000),
+          // Traefik closes a connection over this count from one address (T-5888); jc-core holds
+          // it to maxConnections, which one field cannot compare.
+          connectionsPerAddress: limit("connectionsPerAddress", 10_000),
         },
       },
       port: { type: "integer", title: title("port"), minimum: DEDICATED_PORTS.min, maximum: DEDICATED_PORTS.max },

@@ -411,31 +411,50 @@ pub fn objects_of(
             )?
         }
     };
-    restrict_sources(&mut objects, broker, spec)?;
+    fence_routes(&mut objects, broker, spec)?;
     Ok(objects)
 }
 
-/// The kind of the per-broker edge filter (PF-129): a Traefik `MiddlewareTCP` whose
-/// `ipAllowList` admits the broker's `allowedSources` and nothing else.
+/// The kind of the per-broker edge filters: a Traefik `MiddlewareTCP` whose `ipAllowList` admits
+/// the broker's `allowedSources` and nothing else (PF-129), and one whose `inFlightConn` caps the
+/// connections one source address holds at once (T-5888).
 pub const SOURCES_KIND: (&str, &str) = ("traefik.io/v1alpha1", "MiddlewareTCP");
 
-/// A broker with `allowedSources` gets a `MiddlewareTCP` `{release}-sources` of its own, named on
-/// every route of each of its `IngressRouteTCP`s (8883 by SNI and the dedicated port), so Traefik
-/// closes a connection from any other address before TLS (PF-129). Without the list nothing is
-/// added, and the retirement removes a middleware the broker no longer renders.
-fn restrict_sources(
+/// Fences every route of each of a broker's `IngressRouteTCP`s (8883 by SNI and the dedicated
+/// port) with middlewares of the broker's own. A broker with `allowedSources` gets
+/// `{release}-sources`, so Traefik closes a connection from any other address before TLS
+/// (PF-129). Every broker gets `{release}-connections`, so one address holds at most
+/// `limits.connectionsPerAddress` connections and cannot take the broker's `maxConnections`
+/// (T-5888). The retirement removes a middleware the broker no longer renders.
+fn fence_routes(
     objects: &mut Vec<Value>,
     broker: &Broker,
     spec: &MqttBrokerSpec,
 ) -> Result<(), String> {
     let ranges = spec.source_ranges().map_err(|err| err.to_string())?;
-    if ranges.is_empty() {
-        return Ok(());
+    // The allow-list goes first: an address outside it is closed before it counts.
+    let mut fences = Vec::new();
+    if !ranges.is_empty() {
+        let ranges: Vec<String> = ranges
+            .iter()
+            .map(|range| format!("{}/{}", range.network, range.prefix))
+            .collect();
+        fences.push((
+            format!("{}-sources", broker.release),
+            json!({ "ipAllowList": { "sourceRange": ranges } }),
+        ));
     }
-    let name = format!("{}-sources", broker.release);
+    fences.push((
+        format!("{}-connections", broker.release),
+        json!({ "inFlightConn": { "amount": spec.limits.connections_per_address() } }),
+    ));
+    let named: Vec<Value> = fences
+        .iter()
+        .map(|(name, _)| json!({ "name": name }))
+        .collect();
     let mut namespace = None;
-    let mut routed = false;
-    for object in objects.iter_mut() {
+    let mut first_route = None;
+    for (at, object) in objects.iter_mut().enumerate() {
         if object["kind"] != "IngressRouteTCP" {
             continue;
         }
@@ -445,13 +464,22 @@ fn restrict_sources(
             .as_array_mut()
             .ok_or_else(|| format!("{TEMPLATE}'s IngressRouteTCP holds no routes"))?;
         for route in routes {
-            route["middlewares"] = json!([{ "name": name }]);
-            routed = true;
+            route["middlewares"] = json!(named);
+            first_route = first_route.or(Some(at));
         }
     }
-    if !routed {
-        return Ok(());
+    // Applied before the routes that name them, so Traefik never meets a missing middleware.
+    if let Some(first_route) = first_route {
+        let stamped = fences
+            .into_iter()
+            .map(|(name, spec)| middleware(broker, namespace.as_deref(), &name, spec));
+        objects.splice(first_route..first_route, stamped);
     }
+    Ok(())
+}
+
+/// One of a broker's edge middlewares, labelled as its release so the retirement finds it.
+fn middleware(broker: &Broker, namespace: Option<&str>, name: &str, spec: Value) -> Value {
     let mut labels: serde_json::Map<String, Value> = SELECTOR
         .split(',')
         .filter_map(|pair| pair.split_once('='))
@@ -462,17 +490,12 @@ fn restrict_sources(
     if let Some(namespace) = namespace {
         metadata["namespace"] = json!(namespace);
     }
-    let ranges: Vec<String> = ranges
-        .iter()
-        .map(|range| format!("{}/{}", range.network, range.prefix))
-        .collect();
-    objects.push(json!({
+    json!({
         "apiVersion": SOURCES_KIND.0,
         "kind": SOURCES_KIND.1,
         "metadata": metadata,
-        "spec": { "ipAllowList": { "sourceRange": ranges } },
-    }));
-    Ok(())
+        "spec": spec,
+    })
 }
 
 /// The objects of a broker's certificate door: the template of [`CERTIFICATE_KEY`] with the
@@ -507,7 +530,7 @@ pub fn door_objects(
         spec,
     )?;
     // The door admits the broker's networks only, as its token release does (PF-129).
-    restrict_sources(&mut objects, &at_door, spec)?;
+    fence_routes(&mut objects, &at_door, spec)?;
     Ok(objects)
 }
 
@@ -1198,9 +1221,12 @@ spec:
             certificate: None,
         };
         let objects = objects_of(&port, cameras, &spec, Some(2)).expect("renders");
-        assert_eq!(objects.len(), 4);
-        assert_eq!(objects[3]["metadata"]["name"], "mqtt-helsinki-cameras-port");
-        assert_eq!(objects[3]["spec"]["entryPoints"], json!(["mqtt-18835"]));
+        // ConfigMap, Deployment, the per-address cap before the route naming it (T-5888), the
+        // port route.
+        assert_eq!(objects.len(), 5);
+        assert_eq!(objects[3]["kind"], "MiddlewareTCP");
+        assert_eq!(objects[4]["metadata"]["name"], "mqtt-helsinki-cameras-port");
+        assert_eq!(objects[4]["spec"]["entryPoints"], json!(["mqtt-18835"]));
         let annotation = |objects: &[Value]| {
             objects[1]["spec"]["template"]["metadata"]["annotations"]
                 ["joinedcontext.com/tls-revision"]
@@ -1255,13 +1281,35 @@ spec:
             certificate: None,
         };
         let plain = objects_of(&port, cameras, &spec, Some(1)).expect("renders");
-        assert!(plain.iter().all(|o| o["kind"] != "MiddlewareTCP"));
+        let middlewares = |objects: &[Value]| -> Vec<String> {
+            objects
+                .iter()
+                .filter(|o| o["kind"] == "MiddlewareTCP")
+                .map(|o| {
+                    o["metadata"]["name"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .to_owned()
+                })
+                .collect()
+        };
+        // Without the list only the per-address cap fences the routes (T-5888).
+        assert_eq!(middlewares(&plain), ["mqtt-helsinki-cameras-connections"]);
         assert!(plain
             .iter()
-            .all(|o| o["spec"]["routes"][0].get("middlewares").is_none()));
+            .filter(|o| o["kind"] == "IngressRouteTCP")
+            .all(|o| o["spec"]["routes"][0]["middlewares"]
+                == json!([{ "name": "mqtt-helsinki-cameras-connections" }])));
 
         spec.allowed_sources = vec!["203.0.113.0/24".into(), "2001:0db8::/48".into()];
         let objects = objects_of(&port, cameras, &spec, Some(1)).expect("renders");
+        assert_eq!(
+            middlewares(&objects),
+            [
+                "mqtt-helsinki-cameras-sources",
+                "mqtt-helsinki-cameras-connections"
+            ]
+        );
         let middleware = objects
             .iter()
             .find(|o| o["kind"] == "MiddlewareTCP")
@@ -1292,7 +1340,10 @@ spec:
         for route in routes {
             assert_eq!(
                 route["spec"]["routes"][0]["middlewares"],
-                json!([{ "name": "mqtt-helsinki-cameras-sources" }]),
+                json!([
+                    { "name": "mqtt-helsinki-cameras-sources" },
+                    { "name": "mqtt-helsinki-cameras-connections" },
+                ]),
                 "{}",
                 route["metadata"]["name"]
             );
@@ -1322,8 +1373,55 @@ spec:
             .expect("the hostname route");
         assert_eq!(
             route["spec"]["routes"][0]["middlewares"],
-            json!([{ "name": "mqtt-helsinki-cameras-sources" }])
+            json!([
+                { "name": "mqtt-helsinki-cameras-sources" },
+                { "name": "mqtt-helsinki-cameras-connections" },
+            ])
         );
+    }
+
+    /// T-5888: every broker's routes carry its own `inFlightConn` cap, 20 per address by
+    /// default and the manifest's `connectionsPerAddress` when it names one.
+    #[test]
+    fn every_route_caps_the_connections_of_one_address() {
+        let brokers = declared(&mirror());
+        let cameras = &brokers[1];
+        let mut spec = cameras.spec.clone().expect("valid");
+        spec.port = Some(18835);
+        let templates = Templates {
+            plain: TEMPLATE_TEXT.to_owned(),
+            port: Some(port_text()),
+            hostname: None,
+            certificate: None,
+        };
+        let cap = |objects: &[Value]| {
+            let middleware = objects
+                .iter()
+                .find(|o| o["metadata"]["name"] == "mqtt-helsinki-cameras-connections")
+                .expect("the per-address cap");
+            assert_eq!(middleware["kind"], "MiddlewareTCP");
+            assert_eq!(
+                middleware["metadata"]["labels"][INSTANCE],
+                "mqtt-helsinki-cameras"
+            );
+            let routes: Vec<&Value> = objects
+                .iter()
+                .filter(|o| o["kind"] == "IngressRouteTCP")
+                .collect();
+            assert!(!routes.is_empty());
+            for route in routes {
+                assert_eq!(
+                    route["spec"]["routes"][0]["middlewares"],
+                    json!([{ "name": "mqtt-helsinki-cameras-connections" }])
+                );
+            }
+            middleware["spec"].clone()
+        };
+        let objects = objects_of(&templates, cameras, &spec, Some(1)).expect("renders");
+        assert_eq!(cap(&objects), json!({ "inFlightConn": { "amount": 20 } }));
+        spec.limits.connections_per_address = Some(50);
+        let objects = objects_of(&templates, cameras, &spec, Some(1)).expect("renders");
+        assert_eq!(cap(&objects), json!({ "inFlightConn": { "amount": 50 } }));
     }
 
     /// [`TEMPLATE_TEXT`] on a custom hostname: the Certificate for the city's name, and the
@@ -1405,18 +1503,24 @@ spec:
             .collect();
         assert_eq!(
             kinds,
-            ["ConfigMap", "Deployment", "Certificate", "IngressRouteTCP"]
+            [
+                "ConfigMap",
+                "Deployment",
+                "Certificate",
+                "MiddlewareTCP",
+                "IngressRouteTCP"
+            ]
         );
         assert_eq!(
             objects[2]["spec"]["dnsNames"],
             json!(["mqtt.helsinki.example"])
         );
         assert_eq!(
-            objects[3]["spec"]["routes"][0]["match"],
+            objects[4]["spec"]["routes"][0]["match"],
             "HostSNI(`mqtt.helsinki.example`)"
         );
         assert_eq!(
-            objects[3]["spec"]["tls"]["secretName"],
+            objects[4]["spec"]["tls"]["secretName"],
             "mqtt-helsinki-cameras-tls"
         );
 
@@ -1433,7 +1537,7 @@ spec:
         let objects = objects_of(&templates, cameras, &spec, None).expect("renders");
         assert!(objects.iter().all(|o| o["kind"] != "Certificate"));
         assert_eq!(
-            objects[2]["spec"]["tls"]["secretName"],
+            objects[3]["spec"]["tls"]["secretName"],
             "helsinki-mqtt-cert"
         );
 
@@ -1822,7 +1926,7 @@ spec:
         let objects = door_objects(&templates, cameras, &spec, &door, None).expect("renders");
         let middleware = objects
             .iter()
-            .find(|object| object["kind"] == "MiddlewareTCP")
+            .find(|object| object["metadata"]["name"] == "mqtt-helsinki-cameras-cert-sources")
             .expect("the door's filter");
         assert_eq!(
             middleware["metadata"]["name"],
@@ -1842,7 +1946,10 @@ spec:
             .expect("the door's route");
         assert_eq!(
             route["spec"]["routes"][0]["middlewares"],
-            json!([{ "name": "mqtt-helsinki-cameras-cert-sources" }])
+            json!([
+                { "name": "mqtt-helsinki-cameras-cert-sources" },
+                { "name": "mqtt-helsinki-cameras-cert-connections" },
+            ])
         );
     }
 
