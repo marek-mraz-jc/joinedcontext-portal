@@ -1113,6 +1113,177 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
     );
 }
 
+/// The "My connectors" tree lists only what the person reads, and create asks again per item
+/// (T-5951): a reader bound to one space sees that space's objects, and naming another space's
+/// Endpoint is refused with the field named, the same answer as an Endpoint that is not there.
+#[tokio::test]
+async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_again() {
+    let harness = Harness::start(1).await;
+    let own = project_of(1);
+    harness
+        .mirror
+        .upsert(envelope("ContextSpace", "lot-tree", &own, json!({})));
+    harness.mirror.upsert(envelope(
+        "Endpoint",
+        "lot-tree-cars",
+        &own,
+        json!({ "contextSpaceRef": "lot-tree", "audience": "project" }),
+    ));
+    harness.mirror.upsert(envelope(
+        "Pipeline",
+        "lot-tree-load",
+        &own,
+        json!({ "contextSpaceRef": "lot-tree" }),
+    ));
+    let key = ResourceKey {
+        namespace: ORG_NAMESPACE.to_owned(),
+        kind: "RoleBinding".to_owned(),
+        name: format!("scn-viewer-{own}"),
+    };
+    harness.mirror.remove(&key).expect("viewer binding");
+    harness.mirror.upsert(envelope(
+        "RoleBinding",
+        "scn-viewer-lot-tree",
+        ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": user_of("viewer") }], "role": "scn-viewer",
+                "scope": { "contextSpace": "lot-tree" } }),
+    ));
+    let portal = harness.token_for("viewer", AUDIENCE, AUDIENCE);
+
+    let (status, options) = harness
+        .send("GET", "/api/v1/connectors/options", portal.clone(), None)
+        .await;
+    assert_eq!(status, StatusCode::OK, "{options}");
+    assert_eq!(
+        options["projects"],
+        json!([{ "project": own, "spaces": ["lot-tree"], "endpoints": ["lot-tree-cars"],
+                 "pipelines": ["lot-tree-load"] }])
+    );
+    assert_eq!(
+        options["ceiling"],
+        json!({ "segments": ["data-read"], "writes": false, "maxDays": 30 })
+    );
+    assert_eq!(options["segments"].as_array().map(Vec::len), Some(8));
+    assert_eq!(
+        options["clients"][2],
+        json!({ "id": "mcp-local", "isBoundary": false })
+    );
+
+    let expires = (chrono::Utc::now() + chrono::Duration::days(7)).to_rfc3339();
+    let ask = |endpoint: &str| {
+        json!({ "name": "tree", "segments": ["data-read"], "expiresAt": expires,
+                "scope": [{ "project": own, "endpoint": endpoint, "access": "read" }] })
+    };
+    let mut refusals = Vec::new();
+    for endpoint in [format!("{own}-counters"), "no-such-endpoint".to_owned()] {
+        let (status, body) = harness
+            .send(
+                "POST",
+                "/api/v1/connectors",
+                portal.clone(),
+                Some(ask(&endpoint)),
+            )
+            .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+        assert_eq!(
+            body["errors"][0]["path"],
+            json!("scope[0].endpoint"),
+            "{body}"
+        );
+        refusals.push(body["detail"].as_str().map(|d| d.replace(&endpoint, "_")));
+    }
+    assert_eq!(
+        refusals[0], refusals[1],
+        "an unreadable Endpoint reads like a missing one"
+    );
+    let (status, body) = harness
+        .send(
+            "POST",
+            "/api/v1/connectors",
+            portal.clone(),
+            Some(ask("lot-tree-cars")),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    let id = body["id"].as_str().expect("id").to_owned();
+    let door = format!("/api/v1/connectors/{id}");
+
+    // An edit is checked as a create is: another space's Endpoint is refused naming the field,
+    // a whole project the owner reads and a later expiry pass; the name stays.
+    let (status, refused) = harness
+        .send(
+            "PATCH",
+            &door,
+            portal.clone(),
+            Some(json!({ "scope": [{ "project": own, "endpoint": format!("{own}-counters"), "access": "read" }] })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{refused}");
+    assert_eq!(refused["errors"][0]["path"], json!("scope[0].endpoint"));
+    let (status, refused) = harness
+        .send(
+            "PATCH",
+            &door,
+            portal.clone(),
+            Some(json!({ "segments": ["admin"] })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{refused}");
+    let (status, refused) = harness
+        .send(
+            "PATCH",
+            &door,
+            portal.clone(),
+            Some(json!({ "name": "renamed" })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{refused}");
+    let later = (chrono::Utc::now() + chrono::Duration::days(20)).to_rfc3339();
+    let (status, edited) = harness
+        .send(
+            "PATCH",
+            &door,
+            portal.clone(),
+            Some(json!({ "scope": [{ "project": own, "access": "read" }], "expiresAt": later })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{edited}");
+    assert_eq!(
+        (&edited["name"], &edited["scope"]),
+        (
+            &json!("tree"),
+            &json!([{ "project": own, "access": "read" }])
+        )
+    );
+    // Another person's connector is the same 404 as none; a revoked one is not edited.
+    let (status, _) = harness
+        .send(
+            "PATCH",
+            &door,
+            harness.token_for("steward", AUDIENCE, AUDIENCE),
+            Some(json!({ "writes": false })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = harness.send("DELETE", &door, portal.clone(), None).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (status, _) = harness
+        .send(
+            "PATCH",
+            &door,
+            portal.clone(),
+            Some(json!({ "writes": false })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // No session: 401.
+    let (status, _) = harness
+        .send("GET", "/api/v1/connectors/options", None, None)
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
 /// A flood of one connector stops at its own minute; a person's connectors together stop at the
 /// person's (T-5968). Each refusal is a 429 problem+json with `Retry-After`, audited, and the
 /// connector shows its limits.

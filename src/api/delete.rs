@@ -281,7 +281,7 @@ pub async fn delete_resource(
     headers: axum::http::HeaderMap,
 ) -> Result<Response, ApiError> {
     let is_dry = dry_run::is_dry_run(&dry_run_q)?;
-    crate::api::resources::check_if_match(
+    crate::api::if_match::check_if_match(
         &state,
         &user.0.identity,
         &project,

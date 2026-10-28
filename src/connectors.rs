@@ -442,7 +442,7 @@ fn names_its_object(op: &Operation) -> bool {
 /// Whether a client id binds: a published client whose redirect URIs no local program can use
 /// (AG-153). Claude Code's own document and realm clients are loopback, so "intended for" only.
 // ponytail: the hosts of today's two vendors; T-5954 records the exact CIMD ids.
-fn binds(client: &str) -> bool {
+pub fn binds(client: &str) -> bool {
     let Ok(url) = url::Url::parse(client) else {
         return false;
     };
@@ -522,7 +522,8 @@ pub fn validate(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Re
         ));
     }
     validate_segments(&new.segments, ceiling)?;
-    validate_scope(new, ceiling)?;
+    validate_scope(new)?;
+    validate_personal(&new.scope, ceiling)?;
     if new.writes && !ceiling.writes {
         return Err(above_ceiling(
             "writes",
@@ -573,7 +574,7 @@ fn validate_segments(segments: &[String], ceiling: &Ceiling) -> Result<(), ApiEr
     Ok(())
 }
 
-fn validate_scope(new: &NewConnector, ceiling: &Ceiling) -> Result<(), ApiError> {
+fn validate_scope(new: &NewConnector) -> Result<(), ApiError> {
     if new.scope.is_empty() || new.scope.len() > MAX_SCOPE {
         return Err(invalid("scope", format!("scope names 1 to {MAX_SCOPE} items, e.g. {{\"project\": \"doprava\", \"access\": \"read\"}}")));
     }
@@ -603,12 +604,6 @@ fn validate_scope(new: &NewConnector, ceiling: &Ceiling) -> Result<(), ApiError>
                 ));
             }
         }
-        if item.personal_data && !ceiling.personal_data {
-            return Err(above_ceiling(
-                &format!("scope[{i}].personalData"),
-                "your organization keeps the attributes a model marks personalData out of AI connector answers; untick it, or ask an organization admin for a DelegationPolicy that allows it".into(),
-            ));
-        }
         if item.access == ItemAccess::Write && !new.writes {
             return Err(invalid(
                 &format!("scope[{i}].access"),
@@ -617,6 +612,17 @@ fn validate_scope(new: &NewConnector, ceiling: &Ceiling) -> Result<(), ApiError>
         }
     }
     Ok(())
+}
+
+/// A `personalData` tick needs a ceiling that allows it (AG-158).
+fn validate_personal(scope: &[ScopeItem], ceiling: &Ceiling) -> Result<(), ApiError> {
+    match scope.iter().position(|item| item.personal_data) {
+        Some(i) if !ceiling.personal_data => Err(above_ceiling(
+            &format!("scope[{i}].personalData"),
+            "your organization keeps the attributes a model marks personalData out of AI connector answers; untick it, or ask an organization admin for a DelegationPolicy that allows it".into(),
+        )),
+        _ => Ok(()),
+    }
 }
 
 fn validate_clients(clients: &[String]) -> Result<(), ApiError> {
@@ -811,6 +817,40 @@ impl ConnectorStore {
             }
         }
         Ok(record.view(base, now))
+    }
+
+    /// Replaces the grant of the owner's connector `id` that is not revoked (an expired one
+    /// lives again under a new `expiresAt`); `false` when there is none. The name stays.
+    pub async fn update(&self, id: &str, owner: &str, new: NewConnector) -> Result<bool, ApiError> {
+        let grant = GrantDoc {
+            segments: new.segments,
+            scope: new.scope,
+            writes: new.writes,
+            expires_at: new.expires_at,
+            allowed_clients: new.allowed_clients,
+        };
+        match &self.inner {
+            Inner::Postgres(pool) => {
+                let done = sqlx::query(
+                    "UPDATE connectors SET grant_doc = $3 WHERE id = $1 AND owner = $2 AND revoked_at IS NULL",
+                )
+                .bind(id)
+                .bind(owner)
+                .bind(sqlx::types::Json(&grant))
+                .execute(pool)
+                .await
+                .map_err(db_error)?;
+                Ok(done.rows_affected() == 1)
+            }
+            Inner::Memory(rows) => {
+                let mut rows = Self::memory(rows);
+                let found = rows
+                    .0
+                    .iter_mut()
+                    .find(|r| r.id == id && r.owner == owner && r.revoked_at.is_none());
+                Ok(found.map(|r| r.grant = grant).is_some())
+            }
+        }
     }
 
     /// The connector `id`, whoever owns it: the caller compares the owner.

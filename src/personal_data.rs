@@ -78,10 +78,25 @@ fn is_entity(node: &serde_json::Map<String, Value>) -> bool {
     node.get("id").is_some_and(Value::is_string) && !types_of(node).is_empty()
 }
 
+/// A GeoJSON Feature's `properties` (NGSI-LD GeoJSON, OGC Features): the entity's type and
+/// attributes sit there, under a Feature whose own `type` is `Feature`.
+fn feature_properties(
+    node: &mut serde_json::Map<String, Value>,
+) -> Option<&mut serde_json::Map<String, Value>> {
+    if node.get("type").and_then(Value::as_str) != Some("Feature") {
+        return None;
+    }
+    node.get_mut("properties").and_then(Value::as_object_mut)
+}
+
 /// Whether `value` holds an entity anywhere: only such an answer needs the models read.
 pub fn carries_entities(value: &Value) -> bool {
     match value {
-        Value::Object(node) => is_entity(node) || node.values().any(carries_entities),
+        Value::Object(node) => {
+            is_entity(node)
+                || node.get("type").and_then(Value::as_str) == Some("Feature")
+                || node.values().any(carries_entities)
+        }
         Value::Array(items) => items.iter().any(carries_entities),
         _ => false,
     }
@@ -98,26 +113,34 @@ pub fn withhold(value: &mut Value, marks: &Marks) -> Vec<String> {
 fn walk(value: &mut Value, marks: &Marks, removed: &mut BTreeSet<String>) {
     match value {
         Value::Object(node) => {
+            if let Some(properties) = feature_properties(node) {
+                strip(properties, marks, removed);
+            }
             if is_entity(node) {
-                let personal: Vec<(String, String)> = types_of(node)
-                    .into_iter()
-                    .filter_map(|t| marks.get(t).map(|attrs| (t, attrs)))
-                    .flat_map(|(t, attrs)| {
-                        node.keys()
-                            .filter(|key| attrs.contains(short(key)))
-                            .map(move |key| (t.to_owned(), key.clone()))
-                    })
-                    .collect();
-                for (t, key) in personal {
-                    if node.remove(&key).is_some() {
-                        removed.insert(format!("{t}.{}", short(&key)));
-                    }
-                }
+                strip(node, marks, removed);
             }
             node.values_mut().for_each(|v| walk(v, marks, removed));
         }
         Value::Array(items) => items.iter_mut().for_each(|v| walk(v, marks, removed)),
         _ => {}
+    }
+}
+
+/// Removes from one entity (or a Feature's `properties`) the attributes its types mark.
+fn strip(node: &mut serde_json::Map<String, Value>, marks: &Marks, removed: &mut BTreeSet<String>) {
+    let personal: Vec<(String, String)> = types_of(node)
+        .into_iter()
+        .filter_map(|t| marks.get(t).map(|attrs| (t, attrs)))
+        .flat_map(|(t, attrs)| {
+            node.keys()
+                .filter(|key| attrs.contains(short(key)))
+                .map(move |key| (t.to_owned(), key.clone()))
+        })
+        .collect();
+    for (t, key) in personal {
+        if node.remove(&key).is_some() {
+            removed.insert(format!("{t}.{}", short(&key)));
+        }
     }
 }
 
@@ -186,6 +209,29 @@ slots:
         assert!(text.contains("Hlboká jama"), "{text}");
         assert!(text.contains("kept@example.org"), "{text}");
         assert!(text.contains("not an entity, kept"), "{text}");
+    }
+
+    #[test]
+    fn a_geojson_feature_loses_the_personal_attributes_under_its_properties() {
+        let marks = marks(MODEL);
+        let mut answer = json!({ "type": "FeatureCollection", "features": [{
+            "id": "urn:ngsi-ld:PotholeReport:1",
+            "type": "Feature",
+            "geometry": { "type": "Point", "coordinates": [19.15, 48.73] },
+            "properties": {
+                "type": "PotholeReport",
+                "description": "Hlboká jama",
+                "contactEmail": { "type": "Property", "value": "jana@example.org" }
+            }
+        }] });
+        assert!(carries_entities(&answer));
+        assert_eq!(
+            withhold(&mut answer, &marks),
+            vec!["PotholeReport.contactEmail"]
+        );
+        let text = answer.to_string();
+        assert!(!text.contains("jana@example.org"), "{text}");
+        assert!(text.contains("Hlboká jama"), "{text}");
     }
 
     #[test]

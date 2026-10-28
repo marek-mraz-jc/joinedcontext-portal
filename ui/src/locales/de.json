@@ -10541,5 +10541,128 @@
     "view": "Ansicht",
     "tool": "Werkzeug",
     "home": "Zurück zum Portal"
+  },
+  "aiConnectors": {
+    "title": "Meine KI-Konnektoren",
+    "lead": "Adressen für Claude, ChatGPT oder VS Code, die nur erreichen, was Sie hier ankreuzen, und nie mehr, als Sie selbst dürfen. Jeder KI-Client meldet Sie selbst an; diese Seite zeigt kein Token.",
+    "new": "Neuer KI-Konnektor",
+    "full": "Sie haben 20 aktive KI-Konnektoren; widerrufen Sie zuerst einen.",
+    "loading": "Ihre KI-Konnektoren werden geladen",
+    "empty": "Noch keine KI-Konnektoren",
+    "emptyHint": "Legen Sie einen an, wählen Sie, was er erreichen darf, und fügen Sie seine Adresse in Claude Code, claude.ai, ChatGPT oder VS Code ein.",
+    "never": "nie",
+    "setup": "Einrichten",
+    "activity": "Aktivität",
+    "revoke": "Widerrufen",
+    "revokeOf": "KI-Konnektor {name} widerrufen",
+    "revokeConfirm": "{name} widerrufen? Der nächste Aufruf darüber wird abgelehnt, und er lässt sich nicht wieder einschalten.",
+    "revokeNow": "Jetzt widerrufen",
+    "keep": "Behalten",
+    "scopeOf": "Was {name} erreicht",
+    "every": "jeder, den Sie lesen dürfen",
+    "anyClient": "jeder KI-Client",
+    "lastCall": "Letzter Aufruf",
+    "setupTitle": "Fügen Sie ihn Ihrem KI-Client hinzu",
+    "activityLoading": "Aufrufe werden geladen",
+    "noCalls": "In den letzten 30 Tagen kam kein Aufruf über diesen Konnektor.",
+    "activityOf": "Aufrufe über {name}",
+    "noProjects": "Sie lesen noch kein Projekt, ein Konnektor hätte also nichts zu erreichen. Bitten Sie zuerst einen Projektverantwortlichen um Zugriff.",
+    "accessOf": "Zugriff für {what}",
+    "inWholeProject": "Schon enthalten: das ganze Projekt ist angekreuzt.",
+    "wholeProject": "{project}: das ganze Projekt",
+    "newTitle": "Neuer KI-Konnektor",
+    "formLead": "Kreuzen Sie an, was der Konnektor erreichen darf. Die Liste enthält nur, was Sie lesen dürfen, und das Portal prüft jeden Eintrag beim Anlegen erneut.",
+    "create": "Anlegen",
+    "loadingOptions": "Wird geladen, was Sie weitergeben dürfen",
+    "needsApproval": "braucht die Freigabe Ihrer Organisation",
+    "aboveCeiling": "Ihre Organisation erlaubt einem Konnektor diese Vorgabe noch nicht.",
+    "binds": "nur dieser Client kann ihn nutzen",
+    "intendedFor": "sagt, für wen er ist; auch andere lokale Programme können ihn nennen",
+    "state": {
+      "active": "Aktiv",
+      "expired": "Abgelaufen",
+      "revoked": "Widerrufen"
+    },
+    "kind": {
+      "project": "ganzes Projekt",
+      "space": "Raum",
+      "endpoint": "Endpoint",
+      "pipeline": "Pipeline"
+    },
+    "kinds": {
+      "space": "Kontexträume",
+      "endpoint": "Endpoints",
+      "pipeline": "Pipelines"
+    },
+    "access": {
+      "read": "lesen",
+      "write": "schreiben",
+      "writeNeedsApproval": "schreiben (braucht Freigabe)"
+    },
+    "field": {
+      "name": "Name",
+      "segments": "Vorgaben",
+      "scope": "Was er erreicht",
+      "expires": "Gültig bis",
+      "clients": "Erlaubte Clients"
+    },
+    "segment": {
+      "data-read": "Daten lesen",
+      "context": "Kontext (Modelle, Räume, Endpoints)",
+      "pipeline": "Pipelines",
+      "access": "Zugriffe",
+      "publish": "Veröffentlichung",
+      "apps": "Apps",
+      "operate": "Betrieb",
+      "admin": "Alles (Admin)"
+    },
+    "segmentHint": {
+      "data-read": "liest Endpoints, Räume und Modelle, z. B. für Fragen zu Daten",
+      "context": "liest Modelle, Räume, Endpoints und Policies",
+      "pipeline": "liest Pipelines, Quellen und ihre Metriken",
+      "access": "liest Rollen, Bindungen, Gruppen und Dienstkonten",
+      "publish": "liest den Katalog und den CKAN-Status",
+      "apps": "liest Apps und ihre Läufe",
+      "operate": "liest Aktivität, Änderungen und Sync-Status",
+      "admin": "alle Vorgaben oben"
+    },
+    "client": {
+      "claudeCode": "Claude Code",
+      "claudeAi": "claude.ai",
+      "chatgpt": "ChatGPT",
+      "vscode": "VS Code (.vscode/mcp.json)",
+      "mcp-local": "Claude Code, VS Code und andere lokale Clients",
+      "mcp-hub": "MCP-Hub der Organisation",
+      "mcp-mobile": "Mobiler Assistent"
+    },
+    "steps": {
+      "claudeAi": "Settings → Connectors → Add custom connector. Adresse einfügen, Add wählen, dann Connect und mit dem Portal-Konto anmelden.",
+      "chatgpt": "Settings → Apps & Connectors → Advanced settings: Developer mode einschalten. Dann Create, Adresse einfügen, OAuth wählen und mit dem Portal-Konto anmelden."
+    },
+    "call": {
+      "at": "Wann",
+      "tool": "Werkzeug",
+      "target": "Ziel",
+      "client": "Client",
+      "verdict": "Ergebnis"
+    },
+    "help": {
+      "name": "Kleinbuchstaben, Ziffern und Bindestriche, z. B. verkehr-in-claude.",
+      "segments": "Welche Art Arbeit der Konnektor macht, z. B. Daten lesen für Fragen zu Daten. Ausgegraute Vorgaben brauchen die Freigabe der Organisation.",
+      "scope": "Kreuzen Sie ein ganzes Projekt oder einzelne Räume, Endpoints oder Pipelines an, z. B. helsinki / Endpoint bike-counters.",
+      "expires": "Der letzte gültige Tag, höchstens {days} Tage ab heute, z. B. das Monatsende.",
+      "clients": "Leer lassen für jeden Client, oder z. B. Claude Code ankreuzen, für wen er ist.",
+      "nameStays": "Der Name bleibt; unter ihm listet Ihr KI-Client den Konnektor."
+    },
+    "problem": {
+      "name": "Geben Sie einen Namen aus Kleinbuchstaben, Ziffern und Bindestrichen an, z. B. verkehr-in-claude.",
+      "segments": "Wählen Sie mindestens eine Vorgabe.",
+      "scope": "Kreuzen Sie mindestens ein Projekt, einen Raum, Endpoint oder eine Pipeline an.",
+      "expires": "Wählen Sie einen Tag von heute bis zum letzten angebotenen Tag."
+    },
+    "edit": "Bearbeiten",
+    "editOf": "KI-Konnektor {name} bearbeiten",
+    "editTitle": "{name} bearbeiten",
+    "save": "Speichern"
   }
 }

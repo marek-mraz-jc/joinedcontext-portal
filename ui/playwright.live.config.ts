@@ -30,5 +30,15 @@ export default defineConfig({
     // beside a bearer token; anyone else who sends it is refused with 403.
     extraHTTPHeaders: { "X-JC-Run-Origin": "journey" },
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        // A container's /dev/shm is 64 MB by default: Chromium's shared memory there runs out on the
+        // walker's large pages and the tab dies ("Target crashed", T-5992). /tmp has the room.
+        launchOptions: { args: ["--disable-dev-shm-usage"] },
+      },
+    },
+  ],
 });
