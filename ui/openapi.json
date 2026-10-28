@@ -1348,6 +1348,328 @@
         }
       }
     },
+    "/api/v1/connectors": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "List My Connectors",
+        "description": "The caller's connectors, newest first, revoked and expired ones included (API/14 §2).",
+        "operationId": "list_connectors",
+        "responses": {
+          "200": {
+            "description": "The caller's connectors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A service account holds no connector",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Create a Connector",
+        "description": "Creates a connector of the caller: an MCP server at `/c/{id}` reaching only its scope, with the caller's own rights read again at every call. At most 20 live connectors per person (AG-142, API/14 §2).",
+        "operationId": "create_connector",
+        "parameters": [
+          {
+            "name": "dryRun",
+            "in": "query",
+            "description": "`All` validates only: nothing is kept.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewConnector"
+              },
+              "example": {
+                "allowedClients": [
+                  "https://claude.ai/oauth/mcp-client-metadata"
+                ],
+                "expiresAt": "2026-11-27T00:00:00Z",
+                "name": "doprava-in-claude",
+                "scope": [
+                  {
+                    "access": "read",
+                    "endpoint": "bike-counters",
+                    "project": "doprava"
+                  }
+                ],
+                "segments": [
+                  "data-read"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "dryRun=All: valid, nothing kept",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorGrant"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field out of shape; errors names it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Above the organization's ceiling, or a project the caller holds no right in; the detail names the field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A live connector of that name, or 20 live ones already",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A scope item names an object the project lacks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/{id}": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Get My Connector",
+        "operationId": "get_connector",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The connector id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The connector",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorGrant"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No connector of the caller's with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Revoke My Connector",
+        "description": "The connector turns `revoked`; the next call through it is refused (AG-145).",
+        "operationId": "revoke_connector",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The connector id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the request guard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No live connector of the caller's with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/{id}/activity": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "My Connector's Calls",
+        "description": "Every call through the connector, newest first, at most 200 of the last 30 days: person, client, tool, target, verdict, duration; never a token or an input value (AG-147).",
+        "operationId": "connector_activity",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The connector id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The audit rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorCalls"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No connector of the caller's with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/endpoints": {
       "get": {
         "tags": [
@@ -38217,6 +38539,200 @@
         },
         "additionalProperties": false
       },
+      "ConnectorAccess": {
+        "type": "string",
+        "enum": [
+          "read",
+          "write"
+        ]
+      },
+      "ConnectorCall": {
+        "type": "object",
+        "description": "One row of a connector's audit (AG-147).",
+        "required": [
+          "at",
+          "subject",
+          "tool",
+          "verdict",
+          "durationMs"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "client": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "subject": {
+            "type": "string",
+            "description": "The Keycloak subject of the token, the owner's unless the call was refused for it."
+          },
+          "target": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`project/kind/name`, as far as the call names them."
+          },
+          "tool": {
+            "type": "string",
+            "description": "The tool, or the MCP method of a call that names none."
+          },
+          "verdict": {
+            "type": "string",
+            "description": "`allowed`, `refused: <why>` or `error`."
+          }
+        }
+      },
+      "ConnectorCalls": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConnectorCall"
+            }
+          }
+        }
+      },
+      "ConnectorGrant": {
+        "type": "object",
+        "description": "A connector as its owner reads it (API/14 §1).",
+        "required": [
+          "id",
+          "name",
+          "owner",
+          "segments",
+          "scope",
+          "writes",
+          "expiresAt",
+          "allowedClients",
+          "clientIsBoundary",
+          "state",
+          "createdAt",
+          "url"
+        ],
+        "properties": {
+          "allowedClients": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "clientIsBoundary": {
+            "type": "boolean",
+            "description": "Whether the allowed clients bind the connector (claude.ai, ChatGPT) or only say whom it\nis meant for (Claude Code, `mcp-local`): AG-153."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConnectorScopeItem"
+            }
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "state": {
+            "type": "string",
+            "description": "`active`, `expired` or `revoked`."
+          },
+          "url": {
+            "type": "string",
+            "description": "The MCP address a client adds: `https://portal.{domain}/c/{id}`."
+          },
+          "writes": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ConnectorList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConnectorGrant"
+            }
+          }
+        }
+      },
+      "ConnectorScopeItem": {
+        "type": "object",
+        "description": "One item of a connector's scope: a project, and at most one of a space, an Endpoint or a\npipeline in it (`*` for every one the owner reaches). Without one it is the whole project.",
+        "required": [
+          "project",
+          "access"
+        ],
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/ConnectorAccess"
+          },
+          "endpoint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pipeline": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "project": {
+            "type": "string",
+            "description": "A project slug, e.g. `doprava`."
+          },
+          "space": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "ConnectorSelect": {
         "type": "object",
         "description": "What a personal connector reaches: the McpServer selector fields (MF-55) and the person's\nfavourite Endpoints. An Endpoint is selected when it matches every field given; the gateway\nonly ever narrows the caller's own reach with it (ADR-N-043 §7.2).",
@@ -41788,6 +42304,51 @@
           },
           "target": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NewConnector": {
+        "type": "object",
+        "description": "What a person asks for when creating a connector (API/14 §1).",
+        "required": [
+          "name",
+          "segments",
+          "scope",
+          "expiresAt"
+        ],
+        "properties": {
+          "allowedClients": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "OAuth client ids the connector answers, e.g. a CIMD URL `https://claude.ai/oauth/mcp-client-metadata`."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339, e.g. `2026-11-27T00:00:00Z`."
+          },
+          "name": {
+            "type": "string",
+            "description": "A DNS-1123 label unique among the person's connectors, e.g. `doprava-in-claude`."
+          },
+          "scope": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConnectorScopeItem"
+            }
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Presets, e.g. `[\"data-read\"]`."
+          },
+          "writes": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -47762,6 +48323,10 @@
     {
       "name": "preferences",
       "description": "The signed-in person's own UI preferences"
+    },
+    {
+      "name": "connectors",
+      "description": "A person's scoped connectors, each an MCP server at /c/{id} (AG-142, ADR-N-064)"
     },
     {
       "name": "access",

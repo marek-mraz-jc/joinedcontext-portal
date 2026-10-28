@@ -101,6 +101,7 @@ pub fn app(state: AppState) -> Router {
         // Stateless Streamable HTTP with audience-bound Bearer authentication; exempt from
         // the session refresh and CSRF layers.
         .merge(crate::mcp::router())
+        .merge(crate::mcp::connector::router())
         // The gateway's delivery of live-update notifications (API/01 §32): outside `/api/v1`, so
         // no session or CSRF guard stands in front of a broker that holds no token; the key in
         // the path is the credential. The body limit is the route's own, with room for the check.
