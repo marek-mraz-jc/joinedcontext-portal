@@ -125,6 +125,9 @@ jobs:
       # duplicated authz_matrix.yaml row after a merge (T-4863), a problem slug without its locale
       # text (T-5208), the gitea shared-writer put_file tests (T-5151). No Postgres, no browser (T-5574).
       - run: cargo test --locked --test authz_matrix_tests --test problem_types_tests --test gitea_client_tests
+      # The 50 connector scenarios through the MCP door, against their red.txt ratchet (T-5947):
+      # wiremock and the in-memory mirror only, a few seconds once the crate is built.
+      - run: cargo test --locked --test connector_scenarios
       # A doc link to a private item passed every fast check and broke the hourly lane (T-1453);
       # rustdoc reuses clippy's metadata, so it costs seconds here.
       - run: cargo doc --workspace --no-deps

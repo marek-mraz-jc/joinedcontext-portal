@@ -31,7 +31,8 @@ rust_reads() {
   # names. Keep this list in step with the job's `cargo test` lines.
   (cd "$ROOT" && printf '%s\n' "$pats" |
     grep -rqF -f - src build.rs tests/openapi_tests.rs tests/route_coverage_tests.rs \
-      tests/authz_matrix_tests.rs tests/problem_types_tests.rs tests/gitea_client_tests.rs)
+      tests/authz_matrix_tests.rs tests/problem_types_tests.rs tests/gitea_client_tests.rs \
+      tests/connector_scenarios.rs)
 }
 
 classify() {
