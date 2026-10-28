@@ -34,6 +34,7 @@ const connector = (patch: Partial<AiConnector> = {}): AiConnector => ({
   expiresAt: new Date(Date.now() + 10 * 24 * 3600_000).toISOString(),
   allowedClients: ["mcp-local"],
   clientIsBoundary: false,
+  limits: { callsPerMinute: 60, parallelCalls: 4, resultBytes: 1048576 },
   state: "active",
   createdAt: "2026-10-28T12:00:00Z",
   lastUsedAt: null,
