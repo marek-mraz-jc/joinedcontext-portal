@@ -207,7 +207,7 @@ Every refusal is `application/problem+json` (RFC 7807) with a `type` under
 - **GW1** [gateway] — a refused single-entity read answers 404, anything else 403.
 - **R22** [policy] — a narrowed answer says so in `NGSILD-Results-Restricted`, to a caller who sent the same header on the request, and carries no `NGSILD-Results-Count` when entities were dropped from it.
 - **MP-02** [models] — a request that selects or orders on an attribute a type does not serve leaves that type out of the query, and the answer names it in `NGSILD-Warning`; an MCP tool result carries the same sentence in `structuredContent.warnings`.
-- **R9** [policy] — every answer says it is one caller's (`Cache-Control: private`) and what it differs by (`Vary: Authorization`); the gateway says it itself rather than leaving it to the edge.
+- **R9** [policy] — every answer says it is one caller's (`Cache-Control: private`) and what it differs by (`Vary: Authorization`); the gateway says it itself rather than leaving it to the edge. One exception, off by default: when the deployment sets `JC_GATEWAY_PUBLIC_MAX_AGE` (1 to 60 seconds), a `200` to a `GET` or `HEAD` of data (NGSI-LD, `file.*`, OGC Features, SensorThings) sent with no header that shapes the answer outside `Vary` (no `Authorization`, `Cookie`, `Link`, `Prefer` or `NGSILD-*` other than `NGSILD-Results-Restricted`; only the `Accept*` headers, transport, tracing and forwarding headers) says `Cache-Control: public, max-age=N`, because every such caller is the Endpoint's one anonymous subject and gets the same answer; `Vary` stays and names `Link` and `Prefer` too. A public grant revoked or a value changed then reaches anonymous readers up to N seconds late (T-5900).
 - **SP-05** [space] — no answer carries `NGSILD-Tenant`.
 
 ---
