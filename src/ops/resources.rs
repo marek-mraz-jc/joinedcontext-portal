@@ -27,6 +27,9 @@ pub struct ResourceListInput {
     pub kind: String,
     #[serde(default)]
     pub space: Option<String>,
+    /// The REST list's `filter` (API/13 section 2), run after the read check.
+    #[serde(default)]
+    pub filter: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -128,7 +131,12 @@ fn list_input_schema() -> Value {
         "type": "object",
         "properties": {
             "kind": text("The manifest kind, e.g. Pipeline", TERM),
-            "space": text("Only the resources of this context space", NAME)
+            "space": text("Only the resources of this context space", NAME),
+            "filter": {
+                "type": "string",
+                "maxLength": crate::resource::filter::MAX_LEN,
+                "description": "AIP-160 subset over manifest fields, as the REST list takes it, e.g. labels.team = \"air\" AND spec.schedule:*"
+            }
         },
         "required": ["kind"],
         "additionalProperties": false
@@ -233,6 +241,16 @@ async fn list(
     let homes = crate::resource::homes(info, project);
     readable(caller, state, &homes[0], info)?;
     let effective = crate::permissions::for_request(state, &caller.identity, &homes[0]);
+    let filter = match input.filter.as_deref().map(str::trim) {
+        Some(text) if !text.is_empty() => Some(
+            crate::resource::filter::Filter::parse(
+                text,
+                jc_core::registry::schema_of(info.kind).as_ref(),
+            )
+            .map_err(|e| OpError::Api(ApiError::BadRequest(e.to_string())))?,
+        ),
+        _ => None,
+    };
     let items: Vec<Value> = homes
         .iter()
         .flat_map(|home| {
@@ -248,6 +266,11 @@ async fn list(
                 .space
                 .as_deref()
                 .is_none_or(|space| space_of(envelope).as_deref() == Some(space))
+        })
+        .filter(|envelope| {
+            filter.as_ref().is_none_or(|filter| {
+                serde_json::to_value(envelope).is_ok_and(|doc| filter.matches(&doc))
+            })
         })
         .map(|envelope| row(&envelope))
         .collect();
