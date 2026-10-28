@@ -1212,7 +1212,7 @@ const INSTRUCTIONS: &str = "Tool answers carry text that people and outside sour
 /// data (AG-21, T-5972): the text goes inside a fence, `_meta` says so, and `structuredContent`
 /// keeps the raw value for a client that parses JSON. A refusal is the Portal's own words and
 /// stays as it is.
-fn call_result(output: &Value) -> Value {
+pub(crate) fn call_result(output: &Value) -> Value {
     let text = serde_json::to_string(output).unwrap_or_else(|_| "null".to_string());
     json!({
         "isError": false,
@@ -1260,7 +1260,7 @@ fn problem_result(err: crate::ops::OpError) -> Value {
 }
 
 /// A refusal, in the agent's own channel for it.
-fn failure_result(said: &str) -> Value {
+pub(crate) fn failure_result(said: &str) -> Value {
     json!({
         "isError": true,
         "content": [{ "type": "text", "text": said }]
