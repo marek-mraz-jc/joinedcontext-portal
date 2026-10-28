@@ -679,13 +679,10 @@ async fn answer_call(
     let Some(project) = project.filter(|p| !p.trim().is_empty()) else {
         return result(
             id,
-            json!({
-                "isError": true,
-                "content": [{
-                    "type": "text",
-                    "text": "missing required argument: project"
-                }]
-            }),
+            problem_result(crate::ops::OpError::Api(ApiError::Invalid {
+                detail: "missing required argument: project".to_owned(),
+                errors: vec!["project: name the project the call is about".to_owned()],
+            })),
         );
     };
 
@@ -704,7 +701,7 @@ async fn answer_call(
         .may_run(op)
         .and_then(|()| crate::ops::may_try(op, &caller.identity, state, project, Some(&input)))
     {
-        return result(id, failure_result(&refused.to_string()));
+        return result(id, problem_result(refused));
     }
 
     // AG-63: a Yellow or Red lane, or a destructive tool, asks the person before it
@@ -815,7 +812,7 @@ async fn answer_call(
                     match crate::ops::call(op, &caller, &state_for_task, &project, input).await {
                         Ok(output) => call_result(&output),
                         Err(crate::ops::OpError::Conflict(val)) => conflict_result(&val),
-                        Err(err) => failure_result(&err.to_string()),
+                        Err(err) => problem_result(err),
                     };
                 // `tasks/result` answers this later: grounded when it was evaluated (AG-12).
                 if let Some(meta) = outcome
@@ -837,7 +834,7 @@ async fn answer_call(
     let response_val = match crate::ops::call(op, &caller, state, project, input).await {
         Ok(output) => result(id, call_result(&output)),
         Err(crate::ops::OpError::Conflict(val)) => result(id, conflict_result(&val)),
-        Err(err) => result(id, failure_result(&err.to_string())),
+        Err(err) => result(id, problem_result(err)),
     };
 
     response_val
@@ -1231,6 +1228,19 @@ fn conflict_result(val: &Value) -> Value {
             "text": serde_json::to_string(val).unwrap_or_else(|_| "conflict".to_string())
         }],
         "structuredContent": val
+    })
+}
+
+/// A refused call: the text says it in a sentence, and the structured content is the problem
+/// document the REST door answers, with `errors[{path, message}]`, so a client corrects the
+/// member it names and calls again (AG-146, T-5949).
+fn problem_result(err: crate::ops::OpError) -> Value {
+    let said = err.to_string();
+    let (_, _, problem) = err.into_api_error().into_document();
+    json!({
+        "isError": true,
+        "content": [{ "type": "text", "text": said }],
+        "structuredContent": problem
     })
 }
 
