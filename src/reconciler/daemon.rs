@@ -2007,6 +2007,9 @@ impl Syncer {
                 for (broker, error) in releases.converge(&brokers, retire).await {
                     if broker == "*" {
                         tracing::warn!(%error, "the MQTT brokers did not converge");
+                    } else {
+                        // Its status says the same; the log is what an operator reads first.
+                        tracing::warn!(%broker, %error, "an MQTT broker's release was not applied");
                     }
                     failed.entry(broker).or_insert(error);
                 }
