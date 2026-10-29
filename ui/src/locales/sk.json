@@ -9823,9 +9823,7 @@
       "title": "Namerané",
       "connected": "Práve pripojené",
       "not": "Nemerané",
-      "summary": "{publishers, plural, one {# pripojený vydavateľ} few {# pripojení vydavatelia} other {# pripojených vydavateľov}}, {rate} správ za sekundu",
-      "count": "{account}: {count}",
-      "since": "{account}: {count}, najnovší od {since}"
+      "summary": "{publishers, plural, one {# pripojený vydavateľ} few {# pripojení vydavatelia} other {# pripojených vydavateľov}}, {rate} správ za sekundu"
     },
     "connections": {
       "title": "Spojenia",
