@@ -46,7 +46,6 @@ import {
   TableHead,
   TableHeaderCell,
   TableRow,
-  SourceLink,
   Input,
   Select,
 } from "../components/ui";
@@ -340,6 +339,7 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
   return (
     <div className="flex flex-col gap-section">
       <PageHeader
+        compact
         title={t("pipelines.title")}
         description={t("pipelines.lead")}
         actions={
@@ -624,12 +624,8 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
                           </Button>
                       </span>
                     }
+                    sourceUrl={pipeline.status?.sourceUrl}
                   />
-                  {pipeline.status?.sourceUrl ? (
-                    <span className="hidden sm:inline-flex">
-                      <SourceLink href={pipeline.status.sourceUrl} label={t("spaces.field.source")} />
-                    </span>
-                  ) : null}
                 </div>
               </TableCell>
             </TableRow>

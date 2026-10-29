@@ -7,9 +7,9 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { MqttBrokersPage } from "../src/pages/mqttbrokers/MqttBrokersPage";
+import { MqttBrokerPage } from "../src/pages/mqttbrokers/MqttBrokerPage";
 import { Attributes, CapturedList, readablePayload, topicMatches } from "../src/pages/mqttbrokers/BrokerTopics";
-import { json, list, problem, renderPage } from "./page_contract";
+import { json, problem, renderPage } from "./page_contract";
 
 const PROJECT = "helsinki";
 
@@ -57,8 +57,8 @@ const reader = { project: PROJECT, grants: [{ rule: { kinds: ["MqttBroker"], ver
 
 function show(options: { mode?: string; permissions?: unknown; bindings?: () => Response; captured?: () => Response }) {
   const calls: string[] = [];
-  renderPage(<MqttBrokersPage project={PROJECT} />, {
-    path: `/projects/${PROJECT}/mqttbrokers`,
+  renderPage(<MqttBrokerPage project={PROJECT} name="sensors" />, {
+    path: `/projects/${PROJECT}/mqttbrokers/sensors`,
     answer: (url, request) => {
       calls.push(`${request.method} ${url.pathname}`);
       if (url.pathname.endsWith("/permissions/me")) return json(options.permissions ?? reader);
@@ -67,7 +67,7 @@ function show(options: { mode?: string; permissions?: unknown; bindings?: () => 
         if (request.method === "DELETE") return new Response(null, { status: 204 });
         return (options.captured ?? (() => json(CAPTURED)))();
       }
-      return url.pathname.endsWith("/mqttbrokers") ? json(list([broker(options.mode ?? "capture")])) : undefined;
+      return url.pathname.endsWith("/mqttbrokers/sensors") ? json(broker(options.mode ?? "capture")) : undefined;
     },
   });
   return calls;

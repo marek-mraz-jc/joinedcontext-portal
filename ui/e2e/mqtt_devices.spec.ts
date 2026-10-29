@@ -45,6 +45,7 @@ async function stubApi(page: Page, posts: string[]): Promise<void> {
       }
       return json({ apiVersion: API, kind: "Change", metadata: { name: "pr-42", namespace: PROJECT }, status: { lane: "red", phase: "PendingApproval", plan: { create: 1, update: 1, delete: 0 } } }, 202);
     }
+    if (url.pathname.endsWith("/mqttbrokers/cameras")) return json(BROKER);
     const plural = url.pathname.split("/").pop() ?? "";
     return json({ apiVersion: API, kind: "List", items: plural === "mqttbrokers" ? [BROKER] : [] });
   });
@@ -62,7 +63,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 test("a steward adds a device by a browser-made key pair; the private key never leaves the page", async ({ page }) => {
   const posts: string[] = [];
   await stubApi(page, posts);
-  await page.goto(`/projects/${PROJECT}/mqttbrokers?lang=en`);
+  await page.goto(`/projects/${PROJECT}/mqttbrokers/cameras?lang=en`);
   await page.getByRole("button", { name: "Add device" }).click();
   await expect(page.getByText("A DNS label, e.g. sensor-001.")).toBeVisible();
   await shoot(page, "form-empty");

@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { Effective } from "../src/api/permissions";
+import { MqttBrokerPage } from "../src/pages/mqttbrokers/MqttBrokerPage";
 import { MqttBrokersPage, publishExample, publishTopic, shellQuoted } from "../src/pages/mqttbrokers/MqttBrokersPage";
 import { fromProjectAllowance, toProjectAllowance, withMqttDefault } from "../src/pages/mqttbrokers/allowance";
 import { ProjectMqtt, ProjectMqttState } from "../src/pages/organization/ProjectMqtt";
@@ -65,6 +66,14 @@ function showPage(allowance: unknown, brokers: unknown[] = [BROKER]) {
       if (url.pathname.endsWith("/mqttbrokers")) return json(list(brokers));
       return undefined;
     },
+  });
+}
+
+/** The broker's own page (T-6103), where its mode and capture are shown. */
+function showBroker(broker: { metadata: { name: string }; spec?: unknown }) {
+  return renderPage(<MqttBrokerPage project={PROJECT} name={broker.metadata.name} />, {
+    path: `/projects/${PROJECT}/mqttbrokers/${broker.metadata.name}`,
+    answer: (url) => (url.pathname.endsWith(`/mqttbrokers/${broker.metadata.name}`) ? json(broker) : undefined),
   });
 }
 
@@ -137,7 +146,7 @@ describe("the project's MQTT page (T-4860)", () => {
   });
 
   it("shows the broker's mode and what a capture broker keeps", async () => {
-    showPage(ON);
+    showBroker(BROKER);
     expect(await screen.findByText("Keeps the last 50 messages per topic for 2 hours, for building the mapping.")).toBeInTheDocument();
     expect(document.querySelector("[data-mode='capture']")?.textContent).toBe(en.mqttAllowance.mode.capture);
   });
@@ -155,7 +164,7 @@ describe("the project's MQTT page (T-4860)", () => {
   });
 
   it("names a mode it has no words for by its value, never by a key", async () => {
-    showPage(ON, [{ ...BROKER, spec: { ...BROKER.spec, mode: "bridge" } }]);
+    showBroker({ ...BROKER, spec: { ...BROKER.spec, mode: "bridge" } });
     await waitFor(() => expect(document.querySelector("[data-mode='bridge']")?.textContent).toBe("bridge"));
   });
 });

@@ -259,7 +259,7 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
 
   return (
     <div className="flex flex-col gap-section">
-      <PageHeader title={t("policies.title")} description={t("policies.lead")} actions={addButton} />
+      <PageHeader compact title={t("policies.title")} description={t("policies.lead")} actions={addButton} />
 
       {change ? <ChangeNotice change={change} project={project} /> : null}
 

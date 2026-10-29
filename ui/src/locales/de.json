@@ -523,7 +523,9 @@
     "askAssistant": "Den Assistenten um einen Vorschlag bitten",
     "leadOrganization": "Alles dieser Art, was die Organisation hält. Jede Zeile öffnet, was sie nennt.",
     "emptyHintOrganization": "Von dieser Art ist noch nichts in der Organisation. Diese Seite listet und liest es; bitten Sie den Assistenten darum und entscheiden Sie über seinen Vorschlag.",
-    "emptyHintCreateOrganization": "Von dieser Art ist noch nichts in der Organisation. {new} öffnet das Formular."
+    "emptyHintCreateOrganization": "Von dieser Art ist noch nichts in der Organisation. {new} öffnet das Formular.",
+    "viewSource": "Quelle anzeigen (Git)",
+    "open": "Öffnen"
   },
   "spaces": {
     "entitiesUnknown": "Die Anzahl ist nicht verfügbar: {reason}",
@@ -1478,6 +1480,8 @@
     "lead": "Wo ein Raum veröffentlicht ist: wer ihn aufrufen darf, in welchen Darstellungen, unter welcher URL.",
     "title": "Endpunkte",
     "empty": "Dieses Projekt veröffentlicht noch keinen Endpunkt.",
+    "searchNoMatch": "Kein Endpunkt hat „{text}“ im Namen.",
+    "searchNoMatchHint": "Prüfen Sie die Schreibweise oder leeren Sie die Suche, um alle Endpunkte zu sehen.",
     "add": "Neuer Endpunkt",
     "edit": "Bearbeiten",
     "addHint": "Das Speichern schlägt eine Änderung vor; der Endpunkt antwortet nach der Freigabe.",
@@ -1552,10 +1556,8 @@
     },
     "publicNotice": "Ein Endpunkt mit öffentlichem Publikum antwortet anonymen Aufrufern, und ein anonymer Aufrufer darf nur lesen. Schreibzugriffe und Abonnements verlangen weiterhin eine Anmeldung, welche Repräsentationen auch aktiviert sind.",
     "data": {
-      "action": "Daten ansehen",
       "title": "Was dieser Endpunkt antwortet",
       "type": "Entitätstyp",
-      "notLive": "Dieser Endpunkt antwortet noch nichts; er wird bedient, sobald die Änderung Live ist.",
       "noSchema": "Dieser Endpunkt veröffentlicht noch kein Schema, also gibt es keinen Typ zu lesen.",
       "compare": "Mit dem Raum vergleichen",
       "compareClose": "Zurück zum Endpunkt allein",
@@ -1631,7 +1633,6 @@
       "alias": "Alias",
       "gone": "Endpunkt nicht mehr geteilt",
       "goneSource": "Quelle nicht verfügbar",
-      "emptyHint": "Ein anderes Projekt kann diesem erlauben, seinen Endpunkt zu lesen, ohne die Daten zu kopieren. Mit diesem Projekt wird noch nichts geteilt.",
       "edit": {
         "alias": "Alias",
         "aliasHelp": "Der Name, unter dem dieses Projekt den geteilten Raum liest; Abfragen und Pipelines hier nutzen ihn.",
@@ -1955,7 +1956,8 @@
       "claudeLine": "Claude-Code-Befehl",
       "jsonLine": "Konfiguration für einen anderen MCP-Client",
       "vscode": "Zu VS Code hinzufügen",
-      "cursor": "Zu Cursor hinzufügen"
+      "cursor": "Zu Cursor hinzufügen",
+      "button": "KI verbinden"
     },
     "playground": {
       "title": "Ausprobieren",
@@ -9801,7 +9803,7 @@
     "connect": {
       "address": "Adresse",
       "copy": "Adresse kopieren",
-      "noAddress": "Wird angezeigt, wenn das Portal unter seiner eigenen Adresse (portal.<domain>) geöffnet ist.",
+      "noAddress": "Die Adresse erscheint, wenn Sie das Portal unter seiner üblichen Webadresse öffnen.",
       "anySource": "Jede Adresse mit gültigem Token",
       "client": "Client-ID und Benutzername",
       "password": "Passwort",
@@ -9843,8 +9845,8 @@
         "endpoint": "Pipeline schreibt in Endpoint",
         "policy": "Policy schützt Endpoint"
       },
-      "byRole": "Rolle {role}, Client {client}",
-      "byListener": "der interne Listener, Runner-Identität",
+      "byRole": "Rolle {role}; das Gerät meldet sich als {client} an",
+      "byListener": "die eigene Verbindung des Brokers zur Plattform",
       "byRunner": "der Pipeline-Runner",
       "byPipelineAccount": "der Service-Account von {pipeline}",
       "byPolicy": "die Policy des Endpoints",
@@ -10008,15 +10010,198 @@
       "until": "Bis",
       "noEnd": "Kein Ende",
       "bound": "Rollenbindung",
-      "legacy": "Liste serviceAccounts",
-      "legacyHint": "Eine Rolle, die das Konto unter serviceAccounts nennt, ist veraltet: Führen Sie jcctl migrate mqtt-roles aus, um sie in eine Bindung mqtt/{broker}/<Rolle> am Konto zu verschieben.",
+      "legacy": "An der Rolle eingetragen",
+      "legacyHint": "Die Rolle nennt dieses Konto in ihrer eigenen Liste, auf die ältere Art. Das funktioniert weiter; eine Projektverwaltung kann es in eine Zuweisung am Dienstkonto verschieben.",
       "noneTitle": "{account} hält keine Rolle dieses Brokers",
-      "noneHint": "Seine Geräte werden beim Verbinden abgewiesen. Gewähren Sie dem Dienstkonto die Rolle mqtt/{broker}/<Rolle>, auf dieses Projekt beschränkt.",
+      "noneHint": "Seine Geräte werden beim Verbinden abgewiesen. Fügen Sie das Konto unter Wer sich verbinden darf einer Rolle hinzu.",
       "expiredTitle": "Gewährungen dieses Brokers, die nicht gelten",
       "endedAt": "endete {at}",
       "startsAt": "beginnt {at}",
       "refusedTitle": "Sie dürfen die MQTT-Broker dieses Projekts nicht lesen",
       "failedTitle": "Die Rollen des Brokers konnten nicht gelesen werden"
+    },
+    "page": {
+      "lead": "Ein MQTT-Broker, an den Geräte Daten senden.",
+      "back": "← MQTT-Broker",
+      "edit": "Einstellungen bearbeiten",
+      "source": "Quelle anzeigen",
+      "sections": "Abschnitte dieses Brokers",
+      "section": {
+        "live": "Jetzt",
+        "general": "Allgemein",
+        "access": "Wer sich verbinden darf",
+        "limits": "Grenzen",
+        "networks": "Netze",
+        "path": "Wohin die Daten gehen",
+        "connect": "Gerät verbinden"
+      },
+      "state": {
+        "receiving": "Empfängt",
+        "idle": "Ruht",
+        "unmeasured": "Nicht gemessen"
+      },
+      "strip": "{rate} Nachrichten/s · verbunden: {connected} · abgewiesene Anmeldungen heute: {refused}",
+      "notRead": "Das Portal konnte nicht lesen, was der Broker misst. Versuchen Sie es in einer Minute erneut.",
+      "figure": {
+        "rate": "Nachrichten pro Sekunde jetzt",
+        "rateNote": "Jedes Gerät darf bis zu {limit}/s senden.",
+        "connected": "Verbundene Geräte",
+        "connectedNote": "Von den Verbindungen, die der Broker gleichzeitig hält.",
+        "refusedSignIns": "Abgewiesene Anmeldungen heute",
+        "refusedSignInsNote": "Seit Mitternacht, aus der Prüfung des Gateways.",
+        "mostly": "Meist: {reason}",
+        "refusedPublishes": "Abgewiesene Nachrichten",
+        "refusedPublishesNote": "Seit dem letzten Start des Brokers: kein Recht zu senden oder über der Rate."
+      },
+      "chartEmpty": "Das Diagramm beginnt, sobald der Broker zwei Messwerte hält (alle paar Sekunden einer).",
+      "chartSummary": "Nachrichten pro Sekunde, letzte {minutes} min: höchstens {top}, jetzt {now}",
+      "devices": "Gerätekonten und ihre Verbindungen jetzt",
+      "account": "Konto",
+      "since": "Neueste Verbindung seit",
+      "connectedCount": "verbunden: {count}",
+      "offlineNow": "Getrennt",
+      "noDevices": "Noch kein Gerätekonto. Fügen Sie eines unter Gerät verbinden hinzu.",
+      "title": "Titel",
+      "does": "Was er tut",
+      "kept": "Gehaltene Nachrichten",
+      "qos": "Höchste QoS",
+      "qosValue": "QoS 1 (mindestens einmal)",
+      "qosWords": "Geräte dürfen mit QoS 0 oder 1 senden. Ein MQTT-5-Gerät erfährt das bei der Anmeldung; eine QoS-2-Nachricht eines MQTT-3.1.1-Geräts wird angenommen und mit QoS 1 zugestellt, kann also doppelt ankommen.",
+      "offline": "Wenn ein Gerät offline ist",
+      "offlineWords": "Seine Sitzung endet beim Trennen: Nachrichten für es werden bis zur Rückkehr nicht gehalten, und der Broker hält keine Retained-Nachrichten.",
+      "accessLead": "Eine Rolle je Gruppe von Geräten, die dasselbe tun. Wer ein Konto aus seiner Rolle entfernt, widerruft dieses Gerät.",
+      "unit": {
+        "messagesPerSecond": "{value} pro Sekunde je Gerät",
+        "maxConnections": "{value} Verbindungen",
+        "maxMessageBytes": "{value} Bytes",
+        "connectionsPerAddress": "{value} je Adresse"
+      },
+      "limitWords": {
+        "messagesPerSecond": "Ein Gerät, das schneller sendet, wird abgewiesen und getrennt; es darf sich sofort wieder verbinden.",
+        "maxConnections": "Jedes verbundene Gerät hält eine; darüber weist der Broker neue Geräte ab.",
+        "maxMessageBytes": "Eine größere Nachricht wird abgewiesen.",
+        "connectionsPerAddress": "Verbindungen, die eine Netzadresse am Rand gleichzeitig halten darf."
+      },
+      "use": "{use} von {limit} belegt",
+      "anySourceHint": "Jede Adresse mit gültigem Token kann sich jetzt verbinden. Fügen Sie unten die Netze Ihrer Geräte hinzu, um andere schon vor TLS abzuweisen, z. B. 192.0.2.0/24.",
+      "cname": "CNAME-Ziel",
+      "chartQuiet": "In den letzten {minutes} Min. kam keine Nachricht an. Das Diagramm zeigt die Rate, sobald Geräte wieder senden.",
+      "refused": {
+        "purpose": "Ein MQTT-Broker dieses Projekts.",
+        "noRight": "Ihre Rolle darf hier keine MQTT-Broker lesen",
+        "noRightHint": "Bitten Sie eine Verwaltung des Projekts {project} um Lesezugriff auf seine MQTT-Broker und öffnen Sie diese Seite dann erneut.",
+        "missing": "Kein MQTT-Broker heißt {name}",
+        "missingHint": "Er wurde vielleicht entfernt oder umbenannt. Wählen Sie einen Broker aus der Liste."
+      }
+    },
+    "edit": {
+      "accessLead": "Ein Gerät meldet sich mit dem Token seines Dienstkontos an und darf die Themen jeder Rolle nutzen, die sein Konto hält. Ein hier hinzugefügtes Konto erhält die Rolle; die Änderung wird mit dem Broker vorgeschlagen.",
+      "add": "Hinzufügen",
+      "addAccount": "Konto zur Rolle {role} hinzufügen",
+      "addAccountOption": "Konto hinzufügen…",
+      "addRole": "Rolle hinzufügen",
+      "advanced": "Erweitert",
+      "bar": "Offene Änderungen",
+      "default": "der Standardwert",
+      "block": {
+        "noRole": "Fügen Sie zuerst mindestens eine Rolle hinzu.",
+        "roleName": "Rolle {role} braucht einen Namen: Kleinbuchstaben, Ziffern und Bindestriche, z. B. cams.",
+        "roleTwice": "Zwei Rollen heißen {role}: geben Sie jeder einen eigenen Namen.",
+        "noAccount": "Rolle {role} braucht mindestens ein Konto.",
+        "noTopic": "Rolle {role} braucht mindestens ein Thema zum Senden oder Abonnieren.",
+        "noReason": "Rolle {role} teilt ihre Themen: schreiben Sie, warum.",
+        "badTopic": "Rolle {role} enthält ein Thema, das der Broker ablehnt: korrigieren Sie den markierten Chip."
+      },
+      "change": {
+        "capture": "Aufbewahrte Nachrichten ändern sich",
+        "grant": "{account} erhält Rolle {role}",
+        "revoke": "{account} verliert Rolle {role}",
+        "limit": "{limit}: {from} → {value}",
+        "mode": "Der Broker wird: {mode}",
+        "port": "Eigener Port: {port}",
+        "roleAdded": "Neue Rolle {role}",
+        "roleChanged": "Rolle {role} ändert sich",
+        "roleRemoved": "Rolle {role} wird entfernt",
+        "sourceAdded": "Netz {source} darf sich verbinden",
+        "sourceRemoved": "Netz {source} darf sich nicht mehr verbinden"
+      },
+      "discard": "Verwerfen",
+      "keep": "Letzte Nachrichten aufbewahren",
+      "keepRelay": "Ein Broker, dessen Geräte abonnieren, leitet Nachrichten weiter und bewahrt keine auf.",
+      "limit": {
+        "messagesPerSecond": "Nachrichten pro Sekunde je Gerät",
+        "maxConnections": "Höchstens Verbindungen",
+        "maxMessageBytes": "Größte Nachricht",
+        "connectionsPerAddress": "Verbindungen je Quelladresse"
+      },
+      "newRole": "Neue Rolle",
+      "noAccounts": "Das Projekt hat kein Dienstkonto, das Sie sehen. Legen Sie eines unter Dienstkonten an und fügen Sie es dann hier hinzu.",
+      "noHolder": "Noch kein Konto hält diese Rolle.",
+      "outside": "Schreiben Sie eine ganze Zahl von 1 bis {max}.",
+      "portOutside": "Ein eigener Port liegt zwischen {min} und {max}.",
+      "propose": "Änderung vorschlagen",
+      "qos": "Höchstes QoS",
+      "qosFixed": "Jeder Broker dieser Plattform bietet QoS 0 und 1 an; QoS 2 wird nicht angeboten.",
+      "qosLevel": "QoS {level}",
+      "readOnly": "Sie dürfen diesen Broker lesen. Zum Ändern brauchen Sie das Recht, MQTT-Broker in diesem Projekt vorzuschlagen: fragen Sie einen Projektverwalter.",
+      "readOnlyTitle": "Nur lesen",
+      "reason": "Warum die Geräte ihre Themen teilen",
+      "reasonMissing": "Schreiben Sie, warum die Geräte ihre Themen teilen.",
+      "remove": "{value} entfernen",
+      "removeRole": "Rolle {role} entfernen",
+      "shared": "Geräte teilen ihre Themen",
+      "sharedHint": "Jedes Gerät der Rolle darf dann wie jedes andere senden, und ein Sendethema braucht keine ${clientid}-Ebene.",
+      "sources": "Netze, die sich verbinden dürfen",
+      "through": {
+        "legacy": "an der Rolle eingetragen",
+        "wildcard": "für alle Broker gewährt"
+      },
+      "topic": {
+        "length": "Ein Thema ist 1 bis 128 Byte lang.",
+        "system": "Ein Thema, das mit $ beginnt, gehört dem Broker.",
+        "levels": "Ein Thema hat höchstens 8 Ebenen.",
+        "everything": "Platzhalter allein erreichen jedes Thema.",
+        "emptyLevel": "Ein Thema hat keine leere Ebene: kein / am Anfang, am Ende oder doppelt.",
+        "hash": "# steht nur als ganze letzte Ebene.",
+        "plus": "+ steht nur als ganze Ebene.",
+        "placeholder": "Nur ${clientid} darf als Platzhalter stehen, als ganze Ebene.",
+        "publishOwn": "Setzen Sie eine ${clientid}-Ebene vor jeden Platzhalter, oder lassen Sie die Geräte der Rolle ihre Themen teilen.",
+        "subscribeOwn": "Ein Gerät abonniert nur unter seiner eigenen ${clientid}, ohne Platzhalter davor.",
+        "twice": "Steht schon in der Liste.",
+        "source": {
+          "format": "Schreiben Sie ein Netz mit Präfix, z. B. 203.0.113.0/24.",
+          "twice": "Steht schon in der Liste.",
+          "tooMany": "Höchstens 32 Netze."
+        }
+      },
+      "typeFirst": "Geben Sie zuerst einen Wert ein.",
+      "unit": {
+        "messagesPerSecond": "Nachrichten/s",
+        "maxConnections": "Verbindungen",
+        "maxMessageBytes": "Byte",
+        "connectionsPerAddress": "Verbindungen"
+      },
+      "unsaved": "Nicht vorgeschlagen",
+      "pending": "Noch nicht vorgeschlagene Änderungen: {count}",
+      "qosHighest": "höchstes",
+      "qosOffered": "angeboten",
+      "qosNotOffered": "nicht angeboten",
+      "anySourceReadOnly": "Jede Adresse mit gültigem Token kann sich jetzt verbinden. Ein Projektverwalter kann es auf die Netze Ihrer Geräte beschränken.",
+      "hint": {
+        "accountsHint": "Wählen Sie eines der Dienstkonten des Projekts, die Sie sehen, z. B. cam-3. Ein neues legen Sie zuerst unter Dienstkonten an.",
+        "countHint": "Wie viele der neuesten Nachrichten jedes Thema aufbewahrt, 1 bis 1.000, z. B. 20.",
+        "keepHint": "Verwalter des Projekts können die neuesten Nachrichten jedes Themas eine Weile lesen, z. B. um zu prüfen, was ein neues Gerät sendet.",
+        "portHint": "Leer lassen für den gemeinsamen Port 8883. Ein eigener Port, {min} bis {max}, z. B. 18831, bedient nur diesen Broker.",
+        "publishHint": "Ein Themenfilter je Chip, mit der eigenen Ebene des Geräts, z. B. cameras/${clientid}/frames. + ist eine ganze Ebene, # nur die letzte.",
+        "reasonHint": "Ein Satz für die genehmigende Person, z. B. die Zähler senden an ein gemeinsames Thema des Herstellers.",
+        "roleNameHint": "Kleinbuchstaben, Ziffern und Bindestriche, z. B. cams.",
+        "sourcesHint": "Ein IPv4- oder IPv6-Netz je Chip, höchstens 32, z. B. 203.0.113.0/24 oder 2001:db8::/48.",
+        "subscribeHint": "Ein Themenfilter unter der eigenen ID des Geräts, z. B. commands/${clientid}/#.",
+        "subscribeMakesRelay": "Optional. Ein Abo-Thema macht den Broker zum Relay: Geräte empfangen auch, jedes unter seiner eigenen ID, z. B. commands/${clientid}/#.",
+        "topicExample": "cameras/${clientid}/frames",
+        "windowHint": "Wie lange eine aufbewahrte Nachricht bleibt, höchstens ein Tag, z. B. 1 Stunde.",
+        "sourceExample": "z. B. 203.0.113.0/24"
+      }
     }
   },
   "connect": {
@@ -10786,5 +10971,8 @@
       "jc_ui_show_diff": "Hat eine geplante Änderung geöffnet",
       "jc_ui_filter_table": "Hat die Tabelle gefiltert"
     }
+  },
+  "pageHeader": {
+    "about": "Über diese Seite"
   }
 }

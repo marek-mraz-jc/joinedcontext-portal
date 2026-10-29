@@ -95,7 +95,7 @@ function TopicsTable({ project, broker, messages }: { project: string; broker: s
         }),
       ),
   });
-  const heading = <h3 className="text-body font-semibold text-fg">{t("mqttbrokers.topics.title")}</h3>;
+  const heading = <h3 className="border-t border-border pt-3 text-body font-semibold text-fg">{t("mqttbrokers.topics.title")}</h3>;
   if (bindings.isPending) {
     return (
       <div aria-busy="true" className="flex flex-col gap-2" data-topics="loading">
@@ -123,7 +123,7 @@ function TopicsTable({ project, broker, messages }: { project: string; broker: s
       {rows.length === 0 ? (
         <EmptyState bare title={t("mqttbrokers.topics.empty")} description={t("mqttbrokers.topics.emptyHint", { broker })} />
       ) : (
-        <Table caption={t("mqttbrokers.topics.caption", { broker })}>
+        <Table stack caption={t("mqttbrokers.topics.caption", { broker })}>
           <TableHead>
             <TableHeaderCell>{t("mqttbrokers.topics.filter")}</TableHeaderCell>
             <TableHeaderCell>{t("mqttbrokers.topics.via")}</TableHeaderCell>
@@ -138,15 +138,15 @@ function TopicsTable({ project, broker, messages }: { project: string; broker: s
                 <TableCell primary>
                   {row.topicFilter ? <code className="font-mono text-caption">{row.topicFilter}</code> : <HopCell project={project} hop={row.dataSource} />}
                 </TableCell>
-                <TableCell>
+                <TableCell data-label={t("mqttbrokers.topics.via")}>
                   <Via project={project} row={row} />
                 </TableCell>
-                <TableCell>{row.type ?? "—"}</TableCell>
-                <TableCell>
+                <TableCell data-label={t("mqttbrokers.topics.type")}>{row.type ?? "—"}</TableCell>
+                <TableCell data-label={t("mqttbrokers.topics.attributes")}>
                   <Attributes row={row} />
                 </TableCell>
-                <TableCell>{row.endpoint ? <HopCell project={project} hop={row.endpoint} /> : "—"}</TableCell>
-                {messages ? <TableCell>{last(row.topicFilter ?? undefined)}</TableCell> : null}
+                <TableCell data-label={t("mqttbrokers.topics.endpoint")}>{row.endpoint ? <HopCell project={project} hop={row.endpoint} /> : "—"}</TableCell>
+                {messages ? <TableCell data-label={t("mqttbrokers.topics.last")}>{last(row.topicFilter ?? undefined)}</TableCell> : null}
               </TableRow>
             ))}
           </TableBody>
@@ -213,7 +213,7 @@ interface CapturedQuery {
 
 function CapturedPanel({ project, broker, mode, captured }: { project: string; broker: string; mode: string; captured: CapturedQuery }): JSX.Element {
   const { t } = useTranslation();
-  const heading = <h3 className="text-body font-semibold text-fg">{t("mqttbrokers.captured.title")}</h3>;
+  const heading = <h3 className="border-t border-border pt-3 text-body font-semibold text-fg">{t("mqttbrokers.captured.title")}</h3>;
   if (mode !== "capture") {
     return (
       <div className="flex flex-col gap-2" data-captured="off">

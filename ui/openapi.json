@@ -43503,7 +43503,8 @@
         "required": [
           "measured",
           "observedAt",
-          "accounts"
+          "accounts",
+          "rates"
         ],
         "properties": {
           "accounts": {
@@ -43538,11 +43539,27 @@
             "description": "Connected clients of the accounts whose roles may publish.",
             "minimum": 0
           },
+          "rates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RatePoint"
+            },
+            "description": "Messages per second between each two neighbouring samples the broker keeps (its\n`history_retention`, five minutes in the chart), oldest first; empty when not measured."
+          },
           "reason": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "refusedPublishes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Publishes the broker refused since it started (`client.publish.auth.error` of the newest\nsample): the gateway's publish check said no, or the client was over its rate.",
+            "minimum": 0
           }
         }
       },
@@ -46814,6 +46831,24 @@
             "format": "int32",
             "description": "The manifest count for a countable dimension (PF-75); `null` for a runtime limit.",
             "minimum": 0
+          }
+        }
+      },
+      "RatePoint": {
+        "type": "object",
+        "description": "The rate between one sample and the one before it, at the newer sample's time.",
+        "required": [
+          "at",
+          "perSecond"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "perSecond": {
+            "type": "number",
+            "format": "double"
           }
         }
       },

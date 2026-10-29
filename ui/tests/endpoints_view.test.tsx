@@ -229,16 +229,17 @@ describe("endpoints view", () => {
     renderEndpoints();
 
     const row = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
-    // What it answers stays out, because that is why a person opens this table; the menu button is
-    // the only other control in the cell.
+    // The row's name opens the endpoint and its data (T-6095): the menu is the only control in the cell.
     const cell = row.lastElementChild as HTMLElement;
     const open = within(cell).getAllByRole("button");
-    expect(open.map((button) => button.textContent)).toEqual([en.endpoints.data.action, "\u22ef"]);
+    expect(open.map((button) => button.textContent)).toEqual(["\u22ef"]);
 
     await userEvent.click(within(cell).getByRole("button", { name: /More actions/ }));
     const menu = await screen.findByRole("menu");
     expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
+      en.resourceList.open,
       en.endpoints.edit,
+      en.resourceList.viewSource,
       en.endpoints.copyUrl,
       en.export.action,
       en.saveAs.button,
@@ -495,11 +496,18 @@ describe("what an endpoint answers", () => {
     vi.restoreAllMocks();
   });
 
+  /** The list has no "View data" since T-6095: the grid is in the edit form (and on the endpoint's page). */
+  async function openGrid() {
+    const row = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
+    await userEvent.click(await rowMenuItem(row, en.endpoints.edit));
+    const form = await findFormPage();
+    await userEvent.click(within(form).getByText(en.endpoints.data.title));
+    return form;
+  }
+
   async function openData(entities?: () => Response) {
     const fetchMock = renderEndpoints(undefined, entities);
-    const row = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
-    await userEvent.click(within(row).getByRole("button", { name: en.endpoints.data.action }));
-    return { fetchMock, dialog: await screen.findByRole("dialog") };
+    return { fetchMock, dialog: await openGrid() };
   }
 
   it("opens the grid on the endpoint's first published type, through the endpoint itself", async () => {
@@ -551,9 +559,7 @@ describe("what an endpoint answers", () => {
       </QueryClientProvider>,
     );
 
-    const row = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
-    await userEvent.click(within(row).getByRole("button", { name: en.endpoints.data.action }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await openGrid();
     await within(dialog).findByText("12 µg/m³");
     // The attribute the endpoint hides has no column, and its value is nowhere on the page.
     expect(within(dialog).queryByRole("columnheader", { name: /sensorSerial/ })).toBeNull();
@@ -587,9 +593,9 @@ describe("what an endpoint answers", () => {
     );
 
     const row = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
-    const button = within(row).getByRole("button", { name: en.endpoints.data.action });
-    expect(button).toBeDisabled();
-    expect(button).toHaveAttribute("title", en.endpoints.data.notLive);
+    await userEvent.click(await rowMenuItem(row, en.endpoints.edit));
+    const form = await findFormPage();
+    expect(within(form).queryByText(en.endpoints.data.title)).toBeNull();
     // Nothing was read from the gateway for an endpoint that serves nothing.
     expect(
       fetchMock.mock.calls.some((call) =>
