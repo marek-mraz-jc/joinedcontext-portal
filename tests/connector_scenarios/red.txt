@@ -2,10 +2,6 @@
 # The task named turns the scenario green and removes its line in the same branch; a line never comes
 # back. tests/connector_scenarios.rs fails when a listed scenario passes or an unlisted one fails.
 S-01 T-5948 jc_resource_list answers name and space only: no entity types, no access URL
-S-02 T-5948 no query_data tool on the connector door
-S-03 T-5948 no query_data tool with count per type
-S-04 T-5948 no temporal read tool on the connector door
-S-05 T-5948 no geo query tool on the connector door
 S-06 T-5948 no tool lists an Endpoint's representation URLs
 S-07 T-5948 anonymous gets 401 at the Portal door; no public data tool
 S-08 T-5948 jc_catalog_search finds one project's resources, not open data catalogue datasets with links
@@ -39,4 +35,3 @@ S-49 T-5955 no read-only connector token refused below the tools
 S-51 T-5971 no secretRef form link; a key pasted in chat is not refused by a plan tool
 S-53 T-5974 no revert plan tool
 S-54 T-5975 no connectors to revoke when a person is disabled
-S-55 T-5986 no query_data tool answers entities at /c/{id}; the personalData guard and the tick's ceiling refusal are built (T-5976)

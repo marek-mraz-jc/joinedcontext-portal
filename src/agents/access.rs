@@ -191,6 +191,7 @@ mod tests {
             "not named, not offered"
         );
         let agent = ops::Caller {
+            bearer: None,
             identity: crate::auth::session::Identity {
                 client: None,
                 subject: "s".into(),

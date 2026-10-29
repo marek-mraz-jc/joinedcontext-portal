@@ -217,6 +217,15 @@ fn envelope(kind: &str, name: &str, namespace: &str, spec: Value) -> ResourceEnv
 
 /// A base32 slug (a-z, 2-7) of 26 characters or more, unique per project (EP-03).
 fn slug_of(project: &str) -> String {
+    slug_named(project, "counters")
+}
+
+/// The slug of the project's citizen reports Endpoint.
+fn reports_slug_of(project: &str) -> String {
+    slug_named(project, "reports")
+}
+
+fn slug_named(project: &str, what: &str) -> String {
     let tail: String = project
         .chars()
         .map(|c| match c {
@@ -228,7 +237,7 @@ fn slug_of(project: &str) -> String {
             other => other,
         })
         .collect();
-    format!("{tail}counterszzzzzzzzzzzzzzzzzz")
+    format!("{tail}{what}zzzzzzzzzzzzzzzzzz")
 }
 
 /// One project's fixture: a space, a model, a public Endpoint, a CSV DataSource.
@@ -253,6 +262,27 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
             "slug": slug_of(project),
             "contextSpaceRef": "doprava",
             "audience": "public",
+            "enabledRepresentations": ["ngsi-ld"]
+        }),
+    ));
+    // Citizen reports whose model marks contactEmail personal (AG-158, S-55); a view without
+    // history, so a temporal read of it is the "serves no history" refusal (S-04).
+    mirror.upsert(envelope(
+        "DataModel",
+        "reports",
+        project,
+        json!({ "contextSpaceRef": "doprava", "linkml": "./reports.linkml.yaml" }),
+    ));
+    mirror.upsert(envelope(
+        "Endpoint",
+        &format!("{project}-reports"),
+        project,
+        json!({
+            "slug": reports_slug_of(project),
+            "contextSpaceRef": "doprava",
+            "audience": "restricted",
+            "title": format!("Citizen reports of {project}"),
+            "entityTypes": ["PotholeReport"],
             "enabledRepresentations": ["ngsi-ld"]
         }),
     ));
@@ -377,6 +407,109 @@ async fn forge(server: &MockServer) {
     .await;
 }
 
+/// One LinkML text for every model of the fixture: the forge serves it at each model's path.
+const MODELS_LINKML: &str = concat!(
+    "id: https://example.sk/scenarios\n",
+    "name: scenarios\n",
+    "classes:\n",
+    "  BikeCounter:\n",
+    "    slots: [id, type, name, count, location]\n",
+    "  PotholeReport:\n",
+    "    slots: [id, type, description, contactEmail]\n",
+    "slots:\n",
+    "  contactEmail:\n",
+    "    annotations: { personalData: true }\n",
+);
+
+/// The token the realm hands the Portal for a data read (RFC 8693): the gateway mocks answer it
+/// alone, so a read with the Portal's own token, or with none, finds nothing.
+const EXCHANGED: &str = "scn-exchanged-for-the-endpoint";
+
+/// The realm's token exchange and the gateway's NGSI-LD reads of the fixture's Endpoints.
+async fn data_plane(server: &MockServer) {
+    use wiremock::matchers::{body_string_contains, header, path_regex, query_param};
+    Mock::given(method("POST"))
+        .and(path(format!("{REALM_PATH}/protocol/openid-connect/token")))
+        .and(body_string_contains("token-exchange"))
+        .and(body_string_contains("subject_token=ey"))
+        .and(body_string_contains("scope=endpoint%3A"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "access_token": EXCHANGED, "token_type": "Bearer", "expires_in": 300,
+            "issued_token_type": "urn:ietf:params:oauth:token-type:access_token"
+        })))
+        .mount(server)
+        .await;
+    let bearer = format!("Bearer {EXCHANGED}");
+    let counter = |id: &str, count: u64, lon: f64, lat: f64| {
+        json!({ "id": format!("urn:ngsi-ld:BikeCounter:{id}"), "type": "BikeCounter",
+                "count": { "type": "Property", "value": count, "observedAt": "2026-10-27T10:00:00Z" },
+                "location": { "type": "GeoProperty",
+                              "value": { "type": "Point", "coordinates": [lon, lat] } } })
+    };
+    let counters = "^/api/endpoint/[a-z2-7]+counterszz+/ngsi-ld/v1";
+    for (matcher, answer) in [
+        (
+            query_param("georel", "near;maxDistance==500"),
+            json!([counter("snp", 42, 19.1462, 48.7361)]),
+        ),
+        (
+            query_param("type", "BikeCounter"),
+            json!([
+                counter("snp", 42, 19.1462, 48.7361),
+                counter("hron", 7, 19.13, 48.73)
+            ]),
+        ),
+    ] {
+        Mock::given(method("GET"))
+            .and(path_regex(format!("{counters}/entities$")))
+            .and(header("authorization", bearer.as_str()))
+            .and(matcher)
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header(
+                        "NGSILD-Results-Count",
+                        answer.as_array().map_or(0, Vec::len).to_string().as_str(),
+                    )
+                    .set_body_json(answer),
+            )
+            .mount(server)
+            .await;
+    }
+    Mock::given(method("GET"))
+        .and(path_regex(format!("{counters}/temporal/entities$")))
+        .and(header("authorization", bearer.as_str()))
+        .and(query_param("aggrMethods", "avg"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{
+            "id": "urn:ngsi-ld:BikeCounter:snp", "type": "BikeCounter",
+            "count": { "type": "Property", "avg": [[21.5, "2026-10-27T10:00:00Z", "2026-10-27T11:00:00Z"]] }
+        }])))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path_regex(
+            "^/api/endpoint/[a-z2-7]+reportszz+/ngsi-ld/v1/entities$",
+        ))
+        .and(header("authorization", bearer.as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{
+            "id": "urn:ngsi-ld:PotholeReport:1", "type": "PotholeReport",
+            "description": { "type": "Property", "value": "Hlboká jama pri zastávke" },
+            "contactEmail": { "type": "Property", "value": "jana@example.org" }
+        }])))
+        .mount(server)
+        .await;
+    use base64::Engine;
+    Mock::given(method("GET"))
+        .and(path_regex(
+            r"^/api/v1/repos/test-owner/test-repo/contents/.*\.linkml\.yaml$",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "blob-models",
+            "content": base64::engine::general_purpose::STANDARD.encode(MODELS_LINKML)
+        })))
+        .mount(server)
+        .await;
+}
+
 struct Harness {
     app: axum::Router,
     issuer: String,
@@ -439,6 +572,7 @@ impl Harness {
             .mount(server)
             .await;
         forge(server).await;
+        data_plane(server).await;
         let csv_url = format!("http://localhost:{}/counters.csv", server.address().port());
 
         let mut config = Config::from_vars(|k| match k {
@@ -450,6 +584,7 @@ impl Harness {
         })
         .expect("config");
         config.public_base_url = "https://portal.test".parse().expect("url");
+        config.gateway_url = Some(server.uri());
 
         let mirror = std::sync::Arc::new(Mirror::new());
         let names: Vec<String> = (1..=projects).map(project_of).collect();

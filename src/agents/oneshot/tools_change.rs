@@ -1083,6 +1083,7 @@ impl Driver {
                     return Ok(Tested::default());
                 };
                 let caller = crate::ops::Caller {
+                    bearer: None,
                     identity: self.identity.clone(),
                     via: crate::ops::Via::Agent,
                     access: None,
