@@ -4,6 +4,7 @@ import { expect } from "@playwright/test";
 import type { APIRequestContext, Browser, BrowserContext, Locator, Page, Request, Response } from "@playwright/test";
 import { axeViolations } from "../axe";
 import { blankDocument, edgeRetryMs, pageFindings, viewerWriteFindings } from "../../tests/pageChecks";
+import { type ListedChange, changeSubject } from "./staleChanges";
 import { openedTwice } from "./tab";
 import { answerOtp, submitted } from "./totp";
 
@@ -657,6 +658,58 @@ export async function removeCompletely(
     throw new Error(`the removal of ${plural}/${name} named no change`);
   }
   await approve(owner.page, project, change, name);
+}
+
+/**
+ * Rejects every open Change of `name` through the approver door, with a reason naming the journey
+ * (T-6081). A journey whose approval failed left its proposal pending, and `removeCompletely` read
+ * the never-created resource as 404 and returned: 23 such proposals waited in helsinki's Approvals.
+ * Rejecting closes the merge request; nothing is merged and no forge history is rewritten.
+ */
+export async function rejectOpen(
+  owner: { context: BrowserContext; page: Page },
+  project: string,
+  name: string,
+  journey: string,
+): Promise<string[]> {
+  const listed = await owner.page.request.get(`/api/v1/projects/${project}/changes`);
+  if (!listed.ok()) {
+    throw new Error(`list changes of ${project}: ${listed.status()} ${await listed.text()}`);
+  }
+  const mine = (((await listed.json()) as { items?: ListedChange[] }).items ?? []).filter(
+    (change) => change.status.phase === "PendingApproval" && changeSubject(change) === name,
+  );
+  const token = await csrf(owner.context);
+  for (const change of mine) {
+    const answer = await owner.page.request.post(`/api/v1/projects/${project}/changes/${change.metadata.name}/reject`, {
+      headers: { "x-csrf-token": token, "content-type": "application/json" },
+      data: { reason: `Made by the live journey ${journey}, which cleans up after itself; never meant to be merged.` },
+    });
+    if (answer.status() !== 202) {
+      throw new Error(`reject ${change.metadata.name} (${name}): ${answer.status()} ${await answer.text()}`);
+    }
+  }
+  return mine.map((change) => change.metadata.name);
+}
+
+/**
+ * A journey's `afterAll`: rejects what it left proposed, removes what it created, and rejects a
+ * removal that could not be approved, so dev ends with neither the resource nor an open Change of
+ * it, also when the journey failed half way (T-6081).
+ */
+export async function cleanUp(
+  owner: { context: BrowserContext; page: Page },
+  project: string,
+  plural: string,
+  name: string,
+  journey: string,
+): Promise<void> {
+  await rejectOpen(owner, project, name, journey);
+  try {
+    await removeCompletely(owner, project, plural, name);
+  } finally {
+    await rejectOpen(owner, project, name, journey);
+  }
 }
 
 /**
