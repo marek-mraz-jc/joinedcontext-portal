@@ -150,12 +150,18 @@ pub fn rows_of(op: Operation) -> &'static [&'static str] {
 }
 
 /// The reads of a type's schema (the broker's LinkML surface: the documents, one class, one
-/// slot; clauses 5.7.5, 5.7.7 and 5.7.10 as the broker asks them). A Policy that permits anything on a type permits these too, as the gateway's schema
-/// surface did before the broker served it (T-3645): whoever may read or write an Entity may
-/// read its shape, narrowed by the engine to the types and Attributes the Policy names.
-const SCHEMA_READS: [Operation; 3] = [
+/// slot; clauses 5.7.5, 5.7.7 and 5.7.10 as the broker asks them) and the type and Attribute
+/// lists (5.7.5, 5.7.8). A Policy that permits anything on a type permits these too, as the
+/// gateway's schema surface did before the broker served it (T-3645): whoever may read or
+/// write an Entity may read its shape, narrowed by the engine to the types and Attributes the
+/// Policy names. The lists come from the view's catalogue, filtered by the caller's grant, so
+/// the gateway forwards `/types` and `/attributes` to the view (T-5391).
+const SCHEMA_READS: [Operation; 6] = [
+    Operation::RetrieveEntityTypes,
     Operation::RetrieveEntityTypeDetails,
     Operation::RetrieveEntityTypeInfo,
+    Operation::RetrieveAttrTypes,
+    Operation::RetrieveAttrTypeDetails,
     Operation::RetrieveAttrTypeInfo,
 ];
 
@@ -2494,7 +2500,7 @@ mod tests {
             view,
             json!({"id": SLUG, "tenant": "city-air", "selector": ["Car"],
                    "rules": [{"types": ["Car"], "attributes": ["speed"]}],
-                   "operations": ["query_entities", "retrieve_attribute_info", "retrieve_attribute_value", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info"]})
+                   "operations": ["query_entities", "retrieve_attribute_details", "retrieve_attribute_info", "retrieve_attribute_value", "retrieve_attributes", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info", "retrieve_entity_types"]})
         );
     }
 
@@ -2919,7 +2925,7 @@ mod tests {
             view,
             json!({"id": SLUG, "tenant": "city-air", "selector": ["Car"],
                    "rules": [{"types": ["Car"], "attributes": ["speed"]}],
-                   "operations": ["query_entities", "retrieve_attribute_info", "retrieve_attribute_value", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info", "temporal_query"],
+                   "operations": ["query_entities", "retrieve_attribute_details", "retrieve_attribute_info", "retrieve_attribute_value", "retrieve_attributes", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info", "retrieve_entity_types", "temporal_query"],
                    "mapping": vehicles_ir()})
         );
         for op in view["operations"].as_array().into_iter().flatten() {
@@ -3235,9 +3241,12 @@ mod tests {
             json!([
                 "partial_attribute_update",
                 "query_entities_post",
+                "retrieve_attribute_details",
                 "retrieve_attribute_info",
+                "retrieve_attributes",
                 "retrieve_entity_type_details",
                 "retrieve_entity_type_info",
+                "retrieve_entity_types",
                 "temporal_query",
                 "temporal_query_post",
                 "update_attributes"
@@ -3281,9 +3290,12 @@ mod tests {
             view["operations"],
             json!([
                 "create_entity",
+                "retrieve_attribute_details",
                 "retrieve_attribute_info",
+                "retrieve_attributes",
                 "retrieve_entity_type_details",
-                "retrieve_entity_type_info"
+                "retrieve_entity_type_info",
+                "retrieve_entity_types"
             ])
         );
         let desired = desired(&s);
@@ -3298,7 +3310,7 @@ mod tests {
         };
         assert_eq!(
             clauses("city/writer"),
-            Some(json!(["5.6.1", "5.7.5", "5.7.7", "5.7.10"]))
+            Some(json!(["5.6.1", "5.7.5", "5.7.7", "5.7.8", "5.7.10"]))
         );
         assert_eq!(clauses("city/no-delete"), Some(json!(["5.6.6"])));
     }
@@ -3339,7 +3351,9 @@ mod tests {
         };
         assert_eq!(
             clauses("city/editor"),
-            Some(json!(["5.6.4", "5.6.2", "5.7.5", "5.7.7", "5.7.10"]))
+            Some(json!([
+                "5.6.4", "5.6.2", "5.7.5", "5.7.7", "5.7.8", "5.7.10"
+            ]))
         );
         assert_eq!(clauses("city/no-edit"), Some(json!(["5.6.4", "5.6.2"])));
     }
@@ -3621,7 +3635,7 @@ mod tests {
             view,
             json!({"id": "cs-city-air", "tenant": "city-air", "selector": ["*"],
                    "rules": [{"types": ["*"], "attributes": ["*"]}],
-                   "operations": ["query_entities", "retrieve_attribute_info", "retrieve_attribute_value", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info"]})
+                   "operations": ["query_entities", "retrieve_attribute_details", "retrieve_attribute_info", "retrieve_attribute_value", "retrieve_attributes", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info", "retrieve_entity_types"]})
         );
         let long = "x".repeat(61);
         assert!(space_view(&s, "city", "air", &long).is_err());
@@ -3671,7 +3685,7 @@ mod tests {
             document,
             &json!({"policies": [
                 {"id": "city/cars", "effect": "permit", "assignee": {"kind": "role", "id": "public"},
-                 "operations": ["5.7.1", "5.7.2", "5.7.5", "5.7.7", "5.7.10"],
+                 "operations": ["5.7.1", "5.7.2", "5.7.5", "5.7.7", "5.7.8", "5.7.10"],
                  "information": [{"entities": [{"type": "Car"}], "propertyNames": ["speed"]}]},
                 {"id": "city/no-trucks", "effect": "prohibit", "assignee": {"kind": "group", "id": "drivers"},
                  "operations": ["5.6.2", "5.6.4", "5.6.18", "5.6.19"],
@@ -4382,7 +4396,7 @@ mod tests {
             .and(body_json(json!({
                 "id": SLUG, "tenant": "city-air", "selector": ["Stop"],
                 "rules": [{"types": ["Stop"], "attributes": ["location", "name"]}],
-                "operations": ["query_entities", "retrieve_attribute_info", "retrieve_attribute_value", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info"]
+                "operations": ["query_entities", "retrieve_attribute_details", "retrieve_attribute_info", "retrieve_attribute_value", "retrieve_attributes", "retrieve_entity", "retrieve_entity_type_details", "retrieve_entity_type_info", "retrieve_entity_types"]
             })))
             .respond_with(ResponseTemplate::new(201))
             .expect(1)
