@@ -419,8 +419,8 @@ export function SmartDataModelsImport({
           >
             <p>{t("models.sdm.importRefused", { name: selected.name })}</p>
             <ul className="mt-1 list-disc pl-5">
-              {preview.data.errors.map((message) => (
-                <li key={message}>{message}</li>
+              {preview.data.errors.map((message, index) => (
+                <li key={index}>{message}</li>
               ))}
             </ul>
           </Alert>

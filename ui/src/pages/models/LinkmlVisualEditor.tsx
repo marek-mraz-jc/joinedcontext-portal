@@ -109,16 +109,19 @@ export function LinkmlVisualEditor({
 
   /**
    * A unit and the type of value move together (T-6101): the second change is made with the
-   * first, said in words, and one Undo puts the document back as it was before both.
+   * first, said in words, and one Undo puts the document back as it was before both. Undo
+   * stays only while the document is still the one the pick made: a later edit would be lost.
    */
-  const [unitUndo, setUnitUndo] = useState<{ before: string; notice: UnitNotice; slot: string } | null>(null);
+  const [unitUndo, setUnitUndo] = useState<
+    { before: string; after: string; notice: UnitNotice; slot: string } | null
+  >(null);
   const runPaired = (slot: string, operations: Operation[], notice: UnitNotice | undefined) => {
     const before = source;
     const applied = applyOperations(source, operations);
     setRefusal(applied.refused[0]?.reason ?? null);
     if (applied.refused.length > 0) return;
     onChange(applied.source);
-    setUnitUndo(notice ? { before, notice, slot } : null);
+    setUnitUndo(notice ? { before, after: applied.source, notice, slot } : null);
   };
   const pickUnit = (slot: LinkmlSlot, code: string) => {
     const range = rangeForUnit(slot.range, code);
@@ -690,7 +693,7 @@ export function LinkmlVisualEditor({
                 />
               </Field>
             </div>
-            {unitUndo && unitUndo.slot === activeSlot.name ? (
+            {unitUndo && unitUndo.slot === activeSlot.name && unitUndo.after === source ? (
               <Alert tone="info" role="status">
                 <span className="flex flex-wrap items-center justify-between gap-2">
                   <span>{t(`models.unitRule.${unitUndo.notice}`)}</span>

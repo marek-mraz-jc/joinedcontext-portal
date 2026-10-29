@@ -180,6 +180,21 @@ describe("LinkML visual editor", () => {
     expect(screen.queryByText(en.models.unitRule.madeNumber)).not.toBeInTheDocument();
   });
 
+  /// Undo puts back the text from before the pick, so it goes away once anything else changed.
+  it("drops the unit Undo after a later edit, keeping that edit", async () => {
+    const { source, user } = renderEditor(SOURCE.replace("range: float", "range: string"));
+
+    await user.click(screen.getByRole("button", { name: "pm10" }));
+    await user.type(screen.getByRole("combobox", { name: "Unit" }), "CEL");
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("button", { name: en.models.unitRule.undo })).toBeInTheDocument();
+
+    await user.type(document.getElementById("class-description") as HTMLElement, "Air");
+    expect(screen.queryByRole("button", { name: en.models.unitRule.undo })).not.toBeInTheDocument();
+    expect(source()).toContain("Air");
+    expect(parseModel(source()).slots.find((candidate) => candidate.name === "pm10")?.range).toBe("float");
+  });
+
   it("makes a count an Integer, and drops the unit of a field that stops being a number", async () => {
     const { source, user } = renderEditor(SOURCE.replace("range: float", "range: string"));
     const pm10 = () => parseModel(source()).slots.find((candidate) => candidate.name === "pm10");
