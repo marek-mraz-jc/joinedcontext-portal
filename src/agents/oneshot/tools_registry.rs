@@ -29,7 +29,7 @@ pub(super) fn opens_a_change(name: &str) -> Option<&'static str> {
             "open the removal with change_resource and `delete: true`; the person types the name \
              there and proposes it",
         ),
-        _ if name.ends_with("_propose") => Some(
+        _ if name.ends_with("_propose") || name == crate::connectors::APPLY => Some(
             "draft it with change_resource — `create: true` for a resource that does not exist \
              yet, a `patch` for one that does — and the kind's form opens filled for the person to \
              propose",
@@ -63,6 +63,9 @@ pub(super) fn offered(
         // A run reads data through the agent proxy's query_endpoint; jc_data_query exchanges the
         // caller's own token, which a run does not hold (T-5986).
         .filter(|op| op.name != crate::ops::data_query::NAME)
+        // T-5956: a plan is applied only through a connector (jc_change_apply); here the
+        // person proposes from the form change_resource opens, so the plan stays off the turn.
+        .filter(|op| op.name != crate::connectors::PLAN)
         .collect()
 }
 
@@ -1330,6 +1333,7 @@ mod tests {
                 "jc_resource_delete",
                 "jc_project_delete",
                 "jc_workspace_propose",
+                "jc_change_apply",
             ],
             "the operations the conversation may not call, in registry order"
         );

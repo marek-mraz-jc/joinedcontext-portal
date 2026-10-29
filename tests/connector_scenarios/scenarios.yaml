@@ -120,6 +120,36 @@
   says: "Create a DataModel BikeCounter with slots name, location (GeoProperty), count (integer), observedAt."
   expect: 'plan_change returns a valid LinkML DataModel manifest and a diff; apply_change opens one change request; approver merges in the Portal; model served'
   deny: 'connector without write -> plan allowed (validate_only), apply refused'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: DataModel, name: bikes, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: DataModel, metadata: { name: bikes, namespace: '{project}' }, spec: { contextSpaceRef: doprava, linkml: ./bikes.linkml.yaml, version: 0.1.0, lifecycle: draft } } }] }
+      keep: planId
+      contains: ['"planId"', '"baseEtag"', '"expiresAt"', '"ok":true']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests', 'https://gitea.example.sk/pulls/77']
+      absent: ['"merged"']
+    - proves: deny
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      refused: true
+      contains: ['is not there']
+    - proves: deny
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: doprava-read, segments: [data-read], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"writes":false']
+    - proves: deny
+      via: connector
+      absent: ['jc_change_apply']
+    - proves: deny
+      via: connector
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      refused: true
 - id: S-10
   segment: context
   as: steward
@@ -138,18 +168,67 @@
   says: "Create a context space Doprava with retention 365 days."
   expect: 'Space manifest valid, retention block as asked, change request opened'
   deny: 'steward of another project -> refused'
+  script:
+    # Retention deletes data, so only an owner of the space sets it (DM-85): the steward is told
+    # so, and the project's admin plans it.
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: ContextSpace, name: doprava-archiv, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: ContextSpace, metadata: { name: doprava-archiv, namespace: '{project}' }, spec: { isSandbox: true, retention: [{ entityType: '*', history: P365D }] } } }] }
+      refused: true
+      contains: ['DM-85']
+    - proves: expect
+      as: project-admin
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: ContextSpace, name: doprava-archiv, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: ContextSpace, metadata: { name: doprava-archiv, namespace: '{project}' }, spec: { isSandbox: true, retention: [{ entityType: '*', history: P365D }] } } }] }
+      keep: planId
+      contains: ['"planId"', 'retention']
+    - proves: expect
+      as: project-admin
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
+    - proves: deny
+      call: jc_change_plan
+      project: other
+      args: { changes: [{ op: create, kind: ContextSpace, name: doprava-archiv, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: ContextSpace, metadata: { name: doprava-archiv, namespace: t-scn-other }, spec: { isSandbox: true } } }] }
+      refused: true
 - id: S-13
   segment: context
   as: steward
   says: "Create an Endpoint that serves BikeCounter from space Doprava, public read, NGSI-LD + OData + GeoJSON."
   expect: 'Endpoint manifest with a valid slug (>= 26 chars, base32), representations as asked, Policy binding; after merge the Endpoint answers'
   deny: 'a slug with digits 0/1/8/9 -> validation error naming the field'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-public', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-public', namespace: '{project}' }, spec: { slug: bikecounterspublicdopravazz, contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, odata, ogc-features] } } }] }
+      keep: planId
+      contains: ['"planId"', '"ok":true']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
+    - proves: deny
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-bad', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-bad', namespace: '{project}' }, spec: { slug: bikecounters0publicdopravaz, contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld] } } }] }
+      refused: true
+      contains: ['/changes/0/manifest', 'slug']
 - id: S-14
   segment: context
   as: steward
   says: "Hide attribute ownerEmail from the public Endpoint."
   expect: 'view projection drops the attribute; public read no longer shows it; q on it returns nothing (no inference)'
   deny: 'none'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: patch, kind: Endpoint, name: '{project}-counters', patch: { spec: { title: null, entityTypes: null, projection: { hiddenAttributes: [ownerEmail] } } } }] }
+      keep: planId
+      contains: ['"planId"', 'hiddenAttributes', 'ownerEmail']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
 - id: S-15
   segment: context
   as: steward
@@ -230,12 +309,38 @@
   says: "Give user jana read access to Endpoint X."
   expect: 'RoleBinding diff; within_own_rights holds'
   deny: 'grant more than the admin holds -> refused'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: RoleBinding, name: jana-reads, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: RoleBinding, metadata: { name: jana-reads, namespace: '{project}' }, spec: { subjects: [{ user: jana@hel.fi }], role: scn-viewer, scope: { project: '{project}' } } } }] }
+      keep: planId
+      contains: ['"planId"', 'jana@hel.fi']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
+    - proves: deny
+      as: steward
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: RoleBinding, name: jana-admin, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: RoleBinding, metadata: { name: jana-admin, namespace: '{project}' }, spec: { subjects: [{ user: jana@hel.fi }], role: scn-project-admin, scope: { project: '{project}' } } } }] }
+      refused: true
 - id: S-28
   segment: access
   as: project-admin
   says: "Create a role Analyst: read all Endpoints, run pipelines, no writes."
   expect: 'Role manifest with those verbs only'
   deny: 'none'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Role, name: analyst, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Role, metadata: { name: analyst, namespace: '{project}' }, spec: { rules: [{ kinds: [Endpoint, Pipeline], verbs: [read] }] } } }] }
+      keep: planId
+      contains: ['"planId"', 'analyst', 'spec.rules[0].verbs[0]']
+      absent: ['verbs[1]']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
 - id: S-29
   segment: access
   as: project-admin
@@ -296,12 +401,37 @@
   says: "Remove Endpoint X from the catalogue."
   expect: 'publish.ckan removed and catalog.harvest false (EP-139); dataset gone after the sync'
   deny: 'none'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: patch, kind: Endpoint, name: '{project}-counters', patch: { spec: { title: null, entityTypes: null, publish: null, catalog: { harvest: false } } } }] }
+      keep: planId
+      contains: ['"planId"', 'harvest']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
 - id: S-35
   segment: publish
   as: steward
   says: "Add a quality rule: count must be >= 0."
   expect: 'rule with a unique name; quality checks run and report'
   deny: 'duplicate rule name -> refused (DM-87) before the space breaks'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: patch, kind: ContextSpace, name: doprava, patch: { spec: { quality: [{ name: count-not-negative, entityType: BikeCounter, kind: range, attribute: count, min: 0 }] } } }] }
+      keep: planId
+      contains: ['"planId"', 'count-not-negative']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
+    - proves: deny
+      call: jc_change_plan
+      args: { changes: [{ op: patch, kind: ContextSpace, name: doprava, patch: { spec: { quality: [{ name: count-not-negative, entityType: BikeCounter, kind: range, attribute: count, min: 0 }, { name: count-not-negative, entityType: BikeCounter, kind: range, attribute: count, max: 100000 }] } } }] }
+      refused: true
+      contains: ['count-not-negative']
 - id: S-36
   segment: publish
   as: steward
