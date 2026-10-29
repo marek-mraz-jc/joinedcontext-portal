@@ -75,6 +75,21 @@ fn refused(status: u16, slug: &str, title: &str, detail: &str) -> String {
     .to_string()
 }
 
+/// `output` without the attributes the project's models mark personal (AG-158), the same
+/// withholding a client's call at `/c/{id}` gets; the removed ones are named beside the answer so
+/// the model can tell the person why they are missing. Models that could not be read are an
+/// `Err`: without their marks nothing personal could be withheld, so the call is refused.
+fn without_personal(
+    mut output: Value,
+    marks: Result<crate::personal_data::Marks, String>,
+) -> Result<Value, String> {
+    let removed = crate::personal_data::withhold(&mut output, &marks?);
+    if removed.is_empty() {
+        return Ok(output);
+    }
+    Ok(json!({ "answer": output, "withheldPersonalAttributes": removed }))
+}
+
 /// The earlier turns of the conversation as plain messages, the newest kept whole first.
 fn earlier(conversation: &[(String, String)]) -> Vec<Value> {
     let mut left = EARLIER_CHARS;
@@ -241,7 +256,28 @@ impl Driver {
                 .await?;
             return Ok(refused(403, "tool-refused", "Forbidden", &reason));
         };
-        match crate::ops::call(operation, caller, &self.state, &self.project, input.clone()).await {
+        let called =
+            crate::ops::call(operation, caller, &self.state, &self.project, input.clone()).await;
+        let called = match called {
+            Ok(output) if crate::personal_data::carries_entities(&output) => {
+                let marks = crate::personal_data::of_project(&self.state, &self.project).await;
+                match without_personal(output, marks) {
+                    Ok(output) => Ok(output),
+                    Err(why) => {
+                        self.event("tool", failed_step(&call.name, started, &input, &why))
+                            .await?;
+                        return Ok(refused(
+                            503,
+                            "personal-data-unchecked",
+                            "Service Unavailable",
+                            &why,
+                        ));
+                    }
+                }
+            }
+            other => other,
+        };
+        match called {
             Ok(output) => {
                 self.event(
                     "tool",
@@ -477,6 +513,32 @@ mod tests {
             "{answer:?}"
         );
         assert_eq!(sent(&server).await.len(), 1);
+    }
+
+    /// An attribute a model marks personal never reaches the model's tool message, and the
+    /// answer names it; unreadable models refuse the call instead of sending it unchecked.
+    #[test]
+    fn a_personal_attribute_never_reaches_the_model() {
+        let marks = crate::personal_data::marks(
+            "classes:\n  PotholeReport:\n    slots: [description, contactEmail]\nslots:\n  contactEmail:\n    annotations: { personalData: true }\n",
+        );
+        let output = json!({ "entities": [{
+            "id": "urn:ngsi-ld:PotholeReport:1", "type": "PotholeReport",
+            "description": "Hlboká jama", "contactEmail": "jana@example.org"
+        }] });
+        assert!(crate::personal_data::carries_entities(&output));
+        let sent = without_personal(output.clone(), Ok(marks.clone()))
+            .map(|answer| bounded(answer.to_string()))
+            .unwrap_or_default();
+        assert!(!sent.contains("jana@example.org"), "{sent}");
+        assert!(sent.contains("Hlboká jama"), "{sent}");
+        assert!(sent.contains("PotholeReport.contactEmail"), "{sent}");
+        let plain = json!({ "entities": [{ "id": "urn:ngsi-ld:Road:1", "type": "Road" }] });
+        assert_eq!(without_personal(plain.clone(), Ok(marks)), Ok(plain));
+        assert_eq!(
+            without_personal(output, Err("model m unreadable".into())),
+            Err("model m unreadable".to_owned())
+        );
     }
 
     #[test]
