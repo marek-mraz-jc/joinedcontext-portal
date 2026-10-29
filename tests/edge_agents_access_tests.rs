@@ -876,6 +876,7 @@ async fn check_is_not_the_only_gate_an_agent_passes() {
     let mut admin = common::person("ada");
     admin.groups = vec!["portal-approver".to_owned()];
     let agent = ops::Caller {
+        bearer: None,
         identity: admin.clone(),
         via: ops::Via::Agent,
         access: None,

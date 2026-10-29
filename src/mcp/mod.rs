@@ -198,6 +198,7 @@ pub async fn handle_mcp(
     }
 
     let caller = crate::ops::Caller {
+        bearer: Some(crate::ops::Bearer(token.to_owned())),
         identity: session.identity,
         via: crate::ops::Via::Mcp,
         access: None,

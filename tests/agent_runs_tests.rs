@@ -1869,10 +1869,16 @@ async fn a_function_of_the_run_answers_through_jc_functions() {
 
     let (status, answer) = call(&app, &cookie, Method::POST, &summary, body.clone()).await;
     assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR, "{answer}");
+    // T-5949: a Problem Details answer that keeps the function's error member.
     assert_eq!(
-        answer,
-        json!({ "error": { "message": "boom", "file": "functions/summary.ts", "line": 3 } })
+        answer["error"],
+        json!({ "message": "boom", "file": "functions/summary.ts", "line": 3 })
     );
+    assert_eq!(
+        answer["type"],
+        "https://joinedcontext.com/errors/internal-error"
+    );
+    assert_eq!(answer["detail"], "boom");
     // T-3134: the gateway refused the function's data call as unauthenticated: the caller's to
     // fix, a 401, never the function's 500.
     let (status, answer) = call(&app, &cookie, Method::POST, &summary, body.clone()).await;
