@@ -1893,16 +1893,22 @@ function SpaceModel({
 /** How many classes the model has, and the first few as links into the model's own page. */
 const SUMMARY_CLASSES = 8;
 
+/**
+ * The class names of a LinkML source, `null` when it does not parse. `linkml:Any` is a value
+ * helper, not a class a space holds; the diagram leaves it out too.
+ */
+export function classNamesOf(source: string | undefined): string[] | null {
+  if (source === undefined) return null;
+  try {
+    return parseModel(source).classes.filter((klass) => !isAnyClass(klass)).map((klass) => klass.name);
+  } catch {
+    return null;
+  }
+}
+
 function ModelClassSummary({ project, name, source }: { project: string; name: string; source: string }): JSX.Element {
   const { t } = useTranslation();
-  const classes = useMemo(() => {
-    try {
-      // `linkml:Any` is a value helper, not a class a space holds; the diagram leaves it out too.
-      return parseModel(source).classes.filter((klass) => !isAnyClass(klass)).map((klass) => klass.name);
-    } catch {
-      return null;
-    }
-  }, [source]);
+  const classes = useMemo(() => classNamesOf(source), [source]);
   if (classes === null) {
     return <p className="text-body text-fg-muted">{t("spaces.inside.modelUnreadable")}</p>;
   }
@@ -1957,6 +1963,21 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   const policies = useProjectList(project, "policies");
   const catalogueLink = useCatalogueLinks([project]);
 
+  // Every DataModel that names this space, not only the one the space names back. A model's
+  // `contextSpaceRef` is required and a space's `dataModelRef` is an optional pointer at the
+  // primary one (kinds: `DataModelSpec`, `SpaceSpec`), and no seeded space sets it — so reading
+  // the pointer alone left this table empty for every space on dev, Helsinki's included, while
+  // the space held hundreds of entities (T-2450). The pointer still decides which model is
+  // first, and so which type the grid below opens on.
+  const named = space.data ? modelsOfSpace(space.data as Manifest, asManifests(models.data?.items ?? [])) : [];
+  const model = named[0];
+  // `spec.classes` is optional: a model whose manifest lists none still defines types, its source's
+  // classes, the ones the Data model tab counts (T-6090 review: "3 classes" above "no entity type").
+  const listed = [...new Set(named.flatMap(entityTypesOf))];
+  const modelSource = useSourceOf(project, listed.length === 0 ? model : undefined);
+  const sourced = useMemo(() => classNamesOf(modelSource.data) ?? [], [modelSource.data]);
+  const types = listed.length > 0 ? listed : sourced;
+
   if (space.isPending) {
     return <PageLoading label={t("app.loading")} />;
   }
@@ -1983,15 +2004,6 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   }
 
   const manifest = space.data as Manifest;
-  // Every DataModel that names this space, not only the one the space names back. A model's
-  // `contextSpaceRef` is required and a space's `dataModelRef` is an optional pointer at the
-  // primary one (kinds: `DataModelSpec`, `SpaceSpec`), and no seeded space sets it — so reading
-  // the pointer alone left this table empty for every space on dev, Helsinki's included, while
-  // the space held hundreds of entities (T-2450). The pointer still decides which model is
-  // first, and so which type the grid below opens on.
-  const named = modelsOfSpace(manifest, asManifests(models.data?.items ?? []));
-  const model = named[0];
-  const types = [...new Set(named.flatMap(entityTypesOf))];
   const spaceEndpoints = asManifests(endpoints.data?.items ?? []).filter(
     (endpoint) => spaceOf(endpoint) === name,
   );
