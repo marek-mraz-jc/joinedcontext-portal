@@ -5,6 +5,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
+import en from "../src/locales/en.json";
 import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import i18n from "../src/i18n";
@@ -349,6 +350,11 @@ describe("export", () => {
     expect(exportUrl("abc", "csv", TYPE, 'name=="A"', ["name"], ["urn:ngsi-ld:X:1", "urn:ngsi-ld:X:2"])).toBe(
       `/api/endpoint/abc/file.csv?type=${TYPE}&id=urn%3Angsi-ld%3AX%3A1%2Curn%3Angsi-ld%3AX%3A2&attrs=name`,
     );
+    // The grid's ID filter narrows the file like the grid (T-6107); checked ids replace it.
+    expect(exportUrl("abc", "csv", TYPE, undefined, [], [], "^urn:ngsi-ld:X:1$")).toBe(
+      `/api/endpoint/abc/file.csv?type=${TYPE}&idPattern=%5Eurn%3Angsi-ld%3AX%3A1%24`,
+    );
+    expect(exportUrl("abc", "csv", TYPE, undefined, [], ["urn:ngsi-ld:X:1"], "X")).not.toContain("idPattern");
   });
 
   it("offers only the formats an Endpoint of the space serves, and says when none does", () => {
@@ -368,7 +374,7 @@ describe("export", () => {
         <ExportLinks endpoints={[endpoint("map", "m1", ["geojson"])]} type={TYPE} q={undefined} attrs={[]} />
       </I18nextProvider>,
     );
-    expect(screen.getByText(/No Endpoint of this space serves CSV/)).toBeInTheDocument();
+    expect(screen.getByText(en.spaces.export.none)).toBeInTheDocument();
   });
 });
 

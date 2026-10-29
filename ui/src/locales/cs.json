@@ -1127,7 +1127,7 @@
     "export": {
       "label": "Exportovat:",
       "endpoint": "Exportovat přes",
-      "none": "Žádný endpoint tohoto prostoru neposkytuje CSV, Excel ani JSON, takže není přes co exportovat.",
+      "none": "Žádný endpoint tohoto prostoru neposkytuje soubor CSV, takže není co exportovat.",
       "format": {
         "csv": "CSV",
         "xlsx": "Excel",
@@ -5475,6 +5475,7 @@
     "page": "Strana",
     "showMetadata": "Zobrazit metadata pro",
     "error": "Nenačteno, zkuste znovu",
+    "refused": "Toto nemáte povoleno číst",
     "filter": "Filtr",
     "noFilter": "Vše",
     "ops": {
@@ -5705,10 +5706,15 @@
     }
   },
   "explore": {
+    "filtersOf": "Typ entity {type}, oblast a filtry",
+    "filtersPick": "Vyberte typ entity, oblast a filtry",
+    "yourAccess": "Váš přístup",
     "title": "Procházet data",
-    "description": "Čtěte entity kontextového prostoru přes jeden z jeho endpointů, s vaší relací; co vidíte, určuje Policy endpointu.",
+    "description": "Řádky kontextového prostoru, čtené přes jeden z jeho endpointů.",
     "space": "Kontextový prostor",
-    "endpoint": "Číst přes endpoint",
+    "endpoint": "Endpoint",
+    "export": "Exportovat",
+    "exportNone": "Tento endpoint neposkytuje soubor CSV, takže není co exportovat.",
     "noEndpoint": "Tento prostor nemá endpoint, přes který lze číst.",
     "noType": "Vyberte typ entity, aby se načetly entity.",
     "loadFailed": "Entity se nepodařilo načíst. Zkuste to znovu nebo čtěte přes jiný endpoint.",
@@ -5727,6 +5733,8 @@
     "noTypeHint": "Vyberte typ, aby se vypsalo, co tento endpoint poskytuje, nebo upřesněte filtry výše.",
     "noSpace": "Vyberte kontextový prostor ke čtení",
     "noSpaceHint": "Jeho entity se otevřou zde, čtené přes jeden z jeho endpointů. Začněte jedním z prostorů tohoto projektu:",
+    "noSpaces": "Tento projekt zatím nemá kontextový prostor",
+    "noSpacesHint": "Vytvořte ho v části Kontextové prostory; jeho data se otevřou zde.",
     "typeInModel": "Tento typ v jeho datovém modelu:",
     "readThrough": "Čte se přes",
     "endpointUnshown": "Odkaz uvádí Endpoint {name}, který vám tento prostor neukazuje",
@@ -5748,23 +5756,6 @@
       "outlierCount": "{count, plural, one {# hodnota} few {# hodnoty} other {# hodnot}}",
       "pipelines": "Pipeline, které zapisují tento typ",
       "rejected": "Otevřít {pipeline} a její odmítnuté záznamy"
-    },
-    "exportView": {
-      "format": "Formát exportu",
-      "formats": {
-        "csv-excel": "CSV pro Excel (česká čísla a data)",
-        "csv": "CSV",
-        "json": "JSON",
-        "geojson": "GeoJSON (entity s polohou)"
-      },
-      "start": "Exportovat pohled",
-      "cancel": "Zrušit export",
-      "progress": "Načteno {done} řádků…",
-      "progressOf": "Načteno {done} z {total} řádků…",
-      "download": "Stáhnout {name} ({rows, plural, one {# řádek} few {# řádky} other {# řádků}})",
-      "truncated": "Jen prvních {max} řádků: pro ostatní zužte filtr.",
-      "empty": "Pohled nemá žádné řádky k exportu.",
-      "noGeometry": "Žádná entita pohledu nemá polohu, proto není co exportovat do GeoJSON."
     },
     "useData": {
       "open": "Použít tato data",
@@ -5836,10 +5827,7 @@
     "copyJson": "Kopírovat JSON-LD",
     "endpointApps": "Aplikace",
     "unknownType": "Typ {type} v tomto prostoru neexistuje",
-    "unknownTypeHint": "Adresa uvádí typ, který tento prostor nemá. Vyberte jeden z jeho typů:",
-    "hint": {
-      "endpoint": "Endpoint, jehož politika rozhoduje, co uvidíte, např. veřejný endpoint prostoru. Odkaz, který sdílíte, ho uvádí, takže kolega čte přes tentýž."
-    }
+    "unknownTypeHint": "Adresa uvádí typ, který tento prostor nemá. Vyberte jeden z jeho typů:"
   },
   "agentRun": {
     "title": "Běh aplikace",

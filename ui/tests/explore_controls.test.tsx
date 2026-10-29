@@ -105,14 +105,15 @@ describe("the explorer's controls in plain words (T-5622)", () => {
     expect(en.entities.hint.scope).toContain("e.g. /district/1");
     expect(screen.getByText(en.entities.hint.filters)).toBeInTheDocument();
     expect(screen.getByText(en.entities.hint.attrs)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Read through endpoint/i)).toHaveAccessibleDescription(en.explore.hint.endpoint);
+    // The Endpoint picker sits on the title line without a hint sentence (owner, T-6107).
+    expect(screen.getByLabelText(en.explore.endpoint)).not.toHaveAccessibleDescription();
     // The query language is behind a disclosure, closed while the rows can show the filter.
     const technical = screen.getByTestId("explore-technical");
     expect(technical).not.toHaveAttribute("open");
     expect(within(technical).getByText("Technical details")).toBeInTheDocument();
     expect(within(technical).getByLabelText("Query as text (q)")).toHaveAccessibleDescription(en.entities.hint.q);
     // Outside the disclosure no hint names the query language.
-    const outside = [en.entities.hint.type, en.entities.hint.scope, en.entities.hint.filters, en.entities.hint.attrs, en.explore.hint.endpoint];
+    const outside = [en.entities.hint.type, en.entities.hint.scope, en.entities.hint.filters, en.entities.hint.attrs];
     expect(outside.filter((text) => /NGSI-LD|scopeQ|\bq\b/.test(text))).toEqual([]);
   });
 
@@ -138,7 +139,7 @@ describe("the explorer's controls in plain words (T-5622)", () => {
 
   it("lists the space's own Endpoints first and an App's under Applications, without a slug", async () => {
     open();
-    const select = await screen.findByLabelText(/Read through endpoint/i);
+    const select = await screen.findByLabelText(en.explore.endpoint);
     const top = [...select.children].filter((child) => child.tagName === "OPTION").map((o) => o.textContent);
     expect(top).toEqual(["—", "Helsinki traffic alerts"]);
     const apps = select.querySelector("optgroup");
@@ -165,8 +166,7 @@ describe("the explorer's controls in plain words (T-5622)", () => {
     const keys = {
       entities: ["typesNotGranted", "technical", "technicalScope"],
       "entities.hint": ["type", "scope", "q", "filters", "attrs"],
-      explore: ["endpointApps", "unknownType", "unknownTypeHint"],
-      "explore.hint": ["endpoint"],
+      explore: ["endpointApps", "unknownType", "unknownTypeHint", "export"],
     } as const;
     for (const locale of [en, sk, cs, de]) {
       for (const [section, names] of Object.entries(keys)) {

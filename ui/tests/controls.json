@@ -1328,7 +1328,7 @@
     },
     "src/pages/explore/ExplorePage.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
         "explore_controls.test.tsx",
@@ -1346,14 +1346,6 @@
       },
       "tests": [
         "explore_row_actions.test.tsx"
-      ]
-    },
-    "src/pages/explore/ExportView.tsx": {
-      "controls": {
-        "Button": 2
-      },
-      "tests": [
-        "explore_export_view.test.tsx"
       ]
     },
     "src/pages/explore/UseThisData.tsx": {
