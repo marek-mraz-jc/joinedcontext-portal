@@ -81,10 +81,11 @@ const PERSONAS: &[&str] = &[
     "approver",
     "anonymous",
 ];
-/// The LinkML model of every scenario space (DataModel `bike-counter`).
+/// The LinkML model of every scenario space (DataModel `bike-counter`): `name` is required
+/// (S-10), and Station is the target of a relationship (S-15).
 const MODEL: &str = "id: https://example.org/doprava\nname: doprava\ndefault_range: string\n\
 slots:\n  name: { required: true }\n  count: { range: integer }\n  startDate: { range: datetime, required: true }\n\
-classes:\n  BikeCounter: { slots: [name, count] }\n  Event: { slots: [name, startDate] }\n";
+classes:\n  BikeCounter: { slots: [name, count] }\n  Event: { slots: [name, startDate] }\n  Station: { slots: [name] }\n";
 const COUNTERS_CSV: &str = "id,name,count,observedAt\nc1,Most SNP,42,2026-10-27T10:00:00Z\n";
 
 #[derive(Debug, Deserialize)]
@@ -477,6 +478,29 @@ async fn forge(server: &MockServer) {
         .await;
 }
 
+/// Model Tools compiles every source it is handed, and the broker counts each scenario space:
+/// 12 BikeCounter entities and 3 Station entities.
+async fn model_tools_and_broker(server: &MockServer) {
+    Mock::given(method("POST"))
+        .and(path("/generate"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "jsonSchema": { "type": "object" }, "context": { "@context": {} }, "errors": []
+        })))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(wiremock::matchers::path_regex("^/q/tenants/.+"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "counts": { "entities": 15 },
+            "bytes": { "entities": 4096, "attrInstances": 0, "byType": {
+                "https://smartdatamodels.org/dataModel.Transportation/BikeCounter": 12,
+                "https://smartdatamodels.org/dataModel.Transportation/Station": 3
+            } }
+        })))
+        .mount(server)
+        .await;
+}
+
 /// One LinkML text for every model of the fixture: the forge serves it at each model's path.
 const MODELS_LINKML: &str = concat!(
     "id: https://example.sk/scenarios\n",
@@ -648,6 +672,7 @@ impl Harness {
             .mount(server)
             .await;
         forge(server).await;
+        model_tools_and_broker(server).await;
         data_plane(server).await;
         let csv_url = format!("http://localhost:{}/counters.csv", server.address().port());
 
@@ -660,6 +685,15 @@ impl Harness {
         })
         .expect("config");
         config.public_base_url = "https://portal.test".parse().expect("url");
+        config.model_tools_url = Some(server.uri());
+        config.broker_url = Some(server.uri());
+        let token_file = std::env::temp_dir().join(format!(
+            "scn-broker-token-{}-{}",
+            std::process::id(),
+            server.address().port()
+        ));
+        std::fs::write(&token_file, "token-scenarios-broker").expect("broker token file");
+        config.broker_admin_token_file = Some(token_file);
         config.gateway_url = Some(server.uri());
 
         let mirror = std::sync::Arc::new(Mirror::new());
