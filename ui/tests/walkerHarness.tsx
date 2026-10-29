@@ -84,6 +84,7 @@ export const ADDRESSES: Record<string, string[]> = {
   "/projects/$project/spaces/upload": [`${P}/spaces/upload`],
   "/projects/$project/assistant": [`${P}/assistant`],
   "/projects/$project/shared": [`${P}/shared`],
+  "/projects/$project/flows": [`${P}/flows`],
   "/projects/$project/$plural": NAV_SECTIONS.map(({ plural }) => `${P}/${plural}`).concat(`${P}/csrs`),
   "/projects/$project/$plural/new": FORMS.map((plural) => `${P}/${plural}/new`),
   "/projects/$project/$plural/$name/edit": FORMS.map((plural) => `${P}/${plural}/air/edit`),

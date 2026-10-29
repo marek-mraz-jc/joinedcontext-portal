@@ -86,7 +86,6 @@
     "main": "Hauptnavigation",
     "skipToContent": "Zum Inhalt springen",
     "breadcrumb": "Navigationspfad",
-    "flows": "Abläufe",
     "models": "Datenmodelle",
     "ckan": "Offene Daten",
     "explore": "Daten erkunden",
@@ -2469,6 +2468,11 @@
     "usedBy": {
       "title": "Verwendet von",
       "none": "Noch keine Pipeline liest diese Quelle."
+    },
+    "setups": {
+      "title": "Fertige Einrichtungen",
+      "lead": "Eine Einrichtung schreibt die Quelle, ihre Pipeline und ihren Zeitplan in einer Änderung aus wenigen Antworten. Beispiel: ein GBFS-Feed für Leihräder, jede Minute abgefragt.",
+      "back": "Zurück zu den Datenquellen"
     }
   },
   "pipelines": {
@@ -4124,14 +4128,6 @@
     }
   },
   "flows": {
-    "title": "Abläufe",
-    "subtitle": "Wählen Sie, was Sie einrichten möchten. Das Formular fragt nur das Nötige ab, die Konfiguration schreibt die Plattform.",
-    "empty": "Für Sie ist noch keine Vorlage verfügbar.",
-    "emptyFiltered": "Keine Vorlage passt zu diesem Filter.",
-    "category": {
-      "all": "Alle",
-      "uncategorised": "Sonstige"
-    },
     "risk": {
       "green": "Wird automatisch freigegeben",
       "yellow": "Eine Freigabe",
@@ -4140,15 +4136,14 @@
     "riskLabel": "Freigabe",
     "version": "Version {version}",
     "run": "Einrichten",
-    "back": "Zurück zur Übersicht",
     "instantiate": {
       "title": "{name} einrichten",
       "submit": "Änderung vorschlagen",
       "hint": "Beim Speichern wird eine Änderung vorgeschlagen; sie wirkt nach der Freigabe.",
       "noSchema": "Diese Vorlage hat keine Parameter.",
-      "failed": "Die Parameter wurden nicht akzeptiert. Korrigieren Sie die markierten Felder und schlagen Sie erneut vor."
-    },
-    "emptyHint": "Ein Blueprint richtet einen ganzen Anwendungsfall in einem Schritt ein: den Raum, die Quelle, die Pipeline und den Endpunkt zusammen. In diesem Projekt steht Ihnen noch keiner zur Verfügung."
+      "failed": "Die Parameter wurden nicht akzeptiert. Korrigieren Sie die markierten Felder und schlagen Sie erneut vor.",
+      "proposed": "Vorgeschlagen: die Änderung oben wartet auf ihre Freigabe."
+    }
   },
   "export": {
     "title": "Konfiguration herunterladen",
