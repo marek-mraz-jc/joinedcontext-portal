@@ -43,4 +43,32 @@ export class Tab {
       return { crashed: true };
     }
   }
+
+  /**
+   * Runs `work`, and once more on the fresh tab when the renderer crashed under it (`again` true).
+   * The host's OOM killer takes a renderer on whatever page is open, so one crash names no page; a
+   * page that crashes again on a fresh tab does (T-6009).
+   */
+  async twice<T>(
+    work: (page: Page, again: boolean) => Promise<T>,
+  ): Promise<Outcome<T>> {
+    const first = await this.run((page) => work(page, false));
+    return first.crashed ? this.run((page) => work(page, true)) : first;
+  }
+}
+
+/**
+ * Opens a page in `context` and runs `go` on it, once more on a fresh page when the renderer
+ * crashed under it. The OOM killer took the viewer's tab while it signed in, before the walk's own
+ * `Tab` existed, and the whole walk wrote no report (T-6011). Two crashes in a row still throw.
+ */
+export async function openedTwice(
+  context: BrowserContext,
+  go: (page: Page) => Promise<void>,
+  what: string,
+): Promise<Page> {
+  const tab = new Tab(context, await context.newPage(), () => undefined);
+  const outcome = await tab.twice((page) => go(page));
+  if (outcome.crashed) throw new Error(`the browser tab crashed twice while ${what}`);
+  return tab.page;
 }

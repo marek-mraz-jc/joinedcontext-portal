@@ -1,6 +1,6 @@
 import type { BrowserContext, Page } from "@playwright/test";
 import { describe, expect, it } from "vitest";
-import { Tab } from "../e2e/live/tab";
+import { openedTwice, Tab } from "../e2e/live/tab";
 
 // T-5730: a renderer crash ("Target crashed") in one page ended the steward's walk with no report.
 // The tab opens a fresh page in the same context and the walk goes on.
@@ -68,5 +68,102 @@ describe("walker Tab", () => {
       }),
     ).rejects.toThrow("Timeout");
     expect(pages).toHaveLength(1);
+  });
+
+  // T-6009: the host's OOM killer took a renderer on /endpoints and the walker filed the page.
+  it("runs the work again on a fresh tab after one crash", async () => {
+    const { tab, pages } = tabOver();
+    const seen: boolean[] = [];
+    const outcome = await tab.twice(async (page, again) => {
+      seen.push(again);
+      if (!again) {
+        pages[0].crash();
+        throw new Error("page.goto: Page crashed");
+      }
+      return page;
+    });
+    expect(outcome).toEqual({ crashed: false, value: pages[1] });
+    expect(seen).toEqual([false, true]);
+  });
+
+  it("reports a crash only when the fresh tab crashes too", async () => {
+    const { tab, pages } = tabOver();
+    const outcome = await tab.twice(async () => {
+      pages[pages.length - 1].crash();
+      throw new Error("page.goto: Target crashed");
+    });
+    expect(outcome).toEqual({ crashed: true });
+    expect(pages).toHaveLength(3);
+  });
+
+  it("runs the work once on a live tab", async () => {
+    const { tab } = tabOver();
+    let runs = 0;
+    expect(await tab.twice(async () => ++runs)).toEqual({
+      crashed: false,
+      value: 1,
+    });
+    expect(runs).toBe(1);
+  });
+});
+
+// T-6011: the OOM killer took the viewer's tab while it signed in, before the walk's Tab existed.
+describe("walker sign-in tab", () => {
+  function contextOver() {
+    const pages: ReturnType<typeof fakePage>[] = [];
+    const context = {
+      async newPage() {
+        const page = fakePage();
+        pages.push(page);
+        return page;
+      },
+    } as unknown as BrowserContext;
+    return { context, pages };
+  }
+
+  it("signs in again on a fresh page after the renderer crashed", async () => {
+    const { context, pages } = contextOver();
+    const signedIn: unknown[] = [];
+    const page = await openedTwice(
+      context,
+      async (page) => {
+        if (pages.length === 1) {
+          pages[0].crash();
+          throw new Error("page.waitForTimeout: Page crashed");
+        }
+        signedIn.push(page);
+      },
+      "viewer signed in",
+    );
+    expect(page).toBe(pages[1]);
+    expect(signedIn).toEqual([pages[1]]);
+    expect(pages[0].closed).toBe(true);
+  });
+
+  it("throws, naming the step, when the fresh page crashes too", async () => {
+    const { context, pages } = contextOver();
+    await expect(
+      openedTwice(
+        context,
+        async () => {
+          pages[pages.length - 1].crash();
+          throw new Error("page.goto: Page crashed");
+        },
+        "viewer signed in",
+      ),
+    ).rejects.toThrow("the browser tab crashed twice while viewer signed in");
+  });
+
+  it("passes a sign-in error that is no crash through", async () => {
+    const { context } = contextOver();
+    await expect(
+      openedTwice(
+        context,
+        async () => {
+          throw new Error("no password");
+        },
+        "viewer signed in",
+      ),
+    ).rejects.toThrow("no password");
   });
 });
