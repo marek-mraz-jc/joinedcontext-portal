@@ -1127,7 +1127,7 @@
     "export": {
       "label": "Exportieren:",
       "endpoint": "Exportieren über",
-      "none": "Kein Endpoint dieses Raums liefert CSV, Excel oder JSON, daher gibt es nichts, worüber exportiert werden kann.",
+      "none": "Kein Endpoint dieses Raums liefert eine CSV-Datei, daher gibt es nichts zu exportieren.",
       "format": {
         "csv": "CSV",
         "xlsx": "Excel",
@@ -4199,6 +4199,12 @@
     "kind": "NGSI-LD-Art",
     "kindHint": "Property, sofern das Attribut keine Geometrie, Beziehung oder Sprachkarte ist",
     "unit": "Einheit",
+    "unitRule": {
+      "madeNumber": "Eine Einheit misst eine Zahl, daher ist der Werttyp jetzt Zahl.",
+      "madeInteger": "C62 zählt Stück, daher ist der Werttyp jetzt Ganzzahl.",
+      "droppedUnit": "Nur Zahlen tragen eine Einheit, daher wurde sie entfernt.",
+      "undo": "Rückgängig"
+    },
     "unitHint": "UN/CEFACT-Code; Exporte und Dashboards beschriften die Werte damit",
     "affordanceLabel": "Verwendung",
     "affordance": {
@@ -4276,6 +4282,7 @@
       "noMatches": "Kein Modell passt.",
       "preview": "Fremdmodell",
       "pick": "Wählen Sie ein Modell, um zu sehen, was importiert würde.",
+      "importRefused": "Das Schema {name} aus dem Katalog lässt sich nicht in ein Modell umwandeln. Model Tools nennt unten den Grund. Wählen Sie ein anderes Modell oder beginnen Sie mit einem leeren Modell und ergänzen Sie die Felder von Hand.",
       "previewFailed": "Das Modell konnte nicht aus dem Katalog geladen werden. Versuchen Sie es erneut oder importieren Sie es über die Kennung.",
       "keepAll": "Alle fremden Attribute bleiben erhalten; nicht gewählte werden als veraltet markiert.",
       "import": "{name} importieren",
@@ -5468,6 +5475,7 @@
     "page": "Seite",
     "showMetadata": "Metadaten anzeigen für",
     "error": "Nicht geladen, versuchen Sie es erneut",
+    "refused": "Sie dürfen dies nicht lesen",
     "filter": "Filter",
     "noFilter": "Alle",
     "ops": {
@@ -5698,10 +5706,15 @@
     }
   },
   "explore": {
+    "filtersOf": "Entitätstyp {type}, Bereich und Filter",
+    "filtersPick": "Wählen Sie einen Entitätstyp, einen Bereich und Filter",
+    "yourAccess": "Ihr Zugriff",
     "title": "Daten erkunden",
-    "description": "Entitäten eines Kontextraums über einen seiner Endpunkte mit Ihrer Sitzung lesen; die Policy des Endpunkts bestimmt, was Sie sehen.",
+    "description": "Zeilen eines Kontextraums, gelesen über einen seiner Endpunkte.",
     "space": "Kontextraum",
-    "endpoint": "Über Endpunkt lesen",
+    "endpoint": "Endpunkt",
+    "export": "Exportieren",
+    "exportNone": "Dieser Endpoint liefert keine CSV-Datei, daher gibt es nichts zu exportieren.",
     "noEndpoint": "Dieser Raum hat keinen Endpunkt zum Lesen.",
     "noType": "Wählen Sie einen Entitätstyp, um Entitäten zu laden.",
     "loadFailed": "Die Entitäten konnten nicht geladen werden. Versuchen Sie es erneut oder lesen Sie über einen anderen Endpunkt.",
@@ -5720,6 +5733,8 @@
     "noTypeHint": "Wählen Sie einen Typ, um zu sehen, was dieser Endpoint ausliefert, oder schränken Sie die Filter oben ein.",
     "noSpace": "Wählen Sie einen Kontextraum zum Lesen",
     "noSpaceHint": "Seine Entitäten öffnen sich hier, gelesen über einen seiner Endpunkte. Beginnen Sie mit einem der Räume dieses Projekts:",
+    "noSpaces": "Dieses Projekt hat noch keinen Kontextraum",
+    "noSpacesHint": "Legen Sie einen unter Kontexträume an; seine Daten öffnen sich hier.",
     "typeInModel": "Dieser Typ in seinem Datenmodell:",
     "readThrough": "Gelesen über",
     "endpointUnshown": "Der Link nennt den Endpoint {name}, den dieser Raum Ihnen nicht zeigt",
@@ -5741,23 +5756,6 @@
       "outlierCount": "{count, plural, one {# Wert} other {# Werte}}",
       "pipelines": "Pipelines, die diesen Typ schreiben",
       "rejected": "{pipeline} mit seinen abgelehnten Datensätzen öffnen"
-    },
-    "exportView": {
-      "format": "Exportformat",
-      "formats": {
-        "csv-excel": "CSV für Excel (slowakische Zahlen- und Datumsformate)",
-        "csv": "CSV",
-        "json": "JSON",
-        "geojson": "GeoJSON (Entitäten mit Ort)"
-      },
-      "start": "Ansicht exportieren",
-      "cancel": "Export abbrechen",
-      "progress": "{done} Zeilen gelesen…",
-      "progressOf": "{done} von {total} Zeilen gelesen…",
-      "download": "{name} herunterladen ({rows, plural, one {# Zeile} other {# Zeilen}})",
-      "truncated": "Nur die ersten {max} Zeilen: grenzen Sie den Filter für den Rest ein.",
-      "empty": "Die Ansicht enthält keine Zeilen zum Exportieren.",
-      "noGeometry": "Keine Entität der Ansicht hat einen Ort, daher gibt es kein GeoJSON zu exportieren."
     },
     "useData": {
       "open": "Diese Daten verwenden",
@@ -5829,10 +5827,7 @@
     "copyJson": "JSON-LD kopieren",
     "endpointApps": "Anwendungen",
     "unknownType": "In diesem Bereich gibt es keinen Typ {type}",
-    "unknownTypeHint": "Die Adresse nennt einen Typ, den dieser Datenraum nicht hat. Wählen Sie einen seiner Typen:",
-    "hint": {
-      "endpoint": "Der Endpoint, dessen Policy entscheidet, was Sie sehen, z. B. der öffentliche des Datenraums. Ein geteilter Link nennt ihn, damit ein Kollege über denselben liest."
-    }
+    "unknownTypeHint": "Die Adresse nennt einen Typ, den dieser Datenraum nicht hat. Wählen Sie einen seiner Typen:"
   },
   "agentRun": {
     "title": "Anwendungslauf",

@@ -1127,7 +1127,7 @@
     "export": {
       "label": "Exportovať:",
       "endpoint": "Exportovať cez",
-      "none": "Žiadny endpoint tohto priestoru neposkytuje CSV, Excel ani JSON, takže nie je cez čo exportovať.",
+      "none": "Žiadny endpoint tohto priestoru neposkytuje súbor CSV, takže nie je čo exportovať.",
       "format": {
         "csv": "CSV",
         "xlsx": "Excel",
@@ -4199,6 +4199,12 @@
     "kind": "Druh NGSI-LD",
     "kindHint": "Property, pokiaľ atribút nie je geometria, väzba alebo jazyková mapa",
     "unit": "Jednotka",
+    "unitRule": {
+      "madeNumber": "Jednotka meria číslo, preto je typ hodnoty teraz Číslo.",
+      "madeInteger": "C62 počíta kusy, preto je typ hodnoty teraz Celé číslo.",
+      "droppedUnit": "Jednotku majú len čísla, preto bola odstránená.",
+      "undo": "Späť"
+    },
     "unitHint": "Spoločný kód UN/CEFACT; exporty a dashboardy ním označia hodnoty",
     "affordanceLabel": "Použitie",
     "affordance": {
@@ -4276,6 +4282,7 @@
       "noMatches": "Žiadny model nevyhovuje.",
       "preview": "Prevzatý model",
       "pick": "Vyberte model a uvidíte, čo sa naimportuje.",
+      "importRefused": "Schému {name} z katalógu nie je možné previesť na model. Model Tools nižšie uvádza, čo je zle. Vyberte iný model alebo začnite prázdnym modelom a polia doplňte ručne.",
       "previewFailed": "Model sa nepodarilo načítať z katalógu. Skúste to znova alebo ho importujte podľa identifikátora.",
       "keepAll": "Všetky prevzaté atribúty zostávajú; nevybrané sa označia ako zastarané.",
       "import": "Importovať {name}",
@@ -5468,6 +5475,7 @@
     "page": "Strana",
     "showMetadata": "Zobraziť metadáta pre",
     "error": "Nenačítané, skúste znova",
+    "refused": "Toto nemáte povolené čítať",
     "filter": "Filter",
     "noFilter": "Všetko",
     "ops": {
@@ -5698,10 +5706,15 @@
     }
   },
   "explore": {
+    "filtersOf": "Typ entity {type}, oblasť a filtre",
+    "filtersPick": "Vyberte typ entity, oblasť a filtre",
+    "yourAccess": "Váš prístup",
     "title": "Prehliadať dáta",
-    "description": "Čítajte entity kontextového priestoru cez jeden z jeho endpointov, s vašou reláciou; čo vidíte, určuje Policy endpointu.",
+    "description": "Riadky kontextového priestoru, čítané cez jeden z jeho endpointov.",
     "space": "Kontextový priestor",
-    "endpoint": "Čítať cez endpoint",
+    "endpoint": "Endpoint",
+    "export": "Exportovať",
+    "exportNone": "Tento endpoint neposkytuje súbor CSV, takže nie je čo exportovať.",
     "noEndpoint": "Tento priestor nemá endpoint, cez ktorý sa dá čítať.",
     "noType": "Vyberte typ entity, aby sa načítali entity.",
     "loadFailed": "Entity sa nepodarilo načítať. Skúste to znova alebo čítajte cez iný endpoint.",
@@ -5720,6 +5733,8 @@
     "noTypeHint": "Vyberte typ, aby sa vypísalo, čo tento endpoint poskytuje, alebo spresnite filtre vyššie.",
     "noSpace": "Vyberte kontextový priestor na čítanie",
     "noSpaceHint": "Jeho entity sa otvoria tu, čítané cez jeden z jeho endpointov. Začnite jedným z priestorov tohto projektu:",
+    "noSpaces": "Tento projekt zatiaľ nemá kontextový priestor",
+    "noSpacesHint": "Vytvorte ho v časti Kontextové priestory; jeho údaje sa otvoria tu.",
     "typeInModel": "Tento typ v jeho dátovom modeli:",
     "readThrough": "Číta sa cez",
     "endpointUnshown": "Odkaz uvádza Endpoint {name}, ktorý vám tento priestor neukazuje",
@@ -5741,23 +5756,6 @@
       "outlierCount": "{count, plural, one {# hodnota} few {# hodnoty} other {# hodnôt}}",
       "pipelines": "Pipeline, ktoré zapisujú tento typ",
       "rejected": "Otvoriť {pipeline} a jej odmietnuté záznamy"
-    },
-    "exportView": {
-      "format": "Formát exportu",
-      "formats": {
-        "csv-excel": "CSV pre Excel (slovenské čísla a dátumy)",
-        "csv": "CSV",
-        "json": "JSON",
-        "geojson": "GeoJSON (entity s polohou)"
-      },
-      "start": "Exportovať pohľad",
-      "cancel": "Zrušiť export",
-      "progress": "Načítaných {done} riadkov…",
-      "progressOf": "Načítaných {done} z {total} riadkov…",
-      "download": "Stiahnuť {name} ({rows, plural, one {# riadok} few {# riadky} other {# riadkov}})",
-      "truncated": "Iba prvých {max} riadkov: pre ostatné zúžte filter.",
-      "empty": "Pohľad nemá žiadne riadky na export.",
-      "noGeometry": "Žiadna entita pohľadu nemá polohu, preto niet čo exportovať do GeoJSON."
     },
     "useData": {
       "open": "Použiť tieto dáta",
@@ -5829,10 +5827,7 @@
     "copyJson": "Kopírovať JSON-LD",
     "endpointApps": "Aplikácie",
     "unknownType": "Typ {type} v tomto priestore neexistuje",
-    "unknownTypeHint": "Adresa uvádza typ, ktorý tento priestor nemá. Vyberte jeden z jeho typov:",
-    "hint": {
-      "endpoint": "Endpoint, ktorého politika rozhoduje, čo uvidíte, napr. verejný endpoint priestoru. Odkaz, ktorý zdieľate, ho uvádza, takže kolega číta cez ten istý."
-    }
+    "unknownTypeHint": "Adresa uvádza typ, ktorý tento priestor nemá. Vyberte jeden z jeho typov:"
   },
   "agentRun": {
     "title": "Beh aplikácie",

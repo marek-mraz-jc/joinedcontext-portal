@@ -271,6 +271,57 @@ test.describe("one plain model editor (T-4829)", () => {
     await expect(page.getByLabel("Class IRI")).toHaveValue(/^[a-z]+:School$/);
   });
 
+  // T-6101: a unit measures a number, so a unit on a text field makes it a Number, said with Undo.
+  for (const width of [1440, 400]) {
+    test(`a unit on a text field makes it a number and offers Undo at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read", "propose"]);
+      await page.goto("/projects/helsinki/models?new=blank&lang=en");
+      const types = page.getByRole("region", { name: "Types" });
+      await types.getByRole("textbox", { name: "New type" }).fill("WeatherObserved");
+      await types.getByRole("button", { name: "Add type" }).click();
+      await page.getByLabel("New field").fill("temperature");
+      await page.getByRole("button", { name: "Add field", exact: true }).click();
+      await page.getByRole("button", { name: "temperature", exact: true }).click();
+      await page.getByRole("combobox", { name: "Unit" }).fill("CEL");
+      await page.keyboard.press("Enter");
+      const notice = page.getByRole("status").filter({ hasText: "A unit measures a number" });
+      await expect(notice).toBeVisible();
+      await expect(page.locator("#slot-range")).toHaveValue("float");
+      await shot(page, `unit-made-number-${width}`);
+      await notice.getByRole("button", { name: "Undo" }).click();
+      await expect(page.locator("#slot-range")).toHaveValue("string");
+      await expect(notice).toHaveCount(0);
+    });
+  }
+
+  // T-6101: Model Tools answers a model it cannot convert with 200 and `errors`; the wizard
+  // showed "Fetching the upstream model..." for good. The answer below is dev's for Event before
+  // the Model Tools fix.
+  for (const width of [1440, 400]) {
+    test(`a catalogue model that cannot be imported says why at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read", "propose"]);
+      await page.route("**/api/v1/tools/**", async (route) => {
+        const path = new URL(route.request().url()).pathname;
+        const body = path.endsWith("/sdm-catalog")
+          ? { subjects: [{ name: "dataModel.TourismDestinations", title: "TourismDestinations", models: [{ id: "dataModel.TourismDestinations/Event", name: "Event", description: "An event of interest to visitors.", attributes: ["subCategory"] }] }] }
+          : { generatorVersion: "1.11.1", errors: ["garden: duplicate key"] };
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+      });
+      await page.goto("/projects/helsinki/models?new=blank&lang=en");
+      await page.getByRole("region", { name: "Types" }).getByRole("button", { name: "Import a Smart Data Model" }).click();
+      await page.getByRole("button", { name: /Event/ }).click();
+      const alert = page.getByRole("alert").filter({ hasText: "garden: duplicate key" });
+      await expect(alert).toContainText("The catalogue's Event schema cannot be turned into a model.");
+      await expect(alert.getByRole("button", { name: "Retry" })).toBeVisible();
+      await expect(page.getByText("Fetching the upstream model…")).toHaveCount(0);
+      const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(0);
+      await shot(page, `sdm-import-error-${width}`);
+    });
+  }
+
   for (const width of [1440, 400]) {
     test(`a viewer reads the same page with no Add field at ${width} px`, async ({ page }) => {
       await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });

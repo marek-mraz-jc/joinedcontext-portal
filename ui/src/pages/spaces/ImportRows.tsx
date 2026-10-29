@@ -478,6 +478,7 @@ export function ExportLinks({
   endpoints,
   type,
   q,
+  idPattern,
   attrs,
   ids,
   label,
@@ -485,6 +486,8 @@ export function ExportLinks({
   endpoints: Manifest[];
   type: string;
   q: string | undefined;
+  /** The grid's ID-column filter, a regular expression over ids. */
+  idPattern?: string;
   attrs: string[];
   /** Only these rows, by id: the grid's checked rows (T-5186). */
   ids?: readonly string[];
@@ -524,7 +527,7 @@ export function ExportLinks({
         <a
           key={format}
           className="focus-ring rounded-md border border-border px-3 py-1.5 text-body hover:bg-surface-muted"
-          href={safeHref(exportUrl(endpoint.slug, format, type, q, attrs, ids))}
+          href={safeHref(exportUrl(endpoint.slug, format, type, q, attrs, ids, idPattern))}
           download
         >
           {t(`spaces.export.format.${format}`)}
