@@ -71,6 +71,9 @@ const KINDS: &[&str] = &[
     "SyncSource",
     "Project",
     "Workspace",
+    "CkanInstance",
+    "Layer",
+    "Dashboard",
 ];
 const PERSONAS: &[&str] = &[
     "viewer",
@@ -80,6 +83,10 @@ const PERSONAS: &[&str] = &[
     "approver",
     "anonymous",
 ];
+/// The LinkML model of every scenario space (DataModel `bike-counter`).
+const MODEL: &str = "id: https://example.org/doprava\nname: doprava\ndefault_range: string\n\
+slots:\n  name: { required: true }\n  count: { range: integer }\n  startDate: { range: datetime, required: true }\n\
+classes:\n  BikeCounter: { slots: [name, count] }\n  Event: { slots: [name, startDate] }\n";
 const COUNTERS_CSV: &str = "id,name,count,observedAt\nc1,Most SNP,42,2026-10-27T10:00:00Z\n";
 
 #[derive(Debug, Deserialize)]
@@ -244,7 +251,7 @@ fn slug_named(project: &str, what: &str) -> String {
     format!("{tail}{what}zzzzzzzzzzzzzzzzzz")
 }
 
-/// One project's fixture: a space, a model, a public Endpoint, a CSV DataSource.
+/// One project's fixture: a space, a model, a public Endpoint, a CSV DataSource, a CKAN instance.
 fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
     mirror.upsert(envelope(
         "ContextSpace",
@@ -256,7 +263,19 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
         "DataModel",
         "bike-counter",
         project,
-        json!({ "contextSpaceRef": "doprava", "linkml": "./bike-counter.linkml.yaml" }),
+        json!({
+            "contextSpaceRef": "doprava",
+            "linkml": "./bike-counter.linkml.yaml",
+            "version": "1.0.0",
+            "lifecycle": "published",
+            "classes": ["BikeCounter", "Event"],
+            "artifacts": {
+                "jsonSchema": "./schema.json",
+                "context": "./context.jsonld",
+                "docs": "./README.md",
+                "example": "./example.json"
+            }
+        }),
     ));
     mirror.upsert(envelope(
         "Endpoint",
@@ -266,9 +285,8 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
             "slug": slug_of(project),
             "contextSpaceRef": "doprava",
             "audience": "public",
-            "title": format!("Bike counters of {project}"),
-            "entityTypes": ["BikeCounter"],
-            "enabledRepresentations": ["ngsi-ld"]
+            "enabledRepresentations": ["ngsi-ld"],
+            "display": { "BikeCounter": { "fields": ["name", "count"] } }
         }),
     ));
     // Citizen reports whose model marks contactEmail personal (AG-158, S-55); a view without
@@ -293,6 +311,12 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
         }),
     ));
     mirror.upsert(envelope(
+        "CkanInstance",
+        "opendata",
+        project,
+        json!({ "url": "https://data.example.sk", "apiTokenRef": { "name": "ckan-api-token" } }),
+    ));
+    mirror.upsert(envelope(
         "DataSource",
         "counters-csv",
         project,
@@ -302,6 +326,13 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
 
 /// Roles per persona, and a binding of each persona to every scenario project but `t-scn-other`.
 fn bind_personas(mirror: &Mirror, projects: &[String]) {
+    // The organization, whose domain every minted URN carries (a KPI's id, ADR-N-041).
+    mirror.upsert(envelope(
+        "Organization",
+        "hel",
+        ORG_NAMESPACE,
+        json!({ "domain": "hel.fi" }),
+    ));
     let kinds = json!(KINDS);
     for (role, verbs) in [
         ("scn-viewer", json!(["read"])),
@@ -436,6 +467,20 @@ async fn forge(server: &MockServer) {
             .mount(server)
             .await;
     }
+    // The space's model, which the Endpoint checks read (EP-125): counters without a time, and
+    // events with a required name and start.
+    let model = base64::engine::general_purpose::STANDARD.encode(MODEL);
+    Mock::given(method("GET"))
+        .and(wiremock::matchers::path_regex(format!(
+            "^{REPO}/contents/.*/bike-counter\\.linkml\\.yaml$"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "content": model, "encoding": "base64", "sha": "model-0",
+            "path": "bike-counter.linkml.yaml", "name": "bike-counter.linkml.yaml", "type": "file"
+        })))
+        .with_priority(1)
+        .mount(server)
+        .await;
     Mock::given(method("GET"))
         .and(wiremock::matchers::path_regex(format!(
             "^{REPO}/contents/.*"
@@ -563,6 +608,8 @@ struct Harness {
     added: std::sync::Mutex<Vec<ResourceKey>>,
     /// The forge, CSV source and identity provider; the model lane counts the forge writes.
     server: &'static MockServer,
+    /// The CSV source's address, `{csvUrl}` in a script.
+    csv_url: String,
 }
 
 impl Harness {
@@ -664,6 +711,7 @@ impl Harness {
             kept: std::sync::Mutex::default(),
             added: std::sync::Mutex::default(),
             server,
+            csv_url,
         }
     }
 
@@ -810,7 +858,8 @@ impl Harness {
             let mut text = text
                 .replace("{project}", project)
                 .replace("{connector}", &connector)
-                .replace("{in7days}", &in7days);
+                .replace("{in7days}", &in7days)
+                .replace("{csvUrl}", &self.csv_url);
             for (member, value) in &kept {
                 text = text.replace(&format!("{{{member}}}"), value);
             }
