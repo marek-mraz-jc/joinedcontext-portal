@@ -1046,7 +1046,7 @@ impl ConnectorStore {
     }
 
     /// Every connector of the organization with its last day's calls and denials, live ones first
-    /// and then newest first, at most [`OVERVIEW_PAGE`] (T-5975).
+    /// and then newest first, at most `OVERVIEW_PAGE` (T-5975).
     pub async fn overview(&self, base: &str) -> Result<Vec<Overview>, ApiError> {
         let now = Utc::now();
         match &self.inner {
