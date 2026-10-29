@@ -20,7 +20,6 @@ use chrono::Utc;
 use crate::error::ApiError;
 
 use super::connector_turn::refused;
-use crate::error::ApiError;
 
 /// The names of the browser actions, in the order the model reads them.
 pub(crate) const UI_TOOLS: [&str; 5] = [
