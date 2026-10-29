@@ -1,6 +1,7 @@
 import { PageFailed } from "../../components/ui/PageState";
 import { useState } from "react";
 import type { JSX } from "react";
+import type { TFunction } from "i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
@@ -30,6 +31,23 @@ interface Credential {
   kind?: string;
   name?: string;
   expiresAt?: string;
+}
+
+/**
+ * The grants of the brokers' roles an account can hold (ADR-N-048 §2.13): `mqtt/<broker>/<role>`
+ * for each role a broker declares, and the same with `*` for the broker: every broker of the project
+ * declaring it.
+ */
+export function mqttRoleChoices(brokers: Manifest[], t: TFunction): [string, string][] {
+  const choices = new Map<string, string>();
+  for (const broker of brokers) {
+    for (const role of (broker.spec as { roles?: { name?: unknown }[] } | undefined)?.roles ?? []) {
+      if (typeof role.name !== "string" || role.name === "") continue;
+      choices.set(`mqtt/${broker.metadata.name}/${role.name}`, t("access.accounts.mqttRole", { role: role.name, broker: broker.metadata.name }));
+      choices.set(`mqtt/*/${role.name}`, t("access.accounts.mqttRoleAny", { role: role.name }));
+    }
+  }
+  return [...choices];
 }
 
 /** "space-reader in helsinki-kpi": a role and the one place it holds (PF-34). */
@@ -280,6 +298,12 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
   const roleChoices = new Map<string, string>();
   for (const role of asManifests([...(orgRoles.data?.items ?? []), ...(projectRoles.data?.items ?? [])])) {
     roleChoices.set(role.metadata.name, localized(role.metadata.title, locale, role.metadata.name));
+  }
+  // The roles the project's MQTT brokers declare (T-5876, ADR-N-048 §2.13), from the brokers the
+  // person may read; the server checks each grant again when the account is proposed.
+  const brokers = useReadableList(project, "mqttbrokers", "MqttBroker", project !== ORG_NAMESPACE);
+  for (const [name, title] of mqttRoleChoices(asManifests(brokers.data?.items ?? []), t)) {
+    roleChoices.set(name, title);
   }
   for (const account of asManifests(list.data?.items ?? [])) {
     for (const held of (account.spec as { roles?: { role?: unknown }[] }).roles ?? []) {

@@ -1043,6 +1043,10 @@ routes:
     expect: [403, 403, 403, allow, 403, allow, 404, 403]
     body: {"name": "dev1", "role": "camera", "topic": "cameras/#", "jwks": {"keys": [{"kty": "EC", "crv": "P-256", "kid": "k1", "x": "f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU", "y": "x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}]}}
     note: "one Change of the device's ServiceAccount (public keys only) and the broker role; a workload token is 403 (tests/mqtt_devices_tests.rs)"
+  - route: GET /projects/{project}/mqttbrokers/{name}/access
+    rule: "project-verb:read:MqttBroker"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+    note: "which roles of the broker one ServiceAccount holds now (jc_core::mqtt::roles_held); the matrix names no account, so an allowed caller gets 400; a project member who may not read brokers gets 403 (tests/mqtt_access_tests.rs, T-5876)"
   - route: GET /projects/{project}/mqttbrokers/{name}/bindings
     rule: "project-verb:read:MqttBroker"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

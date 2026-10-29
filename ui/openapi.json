@@ -14515,6 +14515,107 @@
         }
       }
     },
+    "/api/v1/projects/{project}/mqttbrokers/{name}/access": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Explain An MQTT Broker's Roles For A ServiceAccount",
+        "description": "Which roles of the broker the ServiceAccount holds now, through a RoleBinding `mqtt/<broker>/<role>` or `mqtt/*/<role>` in force or the role's deprecated `serviceAccounts` list, with the topic filters each grants and when the last grant ends: the decision the gateway makes at CONNECT and publish (ADR-N-048 §2.13). Grants of the broker outside their validity window are listed beside it.",
+        "operationId": "get_mqtt_access",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "MqttBroker name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account",
+            "in": "query",
+            "description": "A ServiceAccount of the broker's project, by name, e.g. `air-fleet`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The roles the account holds; empty when it holds none",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Access"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No account named, or a name that is no DNS label",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not read this project's MQTT brokers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such broker or account, or not readable by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The broker's manifest does not read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/mqttbrokers/{name}/bindings": {
       "get": {
         "tags": [
@@ -36664,6 +36765,44 @@
   },
   "components": {
     "schemas": {
+      "Access": {
+        "type": "object",
+        "description": "The roles of a broker one account holds at `at`.",
+        "required": [
+          "broker",
+          "account",
+          "at",
+          "roles",
+          "outOfWindow"
+        ],
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The instant the roles were decided at."
+          },
+          "broker": {
+            "type": "string"
+          },
+          "outOfWindow": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutOfWindow"
+            },
+            "description": "Grants of this broker outside their validity window."
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HeldRole"
+            },
+            "description": "Empty when the account holds no role: its devices are refused at CONNECT."
+          }
+        }
+      },
       "AccountAccess": {
         "type": "object",
         "description": "One account's access as its Access tab reads it.",
@@ -43392,6 +43531,53 @@
           }
         }
       },
+      "HeldRole": {
+        "type": "object",
+        "description": "One role the account holds.",
+        "required": [
+          "role",
+          "publish",
+          "subscribe",
+          "legacy",
+          "bound"
+        ],
+        "properties": {
+          "bound": {
+            "type": "boolean",
+            "description": "Held through a RoleBinding `mqtt/<broker>/<role>` or `mqtt/*/<role>` in force."
+          },
+          "legacy": {
+            "type": "boolean",
+            "description": "Held through the role's deprecated `serviceAccounts` list."
+          },
+          "publish": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Topic filters the account's devices may publish to."
+          },
+          "role": {
+            "type": "string",
+            "description": "The role's name on the broker."
+          },
+          "subscribe": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Topic filters they may subscribe to."
+          },
+          "until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the last grant of the role ends; absent while one has no end."
+          }
+        }
+      },
       "HoldReason": {
         "type": "string",
         "description": "Why a run deleted nothing and alerts the pipeline's subscribers.",
@@ -45277,6 +45463,33 @@
           },
           "title": {
             "$ref": "#/components/schemas/Text"
+          }
+        }
+      },
+      "OutOfWindow": {
+        "type": "object",
+        "description": "One grant of this broker the account carries that is not in force now.",
+        "required": [
+          "grant"
+        ],
+        "properties": {
+          "grant": {
+            "type": "string",
+            "description": "The binding's role, e.g. `mqtt/air/sensor`."
+          },
+          "notAfter": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "notBefore": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         }
       },

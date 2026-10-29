@@ -807,7 +807,8 @@ async fn data_plane(server: &MockServer) {
         .and(path(format!("{REALM_PATH}/protocol/openid-connect/token")))
         .and(body_string_contains("token-exchange"))
         .and(body_string_contains("subject_token=ey"))
-        .and(body_string_contains("scope=endpoint%3A"))
+        .and(body_string_contains("scope=gateway-hub"))
+        .and(body_string_contains("endpoint%3A"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "access_token": EXCHANGED, "token_type": "Bearer", "expires_in": 300,
             "issued_token_type": "urn:ietf:params:oauth:token-type:access_token"

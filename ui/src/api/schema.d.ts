@@ -3346,6 +3346,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/mqttbrokers/{name}/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Explain An MQTT Broker's Roles For A ServiceAccount
+         * @description Which roles of the broker the ServiceAccount holds now, through a RoleBinding `mqtt/<broker>/<role>` or `mqtt/*\/<role>` in force or the role's deprecated `serviceAccounts` list, with the topic filters each grants and when the last grant ends: the decision the gateway makes at CONNECT and publish (ADR-N-048 §2.13). Grants of the broker outside their validity window are listed beside it.
+         */
+        get: operations["get_mqtt_access"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/mqttbrokers/{name}/bindings": {
         parameters: {
             query?: never;
@@ -6542,6 +6562,20 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description The roles of a broker one account holds at `at`. */
+        Access: {
+            account: string;
+            /**
+             * Format: date-time
+             * @description The instant the roles were decided at.
+             */
+            at: string;
+            broker: string;
+            /** @description Grants of this broker outside their validity window. */
+            outOfWindow: components["schemas"]["OutOfWindow"][];
+            /** @description Empty when the account holds no role: its devices are refused at CONNECT. */
+            roles: components["schemas"]["HeldRole"][];
+        };
         /** @description One account's access as its Access tab reads it. */
         AccountAccess: {
             account: string;
@@ -8944,6 +8978,24 @@ export interface components {
             /** @description The message in English. */
             text: string;
         };
+        /** @description One role the account holds. */
+        HeldRole: {
+            /** @description Held through a RoleBinding `mqtt/<broker>/<role>` or `mqtt/*\/<role>` in force. */
+            bound: boolean;
+            /** @description Held through the role's deprecated `serviceAccounts` list. */
+            legacy: boolean;
+            /** @description Topic filters the account's devices may publish to. */
+            publish: string[];
+            /** @description The role's name on the broker. */
+            role: string;
+            /** @description Topic filters they may subscribe to. */
+            subscribe: string[];
+            /**
+             * Format: date-time
+             * @description When the last grant of the role ends; absent while one has no end.
+             */
+            until?: string | null;
+        };
         /**
          * @description Why a run deleted nothing and alerts the pipeline's subscribers.
          * @enum {string}
@@ -9641,6 +9693,15 @@ export interface components {
         OrganizationSummary: {
             name: string;
             title?: components["schemas"]["Text"];
+        };
+        /** @description One grant of this broker the account carries that is not in force now. */
+        OutOfWindow: {
+            /** @description The binding's role, e.g. `mqtt/air/sensor`. */
+            grant: string;
+            /** Format: date-time */
+            notAfter?: string | null;
+            /** Format: date-time */
+            notBefore?: string | null;
         };
         /**
          * @description How one step judged the message.
@@ -22468,6 +22529,79 @@ export interface operations {
             };
             /** @description No such project, or not readable by the caller */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_mqtt_access: {
+        parameters: {
+            query?: {
+                /** @description A ServiceAccount of the broker's project, by name, e.g. `air-fleet`. */
+                account?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description MqttBroker name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The roles the account holds; empty when it holds none */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Access"];
+                };
+            };
+            /** @description No account named, or a name that is no DNS label */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not read this project's MQTT brokers */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such broker or account, or not readable by the caller */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The broker's manifest does not read */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
