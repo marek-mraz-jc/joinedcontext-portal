@@ -4,6 +4,7 @@ import { expect } from "@playwright/test";
 import type { APIRequestContext, Browser, BrowserContext, Locator, Page, Request, Response } from "@playwright/test";
 import { axeViolations } from "../axe";
 import { blankDocument, edgeRetryMs, pageFindings, viewerWriteFindings } from "../../tests/pageChecks";
+import { openedTwice } from "./tab";
 import { answerOtp, submitted } from "./totp";
 
 /**
@@ -146,8 +147,8 @@ export async function signIn(
   }
   const context = await browser.newContext();
   await withLocalUi(context);
-  const page = await context.newPage();
-  await goSignedIn(page, who, path, ready);
+  // A crash while signing in is signed in again on a fresh page of the same context (T-6011).
+  const page = await openedTwice(context, (page) => goSignedIn(page, who, path, ready), `${who.user} signed in`);
   return { context, page };
 }
 
@@ -314,10 +315,12 @@ function describeAnswer(answer: DocumentAnswer | undefined): string {
  * non-2xx, or a blank shell (`blankDocument`), is loaded once again after `againMs`: one load in a
  * rollout window made three a11y findings and three tasks on /organization/roles (T-5853..T-5855),
  * and the walker kept no status to name its cause. Either way it is one `document` finding.
- * A load whose every /api read answered 5xx (two reads or more: the Portal, not one route, did not
- * answer) is loaded once again too: fine then, it is one `api` finding instead of an `http` finding
- * per read (nine tasks for one load on /projects/helsinki/settings/roles/new, T-5937); still 5xx,
- * the `http` findings of the second load stand.
+ * A load where two /api reads or more answered 5xx (the Portal, not one route, did not answer) is
+ * loaded once again too: fine then, it is one `api` finding instead of an `http` finding per read
+ * (nine tasks for one load on /projects/helsinki/settings/roles/new, T-5937); still 5xx, the `http`
+ * findings of the second load stand. A read that answered beside them does not keep the load from
+ * that: /api/v1/branding answered (the browser holds it 5 min) while /auth/me and /branding/logo
+ * answered 502 in a rollout, and the walker filed a task per read (T-6012, T-6013).
  */
 export async function openToWalk(
   page: Page,
@@ -333,7 +336,8 @@ export async function openToWalk(
     if (request.isNavigationRequest() && request.frame() === page.mainFrame()) last = response;
     if (new URL(response.url()).pathname.startsWith("/api/")) apis.push(response.status());
   };
-  const unreachable = () => apis.length > 1 && apis.every((status) => status >= 500);
+  const failed = () => apis.filter((status) => status >= 500);
+  const unreachable = () => failed().length > 1;
   const answer = async (): Promise<DocumentAnswer | undefined> => {
     if (!last) return undefined;
     const body = await last.body().catch(() => Buffer.alloc(0));
@@ -349,7 +353,7 @@ export async function openToWalk(
     if (!documentBad && !unreachable()) return { edgeRefused: false, blank: false, document: [] };
     const said = documentBad
       ? `document: the page answered ${describeAnswer(first)}`
-      : `api: all ${apis.length} /api reads answered ${[...new Set(apis)].join(", ")}`;
+      : `api: ${failed().length === apis.length ? "all" : `${failed().length} of`} ${apis.length} /api reads answered ${[...new Set(failed())].join(", ")}`;
     await page.waitForTimeout(againMs);
     fresh();
     last = undefined;
@@ -357,7 +361,7 @@ export async function openToWalk(
     if (await openToJudge(page, address, retryMs, fresh)) return { edgeRefused: true, blank: false, document: [] };
     const second = await answer();
     const secondBad = await bad(second);
-    if (!documentBad && !secondBad) return { edgeRefused: false, blank: false, document: unreachable() ? [] : [`${said}; fine on retry`] };
+    if (!documentBad && !secondBad) return { edgeRefused: false, blank: false, document: failed().length > 0 ? [] : [`${said}; fine on retry`] };
     if (secondBad) {
       return { edgeRefused: false, blank: true, document: [`${said}, and ${describeAnswer(second)} on the load again ${againMs / 1000} s later`] };
     }
