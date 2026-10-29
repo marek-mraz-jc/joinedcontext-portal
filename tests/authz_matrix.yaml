@@ -402,6 +402,18 @@ routes:
     rule: "signed-in, own connectors only"
     expect: [401, 404, 404, 404, 404, 404, 404, 404]
     note: "the fixture holds no connector: every person's 404 is the unknown id"
+  - route: POST /connectors/{id}/tab
+    rule: "signed-in person in a browser, own connectors only (T-5967)"
+    expect: [403, 404, 404, 404, 404, 404, 404, 403]
+    note: "the fixture holds no connector: every person's 404 is the unknown id; a workload pairs no tab (403)"
+  - route: DELETE /connectors/{id}/tab
+    rule: "signed-in person in a browser, own connectors only (T-5967)"
+    expect: [403, 404, 404, 404, 404, 404, 404, 403]
+    note: "the fixture holds no connector: every person's 404 is the unknown id; a workload pairs no tab (403)"
+  - route: GET /connectors/{id}/tab/{tab}/events
+    rule: "signed-in person in a browser, own connectors only, the session that paired the tab (T-5967)"
+    expect: [401, 404, 404, 404, 404, 404, 404, 403]
+    note: "the fixture holds no connector: every person's 404 is the unknown id; a workload pairs no tab (403)"
   - route: GET /organization/connectors
     rule: "org-admin"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]

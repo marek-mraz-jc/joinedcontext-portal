@@ -10669,5 +10669,33 @@
     "addKept": "Bleibende Schlüssel hinzufügen",
     "submit": "Verschlüsseln und vorschlagen",
     "sending": "Das Geheimnis wird gesendet…"
+  },
+  "pairedTab": {
+    "region": "Mit einem Konnektor verbundener Tab",
+    "connect": "Diesen Tab verbinden",
+    "connectOf": "Diesen Tab mit {name} verbinden",
+    "disconnectHere": "Diesen Tab trennen",
+    "disconnectOf": "Diesen Tab von {name} trennen",
+    "hint": "Verbinden Sie diesen Tab, damit der KI-Client dieses Konnektors hier Seiten öffnen, Formulare ausfüllen und auf Felder zeigen kann, z. B. den Pipeline-Editor mit ausgefülltem Mapping öffnen. Er speichert nie; Sie schlagen vor. Nur dieser Tab, bis Sie trennen oder sich abmelden.",
+    "connected": "Verbunden mit {name}",
+    "explain": "Der KI-Client dieses Konnektors kann in diesem Tab Seiten öffnen und Formulare ausfüllen. Er kann nicht speichern, vorschlagen oder genehmigen.",
+    "waiting": "Noch keine Aktion.",
+    "last": "Zuletzt: {tool}: {what}",
+    "sent": "{client} über {connector}",
+    "anyClient": "Ein KI-Client",
+    "notFound": "nicht auf dieser Seite",
+    "showActions": "Aktionen ({count})",
+    "noActions": "Noch keine Aktion hat diesen Tab erreicht",
+    "actions": "Aktionen in diesem Tab",
+    "disconnect": "Trennen",
+    "ended": "Dieser Tab ist nicht mehr verbunden: er wurde getrennt, ein anderer Tab wurde verbunden oder die Sitzung endete. Verbinden Sie ihn erneut unter Meine Konnektoren.",
+    "dismiss": "Schließen",
+    "tool": {
+      "jc_ui_navigate": "Hat eine Seite geöffnet",
+      "jc_ui_open_form": "Hat ein Formular geöffnet",
+      "jc_ui_highlight": "Hat auf ein Feld gezeigt",
+      "jc_ui_show_diff": "Hat eine geplante Änderung geöffnet",
+      "jc_ui_filter_table": "Hat die Tabelle gefiltert"
+    }
   }
 }

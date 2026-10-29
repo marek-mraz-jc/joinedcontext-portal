@@ -10669,5 +10669,33 @@
     "addKept": "Pridať kľúče, ktoré zostávajú",
     "submit": "Zašifrovať a navrhnúť",
     "sending": "Tajomstvo sa odosiela…"
+  },
+  "pairedTab": {
+    "region": "Karta pripojená ku konektoru",
+    "connect": "Pripojiť túto kartu",
+    "connectOf": "Pripojiť túto kartu ku konektoru {name}",
+    "disconnectHere": "Odpojiť túto kartu",
+    "disconnectOf": "Odpojiť túto kartu od konektora {name}",
+    "hint": "Pripojte túto kartu a AI klient tohto konektora tu bude môcť otvárať stránky, vypĺňať formuláre a ukazovať na polia, napr. otvoriť editor pipeline s vyplneným mapovaním. Nikdy nič neuloží; návrh odošlete vy. Platí len pre túto kartu, kým ju neodpojíte alebo sa neodhlásite.",
+    "connected": "Pripojené ku konektoru {name}",
+    "explain": "AI klient tohto konektora môže v tejto karte otvárať stránky a vypĺňať formuláre. Nemôže ukladať, navrhovať ani schvaľovať.",
+    "waiting": "Zatiaľ žiadna akcia.",
+    "last": "Posledná: {tool}: {what}",
+    "sent": "{client} cez {connector}",
+    "anyClient": "AI klient",
+    "notFound": "na tejto stránke nie je",
+    "showActions": "Akcie ({count})",
+    "noActions": "Do tejto karty zatiaľ neprišla žiadna akcia",
+    "actions": "Akcie v tejto karte",
+    "disconnect": "Odpojiť",
+    "ended": "Táto karta už nie je pripojená: bola odpojená, pripojila sa iná karta alebo sa skončilo prihlásenie. Pripojte ju znova na stránke Moje konektory.",
+    "dismiss": "Zavrieť",
+    "tool": {
+      "jc_ui_navigate": "Otvoril stránku",
+      "jc_ui_open_form": "Otvoril formulár",
+      "jc_ui_highlight": "Ukázal na pole",
+      "jc_ui_show_diff": "Otvoril plánovanú zmenu",
+      "jc_ui_filter_table": "Filtroval tabuľku"
+    }
   }
 }

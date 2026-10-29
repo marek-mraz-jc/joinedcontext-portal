@@ -38,7 +38,7 @@ export function speakerOf(kind: string): Speaker {
 const DETAIL_KINDS = new Set(["usage", "commit", "preview", "lag"]);
 
 /** Events that are not lines of the transcript at all. */
-const UNDRAWN_KINDS = new Set(["status", "navigate"]);
+const UNDRAWN_KINDS = new Set(["status", "navigate", "ui"]);
 
 /** Where a run stands, as the one line a person reads instead of every status change. */
 export type Progress = "working" | "waiting" | "done" | "stopped";

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "../../components/ui";
 import { CopyValue } from "./McpServerPanels";
+import { connectTab, disconnectTab, onPairingChange, pairing } from "../../connectors/pairedTab";
 import { emptyForm, formProblems, lastDay, pickKey, refusedSection, scopeLines, setup, toForm, toRequest } from "./aiConnectors";
 import type { AiConnector, AiConnectorForm, ConnectorOptions, Pick, PickKind } from "./aiConnectors";
 
@@ -92,6 +93,10 @@ export function AiConnectorCard({ connector, justCreated }: { connector: AiConne
       void client.invalidateQueries({ queryKey: KEY });
     },
   });
+  const pairedHere = useSyncExternalStore(onPairingChange, () => pairing()?.connector === connector.id, () => false);
+  const tab = useMutation({
+    mutationFn: async () => (pairedHere ? disconnectTab() : connectTab(connector.id).then(() => undefined)),
+  });
   const when = (at: string | null | undefined) => (at ? new Date(at).toLocaleString(i18n.language) : t("aiConnectors.never"));
   const titleId = `ai-connector-${connector.id}`;
   const active = connector.state === "active";
@@ -111,6 +116,18 @@ export function AiConnectorCard({ connector, justCreated }: { connector: AiConne
                 {t("aiConnectors.setup")}
               </Button>
             ) : null}
+            {active || pairedHere ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-pressed={pairedHere}
+                aria-label={t(pairedHere ? "pairedTab.disconnectOf" : "pairedTab.connectOf", { name: connector.name })}
+                loading={tab.isPending}
+                onClick={() => tab.mutate()}
+              >
+                {t(pairedHere ? "pairedTab.disconnectHere" : "pairedTab.connect")}
+              </Button>
+            ) : null}
             {connector.state !== "revoked" ? (
               <Button variant="secondary" size="sm" aria-label={t("aiConnectors.editOf", { name: connector.name })} onClick={() => setEditing(true)}>
                 {t("aiConnectors.edit")}
@@ -126,6 +143,12 @@ export function AiConnectorCard({ connector, justCreated }: { connector: AiConne
             ) : null}
           </div>
         </div>
+        {active && !pairedHere ? <p className="text-caption text-fg-muted">{t("pairedTab.hint")}</p> : null}
+        {tab.isError ? (
+          <Alert tone="danger" role="alert">
+            {tab.error.message}
+          </Alert>
+        ) : null}
         {confirming ? (
           <Alert tone="warning" role="alert">
             <p>{t("aiConnectors.revokeConfirm", { name: connector.name })}</p>
