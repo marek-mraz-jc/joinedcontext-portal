@@ -61,6 +61,27 @@ describe("LinkML visual editor", () => {
     await i18n.changeLanguage("en");
   });
 
+  it("lists the parent's fields greyed, with the type they come from (T-6106)", async () => {
+    const { user } = renderEditor(
+      SOURCE.replace(
+        "  AirQualityObserved:\n    class_uri: bb:AirQualityObserved\n",
+        "  Observed:\n    slots:\n      - dateObserved\n  AirQualityObserved:\n    is_a: Observed\n    class_uri: bb:AirQualityObserved\n",
+      ).replace("slots:\n  pm10:", "slots:\n  dateObserved:\n    range: datetime\n  pm10:"),
+    );
+
+    await user.click(screen.getByRole("button", { name: "AirQualityObserved" }));
+    const fields = screen.getByRole("table", { name: en.models.slots });
+    const inherited = within(fields).getByRole("button", { name: "dateObserved" }).closest("tr")!;
+    expect(inherited).toHaveClass("text-fg-muted");
+    // Once as the From column's button, once under the name for a phone, which hides that column.
+    expect(within(inherited).getAllByText(i18n.t("models.inheritedFrom", { type: "Observed" }))).toHaveLength(2);
+    const own = within(fields).getByRole("button", { name: "pm10" }).closest("tr")!;
+    expect(own).not.toHaveClass("text-fg-muted");
+    expect(within(own).getByText(en.models.ownField)).toBeInTheDocument();
+    await user.click(within(inherited).getByRole("button", { name: i18n.t("models.inheritedFrom", { type: "Observed" }) }));
+    expect(screen.getByRole("button", { name: "Observed" })).toHaveAttribute("aria-current", "true");
+  });
+
   it("keeps a phone page 375 px wide: the attribute table scrolls in its own frame, the editor's column does not grow to it (T-4165)", () => {
     renderEditor();
     const frame = screen.getByRole("group", { name: en.models.slots });

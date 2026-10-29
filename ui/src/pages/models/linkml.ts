@@ -886,8 +886,17 @@ export function setOrDelete(
  * happens to declare itself (T-1112). A hierarchy that loops is walked once and no further.
  */
 export function effectiveSlots(model: LinkmlModel, klass: LinkmlClass): string[] {
+  return [...slotOrigins(model, klass).keys()];
+}
+
+/**
+ * The same slots in the same order, each with the class it comes from (T-6106): the class itself
+ * for a slot it names, else the nearest parent or mixin that brought it, so the structure view
+ * can grey an inherited field and say where it is defined.
+ */
+export function slotOrigins(model: LinkmlModel, klass: LinkmlClass): Map<string, string> {
   const byName = new Map(model.classes.map((one) => [one.name, one]));
-  const slots: string[] = [];
+  const origins = new Map<string, string>();
   const walked = new Set<string>();
   const walk = (current: LinkmlClass): void => {
     if (walked.has(current.name)) {
@@ -906,13 +915,16 @@ export function effectiveSlots(model: LinkmlModel, klass: LinkmlClass): string[]
       }
     }
     for (const slot of current.slots) {
-      if (!slots.includes(slot)) {
-        slots.push(slot);
+      if (!origins.has(slot)) {
+        origins.set(slot, current.name);
       }
     }
   };
   walk(klass);
-  return slots;
+  for (const slot of klass.slots) {
+    origins.set(slot, klass.name);
+  }
+  return origins;
 }
 
 export type Affordance =

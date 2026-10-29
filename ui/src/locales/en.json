@@ -4669,6 +4669,20 @@
       "broken": "{count, plural, one {# entity breaks} other {# entities break}} {rules}",
       "queryAction": "Query",
       "queryLabel": "Open Explore on the {type} entities that have {field}"
+    },
+    "from": "From",
+    "inheritedFrom": "From {type}",
+    "ownField": "This type",
+    "importDialog": {
+      "title": "Import a data model",
+      "description": "Start from a Smart Data Model or a sample file. The import joins the model in the editor; close this to build one by hand.",
+      "close": "Close import"
+    },
+    "sourceMode": {
+      "reading": "The model's source, read-only. Edit types and fields in Structure, or unlock the source to type in it.",
+      "editing": "Editing the model's source. Every view shows what you type here.",
+      "edit": "Edit source",
+      "done": "Done editing"
     }
   },
   "apps": {

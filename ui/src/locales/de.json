@@ -4669,6 +4669,20 @@
       "broken": "{count, plural, one {# Entität verletzt} other {# Entitäten verletzen}} {rules}",
       "queryAction": "Abfragen",
       "queryLabel": "Explore für die {type}-Entitäten mit {field} öffnen"
+    },
+    "from": "Herkunft",
+    "inheritedFrom": "Aus {type}",
+    "ownField": "Dieser Typ",
+    "importDialog": {
+      "title": "Datenmodell importieren",
+      "description": "Beginnen Sie mit einem Smart Data Model oder einer Beispieldatei. Der Import wird dem Modell im Editor hinzugefügt; schließen Sie den Dialog, um eines von Hand zu bauen.",
+      "close": "Import schließen"
+    },
+    "sourceMode": {
+      "reading": "Die Quelle des Modells, schreibgeschützt. Typen und Felder bearbeiten Sie in Struktur, oder Sie entsperren die Quelle zum Tippen.",
+      "editing": "Sie bearbeiten die Quelle des Modells. Jede Ansicht zeigt, was Sie hier tippen.",
+      "edit": "Quelle bearbeiten",
+      "done": "Fertig"
     }
   },
   "apps": {

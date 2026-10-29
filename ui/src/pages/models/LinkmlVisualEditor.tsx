@@ -28,6 +28,7 @@ import {
   slotAffordance,
   unitCode,
   UPSTREAM_ANNOTATION,
+  slotOrigins,
 } from "./linkml";
 import type { Diagnostic, LinkmlSlot, NgsiLdKind } from "./linkml";
 import { applyOperations } from "./operations";
@@ -543,14 +544,17 @@ export function LinkmlVisualEditor({
               </TableHeaderCell>
               <TableHeaderCell>{t("models.unit")}</TableHeaderCell>
               <TableHeaderCell>{t("models.affordanceLabel")}</TableHeaderCell>
+              <TableHeaderCell secondary>{t("models.from")}</TableHeaderCell>
             </TableHead>
             <TableBody>
-              {(activeClass?.slots ?? []).map((name) => {
+              {/* Inherited fields too, greyed, with the type they come from (T-6106). */}
+              {[...(activeClass ? slotOrigins(model, activeClass) : new Map<string, string>())].map(([name, from]) => {
                 const slot: LinkmlSlot | undefined = model.slots.find(
                   (candidate) => candidate.name === name,
                 );
+                const inherited = from !== activeClass?.name;
                 return (
-                  <TableRow key={name}>
+                  <TableRow key={name} className={inherited ? "text-fg-muted [&>td]:text-fg-muted [&_button]:text-fg-muted" : undefined}>
                     <TableCell primary>
                       <Button
                         variant="ghost"
@@ -561,11 +565,31 @@ export function LinkmlVisualEditor({
                         {name}
                         {slot?.deprecated ? ` (${t("models.deprecated")})` : ""}
                       </Button>
+                      {/* A phone hides the From column, so the origin rides under the name. */}
+                      {inherited ? (
+                        <span className="block px-2 text-caption sm:hidden">
+                          {t("models.inheritedFrom", { type: from })}
+                        </span>
+                      ) : null}
                     </TableCell>
                     <TableCell>{slot ? word(fieldWord(slot, model)) : "—"}</TableCell>
                     <TableCell>{slot?.kind ?? DEFAULT_KIND}</TableCell>
                     <TableCell>{unitSymbol(unitCode(slot?.unit)) || slot?.unit?.ucum_code || "—"}</TableCell>
                     <TableCell>{slot ? t(`models.affordance.${slotAffordance(slot, model.enums.map((one) => one.name))}`) : "—"}</TableCell>
+                    <TableCell secondary>
+                      {inherited ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="-my-1 underline-offset-2 hover:underline"
+                          onClick={() => setSelectedClass(from)}
+                        >
+                          {t("models.inheritedFrom", { type: from })}
+                        </Button>
+                      ) : (
+                        t("models.ownField")
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })}

@@ -4669,6 +4669,20 @@
       "broken": "{count, plural, one {# entita porušuje} few {# entity porušujú} other {# entít porušuje}} {rules}",
       "queryAction": "Dopytovať",
       "queryLabel": "Otvoriť Prieskum na entitách {type}, ktoré majú {field}"
+    },
+    "from": "Odkiaľ",
+    "inheritedFrom": "Z typu {type}",
+    "ownField": "Tento typ",
+    "importDialog": {
+      "title": "Importovať dátový model",
+      "description": "Začnite zo Smart Data Model alebo zo vzorového súboru. Import sa pridá k modelu v editore; zatvorte okno a model si postavíte ručne.",
+      "close": "Zavrieť import"
+    },
+    "sourceMode": {
+      "reading": "Zdroj modelu len na čítanie. Typy a polia upravte v Štruktúre, alebo zdroj odomknite a píšte doň.",
+      "editing": "Upravujete zdroj modelu. Každý pohľad ukazuje, čo tu napíšete.",
+      "edit": "Upraviť zdroj",
+      "done": "Hotovo"
     }
   },
   "apps": {

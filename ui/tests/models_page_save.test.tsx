@@ -505,7 +505,8 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     // A blank draft has no manifest, so nothing can be saved until it is named and placed.
     expect(screen.queryByRole("button", { name: PROPOSE })).not.toBeInTheDocument();
 
-    await user.click(await screen.findByRole("tab", { name: en.models.view.editor }));
+    // A new model opens on the import dialog (T-6106); closing it leaves the blank editor.
+    await user.click(await screen.findByRole("button", { name: en.models.importDialog.close }));
     const name = await screen.findByLabelText(en.models.create.name);
     await user.type(name, "air-quality");
     // The space that has a model already is named and cannot be chosen (DM-61).
