@@ -447,7 +447,7 @@ impl CommentStore {
         }
     }
 
-    /// Copies to `me` each notice of the last [`AUDIENCE_DAYS`] days addressed to one of
+    /// Copies to `me` each notice of the last `AUDIENCE_DAYS` days addressed to one of
     /// `audiences`, the ones the caller holds the right of today, except the events the caller
     /// caused (`ids`); a notice already copied stays one.
     pub async fn deliver(
