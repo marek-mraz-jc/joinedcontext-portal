@@ -61,6 +61,15 @@ async fn a_recorded_rmqtt_answer_reads_as_rate_publishers_and_accounts() {
     assert_eq!(seen["messagesPerSecond"], 2.0);
     assert_eq!(seen["publishers"], 1);
     assert_eq!(seen["reason"], Value::Null);
+    // T-6103: the page's chart, one rate per neighbouring pair of samples, oldest first.
+    assert_eq!(
+        seen["rates"],
+        json!([
+            {"at": "2026-10-12T08:47:00Z", "perSecond": 2.0},
+            {"at": "2026-10-12T08:47:05Z", "perSecond": 2.0},
+        ])
+    );
+    assert_eq!(seen["refusedPublishes"], 0);
     assert_eq!(
         seen["accounts"],
         json!([

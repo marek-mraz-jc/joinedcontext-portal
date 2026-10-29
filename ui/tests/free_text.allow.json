@@ -224,6 +224,14 @@
     "src/pages/access/AccountSecret.tsx :: (no label)": {
       "class": "FREE",
       "reason": "a read-only value the Portal issued (client id, the secret shown once, the token URL), shown for copying; nobody types into it"
+    },
+    "src/pages/mqttbrokers/BrokerEditor.tsx :: Role": {
+      "class": "FREE",
+      "reason": "the name of a new role this broker declares: nothing to pick it from"
+    },
+    "src/pages/mqttbrokers/BrokerEditor.tsx :: (no label)": {
+      "class": "FREE",
+      "reason": "a topic filter or a network typed as a chip, checked as typed against jc-core's rules (brokerDraft.ts); topics and networks name no stored thing"
     }
   }
 }

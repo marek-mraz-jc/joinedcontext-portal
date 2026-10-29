@@ -110,7 +110,8 @@
     "Claude Code",
     "claude.ai",
     "ChatGPT",
-    "VS Code (.vscode/mcp.json)"
+    "VS Code (.vscode/mcp.json)",
+    "QoS {level}"
   ],
   "cs": [
     "@context",
@@ -221,7 +222,8 @@
     "Claude Code",
     "claude.ai",
     "ChatGPT",
-    "VS Code (.vscode/mcp.json)"
+    "VS Code (.vscode/mcp.json)",
+    "QoS {level}"
   ],
   "de": [
     "@context",
@@ -369,6 +371,7 @@
     "claude.ai",
     "ChatGPT",
     "VS Code (.vscode/mcp.json)",
-    "Client"
+    "Client",
+    "QoS {level}"
   ]
 }
