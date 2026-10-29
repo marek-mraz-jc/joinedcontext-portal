@@ -1560,6 +1560,7 @@ async fn check_content(
     //       address is refused at every door (EP-80, T-2789).
     if operation != Operation::Delete {
         crate::catalog::check_contact(&state.mirror, identity, kind, &envelope.spec)?;
+        crate::catalog::check_publication(kind, &envelope.spec)?;
     }
     Ok(())
 }

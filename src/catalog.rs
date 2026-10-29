@@ -42,6 +42,22 @@ pub fn check_contact(
     Ok(())
 }
 
+/// Refuses an Endpoint that declares `spec.publish.ckan` with an audience other than `public`:
+/// the CKAN dataset is an open-data entry anyone reads, and its resources would link a door that
+/// answers them 401 (EP-62). The one-step publish flow sets `audience: public` in the same change
+/// and takes the red lane for it (EP-83).
+pub fn check_publication(kind: &str, spec: &Value) -> Result<(), ApiError> {
+    let audience = spec.get("audience").and_then(Value::as_str).unwrap_or("");
+    if kind != "Endpoint" || spec.pointer("/publish/ckan").is_none() || audience == "public" {
+        return Ok(());
+    }
+    Err(ApiError::BadRequest(format!(
+        "spec.publish.ckan publishes an open-data dataset anyone reads, but spec.audience is \
+         '{audience}', so every link in it would answer 401; set audience: public in the same \
+         change (it takes the red lane, EP-83) or drop spec.publish.ckan (EP-62)"
+    )))
+}
+
 /// Every address the Portal knows to be one person's, lowercased.
 fn people(mirror: &Mirror, identity: &Identity) -> BTreeSet<String> {
     let mut people: BTreeSet<String> = [identity.email.as_deref(), Some(&identity.username)]
@@ -107,6 +123,26 @@ mod tests {
             groups: Vec::new(),
             second_factor: false,
         }
+    }
+
+    /// EP-62, EP-83: an open-data dataset links a door anyone reads; any other audience is
+    /// refused with the fix, a public one and an Endpoint without the block pass.
+    #[test]
+    fn a_ckan_publication_needs_a_public_endpoint() {
+        let ckan = json!({ "ckan": { "instanceRef": "opendata" } });
+        for audience in ["organization", "project", "project-list"] {
+            let spec = json!({ "audience": audience, "publish": ckan });
+            let refused = check_publication("Endpoint", &spec).expect_err(audience);
+            assert!(refused
+                .to_string()
+                .contains(&format!("spec.audience is '{audience}'")));
+        }
+        let public = json!({ "audience": "public", "publish": ckan });
+        assert!(check_publication("Endpoint", &public).is_ok());
+        let private = json!({ "audience": "organization" });
+        assert!(check_publication("Endpoint", &private).is_ok());
+        let not_endpoint = json!({ "audience": "organization", "publish": ckan });
+        assert!(check_publication("Dashboard", &not_endpoint).is_ok());
     }
 
     fn mirror() -> Mirror {
