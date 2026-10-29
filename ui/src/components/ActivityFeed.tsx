@@ -19,6 +19,7 @@ import {
   Button,
   EmptyState,
   Field,
+  fieldIds,
   Icon,
   Select,
   Switch,
@@ -328,6 +329,7 @@ export function ActivityFeed({
           id={`${ids}-connector`}
           value={connector}
           disabled={ownConnectors.length === 0}
+          aria-describedby={fieldIds(`${ids}-connector`).description}
           onChange={(event) => setConnector(event.target.value)}
         >
           <option value="">{t("activity.filter.all")}</option>

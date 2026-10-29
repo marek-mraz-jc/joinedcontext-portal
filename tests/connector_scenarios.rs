@@ -2873,6 +2873,21 @@ async fn the_connector_door_holds_its_budget_under_load() {
 async fn an_apply_through_a_connector_signs_its_commit_and_the_activity_filters_by_it() {
     let harness = Harness::start(1).await;
     let own = project_of(1);
+    // A connector with writes beyond data-read needs a DelegationPolicy naming the person (AG-150).
+    harness.mirror.upsert(envelope(
+        "Group",
+        "provenance-writers",
+        ORG_NAMESPACE,
+        json!({ "members": [{ "user": user_of("steward") }] }),
+    ));
+    harness.mirror.upsert(envelope(
+        "DelegationPolicy",
+        "provenance-writers",
+        ORG_NAMESPACE,
+        json!({ "subjects": [{ "kind": "Group", "name": "provenance-writers" }],
+                "projects": [own], "segments": ["context"], "writes": true,
+                "maxExpiry": "P90D", "aboveCeiling": "queue" }),
+    ));
     let expires = (chrono::Utc::now() + chrono::Duration::days(7)).to_rfc3339();
     let portal = harness.token_for("steward", AUDIENCE, AUDIENCE);
     let ask = json!({ "name": "doprava-in-claude", "segments": ["context"], "writes": true,
