@@ -47,14 +47,14 @@ fn input_schema() -> Value {
             },
             "path": {
                 "type": "string",
-                "description": "A JSON pointer into the manifest, e.g. /spec/sources/0 (an array's items are /0): answers that field's whole JSON Schema with its descriptions instead of the field list",
+                "description": "A JSON pointer into the manifest, e.g. /spec/sources/0: that field's whole JSON Schema",
                 "maxLength": MAX_PATH,
                 "pattern": "^(/[^/]*)*$"
             }
         },
         "required": ["kind"],
         "additionalProperties": false,
-        "examples": [{ "kind": "Pipeline" }, { "kind": "Pipeline", "path": "/spec/sources/0" }]
+        "examples": [{ "kind": "Pipeline" }]
     })
 }
 
@@ -63,12 +63,12 @@ fn output_schema() -> Value {
         "type": "object",
         "properties": {
             "kind": { "type": "string" },
-            "required": { "type": "array", "items": { "type": "string" }, "description": "The fields every manifest of the kind carries" },
-            "fields": { "type": "string", "description": "One line per field: `path: type, required, limits`" },
-            "example": { "type": "object", "description": "A minimal manifest jc-core's validation accepts; rename it and fill its references before planning it" },
-            "more": { "type": "string", "description": "How to read a field the lines leave out" },
+            "required": { "type": "array", "items": { "type": "string" } },
+            "fields": { "type": "string" },
+            "example": { "type": "object" },
+            "more": { "type": "string" },
             "path": { "type": "string" },
-            "schema": { "type": "object", "description": "With path: the field's JSON Schema (draft-07, as jc-core exports it), with the definitions it names" }
+            "schema": { "type": "object" }
         },
         "required": ["kind"]
     })
@@ -761,7 +761,7 @@ pub fn operations() -> Vec<Operation> {
     vec![Operation {
         name: GET,
         title: "Get Kind Schema",
-        description: "Reads one manifest kind: its required fields, one line per field with type and limits, and a minimal manifest to start from; with path, a JSON pointer such as /spec/source, that field's whole JSON Schema. Never data",
+        description: "Reads one manifest kind: its required fields, a line per field with type and limits, and a minimal manifest; with path, one field's whole JSON Schema. Never data",
         input: input_schema,
         output: output_schema,
         annotations: annotations(true, false, true),
@@ -813,6 +813,16 @@ mod tests {
             assert!(checked.is_ok(), "{kind}: {checked:?} for {example}");
         }
         assert_eq!(input_schema()["properties"]["kind"]["enum"], json!(kinds));
+    }
+
+    /// T-6058 counts every tool definition a client reads per turn: the field list and path cost
+    /// the definition ~300 bytes over main's (1,309 measured here, the 37-kind enum most of it).
+    #[test]
+    fn the_tool_definition_stays_small() {
+        let op = &operations()[0];
+        let bytes =
+            (op.input)().to_string().len() + (op.output)().to_string().len() + op.description.len();
+        assert!(bytes <= 1_350, "{bytes} bytes");
     }
 
     #[test]

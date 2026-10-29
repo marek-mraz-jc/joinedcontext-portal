@@ -4725,7 +4725,7 @@ export interface paths {
         put?: never;
         /**
          * Get Kind Schema
-         * @description Reads one manifest kind: its required fields, one line per field with type and limits, and a minimal manifest to start from; with path, a JSON pointer such as /spec/source, that field's whole JSON Schema. Never data
+         * @description Reads one manifest kind: its required fields, a line per field with type and limits, and a minimal manifest; with path, one field's whole JSON Schema. Never data
          */
         post: operations["jc_schema_get"];
         delete?: never;
@@ -29087,7 +29087,7 @@ export interface operations {
                      * @enum {string}
                      */
                     kind: "Organization" | "Project" | "ContextSpace" | "DataModel" | "Mapping" | "Policy" | "ScopeDefinition" | "Endpoint" | "ModelProjection" | "SharedSpaceReference" | "ContextSourceRegistration" | "Subscription" | "ServiceAccount" | "Pipeline" | "DataSource" | "App" | "CkanInstance" | "KnowledgeSource" | "AssistantDeployment" | "McpServer" | "MqttBroker" | "Blueprint" | "AgentProfile" | "DataSpaceParticipant" | "DataOffer" | "DataAgreement" | "SyncSource" | "Bundle" | "UiSchema" | "Role" | "RoleBinding" | "Group" | "DelegationPolicy" | "ContextBroker" | "Environment" | "Dashboard" | "Layer";
-                    /** @description A JSON pointer into the manifest, e.g. /spec/sources/0 (an array's items are /0): answers that field's whole JSON Schema with its descriptions instead of the field list */
+                    /** @description A JSON pointer into the manifest, e.g. /spec/sources/0: that field's whole JSON Schema */
                     path?: string;
                 };
             };
@@ -29100,17 +29100,12 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        /** @description A minimal manifest jc-core's validation accepts; rename it and fill its references before planning it */
                         example?: Record<string, never>;
-                        /** @description One line per field: `path: type, required, limits` */
                         fields?: string;
                         kind: string;
-                        /** @description How to read a field the lines leave out */
                         more?: string;
                         path?: string;
-                        /** @description The fields every manifest of the kind carries */
                         required?: string[];
-                        /** @description With path: the field's JSON Schema (draft-07, as jc-core exports it), with the definitions it names */
                         schema?: Record<string, never>;
                     };
                 };
