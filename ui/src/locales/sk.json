@@ -10671,11 +10671,13 @@
     "description": "Prístupový údaj, ktorý potrebuje zdroj alebo plán: API kľúč, heslo, token. Uloží sa zašifrovaný do repozitára projektu a otvorí zmenu na schválenie.",
     "neverInChat": "Prístupový údaj píšte len sem, nikdy do chatu s asistentom ani s AI konektorom: chat by ho poslal cez model. Manifest naň odkazuje cez secretRef.",
     "name": "Názov tajomstva",
-    "nameHint": "Písmená, číslice, - a _, napr. counters-api. Manifest ho uvádza ako meno v secretRef.",
+    "hint": {
+      "name": "Písmená, číslice, - a _, napr. counters-api. Manifest ho uvádza ako meno v secretRef.",
+      "key": "Čo je táto hodnota v rámci tajomstva, napr. apiKey alebo password.",
+      "value": "Samotný prístupový údaj, napr. API kľúč od poskytovateľa. Tu ho už nikto neprečíta."
+    },
     "key": "Kľúč",
-    "keyHint": "Čo je táto hodnota v rámci tajomstva, napr. apiKey alebo password.",
     "value": "Hodnota",
-    "valueHint": "Samotný prístupový údaj, napr. API kľúč od poskytovateľa. Tu ho už nikto neprečíta.",
     "empty": "Projekt zatiaľ nemá žiadne tajomstvo: zadajte prvé nižšie.",
     "replaces": "Toto tajomstvo existuje s kľúčmi {keys}. Uloženie ho nahradí celé: zadajte každý kľúč, ktorý má zostať.",
     "addKey": "Pridať kľúč",

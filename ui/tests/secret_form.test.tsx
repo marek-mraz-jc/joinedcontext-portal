@@ -46,7 +46,7 @@ describe("the secret form", () => {
     expect(screen.getByText(en.secrets.neverInChat)).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: new RegExp(en.secrets.name) })).toHaveValue("counters-api");
     expect(screen.getByRole("textbox", { name: new RegExp(`^${en.secrets.key}`) })).toHaveValue("apiKey");
-    for (const hint of [en.secrets.nameHint, en.secrets.keyHint, en.secrets.valueHint]) {
+    for (const hint of [en.secrets.hint.name, en.secrets.hint.key, en.secrets.hint.value]) {
       expect(screen.getByText(hint)).toBeInTheDocument();
     }
     const value = screen.getByLabelText(new RegExp(`^${en.secrets.value}`));

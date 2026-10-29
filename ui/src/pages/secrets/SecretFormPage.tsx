@@ -88,7 +88,7 @@ export function SecretFormPage({
       ) : null}
       <Card>
         <form className="space-y-4" onSubmit={submit} noValidate>
-          <Field id="secret-name" label={t("secrets.name")} required help={t("secrets.nameHint")}>
+          <Field id="secret-name" label={t("secrets.name")} required help={t("secrets.hint.name")}>
             <Input
               id="secret-name"
               value={name}
@@ -109,7 +109,7 @@ export function SecretFormPage({
           {held ? <p className="text-sm text-fg-muted">{t("secrets.replaces", { keys: held.keys.join(", ") })}</p> : null}
           {rows.map((row, index) => (
             <div key={index} className="grid gap-3 sm:grid-cols-2">
-              <Field id={`secret-key-${index}`} label={t("secrets.key")} required help={t("secrets.keyHint")}>
+              <Field id={`secret-key-${index}`} label={t("secrets.key")} required help={t("secrets.hint.key")}>
                 <Input
                   id={`secret-key-${index}`}
                   value={row.key}
@@ -118,7 +118,7 @@ export function SecretFormPage({
                   spellCheck={false}
                 />
               </Field>
-              <Field id={`secret-value-${index}`} label={t("secrets.value")} required help={t("secrets.valueHint")}>
+              <Field id={`secret-value-${index}`} label={t("secrets.value")} required help={t("secrets.hint.value")}>
                 <Input
                   id={`secret-value-${index}`}
                   type="password"

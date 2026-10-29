@@ -10671,11 +10671,13 @@
     "description": "Ein Zugangswert, den eine Quelle oder ein Plan braucht: API-Schlüssel, Passwort, Token. Er wird verschlüsselt im Repository des Projekts abgelegt und öffnet eine Änderung zur Freigabe.",
     "neverInChat": "Geben Sie einen Zugangswert nur hier ein, nie im Chat mit dem Assistenten oder einem KI-Konnektor: ein Chat trüge ihn durch das Modell. Ein Manifest verweist per secretRef darauf.",
     "name": "Name des Geheimnisses",
-    "nameHint": "Buchstaben, Ziffern, - und _, z. B. counters-api. Ein Manifest nennt ihn als Namen in secretRef.",
+    "hint": {
+      "name": "Buchstaben, Ziffern, - und _, z. B. counters-api. Ein Manifest nennt ihn als Namen in secretRef.",
+      "key": "Was dieser Wert im Geheimnis ist, z. B. apiKey oder password.",
+      "value": "Der Zugangswert selbst, z. B. der API-Schlüssel des Anbieters. Hier liest ihn niemand mehr aus."
+    },
     "key": "Schlüssel",
-    "keyHint": "Was dieser Wert im Geheimnis ist, z. B. apiKey oder password.",
     "value": "Wert",
-    "valueHint": "Der Zugangswert selbst, z. B. der API-Schlüssel des Anbieters. Hier liest ihn niemand mehr aus.",
     "empty": "Dieses Projekt hat noch kein Geheimnis: geben Sie unten das erste ein.",
     "replaces": "Dieses Geheimnis existiert mit den Schlüsseln {keys}. Speichern ersetzt es ganz: geben Sie jeden Schlüssel ein, der bleibt.",
     "addKey": "Schlüssel hinzufügen",

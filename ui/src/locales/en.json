@@ -10671,11 +10671,13 @@
     "description": "A credential a source or a plan needs: an API key, a password, a token. It is encrypted into the project's repository and opens a change for approval.",
     "neverInChat": "Type a credential only here, never in a chat with the assistant or an AI connector: a chat would carry it through the model. A manifest names it by secretRef.",
     "name": "Secret name",
-    "nameHint": "Letters, digits, - and _, e.g. counters-api. A manifest names it as secretRef name.",
+    "hint": {
+      "name": "Letters, digits, - and _, e.g. counters-api. A manifest names it as secretRef name.",
+      "key": "What this value is within the secret, e.g. apiKey or password.",
+      "value": "The credential itself, e.g. the API key the provider gave you. Nobody can read it back here."
+    },
     "key": "Key",
-    "keyHint": "What this value is within the secret, e.g. apiKey or password.",
     "value": "Value",
-    "valueHint": "The credential itself, e.g. the API key the provider gave you. Nobody can read it back here.",
     "empty": "This project has no secret yet: enter the first one below.",
     "replaces": "This secret exists with the keys {keys}. Saving replaces it whole: enter every key it keeps.",
     "addKey": "Add a key",
