@@ -48,6 +48,13 @@ pub struct SpaceUsage {
     /// measure it or holds no tenant for the space yet.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bytes: Option<SpaceBytes>,
+    /// The space's history: its temporal attribute instances, as the broker counts them; absent
+    /// when the broker could neither count nor estimate them (T-6085).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attr_instances: Option<u64>,
+    /// True when the broker took the history count and size from its database's statistics,
+    /// because the history was too long to count within its bound (T-6085).
+    pub estimated: bool,
 }
 
 /// A space's storage in bytes, as the broker measures it in its store (T-2890).
@@ -128,11 +135,15 @@ impl Counter {
         };
         let status = response.status();
         let body: Value = response.json().await.unwrap_or(Value::Null);
-        let (entities, bytes) = match status {
-            status if status.is_success() => (count_of(&body)?, bytes_of(&body)),
+        let (entities, bytes, attr_instances) = match status {
+            status if status.is_success() => (
+                count_of(&body)?,
+                bytes_of(&body),
+                body["counts"]["attrInstances"].as_u64(),
+            ),
             // The broker creates a tenant on its first write: no tenant is an empty space. Any
             // other 404 is an address that reaches no broker, never an empty space.
-            StatusCode::NOT_FOUND if body["type"] == NO_TENANT => (0, None),
+            StatusCode::NOT_FOUND if body["type"] == NO_TENANT => (0, None, Some(0)),
             status => {
                 tracing::warn!(tenant, %status, "the broker refused a space's counts");
                 return self
@@ -145,6 +156,8 @@ impl Counter {
             broker: broker_name.to_owned(),
             observed_at: now,
             bytes,
+            attr_instances,
+            estimated: body["estimated"].as_bool().unwrap_or(false),
         };
         self.cache
             .write()
@@ -494,6 +507,34 @@ mod tests {
 
     /// T-4825: the last count stands in, with its own `observedAt`, while the broker is away.
     #[tokio::test]
+    async fn the_history_count_and_its_estimate_flag_are_carried_from_the_broker() {
+        use wiremock::matchers::path;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let broker = MockServer::start().await;
+        Mock::given(path("/q/tenants/air"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "counts": {"entities": 3, "attrInstances": 240000},
+                "bytes": {"entities": 900, "attrInstances": 96000000, "byType": {}},
+                "estimated": true,
+            })))
+            .mount(&broker)
+            .await;
+        Mock::given(path("/q/tenants/old"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"counts": {"entities": 1}})),
+            )
+            .mount(&broker)
+            .await;
+        let counter = Counter::new(Some(broker.uri()), Some(token_file("history")));
+        let air = counter.usage("main", "air").await.expect("air");
+        assert_eq!((air.attr_instances, air.estimated), (Some(240_000), true));
+        assert_eq!(air.bytes.map(|b| b.attr_instances), Some(96_000_000));
+        // a broker before T-6085 answers neither: no history count, never a made-up 0
+        let old = counter.usage("main", "old").await.expect("old");
+        assert_eq!((old.attr_instances, old.estimated), (None, false));
+    }
+
+    #[tokio::test]
     async fn a_kept_count_answers_while_the_broker_is_away() {
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -511,6 +552,8 @@ mod tests {
             broker: "main".into(),
             observed_at: Utc::now() - chrono::Duration::minutes(minutes),
             bytes: None,
+            attr_instances: None,
+            estimated: false,
         };
         counter
             .cache

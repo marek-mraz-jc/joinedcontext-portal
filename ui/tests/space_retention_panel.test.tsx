@@ -72,6 +72,39 @@ describe("the Retention section (DM-82, DM-85)", () => {
     await expectNoAxeViolations(container);
   });
 
+  it("shares one row among types under one rule, says heartbeats in words and since when it counts (T-6089)", async () => {
+    const manifest = {
+      ...MANIFEST,
+      spec: {
+        retention: [
+          { entityType: "Vehicle", current: "PT5M", history: "PT8H" },
+          { entityType: "KeyPerformanceIndicator", history: "P90D", record: "onChange", heartbeat: "P30D" },
+        ],
+      },
+    } as unknown as Manifest;
+    renderPage(
+      <SpaceRetention project="helsinki" space="bikes" manifest={manifest} types={["Stop", "Station", "Vehicle", "Road"]} />,
+      {
+        path: "/projects/helsinki/spaces/bikes",
+        answer: (url) =>
+          url.pathname === `${BASE}/retention/deleted`
+            ? json({ counts: [{ entityType: "Stop", kind: "entity", count: 2 }, { entityType: "Road", kind: "entity", count: 3 }] })
+            : undefined,
+      },
+    );
+    const table = await screen.findByRole("table", { name: en.spaces.retention.caption });
+    // Vehicle, the KPI, one row for the three types without a rule, and the space default.
+    expect(within(table).getAllByRole("row")).toHaveLength(5);
+    const same = within(table).getByRole("row", { name: /3 types, same rule/ });
+    expect(within(same).getByText("Road, Station, Stop")).toBeInTheDocument();
+    expect(await within(same).findByText("5 values, 0 history records")).toBeInTheDocument();
+    const kpi = within(table).getByRole("row", { name: /KeyPerformanceIndicator/ });
+    expect(within(kpi).getByText("a row at least every 30 days")).toBeInTheDocument();
+    expect(within(table).queryByText("P30D")).not.toBeInTheDocument();
+    expect(screen.getByText(en.spaces.retention.deletedSince)).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Deleted since the broker started" })).toBeInTheDocument();
+  });
+
   it("says the deletions are unknown when the broker does not answer", async () => {
     renderRetention((url) =>
       url.pathname === `${BASE}/retention/deleted`

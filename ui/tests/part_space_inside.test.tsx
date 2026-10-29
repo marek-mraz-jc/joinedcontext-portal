@@ -82,7 +82,9 @@ function show(answers: Partial<Record<string, Answer>> = {}, hanging: string[] =
             ? "policies"
             : path.endsWith("/usage")
               ? "usage"
-              : "other";
+              : path.endsWith("/views")
+                ? "views"
+                : "other";
     if (hanging.includes(key)) {
       return hangs();
     }
@@ -181,15 +183,44 @@ describe("what a space holds, against the UI contract", () => {
     const observed = within(list).getByRole("button", { name: "AirQualityObserved" });
     expect(observed).toHaveAttribute("aria-current", "true");
     expect(observed).toHaveClass("focus-ring");
-    // The open type carries its saved views, "All rows" first and chosen.
-    const views = within(list).getByRole("list", { name: en.spaces.inside.savedViews });
-    expect(within(views).getByRole("button", { name: en.spaces.inside.allRows })).toHaveAttribute("aria-current", "true");
+    // Completing works on one space, so its page offers it with the space filled in (T-6084).
+    expect(screen.getByRole("link", { name: en.spaces.complete.title })).toHaveAttribute(
+      "href",
+      "/projects/banskabystrica/spaces/complete?space=ovzdusie",
+    );
+    // A type without saved views is all its rows: no "All rows" item repeats it (T-6084).
+    expect(within(list).queryByRole("list", { name: en.spaces.inside.savedViews })).toBeNull();
+    expect(within(list).queryByRole("button", { name: en.spaces.inside.allRows })).toBeNull();
     // The model's types table is not on the landing page any more.
     expect(screen.queryByRole("table", { name: en.spaces.inside.types })).toBeNull();
 
     await user.click(within(list).getByRole("button", { name: "AirQualityStation" }));
     expect(new URLSearchParams(window.location.search).get("type")).toBe("AirQualityStation");
     expect(within(list).getByRole("button", { name: "AirQualityStation" })).toHaveAttribute("aria-current", "true");
+  });
+
+  it("lists \"All rows\" and the saved views under a type that has views (T-6084)", async () => {
+    const saved = {
+      id: "7f1c2a9e-4b1d-4a57-9a0e-2f6d1c3b8e01",
+      type: "AirQualityObserved",
+      kind: "grid",
+      mode: "personal",
+      title: "High PM10",
+      owner: "jana",
+      config: { q: "pm10>40" },
+      version: 1,
+      createdAt: "2026-10-06T19:00:00Z",
+      updatedAt: "2026-10-06T19:00:00Z",
+    };
+    const { user } = show({ views: { status: 200, body: list([saved]) } });
+    const list_ = await screen.findByRole("navigation", { name: en.spaces.inside.types });
+    const views = await within(list_).findByRole("list", { name: en.spaces.inside.savedViews });
+    const items = within(views).getAllByRole("button");
+    expect(items.map((each) => each.textContent)).toEqual([en.spaces.inside.allRows, "High PM10"]);
+    expect(items[0]).toHaveAttribute("aria-current", "true");
+    // The other type has no views of its own: opening it shows no sub-list.
+    await user.click(within(list_).getByRole("button", { name: "AirQualityStation" }));
+    expect(within(list_).queryByRole("list", { name: en.spaces.inside.savedViews })).toBeNull();
   });
 
   it("opens the tab the address names, and a click puts the tab in the address", async () => {

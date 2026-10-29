@@ -87,7 +87,7 @@ describe("ViewBar", () => {
     const picker = await screen.findByLabelText(L.view);
     await waitFor(() => expect(within(picker).getAllByRole("option")).toHaveLength(3));
     expect(within(picker).getAllByRole("option").map((o) => o.textContent)).toEqual([
-      L.none,
+      en.spaces.inside.allRows,
       `Short of bikes · ${L.modes.personal}`,
       `Eva's board · ${L.modes.locked}`,
     ]);

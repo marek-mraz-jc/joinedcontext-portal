@@ -185,6 +185,14 @@ export function SpaceRetention({
       </span>
     );
   };
+  // A heartbeat in words, "a row at least every 30 days", never the stored P30D (T-6089).
+  const beatShown = (beat: string) => {
+    const keep = fromIso(beat);
+    const every = keep === undefined ? beat : t(`spaces.retention.amount.${keep.unit}`, { count: keep.amount });
+    return t(`pipelines.history.heartbeat.${beat}`, {
+      defaultValue: t("spaces.retention.record.atLeastEvery", { every }),
+    });
+  };
   // Which rows the broker writes of a type that keeps history (DM-108, DM-109, DM-132).
   const recordShown = (type: string) => {
     if (type === ANY_TYPE) return t("spaces.retention.perType");
@@ -195,9 +203,7 @@ export function SpaceRetention({
       <span className="flex flex-col">
         <span>{t(`spaces.retention.record.mode.${mode}`, { defaultValue: mode })}</span>
         {mode === RECORD_ON_CHANGE && rule?.heartbeat ? (
-          <span className="text-caption text-fg-muted">
-            {t(`pipelines.history.heartbeat.${rule.heartbeat}`, { defaultValue: rule.heartbeat })}
-          </span>
+          <span className="text-caption text-fg-muted">{beatShown(rule.heartbeat)}</span>
         ) : null}
         <span className="text-caption text-fg-muted">
           {rule?.record === undefined ? t("spaces.retention.layer.platform") : t("spaces.retention.layer.type")}
@@ -205,9 +211,9 @@ export function SpaceRetention({
       </span>
     );
   };
-  const removed = (type: string) => {
-    const rows = (deleted.data ?? []).filter((row) => row.entityType === type);
-    const of = (kind: string) => rows.find((row) => row.kind === kind)?.count ?? 0;
+  const removed = (...types: string[]) => {
+    const rows = (deleted.data ?? []).filter((row) => types.includes(row.entityType));
+    const of = (kind: string) => rows.filter((row) => row.kind === kind).reduce((sum, row) => sum + row.count, 0);
     return t("spaces.retention.removed", { current: of("entity"), history: of("history") });
   };
 
@@ -343,7 +349,7 @@ export function SpaceRetention({
           >
             {beats.map((beat) => (
               <option key={beat} value={beat}>
-                {t(`pipelines.history.heartbeat.${beat}`, { defaultValue: beat })}
+                {beatShown(beat)}
               </option>
             ))}
           </Select>
@@ -353,6 +359,32 @@ export function SpaceRetention({
   };
 
   const pending = drafted();
+  // Outside the editor, types under one identical rule share a row, so the rules that differ
+  // stand out (T-6089); the space's default row stays on its own, last.
+  const sameRule = (type: string) => {
+    const rule = ruleOf(type);
+    return JSON.stringify([
+      effectiveCurrent(type, held),
+      effectiveHistory(type, held),
+      rule?.record,
+      rule?.record === RECORD_ON_CHANGE ? rule.heartbeat : undefined,
+    ]);
+  };
+  const rows: string[][] = [];
+  for (const type of shown) {
+    const same = draft === null && type !== ANY_TYPE ? rows.find((row) => row[0] !== ANY_TYPE && sameRule(row[0]) === sameRule(type)) : undefined;
+    if (same) same.push(type);
+    else rows.push([type]);
+  }
+  const typesCell = (types: string[]) =>
+    types.length === 1 ? (
+      named(types[0])
+    ) : (
+      <details>
+        <summary className="cursor-pointer">{t("spaces.retention.sameRule", { count: types.length })}</summary>
+        <span className="text-caption text-fg-muted">{types.join(", ")}</span>
+      </details>
+    );
   return (
     <div className="space-y-3">
       <p className="text-body text-fg-muted">{t("spaces.retention.lead")}</p>
@@ -369,17 +401,18 @@ export function SpaceRetention({
           <TableHeaderCell>{t("spaces.retention.deleted")}</TableHeaderCell>
         </TableHead>
         <TableBody>
-          {shown.map((type) => (
+          {rows.map((types) => [types[0], types] as const).map(([type, types]) => (
             <TableRow key={type}>
-              <TableCell>{named(type)}</TableCell>
+              <TableCell>{typesCell(types)}</TableCell>
               <TableCell>{editor(type, "current") ?? plain(type, "current")}</TableCell>
               <TableCell>{editor(type, "history") ?? plain(type, "history")}</TableCell>
               <TableCell>{recordEditor(type) ?? recordShown(type)}</TableCell>
-              <TableCell>{deleted.isError ? t("spaces.retention.deletedUnknown") : removed(type)}</TableCell>
+              <TableCell>{deleted.isError ? t("spaces.retention.deletedUnknown") : removed(...types)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
+      <p className="text-caption text-fg-muted">{t("spaces.retention.deletedSince")}</p>
       {draft !== null && (
         <div className="space-y-1 text-caption text-fg-muted">
           <p>{t("spaces.retention.durationHint")}</p>
