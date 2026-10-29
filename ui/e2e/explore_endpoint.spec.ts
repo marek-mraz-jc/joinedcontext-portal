@@ -43,6 +43,7 @@ async function stub(page: Page, withApp: boolean): Promise<string[]> {
     if (path.endsWith("/auth/me")) return json({ subject: "s1", username: "demo.viewer", name: "Demo Viewer", roles: [], groups: ["helsinki"] });
     // A viewer: reads, never writes.
     if (path.endsWith("/access/check")) return json({ decision: /"(query|retrieve)/.test(route.request().postData() ?? "") });
+    if (path.endsWith("/access/v1/evaluations")) return json({ evaluations: (JSON.parse(route.request().postData() ?? "{}").evaluations as { action: { name: string } }[]).map((item) => ({ decision: /^(query|retrieve)/.test(item.action.name) })) });
     if (path.endsWith("/access")) return json({ permissions: [{ resource: { type: TYPE }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }] });
     if (path.endsWith("/entities")) {
       reads.push(path);

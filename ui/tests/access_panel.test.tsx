@@ -80,6 +80,14 @@ function renderExplore() {
     const json = (body: unknown, status = 200) =>
       Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
     if (url.pathname.endsWith("/auth/me")) return json(IDENTITY);
+    if (url.pathname.endsWith("/access/v1/evaluations")) {
+      return request
+        .clone()
+        .json()
+        .then((body: { evaluations: { action: { name: string } }[] }) =>
+          json({ evaluations: body.evaluations.map((item) => ({ decision: item.action.name === "queryEntity" })) }),
+        );
+    }
     if (url.pathname.endsWith("/access/check")) {
       return request
         .clone()
@@ -126,17 +134,24 @@ describe("your access in the explorer", () => {
     await userEvent.selectOptions(screen.getByLabelText(en.entities.type), "BikeHireDockingStation");
     expect(await within(panel).findByText(/retrieveEntity, queryEntity/)).toBeInTheDocument();
     expect(within(panel).getByText(/scopeQ=\/helsinki\/#/)).toBeInTheDocument();
-    // One check per action, with the user's session, answered before the query runs.
+    // Every action in one batch, with the user's session, answered before the query runs (T-5392).
     expect(await within(panel).findByText("You may read BikeHireDockingStation")).toBeInTheDocument();
     expect(within(panel).getByText("You may not change BikeHireDockingStation")).toBeInTheDocument();
     // T-4264: the operation names wait behind the disclosure, closed.
     expect(within(panel).getByText(/retrieveEntity, queryEntity/).closest("details")).not.toHaveAttribute("open");
-    const checks = fetchMock.mock.calls
-      .map((call) => call[0] as Request)
-      .filter((request) => request instanceof Request && request.url.endsWith("/access/check"));
-    // The panel's two, and the explorer's own deleteEntity decision behind its Delete button (T-5530).
-    expect(checks).toHaveLength(3);
-    expect(checks[0].credentials).toBe("same-origin");
+    const asked = fetchMock.mock.calls.map((call) => call[0] as Request).filter((request) => request instanceof Request);
+    const batches = asked.filter((request) => request.url.endsWith("/access/v1/evaluations"));
+    expect(batches).toHaveLength(1);
+    expect(batches[0].credentials).toBe("same-origin");
+    expect(await batches[0].clone().json()).toEqual({
+      resource: { type: "BikeHireDockingStation" },
+      evaluations: [{ action: { name: "queryEntity" } }, { action: { name: "updateAttrs" } }],
+    });
+    // The panel asks nothing one action at a time; only the explorer's own deleteEntity decision
+    // behind its Delete button (T-5530) stays a single check.
+    const checks = asked.filter((request) => request.url.endsWith("/access/check"));
+    expect(checks).toHaveLength(1);
+    expect(await checks[0].clone().json()).toMatchObject({ action: { name: "deleteEntity" } });
 
     // The prohibited attribute cannot be asked for, and the reason travels with it. Since
     // T-1756 `Checkbox` carries `disabledReason` the way `Button` does: the reason is a

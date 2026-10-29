@@ -60,18 +60,25 @@ export function AccessPanel({
     enabled: Boolean(slug && type),
     retry: false,
     gcTime: 0,
-    queryFn: async () =>
-      Promise.all(
-        CHECKED_ACTIONS.map(async (action) => {
-          const response = await gatewayFetch(slug!, "/access/check", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: { name: action }, resource: { type } }),
-          });
-          const body = (await response.json()) as { decision?: boolean };
-          return { action, decision: body.decision === true };
+    // One AuthZEN batch for every action (ADR-N-057 decision 3, T-5392): one gateway read per
+    // page, each decision answered in the order asked.
+    queryFn: async () => {
+      const response = await gatewayFetch(slug!, "/access/v1/evaluations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resource: { type },
+          evaluations: CHECKED_ACTIONS.map((action) => ({ action: { name: action } })),
         }),
-      ),
+      });
+      const body = (await response.json()) as { evaluations?: { decision?: unknown }[] };
+      // An answer short of one decision per action is no answer: never read a gap as "no".
+      if (!Array.isArray(body.evaluations) || body.evaluations.length !== CHECKED_ACTIONS.length) {
+        throw new Error(t("app.error.generic"));
+      }
+      const decisions = body.evaluations;
+      return CHECKED_ACTIONS.map((action, index) => ({ action, decision: decisions[index]?.decision === true }));
+    },
   });
 
   if (!slug) {

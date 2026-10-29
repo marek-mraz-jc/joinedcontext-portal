@@ -160,7 +160,11 @@ async function stubApi(page: Page, options: { write?: boolean } = {}): Promise<S
     if (path.endsWith("/auth/me")) {
       return json(IDENTITY);
     }
-    // The access panel asks the endpoint's own PDP one question per action, before any read.
+    // The access panel asks the endpoint's own PDP every action in one batch, before any read.
+    if (path.endsWith("/access/v1/evaluations")) {
+      const asked = JSON.parse(request.postData() ?? "{}") as { evaluations: unknown[] };
+      return json({ evaluations: asked.evaluations.map(() => ({ decision: options.write === true })) });
+    }
     if (path.endsWith("/access/check")) {
       return json({ decision: options.write === true });
     }

@@ -70,6 +70,7 @@ async function stub(page: Page, persona: Persona, access: "ok" | "slow" | "502" 
       );
     }
     if (path.endsWith("/access/check")) return json({ decision: persona !== "outsider" });
+    if (path.endsWith("/access/v1/evaluations")) return json({ evaluations: (JSON.parse(route.request().postData() ?? "{}").evaluations as unknown[]).map(() => ({ decision: persona !== "outsider" })) });
     if (path.endsWith("/access")) return json({ permissions: [{ resource: { type: TYPE }, actions: ["queryEntity"], attributes: "*" }], prohibitions: [] });
     if (path.endsWith("/entities")) {
       const entity = {
