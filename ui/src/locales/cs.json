@@ -286,7 +286,10 @@
     },
     "proposedVia": {
       "badge": "Navrženo přes {client} (MCP)",
-      "hint": "Tento návrh napsal AI klient ({client}) přes MCP a {author} ho potvrdil(a). Přečtěte si, co mění, jako u každého jiného."
+      "hint": "Tento návrh napsal AI klient ({client}) přes MCP a {author} ho potvrdil(a). Přečtěte si, co mění, jako u každého jiného.",
+      "badgeConnector": "Přes {client}, konektor {connector}",
+      "hintConnector": "Tento návrh napsal AI klient ({client}) přes MCP konektor {connector} uživatele {author} a {author} ho potvrdil(a). Přečtěte si, co mění, jako u každého jiného.",
+      "plan": "Plán {plan}: rozdíl, který AI klient ukázal uživateli {author} před použitím."
     },
     "workspace": "Z kopie",
     "fromWorkspace": "Z kopie {name}, kterou připravil(a) {author}, vráceno {date}: upraveno mimo živý projekt a před návrhem znovu zkontrolováno.",
@@ -6390,7 +6393,10 @@
       "source": "Zdroj",
       "severity": "Závažnost",
       "space": "Kontextový prostor",
-      "all": "Jakékoli"
+      "all": "Jakékoli",
+      "connector": "Konektor",
+      "connectorHint": "Jen volání a změny jednoho z vašich konektorů, např. doprava-in-claude.",
+      "connectorNone": "Zatím nemáte žádný konektor: vytvořte ho na stránce Moje konektory a filtrujte podle něj."
     },
     "severity": {
       "info": "Info",

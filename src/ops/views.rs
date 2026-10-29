@@ -402,6 +402,7 @@ pub fn operations() -> Vec<Operation> {
                         severity: input.severity,
                         since: input.since,
                         object: input.object,
+                        connector: None,
                         limit: input.limit,
                         cursor: input.cursor,
                     };

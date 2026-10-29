@@ -950,21 +950,33 @@ async fn apply(
     }
     unchanged_and_gated(state, &plan.items).await?;
     let workspace = plan.workspace.as_deref();
-    let mut opened = Vec::new();
-    for item in &plan.items {
-        match open_one(caller, state, item, workspace).await {
-            Ok(outcome) => opened.push(opened_row(outcome)),
-            Err(err) if opened.is_empty() => return Err(OpError::Api(err)),
-            Err(err) => {
-                return Err(OpError::Api(ApiError::Conflict(format!(
-                    "{} {} was not applied ({err}); these were: {}",
-                    item.kind,
-                    item.name,
-                    serde_json::to_string(&opened).unwrap_or_default()
-                ))))
+    let opening = async {
+        let mut opened = Vec::new();
+        for item in &plan.items {
+            match open_one(caller, state, item, workspace).await {
+                Ok(outcome) => opened.push(opened_row(outcome)),
+                Err(err) if opened.is_empty() => return Err(OpError::Api(err)),
+                Err(err) => {
+                    return Err(OpError::Api(ApiError::Conflict(format!(
+                        "{} {} was not applied ({err}); these were: {}",
+                        item.kind,
+                        item.name,
+                        serde_json::to_string(&opened).unwrap_or_default()
+                    ))))
+                }
             }
         }
-    }
+        Ok(opened)
+    };
+    // Every commit and merge request the apply opens names the plan it took (T-5973).
+    let opened = match crate::change::ProposedVia::current() {
+        Some(via) => {
+            crate::change::PROPOSED_VIA
+                .scope(via.with_plan(&input.plan_id), opening)
+                .await
+        }
+        None => opening.await,
+    }?;
     if let (Some(connector), None) = (connector, workspace) {
         notify_approvers(state, caller, project, &connector.name, &opened).await;
     }

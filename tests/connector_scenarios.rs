@@ -2865,6 +2865,135 @@ async fn the_connector_door_holds_its_budget_under_load() {
     );
 }
 
+/// An apply through a connector names the person, the connector, the client and the plan in the
+/// commit trailer and the merge request, and the project's activity filters by that connector
+/// (T-5973). Each value comes from the verified token and the stored connector; the tools take
+/// no argument that names one.
+#[tokio::test]
+async fn an_apply_through_a_connector_signs_its_commit_and_the_activity_filters_by_it() {
+    let harness = Harness::start(1).await;
+    let own = project_of(1);
+    // A connector with writes beyond data-read needs a DelegationPolicy naming the person (AG-150).
+    harness.mirror.upsert(envelope(
+        "Group",
+        "provenance-writers",
+        ORG_NAMESPACE,
+        json!({ "members": [{ "user": user_of("steward") }] }),
+    ));
+    harness.mirror.upsert(envelope(
+        "DelegationPolicy",
+        "provenance-writers",
+        ORG_NAMESPACE,
+        json!({ "subjects": [{ "kind": "Group", "name": "provenance-writers" }],
+                "projects": [own], "segments": ["context"], "writes": true,
+                "maxExpiry": "P90D", "aboveCeiling": "queue" }),
+    ));
+    let expires = (chrono::Utc::now() + chrono::Duration::days(7)).to_rfc3339();
+    let portal = harness.token_for("steward", AUDIENCE, AUDIENCE);
+    let ask = json!({ "name": "doprava-in-claude", "segments": ["context"], "writes": true,
+                      "scope": [{ "project": own, "access": "write" }], "expiresAt": expires });
+    let (status, made) = harness
+        .send("POST", "/api/v1/connectors", portal.clone(), Some(ask))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{made}");
+    let id = made["id"].as_str().expect("id").to_owned();
+    let token = harness.token_for("steward", &format!("https://portal.test/c/{id}"), CLIENT);
+    let call = |name: &str, arguments: Value| {
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                "params": { "name": name, "arguments": arguments } })
+    };
+    let (status, planned) = harness
+        .send(
+            "POST",
+            &format!("/c/{id}"),
+            token.clone(),
+            Some(call(
+                "jc_change_plan",
+                json!({ "project": own,
+                        "changes": [{ "op": "patch", "kind": "ContextSpace", "name": "doprava",
+                                      "patch": { "spec": { "isSandbox": false } } }] }),
+            )),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{planned}");
+    let text = planned["result"]["content"][0]["text"]
+        .as_str()
+        .expect("text");
+    let start = text.find("\"planId\":\"").expect("a planId") + 10;
+    let plan = &text[start..start + 26];
+    let (status, applied) = harness
+        .send(
+            "POST",
+            &format!("/c/{id}"),
+            token,
+            Some(call(
+                "jc_change_apply",
+                json!({ "project": own, "planId": plan }),
+            )),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{applied}");
+    assert_ne!(applied["result"]["isError"], json!(true), "{applied}");
+
+    let trailer = format!(
+        "Proposed-Via: mcp; client={CLIENT}; connector={id}; connectorName=doprava-in-claude; plan={plan}"
+    );
+    let bodies: Vec<String> = harness
+        .server
+        .received_requests()
+        .await
+        .expect("recorded")
+        .iter()
+        .filter(|r| r.method.as_str() != "GET")
+        .map(|r| String::from_utf8_lossy(&r.body).into_owned())
+        .collect();
+    let signed = bodies.iter().filter(|b| b.contains(&trailer)).count();
+    assert!(
+        signed >= 2,
+        "the commit and the merge request carry {trailer}: {bodies:?}"
+    );
+    assert!(bodies
+        .iter()
+        .any(|b| b.contains("through connector `doprava-in-claude`")));
+
+    let (status, page) = harness
+        .send(
+            "GET",
+            &format!("/api/v1/projects/{own}/activity?kind=mcp.tool&connector={id}"),
+            portal.clone(),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{page}");
+    let items = page["items"].as_array().expect("items");
+    assert_eq!(items.len(), 2, "plan and apply: {page}");
+    assert!(items.iter().all(|e| e["details"]["connector"] == json!(id)
+        && e["details"]["connectorName"] == "doprava-in-claude"
+        && e["details"]["client"] == CLIENT));
+    let (status, none) = harness
+        .send(
+            "GET",
+            &format!("/api/v1/projects/{own}/activity?connector=bbbbbbbbbbbbbbbbbbbbbbbbbb"),
+            portal.clone(),
+            None,
+        )
+        .await;
+    assert_eq!(
+        (status, none["items"].as_array().map(Vec::len)),
+        (StatusCode::OK, Some(0))
+    );
+    let (status, refused) = harness
+        .send(
+            "GET",
+            &format!("/api/v1/projects/{own}/activity?connector=doprava-in-claude"),
+            portal,
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{refused}");
+    assert!(refused.to_string().contains("connector"), "{refused}");
+}
+
 /// A flood of one connector stops at its own minute; a person's connectors together stop at the
 /// person's (T-5968). Each refusal is a 429 problem+json with `Retry-After`, audited, and the
 /// connector shows its limits.

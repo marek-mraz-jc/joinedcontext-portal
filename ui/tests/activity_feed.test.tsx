@@ -83,7 +83,9 @@ function renderFeed(
           kind: "ActivityList",
           items,
         }
-      : {};
+      : url.includes("/api/v1/connectors")
+        ? { items: (props.connectors as unknown[] | undefined) ?? [] }
+        : {};
     return new Response(JSON.stringify(body), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -247,6 +249,31 @@ describe("the activity feed (UI-31)", () => {
     await waitFor(() =>
       expect(urls.some((url) => url.includes("severity=error"))).toBe(true),
     );
+  });
+
+  // T-5973: the connector filter offers the reader's own connectors, which the server lists, and
+  // narrows the request to the one picked; without any it says where to make one.
+  it("filters by one of the reader's connectors", async () => {
+    const urls = renderFeed([event()], {
+      connectors: [{ id: "abcdefghijklmnopqrstuvwxyz", name: "doprava-in-claude" }],
+    });
+    await rows();
+    const select = screen.getByLabelText(en.activity.filter.connector);
+    await screen.findByRole("option", { name: "doprava-in-claude" });
+    expect(screen.getByText(en.activity.filter.connectorHint)).toBeInTheDocument();
+    await userEvent.selectOptions(select, "abcdefghijklmnopqrstuvwxyz");
+    await waitFor(() =>
+      expect(
+        urls.some((url) => url.includes("/activity?") && url.includes("connector=abcdefghijklmnopqrstuvwxyz")),
+      ).toBe(true),
+    );
+  });
+
+  it("says where to make a connector when the reader has none", async () => {
+    renderFeed([event()]);
+    await rows();
+    expect(await screen.findByText(en.activity.filter.connectorNone)).toBeInTheDocument();
+    expect(screen.getByLabelText(en.activity.filter.connector)).toBeDisabled();
   });
 
   it("follows the tail and puts an arriving event at the top", async () => {

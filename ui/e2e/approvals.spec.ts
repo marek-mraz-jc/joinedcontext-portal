@@ -168,6 +168,37 @@ test.describe("approvals", () => {
     }
   });
 
+  test("an approver sees the connector and the plan a change came through, at 400 and 1440 px (T-5973)", async ({ page }) => {
+    const viaConnector = {
+      ...PROPOSAL,
+      status: {
+        ...PROPOSAL.status,
+        proposedVia: {
+          channel: "mcp",
+          client: "claude-code",
+          connector: "abcdefghijklmnopqrstuvwxyz",
+          connectorName: "doprava-in-claude",
+          plan: "p2345234523452345234523452",
+        },
+      },
+    };
+    await stubApi(page);
+    await page.route(`**/changes/${PROPOSAL.metadata.name}`, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(viaConnector) }),
+    );
+    for (const width of [400, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/projects/helsinki/approvals/${PROPOSAL.metadata.name}?lang=en`);
+      await expect(page.getByTestId("change-proposed-via")).toHaveText("Via claude-code connector doprava-in-claude");
+      await expect(page.getByTestId("change-proposed-plan")).toContainText("Plan p2345234523452345234523452");
+      const sideways = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(sideways).toBe(0);
+      await page.screenshot({ path: test.info().outputPath(`approval-via-connector-${width}.png`), fullPage: true });
+    }
+  });
+
   test("at 375 px a create's field table fits the screen and shows labels, not spec paths (T-4991)", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 900 });
     const create = {

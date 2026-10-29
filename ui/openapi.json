@@ -5557,6 +5557,15 @@
             }
           },
           {
+            "name": "connector",
+            "in": "query",
+            "description": "Only the calls and changes of one connector, by its id (T-5973).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -5683,6 +5692,15 @@
             "name": "object",
             "in": "query",
             "description": "One object the events belong to, as `{plural}/{name}`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "connector",
+            "in": "query",
+            "description": "Only the calls and changes of one connector, by its id (T-5973).",
             "required": false,
             "schema": {
               "type": "string"
@@ -46621,6 +46639,27 @@
           "client": {
             "type": "string",
             "description": "The token's `azp`, at most 64 characters of `[A-Za-z0-9._:-]`."
+          },
+          "connector": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The connector the call came through (AG-144), from the stored grant the token was\nchecked against, never from the call's arguments."
+          },
+          "connectorName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "That connector's name, a DNS-1123 label."
+          },
+          "plan": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The plan `jc_change_apply` took (T-5956): the diff the person's AI client showed."
           }
         }
       },

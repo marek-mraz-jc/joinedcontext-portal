@@ -148,6 +148,29 @@ describe("approval actions", () => {
     ).toBeInTheDocument();
   });
 
+  // T-5973: a change a connector opened names the connector and the plan its diff came from.
+  it("names the connector and the plan of a change a connector applied", async () => {
+    renderDetail({
+      change: proposal({
+        status: {
+          ...proposal().status,
+          proposedVia: {
+            channel: "mcp",
+            client: "claude-code",
+            connector: "abcdefghijklmnopqrstuvwxyz",
+            connectorName: "doprava-in-claude",
+            plan: "p2345234523452345234523452",
+          },
+        },
+      }),
+    });
+    const badge = await screen.findByTestId("change-proposed-via");
+    expect(badge).toHaveTextContent("Via claude-code connector doprava-in-claude");
+    expect(screen.getByTestId("change-proposed-plan")).toHaveTextContent(
+      "Plan p2345234523452345234523452",
+    );
+  });
+
   it("shows no channel badge on a change the person proposed", async () => {
     renderDetail();
     await screen.findByText("Marek Mráz");

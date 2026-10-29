@@ -10379,6 +10379,15 @@ export interface components {
             channel: string;
             /** @description The token's `azp`, at most 64 characters of `[A-Za-z0-9._:-]`. */
             client: string;
+            /**
+             * @description The connector the call came through (AG-144), from the stored grant the token was
+             *     checked against, never from the call's arguments.
+             */
+            connector?: string | null;
+            /** @description That connector's name, a DNS-1123 label. */
+            connectorName?: string | null;
+            /** @description The plan `jc_change_apply` took (T-5956): the diff the person's AI client showed. */
+            plan?: string | null;
         };
         /** @description What one endpoint publishes, and where. */
         PublicationStatus: {
@@ -16019,6 +16028,8 @@ export interface operations {
                 since?: string;
                 /** @description One object the events belong to, as `{plural}/{name}`. */
                 object?: string;
+                /** @description Only the calls and changes of one connector, by its id (T-5973). */
+                connector?: string;
                 limit?: number;
                 cursor?: string;
             };
@@ -16082,6 +16093,8 @@ export interface operations {
                 since?: string;
                 /** @description One object the events belong to, as `{plural}/{name}`. */
                 object?: string;
+                /** @description Only the calls and changes of one connector, by its id (T-5973). */
+                connector?: string;
                 limit?: number;
                 cursor?: string;
             };
