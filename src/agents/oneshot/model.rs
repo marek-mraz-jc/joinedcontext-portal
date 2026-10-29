@@ -685,10 +685,11 @@ impl Driver {
     }
 }
 
-/// A tool the model may call in an editing turn (SDK-20), in the provider's own body.
+/// A tool the model may call in an editing turn (SDK-20) or a connector turn (T-5958), in the
+/// provider's own body.
 pub(super) struct ToolSpec {
-    pub name: &'static str,
-    pub description: &'static str,
+    pub name: std::borrow::Cow<'static, str>,
+    pub description: std::borrow::Cow<'static, str>,
     pub input_schema: Value,
 }
 

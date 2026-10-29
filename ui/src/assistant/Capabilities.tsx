@@ -6,7 +6,7 @@ import { api, queryKeys, unwrap } from "../api/client";
 import { asManifests } from "../api/manifest";
 import type { components } from "../api/schema";
 import { useAccess } from "../components/entities/AccessPanel";
-import { Badge, Button, RadioGroup, Switch } from "../components/ui";
+import { Badge, Button, Field, RadioGroup, Select, Switch } from "../components/ui";
 import { accessWords } from "../pages/apps/EndpointPreview";
 
 /**
@@ -19,6 +19,18 @@ export type Capabilities = components["schemas"]["Capabilities"];
 export type Preset = components["schemas"]["Preset"];
 
 export const PRESETS: readonly Preset[] = ["read", "propose", "build"];
+
+/**
+ * The connector segments a conversation may run as (T-5958), as the server's
+ * `connectors::is_segment` has them: the assistant then calls that segment's registry tools
+ * natively, each call checked as a connector's. None keeps the guided paths.
+ */
+export const SEGMENTS = ["data-read", "context", "pipeline", "access", "publish", "apps", "operate", "admin"] as const;
+export type Segment = (typeof SEGMENTS)[number];
+
+function isSegment(value: unknown): value is Segment {
+  return SEGMENTS.includes(value as Segment);
+}
 
 /** The paths each preset opens, as the server's `Capabilities::allows_path` has them. */
 export const PRESET_PATHS: Record<Preset, readonly string[]> = {
@@ -42,7 +54,8 @@ const STORAGE_PREFIX = "jc.assistant.capabilities.";
 export function storedCapabilities(project: string): Capabilities | null {
   try {
     const raw = sessionStorage.getItem(STORAGE_PREFIX + project);
-    const parsed = raw === null ? null : (JSON.parse(raw) as { preset?: unknown; endpoints?: unknown });
+    const parsed =
+      raw === null ? null : (JSON.parse(raw) as { preset?: unknown; endpoints?: unknown; segment?: unknown });
     if (!parsed || !PRESETS.includes(parsed.preset as Preset)) {
       return null;
     }
@@ -54,10 +67,15 @@ export function storedCapabilities(project: string): Capabilities | null {
         }
       }
     }
-    return { preset: parsed.preset as Preset, endpoints };
+    return withSegment({ preset: parsed.preset as Preset, endpoints }, parsed.segment);
   } catch {
     return null;
   }
+}
+
+/** The choice with its segment when it is one, and without the member when it is none. */
+function withSegment(chosen: Capabilities, segment: unknown): Capabilities {
+  return isSegment(segment) ? { ...chosen, segment } : chosen;
 }
 
 export function rememberCapabilities(project: string, chosen: Capabilities): void {
@@ -73,10 +91,13 @@ export function accessFor(chosen: Capabilities | null, endpoints: string[]): Cap
   if (chosen === null) {
     return undefined;
   }
-  return {
-    preset: chosen.preset,
-    endpoints: Object.fromEntries(endpoints.map((name) => [name, chosen.endpoints?.[name] ?? "read"])),
-  };
+  return withSegment(
+    {
+      preset: chosen.preset,
+      endpoints: Object.fromEntries(endpoints.map((name) => [name, chosen.endpoints?.[name] ?? "read"])),
+    },
+    chosen.segment,
+  );
 }
 
 /** One chosen endpoint: read, or read and write where the person's own grant writes there. */
@@ -136,6 +157,7 @@ export function CapabilitiesControl({
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  const segmentId = useId();
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const preset: Preset = value?.preset ?? "build";
@@ -183,8 +205,10 @@ export function CapabilitiesControl({
   // Nothing chosen yet is read and write on every endpoint: the first choice starts from what
   // the pill said, so switching one endpoint off does not quietly switch the others off too.
   const current = value?.endpoints ?? Object.fromEntries(endpoints.map((name) => [name, "readWrite" as const]));
-  const choose = (next: Partial<Capabilities>) => {
-    onChange({ preset, endpoints: current, ...next });
+  const segment = isSegment(value?.segment) ? value.segment : null;
+  const choose = (next: { preset?: Preset; endpoints?: Capabilities["endpoints"]; segment?: Segment | null }) => {
+    const chosen = next.segment === undefined ? segment : next.segment;
+    onChange(withSegment({ preset: next.preset ?? preset, endpoints: next.endpoints ?? current }, chosen));
   };
 
   return (
@@ -222,6 +246,31 @@ export function CapabilitiesControl({
               choose({ preset: one });
             }}
           />
+          <Field
+            id={segmentId}
+            label={t("assistant.capabilities.segment.label")}
+            help={
+              segment === null
+                ? t("assistant.capabilities.segment.help")
+                : t(`aiConnectors.segmentHint.${segment}`)
+            }
+          >
+            <Select
+              id={segmentId}
+              value={segment ?? ""}
+              onChange={(event) => {
+                const picked = event.target.value;
+                choose({ segment: isSegment(picked) ? picked : null });
+              }}
+            >
+              <option value="">{t("assistant.capabilities.segment.none")}</option>
+              {SEGMENTS.map((one) => (
+                <option key={one} value={one}>
+                  {t(`aiConnectors.segment.${one}`)}
+                </option>
+              ))}
+            </Select>
+          </Field>
           {endpoints.length > 0 ? (
             <ul aria-label={t("assistant.capabilities.endpoints")} className="flex flex-col gap-2">
               {endpoints.map((name) => (

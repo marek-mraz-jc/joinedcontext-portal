@@ -37638,6 +37638,13 @@
           },
           "preset": {
             "$ref": "#/components/schemas/Preset"
+          },
+          "segment": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The connector segment the conversation runs as (T-5958, API/14 §1), e.g. `pipeline`: the\nassistant calls that segment's registry tools natively, checked as a connector's calls."
           }
         },
         "additionalProperties": false

@@ -144,6 +144,10 @@ describe("what travels with a request", () => {
     expect(storedCapabilities(PROJECT)).toBeNull();
     window.sessionStorage.setItem(`jc.assistant.capabilities.${PROJECT}`, '{"preset":"build","endpoints":{"bikes":"all"}}');
     expect(storedCapabilities(PROJECT)).toEqual({ preset: "build", endpoints: {} });
+    window.sessionStorage.setItem(`jc.assistant.capabilities.${PROJECT}`, '{"preset":"read","segment":"pipeline"}');
+    expect(storedCapabilities(PROJECT)).toEqual({ preset: "read", endpoints: {}, segment: "pipeline" });
+    window.sessionStorage.setItem(`jc.assistant.capabilities.${PROJECT}`, '{"preset":"read","segment":"root"}');
+    expect(storedCapabilities(PROJECT)).toEqual({ preset: "read", endpoints: {} });
     window.sessionStorage.setItem(`jc.assistant.capabilities.${PROJECT}`, "{not json");
     expect(storedCapabilities(PROJECT)).toBeNull();
   });
@@ -207,6 +211,27 @@ describe("the Capabilities control (AG-92)", () => {
     // air is sent as chosen: the choice only narrows, and the person's grant still refuses the
     // write at the endpoint's Policy (AG-70), which is what its switch said.
     expect(started[0].access).toEqual({ preset: "propose", endpoints: { bikes: "readWrite", air: "readWrite" } });
+  });
+
+  it("T-5958: a chosen segment runs the conversation as that connector, with its hint, and None takes it back", async () => {
+    rememberEndpoints(PROJECT, ["bikes"]);
+    const { started } = renderDock();
+    const person = await openDock();
+    await person.click(trigger());
+    const tools = screen.getByRole("combobox", { name: words.segment.label });
+    expect(tools).toHaveValue("");
+    expect(tools).toHaveAccessibleDescription(words.segment.help);
+    expect(within(tools).getAllByRole("option")).toHaveLength(9);
+    await person.selectOptions(tools, "pipeline");
+    expect(tools).toHaveAccessibleDescription(en.aiConnectors.segmentHint.pipeline);
+    await person.selectOptions(tools, "");
+    expect(storedCapabilities(PROJECT)).not.toHaveProperty("segment");
+    await person.selectOptions(tools, "data-read");
+    await person.click(preset(words.presets.read.title));
+    expect(tools).toHaveValue("data-read");
+    await person.type(screen.getByLabelText(en.assistant.empty.composer), "Which stations are empty?{Enter}");
+    await waitFor(() => expect(started).toHaveLength(1));
+    expect(started[0].access).toEqual({ preset: "read", endpoints: { bikes: "readWrite" }, segment: "data-read" });
   });
 
   it("opens and closes by keyboard, Escape hands focus back, and the open panel passes axe", async () => {
