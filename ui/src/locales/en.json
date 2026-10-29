@@ -6230,7 +6230,12 @@
         "readPreset": "Read changes nothing.",
         "noWrite": "Your role does not write through this endpoint."
       },
-      "pathLeft": "Not with {preset}: switch it on in Capabilities."
+      "pathLeft": "Not with {preset}: switch it on in Capabilities.",
+      "segment": {
+        "label": "Tools",
+        "none": "Guided paths",
+        "help": "The assistant follows the guided paths. Pick a preset, e.g. Pipelines, to give it that preset's tools, each call checked against your own rights."
+      }
     },
     "full": {
       "conversations": "Conversations",
@@ -7036,7 +7041,8 @@
       "mcp-servers": "Organization MCP servers",
       "brokers": "Brokers",
       "agents": "Agents",
-      "costs": "Costs"
+      "costs": "Costs",
+      "connectors": "Connectors"
     },
     "settings": {
       "title": "Settings",
@@ -7858,6 +7864,46 @@
         "alertMeHint": "Get a notice in the inbox when this agent has a refusal spike, nears its token cap or writes outside office hours.",
         "alertMeNone": "You approve changes in no project, and only an approver sees every person's runs. Ask a steward of the project for the approver role."
       }
+    },
+    "connectors": {
+      "title": "Connectors",
+      "lead": "Every person's AI connectors: what each may reach, which clients it answers, and how much it was used and refused in the last day. Calls show here only as counts; what a call carried never does.",
+      "hidden": "Only an organization administrator sees every person's connectors. Your own are on My connectors.",
+      "caption": "Every person's connectors",
+      "filter": "Filter",
+      "filterHelp": "A connector's name, its owner or a client, e.g. jana or claude.ai",
+      "state": "State",
+      "stateHelp": "Active connectors answer calls; Revoked shows what an administrator or offboarding ended",
+      "stateAny": "Every state",
+      "states": {
+        "active": "Active",
+        "expired": "Expired",
+        "revoked": "Revoked"
+      },
+      "flaggedOnly": "Flagged only",
+      "flaggedHelp": "Connectors refused 10 or more times in the last day, the trace a client probing past its scope leaves",
+      "flaggedSummary": "{count, plural, one {# active connector is flagged} other {# active connectors are flagged}}: {denials} or more refused calls in the last day. Review its owner's scope or revoke it.",
+      "connector": "Connector",
+      "owner": "Owner",
+      "scope": "Scope",
+      "clients": "Clients",
+      "lastCall": "Last call",
+      "usage": "Last 24 hours",
+      "actions": "Actions",
+      "writes": "Writes",
+      "anyClient": "Any client",
+      "never": "Never used",
+      "calls": "{count, plural, one {# call} other {# calls}}",
+      "denials": "{count, plural, =0 {no refusals} one {# refused} other {# refused}}",
+      "flagged": "Flagged",
+      "revoke": "Revoke",
+      "revokeLabel": "Revoke connector {name}",
+      "confirmTitle": "Revoke connector {name}?",
+      "confirmText": "Its next call is refused at once. {owner} keeps their other connectors and can create a new one within their rights.",
+      "empty": "Nobody holds a connector yet",
+      "emptyHint": "A person creates one on My connectors to use the platform from Claude, ChatGPT or Claude Code; it shows here with its scope and usage.",
+      "noMatch": "No connector matches the filter",
+      "noMatchHint": "Clear the filter or pick Every state to see revoked and expired connectors."
     }
   },
   "projectDelete": {

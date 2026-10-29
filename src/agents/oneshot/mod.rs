@@ -33,6 +33,7 @@ use jc_core::kinds::Verb;
 
 mod build;
 mod code_pass;
+mod connector_turn;
 mod conversation;
 mod edit_loop;
 mod integrate;
