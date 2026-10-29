@@ -791,6 +791,25 @@ async fn a_decision_without_a_second_factor_is_refused() {
     }
 }
 
+/// T-6083: a deployment that sets `JC_PORTAL_DECISIONS_NEED_SECOND_FACTOR=false` (dev) lets a
+/// password-only session past the gate of every door; the door's own right still decides.
+#[tokio::test]
+async fn a_decision_without_a_second_factor_passes_where_the_deployment_turned_it_off() {
+    let mut config = Config::for_tests();
+    config.decisions_need_second_factor = false;
+    let state = common::doors::state_with(AppState::new(config, None));
+    for (http, uri, body, who) in decision_doors() {
+        assert!(!who.second_factor);
+        let answer = common::send(&state, who, http, &uri, body).await;
+        assert!(
+            !answer.text.contains("second-factor-required"),
+            "{http} {uri}: {} {}",
+            answer.status,
+            answer.text
+        );
+    }
+}
+
 /// T-5567: the same person after a step-up login passes the second-factor gate of every door
 /// (what answers next is the door's own business: no forge, no realm, no such change here).
 #[tokio::test]
