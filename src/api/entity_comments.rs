@@ -108,7 +108,12 @@ pub fn mentions_in(text: &str) -> Vec<String> {
         }
         let token: String = chars[at + 1..end].iter().collect();
         let token = token.trim_end_matches(['.', '-', '@']).to_ascii_lowercase();
-        if !token.is_empty() && token.len() <= 256 && !found.contains(&token) {
+        // `@@x` would store a mention under the audience `@x` (T-5979): no person is named so.
+        if !token.is_empty()
+            && !token.starts_with('@')
+            && token.len() <= 256
+            && !found.contains(&token)
+        {
             found.push(token);
         }
         at = end;
@@ -186,13 +191,17 @@ pub(crate) async fn read_as_person(
 
 /// The identifiers a notification for the caller may be addressed to: their username and their
 /// e-mail, lower case.
+/// The identifiers the caller's notifications are stored under: username and e-mail, lower case.
+/// An identifier starting with `@` names an audience (`@connector-admin`, `@approve:{project}`),
+/// never a person, so a username or e-mail spelled that way is no recipient: it would read every
+/// audience notice without the right to act on it.
 fn recipients(user: &CurrentUser) -> Vec<String> {
     let identity = &user.0.identity;
-    let mut ids = vec![identity.username.to_ascii_lowercase()];
-    if let Some(email) = identity.email.as_deref() {
-        let email = email.to_ascii_lowercase();
-        if !ids.contains(&email) {
-            ids.push(email);
+    let mut ids: Vec<String> = Vec::new();
+    for id in std::iter::once(identity.username.as_str()).chain(identity.email.as_deref()) {
+        let id = id.to_ascii_lowercase();
+        if !id.starts_with('@') && !ids.contains(&id) {
+            ids.push(id);
         }
     }
     ids
@@ -379,7 +388,7 @@ pub async fn remove_comment(
     get,
     path = "/api/v1/notifications",
     summary = "List My Notifications",
-    description = "The caller's notifications, newest first, at most 100, with how many are unread (API/01 §35).",
+    description = "The caller's notifications, newest first, at most 100, with how many are unread (API/01 §35): mentions, and the connector events the caller may act on (a change opened through a connector, a connector request above the ceiling, a connector of theirs ending within 7 days).",
     tag = "auth",
     responses(
         (status = 200, description = "The caller's notifications", body = Notifications),
@@ -391,11 +400,24 @@ pub async fn list_notifications(
     user: CurrentUser,
     State(state): State<AppState>,
 ) -> Result<Json<Notifications>, ApiError> {
-    let (items, unread) = state
+    let ids = recipients(&user);
+    let Some(me) = ids.first() else {
+        return Ok(Json(Notifications {
+            items: Vec::new(),
+            unread: 0,
+        }));
+    };
+    let identity = &user.0.identity;
+    // The connector events (T-5979): the caller's own expiring connectors, then the audience
+    // notices they may act on today, each copied to them once.
+    crate::api::connectors::notify_expiring(&state, identity, me).await?;
+    let audiences = crate::api::connectors::audiences(&state, identity);
+    state
         .comments
-        .notifications(&recipients(&user))
+        .deliver(me, &ids, &audiences)
         .await
         .map_err(stored)?;
+    let (items, unread) = state.comments.notifications(&ids).await.map_err(stored)?;
     Ok(Json(Notifications { items, unread }))
 }
 
@@ -458,6 +480,63 @@ mod tests {
         );
         assert!(mentions_in("no one here").is_empty());
         assert_eq!(mentions_in("end with @bob."), vec!["bob"]);
+        assert!(mentions_in("@@connector-admin and @@approve:p").is_empty());
+    }
+
+    fn named(username: &str, email: &str) -> CurrentUser {
+        CurrentUser(crate::auth::session::Session {
+            identity: crate::auth::session::Identity {
+                client: None,
+                subject: "sub-forger".into(),
+                username: username.into(),
+                email: Some(email.into()),
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+                second_factor: false,
+            },
+            expires_at: 9_999_999_999,
+            issued_at: 1000,
+            id_token: "dummy".into(),
+            access_expires_at: 9_999_999_999,
+            refresh_token: None,
+        })
+    }
+
+    #[tokio::test]
+    async fn a_person_named_like_an_audience_reads_none_of_its_notices() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let notice = |key| crate::entity_comments::Notice {
+            kind: "connector.pending",
+            project: "",
+            about: "c-1",
+            author: "sami",
+            author_name: "Sami",
+            connector: "doprava-in-claude",
+            link: "/ai-connectors",
+            key,
+        };
+        let approvers = crate::entity_comments::approvers_of("p");
+        for (recipient, key) in [
+            (crate::entity_comments::CONNECTOR_ADMINS, "k-admin"),
+            (approvers.as_str(), "k-approve"),
+        ] {
+            assert!(state
+                .comments
+                .notify(recipient, notice(key))
+                .await
+                .expect("stored"));
+        }
+        let forger = named("@connector-admin", "@approve:p");
+        assert_eq!(recipients(&forger), Vec::<String>::new());
+        let Json(read) = list_notifications(forger, State(state.clone()))
+            .await
+            .expect("answers");
+        assert_eq!((read.items.len(), read.unread), (0, 0));
+        assert_eq!(
+            recipients(&named("Ana", "ana@hel.fi")),
+            vec!["ana", "ana@hel.fi"]
+        );
     }
 
     #[test]

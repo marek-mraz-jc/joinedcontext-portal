@@ -9,8 +9,8 @@ import { useDecision, useDecisions, useDecisionsError } from "../../api/decision
 import { useProjects } from "../../api/projects";
 import { PlanDiffViewer } from "../../components/diff/PlanDiffViewer";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
-import { Alert, Button, Card, Field, Input, PageHeader, Textarea } from "../../components/ui";
-import { NOTIFICATIONS_KEY } from "../spaces/Comments";
+import { Alert, Button, Card, Field, Input, PageHeader, Textarea, safeHref } from "../../components/ui";
+import { NOTIFICATIONS_KEY, notificationHref, notificationText } from "../spaces/Comments";
 
 type ChangeProposal = components["schemas"]["ChangeProposal"];
 
@@ -149,14 +149,7 @@ function ProjectDecisions({ project }: { project: string }): JSX.Element | null 
   );
 }
 
-interface Notification {
-  id: number;
-  read: boolean;
-  project: string;
-  space: string;
-  authorName: string;
-  excerpt: string;
-}
+type Notification = components["schemas"]["Notification"];
 
 /**
  * What waits for this person (T-3273): every change of every project they may decide, each
@@ -172,7 +165,10 @@ export function InboxPage({ project }: { project: string }): JSX.Element {
     retry: false,
     queryFn: async () => (await unwrap(await api.GET("/api/v1/notifications", {}))) as { unread: number; items: Notification[] },
   });
-  const unread = (mentions.data?.items ?? []).filter((item) => !item.read);
+  const unreadAll = (mentions.data?.items ?? []).filter((item) => !item.read);
+  const unread = unreadAll.filter((item) => item.kind === "mention");
+  // A change opened through a connector, a connector request, a connector ending (T-5979).
+  const events = unreadAll.filter((item) => item.kind !== "mention");
   return (
     <div className="space-y-6">
       <PageHeader title={t("inbox.title")} description={t("inbox.lead")} />
@@ -191,6 +187,27 @@ export function InboxPage({ project }: { project: string }): JSX.Element {
         {/* How to approve, only while something waits: the list holds only what this person may
             decide, so a viewer never reads a hint about an action they cannot take (T-4165). */}
         <p className="text-caption text-fg-muted peer-empty:hidden">{t("inbox.decisionsHint")}</p>
+      </section>
+      <section aria-labelledby="inbox-connectors" className="space-y-3">
+        <h2 id="inbox-connectors" className="text-title font-semibold text-fg">
+          {t("inbox.connectorEvents")}
+        </h2>
+        {events.length === 0 ? (
+          <p className="text-body text-fg-muted">{t("inbox.noConnectorEvents")}</p>
+        ) : (
+          <ul className="flex flex-col gap-2" data-testid="inbox-connector-events">
+            {events.map((item) => (
+              <li key={item.id} className="rounded-md border border-border p-2">
+                <a
+                  href={safeHref(notificationHref(item))}
+                  className="text-body font-semibold text-primary-soft-fg underline-offset-2 [overflow-wrap:anywhere] hover:underline"
+                >
+                  {notificationText(item, t)}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
       <section aria-labelledby="inbox-mentions" className="space-y-3">
         <h2 id="inbox-mentions" className="text-title font-semibold text-fg">

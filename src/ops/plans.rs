@@ -900,6 +900,9 @@ async fn apply(
             }
         }
     }
+    if let (Some(connector), None) = (connector, workspace) {
+        notify_approvers(state, caller, project, &connector.name, &opened).await;
+    }
     let key = if workspace.is_some() {
         "workspaceChanges"
     } else {
@@ -909,6 +912,39 @@ async fn apply(
         key: opened,
         "approve": "a person with approve on these kinds decides each change at its url in the Portal",
     }))
+}
+
+/// Tells the project's approvers of each change a connector opened (T-5979): one notice per
+/// change, naming the person, the connector and the change, linking its approval page. A notice
+/// that cannot be written is logged and the change stays opened.
+async fn notify_approvers(
+    state: &AppState,
+    caller: &Caller,
+    project: &str,
+    connector: &str,
+    opened: &[Value],
+) {
+    let identity = &caller.identity;
+    let author = identity.username.to_ascii_lowercase();
+    let name = identity.name.as_deref().unwrap_or(&identity.username);
+    for id in opened.iter().filter_map(|row| row["id"].as_str()) {
+        let link = format!("/projects/{project}/approvals/{id}");
+        let key = format!("change.opened:{project}/{id}");
+        let notice = crate::entity_comments::Notice {
+            kind: "change.opened",
+            project,
+            about: id,
+            author: &author,
+            author_name: name,
+            connector,
+            link: &link,
+            key: &key,
+        };
+        let audience = crate::entity_comments::approvers_of(project);
+        if let Err(err) = state.comments.notify(&audience, notice).await {
+            tracing::warn!(error = %err, project, change = id, "approvers not notified");
+        }
+    }
 }
 
 /// Opens the change of a DataModel planned with its LinkML file: manifest, source and generated
@@ -1231,6 +1267,9 @@ mod tests {
             last_used_at: None,
             url: "https://portal.test/c/c1".into(),
             limits: crate::connectors::DEFAULT_LIMITS,
+            above_ceiling: vec![],
+            approval: None,
+            narrowed_by: vec![],
         };
         let id = kept(&state.plans, "sub-jana", Some("c1"), TTL_MINUTES);
         let err = apply(

@@ -157,6 +157,7 @@ describe("notifications", () => {
   it("counts the unread on the button, lists them, and marks one read when it is opened", async () => {
     const item = {
       id: 5,
+      kind: "mention",
       project: "helsinki",
       space: "air",
       urn: URN,
@@ -183,6 +184,32 @@ describe("notifications", () => {
     await userEvent.click(entry);
     await waitFor(() => expect(sentTo(fetchMock, "/notifications/5/read").map((r) => r.method)).toEqual(["POST"]));
     expect(navigate).toHaveBeenCalledWith({ href: "/projects/helsinki/spaces/air" });
+  });
+
+  it("words each connector event by its kind and opens its own Portal page (T-5979)", async () => {
+    const event = (id: number, kind: string, link: string) => ({ id, kind, project: "helsinki", space: "", urn: "cr-12", commentId: null, author: "marek", authorName: "Marek", excerpt: "doprava-in-claude", link, createdAt: "2026-10-28T20:00:00Z", read: false });
+    const items = [
+      event(1, "change.opened", "/projects/helsinki/approvals/cr-12"),
+      event(2, "connector.pending", "/ai-connectors"),
+      // A link off the Portal is never followed: the item opens its space instead.
+      event(3, "connector.expiring", "//evil.example/x"),
+    ];
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const request = input as Request;
+      if (request.method === "POST") return json(null, 204);
+      return new URL(request.url).pathname.endsWith("/alerts/notices") ? json({ items: [], unread: 0 }) : json({ items, unread: 3 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    wrap(<NotificationsMenu project="helsinki" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Notifications, 3 unread" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Marek opened change cr-12 in helsinki through connector doprava-in-claude/ }));
+    expect(navigate).toHaveBeenCalledWith({ href: "/projects/helsinki/approvals/cr-12" });
+    await userEvent.click(await screen.findByRole("button", { name: /Notifications/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Marek asks for connector doprava-in-claude above the organization ceiling/ }));
+    expect(navigate).toHaveBeenCalledWith({ href: "/ai-connectors" });
+    await userEvent.click(await screen.findByRole("button", { name: /Notifications/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Your connector doprava-in-claude ends within 7 days/ }));
+    expect(navigate).toHaveBeenLastCalledWith({ href: "/projects/helsinki/spaces/" });
   });
 
   it("says when there is nothing new", async () => {

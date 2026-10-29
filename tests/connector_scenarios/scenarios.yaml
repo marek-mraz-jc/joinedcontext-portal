@@ -500,6 +500,72 @@
   says: "Allow group analysts to give AI connectors read access to project Doprava only, 90 days max."
   expect: 'DelegationPolicy manifest; a member''s connector tree shows only Doprava read'
   deny: 'a member tries a write connector -> request goes to the approval queue, not granted'
+  script:
+    # The administrator's manifests as the reconciler loads them from Git once merged.
+    - proves: expect
+      manifest: { kind: Group, name: analysts, spec: { members: [{ user: scn.steward@hel.fi }] } }
+    - proves: expect
+      manifest:
+        kind: DelegationPolicy
+        name: analysts-doprava
+        spec: { subjects: [{ kind: Group, name: analysts }], projects: ['{project}'], segments: [data-read], maxExpiry: P90D, aboveCeiling: queue }
+    - proves: expect
+      as: steward
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: analyst-reads, segments: [data-read], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+      absent: ['narrowedBy']
+    - proves: expect
+      as: steward
+      via: connector
+      contains: ['jc_resource_list', 'jc_kpi_compute']
+      absent: ['jc_pipeline_metrics', 'jc_activity_list', 'propose', 'approve']
+    - proves: expect
+      as: steward
+      via: connector
+      call: jc_resource_list
+      args: { kind: Endpoint }
+      contains: ['{project}-counters']
+    - proves: deny
+      as: steward
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: analyst-pipelines, segments: [pipeline], scope: [{ project: '{project}', access: write }], writes: true, expiresAt: '{in7days}' }
+      contains: ['"state":"pending"', 'segments[0]: DelegationPolicy analysts-doprava', 'writes: DelegationPolicy analysts-doprava']
+    - proves: deny
+      as: steward
+      via: connector
+      refused: true
+      contains: ['pending']
+    # Nobody but an administrator of the ceiling decides it, and no AI client's token.
+    - proves: deny
+      as: steward
+      rest: { method: POST, path: '/connectors/{connector}/approve' }
+      refused: true
+    - proves: deny
+      as: org-admin
+      client: mcp-local
+      rest: { method: POST, path: '/connectors/{connector}/approve' }
+      refused: true
+    - proves: deny
+      as: approver
+      rest: { method: GET, path: /connectors/pending }
+      refused: true
+    - proves: expect
+      as: org-admin
+      rest: { method: GET, path: /connectors/pending }
+      contains: ['analyst-pipelines', 'aboveCeiling']
+    - proves: expect
+      as: org-admin
+      rest: { method: POST, path: '/connectors/{connector}/approve' }
+      contains: ['"state":"active"', '"approval"', 'sub-scn-org-admin']
+    - proves: expect
+      as: steward
+      via: connector
+      contains: ['jc_pipeline_metrics']
 - id: S-32
   segment: access
   as: project-admin

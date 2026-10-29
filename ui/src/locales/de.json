@@ -9105,7 +9105,10 @@
     "label": "{count, plural, =0 {Benachrichtigungen} one {Benachrichtigungen, # ungelesen} other {Benachrichtigungen, # ungelesen}}",
     "title": "Benachrichtigungen",
     "none": "Nichts Neues.",
-    "mentioned": "{name} hat Sie in {space} erwähnt"
+    "mentioned": "{name} hat Sie in {space} erwähnt",
+    "changeOpened": "{name} hat über den Konnektor {connector} die Änderung {change} in {project} geöffnet: genehmigen oder ablehnen",
+    "connectorPending": "{name} beantragt den Konnektor {connector} über der Obergrenze der Organisation: genehmigen oder ablehnen",
+    "connectorExpiring": "Ihr Konnektor {connector} endet innerhalb von 7 Tagen: verlängern Sie ihn oder legen Sie einen neuen an"
   },
   "problem": {
     "bad-request": "Korrigieren Sie die Anfrage wie beschrieben und senden Sie sie erneut.",
@@ -9602,6 +9605,8 @@
     },
     "mentions": "Erwähnungen von Ihnen",
     "noMentions": "Kein Kommentar erwähnt Sie.",
+    "connectorEvents": "Konnektoren",
+    "noConnectorEvents": "Von Ihren Konnektoren und den Konnektor-Anträgen, über die Sie entscheiden, wartet nichts.",
     "open": "Eingang öffnen ({count} warten)"
   },
   "appServices": {

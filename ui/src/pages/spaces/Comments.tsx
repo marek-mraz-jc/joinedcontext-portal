@@ -11,11 +11,36 @@ import { useTranslation } from "react-i18next";
 import { api, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
 import { Alert, Button, Icon, Textarea } from "../../components/ui";
+import { sameOriginPath } from "../../components/ui/safeHref";
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from "../../components/ui/Menu";
 
 type CommentView = components["schemas"]["CommentView"];
 type Commented = components["schemas"]["Commented"];
 type Notifications = components["schemas"]["Notifications"];
+
+type NotificationItem = Notifications["items"][number];
+
+/** What one notification says: a mention, or a connector event (T-5979) by its kind. */
+export function notificationText(item: NotificationItem, t: (key: string, values?: Record<string, string>) => string): string {
+  switch (item.kind) {
+    case "change.opened":
+      return t("notifications.changeOpened", { name: item.authorName, change: item.urn, project: item.project, connector: item.excerpt });
+    case "connector.pending":
+      return t("notifications.connectorPending", { name: item.authorName, connector: item.excerpt });
+    case "connector.expiring":
+      return t("notifications.connectorExpiring", { connector: item.excerpt });
+    default:
+      return t("notifications.mentioned", { name: item.authorName, space: item.space });
+  }
+}
+
+/** Where one notification leads: a connector event's own Portal page, a mention's space. */
+export function notificationHref(item: NotificationItem): string {
+  // Only a Portal path: the server writes it, and a link never leaves the Portal.
+  const own = item.link ? sameOriginPath(item.link) : undefined;
+  if (own) return own;
+  return `/projects/${encodeURIComponent(item.project)}/spaces/${encodeURIComponent(item.space)}`;
+}
 
 /** The key one entity's comments are cached under. */
 export const commentsKey = (project: string, space: string, urn: string) => ["projects", project, "spaces", space, "comments", urn];
@@ -247,13 +272,13 @@ export function NotificationsMenu({ project, waiting = 0 }: { project: string; w
             className="flex-col items-start gap-0.5"
             onSelect={() => {
               if (!item.read) read.mutate(item.id);
-              void navigate({ href: `/projects/${encodeURIComponent(item.project)}/spaces/${encodeURIComponent(item.space)}` });
+              void navigate({ href: notificationHref(item) });
             }}
           >
-            <span className={item.read ? "text-fg-muted" : "font-semibold"}>
-              {t("notifications.mentioned", { name: item.authorName, space: item.space })}
-            </span>
-            <span className="line-clamp-2 text-caption text-fg-muted [overflow-wrap:anywhere]">{item.excerpt}</span>
+            <span className={item.read ? "text-fg-muted" : "font-semibold"}>{notificationText(item, t)}</span>
+            {item.kind === "mention" ? (
+              <span className="line-clamp-2 text-caption text-fg-muted [overflow-wrap:anywhere]">{item.excerpt}</span>
+            ) : null}
             <span className="text-caption text-fg-subtle">{when(item.createdAt, i18n.language)}</span>
           </MenuItem>
         ))}
