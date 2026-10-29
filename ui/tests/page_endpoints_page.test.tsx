@@ -129,8 +129,9 @@ describe("the endpoints page", () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     await renderRoute({ path: PATH, answer: answering([endpoint("public-air")]) });
-    const section = (await screen.findByRole("heading", { name: en.endpoints.hub.title })).closest("section");
-    expect(section).not.toBeNull();
+    // Behind the header's button since T-6095, so the list starts right under the title.
+    await userEvent.click(await screen.findByRole("button", { name: en.endpoints.hub.button }));
+    const section = await screen.findByRole("dialog", { name: en.endpoints.hub.title });
     // On the platform host the gateway names as the hub's resource (the harness's branding domain),
     // not the Portal's own: an MCP client refuses metadata naming another URL (RFC 9728, T-3019).
     const hub = "https://api.portal.hel.fi/api/mcp";
@@ -145,6 +146,7 @@ describe("the endpoints page", () => {
     await renderRoute({ path: PATH, answer: answering([]) });
     await screen.findByText(en.endpoints.empty);
     expect(screen.queryByRole("heading", { name: en.endpoints.hub.title })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.endpoints.hub.button })).not.toBeInTheDocument();
   });
 
   it("nothing_published_yet_offers_the_way_to_the_first_endpoint", async () => {
@@ -256,10 +258,11 @@ describe("the endpoints page", () => {
     expect(dialog).toHaveTextContent("ep-0110");
   });
 
-  it("a_short_list_has_no_search_and_no_paging", async () => {
+  it("a_short_list_has_the_header_search_and_no_paging", async () => {
     await renderRoute({ path: PATH, answer: answering([endpoint("public-air")]) });
     await screen.findByRole("link", { name: "public-air" });
-    expect(screen.queryByRole("searchbox")).toBeNull();
+    // The search sits right of the title on every list (T-6095), short or long.
+    expect(screen.getByRole("searchbox", { name: en.endpoints.find })).toBeInTheDocument();
     expect(screen.queryByText(/^Showing/)).toBeNull();
   });
 

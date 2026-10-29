@@ -1,12 +1,12 @@
 import { useCreateForm } from "../components/forms/FormRoute";
 import { RecordLink } from "../components/RecordLink";
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
 import { Skeleton } from "../components/ui/Skeleton";
 import type { JSX } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Link } from "@tanstack/react-router";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
 import { exactBytes, sizeText, spaceUsageQuery, totalBytes, usageRefusal } from "../api/spaceUsage";
@@ -34,8 +34,6 @@ import {
   TableHead,
   TableHeaderCell,
   TableRow,
-  buttonClass,
-  SourceLink,
 } from "../components/ui";
 
 export interface SpaceForm {
@@ -123,18 +121,29 @@ function SpaceRowActions({
   name,
   target,
   locale,
+  sourceUrl,
 }: {
   project: string;
   name: string;
   target: ResourceTarget;
   locale: string;
+  sourceUrl?: string | null;
 }): JSX.Element {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   return (
     <ResourceRowActions
       project={project}
       target={target}
       scope={{ kind: "space", name }}
+      // Open first, as on every list's menu (T-6095); the name opens it too.
+      extra={[
+        {
+          key: "open",
+          label: t("resourceList.open"),
+          onSelect: () => void navigate({ to: "/projects/$project/$plural/$name", params: { project, plural: "spaces", name } }),
+        },
+      ]}
       // The kind's own form, not the manifest as text: the same schema and envelope the create
       // dialog uses (T-2278, UI-61).
       form={{
@@ -143,15 +152,8 @@ function SpaceRowActions({
         toManifest: (edited, stored) =>
           toEnvelope(project, edited as unknown as SpaceForm, stored, locale),
       }}
-      primary={
-        <Link
-          to="/projects/$project/$plural/$name"
-          params={{ plural: "spaces", project, name }}
-          className={buttonClass("secondary", "sm")}
-        >
-          {t("spaces.inside.open")}
-        </Link>
-      }
+      // The row's name opens the space (T-6095): no second "Look inside" button beside the menu.
+      sourceUrl={sourceUrl}
     />
   );
 }
@@ -301,8 +303,9 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
           <span aria-hidden="true">{bySize ? " ↓" : ""}</span>
         </Button>
       </TableHeaderCell>
-      <TableHeaderCell align="right">{t("spaces.field.inside")}</TableHeaderCell>
-      <TableHeaderCell align="right" secondary>{t("spaces.field.source")}</TableHeaderCell>
+      <TableHeaderCell align="right">
+        <span className="sr-only">{t("spaces.field.inside")}</span>
+      </TableHeaderCell>
     </TableHead>
   );
 
@@ -351,6 +354,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
   return (
     <div className="flex flex-col gap-section">
       <PageHeader
+        compact
         title={t("spaces.title")}
         description={t("spaces.lead")}
         note={<MayNotCreate project={project} kinds={["ContextSpace"]} />}
@@ -414,13 +418,14 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
                     {title}
                   </RecordLink>
                 </div>
-                <div className="mt-0.5 flex flex-wrap items-center gap-1.5 font-mono text-caption text-fg-subtle">
+                {/* The entity-id segment is detail, read on hover like a description (T-6095). */}
+                <div
+                  className="mt-0.5 flex flex-wrap items-center gap-1.5 font-mono text-caption text-fg-subtle"
+                  title={t("spaces.segment", {
+                    segment: spaceSegment(project, space.metadata.name, spec.urnSegment),
+                  })}
+                >
                   {space.metadata.title ? <span>{space.metadata.name}</span> : null}
-                  <span>
-                    {t("spaces.segment", {
-                      segment: spaceSegment(project, space.metadata.name, spec.urnSegment),
-                    })}
-                  </span>
                   {spec.isSandbox ? (
                     <Badge tone="warning">{t("spaces.sandbox", { days: spec.ttlDays ?? 0 })}</Badge>
                   ) : null}
@@ -446,14 +451,8 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
                   name={space.metadata.name}
                   target={target}
                   locale={locale}
+                  sourceUrl={space.status?.sourceUrl}
                 />
-              </TableCell>
-              <TableCell align="right" secondary>
-                {space.status?.sourceUrl ? (
-                  <SourceLink href={space.status.sourceUrl} label={t("spaces.field.source")} />
-                ) : (
-                  <span className="text-fg-subtle">—</span>
-                )}
               </TableCell>
             </TableRow>
           );

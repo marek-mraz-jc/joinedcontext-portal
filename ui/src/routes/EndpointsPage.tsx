@@ -1,11 +1,10 @@
 import { FormHeading, useFormRoute } from "../components/forms/FormRoute";
 import { CopyUrlButton } from "../components/endpoints/links";
 import { ConnectAssistant } from "../components/endpoints/ConnectAssistant";
-import { ProjectUsageSection } from "../components/endpoints/UsageSection";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { importManifests, proposeChecked } from "../api/proposal";
@@ -80,7 +79,7 @@ import { CodeBlock,
   TableHead,
   TableHeaderCell,
   TableRow,
-  SourceLink,
+  safeHref,
 } from "../components/ui";
 
 interface EndpointForm {
@@ -390,17 +389,15 @@ function EndpointRowActions({
   endpoint,
   label,
   onEdit,
-  onExplore,
 }: {
   project: string;
   endpoint: Manifest;
   label: string;
   onEdit: () => void;
-  /** Absent while the endpoint has no slug: there is nothing to read yet. */
-  onExplore?: () => void;
 }): JSX.Element {
   const { t } = useTranslation();
   const permissions = usePermissions(project);
+  const navigate = useNavigate();
   const [openAction, setOpenAction] = useState<"export" | "saveAs" | "copy" | "delete" | null>(null);
   const name = endpoint.metadata.name;
   const slug = (endpoint.spec as { slug?: string }).slug ?? "";
@@ -408,8 +405,17 @@ function EndpointRowActions({
   const denied = (verb: "propose" | "delete") =>
     permissions.can("Endpoint", verb) ? undefined : t("permissions.denied", { verb, kind: "Endpoint" });
 
+  // One menu per row (T-6095): the row itself opens the endpoint, its data is on that page, and the
+  // Git file is an item here instead of an icon column.
+  const sourceUrl = endpoint.status?.sourceUrl ? safeHref(endpoint.status.sourceUrl) : undefined;
   const actions: RowAction[] = [
+    {
+      key: "open",
+      label: t("resourceList.open"),
+      onSelect: () => void navigate({ to: "/projects/$project/$plural/$name", params: { project, plural: "endpoints", name } }),
+    },
     { key: "edit", label: t("endpoints.edit"), onSelect: onEdit, disabledReason: denied("propose") },
+    ...(sourceUrl ? [{ key: "source", label: t("resourceList.viewSource"), href: sourceUrl }] : []),
     ...(slug
       ? [
           {
@@ -442,23 +448,7 @@ function EndpointRowActions({
   // dialogs with their hooks (T-3538).
   return (
     <>
-      <RowActions
-        label={label}
-        actions={actions}
-        primary={
-          onExplore ? (
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={!isLive(endpoint)}
-              title={isLive(endpoint) ? undefined : t("endpoints.data.notLive")}
-              onClick={onExplore}
-            >
-              {t("endpoints.data.action")}
-            </Button>
-          ) : undefined
-        }
-      />
+      <RowActions label={label} actions={actions} />
       {openAction === "export" ? (
         <ExportButton
           project={project}
@@ -493,9 +483,6 @@ function EndpointRowActions({
           open
           onOpenChange={(next) => setOpenAction(next ? "delete" : null)}
         />
-      ) : null}
-      {endpoint.status?.sourceUrl ? (
-        <SourceLink href={endpoint.status.sourceUrl} label={t("spaces.field.source")} />
       ) : null}
     </>
   );
@@ -639,13 +626,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       ? prefill.hiddenAttributes.filter((a): a is string => typeof a === "string")
       : [],
   );
-  /** The endpoint whose data a person opened from its row (T-1433). */
-  const [dataView, setDataView] = useState<{
-    slug: string;
-    name: string;
-    hidden: string[];
-    space?: string;
-  } | null>(null);
+  const [connectOpen, setConnectOpen] = useState(false);
 
   const list = useQuery({
     queryKey: queryKeys.list(project, "endpoints"),
@@ -1249,9 +1230,34 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   return (
     <div className="flex flex-col gap-section">
       <PageHeader
+        compact
         title={t("endpoints.title")}
         description={t("endpoints.lead")}
-        actions={addButton}
+        search={
+          endpoints.length > 0 ? (
+            <Input
+              type="search"
+              aria-label={t("endpoints.find")}
+              placeholder={t("endpoints.find")}
+              value={needle}
+              onChange={(event) => {
+                setNeedle(event.target.value);
+                setShown(ROWS_PER_PAGE);
+              }}
+            />
+          ) : undefined
+        }
+        actions={
+          <>
+            {/* Nothing to connect to while the project publishes nothing (as before T-6095). */}
+            {endpoints.length > 0 ? (
+              <Button variant="secondary" icon={<Icon name="chat" className="size-4" />} onClick={() => setConnectOpen(true)}>
+                {t("endpoints.hub.button")}
+              </Button>
+            ) : null}
+            {addButton}
+          </>
+        }
       />
 
       {publicFull ? (
@@ -1264,20 +1270,6 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       ) : null}
 
       {change ? <ChangeNotice change={change} project={project} /> : null}
-
-      {endpoints.length > ROWS_PER_PAGE ? (
-        <Input
-          type="search"
-          aria-label={t("endpoints.find")}
-          placeholder={t("endpoints.find")}
-          value={needle}
-          onChange={(event) => {
-            setNeedle(event.target.value);
-            setShown(ROWS_PER_PAGE);
-          }}
-          className="max-w-sm"
-        />
-      ) : null}
 
       <ResourceList
         query={list}
@@ -1347,17 +1339,6 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                   onEdit={() =>
                     formRoute ? formRoute.openEdit(endpoint.metadata.name) : openEditor(endpoint)
                   }
-                  onExplore={
-                    spec.slug
-                      ? () =>
-                          setDataView({
-                            slug: spec.slug as string,
-                            name: endpoint.metadata.name,
-                            hidden: hiddenOf(endpoint),
-                            space: spaceOf(endpoint),
-                          })
-                      : undefined
-                  }
                 />
               </TableCell>
             </TableRow>
@@ -1377,9 +1358,6 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         </div>
       ) : null}
 
-      {endpoints.length > 0 ? <ConnectAssistant domain={domain} /> : null}
-
-      {endpoints.length > 0 ? <ProjectUsageSection project={project} /> : null}
 
       <section aria-labelledby="shared-with-project" className="flex flex-col gap-3">
         <div>
@@ -1792,28 +1770,16 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       </ResourceFormDialog>
       )}
 
-      {/* The endpoint's own answer, read with this person's session: the Endpoint's Policy decides
-          what is in it, and the Portal adds no right of its own (EP-07). */}
+      {/* The one MCP address of the platform, behind the header's button (T-6095): it is how a
+          person learns the address, and it no longer pushes the list down. */}
       <Dialog
-        open={dataView !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDataView(null);
-          }
-        }}
+        open={connectOpen}
+        onOpenChange={setConnectOpen}
         size="lg"
-        title={t("endpoints.data.title")}
-        description={dataView?.name ?? ""}
+        title={t("endpoints.hub.title")}
         closeLabel={t("form.cancel")}
       >
-        {dataView ? (
-          <EndpointDataView
-            project={project}
-            slug={dataView.slug}
-            hidden={dataView.hidden}
-            space={dataView.space}
-          />
-        ) : null}
+        <ConnectAssistant domain={domain} heading={false} />
       </Dialog>
     </div>
   );

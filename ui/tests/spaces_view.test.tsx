@@ -244,10 +244,10 @@ describe("context spaces view", () => {
   it("links each mirrored space to its manifest in the forge", async () => {
     renderSpaces();
     const row = (await screen.findByText("ovzdusie")).closest("tr") as HTMLElement;
-    expect(within(row).getByRole("link", { name: en.spaces.field.source })).toHaveAttribute(
-      "href",
-      SPACES.items[0].status.sourceUrl,
-    );
+    // An item of the row's menu, not a Source column (T-6095).
+    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
+    const item = await screen.findByRole("menuitem", { name: en.resourceList.viewSource });
+    expect(item.closest("a")).toHaveAttribute("href", SPACES.items[0].status.sourceUrl);
   });
 
   it("shows every quota of the project with what it holds of it", async () => {
@@ -513,7 +513,8 @@ describe("a viewer on the spaces list", () => {
     );
 
     const row = (await screen.findByText("ovzdusie")).closest("tr") as HTMLElement;
-    const open = within(row).getByRole("link", { name: en.spaces.inside.open });
+    // The row's name opens the space (T-6095): no "Look inside" button beside it.
+    const open = within(row).getByRole("link", { name: "Air quality" });
     expect(open).toBeInTheDocument();
     expect(open).toHaveAttribute("href", "/projects/banskabystrica/spaces/ovzdusie");
     // Nothing disables a link, so a viewer who may read is never stopped from looking.
@@ -571,8 +572,9 @@ describe("a viewer on the spaces list", () => {
     renderSpaces({});
 
     const row = (await screen.findByText("ovzdusie")).closest("tr") as HTMLElement;
-    // Open is the one thing a person came for; everything else is one menu, not four buttons.
-    expect(within(row).getByRole("link", { name: en.spaces.inside.open })).toBeInTheDocument();
+    // The name opens the space (T-6095); everything else is one menu, not four buttons.
+    expect(within(row).getByRole("link", { name: "Air quality" })).toBeInTheDocument();
+    expect(within(row).queryByRole("link", { name: en.spaces.inside.open })).toBeNull();
     const buttons = within(row).getAllByRole("button");
     expect(buttons).toHaveLength(1);
 
@@ -582,7 +584,9 @@ describe("a viewer on the spaces list", () => {
       .getAllByRole("menuitem")
       .map((item) => item.textContent);
     expect(items).toEqual([
+      en.resourceList.open,
       en.resourceEdit.button,
+      en.resourceList.viewSource,
       en.saveAs.button,
       en.workspaces.open.action,
       en.resourceDelete.button,

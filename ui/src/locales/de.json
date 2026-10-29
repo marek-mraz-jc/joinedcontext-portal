@@ -523,7 +523,9 @@
     "askAssistant": "Den Assistenten um einen Vorschlag bitten",
     "leadOrganization": "Alles dieser Art, was die Organisation hält. Jede Zeile öffnet, was sie nennt.",
     "emptyHintOrganization": "Von dieser Art ist noch nichts in der Organisation. Diese Seite listet und liest es; bitten Sie den Assistenten darum und entscheiden Sie über seinen Vorschlag.",
-    "emptyHintCreateOrganization": "Von dieser Art ist noch nichts in der Organisation. {new} öffnet das Formular."
+    "emptyHintCreateOrganization": "Von dieser Art ist noch nichts in der Organisation. {new} öffnet das Formular.",
+    "viewSource": "Quelle anzeigen (Git)",
+    "open": "Öffnen"
   },
   "spaces": {
     "entitiesUnknown": "Die Anzahl ist nicht verfügbar: {reason}",
@@ -1552,10 +1554,8 @@
     },
     "publicNotice": "Ein Endpunkt mit öffentlichem Publikum antwortet anonymen Aufrufern, und ein anonymer Aufrufer darf nur lesen. Schreibzugriffe und Abonnements verlangen weiterhin eine Anmeldung, welche Repräsentationen auch aktiviert sind.",
     "data": {
-      "action": "Daten ansehen",
       "title": "Was dieser Endpunkt antwortet",
       "type": "Entitätstyp",
-      "notLive": "Dieser Endpunkt antwortet noch nichts; er wird bedient, sobald die Änderung Live ist.",
       "noSchema": "Dieser Endpunkt veröffentlicht noch kein Schema, also gibt es keinen Typ zu lesen.",
       "compare": "Mit dem Raum vergleichen",
       "compareClose": "Zurück zum Endpunkt allein",
@@ -1955,7 +1955,8 @@
       "claudeLine": "Claude-Code-Befehl",
       "jsonLine": "Konfiguration für einen anderen MCP-Client",
       "vscode": "Zu VS Code hinzufügen",
-      "cursor": "Zu Cursor hinzufügen"
+      "cursor": "Zu Cursor hinzufügen",
+      "button": "KI verbinden"
     },
     "playground": {
       "title": "Ausprobieren",
@@ -10744,5 +10745,8 @@
       "jc_ui_show_diff": "Hat eine geplante Änderung geöffnet",
       "jc_ui_filter_table": "Hat die Tabelle gefiltert"
     }
+  },
+  "pageHeader": {
+    "about": "Über diese Seite"
   }
 }

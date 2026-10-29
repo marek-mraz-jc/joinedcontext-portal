@@ -101,6 +101,7 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
   return (
     <section aria-label={t("knowledge.title")} className="space-y-6">
       <PageHeader
+        compact
         title={t("knowledge.title")}
         description={t("knowledge.intro")}
         note={<MayNotCreate project={project} kinds={["KnowledgeSource", "AssistantDeployment"]} />}

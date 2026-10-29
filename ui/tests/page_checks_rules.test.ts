@@ -58,6 +58,17 @@ describe("the walkers' purpose-line check", () => {
     expect(findings("purpose-line")).toEqual([]);
   });
 
+  it("passes a list page's title whose info mark beside it says it (T-6095)", () => {
+    document.body.innerHTML = `<main><div><h1>Spaces</h1><span><button aria-describedby="d">i</button>
+      <span id="d" role="tooltip" class="sr-only">Where the project keeps its context data.</span></span></div></main>`;
+    expect(findings("purpose-line")).toEqual([]);
+  });
+
+  it("flags an info mark that says nothing", () => {
+    document.body.innerHTML = `<main><div><h1>Spaces</h1><span><button>i</button></span></div></main>`;
+    expect(findings("purpose-line")).toEqual(['purpose-line: no line under "Spaces"']);
+  });
+
   it("flags a title with nothing under it", () => {
     document.body.innerHTML = `<main><h1>Spaces</h1><table></table></main>`;
     expect(findings("purpose-line")).toEqual(['purpose-line: no line under "Spaces"']);

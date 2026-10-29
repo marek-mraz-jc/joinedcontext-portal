@@ -919,6 +919,8 @@ it("tells a feed from a space and reads the attributes of a class from an inline
       // The person's own alerts on this pipeline (T-3261).
       en.alerts.open,
       en.resourceEdit.button,
+      // The manifest in the forge, an item instead of an icon column (T-6095).
+      en.resourceList.viewSource,
       en.saveAs.button,
       en.workspaces.open.action,
       en.resourceDelete.button,

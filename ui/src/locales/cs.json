@@ -523,7 +523,9 @@
     "askAssistant": "Požádat asistenta o návrh",
     "leadOrganization": "Vše tohoto druhu, co organizace drží. Každý řádek otevře, co pojmenovává.",
     "emptyHintOrganization": "V organizaci zatím nic tohoto druhu není. Tato stránka to zobrazuje a čte; požádejte asistenta a rozhodněte o jeho návrhu.",
-    "emptyHintCreateOrganization": "V organizaci zatím nic tohoto druhu není. {new} otevře formulář."
+    "emptyHintCreateOrganization": "V organizaci zatím nic tohoto druhu není. {new} otevře formulář.",
+    "viewSource": "Zobrazit zdroj (Git)",
+    "open": "Otevřít"
   },
   "spaces": {
     "entitiesUnknown": "Počet není k dispozici: {reason}",
@@ -1575,10 +1577,8 @@
     },
     "publicNotice": "Endpoint s veřejným publikem odpovídá anonymnímu volajícímu a ten smí pouze číst. Zápisy a odběry stále vyžadují přihlášení, ať jsou zapnuté kterékoli reprezentace.",
     "data": {
-      "action": "Zobrazit data",
       "title": "Co tento endpoint odpovídá",
       "type": "Typ entity",
-      "notLive": "Tento endpoint ještě nic neodpovídá; slouží až když je změna Live.",
       "noSchema": "Tento endpoint ještě nepublikuje schéma, takže není co číst.",
       "compare": "Porovnat s prostorem",
       "compareClose": "Zpět na samotný endpoint",
@@ -1955,7 +1955,8 @@
       "claudeLine": "Příkaz pro Claude Code",
       "jsonLine": "Konfigurace pro jiného klienta MCP",
       "vscode": "Přidat do VS Code",
-      "cursor": "Přidat do Cursor"
+      "cursor": "Přidat do Cursor",
+      "button": "Připojit AI"
     },
     "playground": {
       "title": "Vyzkoušet",
@@ -10744,5 +10745,8 @@
       "jc_ui_show_diff": "Otevřel plánovanou změnu",
       "jc_ui_filter_table": "Filtroval tabulku"
     }
+  },
+  "pageHeader": {
+    "about": "O této stránce"
   }
 }

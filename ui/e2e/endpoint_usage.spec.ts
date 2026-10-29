@@ -95,7 +95,8 @@ for (const width of [1440, 400]) {
       await section.scrollIntoViewIfNeeded();
       await section.screenshot({ path: join(dir, `endpoint-${state}-${width}.png`) });
 
-      await page.goto("/projects/helsinki/endpoints?lang=en");
+      // The project's total moved from the Endpoints list to the project's health page (T-6095).
+      await page.goto("/projects/helsinki/health?lang=en");
       const project = page.locator("section", { has: page.getByRole("heading", { name: "Usage", exact: true }) });
       await expect(project.getByLabel("Month to download")).toBeVisible();
       if (state === "calls") {
