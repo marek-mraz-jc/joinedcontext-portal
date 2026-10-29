@@ -5647,9 +5647,9 @@
   },
   "explore": {
     "title": "Explore data",
-    "description": "Read the entities of a context space through one of its endpoints, with your session; the endpoint's Policy decides what you see.",
     "space": "Context space",
-    "endpoint": "Read through endpoint",
+    "endpoint": "Endpoint",
+    "export": "Export",
     "noEndpoint": "This space has no endpoint to read through.",
     "noType": "Choose an entity type to load entities.",
     "loadFailed": "The entities could not be loaded. Try again, or read through another endpoint.",
@@ -5668,6 +5668,8 @@
     "noTypeHint": "Choose a type to list what this endpoint serves, or narrow the filters above.",
     "noSpace": "Choose a context space to read",
     "noSpaceHint": "Its entities open here, read through one of its endpoints. Start with one of this project's spaces:",
+    "noSpaces": "This project has no context space yet",
+    "noSpacesHint": "Create one under Context Spaces, for example Air quality; its data opens here.",
     "typeInModel": "This type in its data model:",
     "readThrough": "Read through",
     "endpointUnshown": "The link names the Endpoint {name}, which this space does not show you",
@@ -5689,23 +5691,6 @@
       "outlierCount": "{count, plural, one {# value} other {# values}}",
       "pipelines": "Pipelines writing this type",
       "rejected": "Open {pipeline} for its rejected records"
-    },
-    "exportView": {
-      "format": "Export format",
-      "formats": {
-        "csv-excel": "CSV for Excel (Slovak number and date formats)",
-        "csv": "CSV",
-        "json": "JSON",
-        "geojson": "GeoJSON (located entities)"
-      },
-      "start": "Export the view",
-      "cancel": "Cancel the export",
-      "progress": "{done} rows read…",
-      "progressOf": "{done} of {total} rows read…",
-      "download": "Download {name} ({rows, plural, one {# row} other {# rows}})",
-      "truncated": "Only the first {max} rows: narrow the filter for the rest.",
-      "empty": "The view holds no rows to export.",
-      "noGeometry": "No entity of the view has a location, so there is no GeoJSON to export."
     },
     "useData": {
       "open": "Use this data",
@@ -5777,10 +5762,7 @@
     "copyJson": "Copy JSON-LD",
     "endpointApps": "Applications",
     "unknownType": "There is no type {type} in this space",
-    "unknownTypeHint": "The address names a type this space does not have. Pick one of its types:",
-    "hint": {
-      "endpoint": "The Endpoint whose Policy decides what you see, e.g. the space's public one. A link you share names it, so a colleague reads through the same one."
-    }
+    "unknownTypeHint": "The address names a type this space does not have. Pick one of its types:"
   },
   "agentRun": {
     "title": "Application run",

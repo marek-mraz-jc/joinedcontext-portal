@@ -5647,9 +5647,9 @@
   },
   "explore": {
     "title": "Daten erkunden",
-    "description": "Entitäten eines Kontextraums über einen seiner Endpunkte mit Ihrer Sitzung lesen; die Policy des Endpunkts bestimmt, was Sie sehen.",
     "space": "Kontextraum",
-    "endpoint": "Über Endpunkt lesen",
+    "endpoint": "Endpunkt",
+    "export": "Exportieren",
     "noEndpoint": "Dieser Raum hat keinen Endpunkt zum Lesen.",
     "noType": "Wählen Sie einen Entitätstyp, um Entitäten zu laden.",
     "loadFailed": "Die Entitäten konnten nicht geladen werden. Versuchen Sie es erneut oder lesen Sie über einen anderen Endpunkt.",
@@ -5668,6 +5668,8 @@
     "noTypeHint": "Wählen Sie einen Typ, um zu sehen, was dieser Endpoint ausliefert, oder schränken Sie die Filter oben ein.",
     "noSpace": "Wählen Sie einen Kontextraum zum Lesen",
     "noSpaceHint": "Seine Entitäten öffnen sich hier, gelesen über einen seiner Endpunkte. Beginnen Sie mit einem der Räume dieses Projekts:",
+    "noSpaces": "Dieses Projekt hat noch keinen Kontextraum",
+    "noSpacesHint": "Legen Sie einen unter Kontexträume an, zum Beispiel Luftqualität; seine Daten öffnen sich hier.",
     "typeInModel": "Dieser Typ in seinem Datenmodell:",
     "readThrough": "Gelesen über",
     "endpointUnshown": "Der Link nennt den Endpoint {name}, den dieser Raum Ihnen nicht zeigt",
@@ -5689,23 +5691,6 @@
       "outlierCount": "{count, plural, one {# Wert} other {# Werte}}",
       "pipelines": "Pipelines, die diesen Typ schreiben",
       "rejected": "{pipeline} mit seinen abgelehnten Datensätzen öffnen"
-    },
-    "exportView": {
-      "format": "Exportformat",
-      "formats": {
-        "csv-excel": "CSV für Excel (slowakische Zahlen- und Datumsformate)",
-        "csv": "CSV",
-        "json": "JSON",
-        "geojson": "GeoJSON (Entitäten mit Ort)"
-      },
-      "start": "Ansicht exportieren",
-      "cancel": "Export abbrechen",
-      "progress": "{done} Zeilen gelesen…",
-      "progressOf": "{done} von {total} Zeilen gelesen…",
-      "download": "{name} herunterladen ({rows, plural, one {# Zeile} other {# Zeilen}})",
-      "truncated": "Nur die ersten {max} Zeilen: grenzen Sie den Filter für den Rest ein.",
-      "empty": "Die Ansicht enthält keine Zeilen zum Exportieren.",
-      "noGeometry": "Keine Entität der Ansicht hat einen Ort, daher gibt es kein GeoJSON zu exportieren."
     },
     "useData": {
       "open": "Diese Daten verwenden",
@@ -5777,10 +5762,7 @@
     "copyJson": "JSON-LD kopieren",
     "endpointApps": "Anwendungen",
     "unknownType": "In diesem Bereich gibt es keinen Typ {type}",
-    "unknownTypeHint": "Die Adresse nennt einen Typ, den dieser Datenraum nicht hat. Wählen Sie einen seiner Typen:",
-    "hint": {
-      "endpoint": "Der Endpoint, dessen Policy entscheidet, was Sie sehen, z. B. der öffentliche des Datenraums. Ein geteilter Link nennt ihn, damit ein Kollege über denselben liest."
-    }
+    "unknownTypeHint": "Die Adresse nennt einen Typ, den dieser Datenraum nicht hat. Wählen Sie einen seiner Typen:"
   },
   "agentRun": {
     "title": "Anwendungslauf",
