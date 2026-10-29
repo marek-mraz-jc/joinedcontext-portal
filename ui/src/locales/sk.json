@@ -551,6 +551,8 @@
       "size": "Veľkosť"
     },
     "inside": {
+      "more": "Viac",
+      "less": "Menej",
       "total": "Priestor obsahuje {count, plural, one {# entitu} few {# entity} other {# entít}}.",
       "history": "Jeho história obsahuje {count, plural, one {# záznam} few {# záznamy} other {# záznamov}}.",
       "open": "Pozrieť obsah",
@@ -5408,6 +5410,7 @@
     "remove": "Odstrániť",
     "advanced": "Toto q používa | alebo zátvorky, ktoré riadky nezobrazia; upravte ho ako text.",
     "q": "Dopyt ako text (q)",
+    "columns": "Stĺpce",
     "attrs": "Čítané atribúty",
     "qProblem": {
       "shape": "Každú podmienku napíšte ako atribút, porovnanie a hodnotu bez medzier, napr. name==\"Nemocnica\"; podmienky spájajte znakom ; (a zároveň) alebo | (alebo).",

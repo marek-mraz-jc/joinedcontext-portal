@@ -176,9 +176,11 @@ describe("the form meets the UI contract", () => {
   });
 
   it("the_attributes_are_grouped_under_a_legend_that_names_them", () => {
-    const { container } = show({ type: "AirQualityObserved" }, DENIED);
-    const group = container.querySelector("fieldset:last-of-type")!;
-    expect(within(group as HTMLElement).getByText(en.entities.attrs)).toBeInTheDocument();
+    show({ type: "AirQualityObserved" }, DENIED);
+    // Inside the Columns menu (T-6092), the legend still names the group the boxes are in.
+    const group = screen.getByText(en.entities.attrs).closest("fieldset")!;
+    expect(within(group as HTMLElement).getAllByRole("checkbox").length).toBeGreaterThan(0);
+    expect(screen.getByText(en.entities.columns).closest("details")).toContainElement(group as HTMLElement);
   });
 
   it.each(SUPPORTED_LOCALES)("says_everything_in_%s_with_no_raw_key", async (locale) => {

@@ -551,6 +551,8 @@
       "size": "Größe"
     },
     "inside": {
+      "more": "Mehr",
+      "less": "Weniger",
       "total": "Der Raum enthält {count, plural, one {# Entität} other {# Entitäten}}.",
       "history": "Sein Verlauf enthält {count, plural, one {# Eintrag} other {# Einträge}}.",
       "open": "Inhalt ansehen",
@@ -5408,6 +5410,7 @@
     "remove": "Entfernen",
     "advanced": "Dieses q verwendet | oder Klammern, die die Zeilen nicht zeigen können; als Text bearbeiten.",
     "q": "Abfrage als Text (q)",
+    "columns": "Spalten",
     "attrs": "Gelesene Attribute",
     "qProblem": {
       "shape": "Schreiben Sie jede Bedingung als Attribut, Vergleich und Wert ohne Leerzeichen, z. B. name==\"Klinikum\"; verbinden Sie Bedingungen mit ; (und) oder | (oder).",

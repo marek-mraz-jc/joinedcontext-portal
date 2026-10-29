@@ -551,6 +551,8 @@
       "size": "Velikost"
     },
     "inside": {
+      "more": "Více",
+      "less": "Méně",
       "total": "Prostor obsahuje {count, plural, one {# entitu} few {# entity} other {# entit}}.",
       "history": "Jeho historie obsahuje {count, plural, one {# záznam} few {# záznamy} other {# záznamů}}.",
       "open": "Prohlédnout obsah",
@@ -5408,6 +5410,7 @@
     "remove": "Odebrat",
     "advanced": "Toto q používá | nebo závorky, které řádky nezobrazí; upravte ho jako text.",
     "q": "Dotaz jako text (q)",
+    "columns": "Sloupce",
     "attrs": "Čtené atributy",
     "qProblem": {
       "shape": "Každou podmínku napište jako atribut, porovnání a hodnotu bez mezer, např. name==\"Nemocnice\"; podmínky spojujte znakem ; (a zároveň) nebo | (nebo).",
