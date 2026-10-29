@@ -28,6 +28,7 @@ import { KindList } from "../../routes/ResourceListPage";
 import { durationWords } from "../../schemas/mqttbroker";
 import { AddDevice } from "./AddDevice";
 import { useMqttAllowance } from "./allowance";
+import { BrokerAccess } from "./BrokerAccess";
 import { BrokerTopics } from "./BrokerTopics";
 import { connectionsOf } from "./connections";
 import { TestPublishDialog } from "./TestPublish";
@@ -243,6 +244,7 @@ function BrokerCard({ project, broker }: { project: string; broker: Manifest }):
           example={(client, topic) => (address ? publishExample(address, client, topic) : undefined)}
         />
         <BrokerTopics project={project} broker={name} mode={mode} />
+        <BrokerAccess project={project} broker={name} />
         <div className="flex flex-wrap items-center gap-2">
           <Button onClick={() => setTesting(true)}>{t("mqttbrokers.test.open")}</Button>
           <span className="text-caption text-fg-muted">{t("mqttbrokers.test.openHint")}</span>

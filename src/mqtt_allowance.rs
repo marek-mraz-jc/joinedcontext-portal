@@ -135,6 +135,9 @@ pub fn check_manifest(
             check(&state.mirror, project, name, &envelope.spec)
         }
         "Project" => check_project(state, identity, name, &envelope.spec),
+        "ServiceAccount" => {
+            crate::mqtt_roles::check_grants(state, identity, project, name, &envelope.spec)
+        }
         _ => Ok(()),
     }
 }

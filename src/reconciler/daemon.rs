@@ -1996,6 +1996,7 @@ impl Syncer {
         }
         if self.mqtt_brokers.is_some() || self.mqtt_clients.is_some() {
             let brokers = super::mqtt_brokers::declared(&self.mirror);
+            super::mqtt_brokers::log_warnings(&brokers);
             let mut failed: BTreeMap<String, String> = brokers
                 .iter()
                 .filter_map(|broker| Some((broker.label(), broker.spec.clone().err()?)))

@@ -3788,7 +3788,9 @@
       "grantOrg": "{role} in der ganzen Organisation",
       "emptyHint": "Ein Dienstkonto ist der Weg, auf dem ein Programm außerhalb des Portals dieses Projekt liest oder schreibt: ein Skript, eine Pipeline anderswo, eine andere Plattform. Jedes meldet sich mit einem eigenen Keycloak-Client an und hat nur die Rolle, die Sie ihm geben.",
       "emptyOrganization": "Die Organisation hat kein eigenes Dienstkonto. Die Dienstkonten eines Projekts stehen in seinen Einstellungen und unter Agenten.",
-      "emptyHintOrganization": "Ein Dienstkonto der Organisation ist der Weg, auf dem ein Programm außerhalb des Portals über ihre Projekte hinweg liest oder schreibt: ein Skript, eine Pipeline anderswo, eine andere Plattform. Jedes meldet sich mit einem eigenen Keycloak-Client an und hat nur die Rolle, die Sie ihm geben."
+      "emptyHintOrganization": "Ein Dienstkonto der Organisation ist der Weg, auf dem ein Programm außerhalb des Portals über ihre Projekte hinweg liest oder schreibt: ein Skript, eine Pipeline anderswo, eine andere Plattform. Jedes meldet sich mit einem eigenen Keycloak-Client an und hat nur die Rolle, die Sie ihm geben.",
+      "mqttRole": "{role} auf dem MQTT-Broker {broker}",
+      "mqttRoleAny": "{role} auf jedem MQTT-Broker des Projekts"
     },
     "matrix": {
       "title": "Datenzugriff",
@@ -9933,7 +9935,28 @@
         "certificate": "Das Zertifikat ist kein Gerätezertifikat dieses Projekts, oder das Gerät hat an die Zertifikatsadresse ein Passwort gesendet."
       }
     },
-    "noAccounts": "Kein Dienstkonto dieses Projekts, das Sie lesen dürfen. Fügen Sie auf der Seite des Brokers ein Gerät hinzu oder legen Sie eines unter Projekteinstellungen, Dienstkonten an."
+    "noAccounts": "Kein Dienstkonto dieses Projekts, das Sie lesen dürfen. Fügen Sie auf der Seite des Brokers ein Gerät hinzu oder legen Sie eines unter Projekteinstellungen, Dienstkonten an.",
+    "access": {
+      "title": "Wer was darf",
+      "account": "Dienstkonto",
+      "accountHelp": "Ein Gerät meldet sich als eines der Dienstkonten des Projekts an, z. B. air-fleet; wählen Sie eines, um zu sehen, was der Broker ihm jetzt erlaubt.",
+      "noAccounts": "Kein Dienstkonto zum Erklären",
+      "noAccountsHint": "Fügen Sie dem Broker ein Gerät hinzu oder legen Sie auf der Seite Zugriff ein Dienstkonto an und wählen Sie es dann hier.",
+      "caption": "Rollen von {broker}, die {account} jetzt hält",
+      "through": "Gewährt durch",
+      "until": "Bis",
+      "noEnd": "Kein Ende",
+      "bound": "Rollenbindung",
+      "legacy": "Liste serviceAccounts",
+      "legacyHint": "Eine Rolle, die das Konto unter serviceAccounts nennt, ist veraltet: Führen Sie jcctl migrate mqtt-roles aus, um sie in eine Bindung mqtt/{broker}/<Rolle> am Konto zu verschieben.",
+      "noneTitle": "{account} hält keine Rolle dieses Brokers",
+      "noneHint": "Seine Geräte werden beim Verbinden abgewiesen. Gewähren Sie dem Dienstkonto die Rolle mqtt/{broker}/<Rolle>, auf dieses Projekt beschränkt.",
+      "expiredTitle": "Gewährungen dieses Brokers, die nicht gelten",
+      "endedAt": "endete {at}",
+      "startsAt": "beginnt {at}",
+      "refusedTitle": "Sie dürfen die MQTT-Broker dieses Projekts nicht lesen",
+      "failedTitle": "Die Rollen des Brokers konnten nicht gelesen werden"
+    }
   },
   "connect": {
     "title": "KI-Assistenten verbinden",
