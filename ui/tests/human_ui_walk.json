@@ -2372,6 +2372,18 @@
         "evidence/worker-t5567/T-5567/step-up-approved-1440.png",
         "evidence/worker-t5567/T-5567/step-up-approved-400.png"
       ]
+    },
+    "src/components/ui/PageHeader.tsx": {
+      "walkedBy": "worker-t6095",
+      "date": "2026-10-29",
+      "screenshots": [
+        "evidence/T-6095/after/endpoints-filled-1440.png",
+        "evidence/T-6095/after/endpoints-filled-400.png",
+        "evidence/T-6095/after/endpoints-description-1440.png",
+        "evidence/T-6095/after/endpoints-description-400.png",
+        "evidence/T-6095/after/endpoints-connect-1440.png",
+        "evidence/T-6095/after/spaces-filled-1440.png"
+      ]
     }
   }
 }

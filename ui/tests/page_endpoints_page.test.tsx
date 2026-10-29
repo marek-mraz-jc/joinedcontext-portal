@@ -129,8 +129,9 @@ describe("the endpoints page", () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     await renderRoute({ path: PATH, answer: answering([endpoint("public-air")]) });
-    const section = (await screen.findByRole("heading", { name: en.endpoints.hub.title })).closest("section");
-    expect(section).not.toBeNull();
+    // Behind the header's button since T-6095, so the list starts right under the title.
+    await userEvent.click(await screen.findByRole("button", { name: en.endpoints.hub.button }));
+    const section = await screen.findByRole("dialog", { name: en.endpoints.hub.title });
     // On the platform host the gateway names as the hub's resource (the harness's branding domain),
     // not the Portal's own: an MCP client refuses metadata naming another URL (RFC 9728, T-3019).
     const hub = "https://api.portal.hel.fi/api/mcp";
@@ -145,6 +146,7 @@ describe("the endpoints page", () => {
     await renderRoute({ path: PATH, answer: answering([]) });
     await screen.findByText(en.endpoints.empty);
     expect(screen.queryByRole("heading", { name: en.endpoints.hub.title })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.endpoints.hub.button })).not.toBeInTheDocument();
   });
 
   it("nothing_published_yet_offers_the_way_to_the_first_endpoint", async () => {
@@ -231,8 +233,22 @@ describe("the endpoints page", () => {
     await search("EP-0119");
     expect(rowLinks().map((link) => link.textContent)).toEqual(["ep-0119"]);
     expect(screen.getByText("Showing 1 of 1")).toBeInTheDocument();
+    // A search matching nothing names the text and clears back to the first page (T-6095).
     await search("nothing-like-it");
-    expect(screen.getByText("Showing 0 of 0")).toBeInTheDocument();
+    expect(screen.queryByText(/^Showing/)).toBeNull();
+    expect(screen.getByText(i18n.t("endpoints.searchNoMatch", { text: "nothing-like-it" }))).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: en.spaces.inside.clearSearch }));
+    expect(screen.getByRole("searchbox", { name: en.endpoints.find })).toHaveValue("");
+    expect(rowLinks()).toHaveLength(50);
+  });
+
+  it("nothing_shared_with_the_project_is_one_line_and_no_second_table", async () => {
+    await renderRoute({ path: PATH, answer: answering([endpoint("public-air")]) });
+    await screen.findByRole("link", { name: "public-air" });
+    expect(await screen.findByText(en.endpoints.shared.empty)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: en.endpoints.shared.browse })).toHaveAttribute("href", "/endpoints");
+    expect(screen.queryByText(en.endpoints.shared.lead)).toBeNull();
+    expect(screen.getAllByRole("table")).toHaveLength(1);
   });
 
   it("finds_by_title_ignores_blank_search_and_starts_a_new_search_on_page_one", async () => {
@@ -256,10 +272,11 @@ describe("the endpoints page", () => {
     expect(dialog).toHaveTextContent("ep-0110");
   });
 
-  it("a_short_list_has_no_search_and_no_paging", async () => {
+  it("a_short_list_has_the_header_search_and_no_paging", async () => {
     await renderRoute({ path: PATH, answer: answering([endpoint("public-air")]) });
     await screen.findByRole("link", { name: "public-air" });
-    expect(screen.queryByRole("searchbox")).toBeNull();
+    // The search sits right of the title on every list (T-6095), short or long.
+    expect(screen.getByRole("searchbox", { name: en.endpoints.find })).toBeInTheDocument();
     expect(screen.queryByText(/^Showing/)).toBeNull();
   });
 

@@ -457,6 +457,7 @@ export function ModelsPage({
         {t("models.page.back")}
       </Link>
       <PageHeader
+        compact
         title={t("models.title")}
         aside={
           <p className="text-body text-fg-muted">
