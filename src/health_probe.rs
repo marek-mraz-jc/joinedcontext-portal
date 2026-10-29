@@ -411,6 +411,8 @@ mod tests {
                 attr_instances: history,
                 by_type: std::collections::BTreeMap::new(),
             }),
+            attr_instances: None,
+            estimated: false,
         }
     }
 

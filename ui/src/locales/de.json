@@ -552,6 +552,7 @@
     },
     "inside": {
       "total": "Der Raum enthält {count, plural, one {# Entität} other {# Entitäten}}.",
+      "history": "Sein Verlauf enthält {count, plural, one {# Eintrag} other {# Einträge}}.",
       "open": "Inhalt ansehen",
       "data": "Daten",
       "dataEmpty": "Noch nichts: keine Pipeline hat in diesen Raum geschrieben.",
@@ -605,7 +606,8 @@
       "lead": "Sein Datenmodell, seine Entitäten, wer sie liest und was mit ihm geschah.",
       "broker": "Er liegt auf dem Context-Broker {broker}.",
       "size": "Größe",
-      "totalSize": "Er belegt {size} im Speicher des Brokers, davon {history} Verlauf.",
+      "totalSize": "Er belegt {size} im Speicher des Brokers: {entities} aktueller Stand, {history} Verlauf.",
+      "estimated": "Der Verlauf ist aus der Datenbankstatistik geschätzt: Er ist zu lang, um ihn sofort zu zählen.",
       "sections": "Teile des Raums",
       "counting": "Die Entitäten des Raums werden gezählt…",
       "allRows": "Alle Zeilen",
@@ -915,7 +917,6 @@
     },
     "saved": {
       "view": "Ansicht",
-      "none": "Alle Entitäten (keine gespeicherte Ansicht)",
       "save": "Ansicht speichern",
       "saveNew": "Als Ansicht speichern…",
       "saveAs": "Als neue speichern…",
@@ -1150,8 +1151,10 @@
       "type": "Typ",
       "current": "Aktuelle Werte",
       "history": "Verlauf",
-      "deleted": "Bisher gelöscht",
+      "deleted": "Gelöscht seit dem Brokerstart",
       "deletedUnknown": "Unbekannt: der Broker hat nicht geantwortet",
+      "deletedSince": "Der Broker zählt seit seinem letzten Start und beginnt bei jedem Neustart bei null. Verlauf, den er tageweise verwirft, zählt er noch nicht, daher kann ein Typ mit Verlauf über Minuten oder Stunden weiter 0 zeigen.",
+      "sameRule": "{count} Typen, gleiche Regel",
       "forever": "Für immer behalten",
       "amount": {
         "minutes": "{count, plural, one {# Minute} other {# Minuten}}",
@@ -1201,6 +1204,7 @@
         "of": "Verlaufszeilen von {type}",
         "heartbeatOf": "Zeile mindestens alle, für {type}",
         "noRows": "Keine Zeilen: kein Verlauf",
+        "atLeastEvery": "eine Zeile mindestens alle {every}",
         "asDefault": "{mode} (Standard)",
         "hint": "Verlaufszeilen: Neuere Beobachtungen schreibt eine Zeile nur, wenn observedAt neuer als die letzte Zeile ist, ein Sensor, der denselben Messwert erneut sendet, fügt also keine hinzu; Jede Beobachtung schreibt eine Zeile für jedes neue observedAt, etwa eine Zählung je 15 Minuten; Nur Änderungen schreibt eine Zeile, wenn sich ein Wert ändert, und mindestens einmal im gewählten Intervall, etwa die freien Räder einer Station.",
         "mode": {
@@ -1372,7 +1376,7 @@
         "loses-history": "Verliert Verlauf",
         "unbounded-growth": "Wächst unbegrenzt",
         "duplicates-rows": "Doppelte Zeilen",
-        "stamped-on-receive": "Empfangszeit gestempelt"
+        "stamped-on-receive": "Messung mit Empfangszeit"
       },
       "fix": {
         "loses-history": "Jeder Schreibvorgang hat dieselbe Zeit und ersetzt den vorigen: bilden Sie observedAt aus dem Datensatz ab.",
@@ -1384,6 +1388,7 @@
       "expiry": "veraltet nach {after}",
       "rows": "Zeilen",
       "timeOf": "Zeit: {source}",
+      "receivedOk": "Empfangszeit: passend für einen Wert ohne Einheit, etwa ein Datum oder einen Namen.",
       "unitOf": "Einheit: {unit}",
       "noMatchHint": "Wählen Sie Alle Pipelines und Alle Urteile, um jede Zeile zu sehen."
     },

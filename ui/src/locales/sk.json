@@ -552,6 +552,7 @@
     },
     "inside": {
       "total": "Priestor obsahuje {count, plural, one {# entitu} few {# entity} other {# entít}}.",
+      "history": "Jeho história obsahuje {count, plural, one {# záznam} few {# záznamy} other {# záznamov}}.",
       "open": "Pozrieť obsah",
       "data": "Dáta",
       "dataEmpty": "Zatiaľ nič: do tohto priestoru ešte nezapísala žiadna pipeline.",
@@ -605,7 +606,8 @@
       "lead": "Jeho dátový model, entity, kto ich číta a čo sa s ním stalo.",
       "broker": "Beží na kontextovom brokeri {broker}.",
       "size": "Veľkosť",
-      "totalSize": "V úložisku brokera zaberá {size}, z toho história {history}.",
+      "totalSize": "V úložisku brokera zaberá {size}: aktuálny stav {entities}, história {history}.",
+      "estimated": "Históriu odhadujeme zo štatistík databázy: je príliš dlhá na okamžité spočítanie.",
       "sections": "Časti priestoru",
       "counting": "Počítam entity priestoru…",
       "allRows": "Všetky riadky",
@@ -915,7 +917,6 @@
     },
     "saved": {
       "view": "Pohľad",
-      "none": "Všetky entity (bez uloženého pohľadu)",
       "save": "Uložiť pohľad",
       "saveNew": "Uložiť ako pohľad…",
       "saveAs": "Uložiť ako nový…",
@@ -1150,8 +1151,10 @@
       "type": "Typ",
       "current": "Aktuálne hodnoty",
       "history": "História",
-      "deleted": "Doteraz vymazané",
+      "deleted": "Vymazané od štartu brokera",
       "deletedUnknown": "Neznáme: broker neodpovedal",
+      "deletedSince": "Broker počíta od svojho posledného štartu a pri každom reštarte začína od nuly. Históriu, ktorú zahadzuje po celých dňoch, zatiaľ nepočíta, takže typ s históriou na minúty či hodiny môže stále ukazovať 0.",
+      "sameRule": "{count, plural, few {# typy} other {# typov}}, rovnaké pravidlo",
       "forever": "Uchovávať navždy",
       "amount": {
         "minutes": "{count, plural, one {# minúta} few {# minúty} other {# minút}}",
@@ -1201,6 +1204,7 @@
         "of": "Riadky histórie typu {type}",
         "heartbeatOf": "Riadok aspoň každých, pre {type}",
         "noRows": "Žiadne riadky: história sa neuchováva",
+        "atLeastEvery": "riadok aspoň každých {every}",
         "asDefault": "{mode} (predvolené)",
         "hint": "Riadky histórie: Novšie pozorovania zapíšu riadok len vtedy, keď je observedAt novší ako posledný riadok, takže senzor, ktorý pošle to isté meranie znova, nepridá nič; Každé pozorovanie zapíše riadok pre každý nový observedAt, napríklad počet za 15 minút; Len zmeny zapíšu riadok pri zmene hodnoty a aspoň raz za zvolený interval, napríklad voľné bicykle stanice.",
         "mode": {
@@ -1372,7 +1376,7 @@
         "loses-history": "Stráca históriu",
         "unbounded-growth": "Rastie bez obmedzenia",
         "duplicates-rows": "Duplikuje riadky",
-        "stamped-on-receive": "Čas prijatia"
+        "stamped-on-receive": "Meranie s časom prijatia"
       },
       "fix": {
         "loses-history": "Každý zápis má rovnaký čas, takže nahradí predchádzajúci: mapujte observedAt zo záznamu.",
@@ -1384,6 +1388,7 @@
       "expiry": "neaktuálna po {after}",
       "rows": "Riadky",
       "timeOf": "Čas: {source}",
+      "receivedOk": "Čas prijatia: vhodné pre hodnotu bez jednotky, ako dátum alebo názov.",
       "unitOf": "Jednotka: {unit}",
       "noMatchHint": "Vyberte Všetky pipeline a Všetky verdikty, aby ste videli každý riadok."
     },

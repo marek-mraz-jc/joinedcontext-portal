@@ -73,6 +73,31 @@ describe("the temporal audit of a space (T-4844)", () => {
     await expectNoAxeViolations(container);
   });
 
+  it("says why a value without a unit stamped on receipt still matches its readings (T-6089)", async () => {
+    renderAudit(() =>
+      json({
+        ...AUDIT,
+        rows: [
+          row({ attribute: "dateObserved", record: "onChange", unitCode: [], observedAt: ["received"] }),
+          row({ attribute: "pm10", record: "onChange", observedAt: ["received"], verdict: "stamped-on-receive" }),
+          row({ attribute: "name", record: "none", unitCode: [], observedAt: ["received"], history: "off" }),
+        ],
+      }),
+    );
+    const table = await screen.findByRole("table", { name: T.caption });
+    const date = within(table).getByRole("row", { name: /dateObserved/ });
+    expect(within(date).getByText(`Time: ${T.source.received}`)).toBeInTheDocument();
+    expect(within(date).getByText(T.verdict.ok)).toBeInTheDocument();
+    expect(within(date).getByText(T.receivedOk)).toBeInTheDocument();
+    // The summary and the row name the same thing: a measurement stamped on receipt.
+    const pm10 = within(table).getByRole("row", { name: /pm10/ });
+    expect(within(pm10).getByText("Measurement stamped on receipt")).toBeInTheDocument();
+    expect(within(pm10).queryByText(T.receivedOk)).not.toBeInTheDocument();
+    // Without history there are no rows to explain.
+    const name = within(table).getByRole("row", { name: /^name/ });
+    expect(within(name).queryByText(T.receivedOk)).not.toBeInTheDocument();
+  });
+
   it("filters by pipeline and by verdict, and says when nothing matches", async () => {
     renderAudit(() => json(AUDIT));
     const table = await screen.findByRole("table", { name: T.caption });

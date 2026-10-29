@@ -16,8 +16,8 @@ describe("space size", () => {
   it("adds_the_history_to_the_current_state_and_knows_no_size_without_one", () => {
     const at = "2026-10-18T12:00:00Z";
     expect(totalBytes(undefined)).toBeUndefined();
-    expect(totalBytes({ entities: 1, broker: "main", observedAt: at })).toBeUndefined();
-    expect(totalBytes({ entities: 1, broker: "main", observedAt: at, bytes: { entities: 10, attrInstances: 5, byType: {} } })).toBe(15);
+    expect(totalBytes({ entities: 1, broker: "main", estimated: false, observedAt: at })).toBeUndefined();
+    expect(totalBytes({ entities: 1, broker: "main", estimated: false, observedAt: at, bytes: { entities: 10, attrInstances: 5, byType: {} } })).toBe(15);
   });
 
   it("matches_a_short_type_to_its_stored_iri_and_never_guesses_between_two", () => {
