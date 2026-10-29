@@ -572,7 +572,7 @@ async fn merged_changes(server: &MockServer) {
     let space = |name: &str, sandbox: bool, label: &str| {
         format!(
             "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: {name}\n  \
-             namespace: t-scn-53\n{label}spec:\n  isSandbox: {sandbox}\n"
+             namespace: t-scn-53\n{label}spec:\n  isSandbox: {sandbox}\n  dataModelRef: bike-counter\n"
         )
     };
     let doprava = "projects/t-scn-53/spaces/doprava/space.yaml";
