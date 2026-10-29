@@ -253,6 +253,15 @@ async fn judge(
             "refused: client".to_owned(),
         );
     }
+    // The owner's DelegationPolicy ceiling, read again on this call (AG-150).
+    let ceiling = connectors::Ceiling::of(&state.mirror, &identity);
+    if let Err(why) = ceiling.door(connector, client, chrono::Utc::now()) {
+        return (
+            ApiError::Denied(why).into_response(),
+            "refused: ceiling".to_owned(),
+        );
+    }
+    let honoured = ceiling.honours(connector);
     if body.len() > MAX_REQUEST_BYTES {
         let why = format!(
             "the request is {} bytes; this route reads at most {MAX_REQUEST_BYTES}",
@@ -349,7 +358,10 @@ async fn judge(
             let tools: Vec<Value> = crate::ops::listing(&caller, state, &project)
                 .iter()
                 .filter(|summary| {
-                    crate::ops::find(&summary.name).is_some_and(|op| connector.lists(op, &project))
+                    crate::ops::find(&summary.name).is_some_and(|op| {
+                        connector.lists(op, &project)
+                            && (honoured || ceiling.lists(connector, op, &project))
+                    })
                 })
                 .map(tool_definition)
                 .collect();
@@ -359,9 +371,16 @@ async fn judge(
         "tools/call" => {
             let name = params["name"].as_str().unwrap_or("");
             let target = match (crate::ops::find(name), project.as_deref()) {
-                (Some(op), Some(project)) => {
-                    connector.admits(op, project, &params["arguments"]).err()
-                }
+                (Some(op), Some(project)) => connector
+                    .admits(op, project, &params["arguments"])
+                    .and_then(|()| {
+                        if honoured {
+                            Ok(())
+                        } else {
+                            ceiling.admits(connector, op, project, &params["arguments"])
+                        }
+                    })
+                    .err(),
                 _ => None,
             };
             if let Some(why) = target {

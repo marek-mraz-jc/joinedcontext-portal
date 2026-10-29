@@ -128,4 +128,41 @@ test.describe("the inbox", () => {
       await page.screenshot({ path: testInfo.outputPath(`inbox-forge-down-${width}.png`), fullPage: true });
     }
   });
+
+  test("connector events reach the inbox and the bell with their own page, names only (T-5979)", async ({ page }, testInfo) => {
+    await stubApi(page);
+    const event = (id: number, kind: string, link: string, urn = "chg-1a2b3c4d") => ({
+      id, kind, project: "helsinki", space: "", urn, commentId: null, author: "marek@hel.fi", authorName: "Marek Mráz",
+      excerpt: "doprava-in-claude", link, createdAt: "2026-10-28T20:00:00Z", read: false,
+    });
+    await page.route("**/api/v1/notifications", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          unread: 3,
+          items: [
+            event(3, "change.opened", "/projects/helsinki/approvals/chg-1a2b3c4d"),
+            event(2, "connector.pending", "/ai-connectors", "c-7f3k"),
+            event(1, "connector.expiring", "/ai-connectors", "c-2m9q"),
+          ],
+        }),
+      }),
+    );
+    for (const width of [1440, 400]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/projects/helsinki/inbox?lang=en");
+      const events = page.getByTestId("inbox-connector-events");
+      await expect(events.getByRole("link")).toHaveCount(3);
+      await expect(events.getByRole("link", { name: /opened change chg-1a2b3c4d in helsinki through connector doprava-in-claude/ })).toHaveAttribute(
+        "href",
+        "/projects/helsinki/approvals/chg-1a2b3c4d",
+      );
+      expect(await axeViolations(page)).toEqual([]);
+      await page.screenshot({ path: testInfo.outputPath(`inbox-connector-events-${width}.png`), fullPage: true });
+      await page.getByRole("button", { name: /Notifications, \d+ unread/ }).click();
+      await expect(page.getByRole("menuitem", { name: /asks for connector doprava-in-claude above the organization ceiling/ })).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath(`bell-connector-events-${width}.png`) });
+      await page.keyboard.press("Escape");
+    }
+  });
 });

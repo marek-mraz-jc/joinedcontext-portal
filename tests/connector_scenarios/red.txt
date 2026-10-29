@@ -22,7 +22,6 @@ S-26 T-5948 the end-to-end integration needs sample_source, try_mapping and plan
 S-27 T-5998 the plan reaches RoleBinding, but a binding lives in the organization namespace and a project-scoped admin holds no propose there (PF-52 decides at org)
 S-29 T-5996 jc_change_plan exists; no ServiceAccount script proving the secretRef-only answer yet
 S-30 T-5948 no tool answers who may write to an Endpoint
-S-31 T-5953 no DelegationPolicy ceiling or approval queue
 S-33 T-5996 publish.ckan needs a CkanInstance the scripted fixture lacks
 S-36 T-5996 jc_change_plan exists; no KPI script comparing compute with a direct aggregation
 S-37 T-5996 jc_change_plan exists; no iCal feed script and no refusal for a type without time

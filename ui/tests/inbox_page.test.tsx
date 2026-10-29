@@ -76,7 +76,14 @@ function show(seen: Seen, unavailable?: string) {
         return json(change(project, id, "Endpoint"));
       }
       if (url.pathname === "/api/v1/notifications") {
-        return json({ unread: 1, items: [{ id: 7, read: false, project: "helsinki", space: "ovzdusie", authorName: "Peter", excerpt: "@jana look at pm10", createdAt: "2026-10-07T12:00:00Z" }] });
+        return json({
+          unread: 2,
+          items: [
+            { id: 7, kind: "mention", read: false, project: "helsinki", space: "ovzdusie", authorName: "Peter", excerpt: "@jana look at pm10", createdAt: "2026-10-07T12:00:00Z" },
+            // T-5979: a change a connector opened, for the approver.
+            { id: 8, kind: "change.opened", read: false, project: "helsinki", space: "", urn: "cr-12", authorName: "Marek", excerpt: "doprava-in-claude", link: "/projects/helsinki/approvals/cr-12", createdAt: "2026-10-07T12:01:00Z" },
+          ],
+        });
       }
       return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
     }),
@@ -111,6 +118,14 @@ describe("the inbox (T-3273)", () => {
     expect(screen.getByRole("link", { name: /Peter mentioned you/ })).toBeInTheDocument();
   });
 
+  it("lists a connector event apart from the mentions, linking its approval page (T-5979)", async () => {
+    show({ writes: [] });
+    const events = await screen.findByTestId("inbox-connector-events");
+    const link = within(events).getByRole("link", { name: /Marek opened change cr-12 in helsinki through connector doprava-in-claude/ });
+    expect(link).toHaveAttribute("href", "/projects/helsinki/approvals/cr-12");
+    expect(within(events).queryByText(/mentioned you/)).toBeNull();
+  });
+
   it("approves a change with its diff open, without leaving the page", async () => {
     const seen: Seen = { writes: [] };
     show(seen);
@@ -143,10 +158,10 @@ describe("the inbox (T-3273)", () => {
   it("counts what waits in the header and leads to the inbox", async () => {
     show({ writes: [] });
     await screen.findByTestId("inbox-decisions");
-    // One decidable change in the project in hand and one unread mention.
-    const trigger = await screen.findByRole("button", { name: "Notifications, 2 unread" });
+    // One decidable change in the project in hand, one unread mention, one connector event.
+    const trigger = await screen.findByRole("button", { name: "Notifications, 3 unread" });
     await userEvent.click(trigger);
-    expect(await screen.findByRole("menuitem", { name: "Open your inbox (2 waiting)" })).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: "Open your inbox (3 waiting)" })).toBeInTheDocument();
   });
 
   it("says nothing waits when no change is the person's to decide, and decides only pending ones", async () => {
