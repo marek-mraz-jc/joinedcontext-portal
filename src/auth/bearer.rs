@@ -73,6 +73,9 @@ struct Claims {
     acr: Option<String>,
     #[serde(default)]
     amr: serde_json::Value,
+    /// The granted OAuth scopes, space separated.
+    #[serde(default)]
+    scope: String,
 }
 
 #[derive(Default, Deserialize)]
@@ -184,6 +187,27 @@ impl BearerVerifier {
         audience: &str,
     ) -> Result<(Session, Option<String>), ApiError> {
         let claims = self.claims(token, audience).await?;
+        // A connector token also names the Portal's client, which exchanges it for Endpoint
+        // reads; it is taken at its connector's door alone (T-5954, AG-151).
+        if has_family(&claims.scope, crate::connectors::SCOPE_FAMILY) {
+            return Err(ApiError::Unauthorized);
+        }
+        Ok(session_of(claims))
+    }
+
+    /// [`Self::verify_for_audience`], and the token's scopes of `scope`'s family (the text up to
+    /// its `:`) are exactly `scope`: a token naming two connectors is a token for neither
+    /// (T-5954).
+    pub async fn verify_for_scope(
+        &self,
+        token: &str,
+        audience: &str,
+        scope: &str,
+    ) -> Result<(Session, Option<String>), ApiError> {
+        let claims = self.claims(token, audience).await?;
+        if !names_only(&claims.scope, scope) {
+            return Err(ApiError::Unauthorized);
+        }
         Ok(session_of(claims))
     }
 
@@ -240,6 +264,24 @@ impl BearerVerifier {
 }
 
 /// The session a verified token stands for, and the client that obtained it.
+/// The scopes of `granted` in `family` (`family:...`).
+fn of_family<'a>(granted: &'a str, family: &'a str) -> impl Iterator<Item = &'a str> {
+    granted
+        .split_whitespace()
+        .filter(move |s| s.split_once(':').is_some_and(|(f, _)| f == family))
+}
+
+fn has_family(granted: &str, family: &str) -> bool {
+    of_family(granted, family).next().is_some()
+}
+
+/// Whether `granted` holds `scope` and no other scope of its family.
+fn names_only(granted: &str, scope: &str) -> bool {
+    let family = scope.split_once(':').map_or(scope, |(family, _)| family);
+    let mut named = of_family(granted, family);
+    named.next() == Some(scope) && named.next().is_none()
+}
+
 fn session_of(c: Claims) -> (Session, Option<String>) {
     let client = c.azp.clone();
     let username = c
@@ -279,6 +321,27 @@ pub struct TokenClient(pub String);
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_scoped_token_names_its_one_connector_and_no_other() {
+        let a = "connector:abcdefghijklmnopqrstuvwxyz";
+        assert!(super::names_only(&format!("openid {a} profile"), a));
+        assert!(!super::names_only("openid profile", a));
+        assert!(!super::names_only(
+            "openid connector:bcdefghijklmnopqrstuvwxyz2",
+            a
+        ));
+        assert!(!super::names_only(
+            &format!("{a} connector:bcdefghijklmnopqrstuvwxyz2"),
+            a
+        ));
+        assert!(!super::names_only(&format!("{a}x"), a));
+        assert!(super::has_family(&format!("openid {a}"), "connector"));
+        assert!(!super::has_family(
+            "openid connectors endpoint:x",
+            "connector"
+        ));
+    }
+
     use super::*;
     use jsonwebtoken::{encode, EncodingKey, Header};
     use p256::pkcs8::EncodePrivateKey;

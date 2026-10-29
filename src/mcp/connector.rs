@@ -2,7 +2,7 @@
 //!
 //! The same JSON-RPC as `/api/v1/mcp`, answered as the connector's owner narrowed by the
 //! connector. Each call is judged in the order API/14 §3 lists: the token (signature, issuer,
-//! expiry, audience = this connector's address), the owner, the state, the client, then the tool
+//! expiry, audience = every connector's, one `connector:{id}` scope = this one), the owner, the state, the client, then the tool
 //! and its target. Nothing is cached across calls: the record is read and the owner's bindings
 //! decide again every time, so a revoke, an expiry or a role the owner lost holds from the next
 //! call. Every call past the token writes one audit row (connector, person, client, tool, target,
@@ -63,12 +63,16 @@ fn unknown() -> Response {
     ApiError::NotFound("no such connector".into()).into_response()
 }
 
-fn unauthorized(address: &str) -> Response {
+/// 401 naming the metadata and, for a well-formed id, the scope a client asks a token for
+/// (MCP authorization, scope selection).
+fn unauthorized(address: &str, id: &str) -> Response {
     let mut response = ApiError::Unauthorized.into_response();
-    if let Ok(value) =
-        format!("Bearer resource_metadata=\"{address}/.well-known/oauth-protected-resource\"")
-            .parse()
-    {
+    let mut challenge =
+        format!("Bearer resource_metadata=\"{address}/.well-known/oauth-protected-resource\"");
+    if connectors::is_id(id) {
+        challenge.push_str(&format!(", scope=\"{}\"", connectors::scope(id)));
+    }
+    if let Ok(value) = challenge.parse() {
         response
             .headers_mut()
             .insert(header::WWW_AUTHENTICATE, value);
@@ -90,6 +94,7 @@ pub async fn connector_metadata(State(state): State<AppState>, Path(id): Path<St
     Json(json!({
         "resource": connectors::address(&base(&state), &id),
         "authorization_servers": authorization_servers,
+        "scopes_supported": [connectors::scope(&id)],
         "bearer_methods_supported": ["header"],
     }))
     .into_response()
@@ -111,15 +116,18 @@ pub async fn handle_connector(
         .map(str::trim)
         .filter(|t| !t.is_empty());
     let (Some(token), Some(verifier)) = (token, state.bearer.as_ref()) else {
-        return unauthorized(&address);
+        return unauthorized(&address, &id);
     };
-    // The audience is the connector's own address: a Portal token, or one for another
-    // connector, is not a token for this one (AG-143).
-    let Ok((session, _)) = verifier.verify_for_audience(token, &address).await else {
-        return unauthorized(&address);
+    // Every connector token names the connectors' audience and exactly one connector's scope:
+    // a Portal token, or one for another connector, is not a token for this one (AG-143, T-5954).
+    let Ok((session, _)) = verifier
+        .verify_for_scope(token, connectors::AUDIENCE, &connectors::scope(&id))
+        .await
+    else {
+        return unauthorized(&address, &id);
     };
     if state.is_revoked(&session) {
-        return unauthorized(&address);
+        return unauthorized(&address, &id);
     }
     if !connectors::is_id(&id) {
         return unknown();
