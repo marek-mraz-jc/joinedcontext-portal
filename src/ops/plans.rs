@@ -905,7 +905,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: REVERT,
             title: "Plan Revert",
-            description: "Plans the undo of a merged Change: every file it touched back to what it was before, checked like jc_change_plan and applied with jc_change_apply; 409 naming the files main changed since",
+            description: "Plans the undo of a merged Change, every file back to before it, for jc_change_apply; 409 names files changed since",
             input: revert_input_schema,
             output: revert_output_schema,
             annotations: Annotations {

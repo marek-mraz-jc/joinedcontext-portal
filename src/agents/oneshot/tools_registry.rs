@@ -59,6 +59,16 @@ pub(super) fn offered(
         // T-5948: kind schemas reach MCP clients (tools/list, jc_schema_get), not this prompt,
         // which keeps its 4k-token turn (AG-72) until T-5958 replaces it.
         .filter(|op| op.name != crate::ops::schemas::GET)
+        // T-5956, T-5974: plan, revert plan and apply are the connectors' write path; the dock
+        // opens a change in the kind's form for the person (AG-77) until T-5958 moves it over.
+        .filter(|op| {
+            ![
+                crate::connectors::PLAN,
+                crate::connectors::REVERT,
+                crate::connectors::APPLY,
+            ]
+            .contains(&op.name.as_str())
+        })
         .collect()
 }
 

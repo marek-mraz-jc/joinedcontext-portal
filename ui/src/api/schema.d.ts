@@ -3537,7 +3537,7 @@ export interface paths {
         put?: never;
         /**
          * Plan Revert
-         * @description Plans the undo of a merged Change: every file it touched back to what it was before, checked like jc_change_plan and applied with jc_change_apply; 409 naming the files main changed since
+         * @description Plans the undo of a merged Change, every file back to before it, for jc_change_apply; 409 names files changed since
          */
         post: operations["jc_change_revert_plan"];
         delete?: never;
