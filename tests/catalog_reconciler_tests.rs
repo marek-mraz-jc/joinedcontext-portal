@@ -479,6 +479,39 @@ async fn a_refused_write_is_an_error_and_the_next_wave_lists_again() {
 }
 
 #[tokio::test]
+async fn a_multi_status_upsert_names_the_members_refusal() {
+    let dir = scratch("4b");
+    let gateway = Gateway::start(air_feed("Air")).await;
+    let refusal = |id: &str| {
+        json!({ "entityId": id, "error": {
+            "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+            "title": "BadRequestData", "status": 400,
+            "detail": "attribute entityTypes is not in the view" } })
+    };
+    let _multi = Mock::given(method("POST"))
+        .and(path(format!(
+            "/api/endpoint/{CATALOG_SLUG}/ngsi-ld/v1/entityOperations/upsert"
+        )))
+        .respond_with(ResponseTemplate::new(207).set_body_json(json!({
+            "success": [],
+            "errors": [refusal("urn:ngsi-ld:DataService:a"), refusal("urn:ngsi-ld:Dataset:b")],
+        })))
+        .with_priority(1)
+        .mount_as_scoped(&gateway.server)
+        .await;
+    let err = gateway
+        .sync()
+        .converge(&city(&dir, true))
+        .await
+        .expect_err("a 207 is a failure");
+    assert_eq!(
+        err,
+        "the catalogue upsert failed for 2 entities: 2 x attribute entityTypes is not in the \
+         view (urn:ngsi-ld:DataService:a)"
+    );
+}
+
+#[tokio::test]
 async fn ten_thousand_endpoints_are_written_in_one_wave() {
     let dir = scratch("5");
     let mut files = vec![(

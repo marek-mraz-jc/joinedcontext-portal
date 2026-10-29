@@ -568,7 +568,43 @@ async fn listing(
     }
 }
 
-/// One batch operation; a multi-status answer is a failure, with the count of what failed.
+/// The broker's reasons in a multi-status answer's `errors`, most frequent first, each with how
+/// many members it refused and the first of them: "failed for 100 entities" alone named no cause
+/// an operator could act on (T-6071). At most [`REASONS`], each cut to [`REASON_CHARS`].
+fn refusals(errors: &[Value]) -> String {
+    let mut reasons: Vec<(String, usize, &str)> = Vec::new();
+    for member in errors {
+        let error = &member["error"];
+        let reason: String = error["detail"]
+            .as_str()
+            .or_else(|| error["title"].as_str())
+            .unwrap_or("no reason given")
+            .chars()
+            .take(REASON_CHARS)
+            .collect();
+        match reasons.iter_mut().find(|(seen, ..)| *seen == reason) {
+            Some((_, count, _)) => *count += 1,
+            None => reasons.push((reason, 1, member["entityId"].as_str().unwrap_or("?"))),
+        }
+    }
+    reasons.sort_by_key(|(_, count, _)| std::cmp::Reverse(*count));
+    let shown: Vec<String> = reasons
+        .iter()
+        .take(REASONS)
+        .map(|(reason, count, first)| format!("{count} x {reason} ({first})"))
+        .collect();
+    match shown.is_empty() {
+        true => "the answer named no member".to_owned(),
+        false => shown.join("; "),
+    }
+}
+
+/// How many distinct reasons a failed batch reports.
+const REASONS: usize = 3;
+/// How long one reported reason may be.
+const REASON_CHARS: usize = 200;
+
+/// One batch operation; a multi-status answer is a failure, with what failed and why.
 async fn post(
     http: &reqwest::Client,
     surface: &str,
@@ -586,12 +622,14 @@ async fn post(
     let status = response.status();
     if status == reqwest::StatusCode::MULTI_STATUS {
         let answer: Value = response.json().await.unwrap_or_default();
-        let failed = answer
+        let errors = answer
             .get("errors")
             .and_then(Value::as_array)
-            .map_or(0, Vec::len);
+            .map_or(&[][..], Vec::as_slice);
         return Err(format!(
-            "the catalogue {operation} failed for {failed} entities"
+            "the catalogue {operation} failed for {} entities: {}",
+            errors.len(),
+            refusals(errors)
         ));
     }
     if !status.is_success() {
