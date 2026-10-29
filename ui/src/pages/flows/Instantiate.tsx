@@ -26,10 +26,13 @@ export function Instantiate({
   project,
   blueprint,
   onBack,
+  backLabel,
 }: {
   project: string;
   blueprint: Manifest;
   onBack: () => void;
+  /** Names the page the person goes back to. */
+  backLabel: string;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const [change, setChange] = useState<Change | null>(null);
@@ -84,7 +87,7 @@ export function Instantiate({
   return (
     <div className="space-y-4">
       <Button size="sm" onClick={onBack}>
-        {t("flows.back")}
+        {backLabel}
       </Button>
 
       <PageHeader
@@ -111,7 +114,9 @@ export function Instantiate({
           <SchemaForm<Parameters>
             schema={schema}
             uiSchema={uiSchema}
-            disabled={start.isPending}
+            // Proposed once: a second press would open a second Change for the same set-up.
+            disabled={start.isPending || change !== null}
+            submitDisabledReason={change ? t("flows.instantiate.proposed") : undefined}
             // `disabled` alone dims the button and says nothing, and somebody who pressed it and
             // saw nothing move pressed it again; `submitting` keeps the label and spins (UI-01).
             submitting={start.isPending}
@@ -131,6 +136,8 @@ export function Instantiate({
           <Button
             variant="primary"
             loading={start.isPending}
+            disabled={change !== null}
+            disabledReason={change ? t("flows.instantiate.proposed") : undefined}
             onClick={() => {
               start.mutate({});
             }}

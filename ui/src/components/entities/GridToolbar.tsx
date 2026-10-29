@@ -55,6 +55,7 @@ export function ToolbarPopover({
   count,
   wide,
   end,
+  tall,
   children,
 }: {
   label: string;
@@ -63,6 +64,8 @@ export function ToolbarPopover({
   wide?: boolean;
   /** At the row's right end: the panel opens leftwards so it stays on the screen. */
   end?: boolean;
+  /** Reading text, not settings: on a wide screen the panel grows to its content, no inner scroll. */
+  tall?: boolean;
   children: ReactNode;
 }): JSX.Element {
   const ref = useRef<HTMLDetailsElement>(null);
@@ -101,6 +104,7 @@ export function ToolbarPopover({
           "max-h-96 max-sm:fixed max-sm:inset-x-4 max-sm:bottom-4",
           end ? "sm:absolute sm:right-0 sm:mt-1" : "sm:absolute sm:left-0 sm:mt-1",
           wide ? "sm:w-max sm:max-w-2xl" : "sm:w-72",
+          tall ? "sm:max-h-none" : undefined,
         )}
       >
         {children}

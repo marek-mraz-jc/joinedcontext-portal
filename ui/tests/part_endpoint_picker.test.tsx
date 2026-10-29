@@ -165,7 +165,7 @@ describe("the assistant's data bar against the UI contract", () => {
     });
     // The shared Button: 24 px is the smallest target WCAG 2.5.8 accepts, and the hand-made × was
     // smaller than that.
-    expect(remove.className).toContain("h-6");
+    expect(remove.className).toContain("h-control-xs");
 
     remove.focus();
     await user.keyboard("{Enter}");

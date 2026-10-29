@@ -118,7 +118,7 @@ export function Dialog({
             </div>
             <RadixDialog.Close
               aria-label={closeLabel}
-              className="focus-ring -mr-2 -mt-1 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-surface-muted hover:text-fg"
+              className="focus-ring -mr-2 -mt-1 inline-flex size-control shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-surface-muted hover:text-fg"
             >
               <Icon name="close" className="size-4" />
             </RadixDialog.Close>

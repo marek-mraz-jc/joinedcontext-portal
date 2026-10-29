@@ -272,7 +272,7 @@ export function DataBar({
                 setActive(0);
               }}
               onKeyDown={onKeyDown}
-              className="h-8 pl-7 text-caption"
+              className="h-control pl-7 text-caption"
             />
           </div>
           {full ? <p className="px-2 pt-1 text-fg-muted">{t("assistant.data.full", { max: MAX_ENDPOINTS })}</p> : null}

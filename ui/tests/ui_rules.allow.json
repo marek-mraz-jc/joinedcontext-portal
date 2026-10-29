@@ -78,9 +78,9 @@
       "reason": "the filled part of the quota bar is used/limit as a percentage: a computed size, and the line says so"
     },
     "src/components/layout/Shell.tsx": {
-      "lines": 2,
+      "lines": 1,
       "group": "ui-parts",
-      "reason": "two computed sizes: the project menu takes the trigger's own width, which Radix measures and publishes, and the sidebar is the viewport minus the 14 header; both say so on the line"
+      "reason": "a computed size: the project menu takes the trigger's own width, which Radix measures and publishes, and says so on the line"
     },
     "src/pages/apps/ConversationPanel.tsx": {
       "lines": 1,

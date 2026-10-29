@@ -62,7 +62,7 @@ describe("the approvals queue", () => {
     });
     const mine = await screen.findByRole("checkbox", { name: en.approvals.filterMine });
     // The shared control, not a bare input: the tick and the focus ring come from one place.
-    expect(mine).toHaveClass("size-4");
+    expect(mine).toHaveClass("size-[1rem]");
     expect(mine).not.toBeChecked();
 
     // Clicking the words ticks the box, which is the whole point of the label being tied to it.

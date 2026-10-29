@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Fragment, Suspense, useEffect, useRef, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { Link, useMatchRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -532,7 +532,7 @@ export function Shell({
   const organizationActive = Boolean(matchRoute({ to: "/organization/$tab", fuzzy: true }));
   // An Organization's own administrator opens its own sections of Administration (T-5248).
   const { opensAdministration } = useAdministers();
-  const modelsActive = Boolean(matchRoute({ to: "/projects/$project/models", params: { project } }));
+  const modelsActive = Boolean(matchRoute({ to: "/projects/$project/models", params: { project }, fuzzy: true }));
   const exploreActive = Boolean(matchRoute({ to: "/projects/$project/explore", params: { project } }));
   const ckanActive = Boolean(matchRoute({ to: "/projects/$project/ckan", params: { project } }));
   const knowledgeActive = Boolean(
@@ -675,10 +675,10 @@ export function Shell({
           aria-label={t("nav.main")}
           className={clsx(
             "z-40 w-sidebar shrink-0 flex-col gap-4 overflow-y-auto border-r border-border bg-surface p-3",
-            // The viewport minus the 14 (3.5rem) header: a computed height, so it stays inline.
+            // The viewport minus the `h-14` header (the below-header token).
             // From lg only: at 768 px the open sidebar left a table 460 px and cut its actions,
             // so a tablet opens it from the menu button like a phone (T-4265, photo audit T-4160 #41).
-            !fill && "lg:sticky lg:top-14 lg:flex lg:h-[calc(100vh-3.5rem)]",
+            !fill && "lg:sticky lg:top-14 lg:flex lg:h-below-header",
             navOpen ? "fixed bottom-0 left-0 top-14 flex shadow-3" : "hidden",
           )}
         >
@@ -697,7 +697,8 @@ export function Shell({
               const isActive = section === activeSection;
               const body = <NavLabel icon={section.icon} label={t(section.labelKey)} />;
               return (
-                <li key={section.plural}>
+                <Fragment key={section.plural}>
+                <li>
                   {/* Approvals and Assistant have routes of their own; linking them through the generic
                       template would resolve to that route anyway, with a router warning. */}
                   {section.plural === "home" ? (
@@ -743,24 +744,28 @@ export function Shell({
                     </Link>
                   )}
                 </li>
+                {/* A model says what every space holds, so it sits right under the spaces
+                    (T-6090); it is no resource list, so it has its own route. */}
+                {section.plural === "spaces" ? (
+                  <li>
+                    <Link
+                      to="/projects/$project/models"
+                      params={{ project }}
+                      onClick={closeNav}
+                      aria-current={modelsActive ? "page" : undefined}
+                      className={navLinkClass(modelsActive)}
+                    >
+                      <NavLabel icon="models" label={t("nav.models")} />
+                    </Link>
+                  </li>
+                ) : null}
+                </Fragment>
               );
             })}
           </ul>
-          {/* Not sections of the resource API: the model editor that writes LinkML into the
-              repository, the explorer and the CKAN view hang below the list. Every endpoint
-              across projects is the Organization page's, for administrators (T-2877). */}
+          {/* Not sections of the resource API: the explorer and the CKAN view hang below the
+              list. Every endpoint across projects is the Organization page's, for administrators (T-2877). */}
           <ul className="flex flex-col gap-0.5 border-t border-border pt-3">
-            <li>
-              <Link
-                to="/projects/$project/models"
-                params={{ project }}
-                onClick={closeNav}
-                aria-current={modelsActive ? "page" : undefined}
-                className={navLinkClass(modelsActive)}
-              >
-                <NavLabel icon="models" label={t("nav.models")} />
-              </Link>
-            </li>
             <li>
               <Link
                 to="/projects/$project/explore"

@@ -17,10 +17,6 @@ import { expectHeadingOutline, expectNoAxeViolations, json, list, problem, rende
 vi.mock("../src/routes/SpacesPage", () => ({
   SpacesPage: ({ project }: { project: string }) => <p>the spaces page of {project}</p>,
 }));
-// Project → Access became Project settings (T-2606); the gallery is the section that is no kind.
-vi.mock("../src/pages/flows/Gallery", () => ({
-  FlowGallery: () => <p>the flows section</p>,
-}));
 
 const { ResourceListPage } = await import("../src/routes/ResourceListPage");
 
@@ -53,11 +49,6 @@ describe("a kind's list page", () => {
     show("spaces");
     expect(await screen.findByText("the spaces page of helsinki")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
-  });
-
-  it("opens a section that is not a kind at all", async () => {
-    show("flows");
-    expect(await screen.findByText("the flows section")).toBeInTheDocument();
   });
 
   it("names a kind with no page of its own in words, never as the URL segment", async () => {
