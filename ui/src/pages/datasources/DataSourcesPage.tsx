@@ -577,6 +577,11 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
     </PermissionGuard>
   );
 
+  // With no source yet a set-up is the next step, so it comes before the empty list; under a
+  // filled list it stays below the table. Placed once the list has answered, so it never jumps (T-6096).
+  const noSources = list.isSuccess && sources.length === 0;
+  const setUps = <BlueprintCards category="ingestion" onRun={setSettingUp} />;
+
   if (settingUp) {
     return (
       <Instantiate
@@ -600,6 +605,8 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
       </div>
 
       {change ? <ChangeNotice change={change} project={project} /> : null}
+
+      {noSources ? setUps : null}
 
       <ResourceList
         query={list}
@@ -684,7 +691,7 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
         })}
       </ResourceList>
 
-      <BlueprintCards category="ingestion" onRun={setSettingUp} />
+      {noSources || list.isPending ? null : setUps}
 
       {dialogOpen && editing && viewOnly ? (
         <EditResourceDialog

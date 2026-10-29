@@ -55,7 +55,7 @@ const GALLERY = {
   ],
 };
 
-function renderGallery(gallery: unknown = GALLERY) {
+function renderGallery(gallery: unknown = GALLERY, sources: unknown[] = []) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const request = input as Request;
     const path = new URL(request.url).pathname;
@@ -72,6 +72,9 @@ function renderGallery(gallery: unknown = GALLERY) {
     }
     if (path.endsWith("/blueprints")) {
       return json(gallery);
+    }
+    if (path.endsWith("/datasources")) {
+      return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: sources });
     }
     return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
   });
@@ -134,6 +137,22 @@ describe("ready-made set-ups on Data sources (T-6096)", () => {
     await user.click(screen.getByRole("button", { name: en.datasources.setups.back }));
     expect(await screen.findByRole("heading", { level: 1, name: en.datasources.title })).toBeInTheDocument();
     expect(screen.getByText("Subscribe to an MQTT feed")).toBeInTheDocument();
+  });
+
+  // UI judge (T-6096): below a tall empty list the set-ups fell under the fold.
+  it("puts the set-ups before the list while the project has no source, after the table once it has one", async () => {
+    const before = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const { unmount } = { unmount: () => document.body.replaceChildren() };
+    renderGallery();
+    const empty = await screen.findByText(en.datasources.empty);
+    expect(before(screen.getByRole("region", { name: en.datasources.setups.title }), empty)).toBe(true);
+    unmount();
+
+    renderGallery(GALLERY, [
+      { apiVersion: "joinedcontext.com/v1alpha1", kind: "DataSource", metadata: { name: "bikes", namespace: "banskabystrica" }, spec: { type: "http", http: { url: "https://example.org/a.json" } } },
+    ]);
+    const row = await screen.findByText("bikes");
+    expect(before(row, await screen.findByRole("region", { name: en.datasources.setups.title }))).toBe(true);
   });
 
   it("draws no set-up section when the person may run none", async () => {
