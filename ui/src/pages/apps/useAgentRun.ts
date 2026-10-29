@@ -164,16 +164,23 @@ export function questionOf(event: RunEvent): RunQuestion | null {
  * that still needs the answer asks again.
  */
 export function withdrawnQuestions(events: RunEvent[]): Set<string> {
-  let lastTyped = events.length;
-  while (lastTyped > 0 && !(events[lastTyped - 1].kind === "message" && events[lastTyped - 1].payload.sentBy !== "agent")) {
-    lastTyped -= 1;
-  }
-  return new Set(
-    events
-      .slice(0, lastTyped)
-      .filter((event) => event.kind === "question")
-      .map((event) => String(event.payload.questionId ?? "")),
+  const answered = new Set(
+    events.filter((event) => event.kind === "answer").map((event) => String(event.payload.questionId ?? "")),
   );
+  const withdrawn = new Set<string>();
+  const asked: string[] = [];
+  for (const event of events) {
+    if (event.kind === "question") {
+      asked.push(String(event.payload.questionId ?? ""));
+    } else if (event.kind === "message" && event.payload.sentBy !== "agent") {
+      for (const id of asked.splice(0)) {
+        if (!answered.has(id)) {
+          withdrawn.add(id);
+        }
+      }
+    }
+  }
+  return withdrawn;
 }
 
 /** The questions nobody has answered or withdrawn yet, oldest first. */

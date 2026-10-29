@@ -64,7 +64,7 @@ pub fn resolve(
 }
 
 /// [`resolve`] for a conversation, which also reads the Endpoints other projects share with
-/// this one ([`crate::api::assistant::shared_endpoints`], T-6104). A build stays on the project's
+/// this one (`assistant::shared_endpoints`, T-6104). A build stays on the project's
 /// own Endpoints: what it publishes is checked against them (AP-44).
 pub fn resolve_readable(
     mirror: &Mirror,

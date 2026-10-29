@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { ConversationPanel, answeredSearches, line } from "../src/pages/apps/ConversationPanel";
-import { EVENT_KINDS, openQuestions } from "../src/pages/apps/useAgentRun";
+import { EVENT_KINDS, openQuestions, withdrawnQuestions } from "../src/pages/apps/useAgentRun";
 import type { RunEvent } from "../src/pages/apps/useAgentRun";
 import { expectNoAxeViolations } from "./page_contract";
 
@@ -476,6 +476,16 @@ describe("openQuestions", () => {
     // The agent's own words close nothing, and a question asked after the message stays open.
     expect(openQuestions([question(1, "a"), typed(2, "agent")]).map((q) => q.questionId)).toEqual(["a"]);
     expect(openQuestions([typed(1, "demo.steward"), question(2, "b")]).map((q) => q.questionId)).toEqual(["b"]);
+  });
+
+  it("never calls an answered question withdrawn when the person writes on", () => {
+    const events: RunEvent[] = [
+      question(1, "a"),
+      { seq: 2, kind: "answer", payload: { questionId: "a" } },
+      { seq: 3, kind: "message", payload: { text: "thanks, go on", sentBy: "demo.steward" } },
+    ];
+    expect([...withdrawnQuestions(events)]).toEqual([]);
+    expect(openQuestions(events)).toEqual([]);
   });
 
   it("drops the form and says the question was withdrawn after a typed message", () => {
