@@ -86,7 +86,6 @@
     "main": "Hauptnavigation",
     "skipToContent": "Zum Inhalt springen",
     "breadcrumb": "Navigationspfad",
-    "flows": "Abläufe",
     "models": "Datenmodelle",
     "ckan": "Offene Daten",
     "explore": "Daten erkunden",
@@ -597,6 +596,12 @@
       "modelEmptyLead": "Ein Datenmodell benennt die Entitätstypen des Raums und ihre Attribute. Legen Sie eines an oder importieren Sie ein Smart Data Model für diesen Raum.",
       "modelCreate": "Datenmodell anlegen",
       "modelImport": "Smart Data Model importieren",
+      "modelOpen": "Datenmodell öffnen",
+      "modelOpenLead": "Das Modell wird auf seiner eigenen Seite gelesen und bearbeitet: Diagramm, Formular, YAML und Verlauf.",
+      "modelClasses": "{count, plural, =0 {Noch keine Klassen} one {# Klasse} other {# Klassen}}",
+      "modelClassList": "Klassen des Datenmodells",
+      "modelMore": "und {count} weitere",
+      "modelUnreadable": "Das YAML des Modells lässt sich nicht lesen. Öffnen Sie das Datenmodell, um das Problem zu sehen.",
       "tooMany": "Der Endpoint ist ausgelastet (zu viele Lesezugriffe auf einmal).",
       "lead": "Sein Datenmodell, seine Entitäten, wer sie liest und was mit ihm geschah.",
       "broker": "Er liegt auf dem Context-Broker {broker}.",
@@ -2463,6 +2468,11 @@
     "usedBy": {
       "title": "Verwendet von",
       "none": "Noch keine Pipeline liest diese Quelle."
+    },
+    "setups": {
+      "title": "Fertige Einrichtungen",
+      "lead": "Eine Einrichtung schreibt die Quelle, ihre Pipeline und ihren Zeitplan in einer Änderung aus wenigen Antworten. Beispiel: ein GBFS-Feed für Leihräder, jede Minute abgefragt.",
+      "back": "Zurück zu den Datenquellen"
     }
   },
   "pipelines": {
@@ -4118,14 +4128,6 @@
     }
   },
   "flows": {
-    "title": "Abläufe",
-    "subtitle": "Wählen Sie, was Sie einrichten möchten. Das Formular fragt nur das Nötige ab, die Konfiguration schreibt die Plattform.",
-    "empty": "Für Sie ist noch keine Vorlage verfügbar.",
-    "emptyFiltered": "Keine Vorlage passt zu diesem Filter.",
-    "category": {
-      "all": "Alle",
-      "uncategorised": "Sonstige"
-    },
     "risk": {
       "green": "Wird automatisch freigegeben",
       "yellow": "Eine Freigabe",
@@ -4134,15 +4136,14 @@
     "riskLabel": "Freigabe",
     "version": "Version {version}",
     "run": "Einrichten",
-    "back": "Zurück zur Übersicht",
     "instantiate": {
       "title": "{name} einrichten",
       "submit": "Änderung vorschlagen",
       "hint": "Beim Speichern wird eine Änderung vorgeschlagen; sie wirkt nach der Freigabe.",
       "noSchema": "Diese Vorlage hat keine Parameter.",
-      "failed": "Die Parameter wurden nicht akzeptiert. Korrigieren Sie die markierten Felder und schlagen Sie erneut vor."
-    },
-    "emptyHint": "Ein Blueprint richtet einen ganzen Anwendungsfall in einem Schritt ein: den Raum, die Quelle, die Pipeline und den Endpunkt zusammen. In diesem Projekt steht Ihnen noch keiner zur Verfügung."
+      "failed": "Die Parameter wurden nicht akzeptiert. Korrigieren Sie die markierten Felder und schlagen Sie erneut vor.",
+      "proposed": "Vorgeschlagen: die Änderung oben wartet auf ihre Freigabe."
+    }
   },
   "export": {
     "title": "Konfiguration herunterladen",
@@ -4394,7 +4395,7 @@
     "dimensionLabel": "Dashboard-Nutzung",
     "graph": {
       "title": "Die Klassen des Modells und was sie verbindet",
-      "legend": "Eine durchgezogene Linie ist `is_a`, eine gestrichelte ein Mixin, eine gepunktete ein Slot, dessen Range eine andere Klasse nennt, eine locker gepunktete ein Slot, der aus einem Enum wählt. Der Kasten eines Enums listet seine Werte; ein gestrichelter Kasten stammt aus einem Import. Im Kasten zeigt jedes Feld seinen Typ: PK markiert den Schlüssel, FK ein Feld, das auf eine andere Klasse verweist, mit dieser Klasse und der Anzahl. Auch eine gepunktete Linie nennt die Anzahl an beiden Enden; * heißt beliebig viele.",
+      "legend": "Eine durchgezogene Linie mit leerem Dreieck am Ende ist is_a, eine gestrichelte mit Dreieck ein Mixin, eine gepunktete ein Slot, dessen Range eine andere Klasse nennt, eine locker gepunktete ein Slot, der aus einem Enum wählt. Der Kasten eines Enums listet seine Werte; ein gestrichelter Kasten stammt aus einem Import. Im Kasten zeigt jedes Feld seinen Typ: PK markiert den Schlüssel, FK ein Feld, das auf eine andere Klasse verweist, mit dieser Klasse und der Anzahl. Auch eine gepunktete Linie nennt die Anzahl an beiden Enden; * heißt beliebig viele.",
       "empty": "Dieses Modell erklärt noch keine Klasse, also gibt es nichts zu zeichnen.",
       "openClass": "{name} in der Struktur öffnen",
       "row": {
@@ -4404,7 +4405,7 @@
       },
       "from": "aus {name}",
       "enumBox": "Aufzählung {name}: {values}",
-      "legendRelationship": "Eine durchgezogene Linie ohne Pfeil ist eine Beziehung, benannt nach ihrem Feld und dem inversen Feld. Die Zahl an jedem Ende sagt, mit wie vielen Entitäten dieser Klasse eine Entität am anderen Ende verbunden ist: 1 genau eine, 0..1 höchstens eine, 1..* mindestens eine, * beliebig viele.",
+      "legendRelationship": "Eine durchgezogene Linie ohne Dreieck, ihre Enden wie in der Legende oben markiert, ist eine Beziehung, benannt nach ihrem Feld und dem inversen Feld. Die Zahl an jedem Ende sagt, mit wie vielen Entitäten dieser Klasse eine Entität am anderen Ende verbunden ist: 1 genau eine, 0..1 höchstens eine, 1..* mindestens eine, * beliebig viele.",
       "zoomIn": "Vergrößern",
       "zoomOut": "Verkleinern",
       "fit": "Einpassen",
@@ -4418,8 +4419,12 @@
       "tableMultiplicity": "Multiplizität",
       "exportSvg": "SVG herunterladen",
       "exportMermaid": "Mermaid herunterladen",
+      "tools": "Diagrammwerkzeuge",
+      "findHint": "Klasse suchen, z. B. Dataset",
+      "download": "Herunterladen",
       "notation": {
         "title": "Notation",
+        "button": "Notation",
         "isA": "is_a: spezialisiert die Klasse, auf die das Dreieck zeigt",
         "mixin": "Mixin: mischt die Klasse ein, auf die das Dreieck zeigt",
         "one": "genau eine",

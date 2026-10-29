@@ -263,7 +263,7 @@ export function CatalogCards({
                       onClick={() => {
                         onUseEndpoint(item.name);
                       }}
-                      className="h-6 rounded-full px-2 text-caption"
+                      className="h-control-xs rounded-full px-2 text-caption"
                     >
                       {inUse ? t("agentRun.catalog.inUse") : t("agentRun.catalog.use")}
                     </Button>

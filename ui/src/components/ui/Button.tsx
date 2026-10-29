@@ -28,10 +28,10 @@ const SIZES: Record<ButtonSize, string> = {
   // For a chip bar, where a 32 px button beside a 20 px pill is the odd one out: the assistant's
   // data bar (T-1798) had two hand-made buttons of its own for exactly this. 24 px is still the
   // smallest target WCAG 2.5.8 accepts, which the hand-made ones were not.
-  xs: "h-6 gap-1 px-2 text-caption",
-  sm: "h-8 px-2.5 text-caption",
-  md: "h-9 px-3.5 text-body",
-  lg: "h-11 px-5 text-body",
+  xs: "h-control-xs gap-1 px-2 text-caption",
+  sm: "h-control px-2.5 text-caption",
+  md: "h-control px-3.5 text-body",
+  lg: "h-control-lg px-5 text-body",
 };
 
 /** The classes of a button, for a `Link` or an `<a>` that has to look like one. */
