@@ -9,10 +9,11 @@
 //! e-mail. The route answers it once, to the person at the Portal; a tool's answer reaches a
 //! model, so here it is dropped and the answer says who hands one over instead.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -23,6 +24,132 @@ use crate::api::people::{
     disable_person, edit_person, enable_person, get_person, list_people, sign_out_person,
 };
 use crate::change::Lane;
+use crate::permissions::{binding_project, ORG_NAMESPACE};
+use crate::state::AppState;
+use crate::store::Mirror;
+use jc_core::kinds::Verb;
+
+/// The project's members, for an access connector's RoleBinding (T-6039).
+pub const MEMBERS: &str = "jc_member_list";
+/// Members one `jc_member_list` answer carries, and realm name lookups in flight at once.
+const MEMBERS_MAX: usize = 200;
+const NAMES_AT_ONCE: usize = 8;
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MemberInput {
+    #[serde(default)]
+    search: Option<String>,
+}
+
+/// The people the RoleBindings of `project` reach, by the subject the binding names (a user id,
+/// or an e-mail where a binding names one), each with the roles it holds there: directly, or
+/// through an organization Group the binding names (T-6039).
+fn members_of(mirror: &Mirror, project: &str) -> BTreeMap<String, BTreeSet<String>> {
+    let groups: HashMap<String, Vec<String>> = mirror
+        .matching(|env| {
+            env.kind == "Group" && env.metadata.namespace.as_deref() == Some(ORG_NAMESPACE)
+        })
+        .into_iter()
+        .map(|group| {
+            let users = users_in(group.spec.get("members"));
+            (group.metadata.name, users)
+        })
+        .collect();
+    let mut members: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let bindings = mirror.matching(|env| {
+        env.kind == "RoleBinding" && binding_project(mirror, &env.spec).as_deref() == Some(project)
+    });
+    for binding in bindings {
+        let role = binding.spec["role"].as_str().unwrap_or_default().to_owned();
+        let subjects = binding.spec.get("subjects").and_then(Value::as_array);
+        for subject in subjects.into_iter().flatten() {
+            let users = match (subject["user"].as_str(), subject["group"].as_str()) {
+                (Some(user), _) => vec![user.to_owned()],
+                (None, Some(group)) => groups.get(group).cloned().unwrap_or_default(),
+                (None, None) => Vec::new(),
+            };
+            for user in users {
+                members.entry(user).or_default().insert(role.clone());
+            }
+        }
+    }
+    members
+}
+
+fn users_in(list: Option<&Value>) -> Vec<String> {
+    list.and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|member| member["user"].as_str().map(str::to_owned))
+        .collect()
+}
+
+/// The realm's first and last name of each subject that is a user id, `None` where the realm has
+/// none or cannot answer: the subjects still answer without it. Never the realm's e-mail.
+async fn names_of(state: &AppState, subjects: &[&str]) -> Vec<Option<String>> {
+    let admin = match state.people.as_deref() {
+        Some(people) => people.admin().await.ok(),
+        None => None,
+    };
+    let Some(admin) = admin else {
+        return vec![None; subjects.len()];
+    };
+    let lookups: Vec<_> = subjects
+        .iter()
+        .map(|subject| name_of(&admin, subject))
+        .collect();
+    futures_util::stream::iter(lookups)
+        .buffered(NAMES_AT_ONCE)
+        .collect()
+        .await
+}
+
+async fn name_of(admin: &crate::people::Admin<'_>, subject: &str) -> Option<String> {
+    if subject.contains('@') {
+        return None;
+    }
+    let user = admin.get(subject).await.ok()?;
+    let name = [user.first_name, user.last_name]
+        .into_iter()
+        .flatten()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    (!name.is_empty()).then_some(name)
+}
+
+fn member_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "search": text("A part of the person's name or user id, e.g. jana", TITLE)
+        },
+        "additionalProperties": false
+    })
+}
+
+fn members_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "members": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "user": { "type": "string", "description": "The subject a RoleBinding names: put it in a RoleBinding's subjects as { user: ... }" },
+                        "name": { "type": ["string", "null"] },
+                        "roles": { "type": "array", "items": { "type": "string" } }
+                    },
+                    "required": ["user", "name", "roles"]
+                }
+            },
+            "truncated": { "type": "boolean" }
+        },
+        "required": ["members", "truncated"]
+    })
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -151,6 +278,50 @@ fn signed_out_schema() -> Value {
 
 pub fn operations() -> Vec<Operation> {
     vec![
+        Operation {
+            name: MEMBERS,
+            title: "List Project Members",
+            description: "People with a role in this project: user id for a RoleBinding, name, roles",
+            input: member_schema,
+            output: members_schema,
+            annotations: annotations(true, false, true),
+            // The project's bindings are what its RoleBindings page shows: read on RoleBinding
+            // in this project, checked in the body (a read verb here would hide it from every
+            // profile, `Access::names`), never the organization's people list (T-6039).
+            kind: "RoleBinding",
+            verb: None,
+            lane: Lane::Green,
+            validate: |val| parse_input::<MemberInput>(val.clone()).map(|_| ()),
+            run: |caller, state, project, val| {
+                Box::pin(async move {
+                    let input: MemberInput = parse_input(val)?;
+                    crate::permissions::for_request(state, &caller.identity, project).check(
+                        "RoleBinding",
+                        Verb::Read,
+                        None,
+                    )?;
+                    let members = members_of(&state.mirror, project);
+                    let truncated = members.len() > MEMBERS_MAX;
+                    let members: Vec<(String, BTreeSet<String>)> =
+                        members.into_iter().take(MEMBERS_MAX).collect();
+                    let subjects: Vec<&str> = members.iter().map(|(user, _)| user.as_str()).collect();
+                    let names = names_of(state, &subjects).await;
+                    let search = input.search.map(|s| s.to_lowercase());
+                    let found: Vec<Value> = members
+                        .iter()
+                        .zip(names)
+                        .filter(|((user, _), name)| {
+                            search.as_deref().is_none_or(|search| {
+                                user.to_lowercase().contains(search)
+                                    || name.as_deref().is_some_and(|n| n.to_lowercase().contains(search))
+                            })
+                        })
+                        .map(|((user, roles), name)| json!({ "user": user, "name": name, "roles": roles }))
+                        .collect();
+                    Ok(json!({ "members": found, "truncated": truncated }))
+                })
+            },
+        },
         Operation {
             name: "jc_person_list",
             title: "List People",
@@ -325,4 +496,94 @@ pub fn operations() -> Vec<Operation> {
             },
         },
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+
+    fn envelope(kind: &str, namespace: &str, name: &str, spec: Value) -> ResourceEnvelope {
+        ResourceEnvelope {
+            api_version: API_VERSION.into(),
+            kind: kind.into(),
+            metadata: ObjectMeta {
+                name: name.into(),
+                namespace: Some(namespace.into()),
+                ..Default::default()
+            },
+            spec,
+            status: None,
+        }
+    }
+
+    fn binding(name: &str, subjects: Value, role: &str, scope: Value) -> ResourceEnvelope {
+        let spec = json!({ "subjects": subjects, "role": role, "scope": scope });
+        envelope("RoleBinding", ORG_NAMESPACE, name, spec)
+    }
+
+    /// T-6039: the members of a project are the people its bindings reach, through a Group or a
+    /// space of the project too; another project's and the organization's bindings stay out.
+    #[test]
+    fn the_members_are_whom_the_projects_bindings_reach() {
+        let mirror = Mirror::new();
+        mirror.upsert(envelope("ContextSpace", "doprava", "bikes", json!({})));
+        let members = json!({ "members": [{ "user": "id-group-1" }, { "user": "id-jana" }] });
+        mirror.upsert(envelope("Group", ORG_NAMESPACE, "pipeliners", members));
+        for item in [
+            binding(
+                "a",
+                json!([{ "user": "id-jana" }]),
+                "viewer",
+                json!({ "project": "doprava" }),
+            ),
+            binding(
+                "b",
+                json!([{ "group": "pipeliners" }]),
+                "steward",
+                json!({ "project": "doprava" }),
+            ),
+            binding(
+                "c",
+                json!([{ "user": "id-space" }]),
+                "viewer",
+                json!({ "contextSpace": "bikes" }),
+            ),
+            binding(
+                "d",
+                json!([{ "user": "id-other" }]),
+                "viewer",
+                json!({ "project": "other" }),
+            ),
+            binding(
+                "e",
+                json!([{ "user": "id-org" }]),
+                "admin",
+                json!({ "organization": "org" }),
+            ),
+        ] {
+            mirror.upsert(item);
+        }
+        let found = members_of(&mirror, "doprava");
+        let users: Vec<&str> = found.keys().map(String::as_str).collect();
+        assert_eq!(users, ["id-group-1", "id-jana", "id-space"]);
+        let jana: Vec<&str> = found["id-jana"].iter().map(String::as_str).collect();
+        assert_eq!(jana, ["steward", "viewer"]);
+        assert!(members_of(&mirror, "elsewhere").is_empty());
+    }
+
+    /// Without a realm to ask, the members still answer, with no name.
+    #[tokio::test]
+    async fn names_are_none_without_a_realm() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let names = names_of(&state, &["id-jana", "scn.jana@hel.fi"]).await;
+        assert_eq!(names, [None, None]);
+    }
+
+    #[test]
+    fn the_member_list_reads_bindings_of_its_project() {
+        let op = crate::ops::find("jc_member_list").expect("registered");
+        assert_eq!((op.kind, op.verb), ("RoleBinding", None));
+        assert!(op.annotations.read_only_hint);
+    }
 }

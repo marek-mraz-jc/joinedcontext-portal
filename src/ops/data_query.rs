@@ -340,6 +340,12 @@ fn refusal_of(
         404 if history => Err(OpError::Api(ApiError::NotFound(format!(
             "Endpoint {name} serves no history: its view lists no temporal read; ask without temporal"
         )))),
+        // A 404 with a detail (an entity id the view lacks) names what is missing; one
+        // without a detail is a gateway that serves no such Endpoint (T-6042).
+        404 if body.get("detail").is_some() => Err(OpError::Api(ApiError::NotFound(format!(
+            "Endpoint {name} found nothing: {}",
+            detail_of(body)
+        )))),
         404 => Err(OpError::Api(ApiError::NotFound(format!("the gateway does not serve Endpoint {name} yet")))),
         _ => {
             tracing::warn!(status, endpoint = slug, "the gateway failed a data read");
@@ -468,6 +474,24 @@ mod tests {
 
     fn param<'a>(q: &'a [(String, String)], key: &str) -> Option<&'a str> {
         q.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
+    }
+
+    #[test]
+    fn a_broker_404_names_the_missing_entity_and_a_bare_404_the_endpoint() {
+        let broker = json!({ "type": "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound",
+                             "detail": "urn:ngsi-ld:BikeCounter:x" });
+        let refused = |body: &Value| match refusal_of(404, false, "counters", "s", body) {
+            Err(OpError::Api(ApiError::NotFound(text))) => text,
+            other => panic!("not a 404 refusal: {other:?}"),
+        };
+        assert_eq!(
+            refused(&broker),
+            "Endpoint counters found nothing: urn:ngsi-ld:BikeCounter:x"
+        );
+        assert_eq!(
+            refused(&Value::Null),
+            "the gateway does not serve Endpoint counters yet"
+        );
     }
 
     #[test]
