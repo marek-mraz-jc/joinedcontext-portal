@@ -36,6 +36,9 @@ use joinedcontext_portal::auth::session::EDGE_TOKEN_HEADER;
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::connectors;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
+use joinedcontext_portal::pipeline_log::NewLine;
+use joinedcontext_portal::reconciler::streams::{Bentos, StreamDeployer};
+use joinedcontext_portal::reconciler::Syncer;
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, ResourceKey, API_VERSION};
 use joinedcontext_portal::server;
 use joinedcontext_portal::state::AppState;
@@ -54,6 +57,8 @@ const KID: &str = "key-scenarios";
 /// The connector client the persona's token is obtained by (CONNECTOR_CLIENTS).
 const CLIENT: &str = "mcp-local";
 const OTHER: &str = "t-scn-other";
+/// The projects' pipeline runner's client, whose token the internal capture route takes.
+const RUNNER_CLIENT: &str = "scn-pipelines";
 /// The tasks of group `connectors` (GOAL-connectors.md): a red line names one of them. A task the
 /// group adds later joins this list in the branch that files it.
 const CONNECTOR_TASKS: &[&str] = &[
@@ -181,6 +186,31 @@ struct Step {
     /// from Git (a merged DelegationPolicy, a Group), gone again when the scenario ends.
     #[serde(default)]
     manifest: Option<Manifest>,
+    /// What the project's pipeline runner posts back for the harness this call starts (a sample,
+    /// a tried mapping): the scripted lane runs no Bento (T-5972), so these stand for its
+    /// captured messages, `{input, output, error}` each (T-6028).
+    #[serde(default)]
+    runner: Option<Vec<Value>>,
+    /// A fixture change instead of a request: a run of a Pipeline of the step's project reported
+    /// these log lines, as the runner's outcome sink leaves them (T-6028).
+    #[serde(default)]
+    logged: Option<Logged>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Logged {
+    pipeline: String,
+    run: String,
+    lines: Vec<LoggedLine>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LoggedLine {
+    record: String,
+    outcome: joinedcontext_portal::pipeline_log::Outcome,
+    message: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -278,7 +308,7 @@ fn slug_named(project: &str, what: &str) -> String {
 }
 
 /// One project's fixture: a space, a model, a public Endpoint, a CSV DataSource, a CKAN instance.
-fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
+fn seed_project(mirror: &Mirror, project: &str) {
     mirror.upsert(envelope(
         "ContextSpace",
         "doprava",
@@ -358,7 +388,8 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
         "DataSource",
         "counters-csv",
         project,
-        json!({ "contextSpaceRef": "doprava", "http": { "url": csv_url } }),
+        // The runner fetches it, never the Portal: a public host, as the outbound guard wants (PL-07).
+        json!({ "type": "http", "http": { "url": "https://data.example.sk/counters.csv", "format": "csv" } }),
     ));
     mirror.upsert(envelope(
         "Pipeline",
@@ -400,6 +431,7 @@ fn pipeline_spec(project: &str) -> Value {
         "class": "scheduled",
         "schedule": "0 * * * *",
         "source": { "dataSourceRef": { "kind": "DataSource", "name": "counters-csv" } },
+        "compute": { "kind": "bloblang", "bloblang": "root = this" },
         "targetEndpoint": format!("urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake"),
         "output": { "type": "BikeCounter", "mode": "upsert" },
         "quotas": { "maxMemoryMb": 128, "cpuMillicores": 100 }
@@ -886,6 +918,21 @@ async fn public_gateway(server: &MockServer, issuer: &str) -> axum::Router {
 
 /// The realm's admin API as the people routes call it: each persona is a user whose id is its
 /// token's `sub`, holding no realm group or role of its own; every change answers 204.
+/// The projects' pipeline runner (one Bento per project, `/{project}/...`): it takes the write
+/// budget, a test stream and its delete, and every pipeline stream the run queue deploys.
+async fn pipeline_runner(runner: &MockServer) {
+    for verb in ["POST", "PUT", "DELETE"] {
+        Mock::given(method(verb))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(runner)
+            .await;
+    }
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "active": true })))
+        .mount(runner)
+        .await;
+}
+
 async fn realm_admin(server: &MockServer) {
     use wiremock::matchers::path_regex;
     let admin = format!("/admin{REALM_PATH}");
@@ -949,6 +996,8 @@ struct Harness {
     server: &'static MockServer,
     /// The CSV source's address, `{csvUrl}` in a script.
     csv_url: String,
+    /// The projects' pipeline runner: test streams of a sample or a mapping (T-6028).
+    runner: &'static MockServer,
     /// The second every persona signed in: each token's `iat`. Keycloak issues a disabled
     /// person no new token, so a token minted after S-54's disable would slip past the
     /// Portal's revocation mark (`iat <= mark`) whenever the clock ticked in between.
@@ -1013,6 +1062,8 @@ impl Harness {
         realm_admin(server).await;
         let gateway = public_gateway(server, &issuer).await;
         let csv_url = format!("http://localhost:{}/counters.csv", server.address().port());
+        let runner: &'static MockServer = Box::leak(Box::new(MockServer::start().await));
+        pipeline_runner(runner).await;
 
         let mut config = Config::from_vars(|k| match k {
             "JC_OIDC_ISSUER" => Some(issuer.clone()),
@@ -1034,13 +1085,16 @@ impl Harness {
         std::fs::write(&token_file, "token-scenarios-broker").expect("broker token file");
         config.broker_admin_token_file = Some(token_file);
         config.gateway_url = Some(server.uri());
+        config.pipeline_runner_url = Some(format!("{}/{{project}}", runner.uri()));
+        config.pipeline_test_capture_url = Some("http://portal-internal:9090".to_owned());
+        config.pipeline_runner_client_id = Some(RUNNER_CLIENT.to_owned());
         // People reach the REST routes through the edge, as in the deployment.
         config.trust_edge_token = true;
 
         let mirror = std::sync::Arc::new(Mirror::new());
         let names: Vec<String> = (1..=projects).map(project_of).collect();
         for project in names.iter().map(String::as_str).chain([OTHER]) {
-            seed_project(&mirror, project, &csv_url);
+            seed_project(&mirror, project);
         }
         bind_personas(&mirror, &names);
         let mut state = AppState::from_config(config).await.expect("state");
@@ -1065,6 +1119,14 @@ impl Harness {
             joinedcontext_portal::config::ClientAuth::Secret("secret".to_owned()),
         )
         .map(std::sync::Arc::new);
+        // The run queue of every seeded Pipeline, so a run-now has a queued pipeline to start.
+        let deployer = std::sync::Arc::new(StreamDeployer::new(runner.uri()));
+        let syncer = Syncer::new(state.gitea.clone().expect("the forge"), mirror.clone())
+            .with_streams(std::sync::Arc::clone(&deployer));
+        let state = state.with_syncer(std::sync::Arc::new(syncer));
+        deployer
+            .converge(&state.mirror, &Bentos::new(), &Default::default())
+            .await;
         Self {
             app: server::app(state.clone()),
             gateway,
@@ -1077,6 +1139,7 @@ impl Harness {
             added: std::sync::Mutex::default(),
             server,
             csv_url,
+            runner,
             signed_in: joinedcontext_portal::auth::session::now_unix(),
         }
     }
@@ -1300,6 +1363,24 @@ impl Harness {
                 .map_err(|e| format!("runner_tested: {e}"))?;
             return Ok(());
         }
+        if let Some(logged) = &step.logged {
+            let lines: Vec<NewLine> = logged
+                .lines
+                .iter()
+                .map(|l| NewLine {
+                    record_id: l.record.clone(),
+                    step: None,
+                    outcome: l.outcome,
+                    message: l.message.clone(),
+                })
+                .collect();
+            return self
+                .state
+                .pipeline_log
+                .append(project, &fill(&logged.pipeline), &fill(&logged.run), &lines)
+                .await
+                .map_err(|e| format!("logged: {e}"));
+        }
         if let Some(who) = &step.unbind {
             let key = ResourceKey {
                 namespace: ORG_NAMESPACE.to_owned(),
@@ -1378,38 +1459,18 @@ impl Harness {
             None => json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list",
                             "params": { "project": project } }),
         };
-        let (status, answer) = match step.via.as_deref() {
-            None if step.accepted => {
-                let (_, asked) = self.rpc(persona, body.clone()).await;
-                let id = asked["result"]["structuredContent"]["elicitation"]["elicitationId"]
-                    .as_str()
-                    .ok_or_else(|| format!("accepted: no question asked in {asked}"))?;
-                self.state
-                    .mcp_elicitations
-                    .decide(
-                        &format!("sub-scn-{persona}"),
-                        project,
-                        id,
-                        joinedcontext_portal::mcp::elicitation::ElicitationDecision::Accept,
-                    )
-                    .ok_or_else(|| format!("accepted: question {id} is not open"))?;
-                let mut again = body;
-                again["params"]["elicitation"] = json!({ "elicitationId": id });
-                self.rpc(persona, again).await
+        let (status, answer) = match &step.runner {
+            Some(messages) => {
+                let nth = self.harnesses().await;
+                let (answer, played) = tokio::join!(
+                    self.call(step, persona, project, &connector, body),
+                    self.play(nth, messages)
+                );
+                let answer = answer?;
+                played.map_err(|e| format!("{e}; the call answered {}", answer.1))?;
+                answer
             }
-            None => self.rpc(persona, body).await,
-            Some("connector") => {
-                let address = format!("https://portal.test/c/{connector}");
-                let client = step.client.as_deref().unwrap_or(CLIENT);
-                let token = self.token_for(persona, &address, client);
-                self.send("POST", &format!("/c/{connector}"), token, Some(body))
-                    .await
-            }
-            Some("public") => {
-                self.request(&self.gateway, "POST", "/api/mcp", Vec::new(), Some(body))
-                    .await
-            }
-            Some(other) => return Err(format!("via `{other}` is neither connector nor public")),
+            None => self.call(step, persona, project, &connector, body).await?,
         };
         let refused = match status {
             StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => true,
@@ -1445,6 +1506,115 @@ impl Harness {
             answer.to_string()
         };
         judged(step, what, persona, project, refused, &text, &fill)
+    }
+
+    /// The test streams the runner was asked to create so far.
+    async fn harnesses(&self) -> usize {
+        self.runner
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .iter()
+            .filter(|r| r.method.as_str() == "POST" && r.url.path().contains("/streams/"))
+            .count()
+    }
+
+    /// The runner's side of the `nth` test stream: posts `messages` to the capture route the
+    /// harness names, with the runner's own token for the Portal's internal listener.
+    async fn play(&self, nth: usize, messages: &[Value]) -> Result<(), String> {
+        for _ in 0..250 {
+            let created = self
+                .runner
+                .received_requests()
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|r| r.method.as_str() == "POST" && r.url.path().contains("/streams/"))
+                .nth(nth);
+            if let Some(create) = created {
+                let harness: Value = serde_json::from_slice(&create.body)
+                    .map_err(|e| format!("runner: the harness is no JSON: {e}"))?;
+                let capture = harness["output"]["http_client"]["url"]
+                    .as_str()
+                    .ok_or("runner: the harness names no capture url")?;
+                let path = &capture[capture
+                    .find("/internal/")
+                    .ok_or("runner: no internal path")?..];
+                let now = joinedcontext_portal::auth::session::now_unix();
+                let token = self.signed(json!({
+                    "iss": self.issuer, "aud": "portal-internal", "azp": RUNNER_CLIENT,
+                    "sub": "service-account-scn-pipelines", "exp": now + 600, "iat": now,
+                }));
+                for message in messages {
+                    let status = server::internal_app(self.state.clone())
+                        .oneshot(
+                            Request::builder()
+                                .method("POST")
+                                .uri(path)
+                                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                                .body(Body::from(message.to_string()))
+                                .map_err(|e| e.to_string())?,
+                        )
+                        .await
+                        .map_err(|e| e.to_string())?
+                        .status();
+                    if status != StatusCode::NO_CONTENT {
+                        return Err(format!("runner: the capture answered {status}"));
+                    }
+                }
+                return Ok(());
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+        Err(format!("runner: no test stream {nth} was created"))
+    }
+
+    /// One MCP request of a step: through the person's `/api/v1/mcp`, or the connector's
+    /// `/c/{id}`; an `accepted` step answers its Yellow-lane question first (T-5997).
+    async fn call(
+        &self,
+        step: &Step,
+        persona: &str,
+        project: &str,
+        connector: &str,
+        body: Value,
+    ) -> Result<(StatusCode, Value), String> {
+        let send = |body: Value| async move {
+            match step.via.as_deref() {
+                None => Ok(self.rpc(persona, body).await),
+                Some("connector") => {
+                    let address = format!("https://portal.test/c/{connector}");
+                    let client = step.client.as_deref().unwrap_or(CLIENT);
+                    let token = self.token_for(persona, &address, client);
+                    Ok(self
+                        .send("POST", &format!("/c/{connector}"), token, Some(body))
+                        .await)
+                }
+                Some("public") => Ok(self
+                    .request(&self.gateway, "POST", "/api/mcp", Vec::new(), Some(body))
+                    .await),
+                Some(other) => Err(format!("via `{other}` is neither connector nor public")),
+            }
+        };
+        if !step.accepted {
+            return send(body).await;
+        }
+        let (_, asked) = send(body.clone()).await?;
+        let id = asked["result"]["structuredContent"]["elicitation"]["elicitationId"]
+            .as_str()
+            .ok_or_else(|| format!("accepted: no question asked in {asked}"))?;
+        self.state
+            .mcp_elicitations
+            .decide(
+                &format!("sub-scn-{persona}"),
+                project,
+                id,
+                joinedcontext_portal::mcp::elicitation::ElicitationDecision::Accept,
+            )
+            .ok_or_else(|| format!("accepted: question {id} is not open"))?;
+        let mut again = body;
+        again["params"]["elicitation"] = json!({ "elicitationId": id });
+        send(again).await
     }
 
     /// Runs a scenario's script. A scenario passes only with an expect step, and a deny step

@@ -76,6 +76,9 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_resource_list",
             "jc_resource_get",
             "jc_pipeline_metrics",
+            "jc_pipeline_logs",
+            "jc_pipeline_sample_source",
+            "jc_pipeline_try_mapping",
             "jc_syncsource_status",
         ],
         &[
@@ -130,6 +133,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_change_revert_plan",
             "jc_activity_list",
             "jc_pipeline_metrics",
+            "jc_pipeline_logs",
             "jc_syncsource_status",
             "jc_change_list",
             "jc_change_get",
@@ -146,6 +150,9 @@ pub const REVERT: &str = "jc_change_revert_plan";
 
 /// `admin` is every segment above.
 pub const ADMIN: &str = "admin";
+/// Runs an approved Pipeline now: it writes data, so like [`APPLY`] it comes with the `writes`
+/// switch alone, to a connector whose segments reach Pipeline (T-6028).
+pub const RUN: &str = "jc_pipeline_run";
 
 /// Whether `segment` is one a connector may name.
 pub fn is_segment(segment: &str) -> bool {
@@ -234,7 +241,7 @@ fn reach_under(
         connector.segments.iter().any(|c| c == s || c == ADMIN) && policy_segment(policy, s)
     });
     if connector.writes && policy.writes {
-        tools.push(APPLY);
+        tools.extend(written(&kinds));
     }
     (tools, kinds)
 }
@@ -718,7 +725,7 @@ impl Connector {
         let (mut tools, kinds) =
             reach_of(|segment| self.segments.iter().any(|s| s == segment || s == ADMIN));
         if self.writes {
-            tools.push(APPLY);
+            tools.extend(written(&kinds));
             tools.sort_unstable();
         }
         (tools, kinds)
@@ -728,10 +735,25 @@ impl Connector {
     /// (AG-70): only the segments' tools, `read` on their kinds, every Endpoint the scope names.
     pub fn access(&self) -> crate::agents::access::Access {
         let (tools, kinds) = self.reach();
+        // `propose` on a kind only for the tools listed that need it: sampling and trying a
+        // mapping (an author's read, nothing saved) and, with `writes`, a run (T-6028).
+        let proposing: Vec<&str> = tools
+            .iter()
+            .filter_map(|t| crate::ops::find(t))
+            .filter(|op| op.verb == Some(jc_core::kinds::Verb::Propose))
+            .map(|op| op.kind)
+            .collect();
+        let verbs = |k: &str| {
+            if proposing.contains(&k) {
+                json!(["read", "propose"])
+            } else {
+                json!(["read"])
+            }
+        };
         crate::agents::access::Access::from_spec(&json!({
             "access": {
                 "operations": tools,
-                "kinds": kinds.iter().map(|k| json!({ "kind": k, "verbs": ["read"] })).collect::<Vec<_>>(),
+                "kinds": kinds.iter().map(|k| json!({ "kind": k, "verbs": verbs(k) })).collect::<Vec<_>>(),
             }
         }))
         .through(self.clone())
@@ -836,6 +858,18 @@ impl Connector {
                 }
             }
         }
+        // A sample is read from a DataSource the project declares, or sent as text: never from
+        // a URL a prompt carries, which the runner would fetch inside the cluster (T-6028).
+        if args.pointer("/sample/url").is_some() {
+            return Err(format!(
+                "{} through a connector reads a DataSource of the project or a sample sent as text, never a URL; declare the source as a DataSource first",
+                op.name
+            ));
+        }
+        if op.name == RUN {
+            let name = text("name").ok_or("jc_pipeline_run names the pipeline: name it")?;
+            return self.may_change(project, "Pipeline", name, true);
+        }
         // A plan or an apply names its objects per change; the operation holds each one to
         // the scope with `may_change` (T-5956).
         if self.whole(project) || matches!(op.name, "jc_schema_get" | PLAN | APPLY | REVERT) {
@@ -891,6 +925,12 @@ impl Connector {
             .collect::<Vec<_>>()
             .join(", ")
     }
+}
+
+/// The writing tools a `writes` connector adds to its segments' tools, by the kinds they reach.
+fn written(kinds: &[&str]) -> Vec<&'static str> {
+    let run = kinds.contains(&"Pipeline").then_some(RUN);
+    [APPLY].into_iter().chain(run).collect()
 }
 
 /// The tools and kinds of the segments `carries` picks.
@@ -1818,6 +1858,75 @@ mod tests {
             revoked_at: None,
         }
         .view("https://portal.test", Utc::now())
+    }
+
+    /// T-6028: the pipeline segment samples, tries a mapping and reads runs; a run comes with
+    /// `writes` alone and a write on the pipeline's item; a connector without the segment gets
+    /// none of them, one narrowed to a pipeline reaches that pipeline alone, and no sample is
+    /// read from a URL a call carries.
+    #[test]
+    fn the_pipeline_tools_are_the_segments_and_held_to_the_scope() {
+        const TOOLS: [&str; 4] = [
+            "jc_pipeline_sample_source",
+            "jc_pipeline_try_mapping",
+            "jc_pipeline_logs",
+            RUN,
+        ];
+        let read = connector(&["data-read"], vec![item("doprava", None)]);
+        for tool in TOOLS {
+            assert!(!read.access().names(op(tool)), "{tool} without the segment");
+        }
+        let mut c = connector(&["pipeline"], vec![item("doprava", None)]);
+        for tool in &TOOLS[..3] {
+            assert!(c.access().names(op(tool)), "{tool}");
+            assert_eq!(
+                c.admits(op(tool), "doprava", &json!({ "name": "p" })),
+                Ok(())
+            );
+            assert!(c
+                .admits(op(tool), "other", &json!({ "name": "p" }))
+                .is_err());
+        }
+        assert!(!c.access().names(op(RUN)), "writes off: no run");
+        assert!(c
+            .admits(op(RUN), "doprava", &json!({ "name": "p" }))
+            .expect_err("writes off")
+            .contains("writes off"));
+        for tool in ["jc_pipeline_sample_source", "jc_pipeline_try_mapping"] {
+            let url = json!({ "sample": { "url": "http://10.0.0.5/a.csv", "format": "csv" } });
+            assert!(c
+                .admits(op(tool), "doprava", &url)
+                .expect_err("a prompt's URL")
+                .contains("never a URL"));
+        }
+        c.writes = true;
+        c.scope[0].access = ItemAccess::Write;
+        assert!(c.access().names(op(RUN)));
+        assert_eq!(
+            c.admits(op(RUN), "doprava", &json!({ "name": "p" })),
+            Ok(())
+        );
+        let mut one = item("doprava", None);
+        one.pipeline = Some("counters".into());
+        one.access = ItemAccess::Write;
+        let mut narrow = connector(&["pipeline"], vec![one]);
+        narrow.writes = true;
+        for tool in ["jc_pipeline_logs", RUN] {
+            assert!(narrow.lists(op(tool), "doprava"), "{tool}");
+            assert_eq!(
+                narrow.admits(op(tool), "doprava", &json!({ "name": "counters" })),
+                Ok(())
+            );
+            assert!(narrow
+                .admits(op(tool), "doprava", &json!({ "name": "other" }))
+                .expect_err("outside the scope")
+                .contains("other"));
+        }
+        // Sampling and trying name no pipeline, so a narrowed scope cannot hold them.
+        for tool in ["jc_pipeline_sample_source", "jc_pipeline_try_mapping"] {
+            assert!(!narrow.lists(op(tool), "doprava"), "{tool}");
+            assert!(narrow.admits(op(tool), "doprava", &json!({})).is_err());
+        }
     }
 
     /// T-5956, AG-149: a segment that proposes plans; only `writes` brings the apply, and an

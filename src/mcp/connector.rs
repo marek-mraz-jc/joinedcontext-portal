@@ -397,7 +397,12 @@ async fn judge(
                             && (honoured || ceiling.lists(connector, op, &project))
                     })
                 })
-                .map(tool_definition)
+                .map(|summary| {
+                    // Answered inline at this door, never as a task (T-6028).
+                    let mut tool = tool_definition(summary);
+                    tool["execution"]["taskSupport"] = json!("forbidden");
+                    tool
+                })
                 .collect();
             // The UI tools reach the person's paired tab only, so they are offered only while
             // one is paired (T-5967).

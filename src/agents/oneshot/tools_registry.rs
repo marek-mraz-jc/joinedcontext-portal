@@ -68,6 +68,11 @@ pub(super) fn offered(
         // A run reads data through the agent proxy's query_endpoint; jc_data_query exchanges the
         // caller's own token, which a run does not hold (T-5986).
         .filter(|op| op.name != crate::ops::data_query::NAME)
+        // T-6028: a run and its log reach MCP connectors; this prompt keeps its 4k-token turn
+        // (AG-72), and a person runs a pipeline from its page.
+        .filter(|op| {
+            ![crate::connectors::RUN, crate::ops::pipeline_runs::LOGS].contains(&op.name.as_str())
+        })
         .collect()
 }
 

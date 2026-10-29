@@ -418,12 +418,68 @@
   says: "Show me 5 sample rows of this source."
   expect: 'sample_source returns the real first rows'
   deny: 'none'
+  script:
+    # The administrator's ceiling, as the reconciler loads it from Git once merged: the pipeline
+    # segment, with writes, for the project's pipeline people.
+    - proves: expect
+      manifest: { kind: Group, name: pipeliners, spec: { members: [{ user: scn.steward@hel.fi }, { user: scn.project-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: pipeliners-doprava, spec: { subjects: [{ kind: Group, name: pipeliners }], projects: ['{project}'], segments: [pipeline], writes: true, maxExpiry: P90D } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s18-pipeline, segments: [pipeline], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      contains: ['jc_pipeline_sample_source', 'jc_pipeline_try_mapping', 'jc_pipeline_logs']
+    # The runner reads the declared DataSource; the scripted lane's runner plays its first row (T-6028).
+    - proves: expect
+      via: connector
+      call: jc_pipeline_sample_source
+      args: { dataSource: counters-csv }
+      runner: [{ input: 'c1,Most SNP,42,2026-10-27T10:00:00Z', output: { id: c1, name: Most SNP, count: '42', observedAt: '2026-10-27T10:00:00Z' }, error: null }]
+      contains: ['"count":1', 'Most SNP', 'observedAt']
+    # A URL a prompt carries is never fetched inside the cluster (T-6028).
+    - proves: deny
+      via: connector
+      call: jc_pipeline_sample_source
+      args: { sample: { url: 'http://10.0.0.5/counters.csv', format: csv } }
+      refused: true
+      contains: ['never a URL']
 - id: S-19
   segment: pipeline
   as: steward
   says: "Write a mapping from these rows to BikeCounter and test it."
   expect: 'try_mapping returns NGSI-LD entities valid against the model, with observedAt on every attribute'
   deny: 'mapping output invalid -> the error with the field path comes back and the model fixes it in a second try'
+  script:
+    # The administrator's ceiling, as the reconciler loads it from Git once merged: the pipeline
+    # segment, with writes, for the project's pipeline people.
+    - proves: expect
+      manifest: { kind: Group, name: pipeliners, spec: { members: [{ user: scn.steward@hel.fi }, { user: scn.project-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: pipeliners-doprava, spec: { subjects: [{ kind: Group, name: pipeliners }], projects: ['{project}'], segments: [pipeline], writes: true, maxExpiry: P90D } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s19-pipeline, segments: [pipeline], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      call: jc_pipeline_try_mapping
+      args: { pipeline: { apiVersion: joinedcontext.com/v1alpha1, kind: Pipeline, metadata: { name: counters-try, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', source: { dataSourceRef: { kind: DataSource, name: counters-csv } }, compute: { kind: bloblang, bloblang: 'root.id = \"urn:ngsi-ld:BikeCounter:\" + this.id\nroot.type = \"BikeCounter\"\nroot.count = { \"type\": \"Property\", \"value\": this.count.number(), \"observedAt\": this.observedAt }' }, targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake', output: { type: BikeCounter, mode: upsert } } }, sample: { text: "id,name,count,observedAt\nc1,Most SNP,42,2026-10-27T10:00:00Z\n", format: csv } }
+      runner: [{ input: '{"id":"c1","count":"42"}', output: { id: 'urn:ngsi-ld:BikeCounter:c1', type: BikeCounter, count: { type: Property, value: 42, observedAt: '2026-10-27T10:00:00Z' } }, error: null }]
+      contains: ['urn:ngsi-ld:BikeCounter:c1', 'observedAt']
+    # The failed record comes back with its step, line and field, so the next try fixes it.
+    - proves: deny
+      via: connector
+      call: jc_pipeline_try_mapping
+      args: { pipeline: { apiVersion: joinedcontext.com/v1alpha1, kind: Pipeline, metadata: { name: counters-try, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', source: { dataSourceRef: { kind: DataSource, name: counters-csv } }, compute: { kind: bloblang, bloblang: 'root.id = \"urn:ngsi-ld:BikeCounter:\" + this.id\nroot.type = \"BikeCounter\"\nroot.count = { \"type\": \"Property\", \"value\": this.count.number(), \"observedAt\": this.observedAt }' }, targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake', output: { type: BikeCounter, mode: upsert } } }, sample: { text: "id,name,count,observedAt\nc1,Most SNP,42,2026-10-27T10:00:00Z\n", format: csv } }
+      runner: [{ input: '{"id":"c2","count":"x"}', output: null, error: 'failed assignment (line 3): field this.count: expected number value, got string ("x")', step: '0' }]
+      contains: ['"line":3', 'this.count']
 - id: S-20
   segment: pipeline
   as: steward
@@ -461,6 +517,27 @@
   says: "The pipeline wrote 0 entities last night. Why?"
   expect: 'reads run state and logs; names the cause (source read failed, nack, refused write) with the log line'
   deny: 'none'
+  script:
+    # The administrator's ceiling, as the reconciler loads it from Git once merged: the pipeline
+    # segment, with writes, for the project's pipeline people.
+    - proves: expect
+      manifest: { kind: Group, name: pipeliners, spec: { members: [{ user: scn.steward@hel.fi }, { user: scn.project-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: pipeliners-doprava, spec: { subjects: [{ kind: Group, name: pipeliners }], projects: ['{project}'], segments: [pipeline], writes: true, maxExpiry: P90D } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s21-pipeline, segments: [pipeline], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    # Last night's run read nothing: the runner's outcome sink logged why.
+    - proves: expect
+      logged: { pipeline: counters-hourly, run: '2026-10-28T23:00:00Z', lines: [{ record: '', outcome: failed, message: 'the source read failed: GET counters.csv answered 503' }] }
+    - proves: expect
+      via: connector
+      call: jc_pipeline_logs
+      args: { name: counters-hourly }
+      contains: ['"run":"2026-10-28T23:00:00Z"', '"sent":0', '"failed":1', 'the source read failed', 'answered 503']
 - id: S-22
   segment: pipeline
   as: steward
@@ -504,6 +581,60 @@
   says: "Run the pipeline now and tell me the result."
   expect: 'run started, finished state and counts reported'
   deny: 'connector without pipeline-run right -> refused'
+  script:
+    # The administrator's ceiling, as the reconciler loads it from Git once merged: the pipeline
+    # segment, with writes, for the project's pipeline people.
+    - proves: expect
+      manifest: { kind: Group, name: pipeliners, spec: { members: [{ user: scn.steward@hel.fi }, { user: scn.project-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: pipeliners-doprava, spec: { subjects: [{ kind: Group, name: pipeliners }], projects: ['{project}'], segments: [pipeline], writes: true, maxExpiry: P90D } }
+    # A run outside the schedule needs propose and approve on Pipeline: the project's admin.
+    - proves: expect
+      as: project-admin
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s24-run, segments: [pipeline], scope: [{ project: '{project}', pipeline: counters-hourly, access: write }], writes: true, expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      as: project-admin
+      via: connector
+      call: jc_pipeline_run
+      args: { name: counters-hourly }
+      accepted: true
+      keep: run
+      contains: ['"run":']
+    - proves: expect
+      logged: { pipeline: counters-hourly, run: '{run}', lines: [{ record: 'urn:ngsi-ld:BikeCounter:c1', outcome: sent, message: 'written' }] }
+    - proves: expect
+      as: project-admin
+      via: connector
+      call: jc_pipeline_logs
+      args: { name: counters-hourly }
+      contains: ['"run":"{run}"', '"sent":1', '"failed":0']
+    # Another pipeline than the one the scope names.
+    - proves: deny
+      as: project-admin
+      via: connector
+      call: jc_pipeline_run
+      args: { name: counters-new }
+      refused: true
+      contains: ['counters-new']
+    # Writes off: the run is not the connector's.
+    - proves: deny
+      as: project-admin
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s24-read, segments: [pipeline], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: deny
+      as: project-admin
+      via: connector
+      call: jc_pipeline_run
+      args: { name: counters-hourly }
+      refused: true
+      contains: ['writes off']
 - id: S-25
   segment: pipeline
   as: steward
@@ -516,6 +647,64 @@
   says: "Integrate this ArcGIS FeatureServer layer end to end."
   expect: 'S-17..S-20 in one conversation: source, sample, mapping, test, pipeline, change request; paging by resultOffset'
   deny: 'none'
+  script:
+    # The administrator's ceiling, as the reconciler loads it from Git once merged: the pipeline
+    # segment, with writes, for the project's pipeline people.
+    - proves: expect
+      manifest: { kind: Group, name: pipeliners, spec: { members: [{ user: scn.steward@hel.fi }, { user: scn.project-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: pipeliners-doprava, spec: { subjects: [{ kind: Group, name: pipeliners }], projects: ['{project}'], segments: [pipeline], writes: true, maxExpiry: P90D } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s26-pipeline, segments: [pipeline], scope: [{ project: '{project}', access: write }], writes: true, expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    # The layer, paged by resultOffset as an ArcGIS FeatureServer query is (S-17).
+    - proves: expect
+      via: connector
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: DataSource, name: counters-layer, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: DataSource, metadata: { name: counters-layer, namespace: '{project}' }, spec: { type: http, http: { url: 'https://data.example.sk/arcgis/rest/services/counters/FeatureServer/0/query?where=1%3D1&outFields=*&f=geojson&resultOffset=0' } } } }] }
+      keep: planId
+      contains: ['"planId"', '"ok":true', 'resultOffset']
+    - proves: expect
+      via: connector
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
+    # The runner reads the declared DataSource; the scripted lane's runner plays its first row (T-6028).
+    - proves: expect
+      via: connector
+      call: jc_pipeline_sample_source
+      args: { dataSource: counters-csv }
+      runner: [{ input: 'c1,Most SNP,42,2026-10-27T10:00:00Z', output: { id: c1, name: Most SNP, count: '42', observedAt: '2026-10-27T10:00:00Z' }, error: null }]
+      contains: ['"count":1', 'Most SNP', 'observedAt']
+    - proves: expect
+      via: connector
+      call: jc_pipeline_try_mapping
+      args: { pipeline: { apiVersion: joinedcontext.com/v1alpha1, kind: Pipeline, metadata: { name: counters-try, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', source: { dataSourceRef: { kind: DataSource, name: counters-csv } }, compute: { kind: bloblang, bloblang: 'root.id = \"urn:ngsi-ld:BikeCounter:\" + this.id\nroot.type = \"BikeCounter\"\nroot.count = { \"type\": \"Property\", \"value\": this.count.number(), \"observedAt\": this.observedAt }' }, targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake', output: { type: BikeCounter, mode: upsert } } }, sample: { text: "id,name,count,observedAt\nc1,Most SNP,42,2026-10-27T10:00:00Z\n", format: csv } }
+      runner: [{ input: '{"id":"c1","count":"42"}', output: { id: 'urn:ngsi-ld:BikeCounter:c1', type: BikeCounter, count: { type: Property, value: 42, observedAt: '2026-10-27T10:00:00Z' } }, error: null }]
+      contains: ['urn:ngsi-ld:BikeCounter:c1', 'observedAt']
+    # The pipeline's records are tested before a plan holds it (T-4840), then planned and applied.
+    - proves: expect
+      via: connector
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Pipeline, name: counters-arcgis, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Pipeline, metadata: { name: counters-arcgis, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', source: { dataSourceRef: { kind: DataSource, name: counters-csv } }, targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake', output: { type: BikeCounter, mode: upsert }, quotas: { maxMemoryMb: 128, cpuMillicores: 100 } } } }] }
+      refused: true
+      contains: ['jc_pipeline_test']
+    - proves: expect
+      runner_tested: counters-arcgis
+    - proves: expect
+      via: connector
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Pipeline, name: counters-arcgis, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Pipeline, metadata: { name: counters-arcgis, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', source: { dataSourceRef: { kind: DataSource, name: counters-csv } }, targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake', output: { type: BikeCounter, mode: upsert }, quotas: { maxMemoryMb: 128, cpuMillicores: 100 } } } }] }
+      keep: planId
+      contains: ['"planId"', '"ok":true']
+    - proves: expect
+      via: connector
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
 
 - id: S-27
   segment: access
