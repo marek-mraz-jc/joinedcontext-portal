@@ -23,7 +23,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import type { Page, Response } from "@playwright/test";
-import { unexcused } from "../../tests/pageChecks";
+import { OWN_ROUTES, unexcused } from "../../tests/pageChecks";
 import type { Excused } from "../../tests/pageChecks";
 import { STEWARD, VIEWER, afterSelfReload, hiddenSections, inHiddenSection, journeyMarkerOnPortalOnly, judgeOpened, openToWalk, signIn } from "./portal";
 import type { Opened } from "./portal";
@@ -81,9 +81,6 @@ function expected(who: string, response: Response): boolean {
   return status === 410 || (status === 404 && /\/agent-runs\/[^/]+\/(preview|events)/.test(response.url()));
 }
 
-/** Pages of the person's own things, outside any project (connectors, UI-98): a viewer writes there. */
-const OWN = new Set(["/connectors"]);
-
 for (const [who, person] of [
   ["steward", STEWARD],
   ["viewer", VIEWER],
@@ -139,7 +136,7 @@ for (const [who, person] of [
               if (!opened.edgeRefused) await afterSelfReload(page);
             }
             // A blank load is reported once, at the first width: the others resize the same empty tab.
-            const viewer = who === "viewer" && !OWN.has(visit.route);
+            const viewer = who === "viewer" && !OWN_ROUTES.has(visit.route);
             const findings =
               index > 0 && opened.blank
                 ? current
