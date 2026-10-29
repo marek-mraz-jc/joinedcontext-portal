@@ -19730,6 +19730,151 @@
         }
       }
     },
+    "/api/v1/projects/{project}/ops/jc_member_list": {
+      "post": {
+        "description": "People with a role in this project: user id for a RoleBinding, name, roles",
+        "operationId": "jc_member_list",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {},
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "search": {
+                    "description": "A part of the person's name or user id, e.g. jana",
+                    "maxLength": 256,
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "members": {
+                      "items": {
+                        "properties": {
+                          "name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "roles": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "user": {
+                            "description": "The subject a RoleBinding names: put it in a RoleBinding's subjects as { user: ... }",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "user",
+                          "name",
+                          "roles"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "members",
+                    "truncated"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "List Project Members",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "RoleBinding",
+          "verb": "read"
+        }
+      }
+    },
     "/api/v1/projects/{project}/ops/jc_model_infer": {
       "post": {
         "description": "Infers a draft LinkML data model from sample data bytes or text",

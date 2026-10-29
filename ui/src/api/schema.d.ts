@@ -3974,6 +3974,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/ops/jc_member_list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List Project Members
+         * @description People with a role in this project: user id for a RoleBinding, name, roles
+         */
+        post: operations["jc_member_list"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ops/jc_model_infer": {
         parameters: {
             query?: never;
@@ -25375,6 +25395,90 @@ export interface operations {
                             ok: boolean;
                             trace?: Record<string, never>;
                         };
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_member_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /** @example {} */
+                "application/json": {
+                    /** @description A part of the person's name or user id, e.g. jana */
+                    search?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        members: {
+                            name: string | null;
+                            roles: string[];
+                            /** @description The subject a RoleBinding names: put it in a RoleBinding's subjects as { user: ... } */
+                            user: string;
+                        }[];
+                        truncated: boolean;
                     };
                 };
             };

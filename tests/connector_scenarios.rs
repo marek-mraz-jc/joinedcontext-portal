@@ -526,7 +526,21 @@ fn bind_personas(mirror: &Mirror, projects: &[String]) {
             ));
         }
     }
+    for project in projects {
+        mirror.upsert(envelope(
+            "RoleBinding",
+            &format!("scn-member-jana-{project}"),
+            ORG_NAMESPACE,
+            json!({ "subjects": [{ "user": JANA_ID }], "role": "scn-viewer",
+                    "scope": { "project": project } }),
+        ));
+    }
 }
+
+/// A viewer of every scenario project named by her Keycloak user id, as a real RoleBinding names
+/// a person: the realm knows her as Jana Nováková, so a connector finds her by name with
+/// `jc_member_list` (S-27, T-6039). She signs in as no persona.
+const JANA_ID: &str = "7c1e4b2a-9d3f-4a6e-8b5c-2f0a1d9e3b47";
 
 fn user_of(persona: &str) -> String {
     format!("scn.{persona}@hel.fi")
@@ -1040,6 +1054,15 @@ async fn realm_admin(server: &MockServer) {
             .mount(server)
             .await;
     }
+    Mock::given(method("GET"))
+        .and(path(format!("{admin}/users/{JANA_ID}")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": JANA_ID, "username": "jana.novakova@hel.fi", "email": "jana.novakova@hel.fi",
+            "firstName": "Jana", "lastName": "Nováková", "enabled": true, "emailVerified": true,
+            "requiredActions": [], "attributes": {},
+        })))
+        .mount(server)
+        .await;
     for (verb, pattern) in [
         ("PUT", format!("^{admin}/users/[a-z-]+$")),
         ("POST", format!("^{admin}/users/[a-z-]+/logout$")),

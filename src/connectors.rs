@@ -42,7 +42,9 @@ pub const DENIALS_FLAG: i64 = 10;
 /// A segment (API/14 §1, Architecture/07 §11): the read tools it lists and the kinds those tools
 /// may name. A segment that proposes lists `jc_change_plan` (a dry run, nothing saved); the one
 /// write, `jc_change_apply`, comes with the connector's `writes` switch alone (AG-149, T-5956).
-/// Cross-project tools (people, projects, every Endpoint) are in none.
+/// Cross-project tools (the organization's people, projects, every Endpoint) are in none; a
+/// segment's lookups read inside the project only (`jc_member_list`, T-6039). The UI tools come
+/// with a paired Portal tab, whatever the segments (T-5967).
 pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
     (
         "data-read",
@@ -98,6 +100,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_schema_get",
             "jc_resource_list",
             "jc_resource_get",
+            "jc_member_list",
         ],
         &["Role", "RoleBinding", "ServiceAccount", "Policy", "Group"],
     ),
@@ -110,8 +113,10 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_resource_list",
             "jc_resource_get",
             "jc_ckan_status",
+            "jc_model_source_get",
+            "jc_kpi_compute",
         ],
-        &["Endpoint", "CkanInstance"],
+        &["Endpoint", "CkanInstance", "DataModel"],
     ),
     (
         "apps",
@@ -124,7 +129,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_run_list",
             "jc_run_get",
         ],
-        &["App"],
+        &["App", "Dashboard", "Layer"],
     ),
     (
         "operate",
