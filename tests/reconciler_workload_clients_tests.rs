@@ -102,14 +102,37 @@ async fn realm(listed: Value) -> MockServer {
     for verb in ["POST", "PUT", "DELETE"] {
         Mock::given(method(verb))
             .and(path_regex(format!(
-                "^{REALM}/clients/[^/]+(/protocol-mappers/models.*)?$"
+                "^{REALM}/clients/[^/]+(/protocol-mappers/models.*|/(default|optional)-client-scopes/[^/]+)?$"
             )))
             .respond_with(ResponseTemplate::new(204))
             .with_priority(10)
             .mount(&keycloak)
             .await;
     }
+    // A client created with `basic` alone holds it and nothing else (T-6051).
+    client_scopes(
+        &keycloak,
+        "[^/]+",
+        json!([{ "id": "s-basic", "name": "basic" }]),
+        json!([]),
+    )
+    .await;
     keycloak
+}
+
+/// The default and optional scopes the realm answers for the client `uuid` (a regex), below any
+/// test's own answer.
+async fn client_scopes(keycloak: &MockServer, uuid: &str, default: Value, optional: Value) {
+    for (kind, held) in [("default", default), ("optional", optional)] {
+        Mock::given(method("GET"))
+            .and(path_regex(format!(
+                "^{REALM}/clients/{uuid}/{kind}-client-scopes$"
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(held))
+            .with_priority(if uuid == "[^/]+" { 10 } else { 1 })
+            .mount(keycloak)
+            .await;
+    }
 }
 
 fn sync(keycloak: &MockServer) -> WorkloadClientSync {
@@ -1374,6 +1397,9 @@ async fn an_external_account_gets_a_secret_client_and_no_secret_is_read() {
     let created = &bodies(&keycloak, "POST", &format!("{REALM}/clients")).await[0];
     assert_eq!(created["clientId"], "helsinki-vendor");
     assert_eq!(created["clientAuthenticatorType"], "client-secret");
+    // T-6051: `basic` alone, so the first token carries none of the realm's default scopes.
+    assert_eq!(created["defaultClientScopes"], json!(["basic"]));
+    assert_eq!(created["optionalClientScopes"], json!([]));
     assert_eq!(created["serviceAccountsEnabled"], true);
     assert_eq!(created["directAccessGrantsEnabled"], false);
     assert_eq!(created["standardFlowEnabled"], false);
@@ -1543,4 +1569,103 @@ async fn a_pipelines_token_beside_455_endpoints_fits_the_header_limit() {
         "{header} bytes over {HEADER_LIMIT} for {} audiences",
         aud.len()
     );
+}
+
+/// T-6051: a client made before the trim carries the realm's default and optional scopes; one run
+/// removes every one of them but `basic`, reports it, and a later run finds nothing to do.
+#[tokio::test]
+async fn an_accounts_client_loses_the_realms_default_scopes() {
+    let held = desired_external("helsinki", "hsl-bridge", &ClientCredential::Secret);
+    let mut held = held;
+    held["id"] = json!("uuid-hsl");
+    let keycloak = realm(json!([held.clone()])).await;
+    client_lookup(&keycloak, "helsinki-hsl-bridge", json!([held])).await;
+    mappers(&keycloak, "uuid-hsl", json!([])).await;
+    let named = |names: &[&str]| -> Value {
+        names
+            .iter()
+            .map(|n| json!({ "id": format!("s-{n}"), "name": n }))
+            .collect()
+    };
+    client_scopes(
+        &keycloak,
+        "uuid-hsl",
+        named(&[
+            "web-origins",
+            "service_account",
+            "acr",
+            "roles",
+            "profile",
+            "basic",
+            "email",
+        ]),
+        named(&["offline_access"]),
+    )
+    .await;
+    let mirror = mirror_with(vec![external(
+        "helsinki",
+        "hsl-bridge",
+        json!([{ "kind": "oauth-client", "name": "main" }]),
+    )]);
+
+    let outcomes = sync(&keycloak).converge(&mirror, &Bentos::new()).await;
+
+    assert_eq!(outcomes[0].error, None, "{outcomes:?}");
+    let scopes: Vec<String> = wrote(&keycloak)
+        .await
+        .into_iter()
+        .filter(|w| w.contains("-client-scopes/"))
+        .collect();
+    let at = format!("DELETE {REALM}/clients/uuid-hsl");
+    assert_eq!(
+        scopes,
+        vec![
+            format!("{at}/default-client-scopes/s-web-origins"),
+            format!("{at}/default-client-scopes/s-service_account"),
+            format!("{at}/default-client-scopes/s-acr"),
+            format!("{at}/default-client-scopes/s-roles"),
+            format!("{at}/default-client-scopes/s-profile"),
+            format!("{at}/default-client-scopes/s-email"),
+            format!("{at}/optional-client-scopes/s-offline_access"),
+        ]
+    );
+    assert!(
+        outcomes[0]
+            .drift
+            .iter()
+            .any(|d| d.contains("roles") && d.contains("removed")),
+        "{outcomes:?}"
+    );
+}
+
+/// T-6051: a client without `basic` gets it back from the realm's scopes, or its tokens carry no
+/// `sub`; a realm without it is an error naming the scope, never a silent client.
+#[tokio::test]
+async fn an_accounts_client_without_basic_gets_it() {
+    let mut held = desired_external("helsinki", "vendor", &ClientCredential::Secret);
+    held["id"] = json!("uuid-v");
+    let keycloak = realm(json!([held.clone()])).await;
+    client_lookup(&keycloak, "helsinki-vendor", json!([held])).await;
+    mappers(&keycloak, "uuid-v", json!([])).await;
+    client_scopes(&keycloak, "uuid-v", json!([]), json!([])).await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/client-scopes")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            { "id": "s-email", "name": "email" },
+            { "id": "s-basic", "name": "basic" },
+        ])))
+        .mount(&keycloak)
+        .await;
+    let mirror = mirror_with(vec![external(
+        "helsinki",
+        "vendor",
+        json!([{ "kind": "oauth-client", "name": "main" }]),
+    )]);
+
+    let outcomes = sync(&keycloak).converge(&mirror, &Bentos::new()).await;
+
+    assert_eq!(outcomes[0].error, None, "{outcomes:?}");
+    assert!(wrote(&keycloak).await.contains(&format!(
+        "PUT {REALM}/clients/uuid-v/default-client-scopes/s-basic"
+    )));
 }
