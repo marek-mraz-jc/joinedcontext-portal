@@ -313,6 +313,8 @@ export function ExplorePage({
                 id="explore-space"
                 className="w-auto max-w-64"
                 value={space}
+                // A project without a space has nothing to pick; the empty state below says why.
+                disabled={spaces.data !== undefined && spaces.data.length === 0}
                 onChange={(event) => {
                   setSpace(event.target.value);
                   setEndpointChoice("");
