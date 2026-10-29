@@ -25993,7 +25993,7 @@
     },
     "/api/v1/projects/{project}/ops/jc_schema_get": {
       "post": {
-        "description": "Reads the JSON Schema of one manifest kind: its fields, their types and limits, never data",
+        "description": "Reads one manifest kind: its required fields, one line per field with type and limits, and a minimal manifest to start from; with path, a JSON pointer such as /spec/source, that field's whole JSON Schema. Never data",
         "operationId": "jc_schema_get",
         "parameters": [
           {
@@ -26017,6 +26017,10 @@
                 "examples": [
                   {
                     "kind": "Pipeline"
+                  },
+                  {
+                    "kind": "Pipeline",
+                    "path": "/spec/sources/0"
                   }
                 ],
                 "properties": {
@@ -26062,6 +26066,12 @@
                       "Layer"
                     ],
                     "type": "string"
+                  },
+                  "path": {
+                    "description": "A JSON pointer into the manifest, e.g. /spec/sources/0 (an array's items are /0): answers that field's whole JSON Schema with its descriptions instead of the field list",
+                    "maxLength": 256,
+                    "pattern": "^(/[^/]*)*$",
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -26079,17 +26089,38 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "example": {
+                      "description": "A minimal manifest jc-core's validation accepts; rename it and fill its references before planning it",
+                      "type": "object"
+                    },
+                    "fields": {
+                      "description": "One line per field: `path: type, required, limits`",
+                      "type": "string"
+                    },
                     "kind": {
                       "type": "string"
                     },
+                    "more": {
+                      "description": "How to read a field the lines leave out",
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "description": "The fields every manifest of the kind carries",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
                     "schema": {
-                      "description": "The kind's JSON Schema (draft-07, as jc-core exports it)",
+                      "description": "With path: the field's JSON Schema (draft-07, as jc-core exports it), with the definitions it names",
                       "type": "object"
                     }
                   },
                   "required": [
-                    "kind",
-                    "schema"
+                    "kind"
                   ],
                   "type": "object"
                 }
