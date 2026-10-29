@@ -218,18 +218,29 @@ describe("reading it without the picture", () => {
     expect(width()).toBeCloseTo(natural);
   });
 
-  it("fits a drawing wider than its frame to the frame's width on load, and never enlarges one (T-4991)", () => {
+  // T-6090 review: the fit stops at 75 %, below which a slot line is too small to read; a
+  // drawing wider than that scrolls in its frame.
+  it("fits a drawing wider than its frame to the frame's width on load, never below readable, and never enlarges one (T-4991)", () => {
     const wide = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    const widthAt = (frame: number) => {
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => frame });
+      const view = renderPart(<LinkmlGraphView source={SCHOOLS} />);
+      const svg = view.container.querySelector("svg[role='group']") as SVGSVGElement;
+      const width = Number(svg.getAttribute("width"));
+      const level = view.getByText(/^Zoom \d+ %$/).textContent;
+      view.unmount();
+      return { width, level };
+    };
     try {
-      Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 216 });
-      const narrow = renderPart(<LinkmlGraphView source={SCHOOLS} />);
-      const svg = narrow.container.querySelector("svg[role='group']") as SVGSVGElement;
-      expect(Number(svg.getAttribute("width"))).toBeCloseTo(200);
-      narrow.unmount();
-
-      Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 100000 });
-      const roomy = renderPart(<LinkmlGraphView source={SCHOOLS} />);
-      expect(roomy.getByText("Zoom 100 %")).toBeInTheDocument();
+      const natural = widthAt(100000);
+      expect(natural.level).toBe("Zoom 100 %");
+      // A frame a little narrower than the drawing: it fits the frame's width.
+      const frame = Math.round(natural.width * 0.9);
+      expect(widthAt(frame).width).toBeCloseTo(frame - 16, 0);
+      // A frame far narrower: the drawing stays at 75 % and scrolls.
+      const narrow = widthAt(216);
+      expect(narrow.level).toBe("Zoom 75 %");
+      expect(narrow.width).toBeCloseTo(natural.width * 0.75, 0);
     } finally {
       if (wide) Object.defineProperty(HTMLElement.prototype, "clientWidth", wide);
     }

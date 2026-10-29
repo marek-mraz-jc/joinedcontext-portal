@@ -59,7 +59,9 @@ const BOX = {
  */
 const CHARS = 17;
 /** Pixels per drawing unit: natural size, and how far the buttons go each way. */
-const ZOOM = { natural: 1, step: 1.25, min: 0.25, max: 4, fitMax: 2 };
+// `readable` is the floor of a fit: below it a slot line is ~6 px and unreadable (T-6090 review:
+// helsinki fitted at 58 % on a laptop, 25 % on a phone); a wider drawing scrolls in its frame.
+const ZOOM = { natural: 1, step: 1.25, min: 0.25, max: 4, fitMax: 2, readable: 0.75 };
 /**
  * The least zoom the full-screen canvas fits to (T-6094): the slot text, 10 units, is 11 px there.
  * The canvas lays its groups out in as many columns as fit at `canvasColumns`, so a model is
@@ -366,7 +368,7 @@ export function LinkmlGraphView({
     if (frameAt) setView({ left: frameAt.scrollLeft, top: frameAt.scrollTop, width: frameAt.clientWidth, height: frameAt.clientHeight });
   };
   useEffect(measure, [zoom, placed]);
-  // On load the drawing fits its card's width, never enlarged: a big model ran off the card's
+  // On load the drawing fits its card's width, never enlarged nor below readable: a big model ran off the card's
   // right edge at its natural size (T-4991). The Fit button may still enlarge a small one.
   // A frame drawn while hidden (a tab not yet open) has no width: fit once it gets one (T-6090).
   const fitted = useRef(false);
@@ -390,7 +392,7 @@ export function LinkmlGraphView({
     // a phone's width was a quarter size nobody could read (T-6094 UI judge).
     const narrow = canvas && available < 2 * BOX.width;
     const fits = Math.min(canvas ? CANVAS_FIT_MAX : ZOOM.natural, available / (narrow ? BOX.width + 16 : wide));
-    setZoom(Math.max(canvas && !narrow ? READABLE : ZOOM.min, fits));
+    setZoom(Math.max(canvas && !narrow ? READABLE : ZOOM.readable, fits));
   }, [placed, frameWidth, canvas]);
   // The wheel zooms on the canvas, and with Ctrl or Cmd anywhere; the point under the pointer stays put.
   const zoomNow = useRef(zoom);
@@ -543,12 +545,13 @@ export function LinkmlGraphView({
   const local = new Set(placed.filter((node) => node.kind === "class" && !node.from).map((node) => node.name));
 
   const zoomTo = (next: number) => setZoom(Math.min(ZOOM.max, Math.max(ZOOM.min, next)));
-  // Fit: the whole drawing in the frame's width, never blown up past twice its size.
+  // Fit: the whole drawing in the frame's width, never blown up past twice its size nor shrunk
+  // below readable; Zoom out still goes further for an overview.
   const fit = () => {
     const available = (frame.current?.clientWidth ?? 0) - 16;
     const narrow = canvas && available < 2 * BOX.width;
     const fits = Math.min(canvas ? CANVAS_FIT_MAX : ZOOM.fitMax, available / (narrow ? BOX.width + 16 : width + 8));
-    setZoom(available > 0 ? Math.max(canvas && !narrow ? READABLE : ZOOM.min, fits) : ZOOM.natural);
+    setZoom(available > 0 ? Math.max(canvas && !narrow ? READABLE : ZOOM.readable, fits) : ZOOM.natural);
     frame.current?.scrollTo?.({ left: 0, top: 0 });
   };
   // Pan by dragging the background; a press on a box or a line is still a click.
@@ -594,15 +597,22 @@ export function LinkmlGraphView({
           ))}
         </datalist>
         <Button size="sm" variant="secondary" onClick={() => zoomTo(zoom / ZOOM.step)} disabled={zoom <= ZOOM.min} disabledReason={t("models.graph.zoomMin")}>
-          {t("models.graph.zoomOut")}
+          {/* A phone shows the sign alone, so the toolbar keeps to two rows (T-6090 review). */}
+          <span aria-hidden="true" className="sm:hidden">
+            −
+          </span>
+          <span className="max-sm:sr-only">{t("models.graph.zoomOut")}</span>
         </Button>
         <Button size="sm" variant="secondary" onClick={() => zoomTo(zoom * ZOOM.step)} disabled={zoom >= ZOOM.max} disabledReason={t("models.graph.zoomMax")}>
-          {t("models.graph.zoomIn")}
+          <span aria-hidden="true" className="sm:hidden">
+            +
+          </span>
+          <span className="max-sm:sr-only">{t("models.graph.zoomIn")}</span>
         </Button>
         <Button size="sm" variant="secondary" onClick={fit}>
           {t("models.graph.fit")}
         </Button>
-        <span className="text-caption text-fg-muted" aria-live="polite">
+        <span className="text-caption text-fg-muted max-sm:sr-only" aria-live="polite">
           {t("models.graph.zoomLevel", { percent: Math.round(zoom * 100) })}
         </span>
         <ToolbarPopover label={t("models.graph.notation.button")} end>

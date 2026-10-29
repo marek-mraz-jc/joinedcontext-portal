@@ -4443,7 +4443,7 @@
     },
     "graph": {
       "title": "Třídy modelu a co je spojuje",
-      "legend": "Plná čára je `is_a`, přerušovaná mixin, tečkovaná slot, jehož rozsah jmenuje jinou třídu, řídce tečkovaná slot, který vybírá z enumu. Rámeček enumu vypisuje jeho hodnoty; přerušovaný rámeček pochází z importu. V rámečku má každé pole svůj typ: PK označuje klíč, FK pole, které odkazuje na jinou třídu, s tou třídou a počtem. I tečkovaná čára uvádí počet na obou koncích; * znamená libovolně mnoho.",
+      "legend": "Plná čára je is_a, přerušovaná mixin, tečkovaná slot, jehož rozsah jmenuje jinou třídu, řídce tečkovaná slot, který vybírá z enumu. Rámeček enumu vypisuje jeho hodnoty; přerušovaný rámeček pochází z importu. V rámečku má každé pole svůj typ: PK označuje klíč, FK pole, které odkazuje na jinou třídu, s tou třídou a počtem. I tečkovaná čára uvádí počet na obou koncích; * znamená libovolně mnoho.",
       "empty": "Tento model zatím nemá žádnou třídu, takže není co kreslit.",
       "openClass": "Otevřít {name} ve struktuře",
       "row": {

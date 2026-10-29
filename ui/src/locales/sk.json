@@ -4443,7 +4443,7 @@
     },
     "graph": {
       "title": "Triedy modelu a čo ich spája",
-      "legend": "Plná čiara je `is_a`, prerušovaná mixin, bodkovaná slot, ktorého rozsah menuje inú triedu, riedko bodkovaná slot, ktorý vyberá z enumu. Rámček enumu vypisuje jeho hodnoty; prerušovaný rámček pochádza z importu. V rámčeku má každé pole svoj typ: PK označuje kľúč, FK pole, ktoré odkazuje na inú triedu, s tou triedou a počtom. Aj bodkovaná čiara uvádza počet na oboch koncoch; * znamená ľubovoľne veľa.",
+      "legend": "Plná čiara je is_a, prerušovaná mixin, bodkovaná slot, ktorého rozsah menuje inú triedu, riedko bodkovaná slot, ktorý vyberá z enumu. Rámček enumu vypisuje jeho hodnoty; prerušovaný rámček pochádza z importu. V rámčeku má každé pole svoj typ: PK označuje kľúč, FK pole, ktoré odkazuje na inú triedu, s tou triedou a počtom. Aj bodkovaná čiara uvádza počet na oboch koncoch; * znamená ľubovoľne veľa.",
       "empty": "Tento model zatiaľ nemá žiadnu triedu, takže niet čo nakresliť.",
       "openClass": "Otvoriť {name} v štruktúre",
       "row": {
