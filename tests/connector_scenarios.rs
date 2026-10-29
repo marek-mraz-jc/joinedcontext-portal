@@ -13,6 +13,10 @@
 //! DataSource served on `http://localhost`) and every persona is bound to it alone; project
 //! `t-scn-other` belongs to nobody, so a step aimed at it is the cross-project deny. The fixtures
 //! live in the run's in-memory mirror and mock servers and end with the test process.
+//!
+//! A step `via: public` goes to the public connector instead, the gateway hub `/api/mcp` without a
+//! token (S-07, T-6026): the real context-gateway router, serving one public and one
+//! organization-only Endpoint over the same mock broker.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -144,7 +148,8 @@ struct Step {
     /// connector this scenario created last.
     #[serde(default)]
     rest: Option<Rest>,
-    /// `connector`: the MCP request goes to that connector's `/c/{id}` with a token for its address.
+    /// `connector`: the MCP request goes to that connector's `/c/{id}` with a token for its address;
+    /// `public`: to the gateway hub `/api/mcp` without a token, the public connector (S-07).
     #[serde(default)]
     via: Option<String>,
     /// The OAuth client the token is obtained by, when not `mcp-local`.
@@ -767,6 +772,118 @@ async fn data_plane(server: &MockServer) {
         .await;
 }
 
+/// The public Endpoint of the gateway hub (S-07): anybody reads its air quality.
+const PUBLIC_SLUG: &str = "scnpublicairqualityzzzzzzz";
+/// An organization-only Endpoint of the same hub: a caller without a token learns nothing of it.
+const INTERNAL_SLUG: &str = "scninternalrecordszzzzzzzz";
+
+/// One Endpoint of the public gateway hub, granting `role` reads of `class`.
+fn hub_endpoint(
+    slug: &str,
+    title: &str,
+    audience: jc_core::kinds::Audience,
+    class: &str,
+    role: &str,
+) -> context_gateway::resolver::Endpoint {
+    let policy = serde_json::from_value(json!({
+        "contextSpaceRef": "scn",
+        "assigner": "did:web:scn.example",
+        "assignee": { "kind": "role", "id": role },
+        "operations": ["queryEntity"],
+        "information": [{ "entities": [{ "type": class }] }],
+    }))
+    .expect("the policy spec parses");
+    let schema = json!({ "$defs": { class: { "type": "object",
+        "properties": { "id": {}, "type": {}, "name": {}, "location": {} } } } });
+    context_gateway::resolver::Endpoint {
+        declared_types: None,
+        roles: Default::default(),
+        slug: slug.to_owned(),
+        title: [("en".to_owned(), title.to_owned())].into(),
+        description: Default::default(),
+        space: "scn".to_owned(),
+        project: "scn".to_owned(),
+        audience,
+        allowed_projects: Vec::new(),
+        representations: vec![
+            jc_core::kinds::Representation::NgsiLd,
+            jc_core::kinds::Representation::Mcp,
+        ],
+        rate_limit: None,
+        creates: None,
+        file_limits: None,
+        hidden_attributes: Default::default(),
+        projection: None,
+        view_mapping: None,
+        catalog: None,
+        deprecation: None,
+        feeds: Vec::new(),
+        calendars: Vec::new(),
+        map_defaults: Default::default(),
+        base_path: format!("/api/endpoint/{slug}"),
+        models: vec![context_gateway::resolver::Model {
+            name: "scn".to_owned(),
+            version: "1.0.0".to_owned(),
+            major: 1,
+            classes: vec![class.to_owned()],
+            json_schema: Some(schema.into()),
+            context: None,
+        }],
+        policy_names: Vec::new(),
+        manifest_name: slug.to_owned(),
+        policies: vec![policy],
+    }
+}
+
+/// The public connector: the gateway hub over [`PUBLIC_SLUG`] and [`INTERNAL_SLUG`], its broker
+/// the mock server, whose view MCP answers one AirQualityObserved to a `query_entities`.
+async fn public_gateway(server: &MockServer, issuer: &str) -> axum::Router {
+    use context_gateway::app::{router, Gateway};
+    use jc_core::kinds::Audience;
+    Mock::given(method("POST"))
+        .and(wiremock::matchers::path_regex("^/x/views/[^/]+/mcp$"))
+        .and(wiremock::matchers::body_string_contains("query_entities"))
+        .respond_with(|request: &wiremock::Request| {
+            let id = serde_json::from_slice::<Value>(&request.body)
+                .map_or(Value::Null, |m| m["id"].clone());
+            let entities = json!({ "entities": [{
+                "id": "urn:ngsi-ld:AirQualityObserved:scn-snp", "type": "AirQualityObserved",
+                "pm10": { "type": "Property", "value": 16.1, "observedAt": "2026-10-29T04:00:00Z" } }] });
+            ResponseTemplate::new(200).set_body_json(json!({ "jsonrpc": "2.0", "id": id,
+                "result": { "isError": false, "structuredContent": entities,
+                            "content": [{ "type": "text", "text": entities.to_string() }] } }))
+        })
+        .mount(server)
+        .await;
+    let open = hub_endpoint(
+        PUBLIC_SLUG,
+        "Air quality now",
+        Audience::Public,
+        "AirQualityObserved",
+        "public",
+    );
+    let inner = hub_endpoint(
+        INTERNAL_SLUG,
+        "Records of the region",
+        Audience::Organization,
+        "PotholeReport",
+        "steward",
+    );
+    router(std::sync::Arc::new(
+        Gateway::new(
+            context_gateway::proxy::Broker::new(server.uri()),
+            Box::new(context_gateway::pdp::PolicyPdp),
+            "scn.example",
+        )
+        .serve([open, inner])
+        .authenticate(
+            std::sync::Arc::new(context_gateway::auth::token::Verifier::new(issuer)),
+            context_gateway::auth::accounts::ServiceAccounts::new(),
+            Some("https://api.portal.test".to_owned()),
+        ),
+    ))
+}
+
 /// The realm's admin API as the people routes call it: each persona is a user whose id is its
 /// token's `sub`, holding no realm group or role of its own; every change answers 204.
 async fn realm_admin(server: &MockServer) {
@@ -818,6 +935,8 @@ struct Harness {
     issuer: String,
     signer: EncodingKey,
     mirror: std::sync::Arc<Mirror>,
+    /// The public connector, the gateway hub a caller without a token reaches (S-07).
+    gateway: axum::Router,
     /// The Portal's state, for what a person decides on a Portal page with their session.
     state: AppState,
     /// The connector the running scenario created last.
@@ -892,6 +1011,7 @@ impl Harness {
         model_tools_and_broker(server).await;
         data_plane(server).await;
         realm_admin(server).await;
+        let gateway = public_gateway(server, &issuer).await;
         let csv_url = format!("http://localhost:{}/counters.csv", server.address().port());
 
         let mut config = Config::from_vars(|k| match k {
@@ -947,6 +1067,7 @@ impl Harness {
         .map(std::sync::Arc::new);
         Self {
             app: server::app(state.clone()),
+            gateway,
             issuer,
             signer,
             mirror,
@@ -1048,7 +1169,7 @@ impl Harness {
         body: Option<Value>,
     ) -> (StatusCode, Value) {
         let token = token.map(|t| (header::AUTHORIZATION, format!("Bearer {t}")));
-        self.request(method, uri, token.into_iter().collect(), body)
+        self.request(&self.app, method, uri, token.into_iter().collect(), body)
             .await
     }
 
@@ -1070,11 +1191,12 @@ impl Harness {
             ),
         ];
         headers.extend(token.map(|t| (EDGE_TOKEN_HEADER, t)));
-        self.request(method, uri, headers, body).await
+        self.request(&self.app, method, uri, headers, body).await
     }
 
     async fn request(
         &self,
+        app: &axum::Router,
         method: &str,
         uri: &str,
         headers: Vec<(header::HeaderName, String)>,
@@ -1087,8 +1209,7 @@ impl Harness {
         for (name, value) in headers {
             request = request.header(name, value);
         }
-        let response = self
-            .app
+        let response = app
             .clone()
             .oneshot(
                 request
@@ -1247,7 +1368,10 @@ impl Harness {
         let body = match &step.call {
             Some(tool) => {
                 let mut arguments = if args.is_null() { json!({}) } else { args };
-                arguments["project"] = json!(project);
+                // The gateway hub knows no Portal project: its tools refuse the argument.
+                if step.via.as_deref() != Some("public") {
+                    arguments["project"] = json!(project);
+                }
                 json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call",
                         "params": { "name": tool, "arguments": arguments } })
             }
@@ -1281,7 +1405,11 @@ impl Harness {
                 self.send("POST", &format!("/c/{connector}"), token, Some(body))
                     .await
             }
-            Some(other) => return Err(format!("via `{other}` is not connector")),
+            Some("public") => {
+                self.request(&self.gateway, "POST", "/api/mcp", Vec::new(), Some(body))
+                    .await
+            }
+            Some(other) => return Err(format!("via `{other}` is neither connector nor public")),
         };
         let refused = match status {
             StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => true,
