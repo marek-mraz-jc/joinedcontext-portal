@@ -17,6 +17,8 @@ use std::borrow::Cow;
 
 use chrono::Utc;
 
+use crate::error::ApiError;
+
 use super::connector_turn::refused;
 
 /// The names of the browser actions, in the order the model reads them.
@@ -39,6 +41,14 @@ const QUERY_CHARS: usize = 200;
 const FIELD_CHARS: usize = 200;
 /// How deep a field path's `$ref`s and `allOf`s are followed.
 const SCHEMA_DEPTH: usize = 16;
+
+/// A browser action the checks refuse: 422 naming what to correct.
+fn invalid_action(reason: &str) -> ApiError {
+    ApiError::Unprocessable {
+        detail: reason.to_owned(),
+        errors: Vec::new(),
+    }
+}
 
 /// The browser actions as native tool definitions.
 pub(super) fn ui_specs() -> Vec<ToolSpec> {
@@ -261,7 +271,7 @@ impl Driver {
                 };
                 // `open_page` reports its own tool event, a refusal included.
                 return Ok(match opened.strip_prefix("error: ") {
-                    Some(reason) => refused(422, "invalid-ui-action", "Unprocessable", reason),
+                    Some(reason) => refused(invalid_action(reason)),
                     None => json!({ "opened": opened.trim_start_matches("opened ") }).to_string(),
                 });
             }
@@ -291,7 +301,7 @@ impl Driver {
                     failed_step(&call.name, started, &arguments, &reason),
                 )
                 .await?;
-                Ok(refused(422, "invalid-ui-action", "Unprocessable", &reason))
+                Ok(refused(invalid_action(&reason)))
             }
         }
     }

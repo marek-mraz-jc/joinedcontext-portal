@@ -463,13 +463,7 @@ fn tab_action(
     let (frame, payload) = match ui_actions::for_tab(&asker, name, &checked) {
         Ok(done) => done,
         Err(why) => {
-            return refused(
-                422,
-                "invalid-ui-action",
-                "Unprocessable",
-                &why,
-                "refused: tool",
-            );
+            return refused(422, "unprocessable", "Unprocessable", &why, "refused: tool");
         }
     };
     let action = json!({

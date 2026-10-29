@@ -4,6 +4,10 @@
 //! an id that does not exist. A connector's own token is not a token for these routes (its
 //! audience is `/c/{id}`), so no connector creates, widens or revokes a connector (AG-151); a
 //! workload's account is refused too, since a connector is a person's grant.
+//!
+//! `/api/v1/organization/connectors` is the organization administrator's overview (T-5975): every
+//! connector with its owner, scope, clients and the last day's calls and denials, and a revoke.
+//! It shows the audit's tool and target counts only, never a call's input or a token.
 
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, Query, State};
@@ -16,8 +20,9 @@ use utoipa::{IntoParams, ToSchema};
 
 use crate::auth::session::Identity;
 use crate::auth::CurrentUser;
-use crate::connectors::{self, Call, Connector, NewConnector, DEFAULT_CEILING};
+use crate::connectors::{self, Call, Connector, NewConnector, Overview, DEFAULT_CEILING};
 use crate::error::{ApiError, ProblemDetails};
+use crate::permissions::ORG_NAMESPACE;
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -36,6 +41,19 @@ pub fn router() -> Router<AppState> {
             axum::routing::post(pair_tab).delete(unpair_tab),
         )
         .route("/connectors/{id}/tab/{tab}/events", get(tab_events))
+        .route("/organization/connectors", get(organization_connectors))
+        .route(
+            "/organization/connectors/{id}",
+            axum::routing::delete(revoke_organization_connector),
+        )
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorOverview {
+    pub items: Vec<Overview>,
+    /// Refused calls in a day that flag a connector.
+    pub denials_flag: i64,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -468,6 +486,87 @@ pub async fn connector_activity(
     let connector = own(&state, &user.0.identity, &id).await?;
     let items = state.connectors.calls(&connector.id).await?;
     Ok(Json(ConnectorCalls { items }))
+}
+
+/// Only an administrator of the organization reads or revokes every person's connectors.
+fn administrator(state: &AppState, identity: &Identity) -> Result<(), ApiError> {
+    // Every person's grants are read, and one revoked, by a person in a Portal session; an
+    // administrator's agent or a service account bound to the role never does it (AG-133).
+    if identity.client.is_some() {
+        return Err(ApiError::Denied(
+            "every person's connectors are listed and revoked only by an administrator in the \
+             Portal, never with a service account's or an agent's token (AG-133)"
+                .into(),
+        ));
+    }
+    if crate::permissions::for_request(state, identity, ORG_NAMESPACE).administers_organization() {
+        return Ok(());
+    }
+    Err(ApiError::Denied(
+        "only an administrator of the organization reads or revokes every person's connectors: \
+         it needs approve and delete on RoleBinding at organization scope (PF-03)"
+            .into(),
+    ))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/organization/connectors",
+    summary = "List the Organization's Connectors",
+    description = "Every person's connectors, live ones first, at most 500: owner, segments, scope, clients, state, last call, calls and denials of the last 24 hours, and `flagged` at `denialsFlag` denials. Never a call's input or a token (T-5975, API/14 §2).",
+    tag = "connectors",
+    responses(
+        (status = 200, description = "The organization's connectors", body = ConnectorOverview),
+        (status = 401, description = "Not signed in", body = ProblemDetails),
+        (status = 403, description = "Not an administrator of the organization", body = ProblemDetails),
+    )
+)]
+pub async fn organization_connectors(
+    user: CurrentUser,
+    State(state): State<AppState>,
+) -> Result<Json<ConnectorOverview>, ApiError> {
+    administrator(&state, &user.0.identity)?;
+    let items = state.connectors.overview(&base(&state)).await?;
+    Ok(Json(ConnectorOverview {
+        items,
+        denials_flag: connectors::DENIALS_FLAG,
+    }))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/v1/organization/connectors/{id}",
+    summary = "Revoke a Person's Connector",
+    description = "An administrator revokes any person's connector; the next call through it is refused, and the activity feed names who revoked it (T-5975).",
+    tag = "connectors",
+    params(("id" = String, Path, description = "The connector id")),
+    responses(
+        (status = 204, description = "Revoked"),
+        (status = 401, description = "Not signed in", body = ProblemDetails),
+        (status = 403, description = "Not an administrator of the organization", body = ProblemDetails),
+        (status = 404, description = "No live connector with this id", body = ProblemDetails),
+    )
+)]
+pub async fn revoke_organization_connector(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    let identity = &user.0.identity;
+    administrator(&state, identity)?;
+    if !connectors::is_id(&id) {
+        return Err(not_found());
+    }
+    let Some(found) = state.connectors.get(&id, &base(&state)).await? else {
+        return Err(not_found());
+    };
+    state.paired_tabs.unpair(&id, &found.owner);
+    if !state.connectors.revoke(&id, &found.owner).await? {
+        return Err(not_found());
+    }
+    let action = format!("revoked connector {} of", found.name);
+    crate::api::people::record(&state, identity, &action, &found.owner).await;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// A Portal tab paired with a connector (T-5967).
@@ -990,5 +1089,95 @@ mod tests {
             .expect("edited");
         assert_eq!(edited.scope[0].endpoint.as_deref(), Some("helsinki-air"));
         assert_eq!(edited.name, "air");
+    }
+
+    fn administrator_user() -> CurrentUser {
+        let mut admin = user("ada");
+        // Config::for_tests names `portal-approver` its bootstrap administrators' group.
+        admin.0.identity.groups = vec!["portal-approver".into()];
+        admin
+    }
+
+    /// T-5975: only an administrator lists every person's connectors, with the day's calls and
+    /// denials and the flag, and revokes one; nobody else reads or revokes them.
+    #[tokio::test]
+    async fn an_administrator_alone_lists_flags_and_revokes_every_persons_connectors() {
+        let state = AppState::new(Config::for_tests(), None);
+        let new = body("ana-reads").expect("body").0;
+        let made = state
+            .connectors
+            .create("f:1:ana", new, "")
+            .await
+            .expect("created");
+        for verdict in std::iter::repeat_n("refused: outside the scope", 10).chain(["allowed"]) {
+            let call = Call {
+                at: chrono::Utc::now(),
+                subject: "f:1:ana".into(),
+                client: Some("mcp-local".into()),
+                tool: "jc_resource_list".into(),
+                target: Some("doprava/Endpoint/x".into()),
+                verdict: verdict.into(),
+                duration_ms: 3,
+            };
+            state
+                .connectors
+                .record(&made.id, call)
+                .await
+                .expect("audit");
+        }
+
+        let stranger = organization_connectors(user("bob"), State(state.clone())).await;
+        assert!(matches!(stranger, Err(ApiError::Denied(why)) if why.contains("PF-03")));
+        let refused =
+            revoke_organization_connector(user("bob"), State(state.clone()), Path(made.id.clone()))
+                .await;
+        assert!(matches!(refused, Err(ApiError::Denied(_))));
+
+        let mut agent = administrator_user();
+        agent.0.identity.client = Some("helsinki-jc-agent-proxy".into());
+        let listing = organization_connectors(agent.clone(), State(state.clone())).await;
+        assert!(matches!(listing, Err(ApiError::Denied(why)) if why.contains("AG-133")));
+        let revoking =
+            revoke_organization_connector(agent, State(state.clone()), Path(made.id.clone())).await;
+        assert!(matches!(revoking, Err(ApiError::Denied(why)) if why.contains("AG-133")));
+
+        let Json(listed) = organization_connectors(administrator_user(), State(state.clone()))
+            .await
+            .expect("listed");
+        assert_eq!(listed.items.len(), 1);
+        let row = &listed.items[0];
+        assert_eq!(
+            (row.calls_per_day, row.denials_per_day, row.flagged),
+            (11, 10, true)
+        );
+        let text = serde_json::to_string(&listed).expect("json");
+        assert!(text.contains("\"owner\":\"f:1:ana\""), "{text}");
+
+        let unknown = revoke_organization_connector(
+            administrator_user(),
+            State(state.clone()),
+            Path("a".repeat(26)),
+        )
+        .await;
+        assert!(matches!(unknown, Err(ApiError::NotFound(_))));
+        let revoked = revoke_organization_connector(
+            administrator_user(),
+            State(state.clone()),
+            Path(made.id.clone()),
+        )
+        .await
+        .expect("revoked");
+        assert_eq!(revoked, StatusCode::NO_CONTENT);
+        let again = revoke_organization_connector(
+            administrator_user(),
+            State(state.clone()),
+            Path(made.id.clone()),
+        )
+        .await;
+        assert!(matches!(again, Err(ApiError::NotFound(_))));
+        let Json(after) = organization_connectors(administrator_user(), State(state))
+            .await
+            .expect("listed");
+        assert_eq!(after.items[0].connector.state, "revoked");
     }
 }

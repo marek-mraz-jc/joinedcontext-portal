@@ -889,6 +889,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/connectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the Organization's Connectors
+         * @description Every person's connectors, live ones first, at most 500: owner, segments, scope, clients, state, last call, calls and denials of the last 24 hours, and `flagged` at `denialsFlag` denials. Never a call's input or a token (T-5975, API/14 §2).
+         */
+        get: operations["organization_connectors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/connectors/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke a Person's Connector
+         * @description An administrator revokes any person's connector; the next call through it is refused, and the activity feed names who revoked it (T-5975).
+         */
+        delete: operations["revoke_organization_connector"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/costs": {
         parameters: {
             query?: never;
@@ -7857,6 +7897,14 @@ export interface components {
             /** @description Every preset a connector may name; those outside `ceiling.segments` need approval. */
             segments: string[];
         };
+        ConnectorOverview: {
+            /**
+             * Format: int64
+             * @description Refused calls in a day that flag a connector.
+             */
+            denialsFlag: number;
+            items: components["schemas"]["ConnectorUsage"][];
+        };
         /** @description The fields of a connector its owner may change (JSON merge patch, API/14 §2); the name stays. */
         ConnectorPatch: {
             allowedClients?: string[] | null;
@@ -7885,6 +7933,24 @@ export interface components {
             /** @description A project slug, e.g. `doprava`. */
             project: string;
             space?: string | null;
+        };
+        /**
+         * @description A connector as an organization administrator reads it (T-5975): its grant and how much it is
+         *     used, never what a call carried.
+         */
+        ConnectorUsage: components["schemas"]["ConnectorGrant"] & {
+            /**
+             * Format: int64
+             * @description Calls in the last 24 hours, allowed and refused.
+             */
+            callsPerDay: number;
+            /**
+             * Format: int64
+             * @description Refused calls in the last 24 hours.
+             */
+            denialsPerDay: number;
+            /** @description [`DENIALS_FLAG`] refused calls or more in the last 24 hours. */
+            flagged: boolean;
         };
         /**
          * @description One client a person consented to (the hub, an Endpoint's MCP client, an App), as the realm's
@@ -13556,6 +13622,92 @@ export interface operations {
             };
             /** @description Not an organization administrator */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    organization_connectors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organization's connectors */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorOverview"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an administrator of the organization */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    revoke_organization_connector: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The connector id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an administrator of the organization */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No live connector with this id */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

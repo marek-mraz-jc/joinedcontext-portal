@@ -131,6 +131,8 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/connectors/{id}/tab", "the person signed in in a tab pairs it with their own connector, whose client steers it with UI actions that never save (T-5967, API/14 §2.1)"),
 ("DELETE", "/connectors/{id}/tab", "the person signed in in a tab pairs it with their own connector, whose client steers it with UI actions that never save (T-5967, API/14 §2.1)"),
 ("GET", "/connectors/{id}/tab/{tab}/events", "the person signed in in a tab pairs it with their own connector, whose client steers it with UI actions that never save (T-5967, API/14 §2.1)"),
+("GET", "/organization/connectors", "an administrator reviews every person's connectors in the Portal; a connector never reads or revokes one (AG-151, T-5975)"),
+("DELETE", "/organization/connectors/{id}", "an administrator reviews every person's connectors in the Portal; a connector never reads or revokes one (AG-151, T-5975)"),
 ("GET", "/c/{id}", "a connector's MCP door, which dispatches this registry narrowed by the connector (AG-143)"),
 ("POST", "/c/{id}", "a connector's MCP door, which dispatches this registry narrowed by the connector (AG-143)"),
 ("GET", "/c/{id}/.well-known/oauth-protected-resource", "the OAuth resource metadata an MCP client reads before it asks a token for the connector"),

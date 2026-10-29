@@ -405,6 +405,13 @@ routes:
     rule: "signed-in person in a browser, own connectors only, the session that paired the tab (T-5967)"
     expect: [401, 404, 404, 404, 404, 404, 404, 403]
     note: "the fixture holds no connector: every person's 404 is the unknown id; a workload pairs no tab (403)"
+  - route: GET /organization/connectors
+    rule: "org-admin"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: DELETE /organization/connectors/{id}
+    rule: "org-admin"
+    expect: [403, 403, 403, 403, 403, 404, 403, 403]
+    note: "the fixture holds no connector: the administrator's 404 is the unknown id"
   - route: GET /c/{id}
     rule: "public"
     expect: [405, 405, 405, 405, 405, 405, 405, 405]

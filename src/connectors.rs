@@ -30,6 +30,10 @@ const MAX_CLIENTS: usize = 10;
 /// Audit rows one activity page carries, and how long a row is kept.
 pub const CALLS_PAGE: i64 = 200;
 const CALLS_KEPT_DAYS: i64 = 30;
+/// Connectors the organization overview lists, live ones first (T-5975).
+const OVERVIEW_PAGE: i64 = 500;
+/// Refused calls in a day that flag a connector on the overview: a client probing past its scope.
+pub const DENIALS_FLAG: i64 = 10;
 
 /// A segment (API/14 §1, Architecture/07 §11): the read tools it lists and the kinds those tools
 /// may name. A segment that proposes lists `jc_change_plan` (a dry run, nothing saved); the one
@@ -748,6 +752,37 @@ fn validate_clients(clients: &[String]) -> Result<(), ApiError> {
     Ok(())
 }
 
+/// A connector as an organization administrator reads it (T-5975): its grant and how much it is
+/// used, never what a call carried.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[schema(as = ConnectorUsage)]
+pub struct Overview {
+    #[serde(flatten)]
+    pub connector: Connector,
+    /// Calls in the last 24 hours, allowed and refused.
+    pub calls_per_day: i64,
+    /// Refused calls in the last 24 hours.
+    pub denials_per_day: i64,
+    /// [`DENIALS_FLAG`] refused calls or more in the last 24 hours.
+    pub flagged: bool,
+}
+
+impl Overview {
+    fn of(connector: Connector, calls_per_day: i64, denials_per_day: i64) -> Self {
+        Self {
+            connector,
+            calls_per_day,
+            denials_per_day,
+            flagged: denials_per_day >= DENIALS_FLAG,
+        }
+    }
+}
+
+fn refused(verdict: &str) -> bool {
+    verdict.starts_with("refused")
+}
+
 /// One row of a connector's audit (AG-147).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -789,6 +824,17 @@ pub struct ConnectorStore {
 }
 
 type Odt = time::OffsetDateTime;
+type OverviewRow = (
+    String,
+    String,
+    String,
+    sqlx::types::Json<GrantDoc>,
+    Odt,
+    Option<Odt>,
+    Option<Odt>,
+    i64,
+    i64,
+);
 type Row = (
     String,
     String,
@@ -1029,6 +1075,86 @@ impl ConnectorStore {
                     .iter_mut()
                     .find(|r| r.id == id && r.owner == owner && r.revoked_at.is_none());
                 Ok(found.map(|r| r.revoked_at = Some(Utc::now())).is_some())
+            }
+        }
+    }
+
+    /// Every connector of the organization with its last day's calls and denials, live ones first
+    /// and then newest first, at most `OVERVIEW_PAGE` (T-5975).
+    pub async fn overview(&self, base: &str) -> Result<Vec<Overview>, ApiError> {
+        let now = Utc::now();
+        match &self.inner {
+            Inner::Postgres(pool) => {
+                let rows: Vec<OverviewRow> = sqlx::query_as(concat!(
+                    "SELECT ",
+                    columns!(),
+                    ", (SELECT count(*) FROM connector_calls k WHERE k.connector = connectors.id \
+                       AND k.at > now() - interval '1 day'), \
+                     (SELECT count(*) FROM connector_calls k WHERE k.connector = connectors.id \
+                       AND k.at > now() - interval '1 day' AND k.verdict LIKE 'refused%') \
+                     FROM connectors ORDER BY revoked_at IS NULL DESC, created_at DESC LIMIT $1"
+                ))
+                .bind(OVERVIEW_PAGE)
+                .fetch_all(pool)
+                .await
+                .map_err(db_error)?;
+                Ok(rows
+                    .into_iter()
+                    .map(
+                        |(id, owner, name, grant, created, used, revoked, calls, denials)| {
+                            let row = (id, owner, name, grant, created, used, revoked);
+                            Overview::of(record(row).view(base, now), calls, denials)
+                        },
+                    )
+                    .collect())
+            }
+            Inner::Memory(rows) => {
+                let rows = Self::memory(rows);
+                let since = now - Duration::days(1);
+                let mut records: Vec<&Record> = rows.0.iter().rev().collect();
+                records.sort_by_key(|r| r.revoked_at.is_some());
+                Ok(records
+                    .into_iter()
+                    .take(usize::try_from(OVERVIEW_PAGE).unwrap_or(500))
+                    .map(|r| {
+                        let day = || rows.1.iter().filter(|(id, c)| *id == r.id && c.at > since);
+                        let calls = i64::try_from(day().count()).unwrap_or(i64::MAX);
+                        let denials = day().filter(|(_, c)| refused(&c.verdict)).count();
+                        Overview::of(
+                            r.view(base, now),
+                            calls,
+                            i64::try_from(denials).unwrap_or(i64::MAX),
+                        )
+                    })
+                    .collect())
+            }
+        }
+    }
+
+    /// Revokes every live connector of `owner`, as offboarding does (T-5975): how many it revoked.
+    pub async fn revoke_all(&self, owner: &str) -> Result<u64, ApiError> {
+        match &self.inner {
+            Inner::Postgres(pool) => Ok(sqlx::query(
+                "UPDATE connectors SET revoked_at = now() WHERE owner = $1 AND revoked_at IS NULL",
+            )
+            .bind(owner)
+            .execute(pool)
+            .await
+            .map_err(db_error)?
+            .rows_affected()),
+            Inner::Memory(rows) => {
+                let now = Utc::now();
+                let mut rows = Self::memory(rows);
+                let mut done = 0;
+                for r in rows
+                    .0
+                    .iter_mut()
+                    .filter(|r| r.owner == owner && r.revoked_at.is_none())
+                {
+                    r.revoked_at = Some(now);
+                    done += 1;
+                }
+                Ok(done)
             }
         }
     }
@@ -1537,5 +1663,25 @@ mod tests {
         );
         let used = store.get(&first, base).await.expect("get").expect("there");
         assert!(used.last_used_at.is_some());
+    }
+
+    /// T-5975: offboarding revokes every live connector of one person and nobody else's; the
+    /// overview lists live ones first, then the revoked.
+    #[tokio::test]
+    async fn revoke_all_ends_one_persons_connectors_and_the_overview_lists_live_first() {
+        let store = ConnectorStore::new(None);
+        for (owner, name) in [("jana", "a"), ("jana", "b"), ("petra", "c")] {
+            let mut ask = new(&["data-read"], false, 1);
+            ask.name = name.into();
+            store.create(owner, ask, "").await.expect("created");
+        }
+        assert_eq!(store.revoke_all("jana").await.expect("revoked"), 2);
+        assert_eq!(store.revoke_all("jana").await.expect("again"), 0);
+        let listed = store.overview("").await.expect("overview");
+        let rows: Vec<(&str, &str)> = listed
+            .iter()
+            .map(|o| (o.connector.name.as_str(), o.connector.state.as_str()))
+            .collect();
+        assert_eq!(rows, [("c", "active"), ("b", "revoked"), ("a", "revoked")]);
     }
 }

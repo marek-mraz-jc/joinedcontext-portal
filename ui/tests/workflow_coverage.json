@@ -1773,6 +1773,16 @@
           "POST /api/v1/connectors/{id}/tab",
           "DELETE /api/v1/connectors/{id}/tab"
         ]
+      },
+      "revokeAny": {
+        "live": {
+          "spec": "connectors.spec.ts",
+          "test": "an administrator finds a person's connector on the overview and revokes it"
+        },
+        "personOnly": "an administrator revokes a person's connector in the Portal; a connector never revokes one (AG-151, T-5975)",
+        "routes": [
+          "DELETE /api/v1/organization/connectors/{id}"
+        ]
       }
     }
   },
