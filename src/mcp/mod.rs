@@ -302,7 +302,13 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
         "tools/list" => {
             let project = project_of(&params, &state, &caller);
             let ops = crate::ops::listing(&caller, &state, &project);
-            let tools: Vec<Value> = ops.iter().map(tool_definition).collect();
+            let tools = crate::ops::resources::with_readable_kinds(
+                ops.iter().map(tool_definition).collect(),
+                &caller,
+                &state,
+                &project,
+                None,
+            );
 
             json_response(StatusCode::OK, &result(id, json!({ "tools": tools })))
         }

@@ -2276,6 +2276,23 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
         .await;
     assert_eq!(status, StatusCode::OK, "{answer}");
     assert!(answer.to_string().contains("jc_resource_list"), "{answer}");
+    // The kind a read names is an enum of the kinds the person reads within the connector's
+    // segments: the viewer reads far more, data-read reaches three (T-6059).
+    for name in ["jc_resource_list", "jc_resource_get"] {
+        let tool = answer["result"]["tools"]
+            .as_array()
+            .and_then(|tools| tools.iter().find(|t| t["name"] == name))
+            .unwrap_or_else(|| panic!("{name}: {answer}"));
+        let kinds: BTreeSet<&str> = tool["inputSchema"]["properties"]["kind"]["enum"]
+            .as_array()
+            .map(|kinds| kinds.iter().filter_map(Value::as_str).collect())
+            .unwrap_or_default();
+        assert_eq!(
+            kinds,
+            BTreeSet::from(["ContextSpace", "DataModel", "Endpoint"]),
+            "{tool}"
+        );
+    }
     // The plan view is the one resource it reads: a static MCP App page (T-5960), which the
     // plan and mapping tools name.
     let view = json!({ "jsonrpc": "2.0", "id": 3, "method": "resources/read",
