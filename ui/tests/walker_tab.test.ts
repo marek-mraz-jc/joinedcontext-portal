@@ -1,6 +1,6 @@
 import type { BrowserContext, Page } from "@playwright/test";
 import { describe, expect, it } from "vitest";
-import { Tab } from "../e2e/live/tab";
+import { openedTwice, Tab } from "../e2e/live/tab";
 
 // T-5730: a renderer crash ("Target crashed") in one page ended the steward's walk with no report.
 // The tab opens a fresh page in the same context and the walk goes on.
@@ -104,5 +104,66 @@ describe("walker Tab", () => {
       value: 1,
     });
     expect(runs).toBe(1);
+  });
+});
+
+// T-6011: the OOM killer took the viewer's tab while it signed in, before the walk's Tab existed.
+describe("walker sign-in tab", () => {
+  function contextOver() {
+    const pages: ReturnType<typeof fakePage>[] = [];
+    const context = {
+      async newPage() {
+        const page = fakePage();
+        pages.push(page);
+        return page;
+      },
+    } as unknown as BrowserContext;
+    return { context, pages };
+  }
+
+  it("signs in again on a fresh page after the renderer crashed", async () => {
+    const { context, pages } = contextOver();
+    const signedIn: unknown[] = [];
+    const page = await openedTwice(
+      context,
+      async (page) => {
+        if (pages.length === 1) {
+          pages[0].crash();
+          throw new Error("page.waitForTimeout: Page crashed");
+        }
+        signedIn.push(page);
+      },
+      "viewer signed in",
+    );
+    expect(page).toBe(pages[1]);
+    expect(signedIn).toEqual([pages[1]]);
+    expect(pages[0].closed).toBe(true);
+  });
+
+  it("throws, naming the step, when the fresh page crashes too", async () => {
+    const { context, pages } = contextOver();
+    await expect(
+      openedTwice(
+        context,
+        async () => {
+          pages[pages.length - 1].crash();
+          throw new Error("page.goto: Page crashed");
+        },
+        "viewer signed in",
+      ),
+    ).rejects.toThrow("the browser tab crashed twice while viewer signed in");
+  });
+
+  it("passes a sign-in error that is no crash through", async () => {
+    const { context } = contextOver();
+    await expect(
+      openedTwice(
+        context,
+        async () => {
+          throw new Error("no password");
+        },
+        "viewer signed in",
+      ),
+    ).rejects.toThrow("no password");
   });
 });
