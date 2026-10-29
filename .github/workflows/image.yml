@@ -3,14 +3,15 @@
 name: ship
 # Builds, signs and pushes the Portal's two images, the binary and the `portal-ui` bundle it reads
 # its pages from (T-2485), and the build lane's images (AP-82: the builder carries the SDK of the
-# same commit), once an hour when main moved and on tags. A run builds only what the paths changed
+# same commit), after each green ci on main and on tags. A run builds only what the paths changed
 # since the last green build need (dev/image-matrix.py); a ui/-only change builds the bundle and,
 # until the cut-over, the binary.
-# At most hourly, not per main push (T-4696): one build per merge billed ~1,000 minutes a day, and
-# dev applies hourly anyway. pin-images (deployment) pins the newest commit this lane built.
+# No hourly wait since T-6108 (owner: a merge reaches dev within the hour): T-4696's hourly gate
+# saved billed minutes, and the repository is public, so Actions minutes cost nothing. The gate's
+# concurrency group still keeps one run deciding and the newest commit pending behind it, so builds
+# run back to back on the newest main. pin-images (deployment) pins the newest commit this lane built.
 # A green ci on main starts a run (T-5449): GitHub's cron fired none of the 05:37-08:37Z slots on
-# 2026-10-23, so the cron stays only as a fallback. The run waits in `changes` until the newest
-# image is an hour old, so a merge gets its image within the hour without a later merge.
+# 2026-10-23, so the cron stays only as a fallback.
 on:
   schedule: [{ cron: "37 * * * *" }]
   # ci completed: the green main commit. ci-full requested: the daily ci-full's commit gets its
@@ -47,11 +48,10 @@ jobs:
        github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_sha == github.sha &&
        github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
-    # The hourly gate waits up to an hour (scripts/ci/image-gate.py).
-    timeout-minutes: 70
-    # One run waits at the gate, the newest commit pends behind it and replaces an older pending
+    timeout-minutes: 10
+    # One run decides at the gate, the newest commit pends behind it and replaces an older pending
     # one; the replaced run ends cancelled, its commit is in the newer one. ci-full's request, a
-    # tag and a dispatch never wait.
+    # tag and a dispatch never queue here.
     concurrency:
       group: "${{ (github.event_name == 'schedule' || github.event.workflow_run.name == 'ci') && 'image-gate' || format('image-gate-{0}', github.run_id) }}"
       cancel-in-progress: false
@@ -61,21 +61,18 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with: { fetch-depth: 0 }
-      # The hour, a green ci and ci-full's request build what changed since the newest green run of this lane on
+      # The cron, a green ci and ci-full's request build what changed since the newest green run of this lane on
       # main, nothing when main has not moved since; a tag, a dispatch or a last build git cannot
       # diff builds everything.
       - id: pick
         env:
           EVENT: ${{ github.event_name }}
-          TRIGGER: ${{ github.event.workflow_run.name }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
           paths=ALL
           if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_run ]; then
-            gap=3600
-            [ "$TRIGGER" = ci-full ] && gap=0
-            built=$(python3 scripts/ci/image-gate.py "$GITHUB_REPOSITORY" "$GITHUB_SHA" "$gap")
+            built=$(python3 scripts/ci/image-gate.py "$GITHUB_REPOSITORY" "$GITHUB_SHA" 0)
             if [ "$built" = "$GITHUB_SHA" ]; then
               paths=""
             elif [ -n "$built" ] && git cat-file -e "${built}^{commit}" 2>/dev/null; then
