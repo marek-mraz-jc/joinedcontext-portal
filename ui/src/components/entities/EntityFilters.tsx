@@ -6,6 +6,7 @@ import { listSpaceTypes } from "../../api/gateway";
 import { clsx } from "clsx";
 import { localized } from "../../api/manifest";
 import { Button, Checkbox, Field, Input, Select } from "../ui";
+import { ToolbarPopover } from "./GridToolbar";
 import { filtersFromQ, opsFor, qFromFilters, qProblem, typeGroups } from "./filters";
 import type { EntityQuery, Filter, FilterSlot } from "./filters";
 
@@ -208,38 +209,30 @@ function Filters({
       ) : null}
 
       {value.type && slots.length > 0 ? (
-        <fieldset className="flex flex-wrap gap-2">
-          <legend className="mb-1 text-caption text-fg-muted">{t("entities.attrs")}</legend>
-          <p className="w-full text-caption text-fg-muted">{t("entities.hint.attrs")}</p>
-          {/* The shared `Checkbox`, not a hand-written label around a bare input: a refused
-              attribute used to be hard-`disabled`, so it left the tab order and the reason
-              survived only in a `title` on a label a keyboard can never land on. Somebody
-              working by keyboard saw a struck-through name and could not find out why
-              (T-1756, UI-44, `PermissionGuard.tsx:16-19`). */}
-          {slots.map((slot) => (
-            <Checkbox
-              key={slot.name}
-              label={
-                // The model's label reads first; the name the data carries follows, quieter.
-                labelOf(slot.name) === slot.name ? (
-                  <span className="font-mono">{slot.name}</span>
-                ) : (
-                  <>
-                    {labelOf(slot.name)} <span className="font-mono text-fg-muted">{slot.name}</span>
-                  </>
-                )
-              }
-              className={clsx(
-                "gap-1 text-caption",
-                denied[slot.name] && "text-fg-muted line-through",
-              )}
-              disabled={Boolean(denied[slot.name])}
-              disabledReason={denied[slot.name]}
-              checked={(value.attrs ?? []).includes(slot.name)}
-              onChange={(event) => toggleAttribute(slot.name, event.target.checked)}
-            />
-          ))}
-        </fieldset>
+        // A Columns menu, not a wall of checkboxes above the data (T-6092): the model's label
+        // reads alone, the name the data carries is its tooltip.
+        <div>
+          <ToolbarPopover label={t("entities.columns")} count={(value.attrs ?? []).length} outlined>
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-1 text-caption text-fg-muted">{t("entities.attrs")}</legend>
+              <p className="text-caption text-fg-muted">{t("entities.hint.attrs")}</p>
+              {/* The shared `Checkbox`, not a hand-written label around a bare input: a refused
+                  attribute keeps its place in the tab order and says why (T-1756, UI-44). */}
+              {slots.map((slot) => (
+                <Checkbox
+                  key={slot.name}
+                  title={slot.name}
+                  label={labelOf(slot.name) === slot.name ? <span className="font-mono">{slot.name}</span> : labelOf(slot.name)}
+                  className={clsx("gap-1 text-caption", denied[slot.name] && "text-fg-muted line-through")}
+                  disabled={Boolean(denied[slot.name])}
+                  disabledReason={denied[slot.name]}
+                  checked={(value.attrs ?? []).includes(slot.name)}
+                  onChange={(event) => toggleAttribute(slot.name, event.target.checked)}
+                />
+              ))}
+            </fieldset>
+          </ToolbarPopover>
+        </div>
       ) : null}
     </div>
   );

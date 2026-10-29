@@ -121,7 +121,11 @@ async function stubApi(page: Page, seen: Seen, viewer: boolean): Promise<void> {
       return route.fulfill({ status: 201, headers: { Location: "/ngsi-ld/v1/entities/urn:ngsi-ld:Event:new" } });
     }
     if (path.endsWith("/entities")) {
-      const rows = Array.from({ length: 12 }, (_, i) => event(i + 1));
+      // As the broker does: `attrs` keeps only the named attributes (with id and type).
+      const keep = url.searchParams.get("attrs")?.split(",");
+      const rows = Array.from({ length: 12 }, (_, i) => event(i + 1)).map((row) =>
+        keep ? Object.fromEntries(Object.entries(row).filter(([key]) => key === "id" || key === "type" || keep.includes(key))) : row,
+      );
       return json(rows, 200, { "NGSILD-Results-Count": String(rows.length) });
     }
     if (path.endsWith("/access/attributes")) {
@@ -286,6 +290,44 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await noSideways(page);
     expect(await axeViolations(page)).toEqual([]);
     await shot(page, `views-api-${label}`);
+  });
+
+  // T-6092: the header on one line, the Columns menu the read follows, and a failed read.
+  test(`The space header is one line and Columns choose what the view reads (${label})`, async ({ page }) => {
+    const seen: Seen = { writes: [], creates: [] };
+    await page.setViewportSize({ width, height });
+    await stubApi(page, seen, false);
+    const reads: (string | null)[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname.endsWith("/entities") && url.searchParams.get("limit") === "500") reads.push(url.searchParams.get("attrs"));
+    });
+    await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en&view=gallery`);
+    const gallery = page.getByTestId("view-gallery");
+    await expect(gallery.getByRole("button", { name: "Board game club 1" })).toBeVisible();
+    await expect(page.getByRole("button", { name: SPACE, exact: true })).toBeVisible();
+    await noSideways(page);
+    await shot(page, `header-${label}`);
+
+    await page.getByText("Columns", { exact: true }).click();
+    await page.getByRole("checkbox", { name: "Name", exact: true }).check();
+    await page.getByRole("checkbox", { name: "Starts", exact: true }).check();
+    await expect.poll(() => reads.at(-1)).toBe("name,startDate");
+    expect(await axeViolations(page)).toEqual([]);
+    await shot(page, `columns-chosen-${label}`);
+    await page.keyboard.press("Escape");
+
+    await page.getByRole("button", { name: "Add filter" }).click();
+    await page.getByRole("button", { name: "Add filter" }).click();
+    await noSideways(page);
+    await shot(page, `filters-${label}`);
+
+    await page.route((url) => url.pathname.endsWith("/entities"), (route) =>
+      route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ title: "Service Unavailable", status: 503, detail: "the broker is restarting" }) }),
+    );
+    await page.reload();
+    await expect(page.getByText("the broker is restarting").first()).toBeVisible();
+    await shot(page, `error-${label}`);
   });
 
   test(`A viewer reads the board and the timeline without a move (${label})`, async ({ page }) => {
