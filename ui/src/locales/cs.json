@@ -4723,6 +4723,10 @@
     "from": "Odkud",
     "inheritedFrom": "Z typu {type}",
     "ownField": "Tento typ",
+    "diagnosticSeverity": {
+      "error": "Nutno opravit",
+      "warning": "Upozornění"
+    },
     "inheritedDefinedOn": "Definováno v typu {type}. Změňte ho tam: změna platí pro každý typ, který ho dědí.",
     "inheritedOpen": "Otevřít {type}",
     "importDialog": {

@@ -73,6 +73,7 @@ describe("LinkML visual editor", () => {
     const fields = screen.getByRole("table", { name: en.models.slots });
     const inherited = within(fields).getByRole("button", { name: "dateObserved" }).closest("tr")!;
     expect(inherited).toHaveClass("bg-surface-subtle");
+    expect(inherited).not.toHaveAttribute("aria-current");
     // Once as the From column's button, once under the name for a phone, which hides that column.
     expect(within(inherited).getAllByText(i18n.t("models.inheritedFrom", { type: "Observed" }))).toHaveLength(2);
     const own = within(fields).getByRole("button", { name: "pm10" }).closest("tr")!;
@@ -93,6 +94,8 @@ describe("LinkML visual editor", () => {
 
     await user.click(screen.getByRole("button", { name: "AirQualityObserved" }));
     await user.click(within(screen.getByRole("table", { name: en.models.slots })).getByRole("button", { name: "dateObserved" }));
+    // The opened row is marked, so the panel below the table names the row it belongs to.
+    expect(within(screen.getByRole("table", { name: en.models.slots })).getByRole("button", { name: "dateObserved" }).closest("tr")).toHaveAttribute("aria-current", "true");
     const detail = screen.getByRole("region", { name: "dateObserved" });
     expect(within(detail).getByText(i18n.t("models.inheritedDefinedOn", { type: "Observed" }))).toBeInTheDocument();
     // Nothing to edit here: a change would reach every type that inherits the field.

@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import type { OnMount } from "@monaco-editor/react";
 import type { editor, languages, Position } from "monaco-editor";
 import { useTranslation } from "react-i18next";
-import { Button } from "../../components/ui";
+import { Badge, Button } from "../../components/ui";
 import { NGSI_LD_KINDS, RANGES } from "./linkml";
 import { UNITS } from "../../units";
 import type { Diagnostic } from "./linkml";
@@ -239,13 +239,12 @@ export function LinkmlSourceEditor({
         ) : (
           <ul className="mt-1 flex flex-col gap-1 text-body">
             {diagnostics.map((diagnostic, index) => (
-              <li
-                key={`${diagnostic.line}-${index}`}
-                className={
-                  diagnostic.severity === "error" ? "text-danger" : "text-warning"
-                }
-              >
-                <span className="font-mono text-caption">
+              // The badge carries the severity in words and colour; the message stays readable text.
+              <li key={`${diagnostic.line}-${index}`} className="flex flex-wrap items-baseline gap-x-2 text-fg">
+                <Badge tone={diagnostic.severity === "error" ? "danger" : "warning"}>
+                  {t(`models.diagnosticSeverity.${diagnostic.severity}`)}
+                </Badge>
+                <span className="font-mono text-caption text-fg-muted">
                   {t("models.atLine", { line: diagnostic.line, column: diagnostic.column })}
                 </span>{" "}
                 {diagnostic.message}

@@ -166,6 +166,10 @@ export function LinkmlVisualEditor({
     setSelectedSlot(name);
     setIriDraft(null);
     setIriError(null);
+    // The panel opens under the table, a screen away on a phone: bring it into view.
+    requestAnimationFrame(() =>
+      document.getElementById("models-slot-detail")?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }),
+    );
   };
 
   const addClass = () => {
@@ -550,8 +554,8 @@ export function LinkmlVisualEditor({
               <TableHeaderCell>
                 <Term name="ngsiLd">{t("models.kind")}</Term>
               </TableHeaderCell>
-              <TableHeaderCell>{t("models.unit")}</TableHeaderCell>
-              <TableHeaderCell>{t("models.affordanceLabel")}</TableHeaderCell>
+              <TableHeaderCell secondary>{t("models.unit")}</TableHeaderCell>
+              <TableHeaderCell secondary>{t("models.affordanceLabel")}</TableHeaderCell>
               <TableHeaderCell secondary>{t("models.from")}</TableHeaderCell>
             </TableHead>
             <TableBody>
@@ -563,10 +567,13 @@ export function LinkmlVisualEditor({
                 const inherited = from !== activeClass?.name;
                 return (
                   <TableRow key={name} className={
-                      inherited
-                        ? "bg-surface-subtle [&>td]:text-fg-muted [&>td]:italic [&_button]:text-fg-muted"
-                        : undefined
-                    }>
+                      name === selectedSlot
+                        ? "bg-primary-soft"
+                        : inherited
+                          ? "bg-surface-subtle [&>td]:text-fg-muted [&_button]:text-fg-muted"
+                          : undefined
+                    }
+                    aria-current={name === selectedSlot ? "true" : undefined}>
                     <TableCell primary>
                       <Button
                         variant="ghost"
@@ -586,8 +593,8 @@ export function LinkmlVisualEditor({
                     </TableCell>
                     <TableCell>{slot ? word(fieldWord(slot, model)) : "—"}</TableCell>
                     <TableCell>{slot?.kind ?? DEFAULT_KIND}</TableCell>
-                    <TableCell>{unitSymbol(unitCode(slot?.unit)) || slot?.unit?.ucum_code || "—"}</TableCell>
-                    <TableCell>{slot ? t(`models.affordance.${slotAffordance(slot, model.enums.map((one) => one.name))}`) : "—"}</TableCell>
+                    <TableCell secondary>{unitSymbol(unitCode(slot?.unit)) || slot?.unit?.ucum_code || "—"}</TableCell>
+                    <TableCell secondary>{slot ? t(`models.affordance.${slotAffordance(slot, model.enums.map((one) => one.name))}`) : "—"}</TableCell>
                     <TableCell secondary>
                       {inherited ? (
                         <Button

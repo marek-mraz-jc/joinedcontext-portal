@@ -4723,6 +4723,10 @@
     "from": "Herkunft",
     "inheritedFrom": "Aus {type}",
     "ownField": "Dieser Typ",
+    "diagnosticSeverity": {
+      "error": "Muss behoben werden",
+      "warning": "Warnung"
+    },
     "inheritedDefinedOn": "Definiert in {type}. Ändern Sie es dort: die Änderung gilt für jeden Typ, der es erbt.",
     "inheritedOpen": "{type} öffnen",
     "importDialog": {

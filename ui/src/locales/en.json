@@ -4723,6 +4723,10 @@
     "from": "From",
     "inheritedFrom": "From {type}",
     "ownField": "This type",
+    "diagnosticSeverity": {
+      "error": "Must fix",
+      "warning": "Warning"
+    },
     "inheritedDefinedOn": "Defined on {type}. Change it there: the change reaches every type that inherits it.",
     "inheritedOpen": "Open {type}",
     "importDialog": {
