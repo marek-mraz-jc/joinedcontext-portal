@@ -469,6 +469,8 @@ describe("one MQTT broker's page (T-6103)", () => {
     showBroker({ sent });
     const cams = await editable();
     fireEvent.change(within(cams).getByRole("combobox", { name: "Add an account to role cams" }), { target: { value: "cam-4" } });
+    // The new account says on its chip that it waits for the proposal.
+    expect(within(cams).getByText("cam-4").parentElement).toHaveTextContent(`cam-4· ${en.mqttbrokers.edit.unsaved}`);
     fireEvent.change(screen.getByLabelText(en.mqttbrokers.edit.limit.messagesPerSecond), { target: { value: "20" } });
     const bar = screen.getByRole("region", { name: en.mqttbrokers.edit.bar });
     expect(within(bar).getByText("Changes not proposed yet: 2")).toBeInTheDocument();

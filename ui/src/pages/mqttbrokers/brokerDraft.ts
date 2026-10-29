@@ -71,6 +71,8 @@ export function boundRoles(account: Manifest, broker: string, project: string): 
 export interface Holder {
   account: string;
   through: "binding" | "wildcard" | "legacy";
+  /** Granted in the draft, not proposed yet. */
+  pending?: boolean;
 }
 
 /** Who holds `role` now: the role's legacy accounts and every readable account bound to it. */

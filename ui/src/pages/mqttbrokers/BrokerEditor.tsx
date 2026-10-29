@@ -103,7 +103,7 @@ export function BrokerEditor({
     );
     const granted = draft.grant
       .filter((key) => key.endsWith(`/${role.name}`))
-      .map((key) => ({ account: key.slice(0, key.length - (role.name ?? "").length - 1), through: "binding" as const }));
+      .map((key) => ({ account: key.slice(0, key.length - (role.name ?? "").length - 1), through: "binding" as const, pending: true }));
     return [...now, ...granted.filter((g) => !now.some((h) => h.account === g.account))];
   };
   const set = (form: Partial<Draft["form"]>) => setDraft((d) => ({ ...d, form: { ...d.form, ...form } }));
@@ -406,7 +406,13 @@ function RoleCard({
             <li key={`${holder.account}-${holder.through}`}>
               <Chip
                 label={holder.account}
-                note={holder.through === "binding" ? undefined : t(`mqttbrokers.edit.through.${holder.through}`)}
+                note={
+                  holder.pending
+                    ? t("mqttbrokers.edit.unsaved")
+                    : holder.through === "binding"
+                      ? undefined
+                      : t(`mqttbrokers.edit.through.${holder.through}`)
+                }
                 removable={!disabled && holder.through !== "wildcard"}
                 onRemove={() => onDrop(holder)}
               />

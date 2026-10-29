@@ -459,7 +459,17 @@ test.describe("one MQTT broker's page (T-6103)", () => {
       // stands at the foot of the editor; a fullPage capture paints it at the first fold instead.
       const height = await page.evaluate(() => document.documentElement.scrollHeight);
       await page.setViewportSize({ width, height });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      // Two frames: the resize's layout and its paint land before the capture.
+      await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
       await page.screenshot({ path: `${shots}/broker-${state}-${width}.png` });
+      if (state === "editing") {
+        // As a person sees it while editing: scrolled into the roles, the bar held at the viewport's foot.
+        await page.setViewportSize({ width, height: width === 400 ? 860 : 900 });
+        await page.locator("#broker-access").scrollIntoViewIfNeeded();
+        await expect(page.getByRole("region", { name: "Pending changes" })).toBeInViewport();
+        await page.screenshot({ path: `${shots}/broker-editing-scrolled-${width}.png` });
+      }
     }
     await page.setViewportSize({ width: 1440, height: 900 });
   }
