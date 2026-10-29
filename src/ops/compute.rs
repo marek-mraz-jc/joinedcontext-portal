@@ -90,7 +90,7 @@ fn catalog_search_input_schema() -> Value {
         "properties": {
             "q": text("Search keywords, matched against names, titles and descriptions", QUERY),
             "query": text("The same as q, for clients that name it query; q wins when both are set", QUERY),
-            "scope": text("Narrow to one kind: ContextSpace, Endpoint or DataModel", TERM)
+            "scope": text("Narrow to one kind: ContextSpace, Endpoint, DataModel or Dataset (the open-data catalogue)", TERM)
         },
         "additionalProperties": false
     })
@@ -101,10 +101,21 @@ fn catalog_output_schema() -> Value {
         "type": "object",
         "properties": {
             "q": { "type": "string" },
-            "items": { "type": "array", "items": { "type": "object" } }
+            "items": { "type": "array", "items": { "type": "object" } },
+            "datasets": {
+                "type": "array",
+                "description": "Open-data catalogue datasets: title, url of the dataset page, publisher, formats",
+                "items": { "type": "object" }
+            },
+            "unavailable": { "type": "array", "items": { "type": "string" } }
         }
     })
 }
+
+/// The `scope` that searches only the open-data catalogue.
+const DATASET: &str = "Dataset";
+/// The most catalogue datasets one search answers.
+const DATASETS_MAX: usize = 10;
 
 fn kpi_input_schema() -> Value {
     use bounds::*;
@@ -231,12 +242,55 @@ pub(super) async fn candidate(
     }
 }
 
+/// The project's manifests matching `q`, and the open-data catalogue's datasets (T-6027).
+async fn catalog_search(
+    caller: &super::Caller,
+    state: &crate::state::AppState,
+    project: &str,
+    input: CatalogSearchInput,
+) -> Result<Value, OpError> {
+    let q = input.q.or(input.query).unwrap_or_default();
+    let q = q.trim();
+    if q.is_empty() {
+        return Err(OpError::Api(ApiError::BadRequest(
+            "q must not be empty".into(),
+        )));
+    }
+    let scope = input
+        .scope
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    if let Some(other) = scope.filter(|kind| *kind != DATASET && !assistant::KINDS.contains(kind)) {
+        return Err(OpError::Api(ApiError::BadRequest(format!(
+            "scope '{other}' is not one of {}, {DATASET}",
+            assistant::KINDS.join(", ")
+        ))));
+    }
+    let effective = crate::permissions::for_request(state, &caller.identity, project);
+    let mut answer = if scope == Some(DATASET) {
+        json!({ "q": q, "items": [] })
+    } else {
+        serde_json::to_value(assistant::search(state, project, &effective, q, scope).await)?
+    };
+    // Published open data is public: every catalogue answers anonymously (EP-67).
+    if scope.is_none_or(|kind| kind == DATASET) {
+        let (datasets, unavailable) =
+            crate::api::catalogue::datasets_matching(state, q, DATASETS_MAX).await;
+        answer["datasets"] = json!(datasets);
+        if !unavailable.is_empty() {
+            answer["unavailable"] = json!(unavailable);
+        }
+    }
+    Ok(answer)
+}
+
 /// This module's operations in the registry (`super::init_registry`).
 pub fn operations() -> Vec<Operation> {
     vec![        Operation {
             name: "jc_catalog_search",
             title: "Search Catalog",
-            description: "Find spaces, endpoints, and data models matching search keywords",
+            description: "Find spaces, endpoints, models and open datasets by keywords",
             input: catalog_search_input_schema,
             output: catalog_output_schema,
             annotations: OperationAnnotations {
@@ -251,31 +305,7 @@ pub fn operations() -> Vec<Operation> {
                 parse_input::<CatalogSearchInput>(val.clone()).map(|_| ())
             },
             run: |caller, state, project, val| {
-                Box::pin(async move {
-                    let input: CatalogSearchInput = parse_input(val)?;
-                    let q = input.q.or(input.query).unwrap_or_default();
-                    let q = q.trim();
-                    if q.is_empty() {
-                        return Err(OpError::Api(ApiError::BadRequest(
-                            "q must not be empty".into(),
-                        )));
-                    }
-                    let scope = input
-                        .scope
-                        .as_deref()
-                        .map(str::trim)
-                        .filter(|s| !s.is_empty());
-                    if let Some(other) = scope.filter(|kind| !assistant::KINDS.contains(kind)) {
-                        return Err(OpError::Api(ApiError::BadRequest(format!(
-                            "scope '{other}' is not one of {}",
-                            assistant::KINDS.join(", ")
-                        ))));
-                    }
-                    let effective =
-                        crate::permissions::for_request(state, &caller.identity, project);
-                    let res = assistant::search(state, project, &effective, q, scope).await;
-                    Ok(serde_json::to_value(res)?)
-                })
+                Box::pin(async move { catalog_search(caller, state, project, parse_input(val)?).await })
             },
         },        Operation {
             name: "jc_kpi_compute",
