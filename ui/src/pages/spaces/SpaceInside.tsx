@@ -2273,25 +2273,33 @@ const TAB_LABELS: Record<SpaceTab, string> = {
 
 /**
  * What the whole space holds, the broker's count (T-2889), under the types table: counting, the
- * count with its size and broker, or why there is none (T-4825).
+ * entity and history counts with their sizes and broker, or why there is none (T-4825). A history
+ * too long to count is the broker's estimate, and says so (T-6085).
  */
 function SpaceTotal({ usage }: { usage: UseQueryResult<SpaceUsage> }): JSX.Element {
   const { t, i18n } = useTranslation();
   if (usage.data !== undefined) {
-    const { bytes } = usage.data;
+    const { bytes, attrInstances, estimated } = usage.data;
     return (
       <footer className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-2 text-caption text-fg-muted">
         <span className="text-body text-fg" data-testid="space-total">
           {t("spaces.inside.total", { count: usage.data.entities })}
         </span>
+        {attrInstances != null ? (
+          <span className="text-body text-fg" data-testid="space-history">
+            {t("spaces.inside.history", { count: attrInstances })}
+          </span>
+        ) : null}
         {bytes ? (
           <span data-testid="space-size" title={exactBytes(bytes.entities + bytes.attrInstances, i18n.language)}>
             {t("spaces.inside.totalSize", {
               size: sizeText(bytes.entities + bytes.attrInstances, i18n.language),
+              entities: sizeText(bytes.entities, i18n.language),
               history: sizeText(bytes.attrInstances, i18n.language),
             })}
           </span>
         ) : null}
+        {estimated ? <span data-testid="space-estimated">{t("spaces.inside.estimated")}</span> : null}
         <span data-testid="space-broker">{t("spaces.inside.broker", { broker: usage.data.broker })}</span>
       </footer>
     );

@@ -553,6 +553,7 @@
     },
     "inside": {
       "total": "The space holds {count, plural, one {# entity} other {# entities}}.",
+      "history": "Its history holds {count, plural, one {# record} other {# records}}.",
       "open": "Look inside",
       "data": "Data",
       "dataEmpty": "Nothing here yet: no pipeline has written to this space.",
@@ -600,7 +601,8 @@
       "lead": "Its data model, its entities, who reads them and what happened to it.",
       "broker": "It lives on the context broker {broker}.",
       "size": "Size",
-      "totalSize": "It takes {size} in the broker's store, {history} of it history.",
+      "totalSize": "It takes {size} in the broker's store: {entities} current state, {history} history.",
+      "estimated": "The history is estimated from the database's statistics: it is too long to count at once.",
       "sections": "Parts of the space",
       "counting": "Counting the space's entities…",
       "allRows": "All rows",
