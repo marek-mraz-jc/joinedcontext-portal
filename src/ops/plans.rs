@@ -760,6 +760,7 @@ mod tests {
             },
             via: super::super::Via::Mcp,
             access,
+            bearer: None,
         }
     }
 

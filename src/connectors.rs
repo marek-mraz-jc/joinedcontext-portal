@@ -43,6 +43,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_resource_list",
             "jc_resource_get",
             "jc_kpi_compute",
+            "jc_data_query",
         ],
         &["Endpoint", "ContextSpace", "DataModel"],
     ),
@@ -444,7 +445,9 @@ impl Connector {
         if self.whole(project) || matches!(op.name, "jc_schema_get" | PLAN | APPLY) {
             return Ok(());
         }
-        let name = names_its_object(op).then(|| text("name")).flatten();
+        let name = names_its_object(op)
+            .then(|| text("name").or_else(|| text("endpoint")))
+            .flatten();
         match (kind, name) {
             (Some(kind), Some(name))
                 if self
@@ -496,9 +499,11 @@ impl Connector {
 
 /// A tool whose call names one object by `name`: what a narrowed scope can hold it to.
 fn names_its_object(op: &Operation) -> bool {
+    let input = (op.input)();
     matches!(op.name, "jc_resource_get" | PLAN | APPLY)
         || (matches!(op.kind, "Endpoint" | "ContextSpace" | "Pipeline")
-            && (op.input)().pointer("/properties/name").is_some())
+            && input.pointer("/properties/name").is_some())
+        || (op.kind == "Endpoint" && input.pointer("/properties/endpoint").is_some())
         || op.name == "jc_schema_get"
 }
 
@@ -1209,6 +1214,7 @@ mod tests {
         assert_eq!(
             data_read,
             [
+                "jc_data_query",
                 "jc_kpi_compute",
                 "jc_resource_get",
                 "jc_resource_list",
@@ -1265,6 +1271,18 @@ mod tests {
         assert!(!narrow.lists(list, "doprava"));
         assert!(narrow.lists(get, "doprava"));
         assert!(narrow.lists(op("jc_kpi_compute"), "doprava"));
+        // query_data names its Endpoint by `endpoint`: the ticked one reads, another is refused.
+        let query = op("jc_data_query");
+        assert!(narrow.lists(query, "doprava"));
+        assert_eq!(
+            narrow.admits(query, "doprava", &json!({ "endpoint": "counters" })),
+            Ok(())
+        );
+        let err = narrow
+            .admits(query, "doprava", &json!({ "endpoint": "parking" }))
+            .expect_err("unticked Endpoint");
+        assert!(err.contains("does not reach Endpoint parking"), "{err}");
+        assert!(narrow.admits(query, "doprava", &json!({})).is_err());
         assert!(!narrow.lists(get, "air"));
         assert_eq!(
             narrow.admits(

@@ -25,6 +25,7 @@ impl Driver {
             return self.refused("space_complete", started, input, reason).await;
         }
         let caller = crate::ops::Caller {
+            bearer: None,
             identity: self.identity.clone(),
             via: crate::ops::Via::Agent,
             access: None,
@@ -442,6 +443,7 @@ impl Driver {
         let verdict = match crate::ops::find("jc_pipeline_test") {
             Some(op) => {
                 let caller = crate::ops::Caller {
+                    bearer: None,
                     identity: self.identity.clone(),
                     via: crate::ops::Via::Agent,
                     access: None,
