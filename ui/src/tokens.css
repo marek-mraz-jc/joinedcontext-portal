@@ -112,28 +112,39 @@
   --portal-ring: color-mix(in oklab, var(--portal-primary-500) 65%, var(--portal-ink));
   --portal-overlay: color-mix(in oklab, var(--portal-neutral-900) 45%, transparent);
 
+  /* Density (T-6093): the owner read the Portal best at 80 % browser zoom, so the scales below
+     are what 80 % showed. The Tailwind unit behind every `p-*`, `gap-*`, `h-*` and `w-*` is 80 %
+     of Tailwind's 0.25rem; text keeps its floors instead (body 14 px, caption 12 px), and the
+     control heights below keep a pointer target of 32 px (24 px for `xs`, WCAG 2.5.8). */
+  --portal-spacing: 0.2rem;
+
   /* Type scale: four sizes, each with its line height. */
   --portal-text-caption: 0.75rem;
   --portal-text-caption--line-height: 1rem;
   --portal-text-body: 0.875rem;
   --portal-text-body--line-height: 1.25rem;
-  --portal-text-title: 1.125rem;
-  --portal-text-title--line-height: 1.5rem;
-  --portal-text-display: 1.5rem;
-  --portal-text-display--line-height: 2rem;
+  --portal-text-title: 1rem;
+  --portal-text-title--line-height: 1.375rem;
+  --portal-text-display: 1.25rem;
+  --portal-text-display--line-height: 1.75rem;
+
+  /* Control heights: a button, an input or a select of the shared components. */
+  --portal-control-xs: 1.5rem;
+  --portal-control: 2rem;
+  --portal-control-lg: 2.25rem;
 
   /* Spacing: the page gutter, the gap between sections, the widest content column. */
-  --portal-space-gutter: 1.5rem;
-  --portal-space-section: 1.25rem;
-  --portal-space-stack: 0.75rem;
+  --portal-space-gutter: 1.25rem;
+  --portal-space-section: 1rem;
+  --portal-space-stack: 0.625rem;
   --portal-content-max: 80rem;
-  --portal-sidebar-width: 16rem;
+  --portal-sidebar-width: 13rem;
   /* The preview column of an application: the page IS the application, so the frame takes what
      the viewport allows and never falls below a phone's screen. The building state uses the
      same box, so the column does not jump when the preview arrives (AP-63, UI-42). */
   --portal-preview-height: 82vh;
-  /* What a docked panel fills below the 3.5rem header, beside the page (xl and up). */
-  --portal-below-header: calc(100vh - 3.5rem);
+  /* What a docked panel fills below the `h-14` header, beside the page (xl and up). */
+  --portal-below-header: calc(100vh - var(--portal-spacing) * 14);
   --portal-preview-min-height: 28rem;
 
   /* Radius. */

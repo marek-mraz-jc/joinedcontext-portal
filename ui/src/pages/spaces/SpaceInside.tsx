@@ -1012,7 +1012,7 @@ function SpaceData({
               type="search"
               aria-label={t("spaces.toolbar.search")}
               placeholder={t("spaces.toolbar.searchPlaceholder")}
-              className="h-8 w-full sm:w-48"
+              className="h-control w-full sm:w-48"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
             />

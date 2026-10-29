@@ -155,8 +155,8 @@ function Input(
       {...forwarded}
       className={
         isRange
-          ? "focus-ring h-9 w-full cursor-pointer accent-primary"
-          : clsx(CONTROL, "h-9 px-3", numeric && "tabular-nums")
+          ? "focus-ring h-control w-full cursor-pointer accent-primary"
+          : clsx(CONTROL, "h-control px-3", numeric && "tabular-nums")
       }
       aria-invalid={hasErrors ? "true" : undefined}
       // Said to assistive technology in so many words, as `Field` says it for every hand-built
@@ -691,7 +691,7 @@ export function ArrayFieldItemTemplate(props: ArrayFieldItemTemplateProps): Reac
     >
       <div className="min-w-0 flex-1 [&>div]:gap-1">{children}</div>
       {hasToolbar && !buttonsProps.disabled && !buttonsProps.readonly ? (
-        <div data-testid="item-buttons" className="flex h-9 shrink-0 items-center gap-1">
+        <div data-testid="item-buttons" className="flex h-control shrink-0 items-center gap-1">
           <ArrayFieldItemButtonsTemplate {...buttonsProps} uiSchema={uiSchema} registry={registry} />
         </div>
       ) : null}
