@@ -23479,6 +23479,7 @@ export interface operations {
                         expiresAt: string;
                         /** @enum {string} */
                         lane?: "green" | "yellow" | "red";
+                        needsSecret?: Record<string, never>[];
                         next?: string;
                         planId: string;
                         reverts?: string;

@@ -16528,6 +16528,12 @@
                       ],
                       "type": "string"
                     },
+                    "needsSecret": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "next": {
                       "type": "string"
                     },
