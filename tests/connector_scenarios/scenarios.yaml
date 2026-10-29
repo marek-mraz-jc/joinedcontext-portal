@@ -402,14 +402,20 @@
   expect: 'Pipeline manifest valid; validate passes; change request opened; after merge the first run writes > 0 entities'
   deny: 'pipeline aimed at a policyRef or app-* Endpoint -> refused (writes as pl-{pipeline})'
   script:
+    # A Pipeline's records are tested on a sample before a plan holds it (T-4840).
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Pipeline, name: counters-new, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Pipeline, metadata: { name: counters-new, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', source: { dataSourceRef: { kind: DataSource, name: counters-csv } }, targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake', output: { type: BikeCounter, mode: upsert }, quotas: { maxMemoryMb: 128, cpuMillicores: 100 } } } }] }
+      refused: true
+      contains: ['/changes/0/manifest', 'jc_pipeline_test']
+    # The runner's test of the planned spec comes back green (T-4840).
+    - proves: expect
+      runner_tested: counters-new
     - proves: expect
       call: jc_change_plan
       args: { changes: [{ op: create, kind: Pipeline, name: counters-new, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Pipeline, metadata: { name: counters-new, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', source: { dataSourceRef: { kind: DataSource, name: counters-csv } }, targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake', output: { type: BikeCounter, mode: upsert }, quotas: { maxMemoryMb: 128, cpuMillicores: 100 } } } }] }
       keep: planId
       contains: ['"planId"', '"ok":true']
-    # The runner's test of the planned spec comes back green (T-4840).
-    - proves: expect
-      runner_tested: counters-new
     - proves: expect
       call: jc_change_apply
       args: { planId: '{planId}' }
@@ -433,14 +439,20 @@
   expect: 'one-field diff; plan valid'
   deny: 'below the project''s minimum period -> refused naming the limit'
   script:
+    # A Pipeline's records are tested on a sample before a plan holds it (T-4840).
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: patch, kind: Pipeline, name: counters-hourly, patch: { spec: { schedule: '*/15 * * * *' } } }] }
+      refused: true
+      contains: ['/changes/0/manifest', 'jc_pipeline_test']
+    # The runner's test of the planned spec comes back green (T-4840).
+    - proves: expect
+      runner_tested: counters-hourly
     - proves: expect
       call: jc_change_plan
       args: { changes: [{ op: patch, kind: Pipeline, name: counters-hourly, patch: { spec: { schedule: '*/15 * * * *' } } }] }
       keep: planId
       contains: ['"planId"', '*/15 * * * *']
-    # The runner's test of the planned spec comes back green (T-4840).
-    - proves: expect
-      runner_tested: counters-hourly
     - proves: expect
       call: jc_change_apply
       args: { planId: '{planId}' }
