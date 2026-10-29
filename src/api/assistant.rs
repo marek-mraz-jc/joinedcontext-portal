@@ -115,11 +115,12 @@ const FILLER: &[&str] = &[
     "yes", "you", "your",
 ];
 
-/// The words of a question: two characters or more, lower-cased, no function word, each once.
+/// The words of a question: two characters or more, lower-cased without diacritics ("Banská"
+/// finds "banska"), no function word, each once.
 pub fn words(q: &str) -> Vec<String> {
     q.split(|c: char| !c.is_alphanumeric())
         .filter(|w| w.chars().count() >= 2)
-        .map(str::to_lowercase)
+        .map(jc_core::ngsi_catalog::fold)
         .filter(|w| !FILLER.contains(&w.as_str()))
         .collect::<BTreeSet<_>>()
         .into_iter()
@@ -143,7 +144,7 @@ fn field_words(text: &str) -> Vec<String> {
     if !word.is_empty() {
         out.push(word);
     }
-    out
+    out.iter().map(|w| jc_core::ngsi_catalog::fold(w)).collect()
 }
 
 /// Every string leaf of a value, joined: a title in four languages is four strings.
@@ -209,8 +210,13 @@ fn score(fields: &[(&'static str, String)], words: &[String]) -> (usize, Vec<Str
         .map(|(name, text)| (*name, field_words(text)))
         .collect();
     // A word matches where a word of the field begins with it: "bike" finds "bikes", "the"
-    // does not find "weather".
-    let matches = |field: &[String], word: &str| field.iter().any(|f| f.starts_with(word));
+    // does not find "weather". A word of five letters or more also matches inside a compound:
+    // "bystrica" finds "banskabystrica" (T-6104).
+    let matches = |field: &[String], word: &str| {
+        field
+            .iter()
+            .any(|f| f.starts_with(word) || (word.chars().count() >= 5 && f.contains(word)))
+    };
     let hits = words
         .iter()
         .filter(|w| split.iter().any(|(_, field)| matches(field, w)))
@@ -243,6 +249,39 @@ pub(crate) fn endpoint_access(spec: &Value, project: &str) -> Access {
     }
 }
 
+/// The Endpoints of other projects that `project`'s `SharedSpaceReference`s point at and whose
+/// audience admits `project`, each with the reference that reaches it (EP-15, T-6104). A
+/// reference names its Endpoint by project and name, or by the slug the loader resolved that to
+/// (EP-77). An Endpoint whose audience does not admit the project is never returned: the
+/// reference alone opens nothing.
+pub(crate) fn shared_endpoints(
+    mirror: &crate::store::Mirror,
+    project: &str,
+) -> Vec<(ResourceEnvelope, ResourceEnvelope)> {
+    mirror
+        .list(project, "SharedSpaceReference", &ListOptions::default())
+        .items
+        .into_iter()
+        .filter_map(|reference| {
+            let target = &reference.spec["endpointRef"];
+            let endpoint = match (
+                target["project"].as_str(),
+                target["name"].as_str(),
+                reference.spec["endpointSlug"].as_str(),
+            ) {
+                (Some(source), Some(name), _) => mirror.get(source, "Endpoint", name),
+                (_, _, Some(slug)) if !slug.is_empty() => {
+                    mirror.find(|env| env.kind == "Endpoint" && env.spec["slug"] == slug)
+                }
+                _ => None,
+            }?;
+            let foreign = endpoint.metadata.namespace.as_deref() != Some(project);
+            (foreign && endpoint_access(&endpoint.spec, project).is_allowed())
+                .then_some((reference, endpoint))
+        })
+        .collect()
+}
+
 pub(crate) fn title_of(env: &ResourceEnvelope) -> Option<String> {
     let meta = serde_json::to_value(&env.metadata).unwrap_or(Value::Null);
     let title = &meta["title"];
@@ -254,6 +293,8 @@ pub(crate) fn title_of(env: &ResourceEnvelope) -> Option<String> {
                 .as_object()
                 .and_then(|m| m.values().find_map(Value::as_str))
         })
+        .map(str::trim)
+        .filter(|title| !title.is_empty())
         .map(str::to_owned)
 }
 
@@ -331,6 +372,27 @@ pub async fn search(
             .push(env.metadata.name.clone());
         items.push(item(env, project, space, hits, reasons, access));
     }
+    // Endpoints other projects share with this one, as far as their audience admits it; the
+    // reference is the caller's to read like any manifest of the project (T-6104).
+    for (reference, env) in shared_endpoints(&state.mirror, project) {
+        if !effective.may_read_envelope("SharedSpaceReference", &reference)
+            || items
+                .iter()
+                .any(|i| i.kind == "Endpoint" && i.name == env.metadata.name)
+        {
+            continue;
+        }
+        let mut searched = fields(&env);
+        searched.push(("alias", text_of(&reference.spec["alias"])));
+        let (hits, mut reasons) = score(&searched, &words);
+        if hits == 0 {
+            continue;
+        }
+        let owner = env.metadata.namespace.clone().unwrap_or_default();
+        reasons.push(format!("shared with this project by {owner}"));
+        let access = endpoint_access(&env.spec, project);
+        items.push(item(&env, &owner, space_of(&env), hits, reasons, access));
+    }
     for env in &spaces {
         let name = env.metadata.name.clone();
         let access = space_access
@@ -377,7 +439,7 @@ pub async fn search(
     let feeders = feeders(state, project);
     let mut reads = Vec::new();
     for (index, item) in items.iter().enumerate() {
-        if item.kind != "Endpoint" || !item.access.is_allowed() {
+        if item.kind != "Endpoint" || !item.access.is_allowed() || item.owner != project {
             continue;
         }
         let Some(pipeline) = feeders.get(&item.name).cloned() else {
@@ -731,7 +793,7 @@ pub async fn start_conversation(
     } else {
         let names = crate::agents::endpoints::requested(None, &request.endpoint_names)
             .map_err(ApiError::BadRequest)?;
-        crate::agents::endpoints::resolve(&state.mirror, &project, &names)?
+        crate::agents::endpoints::resolve_readable(&state.mirror, &project, &names)?
     };
     // AG-70: a profile that lists endpoints lets the assistant read only those.
     if let Some(refused) = run_endpoints
@@ -1037,7 +1099,7 @@ mod tests {
         // A one-letter word is kept here and dropped from a question (`words`): a field that is
         // one letter is still the field's name.
         assert_eq!(field_words("A sensor"), vec!["a", "sensor"]);
-        assert_eq!(field_words("Kvalita ovzdušia"), vec!["kvalita", "ovzdušia"]);
+        assert_eq!(field_words("Kvalita ovzdušia"), vec!["kvalita", "ovzdusia"]);
         assert_eq!(field_words(""), Vec::<String>::new());
         assert_eq!(field_words("---"), Vec::<String>::new());
     }
@@ -1084,6 +1146,172 @@ mod tests {
             assert!(words(said).is_empty(), "{said}: {:?}", words(said));
         }
         assert_eq!(words("and the bikes right now?"), vec!["bikes"]);
+    }
+
+    fn envelope(
+        kind: &str,
+        project: &str,
+        name: &str,
+        spec: serde_json::Value,
+    ) -> crate::resource::ResourceEnvelope {
+        let mut meta =
+            serde_json::to_value(crate::resource::ObjectMeta::new(name, project)).expect("meta");
+        meta["title"] = json!({ "sk": format!("{name} title") });
+        crate::resource::ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.into(),
+            kind: kind.into(),
+            metadata: serde_json::from_value(meta).expect("meta back"),
+            spec,
+            status: None,
+        }
+    }
+
+    fn person(groups: &[&str]) -> crate::auth::session::Identity {
+        crate::auth::session::Identity {
+            client: None,
+            subject: "f:1:demo.steward".into(),
+            username: "demo.steward".into(),
+            email: None,
+            name: None,
+            roles: Vec::new(),
+            groups: groups.iter().map(|g| (*g).to_owned()).collect(),
+            second_factor: false,
+        }
+    }
+
+    /// Helsinki references two Banská Bystrica Endpoints (one admits Helsinki, one names only
+    /// Zvolen); a third Endpoint of Banská Bystrica is referenced by nobody.
+    fn shared_world() -> crate::state::AppState {
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        let endpoint = |name: &str, slug: &str, audience: serde_json::Value| {
+            let mut spec = json!({ "contextSpaceRef": "banskabystrica-verejne", "slug": slug });
+            spec.as_object_mut()
+                .expect("object")
+                .extend(audience.as_object().expect("object").clone());
+            envelope("Endpoint", "banskabystrica", name, spec)
+        };
+        state.mirror.upsert(endpoint(
+            "app-banskabystrica-ovzdusie",
+            "ovzdusieslug000000000000000000",
+            json!({ "audience": "organization" }),
+        ));
+        state.mirror.upsert(endpoint(
+            "banskabystrica-ovzdusie-zvolen",
+            "zvolenslug00000000000000000000",
+            json!({ "audience": "project-list", "allowedProjects": ["zvolen"] }),
+        ));
+        state.mirror.upsert(endpoint(
+            "banskabystrica-ovzdusie-private",
+            "privateslug0000000000000000000",
+            json!({ "audience": "organization" }),
+        ));
+        state.mirror.upsert(envelope(
+            "SharedSpaceReference",
+            "helsinki",
+            "bb-air",
+            json!({ "endpointRef": { "project": "banskabystrica", "name": "app-banskabystrica-ovzdusie" }, "alias": "bb-air" }),
+        ));
+        state.mirror.upsert(envelope(
+            "SharedSpaceReference",
+            "helsinki",
+            "bb-zvolen",
+            json!({ "endpointSlug": "zvolenslug00000000000000000000", "alias": "bb-zvolen" }),
+        ));
+        state
+    }
+
+    /// T-6104: "air quality in Banská Bystrica" from Helsinki found nothing although Helsinki
+    /// references the city's air Endpoint. The search folds diacritics and finds a word inside
+    /// a compound; an Endpoint whose audience shuts Helsinki out, or that no reference names,
+    /// stays out of the answer however wide the caller's rights.
+    #[tokio::test]
+    async fn the_search_finds_a_shared_endpoint_the_audience_admits_and_nothing_else() {
+        let state = shared_world();
+        let everything = crate::permissions::effective(
+            &state.mirror,
+            "boot",
+            &person(&["boot"]),
+            "helsinki",
+            chrono::Utc::now(),
+        );
+        let found = super::search(
+            &state,
+            "helsinki",
+            &everything,
+            "aká je kvalita ovzdušia v Banskej Bystrici? Banská Bystrica",
+            None,
+        )
+        .await;
+        let names: Vec<_> = found.items.iter().map(|i| i.name.as_str()).collect();
+        assert_eq!(names, vec!["app-banskabystrica-ovzdusie"]);
+        let item = &found.items[0];
+        assert_eq!(item.owner, "banskabystrica");
+        assert!(item.access.is_allowed());
+        assert!(item
+            .match_reason
+            .iter()
+            .any(|r| r.contains("shared with this project")));
+
+        // A person with no grant in Helsinki does not read its references, so nothing opens.
+        let nobody = crate::permissions::effective(
+            &state.mirror,
+            "boot",
+            &person(&[]),
+            "helsinki",
+            chrono::Utc::now(),
+        );
+        assert!(
+            super::search(&state, "helsinki", &nobody, "banska bystrica", None)
+                .await
+                .items
+                .is_empty()
+        );
+
+        // A conversation opens the shared Endpoint by name; the shut-out one is not found.
+        let resolved = crate::agents::endpoints::resolve_readable(
+            &state.mirror,
+            "helsinki",
+            &["app-banskabystrica-ovzdusie".to_owned()],
+        )
+        .expect("shared endpoint");
+        assert_eq!(resolved[0].slug, "ovzdusieslug000000000000000000");
+        for name in [
+            "banskabystrica-ovzdusie-zvolen",
+            "banskabystrica-ovzdusie-private",
+        ] {
+            assert!(crate::agents::endpoints::resolve_readable(
+                &state.mirror,
+                "helsinki",
+                &[name.to_owned()]
+            )
+            .is_err());
+        }
+        // A build keeps to the project's own Endpoints.
+        assert!(crate::agents::endpoints::resolve(
+            &state.mirror,
+            "helsinki",
+            &["app-banskabystrica-ovzdusie".to_owned()]
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn diacritics_fold_and_a_long_word_matches_inside_a_compound() {
+        let fields = vec![("name", "app-banskabystrica-ovzdusie".to_owned())];
+        assert_eq!(score(&fields, &words("Banská Bystrica ovzdušie")).0, 3);
+        // A short word matches only at the start of a field word.
+        assert_eq!(score(&fields, &words("app air")).0, 1);
+    }
+
+    /// T-6104: a title of only spaces is no title; the name stands in.
+    #[test]
+    fn an_empty_title_is_none() {
+        let mut env = envelope("Endpoint", "helsinki", "air", json!({}));
+        env.metadata = serde_json::from_value(
+            json!({ "name": "air", "namespace": "helsinki", "title": { "en": " " } }),
+        )
+        .expect("meta");
+        assert_eq!(super::title_of(&env), None);
     }
 
     #[test]

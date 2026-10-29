@@ -362,7 +362,8 @@ describe("what nothing in the UI may do", () => {
   it("browser_storage_holds_preferences_only", () => {
     // What a viewer may keep in their own browser: how they like the UI, never platform state
     // and never anything a session could be resumed from (UI-09, PF-50).
-    const keys = new Set(["jc-lang", "jc-theme", "jc-project", "jc-advanced"]);
+    // `jc-diagram-layout`: where a person moved boxes on a model's canvas (T-6094), a view preference.
+    const keys = new Set(["jc-lang", "jc-theme", "jc-project", "jc-advanced", "jc-diagram-layout"]);
     const used = all.flatMap((file) =>
       [...file.text.matchAll(/(?:local|session)Storage\.\w+\(\s*("[^"]*"|`[^`]*`|[A-Z_]+)/g)].map(
         (match) => ({

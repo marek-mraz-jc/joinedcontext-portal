@@ -1310,7 +1310,7 @@ pub async fn post_message(
         } else {
             let names =
                 crate::agents::endpoints::requested(None, names).map_err(ApiError::BadRequest)?;
-            crate::agents::endpoints::resolve(&state.mirror, &project, &names)?
+            crate::agents::endpoints::resolve_readable(&state.mirror, &project, &names)?
         };
         let profile = crate::agents::profile::Profile::load(&state.mirror, &run.profile)?;
         if let Some(refused) = endpoints

@@ -395,7 +395,8 @@ need:
 {{ "tool": "search_catalog", "q": "<words>" }}
 ```
 
-The search matches words in names, titles and descriptions. When it finds nothing, search again
+The search matches words in names, titles and descriptions, and finds endpoints other projects
+share (read them too) and open `datasets` (cite their url). When it finds nothing, search again
 before you answer that nothing is there: synonyms, singular and plural, and the words of the
 data's own language (a Slovak city names bikes cyklo or bicykel, a Finnish one pyörä); then
 look into the endpoints themselves, their types and a page of entities. A failed call answers
