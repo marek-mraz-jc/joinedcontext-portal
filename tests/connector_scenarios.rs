@@ -198,6 +198,15 @@ fn envelope(kind: &str, name: &str, namespace: &str, spec: Value) -> ResourceEnv
 
 /// A base32 slug (a-z, 2-7) of 26 characters or more, unique per project (EP-03).
 fn slug_of(project: &str) -> String {
+    slug_named(project, "counters")
+}
+
+/// The slug of the project's citizen reports Endpoint.
+fn reports_slug_of(project: &str) -> String {
+    slug_named(project, "reports")
+}
+
+fn slug_named(project: &str, what: &str) -> String {
     let tail: String = project
         .chars()
         .map(|c| match c {
@@ -209,7 +218,7 @@ fn slug_of(project: &str) -> String {
             other => other,
         })
         .collect();
-    format!("{tail}counterszzzzzzzzzzzzzzzzzz")
+    format!("{tail}{what}zzzzzzzzzzzzzzzzzz")
 }
 
 /// One project's fixture: a space, a model, a public Endpoint, a CSV DataSource.
@@ -236,6 +245,27 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
             "audience": "public",
             "title": format!("Bike counters of {project}"),
             "entityTypes": ["BikeCounter"],
+            "enabledRepresentations": ["ngsi-ld"]
+        }),
+    ));
+    // Citizen reports whose model marks contactEmail personal (AG-158, S-55); a view without
+    // history, so a temporal read of it is the "serves no history" refusal (S-04).
+    mirror.upsert(envelope(
+        "DataModel",
+        "reports",
+        project,
+        json!({ "contextSpaceRef": "doprava", "linkml": "./reports.linkml.yaml" }),
+    ));
+    mirror.upsert(envelope(
+        "Endpoint",
+        &format!("{project}-reports"),
+        project,
+        json!({
+            "slug": reports_slug_of(project),
+            "contextSpaceRef": "doprava",
+            "audience": "restricted",
+            "title": format!("Citizen reports of {project}"),
+            "entityTypes": ["PotholeReport"],
             "enabledRepresentations": ["ngsi-ld"]
         }),
     ));
@@ -336,11 +366,115 @@ async fn forge(server: &MockServer) {
     }
 }
 
+/// One LinkML text for every model of the fixture: the forge serves it at each model's path.
+const MODELS_LINKML: &str = concat!(
+    "id: https://example.sk/scenarios\n",
+    "name: scenarios\n",
+    "classes:\n",
+    "  BikeCounter:\n",
+    "    slots: [id, type, name, count, location]\n",
+    "  PotholeReport:\n",
+    "    slots: [id, type, description, contactEmail]\n",
+    "slots:\n",
+    "  contactEmail:\n",
+    "    annotations: { personalData: true }\n",
+);
+
+/// The token the realm hands the Portal for a data read (RFC 8693): the gateway mocks answer it
+/// alone, so a read with the Portal's own token, or with none, finds nothing.
+const EXCHANGED: &str = "scn-exchanged-for-the-endpoint";
+
+/// The realm's token exchange and the gateway's NGSI-LD reads of the fixture's Endpoints.
+async fn data_plane(server: &MockServer) {
+    use wiremock::matchers::{body_string_contains, header, path_regex, query_param};
+    Mock::given(method("POST"))
+        .and(path(format!("{REALM_PATH}/protocol/openid-connect/token")))
+        .and(body_string_contains("token-exchange"))
+        .and(body_string_contains("subject_token=ey"))
+        .and(body_string_contains("scope=endpoint%3A"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "access_token": EXCHANGED, "token_type": "Bearer", "expires_in": 300,
+            "issued_token_type": "urn:ietf:params:oauth:token-type:access_token"
+        })))
+        .mount(server)
+        .await;
+    let bearer = format!("Bearer {EXCHANGED}");
+    let counter = |id: &str, count: u64, lon: f64, lat: f64| {
+        json!({ "id": format!("urn:ngsi-ld:BikeCounter:{id}"), "type": "BikeCounter",
+                "count": { "type": "Property", "value": count, "observedAt": "2026-10-27T10:00:00Z" },
+                "location": { "type": "GeoProperty",
+                              "value": { "type": "Point", "coordinates": [lon, lat] } } })
+    };
+    let counters = "^/api/endpoint/[a-z2-7]+counterszz+/ngsi-ld/v1";
+    for (matcher, answer) in [
+        (
+            query_param("georel", "near;maxDistance==500"),
+            json!([counter("snp", 42, 19.1462, 48.7361)]),
+        ),
+        (
+            query_param("type", "BikeCounter"),
+            json!([
+                counter("snp", 42, 19.1462, 48.7361),
+                counter("hron", 7, 19.13, 48.73)
+            ]),
+        ),
+    ] {
+        Mock::given(method("GET"))
+            .and(path_regex(format!("{counters}/entities$")))
+            .and(header("authorization", bearer.as_str()))
+            .and(matcher)
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header(
+                        "NGSILD-Results-Count",
+                        answer.as_array().map_or(0, Vec::len).to_string().as_str(),
+                    )
+                    .set_body_json(answer),
+            )
+            .mount(server)
+            .await;
+    }
+    Mock::given(method("GET"))
+        .and(path_regex(format!("{counters}/temporal/entities$")))
+        .and(header("authorization", bearer.as_str()))
+        .and(query_param("aggrMethods", "avg"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{
+            "id": "urn:ngsi-ld:BikeCounter:snp", "type": "BikeCounter",
+            "count": { "type": "Property", "avg": [[21.5, "2026-10-27T10:00:00Z", "2026-10-27T11:00:00Z"]] }
+        }])))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path_regex(
+            "^/api/endpoint/[a-z2-7]+reportszz+/ngsi-ld/v1/entities$",
+        ))
+        .and(header("authorization", bearer.as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{
+            "id": "urn:ngsi-ld:PotholeReport:1", "type": "PotholeReport",
+            "description": { "type": "Property", "value": "Hlboká jama pri zastávke" },
+            "contactEmail": { "type": "Property", "value": "jana@example.org" }
+        }])))
+        .mount(server)
+        .await;
+    use base64::Engine;
+    Mock::given(method("GET"))
+        .and(path_regex(
+            r"^/api/v1/repos/test-owner/test-repo/contents/.*\.linkml\.yaml$",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "blob-models",
+            "content": base64::engine::general_purpose::STANDARD.encode(MODELS_LINKML)
+        })))
+        .mount(server)
+        .await;
+}
+
 struct Harness {
     app: axum::Router,
     issuer: String,
     signer: EncodingKey,
     mirror: std::sync::Arc<Mirror>,
+    state: AppState,
     /// The connector the running scenario created last.
     connector: std::sync::Mutex<Option<String>>,
     /// The forge, CSV source and identity provider; the model lane counts the forge writes.
@@ -349,6 +483,11 @@ struct Harness {
 
 impl Harness {
     async fn start(projects: usize) -> Self {
+        Self::start_with(projects, None).await
+    }
+
+    /// The harness with its stores in `db` (the Portal as it runs), or in memory.
+    async fn start_with(projects: usize, db: Option<sqlx::PgPool>) -> Self {
         // Leaked: the router's JWKS cache and the DataSource URLs point at this server for as
         // long as the test binary runs; a dropped one goes back to wiremock's pool.
         let server: &'static MockServer = Box::leak(Box::new(MockServer::start().await));
@@ -394,6 +533,7 @@ impl Harness {
             .mount(server)
             .await;
         forge(server).await;
+        data_plane(server).await;
         let csv_url = format!("http://localhost:{}/counters.csv", server.address().port());
 
         let mut config = Config::from_vars(|k| match k {
@@ -405,6 +545,7 @@ impl Harness {
         })
         .expect("config");
         config.public_base_url = "https://portal.test".parse().expect("url");
+        config.gateway_url = Some(server.uri());
 
         let mirror = std::sync::Arc::new(Mirror::new());
         let names: Vec<String> = (1..=projects).map(project_of).collect();
@@ -412,9 +553,11 @@ impl Harness {
             seed_project(&mirror, project, &csv_url);
         }
         bind_personas(&mirror, &names);
-        let state = AppState::from_config(config)
-            .await
-            .expect("state")
+        let mut state = AppState::from_config(config).await.expect("state");
+        if let Some(db) = db {
+            state = state.with_db(db);
+        }
+        let state = state
             .with_mirror(mirror.clone())
             .with_gitea(std::sync::Arc::new(
                 joinedcontext_portal::git::GiteaClient::new(
@@ -426,10 +569,11 @@ impl Harness {
                 .expect("gitea client"),
             ));
         Self {
-            app: server::app(state),
+            app: server::app(state.clone()),
             issuer,
             signer,
             mirror,
+            state,
             connector: std::sync::Mutex::default(),
             server,
         }
@@ -446,7 +590,6 @@ impl Harness {
         if persona == "anonymous" {
             return None;
         }
-        let now = joinedcontext_portal::auth::session::now_unix();
         let (roles, groups): (&[&str], &[&str]) = match persona {
             "approver" => (&["portal-approver"], &[]),
             // The bootstrap group (Config::DEFAULT_BOOTSTRAP_ADMINS) administers the organization.
@@ -454,22 +597,42 @@ impl Harness {
             _ => (&[], &[]),
         };
         let user = user_of(persona);
+        Some(self.sign(
+            &format!("sub-scn-{persona}"),
+            &user,
+            (roles, groups),
+            (audience, client),
+            600,
+        ))
+    }
+
+    /// A token for `sub`/`user` with realm roles and groups, for `audience` obtained by `client`,
+    /// valid `ttl` seconds.
+    fn sign(
+        &self,
+        sub: &str,
+        user: &str,
+        (roles, groups): (&[&str], &[&str]),
+        (audience, client): (&str, &str),
+        ttl: i64,
+    ) -> String {
+        let now = joinedcontext_portal::auth::session::now_unix();
         let claims = json!({
             "iss": self.issuer,
             "aud": audience,
             "azp": client,
-            "sub": format!("sub-scn-{persona}"),
+            "sub": sub,
             "preferred_username": user,
             "email": user,
             "email_verified": true,
             "realm_access": { "roles": roles },
             "groups": groups,
-            "exp": now + 600,
+            "exp": now + ttl,
             "iat": now,
         });
         let mut header = Header::new(Algorithm::ES256);
         header.kid = Some(KID.to_owned());
-        Some(encode(&header, &claims, &self.signer).expect("sign"))
+        encode(&header, &claims, &self.signer).expect("sign")
     }
 
     /// One JSON-RPC request through the MCP door: the HTTP status and the body.
@@ -1147,6 +1310,183 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
         .send("GET", "/api/v1/connectors/options", None, None)
         .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+/// Seconds of CPU this process has used, user and system (`/proc/self/stat`, 100 ticks a second).
+fn cpu_seconds() -> f64 {
+    let stat = std::fs::read_to_string("/proc/self/stat").expect("/proc/self/stat");
+    // The fields after the command name, which may hold spaces: utime and stime are 14 and 15.
+    let fields: Vec<&str> = stat
+        .rsplit_once(')')
+        .map(|(_, rest)| rest)
+        .unwrap_or_default()
+        .split_whitespace()
+        .collect();
+    let ticks = |n: usize| fields.get(n - 3).and_then(|v| v.parse::<f64>().ok());
+    ticks(14).unwrap_or(0.0) / 100.0 + ticks(15).unwrap_or(0.0) / 100.0
+}
+
+/// The connector door under load (T-5978): 50 people with 20 connectors each (1,000, the most a
+/// person may hold) over 50 projects, every person bound in every project, the Portal on a real
+/// socket with its stores in Postgres when `JC_PORTAL_TEST_DATABASE_URL` is set. k6
+/// (`tests/k6/connector-door.js`) holds the call mix and judges the budget per tool; in the middle
+/// of the run it removes one person's binding through the control listener here, and the very
+/// next call of that person's connector must be refused (no rights cached across calls).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "a minute of k6 against a release build: the ci-full connector-load job runs it"]
+async fn the_connector_door_holds_its_budget_under_load() {
+    const PEOPLE: usize = 50;
+    const PROJECTS: usize = 50;
+    const BASE: &str = "https://portal.test";
+    let db = match std::env::var("JC_PORTAL_TEST_DATABASE_URL") {
+        Ok(url) => {
+            let pool = joinedcontext_portal::db::connect(&url)
+                .await
+                .expect("the test database");
+            // The cap of 20 per person holds across runs on one database: start each run empty.
+            sqlx::query("DELETE FROM connectors WHERE owner LIKE 'sub-load-%'")
+                .execute(&pool)
+                .await
+                .expect("an empty start");
+            Some(pool)
+        }
+        Err(_) => None,
+    };
+    let store = if db.is_some() { "postgres" } else { "memory" };
+    let harness = Harness::start_with(PROJECTS, db).await;
+    let user = |i: usize| format!("load.{i:02}@hel.fi");
+    let projects: Vec<String> = (1..=PROJECTS).map(project_of).collect();
+    for i in 0..PEOPLE {
+        for project in &projects {
+            harness.mirror.upsert(envelope(
+                "RoleBinding",
+                &format!("load-{i:02}-{project}"),
+                ORG_NAMESPACE,
+                json!({ "subjects": [{ "user": user(i) }], "role": "scn-viewer",
+                        "scope": { "project": project } }),
+            ));
+        }
+    }
+    let expires_at = chrono::Utc::now() + chrono::Duration::days(1);
+    let mut connectors = Vec::new();
+    for i in 0..PEOPLE {
+        let owner = format!("sub-load-{i:02}");
+        for j in 0..joinedcontext_portal::connectors::MAX_PER_PERSON {
+            let project = projects[(i + j) % PROJECTS].clone();
+            let new = joinedcontext_portal::connectors::NewConnector {
+                name: format!("load-{j:02}"),
+                segments: vec!["data-read".to_owned()],
+                scope: vec![joinedcontext_portal::connectors::ScopeItem {
+                    project: project.clone(),
+                    space: None,
+                    endpoint: None,
+                    pipeline: None,
+                    personal_data: false,
+                    access: joinedcontext_portal::connectors::ItemAccess::Read,
+                }],
+                writes: false,
+                expires_at,
+                allowed_clients: Vec::new(),
+            };
+            let connector = harness
+                .state
+                .connectors
+                .create(&owner, new, BASE)
+                .await
+                .expect("a connector");
+            let token = harness.sign(&owner, &user(i), (&[], &[]), (&connector.url, CLIENT), 3600);
+            connectors.push(json!({ "person": i, "id": connector.id, "token": token,
+                                    "project": project }));
+        }
+    }
+    assert_eq!(connectors.len(), 1000);
+
+    let door = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("door");
+    let door_url = format!("http://{}", door.local_addr().expect("addr"));
+    let app = harness.app.clone();
+    tokio::spawn(async move { axum::serve(door, app).await });
+    // Person 0's first connector reads project 1: its binding there goes mid-run.
+    let key = ResourceKey {
+        namespace: ORG_NAMESPACE.to_owned(),
+        kind: "RoleBinding".to_owned(),
+        name: format!("load-00-{}", projects[0]),
+    };
+    let mirror = harness.mirror.clone();
+    let control = axum::Router::new().route(
+        "/unbind",
+        axum::routing::post(move || {
+            let removed = mirror.remove(&key).is_some();
+            async move {
+                if removed {
+                    StatusCode::NO_CONTENT
+                } else {
+                    StatusCode::CONFLICT
+                }
+            }
+        }),
+    );
+    let control_listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("control");
+    let control_url = format!(
+        "http://{}/unbind",
+        control_listener.local_addr().expect("addr")
+    );
+    tokio::spawn(async move { axum::serve(control_listener, control).await });
+
+    let dir = std::env::temp_dir().join(format!("connector-load-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("run dir");
+    let plan = dir.join("plan.json");
+    let summary = dir.join("summary.json");
+    let (revoked, other) = (connectors[0].clone(), connectors[1].clone());
+    std::fs::write(
+        &plan,
+        json!({ "door": door_url, "control": control_url, "revoked": revoked, "other": other,
+                "connectors": connectors[joinedcontext_portal::connectors::MAX_PER_PERSON..] })
+        .to_string(),
+    )
+    .expect("plan");
+    let k6 = std::env::var("JC_K6").unwrap_or_else(|_| "k6".to_owned());
+    let script = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/k6/connector-door.js");
+    let (plan_path, summary_path) = (plan.clone(), summary.clone());
+    let cpu_before = cpu_seconds();
+    let started = std::time::Instant::now();
+    let status = tokio::task::spawn_blocking(move || {
+        std::process::Command::new(k6)
+            .args(["run", "--quiet", script])
+            .env("JC_LOAD_PLAN", plan_path)
+            .env("JC_LOAD_SUMMARY", summary_path)
+            .status()
+    })
+    .await
+    .expect("k6 joined")
+    .expect("k6 starts (JC_K6 names it when it is not on PATH)");
+    let cpu = cpu_seconds() - cpu_before;
+    let wall = started.elapsed().as_secs_f64();
+    let measured: Value =
+        serde_json::from_slice(&std::fs::read(&summary).unwrap_or_default()).unwrap_or_default();
+    let calls = measured["metrics"]["http_reqs"]["values"]["count"]
+        .as_f64()
+        .unwrap_or(0.0);
+    println!(
+        "connector door ({store} store): {calls} calls in {wall:.0} s, Portal CPU {cpu:.1} s = {:.2} ms a call, {:.2} cores on average",
+        cpu * 1000.0 / calls.max(1.0),
+        cpu / wall
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(status.success(), "k6 judged the run red: {status}");
+    // The CPU budget a call: 22-25 ms while every call parsed every person's RoleBindings, 4-6
+    // ms since only the caller's are parsed (T-5978).
+    let budget: f64 = std::env::var("JC_LOAD_CPU_MS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(15.0);
+    assert!(
+        cpu * 1000.0 / calls.max(1.0) < budget,
+        "the Portal spent more than {budget} ms of CPU a call"
+    );
 }
 
 /// A flood of one connector stops at its own minute; a person's connectors together stop at the

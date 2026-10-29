@@ -354,6 +354,7 @@ async fn an_administrator_of_some_of_the_changes_kinds_waits_for_another_approve
 /// recorded first by the same caller (PF-57).
 async fn propose_by(state: &AppState, via: Via) -> Value {
     let caller = Caller {
+        bearer: None,
         identity: identity(),
         via,
         access: None,
