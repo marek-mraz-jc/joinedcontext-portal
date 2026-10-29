@@ -13,6 +13,7 @@ use super::*;
 
 use std::borrow::Cow;
 
+use crate::error::ApiError;
 use crate::ops::OperationSummary;
 
 /// Model rounds one message may take before the turn stops and says so.
@@ -64,15 +65,9 @@ pub(super) fn tool_specs(offered: &[OperationSummary]) -> Vec<ToolSpec> {
         .collect()
 }
 
-/// A refusal before the operation runs, in the shape every door answers (API/09).
-fn refused(status: u16, slug: &str, title: &str, detail: &str) -> String {
-    json!({
-        "type": format!("https://joinedcontext.com/errors/{slug}"),
-        "title": title,
-        "status": status,
-        "detail": detail,
-    })
-    .to_string()
+/// A refusal before the operation runs, as the document every door answers (API/09).
+fn refused(error: ApiError) -> String {
+    error.into_document().1.to_string()
 }
 
 /// `output` without the attributes the project's models mark personal (AG-158), the same
@@ -254,7 +249,7 @@ impl Driver {
             );
             self.event("tool", failed_step(&call.name, started, &input, &reason))
                 .await?;
-            return Ok(refused(403, "tool-refused", "Forbidden", &reason));
+            return Ok(refused(ApiError::Denied(reason)));
         };
         let called =
             crate::ops::call(operation, caller, &self.state, &self.project, input.clone()).await;
@@ -266,12 +261,7 @@ impl Driver {
                     Err(why) => {
                         self.event("tool", failed_step(&call.name, started, &input, &why))
                             .await?;
-                        return Ok(refused(
-                            503,
-                            "personal-data-unchecked",
-                            "Service Unavailable",
-                            &why,
-                        ));
+                        return Ok(refused(ApiError::Unavailable(why)));
                     }
                 }
             }
@@ -445,7 +435,8 @@ mod tests {
         let bodies = sent(&server).await;
         assert_eq!(bodies.len(), 2);
         let second = bodies[1].to_string();
-        assert!(second.contains("tool-refused"), "{second}");
+        assert!(second.contains("errors/forbidden"), "{second}");
+        assert!(second.contains("not one of this conversation"), "{second}");
         let names: Vec<&str> = bodies[0]["tools"]
             .as_array()
             .into_iter()
@@ -475,7 +466,7 @@ mod tests {
         let bodies = sent(&server).await;
         let second = bodies[1].to_string();
         assert!(second.contains("joinedcontext.com/errors/"), "{second}");
-        assert!(!second.contains("tool-refused"), "{second}");
+        assert!(!second.contains("not one of this conversation"), "{second}");
     }
 
     /// A model that keeps calling stops at the step ceiling and the person reads why.
