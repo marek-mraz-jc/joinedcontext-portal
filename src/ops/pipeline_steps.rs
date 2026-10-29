@@ -2,7 +2,7 @@
 //! source's sample, the mapping tried on it and the records checked against the target space's
 //! model. The workbench calls them through `POST /api/v1/projects/{project}/ops/{name}`, MCP and
 //! the assistant through the registry, so a person, an agent and the assistant see the same
-//! output for the same input. The fourth step, the save, is `jc_pipeline_propose`.
+//! output for the same input. The fourth step, the save, is `jc_resource_propose`.
 //!
 //! Nothing here writes: the sample and the mapping run as the throwaway harness stream of a
 //! pipeline test (PL-43, MF-38) and resolve no `secretRef`; a streaming source's sample is its

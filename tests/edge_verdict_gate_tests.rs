@@ -525,7 +525,7 @@ async fn only_a_proposal_carries_a_verdict_refusal_and_it_is_the_routes_own() {
         )
         .await
         .expect("the draft is written");
-    let propose = ops::find("jc_space_propose").expect("a registered proposal");
+    let propose = ops::find("jc_resource_propose").expect("a registered proposal");
     let input = json!({ "draft": { "kind": "ContextSpace", "name": "ovzdusie-unchecked" } });
     let carried = ops::verdict_refusal(&state, propose, PROJECT, &input)
         .await

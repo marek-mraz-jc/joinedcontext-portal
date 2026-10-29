@@ -559,7 +559,7 @@ const UNITS: &[(&str, &str, &str)] = &[
     (
         "load",
         "Load a data source into a space: check the source, build and test the pipeline, propose both.",
-        "1. jc_draft_put a DataSource, jc_datasource_check it until the verdict is ok.\n2. jc_draft_put a Pipeline that maps the sample, jc_pipeline_test it.\n3. jc_datasource_propose and jc_pipeline_propose; the change waits for approval.",
+        "1. jc_draft_put a DataSource, jc_datasource_check it until the verdict is ok.\n2. jc_draft_put a Pipeline that maps the sample, jc_pipeline_test it.\n3. jc_resource_propose each draft; the change waits for approval.",
     ),
     (
         "share",
@@ -569,12 +569,12 @@ const UNITS: &[(&str, &str, &str)] = &[
     (
         "analyse",
         "Compute a KPI over a space and write it back through an endpoint.",
-        "1. jc_catalog_search for the source endpoint.\n2. jc_kpi_compute on a sample to see the numbers.\n3. jc_draft_put a KPI Pipeline, jc_pipeline_test it, jc_pipeline_propose.",
+        "1. jc_catalog_search for the source endpoint.\n2. jc_kpi_compute on a sample to see the numbers.\n3. jc_draft_put a KPI Pipeline, jc_pipeline_test it, jc_resource_propose it.",
     ),
     (
         "model",
         "Infer a LinkML data model from samples and propose it.",
-        "1. jc_model_infer over the samples.\n2. jc_draft_put the DataModel, jc_manifest_dry_run it.\n3. jc_model_propose.",
+        "1. jc_model_infer over the samples.\n2. jc_draft_put the DataModel, jc_manifest_dry_run it.\n3. jc_resource_propose it.",
     ),
     (
         "change",

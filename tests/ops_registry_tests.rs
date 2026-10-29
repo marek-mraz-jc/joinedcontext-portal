@@ -187,7 +187,7 @@ async fn get_ops_differs_between_steward_and_viewer() {
         .filter_map(|o| o["name"].as_str())
         .collect();
 
-    assert!(steward_names.contains(&"jc_datasource_propose"));
+    assert!(steward_names.contains(&"jc_resource_propose"));
     assert!(steward_names.contains(&"jc_catalog_search"));
     assert!(steward_names.contains(&"jc_change_approve"));
 
@@ -224,7 +224,7 @@ async fn get_ops_differs_between_steward_and_viewer() {
         "viewer can run read-only operations"
     );
     assert!(
-        !viewer_names.contains(&"jc_datasource_propose"),
+        !viewer_names.contains(&"jc_resource_propose"),
         "viewer must not see mutating propose operations"
     );
     assert!(
@@ -415,10 +415,6 @@ fn the_change_operations_publish_the_wrapper_they_answer() {
     for name in [
         "jc_resource_propose",
         "jc_resource_delete",
-        "jc_datasource_propose",
-        "jc_pipeline_propose",
-        "jc_space_propose",
-        "jc_model_propose",
         "jc_change_reject",
     ] {
         let op = ops::find(name).expect("registered");

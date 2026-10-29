@@ -1346,8 +1346,14 @@ impl Driver {
     pub(super) fn narrowed(&self, prompt: &str) -> String {
         TOOL_SECTIONS
             .iter()
-            .filter(|(_, operation)| self.granted(operation).is_err())
-            .fold(prompt.to_owned(), |text, (heading, _)| {
+            .filter(|(_, operation, kind)| {
+                match kind {
+                    Some(kind) => self.may_change(kind, Verb::Propose),
+                    None => self.granted(operation),
+                }
+                .is_err()
+            })
+            .fold(prompt.to_owned(), |text, (heading, _, _)| {
                 without_section(&text, heading)
             })
     }

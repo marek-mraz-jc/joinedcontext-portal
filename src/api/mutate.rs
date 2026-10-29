@@ -2485,10 +2485,6 @@ async fn propose_draft(
         ("datasources", true) => "jc_datasource_check",
         (_, true) => "jc_manifest_dry_run",
         ("endpoints", false) => "jc_endpoint_propose",
-        ("datasources", false) => "jc_datasource_propose",
-        ("pipelines", false) => "jc_pipeline_propose",
-        ("spaces", false) => "jc_space_propose",
-        ("datamodels", false) => "jc_model_propose",
         // Every other kind proposes through the registry's one propose (AG-77, ADR-N-021): the
         // draft names its own kind, so a Dashboard, a Role or an App draft reaches the operation
         // MCP and the assistant reach, instead of a 400 in the form alone (T-0842).

@@ -194,7 +194,6 @@ fn mirror(provider: &str) -> Arc<Mirror> {
                     "jc_kpi_compute",
                     "jc_space_complete",
                     "jc_endpoint_propose",
-                    "jc_pipeline_propose",
                     "jc_resource_propose"
                 ],
                 "kinds": [
