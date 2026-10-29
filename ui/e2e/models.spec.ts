@@ -448,6 +448,17 @@ test.describe("the model editor's import dialog, inherited fields and read-only 
       await expect(fields.getByRole("row").filter({ hasText: "This type" })).toHaveCount(3);
       await inherited.first().scrollIntoViewIfNeeded();
       await shot(page, `inherited-fields-${width}`);
+      // An inherited field opens read-only: editing it would change the parent for every type.
+      await inherited.filter({ hasText: "location" }).getByRole("button", { name: "location", exact: true }).click();
+      const detail = page.getByRole("region", { name: "location" });
+      await expect(detail).toContainText("Defined on Indicator");
+      await expect(detail.getByRole("checkbox")).toHaveCount(0);
+      await detail.scrollIntoViewIfNeeded();
+      await shot(page, `inherited-field-read-only-${width}`);
+      await detail.getByRole("button", { name: "Open Indicator" }).click();
+      await expect(page.getByRole("button", { name: "Indicator", exact: true })).toHaveAttribute("aria-current", "true");
+      await expect(page.getByRole("region", { name: "location" }).getByRole("checkbox").first()).toBeVisible();
+      await page.getByRole("button", { name: "KeyPerformanceIndicator", exact: true }).click();
 
       await page.getByRole("tab", { name: "Source" }).click();
       const edit = page.getByRole("button", { name: "Edit source" });

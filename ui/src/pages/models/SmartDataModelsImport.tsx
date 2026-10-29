@@ -7,7 +7,7 @@ import { api, unwrap } from "../../api/client";
 import { isSeq, parseDocument } from "yaml";
 import { edit, parseModel } from "./linkml";
 import type { Artifacts } from "./LinkmlPreviewPanel";
-import { CodeBlock, Alert, Button, Checkbox, Field, Input, RadioGroup, Select, Skeleton, safeHref } from "../../components/ui";
+import { CodeBlock, Alert, Button, Checkbox, EmptyState, Field, Input, RadioGroup, Select, Skeleton, safeHref } from "../../components/ui";
 
 /**
  * The primary path into a model: take an official Smart Data Model and adapt it (DM-07).
@@ -378,7 +378,30 @@ export function SmartDataModelsImport({
           </Button>
         ) : null}
         {!catalogue.isLoading && !catalogue.isError && visible.length === 0 ? (
-          <p className="text-body text-fg-muted">{t("models.sdm.noMatches")}</p>
+          subjects.length === 0 ? (
+            <EmptyState
+              icon="models"
+              title={t("models.sdm.emptyCatalogue")}
+              description={t("models.sdm.emptyCatalogueHint")}
+            />
+          ) : (
+            <EmptyState
+              icon="search"
+              title={t("models.sdm.noMatches")}
+              description={t("models.sdm.noMatchesHint")}
+              action={
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setSearch("");
+                    setSubject("");
+                  }}
+                >
+                  {t("models.sdm.clearSearch")}
+                </Button>
+              }
+            />
+          )
         ) : null}
       </section>
 

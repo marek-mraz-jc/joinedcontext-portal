@@ -1563,7 +1563,7 @@
     },
     "src/pages/models/LinkmlVisualEditor.tsx": {
       "controls": {
-        "Button": 12,
+        "Button": 13,
         "Checkbox": 3
       },
       "tests": [
@@ -1664,7 +1664,7 @@
     "src/pages/models/SmartDataModelsImport.tsx": {
       "controls": {
         "button": 1,
-        "Button": 10,
+        "Button": 11,
         "Checkbox": 1,
         "RadioGroup": 1
       },

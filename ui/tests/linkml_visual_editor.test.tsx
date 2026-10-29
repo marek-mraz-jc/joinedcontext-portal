@@ -72,14 +72,38 @@ describe("LinkML visual editor", () => {
     await user.click(screen.getByRole("button", { name: "AirQualityObserved" }));
     const fields = screen.getByRole("table", { name: en.models.slots });
     const inherited = within(fields).getByRole("button", { name: "dateObserved" }).closest("tr")!;
-    expect(inherited).toHaveClass("text-fg-muted");
+    expect(inherited).toHaveClass("bg-surface-subtle");
     // Once as the From column's button, once under the name for a phone, which hides that column.
     expect(within(inherited).getAllByText(i18n.t("models.inheritedFrom", { type: "Observed" }))).toHaveLength(2);
     const own = within(fields).getByRole("button", { name: "pm10" }).closest("tr")!;
-    expect(own).not.toHaveClass("text-fg-muted");
+    expect(own).not.toHaveClass("bg-surface-subtle");
     expect(within(own).getByText(en.models.ownField)).toBeInTheDocument();
     await user.click(within(inherited).getByRole("button", { name: i18n.t("models.inheritedFrom", { type: "Observed" }) }));
     expect(screen.getByRole("button", { name: "Observed" })).toHaveAttribute("aria-current", "true");
+  });
+
+  it("opens an inherited field read-only, naming the parent it is defined on, and goes there (T-6106)", async () => {
+    const { source, user } = renderEditor(
+      SOURCE.replace(
+        "  AirQualityObserved:\n    class_uri: bb:AirQualityObserved\n",
+        "  Observed:\n    slots:\n      - dateObserved\n  AirQualityObserved:\n    is_a: Observed\n    class_uri: bb:AirQualityObserved\n",
+      ).replace("slots:\n  pm10:", "slots:\n  dateObserved:\n    range: datetime\n  pm10:"),
+    );
+    const before = source();
+
+    await user.click(screen.getByRole("button", { name: "AirQualityObserved" }));
+    await user.click(within(screen.getByRole("table", { name: en.models.slots })).getByRole("button", { name: "dateObserved" }));
+    const detail = screen.getByRole("region", { name: "dateObserved" });
+    expect(within(detail).getByText(i18n.t("models.inheritedDefinedOn", { type: "Observed" }))).toBeInTheDocument();
+    // Nothing to edit here: a change would reach every type that inherits the field.
+    expect(within(detail).queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(within(detail).queryByRole("combobox")).not.toBeInTheDocument();
+    expect(source()).toBe(before);
+
+    await user.click(within(detail).getByRole("button", { name: i18n.t("models.inheritedOpen", { type: "Observed" }) }));
+    expect(screen.getByRole("button", { name: "Observed" })).toHaveAttribute("aria-current", "true");
+    // On its own type the field is editable again.
+    expect(within(screen.getByRole("region", { name: "dateObserved" })).getAllByRole("checkbox").length).toBeGreaterThan(0);
   });
 
   it("keeps a phone page 375 px wide: the attribute table scrolls in its own frame, the editor's column does not grow to it (T-4165)", () => {

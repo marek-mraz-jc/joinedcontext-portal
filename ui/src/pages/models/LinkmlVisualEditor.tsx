@@ -99,6 +99,11 @@ export function LinkmlVisualEditor({
   const activeClass =
     model.classes.find((klass) => klass.name === selectedClass) ?? model.classes[0];
   const activeSlot = model.slots.find((slot) => slot.name === selectedSlot);
+  const origins = activeClass ? slotOrigins(model, activeClass) : new Map<string, string>();
+  // A field inherited from a parent is shared by every type below it: it opens read-only here.
+  const activeSlotOwner = activeSlot ? origins.get(activeSlot.name) : undefined;
+  const activeSlotInheritedFrom =
+    activeSlotOwner && activeSlotOwner !== activeClass?.name ? activeSlotOwner : undefined;
 
   /** One operation, the same way an assistant would send it; a refusal is shown, not swallowed. */
   const run = (operation: Operation): boolean => {
@@ -551,18 +556,22 @@ export function LinkmlVisualEditor({
             </TableHead>
             <TableBody>
               {/* Inherited fields too, greyed, with the type they come from (T-6106). */}
-              {[...(activeClass ? slotOrigins(model, activeClass) : new Map<string, string>())].map(([name, from]) => {
+              {[...origins].map(([name, from]) => {
                 const slot: LinkmlSlot | undefined = model.slots.find(
                   (candidate) => candidate.name === name,
                 );
                 const inherited = from !== activeClass?.name;
                 return (
-                  <TableRow key={name} className={inherited ? "text-fg-muted [&>td]:text-fg-muted [&_button]:text-fg-muted" : undefined}>
+                  <TableRow key={name} className={
+                      inherited
+                        ? "bg-surface-subtle [&>td]:text-fg-muted [&>td]:italic [&_button]:text-fg-muted"
+                        : undefined
+                    }>
                     <TableCell primary>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="underline-offset-2 hover:underline"
+                        className="-mx-2.5 -my-1 h-auto! py-1 text-body! underline-offset-2 hover:underline"
                         onClick={() => openSlot(name)}
                       >
                         {name}
@@ -584,7 +593,7 @@ export function LinkmlVisualEditor({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="-my-1 underline-offset-2 hover:underline"
+                          className="-mx-2.5 -my-1 h-auto! py-1 text-body! underline-offset-2 hover:underline"
                           onClick={() => setSelectedClass(from)}
                         >
                           {t("models.inheritedFrom", { type: from })}
@@ -598,9 +607,9 @@ export function LinkmlVisualEditor({
               })}
             </TableBody>
           </Table>
-          <div className="mt-2 flex gap-1">
+          {/* Input is w-full, so the row's width caps it: across the page its Add sat under the chat button. */}
+          <div className="mt-2 flex max-w-md gap-1">
             <Input
-              className="w-64"
               aria-label={t("models.newSlot")}
               placeholder={t("models.newSlot")}
               value={newSlot}
@@ -616,7 +625,25 @@ export function LinkmlVisualEditor({
           </div>
         </section>
 
-        {activeSlot ? (
+        {activeSlot && activeSlotInheritedFrom ? (
+          <section aria-labelledby="models-slot-detail" className="flex flex-col gap-2">
+            <h2 id="models-slot-detail" className="text-base font-semibold">
+              {activeSlot.name}
+            </h2>
+            <p className="text-fg-muted">
+              {t("models.inheritedDefinedOn", { type: activeSlotInheritedFrom })}
+            </p>
+            <div>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setSelectedClass(activeSlotInheritedFrom)}
+              >
+                {t("models.inheritedOpen", { type: activeSlotInheritedFrom })}
+              </Button>
+            </div>
+          </section>
+        ) : activeSlot ? (
           <section aria-labelledby="models-slot-detail" className="flex flex-col gap-3">
             <h2 id="models-slot-detail" className="text-base font-semibold">
               {activeSlot.name}

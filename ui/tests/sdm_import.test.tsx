@@ -380,6 +380,24 @@ describe("Smart Data Models import wizard", () => {
     expect(screen.queryByText(en.models.sdm.catalogueLoading)).not.toBeInTheDocument();
   });
 
+  // T-6106: an empty list says what to do next, and a search that finds nothing can be cleared.
+  it("says what to do when the search finds nothing, clears it, and names an empty catalogue apart", async () => {
+    const { user } = renderWizard();
+    expect(await screen.findByText(/^\d+ models?$/)).toBeInTheDocument();
+    await user.type(screen.getByLabelText(en.models.sdm.search), "zzz-nothing");
+    expect(await screen.findByText(en.models.sdm.noMatchesHint)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: en.models.sdm.clearSearch }));
+    expect(screen.getByLabelText(en.models.sdm.search)).toHaveValue("");
+    expect(screen.queryByText(en.models.sdm.noMatches)).not.toBeInTheDocument();
+  });
+
+  it("calls an empty catalogue empty, with the refresh and the file drop as next steps", async () => {
+    renderWizard({ catalogue: { subjects: [] } });
+    expect(await screen.findByText(en.models.sdm.emptyCatalogue)).toBeInTheDocument();
+    expect(screen.getByText(en.models.sdm.emptyCatalogueHint)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.models.sdm.clearSearch })).not.toBeInTheDocument();
+  });
+
   // UI-16, DM-11 (T-1851): keeping 8 attributes of 46 must not take 38 clicks.
   it("keeps only the required attributes with one button, and all of them with the other", async () => {
     const withRequired = IMPORTED.replace("  dateObserved:\n    range: datetime", "  dateObserved:\n    required: true\n    range: datetime");
