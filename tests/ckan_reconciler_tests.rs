@@ -16,9 +16,9 @@ use jcctl::commands::publish_ckan::{Models, Target};
 use jcctl::loader::{RawManifest, RawMetadata, ResourceId};
 use jcctl::publish::ckan::{InMemoryCkan, Outcome, Settings};
 use joinedcontext_portal::reconciler::ckan::{
-    fingerprint, publish_with, publish_without_models, sweep_with, withdrawn, CkanSync,
-    Organizations, Paced, Pacing, Publication, Report, CALL_GAP, MODELS_READS, MOST_BACKOFF,
-    RECORD_READS, REFRESH,
+    claimed_twice, fingerprint, publish_with, publish_without_models, sweep_with, withdrawn,
+    CkanSync, Organizations, Paced, Pacing, Publication, Report, CALL_GAP, MODELS_READS,
+    MOST_BACKOFF, RECORD_READS, REFRESH,
 };
 use joinedcontext_portal::resource::ResourceEnvelope;
 use joinedcontext_portal::store::Mirror;
@@ -1072,4 +1072,123 @@ fn only_the_deployments_own_catalogue_is_called_on_its_service() {
     assert_eq!(sync.api_url(&other), "https://data.other.example.fi");
     // Without the operator's route every catalogue is called where its manifest says.
     assert_eq!(CkanSync::new(HOST).api_url(&own), "https://data.example.fi");
+}
+
+// T-6079: every seeded CkanInstance on dev points at one CKAN, and five org catalogues were all
+// called `catalog`: each pass published package `catalog` five times and kept the last.
+
+/// `name`'s target in `project`, publishing to the catalogue at `url`.
+fn target_in(project: &str, name: &str, url: &str) -> Target {
+    let mut target = target(name, "public", dataset_only());
+    target.id.namespace = Some(project.to_owned());
+    target.manifest.metadata.namespace = Some(project.to_owned());
+    target.instance.url = url.to_owned();
+    target
+}
+
+#[test]
+fn two_endpoints_of_two_projects_publishing_one_dataset_name_to_one_catalogue_are_both_refused() {
+    let zilina = target_in("zilina", "catalog", "https://opendata.example.sk");
+    // The other project's instance writes the URL with a trailing slash and capitals: one CKAN.
+    let praha = target_in("praha", "catalog", "https://OpenData.example.sk/");
+    let elsewhere = target_in("praha", "bikes", "https://opendata.example.sk");
+    let refused = claimed_twice(&[zilina, praha, elsewhere]);
+
+    assert_eq!(refused.len(), 2, "{refused:?}");
+    let reason = &refused[&("zilina".to_owned(), "catalog".to_owned())];
+    assert!(reason.contains("Endpoint praha/catalog"), "{reason}");
+    assert!(reason.contains("`zilina-catalog`"), "{reason}");
+    let reason = &refused[&("praha".to_owned(), "catalog".to_owned())];
+    assert!(reason.contains("Endpoint zilina/catalog"), "{reason}");
+    assert!(reason.contains("spec.publish.ckan.name"), "{reason}");
+}
+
+#[test]
+fn a_dataset_name_set_in_the_block_collides_with_another_endpoints_own_name() {
+    let own = target_in(PROJECT, "bikes", "https://data.example.fi");
+    let mut named = target_in(PROJECT, "stations", "https://data.example.fi");
+    named.publication.name = Some("bikes".to_owned());
+    assert_eq!(claimed_twice(&[own, named]).len(), 2);
+}
+
+#[test]
+fn two_endpoints_on_two_catalogues_may_share_a_dataset_name() {
+    let zilina = target_in("zilina", "catalog", "https://opendata.zilina.sk");
+    let praha = target_in("praha", "catalog", "https://opendata.praha.eu");
+    assert!(claimed_twice(&[zilina, praha]).is_empty());
+}
+
+fn manifest_in(project: &str, kind: &str, name: &str, spec: Value) -> String {
+    serde_norway::to_string(&json!({
+        "apiVersion": "joinedcontext.com/v1alpha1",
+        "kind": kind,
+        "metadata": { "name": name, "namespace": project },
+        "spec": spec,
+    }))
+    .expect("yaml")
+}
+
+#[tokio::test]
+async fn a_pass_refuses_a_colliding_pair_before_any_catalogue_call_and_withdraws_nothing_still_published(
+) {
+    let repository = std::env::temp_dir().join(format!("jc-ckan-collision-{}", std::process::id()));
+    std::fs::create_dir_all(&repository).expect("a scratch directory");
+    for project in ["a", "b"] {
+        std::fs::write(
+            repository.join(format!("{project}.yaml")),
+            format!(
+                "{}---\n{}",
+                manifest_in(project, "CkanInstance", "hel-fi", instance()),
+                manifest_in(
+                    project,
+                    "Endpoint",
+                    "catalog",
+                    endpoint("catalog", "public", Some(dataset_only()))
+                )
+            ),
+        )
+        .expect("a project");
+    }
+    // Project c published `catalog` to the same CKAN a run ago and is gone: its withdrawal would
+    // delete the dataset a and b still name.
+    let previous = Mirror::new();
+    for (kind, name, spec) in [
+        ("CkanInstance", "hel-fi", instance()),
+        (
+            "Endpoint",
+            "catalog",
+            endpoint("catalog", "public", Some(dataset_only())),
+        ),
+    ] {
+        previous.upsert(
+            serde_json::from_value(json!({
+                "apiVersion": "joinedcontext.com/v1alpha1",
+                "kind": kind,
+                "metadata": { "name": name, "namespace": "c" },
+                "spec": spec,
+            }))
+            .expect("an envelope"),
+        );
+    }
+    let repo = jcctl::loader::Repository::load(&repository).expect("the repository loads");
+    let reports = CkanSync::new(HOST)
+        .converge(&repo, &previous, &repository)
+        .await;
+    std::fs::remove_dir_all(&repository).expect("cleaned up");
+
+    // Two Endpoint lines, each the collision: no token was resolved for either (that refusal
+    // reads "api-token-env"), so neither reached the catalogue; no line for c's withdrawal. The
+    // organization's sweep (a read, and it keeps `catalog`) is the line without an Endpoint.
+    let lines: Vec<(&str, &str)> = reports
+        .iter()
+        .filter(|r| !r.endpoint.is_empty())
+        .filter_map(|r| match &r.publication {
+            Publication::Failed(reason) => Some((r.project.as_str(), reason.as_str())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(lines.len(), 2, "{reports:?}");
+    assert!(lines[0].1.contains("Endpoint b/catalog"), "{lines:?}");
+    assert!(lines[1].1.contains("Endpoint a/catalog"), "{lines:?}");
+    assert!(reports.iter().all(|r| r.project != "c"), "{reports:?}");
 }

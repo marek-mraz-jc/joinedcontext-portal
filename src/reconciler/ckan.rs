@@ -235,6 +235,11 @@ impl CkanSync {
             }
         }
 
+        // One catalogue holds one dataset of a name: two Endpoints claiming it would overwrite each
+        // other on every pass, across projects too (T-6079). Neither is written.
+        let refused = claimed_twice(&wanted);
+        let claims: BTreeSet<(String, String)> = wanted.iter().map(claim).collect();
+
         let published: BTreeSet<(String, String)> = wanted
             .iter()
             .map(|target| {
@@ -270,6 +275,10 @@ impl CkanSync {
                 target.id.namespace.clone().unwrap_or_default(),
                 target.id.name.clone(),
             );
+            if let Some(reason) = refused.get(&key) {
+                reports.push(Report::failed(&key.0, &key.1, reason.clone()));
+                continue;
+            }
             let print = fingerprint(&target, &self.settings);
             let due = self.pacing.lock().unwrap_or_else(|p| p.into_inner()).due(
                 &key,
@@ -287,7 +296,12 @@ impl CkanSync {
                 .record(key, print, &report.publication, Instant::now());
             reports.push(report);
         }
-        for target in withdrawn(previous, &published) {
+        // A dataset a current Endpoint still publishes (a renamed Endpoint keeping its dataset
+        // name, or another project's) is not the gone Endpoint's to delete.
+        for target in withdrawn(previous, &published)
+            .into_iter()
+            .filter(|target| !claims.contains(&claim(target)))
+        {
             let measured = Measurements::default();
             reports.push(self.one(&target, true, repository, measured, &known).await);
         }
@@ -826,6 +840,51 @@ fn projects(repo: &Repository) -> BTreeSet<String> {
         .filter_map(|(id, _)| id.namespace.clone())
         .filter(|namespace| namespace != crate::api::blueprints::ORG_NAMESPACE)
         .collect()
+}
+
+/// The catalogue and dataset name a publication writes: the instance's URL, so two
+/// `CkanInstance`s of two projects pointing at one CKAN are one catalogue, and the dataset name.
+fn claim(target: &Target) -> (String, String) {
+    (
+        target.instance.base_url().to_ascii_lowercase(),
+        target.dataset_name().to_owned(),
+    )
+}
+
+/// Every Endpoint that shares its catalogue and dataset name with another, keyed by (project,
+/// name), with the reason it is not published: the others it collides with and the fix. CKAN
+/// dataset names are one namespace per catalogue, so publishing either would overwrite the
+/// other's dataset (T-6079); none of them is written until one takes a name of its own.
+pub fn claimed_twice(wanted: &[Target]) -> HashMap<(String, String), String> {
+    let mut claimants: BTreeMap<(String, String), Vec<(String, String)>> = BTreeMap::new();
+    for target in wanted {
+        claimants.entry(claim(target)).or_default().push((
+            target.id.namespace.clone().unwrap_or_default(),
+            target.id.name.clone(),
+        ));
+    }
+    let mut refused = HashMap::new();
+    for ((catalogue, dataset), endpoints) in claimants {
+        if endpoints.len() < 2 {
+            continue;
+        }
+        for endpoint in &endpoints {
+            let others: Vec<String> = endpoints
+                .iter()
+                .filter(|other| *other != endpoint)
+                .map(|(project, name)| format!("{project}/{name}"))
+                .collect();
+            let reason = format!(
+                "not published: the CKAN dataset `{dataset}` on {catalogue} is also what Endpoint \
+                 {} publishes, and one catalogue holds one dataset of a name, so neither is \
+                 written; set spec.publish.ckan.name to a name of its own, such as `{}-{dataset}`",
+                others.join(", "),
+                endpoint.0,
+            );
+            refused.insert(endpoint.clone(), reason);
+        }
+    }
+    refused
 }
 
 /// The publications the previous run had and this one does not: an Endpoint whose `publish.ckan`
