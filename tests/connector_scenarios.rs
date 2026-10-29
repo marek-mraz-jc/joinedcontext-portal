@@ -306,7 +306,7 @@ fn slug_named(project: &str, what: &str) -> String {
 }
 
 /// One project's fixture: a space, a model, a public Endpoint, a CSV DataSource, a CKAN instance.
-fn seed_project(mirror: &Mirror, project: &str) {
+fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
     mirror.upsert(envelope(
         "ContextSpace",
         "doprava",
@@ -1028,7 +1028,7 @@ impl Harness {
         let mirror = std::sync::Arc::new(Mirror::new());
         let names: Vec<String> = (1..=projects).map(project_of).collect();
         for project in names.iter().map(String::as_str).chain([OTHER]) {
-            seed_project(&mirror, project);
+            seed_project(&mirror, project, &csv_url);
         }
         bind_personas(&mirror, &names);
         let mut state = AppState::from_config(config).await.expect("state");
