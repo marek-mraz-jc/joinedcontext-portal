@@ -3,7 +3,7 @@
  * per finding from. The board deduplicates by key, so a repeated finding must keep its key.
  */
 import { describe, expect, it } from "vitest";
-import { routeKey, ruleAndLabel, summarise } from "../scripts/walker-summary";
+import { routeKey, ruleAndLabel, summarise, walkError } from "../scripts/walker-summary";
 import type { WalkEntry } from "../scripts/walker-summary";
 
 const P = "/projects/helsinki";
@@ -68,5 +68,14 @@ describe("the walker summary (T-4950)", () => {
     const summary = summarise({ steward: [page("/", "/", 1440, [])] }, "run-1");
     expect(summary.results).toContainEqual(expect.objectContaining({ key: "run viewer", verdict: "error" }));
     expect(summary.results).toContainEqual(expect.objectContaining({ key: "run steward", verdict: "pass" }));
+  });
+
+  it("names the walk log's error when a walk wrote nothing, and a crashed tab as host memory (T-5993)", () => {
+    const log = "Running 1 test\n\n    Error: page.waitForTimeout: Page crashed\n\n       at portal.ts:412\n    Error: later";
+    const summary = summarise({ steward: [page("/", "/", 1440, [])] }, "run-1", { logs: { viewer: log } });
+    const viewer = summary.results.find((result) => result.key === "run viewer");
+    expect(viewer?.detail).toMatch(/^Error: page.waitForTimeout: Page crashed A crashed tab is Chromium's renderer killed under host memory pressure/);
+    expect(walkError("    Error: page.goto: net::ERR_NAME_NOT_RESOLVED")).toBe("Error: page.goto: net::ERR_NAME_NOT_RESOLVED");
+    expect(walkError(undefined)).toBe("See the run log beside the evidence.");
   });
 });

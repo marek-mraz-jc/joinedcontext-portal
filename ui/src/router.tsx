@@ -50,6 +50,7 @@ const ConversationsPage = lazy(() =>
   import("./pages/knowledge/ConversationsPage").then((module) => ({ default: module.ConversationsPage })),
 );
 const ConnectorsPage = lazy(() => import("./pages/mcp/ConnectorsPage").then((module) => ({ default: module.ConnectorsPage })));
+const AiConnectorsPage = lazy(() => import("./pages/mcp/AiConnectorsPage").then((module) => ({ default: module.AiConnectorsPage })));
 const McpServersPage = lazy(() => import("./pages/mcp/McpServersPage").then((module) => ({ default: module.McpServersPage })));
 const CataloguePage = lazy(() => import("./pages/catalogue/CataloguePage").then((module) => ({ default: module.CataloguePage })));
 const DatasetPage = lazy(() => import("./pages/catalogue/DatasetPage").then((module) => ({ default: module.DatasetPage })));
@@ -1004,6 +1005,24 @@ const connectorsRoute = createRoute({
   },
 });
 
+/** The person's AI connectors at `/c/{id}` (AG-142, T-5951): outside any project, like `/connectors`. */
+const aiConnectorsRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/ai-connectors",
+  component: function AiConnectorsRoute() {
+    const projects = useProjects();
+    const first = usePreferredProject();
+    if (!first) {
+      return <NoProject projects={projects} />;
+    }
+    return (
+      <Shell project={first}>
+        <AiConnectorsPage />
+      </Shell>
+    );
+  },
+});
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The assistant's stored conversations, for its administrator (API/01 §34, T-4670). */
@@ -1384,6 +1403,7 @@ export const routeTree = rootRoute.addChildren([
     knowledgeSourceRoute,
     mcpServersRoute,
     connectorsRoute,
+    aiConnectorsRoute,
     importRoute,
     federationRoute,
     spaceCompleteRoute,
