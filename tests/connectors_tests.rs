@@ -173,8 +173,15 @@ async fn old_connectors_move_once_read_only_and_reach_the_gateway_alone() {
         .expect("a row");
     assert_eq!(
         kept,
-        json!({ "theme": "dark" }),
-        "the old list left, the rest stayed"
+        json!({
+            "theme": "dark",
+            "connectorsNotMoved": [{
+                "name": "nothing",
+                "select": { "projects": [], "spaces": [], "domains": [], "themes": ["AGRI"], "accessLevel": [], "endpoints": [] },
+                "reason": "takes no Endpoint today",
+            }],
+        }),
+        "the moved ones left, the one taking nothing stayed aside, the rest stayed"
     );
     let prefs = common::send(
         &state,
@@ -186,7 +193,9 @@ async fn old_connectors_move_once_read_only_and_reach_the_gateway_alone() {
     .await;
     assert_eq!(prefs.status, StatusCode::OK);
     assert!(
-        prefs.text.contains("dark") && !prefs.text.contains("fav"),
+        prefs.text.contains("dark")
+            && !prefs.text.contains("fav")
+            && !prefs.text.contains("nothing"),
         "{}",
         prefs.text
     );
@@ -306,4 +315,123 @@ async fn only_live_data_reading_connectors_reach_the_gateway() {
         .filter_map(|c| c["name"].as_str())
         .collect();
     assert_eq!(names, ["reads"], "{body}");
+}
+
+#[tokio::test]
+async fn an_unreadable_old_list_stays_in_place_and_a_save_keeps_it() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let state = state(&url).await;
+    let a = fresh("a");
+    let sub_a = format!("sub-{a}");
+    let pool = state.db.clone().expect("a pool");
+    let unreadable =
+        json!([{ "name": "fav", "select": {} }, { "select": { "projects": ["mesto"] } }]);
+    joinedcontext_portal::db::save_preferences(
+        &pool,
+        &sub_a,
+        &json!({ "theme": "dark", "connectors": unreadable }),
+    )
+    .await
+    .expect("an old row");
+
+    let one = joinedcontext_portal::personal_connectors::move_one(&state, &sub_a)
+        .await
+        .expect("a move");
+    assert_eq!((one.unreadable, one.moved), (1, 0), "{one:?}");
+    let prefs = common::send(
+        &state,
+        common::person(&a),
+        "GET",
+        "/api/v1/preferences",
+        None,
+    )
+    .await;
+    assert_eq!(prefs.status, StatusCode::OK, "{}", prefs.text);
+    assert!(
+        prefs.text.contains("dark") && !prefs.text.contains("fav"),
+        "the person's own settings still read, the old list hidden: {}",
+        prefs.text
+    );
+    let saved = common::send(
+        &state,
+        common::person(&a),
+        "PUT",
+        "/api/v1/preferences",
+        Some(json!({ "theme": "light" })),
+    )
+    .await;
+    assert_eq!(saved.status, StatusCode::OK, "{}", saved.text);
+    let row = joinedcontext_portal::db::load_preferences(&pool, &sub_a)
+        .await
+        .expect("the row")
+        .expect("a row");
+    assert_eq!(
+        row,
+        json!({ "theme": "light", "connectors": unreadable }),
+        "a whole-document save keeps the unreadable list"
+    );
+    let mine = state
+        .connectors
+        .of_owner(&sub_a, "https://portal.test")
+        .await
+        .expect("the store");
+    assert!(
+        mine.is_empty(),
+        "nothing of an unreadable list moves: {mine:?}"
+    );
+}
+
+#[tokio::test]
+async fn an_old_connector_whose_name_is_taken_is_kept_aside_and_a_save_keeps_it() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let state = state(&url).await;
+    let a = fresh("a");
+    let sub_a = format!("sub-{a}");
+    let pool = state.db.clone().expect("a pool");
+    let old = json!({ "connectors": [{ "name": "fav", "select": { "projects": ["mesto"] } }] });
+    joinedcontext_portal::db::save_preferences(&pool, &sub_a, &old)
+        .await
+        .expect("an old row");
+    let first = joinedcontext_portal::personal_connectors::move_one(&state, &sub_a)
+        .await
+        .expect("a move");
+    assert_eq!(first.moved, 1);
+    // A second Portal's copy of the same list arrives after the first moved it.
+    joinedcontext_portal::db::save_preferences(&pool, &sub_a, &old)
+        .await
+        .expect("the old row again");
+    let second = joinedcontext_portal::personal_connectors::move_one(&state, &sub_a)
+        .await
+        .expect("a move");
+    assert_eq!((second.moved, second.present), (0, 1), "{second:?}");
+
+    let saved = common::send(
+        &state,
+        common::person(&a),
+        "PUT",
+        "/api/v1/preferences",
+        Some(json!({ "theme": "light" })),
+    )
+    .await;
+    assert_eq!(saved.status, StatusCode::OK, "{}", saved.text);
+    let row = joinedcontext_portal::db::load_preferences(&pool, &sub_a)
+        .await
+        .expect("the row")
+        .expect("a row");
+    assert_eq!(row["theme"], "light");
+    assert!(row.get("connectors").is_none(), "{row}");
+    let kept = row["connectorsNotMoved"].as_array().expect("kept aside");
+    assert_eq!(kept.len(), 1, "{row}");
+    assert_eq!(kept[0]["name"], "fav");
+    assert_eq!(kept[0]["select"]["projects"], json!(["mesto"]));
+    assert!(
+        kept[0]["reason"].as_str().is_some_and(|r| !r.is_empty()),
+        "{row}"
+    );
 }

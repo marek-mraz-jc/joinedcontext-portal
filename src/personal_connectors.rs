@@ -3,14 +3,16 @@
 //! connector. Each old one becomes a `data-read` connector of the same name, read-only, for the
 //! default ceiling's days, whose scope reaches no more than its selector did: a selector of only
 //! projects or spaces keeps them as items, any other is resolved today to the Endpoints it took.
-//! The old list then leaves the preferences document.
+//! The old list then leaves the preferences document; an old connector that did not move stays
+//! in it under `connectorsNotMoved` with the reason, and a list this Portal cannot read stays where
+//! it was, so a one-way move loses nothing a person made. No reader serves either key.
 
 use chrono::{Duration, Utc};
 use jc_core::kinds::Audience;
 use jc_core::kinds::EndpointSpec;
 use jc_core::reach::EndpointFacts;
-use serde::Deserialize;
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Map, Value};
 
 use crate::connectors::{ItemAccess, NewConnector, ScopeItem, DEFAULT_CEILING};
 use crate::error::ApiError;
@@ -19,11 +21,13 @@ use crate::store::Mirror;
 
 /// The preferences key the old connectors lived under.
 const KEY: &str = "connectors";
+/// The preferences key old connectors that did not move are kept under, `{name, select, reason}`.
+const ASIDE: &str = "connectorsNotMoved";
 /// Scope items a connector may carry (connectors::validate).
 const MAX_SCOPE: usize = 50;
 
 /// An old personal connector as preferences held it.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Old {
     pub name: String,
     #[serde(default)]
@@ -31,7 +35,7 @@ pub struct Old {
 }
 
 /// The old selector: an Endpoint matched when it matched every field given.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OldSelect {
     #[serde(default)]
@@ -56,8 +60,38 @@ pub struct Moved {
     /// Old connectors refused as a conflict: their name is live already (a second Portal moved
     /// them first), or the person holds the most live connectors.
     pub present: usize,
-    /// Old connectors whose selector takes no Endpoint today: nothing to reach, nothing kept.
+    /// Old connectors whose selector takes no Endpoint today: nothing to reach.
     pub empty: usize,
+    /// Old lists this Portal cannot read (an entry without a name, a string for a list): left in
+    /// place, nothing of them moved.
+    pub unreadable: usize,
+}
+
+/// The keys of a stored preferences row only the Portal keeps: the old list and the connectors
+/// that did not move. `GET /api/v1/preferences` hides them and `PUT` carries them over, so a
+/// whole-document save can never drop them.
+pub fn held(stored: Option<&Value>) -> Map<String, Value> {
+    let Some(row) = stored.and_then(Value::as_object) else {
+        return Map::new();
+    };
+    [KEY, ASIDE]
+        .into_iter()
+        .filter_map(|key| row.get(key).map(|value| (key.to_owned(), value.clone())))
+        .collect()
+}
+
+/// `row` without the keys [`held`] names, for the parse of the person's own preferences.
+pub fn without_held(mut row: Value) -> Value {
+    if let Some(object) = row.as_object_mut() {
+        object.remove(KEY);
+        object.remove(ASIDE);
+    }
+    row
+}
+
+/// One old connector kept aside, with why it did not move.
+fn aside(old: &Old, reason: &str) -> Value {
+    json!({ "name": old.name, "select": old.select, "reason": reason })
 }
 
 /// Whether an Endpoint's audience passes the old `accessLevel`. A project Endpoint passes only
@@ -102,6 +136,8 @@ fn item(project: &str) -> ScopeItem {
         endpoint: None,
         pipeline: None,
         access: ItemAccess::Read,
+        // Old connectors had no personal-data switch: answers keep those attributes out (AG-158).
+        personal_data: false,
     }
 }
 
@@ -212,29 +248,48 @@ pub async fn move_one(state: &AppState, subject: &str) -> Result<Moved, ApiError
             "your connectors are being moved to the connector store; try again in a minute".into(),
         ));
     }
-    let old = doc
-        .as_object_mut()
-        .and_then(|o| o.remove(KEY))
-        .unwrap_or_default();
-    let old: Vec<Old> = serde_json::from_value(old).unwrap_or_default();
+    let Ok(old) = serde_json::from_value::<Vec<Old>>(doc[KEY].clone()) else {
+        // The list stays where it is: a later Portal that reads it moves it then.
+        tracing::warn!(%subject, "old personal connectors are not readable; left in place, none moved");
+        return Ok(Moved {
+            unreadable: 1,
+            ..Moved::default()
+        });
+    };
     let endpoints = facts(&state.mirror);
     let base = crate::api::connectors::base(state);
     let mut moved = Moved::default();
+    let mut kept = Vec::new();
     for one in &old {
         let Some(new) = adopted(one, &endpoints) else {
-            tracing::info!(connector = %one.name, "an old personal connector takes no Endpoint today; not moved");
+            tracing::info!(connector = %one.name, "an old personal connector takes no Endpoint today; kept aside, not moved");
             moved.empty += 1;
+            kept.push(aside(one, "takes no Endpoint today"));
             continue;
         };
         match state.connectors.create(subject, new, &base).await {
             Ok(_) => moved.moved += 1,
             // Its name is live already (another Portal moved it), or the person holds the most
-            // live connectors: the old one is not kept, and the log says which.
+            // live connectors: kept aside with the store's reason.
             Err(ApiError::Conflict(why)) => {
-                tracing::info!(connector = %one.name, %why, "an old personal connector was not moved");
+                tracing::info!(connector = %one.name, %why, "an old personal connector was not moved; kept aside");
                 moved.present += 1;
+                kept.push(aside(one, &why));
             }
             Err(other) => return Err(other),
+        }
+    }
+    if let Some(object) = doc.as_object_mut() {
+        object.remove(KEY);
+        if !kept.is_empty() {
+            // Appended to what an earlier move kept, whatever shape that holds.
+            let mut list = match object.remove(ASIDE) {
+                Some(Value::Array(earlier)) => earlier,
+                Some(other) => vec![other],
+                None => Vec::new(),
+            };
+            list.extend(kept);
+            object.insert(ASIDE.to_owned(), Value::Array(list));
         }
     }
     crate::db::save_preferences(pool, subject, &doc)
@@ -267,6 +322,7 @@ pub async fn move_all(state: &AppState) -> Result<Moved, ApiError> {
         total.moved += one.moved;
         total.present += one.present;
         total.empty += one.empty;
+        total.unreadable += one.unreadable;
     }
     tracing::info!(
         old,
@@ -274,6 +330,7 @@ pub async fn move_all(state: &AppState) -> Result<Moved, ApiError> {
         moved = total.moved,
         present = total.present,
         empty = total.empty,
+        unreadable = total.unreadable,
         "old personal connectors moved into the connector store"
     );
     Ok(total)

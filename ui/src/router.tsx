@@ -49,7 +49,6 @@ const SourcePage = lazy(() => import("./pages/knowledge/SourcePage").then((modul
 const ConversationsPage = lazy(() =>
   import("./pages/knowledge/ConversationsPage").then((module) => ({ default: module.ConversationsPage })),
 );
-const ConnectorsPage = lazy(() => import("./pages/mcp/ConnectorsPage").then((module) => ({ default: module.ConnectorsPage })));
 const AiConnectorsPage = lazy(() => import("./pages/mcp/AiConnectorsPage").then((module) => ({ default: module.AiConnectorsPage })));
 const McpServersPage = lazy(() => import("./pages/mcp/McpServersPage").then((module) => ({ default: module.McpServersPage })));
 const CataloguePage = lazy(() => import("./pages/catalogue/CataloguePage").then((module) => ({ default: module.CataloguePage })));
@@ -987,21 +986,13 @@ const mcpServersRoute = createRoute({
   },
 });
 
-/** The person's own MCP connectors (UI-98, T-4531): outside any project, like the organization. */
+/** The old address of a person's connectors (UI-98): they are connector records since T-5970,
+ * managed on My AI connectors (T-5951). */
 const connectorsRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/connectors",
   component: function ConnectorsRoute() {
-    const projects = useProjects();
-    const first = usePreferredProject();
-    if (!first) {
-      return <NoProject projects={projects} />;
-    }
-    return (
-      <Shell project={first}>
-        <ConnectorsPage />
-      </Shell>
-    );
+    return <Navigate to="/ai-connectors" replace />;
   },
 });
 

@@ -175,7 +175,9 @@ pub async fn get_preferences(
         .map_err(db_error)?;
     // A row written by an older Portal may hold a field this one no longer knows; it is dropped
     // rather than turned into a 500 on the caller's own settings.
+    // The keys only the Portal keeps (old connectors) are hidden from the person's own view.
     let preferences = stored
+        .map(crate::personal_connectors::without_held)
         .and_then(|value| serde_json::from_value::<Preferences>(value).ok())
         .unwrap_or_default();
     Ok(Json(preferences))
@@ -213,8 +215,15 @@ pub async fn put_preferences(
     let subject = &user.0.identity.subject;
     // Old connectors still in the row move first, so this whole-document save cannot drop them.
     crate::personal_connectors::move_one(&state, subject).await?;
-    let value = serde_json::to_value(&preferences)
+    let mut value = serde_json::to_value(&preferences)
         .map_err(|e| ApiError::Internal(format!("preferences did not serialize: {e}")))?;
+    // What the move left (a list it could not read, connectors it kept aside) is carried over.
+    let stored = db::load_preferences(pool, subject)
+        .await
+        .map_err(db_error)?;
+    if let Some(object) = value.as_object_mut() {
+        object.extend(crate::personal_connectors::held(stored.as_ref()));
+    }
     db::save_preferences(pool, subject, &value)
         .await
         .map_err(db_error)?;
