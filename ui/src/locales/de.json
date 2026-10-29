@@ -5868,6 +5868,7 @@
       "usage": "{tokens} Tokens in diesem Schritt.",
       "question": "Gefragt: {question}",
       "asked": "Hat eine Frage gestellt.",
+      "withdrawn": "Frage zurückgezogen: Sie haben stattdessen geschrieben. Der Assistent fragt erneut, falls er die Antwort noch braucht.",
       "answer": "Sie antworteten: {answer}",
       "answered": "Sie haben geantwortet.",
       "message": "{who}: {text}",
@@ -5943,8 +5944,8 @@
     },
     "catalog": {
       "title": "Was der Assistent gefunden hat",
-      "none": "Nichts in diesem Projekt passt zur Suche. Versuchen Sie ein einzelnes Wort, etwa einen Typ oder einen Ort.",
-      "noneFor": "Nichts in diesem Projekt passt zu „{words}“. Versuchen Sie ein einzelnes Wort, etwa einen Typ oder einen Ort.",
+      "none": "Nichts in diesem Projekt, in den mit ihm geteilten Endpunkten oder im Open-Data-Katalog passt zur Suche. Versuchen Sie ein einzelnes Wort, etwa einen Typ oder einen Ort.",
+      "noneFor": "Nichts in diesem Projekt, in den mit ihm geteilten Endpunkten oder im Open-Data-Katalog passt zu „{words}“. Versuchen Sie ein einzelnes Wort, etwa einen Typ oder einen Ort.",
       "allowed": "Zugänglich",
       "restricted": "Eingeschränkt",
       "fresh": "Vor {when} gespeist durch {pipeline}",
@@ -5958,7 +5959,9 @@
       "inUseLabel": "{name} ist in Verwendung",
       "showMore": "{count} weitere anzeigen",
       "showLess": "Weniger anzeigen",
-      "fed": "gespeist vor {when}"
+      "fed": "gespeist vor {when}",
+      "sharedBy": "geteilt von {owner}",
+      "datasets": "Open-Data-Katalog"
     },
     "proposal": {
       "title": "Endpunkt-Vorschlag",

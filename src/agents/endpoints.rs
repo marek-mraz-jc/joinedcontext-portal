@@ -60,14 +60,45 @@ pub fn resolve(
     project: &str,
     names: &[String],
 ) -> Result<Vec<RunEndpoint>, ApiError> {
+    resolve_in(mirror, project, names, false)
+}
+
+/// [`resolve`] for a conversation, which also reads the Endpoints other projects share with
+/// this one ([`crate::api::assistant::shared_endpoints`], T-6104). A build stays on the project's
+/// own Endpoints: what it publishes is checked against them (AP-44).
+pub fn resolve_readable(
+    mirror: &Mirror,
+    project: &str,
+    names: &[String],
+) -> Result<Vec<RunEndpoint>, ApiError> {
+    resolve_in(mirror, project, names, true)
+}
+
+fn resolve_in(
+    mirror: &Mirror,
+    project: &str,
+    names: &[String],
+    shared: bool,
+) -> Result<Vec<RunEndpoint>, ApiError> {
     names
         .iter()
         .map(|name| {
-            let endpoint = mirror.get(project, "Endpoint", name).ok_or_else(|| {
-                ApiError::NotFound(format!(
-                    "endpoint '{name}' not found in project '{project}'"
-                ))
-            })?;
+            let endpoint = mirror
+                .get(project, "Endpoint", name)
+                .or_else(|| {
+                    if !shared {
+                        return None;
+                    }
+                    crate::api::assistant::shared_endpoints(mirror, project)
+                        .into_iter()
+                        .map(|(_, endpoint)| endpoint)
+                        .find(|endpoint| endpoint.metadata.name == *name)
+                })
+                .ok_or_else(|| {
+                    ApiError::NotFound(format!(
+                        "endpoint '{name}' not found in project '{project}'"
+                    ))
+                })?;
             let slug = endpoint
                 .spec
                 .get("slug")

@@ -469,6 +469,25 @@ describe("openQuestions", () => {
     expect(openQuestions(events).map((q) => q.questionId)).toEqual(["b"]);
   });
 
+  /// T-6104: "cancel this" typed under "Where does the data come from?" left the form open.
+  it("closes a question the person wrote past instead of answering", () => {
+    const typed = (seq: number, sentBy: string): RunEvent => ({ seq, kind: "message", payload: { text: "cancel this", sentBy } });
+    expect(openQuestions([question(1, "a"), typed(2, "demo.steward")])).toEqual([]);
+    // The agent's own words close nothing, and a question asked after the message stays open.
+    expect(openQuestions([question(1, "a"), typed(2, "agent")]).map((q) => q.questionId)).toEqual(["a"]);
+    expect(openQuestions([typed(1, "demo.steward"), question(2, "b")]).map((q) => q.questionId)).toEqual(["b"]);
+  });
+
+  it("drops the form and says the question was withdrawn after a typed message", () => {
+    panel([
+      { seq: 1, kind: "question", payload: { questionId: "q1", schema: { type: "object", title: "Where does the data come from?" } } },
+      { seq: 2, kind: "message", payload: { text: "cancel this", sentBy: "demo.steward" } },
+      { seq: 3, kind: "thought", payload: { text: "Pipeline setup cancelled." } },
+    ]);
+    expect(screen.queryByText(en.agentRun.conversation.question)).toBeNull();
+    expect(screen.getByText(en.agentRun.line.withdrawn)).toBeInTheDocument();
+  });
+
   it("marks a question the platform filled, whose answer it checks", () => {
     const picked = { ...question(1, "a"), payload: { questionId: "a", schema: { type: "object" }, pick: "endpoints" } };
     expect(openQuestions([picked])[0].pick).toBe(true);

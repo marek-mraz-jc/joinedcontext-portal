@@ -11,8 +11,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { expectDenied } from "./checks";
-import { CatalogCards, ago, catalogItemsOf } from "../src/pages/apps/CatalogCards";
-import type { CatalogItem } from "../src/pages/apps/CatalogCards";
+import { CatalogCards, ago, catalogDatasetsOf, catalogItemsOf } from "../src/pages/apps/CatalogCards";
+import type { CatalogDataset, CatalogItem } from "../src/pages/apps/CatalogCards";
 
 const NOW = Date.parse("2026-09-13T08:00:12Z");
 
@@ -51,7 +51,12 @@ const ITEMS: CatalogItem[] = [
 
 function renderCards(
   items: CatalogItem[] = ITEMS,
-  props: { onUseEndpoint?: (name: string) => void; usedEndpoints?: string[]; words?: string } = {},
+  props: {
+    onUseEndpoint?: (name: string) => void;
+    usedEndpoints?: string[];
+    words?: string;
+    datasets?: CatalogDataset[];
+  } = {},
 ) {
   const rootRoute = createRootRoute({
     component: () => <CatalogCards project="helsinki" items={items} now={NOW} {...props} />,
@@ -200,9 +205,43 @@ describe("the catalog results", () => {
     renderCards([], { words: " electric scooters " });
     expect(
       await screen.findByText(
-        "Nothing in this project matches “electric scooters”. Try a single word, such as a type or a place.",
+        "Nothing in this project, the endpoints shared with it or the open data catalogue matches “electric scooters”. Try a single word, such as a type or a place.",
       ),
     ).toBeInTheDocument();
+  });
+
+  /// T-6104: "air quality in Banská Bystrica" from Helsinki answered nine blank rows and then
+  /// "Nothing in this project matches" while the open-data catalogue held public-air.
+  it("draws open datasets in their own group when no project item matched", async () => {
+    const datasets: CatalogDataset[] = [
+      { title: "Kvalita ovzdušia", url: "https://opendata.example/dataset/public-air", publisher: "Banská Bystrica", formats: ["CSV"] },
+    ];
+    renderCards([], { words: "air quality banska bystrica", datasets });
+    const group = await screen.findByRole("region", { name: en.agentRun.catalog.datasets });
+    expect(within(group).getByRole("link", { name: /Kvalita ovzdušia/ })).toHaveAttribute(
+      "href",
+      "https://opendata.example/dataset/public-air",
+    );
+    expect(within(group).getByText("Banská Bystrica")).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing in this project/)).toBeNull();
+  });
+
+  it("names a row by its name when its title is blank, and an item shared from another project by its owner", async () => {
+    renderCards([
+      { ...endpointItem(1), title: "" },
+      { ...endpointItem(2), name: "app-banskabystrica-ovzdusie", title: "  ", owner: "banskabystrica" },
+    ]);
+    const list = await screen.findByRole("list", { name: en.agentRun.catalog.title });
+    expect(within(list).getByRole("link", { name: "helsinki-1" })).toBeInTheDocument();
+    // Another project's pages are not this one's: the row is text, with who shares it.
+    expect(within(list).getByText("app-banskabystrica-ovzdusie")).toBeInTheDocument();
+    expect(within(list).queryByRole("link", { name: "app-banskabystrica-ovzdusie" })).toBeNull();
+    expect(within(list).getByText("shared by banskabystrica")).toBeInTheDocument();
+  });
+
+  it("takes only the datasets with a title and an address", () => {
+    expect(catalogDatasetsOf({ datasets: [{ title: "a", url: "https://x/a" }, { title: "b" }, null] })).toHaveLength(1);
+    expect(catalogDatasetsOf({ items: [] })).toEqual([]);
   });
 
   it("says when nothing matched a search whose words it does not know", async () => {

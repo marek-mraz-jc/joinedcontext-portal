@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import type { JSX, ReactNode } from "react";
+import { clsx } from "clsx";
 import { useTranslation } from "react-i18next";
 import { forPeople } from "../../api/client";
 import { choicesOf, QuestionOptions } from "./QuestionOptions";
 import { AppBuildCard, appBuildOf } from "./AppBuildCard";
 import type { JsonSchema } from "../../components/forms/types";
 import { Alert, Button, EmptyState, ExternalLink, Textarea } from "../../components/ui";
-import { openQuestions, TERMINAL_STATES } from "./useAgentRun";
+import { openQuestions, TERMINAL_STATES, withdrawnQuestions } from "./useAgentRun";
 import { ActionStep } from "./ActionStep";
-import { CatalogCards, catalogItemsOf } from "./CatalogCards";
+import { CatalogCards, catalogDatasetsOf, catalogItemsOf } from "./CatalogCards";
 import { ChangeFollowCard, followedChangeOf } from "./ChangeFollowCard";
 import { ChangeTestCard, changeTestOf } from "./ChangeTestCard";
 import { EndpointProposalCard, proposalOf } from "./EndpointProposalCard";
@@ -423,6 +424,7 @@ export function ConversationPanel({
   const progress = progressOf(events);
   const answered = answeredSearches(events);
   const questions = openQuestions(events);
+  const withdrawn = withdrawnQuestions(events);
   const titles = new Map(
     events
       .filter((event) => event.kind === "question")
@@ -600,6 +602,7 @@ export function ConversationPanel({
                     <CatalogCards
                       project={project}
                       items={found}
+                      datasets={catalogDatasetsOf(event.payload.output)}
                       onUseEndpoint={live ? onUseEndpoint : undefined}
                       usedEndpoints={usedEndpoints}
                       words={wordsOf(event.payload.input)}
@@ -667,10 +670,21 @@ export function ConversationPanel({
                       <Prose text={forPeople(line(event, t, titles))} onOpenLink={onOpenLink} />
                     </div>
                   ) : (
-                    <p className="mt-0.5 whitespace-pre-wrap break-words rounded-lg rounded-bl-sm bg-surface-subtle px-3 py-2">
+                    <p
+                      className={clsx(
+                        "mt-0.5 whitespace-pre-wrap break-words rounded-lg rounded-bl-sm bg-surface-subtle px-3 py-2",
+                        event.kind === "question" &&
+                          withdrawn.has(String(event.payload.questionId ?? "")) &&
+                          "text-fg-muted line-through decoration-fg-muted/50",
+                      )}
+                    >
                       {forPeople(line(event, t, titles))}
                     </p>
                   )}
+                  {event.kind === "question" && withdrawn.has(String(event.payload.questionId ?? "")) ? (
+                    // The person wrote instead of answering: the form is gone, and this says why (T-6104).
+                    <p className="mt-1 text-xs italic text-fg-muted">{t("agentRun.line.withdrawn")}</p>
+                  ) : null}
                 </div>
               </li>
             );
