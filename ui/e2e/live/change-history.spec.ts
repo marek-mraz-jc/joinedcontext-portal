@@ -5,7 +5,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
-import { APPROVER, STEWARD, approve, checkManifest, csrf, removeCompletely, signIn } from "./portal";
+import { APPROVER, STEWARD, approve, checkManifest, cleanUp, csrf, signIn } from "./portal";
 
 test.setTimeout(600_000);
 test.describe.configure({ mode: "serial" });
@@ -16,8 +16,12 @@ let steward: { context: BrowserContext; page: Page };
 
 test.afterAll(async () => {
   if (steward) {
-    await removeCompletely(steward, PROJECT, "policies", NAME).catch(() => undefined);
-    await steward.context.close();
+    try {
+      // Loud on purpose: a cleanup that fails leaves a Change in Approvals (T-6081).
+      await cleanUp(steward, PROJECT, "policies", NAME, "change-history");
+    } finally {
+      await steward.context.close();
+    }
   }
 });
 

@@ -14,7 +14,8 @@
  */
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
-import { JANITOR, STEWARD, approve, csrf, listedNames, reject, signIn } from "./portal";
+import { JANITOR, STEWARD, approve, csrf, listedNames, signIn } from "./portal";
+import { DAY_MS, type ListedChange, changeSubject, staleTestChanges } from "./staleChanges";
 
 const PROJECT = "helsinki";
 /** A take's suffix is the HH:MM it started at; an act with a fixed name is listed by it. */
@@ -160,38 +161,49 @@ test("no residue of takes or e2e is left in helsinki", async ({ browser }) => {
 });
 
 /**
- * A create a journey proposed and nobody approved (T-4993: Journey 44's KnowledgeSource
- * t4869-files-… waited on dev's approvals page for days): the journey's removal found nothing to
- * remove, so the open proposal stays. The janitor rejects it, with a reason the proposer reads.
+ * A proposal a journey made and nobody decided (T-4993: Journey 44's KnowledgeSource t4869-files-…
+ * waited on dev's approvals page for days; T-6081: 23 checklist-, history-, restore- and t1xxx-
+ * proposals in helsinki back to 2026-10-07). Every project the steward reads is listed, since a
+ * journey may propose outside helsinki; a create, an update and a removal count alike. One hour
+ * is longer than any journey runs, so a journey still at work keeps its own.
  */
-async function openJourneyCreates(page: Page): Promise<string[]> {
-  const answer = await page.request.get(`/api/v1/projects/${PROJECT}/changes`);
-  expect(answer.ok(), `list changes: ${await answer.text()}`).toBe(true);
-  const body = (await answer.json()) as {
-    items?: { metadata: { name: string }; status?: { phase?: string }; summary?: { key?: string; params?: { name?: string } } }[];
-  };
-  return (body.items ?? [])
-    .filter((item) => item.status?.phase === "PendingApproval" && item.summary?.key === "change.summary.create")
-    .filter((item) => JOURNEY.test(item.summary?.params?.name ?? ""))
-    .map((item) => item.metadata.name);
+const SWEPT_AFTER_MS = 60 * 60 * 1000;
+
+async function openJourneyChanges(page: Page, maxAgeMs: number): Promise<{ project: string; change: string; name: string }[]> {
+  const projects = await page.request.get("/api/v1/projects");
+  expect(projects.ok(), `list projects: ${await projects.text()}`).toBe(true);
+  const found: { project: string; change: string; name: string }[] = [];
+  for (const { name: project } of ((await projects.json()) as { items?: { name: string }[] }).items ?? []) {
+    const answer = await page.request.get(`/api/v1/projects/${project}/changes`);
+    expect(answer.ok(), `list changes of ${project}: ${await answer.text()}`).toBe(true);
+    const items = ((await answer.json()) as { items?: ListedChange[] }).items ?? [];
+    for (const change of staleTestChanges(items, Date.now(), maxAgeMs)) {
+      found.push({ project, change: change.metadata.name, name: changeSubject(change) });
+    }
+  }
+  return found;
 }
 
-test("no open proposal of a journey is left in helsinki", async ({ browser }) => {
+test("no open proposal of a journey is left in any project", async ({ browser }) => {
   const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/approvals?lang=en`);
   try {
-    const open = await openJourneyCreates(steward.page);
-    test.info().annotations.push({ type: "proposals", description: open.join(", ") || "none" });
-    if (open.length > 0) {
-      const janitor = await signIn(browser, JANITOR, `/projects/${PROJECT}/approvals?lang=en`);
-      try {
-        for (const change of open) {
-          await reject(janitor.page, PROJECT, change, "A live journey ended before this proposal was approved; the residue sweep rejects it.");
-        }
-      } finally {
-        await janitor.context.close();
-      }
+    // The count the check reports: journey proposals that waited longer than a day (T-6081).
+    const stale = await openJourneyChanges(steward.page, DAY_MS);
+    test.info().annotations.push({
+      type: "stale journey proposals (> 24 h)",
+      description: `${stale.length}${stale.length ? `: ${stale.map((each) => `${each.project}/${each.name} ${each.change}`).join(", ")}` : ""}`,
+    });
+    // The steward rejects, through the approver door every person uses: the janitor's Role is
+    // bound in helsinki only and its name pattern predates the checklist-/history-/restore-
+    // journeys. Only names `isTestName` reads as a journey's are ever touched.
+    for (const { project, change, name } of await openJourneyChanges(steward.page, SWEPT_AFTER_MS)) {
+      const answer = await steward.page.request.post(`/api/v1/projects/${project}/changes/${change}/reject`, {
+        headers: { "x-csrf-token": await csrf(steward.context), "content-type": "application/json" },
+        data: { reason: `A live journey ended before this proposal of ${name} was decided; the residue sweep rejects it (T-6081).` },
+      });
+      expect(answer.status(), `reject ${project}/${change}: ${await answer.text()}`).toBe(202);
     }
-    expect(await openJourneyCreates(steward.page)).toEqual([]);
+    expect(await openJourneyChanges(steward.page, SWEPT_AFTER_MS)).toEqual([]);
   } finally {
     await steward.context.close();
   }
