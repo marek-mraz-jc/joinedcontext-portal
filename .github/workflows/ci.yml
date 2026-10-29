@@ -20,10 +20,12 @@ jobs:
   # runners and main waited behind branch runs. On main the base is the newest commit whose ci run
   # on main was green (T-4696: running every job on every merge billed ~1,800 minutes a day), so a
   # range a red or cancelled run left unchecked runs again. gitleaks runs on every push without
-  # asking; a skipped job counts as success in the run's conclusion.
+  # asking, as a step of this job (T-6046: its own 13 s job took one of the account's 20 job
+  # slots on each of ~195 runs a day); a leak fails this job, so the run is red and the jobs
+  # behind it do not start. A skipped job counts as success in the run's conclusion.
   changes:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 4
     permissions: { contents: read, actions: read }
     outputs:
       rust: ${{ steps.paths.outputs.rust }}
@@ -32,6 +34,10 @@ jobs:
       gallery: ${{ steps.paths.outputs.gallery }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { fetch-depth: 0 }
+      # first, on the whole history: the paths step below may fetch with --depth=1
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
       - name: the path filter self-test
         run: sh scripts/ci/changes.sh --selftest
       - id: paths
@@ -42,8 +48,8 @@ jobs:
         run: |
           set -eu
           base=""
-          # The checkout holds one commit: fetch main's last green commit, or fetch the base and
-          # deepen both so merge-base finds the fork; no base found runs everything.
+          # Fetch main's last green commit, or fetch the base and deepen both so merge-base finds
+          # the fork (the checkout holds the whole history for gitleaks); no base found runs everything.
           if [ "$GITHUB_REF" = refs/heads/main ]; then
             green=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" \
               --jq '.workflow_runs[0].head_sha // empty' || true)
@@ -132,14 +138,6 @@ jobs:
       # rustdoc reuses clippy's metadata, so it costs seconds here.
       - run: cargo doc --workspace --no-deps
         env: { RUSTDOCFLAGS: "-D warnings" }
-  gitleaks:
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with: { fetch-depth: 0 }
-      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
-        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
   # The SDK's own checks, the inventories, lint, the build and the bundle weight: the steps that
   # run once. They used to ride on vitest shard 1, which then ran 450-720 s against a 720 s cap
   # and was cut off with every test green (T-5158, run 39687447235); in their own job they take
