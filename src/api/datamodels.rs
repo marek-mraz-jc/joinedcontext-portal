@@ -914,7 +914,7 @@ pub async fn get_source(
         ("name" = String, Path, description = "DataModel name"),
         ("version" = Option<String>, Query, description = "Target semver"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
-        ("space" = Option<String>, Query, description = "The space a model the project does not hold yet is created in (DM-57)"),
+        ("space" = Option<String>, Query, description = "The space a new model is created in"),
     ),
     request_body(
         content = String,

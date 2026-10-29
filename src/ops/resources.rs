@@ -133,12 +133,12 @@ fn list_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "kind": text("The manifest kind, e.g. Pipeline", TERM),
+            "kind": text("Manifest kind, e.g. Pipeline", TERM),
             "space": text("Only the resources of this context space", NAME),
             "filter": {
                 "type": "string",
                 "maxLength": crate::resource::filter::MAX_LEN,
-                "description": "AIP-160 subset over manifest fields, as the REST list takes it, e.g. labels.team = \"air\" AND spec.schedule:*"
+                "description": "AIP-160 over manifest fields, e.g. labels.team = \"air\" AND spec.schedule:*"
             }
         },
         "required": ["kind"],
@@ -159,11 +159,11 @@ fn get_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "kind": text("The manifest kind, e.g. Pipeline", TERM),
+            "kind": text("Manifest kind, e.g. Pipeline", TERM),
             "name": text("The resource's metadata.name", NAME),
             "writers": {
                 "type": "boolean",
-                "description": "Endpoint only: also list who may write to it (persons, groups, service accounts), for whoever reads the space's Policies"
+                "description": "Endpoint only: also who may write to it, for readers of the space's Policies"
             }
         },
         "required": ["kind", "name"],
@@ -179,7 +179,7 @@ fn delete_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "kind": text("The manifest kind, e.g. Pipeline", TERM),
+            "kind": text("Manifest kind, e.g. Pipeline", TERM),
             "name": text("The resource's metadata.name", NAME),
             "confirm": text("The resource's name typed back", NAME)
         },

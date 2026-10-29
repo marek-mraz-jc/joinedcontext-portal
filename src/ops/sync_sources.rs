@@ -43,7 +43,7 @@ fn pause_input_schema() -> Value {
         "type": "object",
         "properties": {
             "name": text("The SyncSource's name", NAME),
-            "paused": { "type": "boolean", "description": "true switches the loop off, false switches it back on" }
+            "paused": { "type": "boolean", "description": "true pauses the loop, false resumes it" }
         },
         "required": ["name", "paused"],
         "additionalProperties": false

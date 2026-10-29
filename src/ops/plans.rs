@@ -1404,7 +1404,7 @@ fn plan_input_schema() -> Value {
         "properties": {
             "changes": {
                 "type": "array",
-                "description": "The changes to plan together, e.g. [{\"op\": \"patch\", \"kind\": \"Pipeline\", \"name\": \"counters\", \"patch\": {\"spec\": {\"schedule\": {\"period\": \"PT15M\"}}}}]. A Pipeline is planned only after jc_pipeline_test passed on the same spec: test it first",
+                "description": "The changes to plan together. A Pipeline is planned only after jc_pipeline_test passed on the same spec",
                 "minItems": 1,
                 "maxItems": MAX_CHANGES,
                 "items": {
@@ -1413,19 +1413,19 @@ fn plan_input_schema() -> Value {
                         "op": {
                             "type": "string",
                             "enum": ["create", "replace", "patch", "delete"],
-                            "description": "create: a new object; a name that exists is refused, so patch it. patch: change some fields of an existing object, the usual edit, e.g. off the catalogue {\"spec\": {\"publish\": null, \"catalog\": {\"harvest\": false}}} (a public Endpoint is listed unless catalog.harvest is false). replace: the whole manifest. delete: remove the object itself, never to unpublish it"
+                            "description": "create: a new object (an existing name is refused: patch it). patch: the usual edit of some fields, e.g. off the catalogue {\"spec\": {\"publish\": null, \"catalog\": {\"harvest\": false}}}. replace: the whole manifest. delete: removes the object, never to unpublish it"
                         },
                         "kind": text("The manifest kind, e.g. DataModel", TERM),
-                        "name": text("The object's metadata.name, e.g. bike-counter", NAME),
-                        "manifest": manifest("With create or replace, and alone (no patch beside it): the whole manifest"),
-                        "patch": { "type": "object", "description": "With patch, and alone (no manifest beside it): a JSON merge patch (RFC 7386) onto the current manifest; null removes a member" },
-                        "source": { "type": "string", "maxLength": MAX_REQUEST_BYTES, "description": "With a DataModel: its whole LinkML file (the one spec.linkml names), e.g. \"classes:\\n  BikeCounter:\\n    attributes:\\n      count: { range: integer }\\n\"; the plan shows each change, the version it takes and the stored entities a breaking one affects" }
+                        "name": text("metadata.name, e.g. bike-counter", NAME),
+                        "manifest": manifest("With create or replace, no patch: the whole manifest"),
+                        "patch": { "type": "object", "maxProperties": super::bounds::MANIFEST_MEMBERS, "description": "With patch, no manifest: a JSON merge patch (RFC 7386); null removes a member" },
+                        "source": { "type": "string", "maxLength": MAX_REQUEST_BYTES, "description": "With a DataModel: its whole LinkML file (spec.linkml); the plan shows each change, its version and the stored entities a breaking one affects" }
                     },
                     "required": ["op", "kind", "name"],
                     "additionalProperties": false
                 }
             },
-            "workspace": text("Commit into this workspace (a copy of the project) instead of opening change requests", NAME)
+            "workspace": text("Commit into this workspace instead of change requests", NAME)
         },
         "required": ["changes"],
         "additionalProperties": false
@@ -1476,7 +1476,7 @@ fn revert_input_schema() -> Value {
         "type": "object",
         "properties": {
             "id": text("The merged Change to undo, e.g. chg-0000002a", TERM),
-            "workspace": text("Commit the revert into this workspace (a copy of the project) instead of opening change requests", NAME)
+            "workspace": text("Commit the revert into this workspace instead of change requests", NAME)
         },
         "required": ["id"],
         "additionalProperties": false
@@ -1494,7 +1494,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: PLAN,
             title: "Plan Change",
-            description: "Checks one or more changes of any kind with the dry run (every check, nothing saved) and answers the diff, the verdict and a planId valid 30 minutes; a failing check answers 422 naming each field",
+            description: "Dry-runs one or more changes of any kind (nothing saved): the diff, the verdict and a planId valid 30 minutes; a failing check answers 422 naming each field",
             input: plan_input_schema,
             output: plan_output_schema,
             annotations: Annotations {
@@ -1532,7 +1532,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: APPLY,
             title: "Apply Change",
-            description: "Opens the change requests (or workspace commits) of an unchanged plan from jc_change_plan; 409 when an object moved since. Changes nothing live and never approves: a person reviews and approves each change request in the Portal, so when the person asked for the change, apply the plan without asking them again",
+            description: "Opens the change requests (or workspace commits) of an unchanged jc_change_plan plan; 409 when an object moved since. Nothing goes live until a person approves each in the Portal, so apply what the person asked for without asking again",
             input: apply_input_schema,
             output: apply_output_schema,
             annotations: Annotations {

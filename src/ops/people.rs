@@ -123,7 +123,7 @@ fn member_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "search": text("A part of the person's name or user id, e.g. jana", TITLE)
+            "search": text("Part of a name or user id, e.g. jana", TITLE)
         },
         "additionalProperties": false
     })
@@ -223,10 +223,10 @@ fn create_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "email": text("The person's e-mail address: their sign-in name and where the invitation goes", 254),
+            "email": text("E-mail: sign-in name and where the invitation goes", 254),
             "firstName": text("Given name", 255),
             "lastName": text("Family name", 255),
-            "locale": text("The Portal language they start in: en, sk, cs or de", 8)
+            "locale": text("Portal language: en, sk, cs or de", 8)
         },
         "required": ["email", "firstName", "lastName"],
         "additionalProperties": false
@@ -237,7 +237,7 @@ fn edit_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "id": text("The person's Keycloak user id", ID),
+            "id": text("Keycloak user id", ID),
             "firstName": text("Given name", 255),
             "lastName": text("Family name", 255),
             "email": text("A new e-mail address, verified again", 254),
@@ -358,7 +358,7 @@ pub fn operations() -> Vec<Operation> {
             name: "jc_person_get",
             title: "Get Person",
             description: "One person with their groups and roles",
-            input: || id_schema("The person's Keycloak user id"),
+            input: || id_schema("Keycloak user id"),
             output: person_schema,
             annotations: annotations(true, false, true),
             kind: "*",
@@ -437,7 +437,7 @@ pub fn operations() -> Vec<Operation> {
             name: "jc_person_disable",
             title: "Disable Person",
             description: "Disables a person and ends their sessions; never the caller or the last Organization Administrator",
-            input: || id_schema("The person's Keycloak user id"),
+            input: || id_schema("Keycloak user id"),
             output: person_schema,
             annotations: annotations(false, true, true),
             kind: "*",
@@ -458,7 +458,7 @@ pub fn operations() -> Vec<Operation> {
             name: "jc_person_enable",
             title: "Enable Person",
             description: "Enables a disabled person",
-            input: || id_schema("The person's Keycloak user id"),
+            input: || id_schema("Keycloak user id"),
             output: person_schema,
             annotations: annotations(false, false, true),
             kind: "*",
@@ -479,7 +479,7 @@ pub fn operations() -> Vec<Operation> {
             name: "jc_person_sign_out",
             title: "Sign Person Out",
             description: "Ends every session of a person",
-            input: || id_schema("The person's Keycloak user id"),
+            input: || id_schema("Keycloak user id"),
             output: signed_out_schema,
             annotations: annotations(false, true, true),
             kind: "*",
