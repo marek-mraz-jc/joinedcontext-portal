@@ -1258,10 +1258,25 @@ fn conflict_result(val: &Value) -> Value {
 
 /// A refused call: the text says it in a sentence, and the structured content is the problem
 /// document the REST door answers, with `errors[{path, message}]`, so a client corrects the
-/// member it names and calls again (AG-146, T-5949).
+/// member it names and calls again (AG-146, T-5949). The text lists each of `errors` too: a
+/// client hands its model the text alone, and "fix what errors[] names" with the errors left
+/// out sent the model planning the same change again and again (T-6042).
 fn problem_result(err: crate::ops::OpError) -> Value {
-    let said = err.to_string();
+    let mut said = err.to_string();
     let (_, problem) = err.into_api_error().into_document();
+    for named in problem["errors"].as_array().into_iter().flatten() {
+        let line = match (
+            named["path"].as_str(),
+            named["message"].as_str(),
+            named.as_str(),
+        ) {
+            (Some(path), Some(message), _) => format!("{path}: {message}"),
+            (None, Some(message), _) | (_, _, Some(message)) => message.to_owned(),
+            _ => continue,
+        };
+        said.push_str("\n- ");
+        said.push_str(&line);
+    }
     json!({
         "isError": true,
         "content": [{ "type": "text", "text": said }],
@@ -1361,6 +1376,26 @@ fn rate_limited() -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-6042: a client hands its model the text alone, so the text names each of `errors`.
+    #[test]
+    fn a_refusal_text_names_each_member_its_errors_name() {
+        let refused = problem_result(crate::ops::OpError::Api(ApiError::Unprocessable {
+            detail: "1 of the plan's changes fail their check".to_owned(),
+            errors: vec!["/changes/0/manifest: test it on a sample first".to_owned()],
+        }));
+        assert_eq!(
+            refused["content"][0]["text"],
+            "unprocessable: 1 of the plan's changes fail their check\n- /changes/0/manifest: \
+             test it on a sample first"
+        );
+        assert_eq!(
+            refused["structuredContent"]["errors"][0]["path"],
+            "/changes/0/manifest"
+        );
+        let bare = problem_result(crate::ops::OpError::Api(ApiError::NotFound("gone".into())));
+        assert_eq!(bare["content"][0]["text"], "not found: gone");
+    }
 
     /// T-5948: a tool is its registry entry, with the project the MCP door needs and the rule
     /// the door applies.

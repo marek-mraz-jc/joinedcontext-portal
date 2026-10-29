@@ -191,6 +191,26 @@ const MORE: Record<string, unknown> = {
   },
   "/api/v1/projects/org/rolebindings": list([]),
   [`/api/v1/projects/${PROJECT}/knowledge/sources`]: list([]),
+  // My AI connectors (T-5951): one read-only connector, so the page shows its card, not a refusal.
+  "/api/v1/connectors": {
+    items: [
+      {
+        id: "abcdefghijklmnopqrstuvwxyz",
+        name: "Claude Desktop",
+        owner: IDENTITY.subject,
+        segments: ["data-read"],
+        scope: [{ project: PROJECT, endpoint: "public-air", access: "read" }],
+        writes: false,
+        expiresAt: "2026-10-12T08:00:00Z",
+        allowedClients: [],
+        clientIsBoundary: false,
+        state: "active",
+        createdAt: "2026-09-11T08:00:00Z",
+        lastUsedAt: "2026-09-12T07:55:00Z",
+        url: "https://portal.dev.example/c/abcdefghijklmnopqrstuvwxyz",
+      },
+    ],
+  },
   "/api/v1/catalogue": {
     total: 1,
     page: 1,

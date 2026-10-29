@@ -801,6 +801,40 @@
   expect: 'RoleBinding diff; within_own_rights holds'
   deny: 'grant more than the admin holds -> refused'
   script:
+    # The subject comes from the project's members, never from the organization's people list
+    # (T-6039): the access connector lists jc_member_list and no jc_person_list.
+    - proves: expect
+      manifest: { kind: Group, name: s27-people, spec: { members: [{ user: scn.project-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: s27-access, spec: { subjects: [{ kind: Group, name: s27-people }], projects: ['{project}'], segments: [access], maxExpiry: P90D } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s27-access, segments: [access], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      contains: ['jc_member_list']
+      absent: ['jc_person_list']
+    - proves: expect
+      via: connector
+      call: jc_member_list
+      args: { search: jana }
+      contains: ['"user":"7c1e4b2a-9d3f-4a6e-8b5c-2f0a1d9e3b47"', 'Jana Nováková', 'scn-viewer']
+      absent: ['scn.steward@hel.fi', 'jana.novakova@hel.fi']
+    - proves: deny
+      via: connector
+      call: jc_member_list
+      project: other
+      refused: true
+      absent: ['7c1e4b2a', 'Nováková']
+    - proves: deny
+      call: jc_member_list
+      project: other
+      refused: true
+      absent: ['7c1e4b2a', 'Nováková']
+    # The person applies at the Portal MCP door: this connector has writes off.
     - proves: expect
       call: jc_change_plan
       args: { changes: [{ op: create, kind: RoleBinding, name: jana-reads, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: RoleBinding, metadata: { name: jana-reads }, spec: { subjects: [{ user: 7c1e4b2a-9d3f-4a6e-8b5c-2f0a1d9e3b47 }], role: scn-viewer, scope: { project: '{project}' } } } }] }
@@ -1055,15 +1089,37 @@
   expect: 'KPI manifest; compute returns numbers equal to a direct aggregation'
   deny: 'none'
   script:
+    # A publish connector reads the model's attribute names before it defines the KPI (T-6039).
     - proves: expect
+      manifest: { kind: Group, name: s36-people, spec: { members: [{ user: scn.steward@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: s36-publish, spec: { subjects: [{ kind: Group, name: s36-people }], projects: ['{project}'], segments: [publish], maxExpiry: P90D } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s36-publish, segments: [publish], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      contains: ['jc_model_source_get', 'jc_kpi_compute']
+    - proves: expect
+      via: connector
+      call: jc_model_source_get
+      args: { name: bike-counter }
+      contains: ['BikeCounter', 'count']
+    - proves: expect
+      via: connector
       call: jc_kpi_compute
       args: { name: daily-bike-count, title: Daily bike count, type: BikeCounter, attribute: count, agg: sum, rows: [{ id: c1, count: 42 }, { id: c2, count: 8 }, { id: c3, count: 17 }] }
       contains: ['KeyPerformanceIndicator', '"value":67', 'sum(count)']
     - proves: expect
+      via: connector
       call: jc_kpi_compute
       args: { name: daily-bike-mean, type: BikeCounter, attribute: count, agg: avg, rows: [{ id: c1, count: 42 }, { id: c2, count: 8 }, { id: c3, count: 10 }] }
       contains: ['"value":20']
     - proves: deny
+      via: connector
       call: jc_kpi_compute
       args: { name: daily-bike-median, type: BikeCounter, attribute: count, agg: median, rows: [{ id: c1, count: 42 }] }
       refused: true
@@ -1151,9 +1207,30 @@
       call: jc_change_plan
       args: { changes: [{ op: patch, kind: DataModel, name: bike-counter, patch: { spec: { version: 0.1.0, lifecycle: draft } } }] }
       contains: ['"planId"', '"portal":"/projects/{project}/models?edit=bike-counter"']
-    # No door submits a form: neither the MCP tool list nor a call names one.
+    # No door submits a form: neither the MCP tool list nor a call names one. An apps connector
+    # with no paired tab lists no UI tool either; with one it adds the five of API/14 §2.2
+    # (src/mcp/connector.rs, T-5967).
     - proves: deny
       absent: ['submit']
+    - proves: deny
+      manifest: { kind: Group, name: s41-people, spec: { members: [{ user: scn.steward@hel.fi }] } }
+    - proves: deny
+      manifest: { kind: DelegationPolicy, name: s41-apps, spec: { subjects: [{ kind: Group, name: s41-people }], projects: ['{project}'], segments: [apps], maxExpiry: P90D } }
+    - proves: deny
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s41-apps, segments: [apps], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: deny
+      via: connector
+      contains: ['jc_change_plan']
+      absent: ['submit', 'jc_ui_navigate']
+    - proves: deny
+      via: connector
+      call: jc_ui_submit
+      args: { form: pipeline }
+      refused: true
     - proves: deny
       call: jc_ui_submit
       args: { form: pipeline }
