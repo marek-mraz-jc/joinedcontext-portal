@@ -9975,6 +9975,73 @@
       "startsAt": "beginnt {at}",
       "refusedTitle": "Sie dürfen die MQTT-Broker dieses Projekts nicht lesen",
       "failedTitle": "Die Rollen des Brokers konnten nicht gelesen werden"
+    },
+    "page": {
+      "lead": "Ein MQTT-Broker, an den Geräte Daten senden.",
+      "back": "← MQTT-Broker",
+      "edit": "Einstellungen bearbeiten",
+      "source": "Quelle anzeigen",
+      "sections": "Abschnitte dieses Brokers",
+      "section": {
+        "live": "Jetzt",
+        "general": "Allgemein",
+        "access": "Wer sich verbinden darf",
+        "limits": "Grenzen",
+        "networks": "Netze",
+        "path": "Wohin die Daten gehen",
+        "connect": "Gerät verbinden"
+      },
+      "state": {
+        "receiving": "Empfängt",
+        "idle": "Ruht",
+        "unmeasured": "Nicht gemessen"
+      },
+      "strip": "{rate} Nachrichten/s · verbunden: {connected} · abgewiesene Anmeldungen heute: {refused}",
+      "notRead": "Das Portal konnte nicht lesen, was der Broker misst. Versuchen Sie es in einer Minute erneut.",
+      "figure": {
+        "rate": "Nachrichten pro Sekunde jetzt",
+        "rateNote": "Jedes Gerät darf bis zu {limit}/s senden.",
+        "connected": "Verbundene Geräte",
+        "connectedNote": "Von den Verbindungen, die der Broker gleichzeitig hält.",
+        "refusedSignIns": "Abgewiesene Anmeldungen heute",
+        "refusedSignInsNote": "Seit Mitternacht, aus der Prüfung des Gateways.",
+        "mostly": "Meist: {reason}",
+        "refusedPublishes": "Abgewiesene Nachrichten",
+        "refusedPublishesNote": "Seit dem letzten Start des Brokers: kein Recht zu senden oder über der Rate."
+      },
+      "chartEmpty": "Das Diagramm beginnt, sobald der Broker zwei Messwerte hält (alle paar Sekunden einer).",
+      "chartSummary": "Nachrichten pro Sekunde, letzte {minutes} min: höchstens {top}, jetzt {now}",
+      "devices": "Gerätekonten und ihre Verbindungen jetzt",
+      "account": "Konto",
+      "since": "Neueste Verbindung seit",
+      "connectedCount": "verbunden: {count}",
+      "offlineNow": "Getrennt",
+      "noDevices": "Noch kein Gerätekonto. Fügen Sie eines unter Gerät verbinden hinzu.",
+      "title": "Titel",
+      "does": "Was er tut",
+      "kept": "Gehaltene Nachrichten",
+      "qos": "Höchste QoS",
+      "qosValue": "QoS 1 (mindestens einmal)",
+      "qosWords": "Geräte dürfen mit QoS 0 oder 1 senden. Ein MQTT-5-Gerät erfährt das bei der Anmeldung; eine QoS-2-Nachricht eines MQTT-3.1.1-Geräts wird angenommen und mit QoS 1 zugestellt, kann also doppelt ankommen.",
+      "offline": "Wenn ein Gerät offline ist",
+      "offlineWords": "Seine Sitzung endet beim Trennen: Nachrichten für es werden bis zur Rückkehr nicht gehalten, und der Broker hält keine Retained-Nachrichten.",
+      "accessLead": "Eine Rolle je Gruppe von Geräten, die dasselbe tun. Wer ein Konto aus seiner Rolle entfernt, widerruft dieses Gerät.",
+      "unit": {
+        "messagesPerSecond": "{value} pro Sekunde je Gerät",
+        "maxConnections": "{value} Verbindungen",
+        "maxMessageBytes": "{value} Bytes",
+        "connectionsPerAddress": "{value} je Adresse"
+      },
+      "limitWords": {
+        "messagesPerSecond": "Ein Gerät, das schneller sendet, wird abgewiesen und getrennt; es darf sich sofort wieder verbinden.",
+        "maxConnections": "Jedes verbundene Gerät hält eine; darüber weist der Broker neue Geräte ab.",
+        "maxMessageBytes": "Eine größere Nachricht wird abgewiesen.",
+        "connectionsPerAddress": "Verbindungen, die eine Netzadresse am Rand gleichzeitig halten darf."
+      },
+      "use": "{use} von {limit} belegt",
+      "anySourceHint": "Jetzt kann sich jede Adresse mit gültigem Token verbinden. Tragen Sie unter Einstellungen bearbeiten die Netze Ihrer Geräte ein, damit andere schon vor TLS abgewiesen werden, z. B. 192.0.2.0/24.",
+      "cname": "CNAME-Ziel",
+      "unreadable": "Diesen Broker gibt es nicht, oder Ihre Rolle darf die MQTT-Broker dieses Projekts nicht lesen. Bitten Sie eine Projektverwaltung um Lesezugriff, oder gehen Sie zur Liste zurück."
     }
   },
   "connect": {

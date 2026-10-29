@@ -70,6 +70,7 @@ async function stubApi(page: Page, refused = false): Promise<void> {
     }
     if (path.endsWith("/air/bindings")) return json({ broker: "air", bindings: [] });
     if (path.endsWith("/serviceaccounts")) return json({ apiVersion: API, kind: "List", items: Object.keys(ANSWERS).map(account) });
+    if (path.endsWith("/mqttbrokers/air")) return json(BROKER);
     if (path.endsWith("/mqttbrokers")) return json({ apiVersion: API, kind: "List", items: [BROKER] });
     return json({ apiVersion: API, kind: "List", items: [] });
   });
@@ -89,7 +90,7 @@ async function shoot(page: Page, target: ReturnType<Page["locator"]>, state: str
 test.describe("who can do what on a broker", () => {
   test("each account's roles: bound, legacy, none and expired", async ({ page }) => {
     await stubApi(page);
-    await page.goto(`/projects/${PROJECT}/mqttbrokers?lang=en`);
+    await page.goto(`/projects/${PROJECT}/mqttbrokers/air?lang=en`);
     const panel = page.getByRole("region", { name: "Who can do what" });
     const picker = panel.getByLabel("Service account");
     await expect(panel.getByRole("table", { name: "Roles of air that air-fleet holds now" })).toContainText("Role binding");
@@ -107,7 +108,7 @@ test.describe("who can do what on a broker", () => {
 
   test("a refusal says why", async ({ page }) => {
     await stubApi(page, true);
-    await page.goto(`/projects/${PROJECT}/mqttbrokers?lang=en`);
+    await page.goto(`/projects/${PROJECT}/mqttbrokers/air?lang=en`);
     const panel = page.getByRole("region", { name: "Who can do what" });
     await expect(panel.getByText("You may not read this project's MQTT brokers")).toBeVisible();
     await shoot(page, panel, "refused");

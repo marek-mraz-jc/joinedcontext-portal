@@ -74,8 +74,9 @@ async function stubApi(page: Page, run: unknown): Promise<void> {
       });
     }
     if (url.pathname.endsWith("/measured")) {
-      return json({ measured: true, observedAt: new Date().toISOString(), messagesPerSecond: 0, publishers: 0, reason: null, accounts: [] });
+      return json({ measured: true, observedAt: new Date().toISOString(), messagesPerSecond: 0, publishers: 0, reason: null, accounts: [], rates: [], refusedPublishes: 0 });
     }
+    if (url.pathname.endsWith("/mqttbrokers/cameras")) return json(BROKER);
     const plural = url.pathname.split("/").pop() ?? "";
     return json({ apiVersion: API, kind: "List", items: plural === "mqttbrokers" ? [BROKER] : [] });
   });
@@ -97,7 +98,7 @@ test.describe("Test a message on an MQTT broker", () => {
   ] as const) {
     test(`a steward dry-runs a device message: ${state}`, async ({ page }) => {
       await stubApi(page, run);
-      await page.goto(`/projects/${PROJECT}/mqttbrokers?lang=en`);
+      await page.goto(`/projects/${PROJECT}/mqttbrokers/cameras?lang=en`);
       await page.getByRole("button", { name: "Test a message" }).click();
       const dialog = page.getByRole("dialog", { name: "Test a message on cameras" });
       await expect(dialog.getByRole("combobox", { name: /Device account/ })).toHaveValue("cam-east");
@@ -115,7 +116,7 @@ test.describe("Test a message on an MQTT broker", () => {
 
   test("a steward watches for the device's real message and reads the refusal", async ({ page }) => {
     await stubApi(page, GREEN);
-    await page.goto(`/projects/${PROJECT}/mqttbrokers?lang=en`);
+    await page.goto(`/projects/${PROJECT}/mqttbrokers/cameras?lang=en`);
     await page.getByRole("button", { name: "Test a message" }).click();
     const dialog = page.getByRole("dialog", { name: "Test a message on cameras" });
     await dialog.getByRole("switch", { name: "Watch for the real message" }).click();

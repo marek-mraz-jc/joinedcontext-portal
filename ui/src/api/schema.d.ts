@@ -9285,7 +9285,18 @@ export interface components {
              * @description Connected clients of the accounts whose roles may publish.
              */
             publishers?: number | null;
+            /**
+             * @description Messages per second between each two neighbouring samples the broker keeps (its
+             *     `history_retention`, five minutes in the chart), oldest first; empty when not measured.
+             */
+            rates: components["schemas"]["RatePoint"][];
             reason?: string | null;
+            /**
+             * Format: int64
+             * @description Publishes the broker refused since it started (`client.publish.auth.error` of the newest
+             *     sample): the gateway's publish check said no, or the client was over its rate.
+             */
+            refusedPublishes?: number | null;
         };
         /** @description What a person says to a run that is already going (AG-45). */
         MessageRequest: {
@@ -10441,6 +10452,13 @@ export interface components {
              * @description The manifest count for a countable dimension (PF-75); `null` for a runtime limit.
              */
             used?: number | null;
+        };
+        /** @description The rate between one sample and the one before it, at the newer sample's time. */
+        RatePoint: {
+            /** Format: date-time */
+            at: string;
+            /** Format: double */
+            perSecond: number;
         };
         /** @description One Endpoint the subject reaches, with the gateway's grant document for them. */
         Reached: {
