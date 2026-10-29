@@ -104,6 +104,14 @@ describe("the Context Spaces page", () => {
     expect(add).not.toHaveAttribute("aria-disabled");
   });
 
+  it("the_list_header_offers_only_adding_a_space_not_per_space_or_import_actions", async () => {
+    // Completing acts on one space and an upload is an import (T-6084): each has its own page.
+    await renderRoute({ path: PATH, answer: answering([space("air")], project(1, 3)) });
+    await screen.findByRole("button", { name: en.spaces.add });
+    expect(screen.queryByRole("link", { name: en.spaces.complete.title })).toBeNull();
+    expect(screen.queryByRole("link", { name: en.spaces.upload.open })).toBeNull();
+  });
+
   it("holds_its_layout_while_the_spaces_are_on_their_way", async () => {
     await renderRoute({ path: PATH, pending: true });
     const table = await screen.findByRole("table");
