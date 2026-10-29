@@ -334,11 +334,13 @@ async fn a_listing_answers_nothing_for_a_kind_or_a_project_the_caller_does_not_r
 
     let list = ops::find("jc_resource_list").expect("jc_resource_list is registered");
     let reader = Caller {
+        bearer: None,
         identity: person("vera"),
         via: Via::Mcp,
         access: None,
     };
     let stranger = Caller {
+        bearer: None,
         identity: person("nobody"),
         via: Via::Mcp,
         access: None,
@@ -456,6 +458,7 @@ async fn a_kind_that_lives_in_two_homes_is_listed_from_both_without_de_duplicati
 
     let list = ops::find("jc_resource_list").expect("registered");
     let caller = Caller {
+        bearer: None,
         identity: person("jana"),
         via: Via::Mcp,
         access: None,

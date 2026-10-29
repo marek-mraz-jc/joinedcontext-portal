@@ -37,24 +37,64 @@
   says: "Show the 10 newest entities of type Sensor with their last value."
   expect: 'one query_data call with type, limit 10, orderBy modifiedAt; values match a direct NGSI-LD GET'
   deny: 'Endpoint not ticked in the connector -> refused naming the Endpoint'
+  script:
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s02-counters, segments: [data-read], scope: [{ project: '{project}', endpoint: '{project}-counters', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      call: jc_data_query
+      args: { endpoint: '{project}-counters', type: BikeCounter, limit: 10, orderBy: 'modifiedAt;desc' }
+      contains: ['urn:ngsi-ld:BikeCounter:snp', '"value":42', 'urn:ngsi-ld:BikeCounter:hron']
+    - proves: deny
+      via: connector
+      call: jc_data_query
+      args: { endpoint: '{project}-reports', type: PotholeReport }
+      refused: true
+      contains: ['{project}-counters']
+      absent: ['urn:ngsi-ld:PotholeReport']
 - id: S-03
   segment: data-read
   as: viewer
   says: "How many entities of each type are in Endpoint X?"
   expect: 'counts equal entities?type=T&count=true&limit=0 per type'
   deny: 'none'
+  script:
+    - proves: expect
+      call: jc_data_query
+      args: { endpoint: '{project}-counters', type: BikeCounter, count: true, limit: 0 }
+      contains: ['"total":2']
 - id: S-04
   segment: data-read
   as: viewer
   says: "Give me the history of attribute temperature of entity E for yesterday, hourly average."
   expect: 'temporal read with aggregation; numbers equal the temporal API''s answer'
   deny: 'Endpoint view without temporal operation -> 404 explained as "this Endpoint serves no history"'
+  script:
+    - proves: expect
+      call: jc_data_query
+      args: { endpoint: '{project}-counters', id: 'urn:ngsi-ld:BikeCounter:snp', attrs: [count], temporal: { timerel: between, timeAt: '2026-10-27T00:00:00Z', endTimeAt: '2026-10-28T00:00:00Z', aggrMethods: [avg], aggrPeriodDuration: PT1H } }
+      contains: ['"avg"', '21.5']
+    - proves: deny
+      call: jc_data_query
+      args: { endpoint: '{project}-reports', type: PotholeReport, temporal: { timerel: after, timeAt: '2026-10-27T00:00:00Z' } }
+      refused: true
+      contains: ['serves no history']
 - id: S-05
   segment: data-read
   as: viewer
   says: "Find all parking places within 500 m of point 48.736,19.146."
   expect: 'geo-query georel near;maxDistance==500; result ids equal the direct query'
   deny: 'none'
+  script:
+    - proves: expect
+      call: jc_data_query
+      args: { endpoint: '{project}-counters', type: BikeCounter, georel: 'near;maxDistance==500', geometry: Point, coordinates: [19.146, 48.736] }
+      contains: ['urn:ngsi-ld:BikeCounter:snp']
+      absent: ['urn:ngsi-ld:BikeCounter:hron']
 - id: S-06
   segment: data-read
   as: viewer
@@ -704,7 +744,7 @@
       rest:
         method: POST
         path: /connectors
-        body: { name: jana-reads, segments: [data-read], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+        body: { name: jana-report-reads, segments: [data-read], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
       contains: ['"state":"active"']
       absent: ['personalData']
     - proves: expect
