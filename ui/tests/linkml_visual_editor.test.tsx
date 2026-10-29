@@ -61,6 +61,27 @@ describe("LinkML visual editor", () => {
     await i18n.changeLanguage("en");
   });
 
+  it("lists the parent's fields greyed, with the type they come from (T-6106)", async () => {
+    const { user } = renderEditor(
+      SOURCE.replace(
+        "  AirQualityObserved:\n    class_uri: bb:AirQualityObserved\n",
+        "  Observed:\n    slots:\n      - dateObserved\n  AirQualityObserved:\n    is_a: Observed\n    class_uri: bb:AirQualityObserved\n",
+      ).replace("slots:\n  pm10:", "slots:\n  dateObserved:\n    range: datetime\n  pm10:"),
+    );
+
+    await user.click(screen.getByRole("button", { name: "AirQualityObserved" }));
+    const fields = screen.getByRole("table", { name: en.models.slots });
+    const inherited = within(fields).getByRole("button", { name: "dateObserved" }).closest("tr")!;
+    expect(inherited).toHaveClass("text-fg-muted");
+    // Once as the From column's button, once under the name for a phone, which hides that column.
+    expect(within(inherited).getAllByText(i18n.t("models.inheritedFrom", { type: "Observed" }))).toHaveLength(2);
+    const own = within(fields).getByRole("button", { name: "pm10" }).closest("tr")!;
+    expect(own).not.toHaveClass("text-fg-muted");
+    expect(within(own).getByText(en.models.ownField)).toBeInTheDocument();
+    await user.click(within(inherited).getByRole("button", { name: i18n.t("models.inheritedFrom", { type: "Observed" }) }));
+    expect(screen.getByRole("button", { name: "Observed" })).toHaveAttribute("aria-current", "true");
+  });
+
   it("keeps a phone page 375 px wide: the attribute table scrolls in its own frame, the editor's column does not grow to it (T-4165)", () => {
     renderEditor();
     const frame = screen.getByRole("group", { name: en.models.slots });
@@ -137,6 +158,46 @@ describe("LinkML visual editor", () => {
     expect(slot?.unit?.exact_mappings).toEqual(["ucefact:GQ", "qudt-unit:MicroGM-PER-M3"]);
     // DM-05: the kind is the annotation Model Tools reads, not a field of our own.
     expect(source()).toContain("ngsi_ld_kind: GeoProperty");
+  });
+
+  /// T-6101: a unit measures a number. Picking one on a text field makes it a Number (an
+  /// Integer for C62) and says so; leaving numbers drops the unit; Undo takes back both changes.
+  it("turns a text field into a number when it gets a unit, and Undo takes both back", async () => {
+    const { source, user } = renderEditor(SOURCE.replace("range: float", "range: string"));
+    const pm10 = () => parseModel(source()).slots.find((candidate) => candidate.name === "pm10");
+
+    await user.click(screen.getByRole("button", { name: "pm10" }));
+    await user.type(screen.getByRole("combobox", { name: "Unit" }), "CEL");
+    await user.keyboard("{Enter}");
+    expect(pm10()?.range).toBe("float");
+    expect(pm10()?.unit?.exact_mappings).toContain("ucefact:CEL");
+    expect(screen.getByRole("status")).toHaveTextContent(en.models.unitRule.madeNumber);
+    expect(screen.getByRole("row", { name: /pm10/ })).toHaveTextContent("°C");
+
+    await user.click(screen.getByRole("button", { name: en.models.unitRule.undo }));
+    expect(pm10()?.range).toBe("string");
+    expect(pm10()?.unit).toBeUndefined();
+    expect(screen.queryByText(en.models.unitRule.madeNumber)).not.toBeInTheDocument();
+  });
+
+  it("makes a count an Integer, and drops the unit of a field that stops being a number", async () => {
+    const { source, user } = renderEditor(SOURCE.replace("range: float", "range: string"));
+    const pm10 = () => parseModel(source()).slots.find((candidate) => candidate.name === "pm10");
+
+    await user.click(screen.getByRole("button", { name: "pm10" }));
+    await user.type(screen.getByRole("combobox", { name: "Unit" }), "C62");
+    await user.keyboard("{Enter}");
+    expect(pm10()?.range).toBe("integer");
+    expect(screen.getByRole("status")).toHaveTextContent(en.models.unitRule.madeInteger);
+
+    await user.selectOptions(screen.getByLabelText("Type of value"), "string");
+    expect(pm10()?.range).toBe("string");
+    expect(pm10()?.unit).toBeUndefined();
+    expect(screen.getByRole("status")).toHaveTextContent(en.models.unitRule.droppedUnit);
+
+    await user.click(screen.getByRole("button", { name: en.models.unitRule.undo }));
+    expect(pm10()?.range).toBe("integer");
+    expect(pm10()?.unit?.exact_mappings).toContain("ucefact:C62");
   });
 
   /**

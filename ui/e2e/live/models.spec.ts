@@ -113,6 +113,7 @@ test("a steward builds a model with classes, an enum and a has-many relation, ed
 
     // One line typed into the source, where a person writes what the form has no control for.
     await page.getByRole("tab", { name: "Source" }).click();
+    await page.getByRole("button", { name: "Edit source" }).click();
     const source = page.locator(".monaco-editor .view-lines").first();
     await expect(source).toBeVisible({ timeout: 60_000 });
     await source.click();
@@ -187,7 +188,7 @@ test("a steward imports a Smart Data Model into a model being built", async ({ b
     await newModel(page);
     await addClass(page, "Station");
 
-    await page.getByRole("tab", { name: "Import" }).click();
+    await page.getByRole("button", { name: "Import a Smart Data Model" }).first().click();
     await page.getByRole("searchbox", { name: "Search models and attributes" }).fill("AirQualityObserved");
     await page.getByRole("button", { name: /^AirQualityObserved/ }).first().click({ timeout: 120_000 });
     await page.getByRole("button", { name: "Import AirQualityObserved" }).click({ timeout: 120_000 });

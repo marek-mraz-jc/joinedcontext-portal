@@ -322,14 +322,25 @@ describe("the LinkML editor against the UI contract", () => {
     expect(structure).toHaveAttribute("aria-selected", "true");
 
     await user.keyboard("{ArrowRight}");
-    const source = screen.getByRole("tab", { name: en.models.view.source });
-    expect(document.activeElement).toBe(source);
-    expect(source).toHaveAttribute("aria-selected", "true");
+    const graph = screen.getByRole("tab", { name: en.models.view.graph });
+    expect(document.activeElement).toBe(graph);
+    expect(graph).toHaveAttribute("aria-selected", "true");
 
     // The tab list is one Tab stop, held by the selected tab; the others are reached with the
     // arrow keys (the roving tabindex of the shared Tabs, WAI-ARIA tabs pattern, T-1753).
     const stops = focusables(container).filter((element) => element.getAttribute("role") === "tab");
-    expect(stops).toEqual([source]);
+    expect(stops).toEqual([graph]);
+  });
+
+  /// T-6101: what the model holds, how it connects, an example entity, and the LinkML last.
+  it("lists the views as Structure, Graph, Preview, Source", () => {
+    renderAlone();
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      en.models.view.structure,
+      en.models.view.graph,
+      en.models.view.preview,
+      en.models.view.source,
+    ]);
   });
 
   it.each(SUPPORTED_LOCALES)("names every view in %s", async (locale) => {

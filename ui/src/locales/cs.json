@@ -4199,6 +4199,12 @@
     "kind": "Druh NGSI-LD",
     "kindHint": "Property, pokud atribut není geometrie, vazba nebo jazyková mapa",
     "unit": "Jednotka",
+    "unitRule": {
+      "madeNumber": "Jednotka měří číslo, proto je typ hodnoty nyní Číslo.",
+      "madeInteger": "C62 počítá kusy, proto je typ hodnoty nyní Celé číslo.",
+      "droppedUnit": "Jednotku mají jen čísla, proto byla odstraněna.",
+      "undo": "Zpět"
+    },
     "unitHint": "Společný kód UN/CEFACT; exporty a dashboardy jím hodnoty popíší",
     "affordanceLabel": "Použití",
     "affordance": {
@@ -4276,6 +4282,7 @@
       "noMatches": "Žádný model neodpovídá.",
       "preview": "Převzatý model",
       "pick": "Vyberte model a uvidíte, co se naimportuje.",
+      "importRefused": "Schéma {name} z katalogu nelze převést na model. Model Tools níže uvádí, co je špatně. Vyberte jiný model nebo začněte prázdným modelem a pole doplňte ručně.",
       "previewFailed": "Model se nepodařilo načíst z katalogu. Zkuste to znovu nebo ho importujte podle identifikátoru.",
       "keepAll": "Všechny převzaté atributy zůstávají; nevybrané se označí jako zastaralé.",
       "import": "Importovat {name}",
@@ -4708,6 +4715,20 @@
       "broken": "{count, plural, one {# entita porušuje} few {# entity porušují} other {# entit porušuje}} {rules}",
       "queryAction": "Dotazovat",
       "queryLabel": "Otevřít Průzkum na entitách {type}, které mají {field}"
+    },
+    "from": "Odkud",
+    "inheritedFrom": "Z typu {type}",
+    "ownField": "Tento typ",
+    "importDialog": {
+      "title": "Importovat datový model",
+      "description": "Začněte ze Smart Data Model nebo z ukázkového souboru. Import se přidá k modelu v editoru; zavřete okno a model postavíte ručně.",
+      "close": "Zavřít import"
+    },
+    "sourceMode": {
+      "reading": "Zdroj modelu jen pro čtení. Typy a pole upravte ve Struktuře, nebo zdroj odemkněte a pište do něj.",
+      "editing": "Upravujete zdroj modelu. Každý pohled ukazuje, co sem napíšete.",
+      "edit": "Upravit zdroj",
+      "done": "Hotovo"
     }
   },
   "apps": {

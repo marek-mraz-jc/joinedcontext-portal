@@ -4199,6 +4199,12 @@
     "kind": "NGSI-LD kind",
     "kindHint": "Property unless the attribute is a geometry, a link or a language map",
     "unit": "Unit",
+    "unitRule": {
+      "madeNumber": "A unit measures a number, so the type of value is now Number.",
+      "madeInteger": "C62 counts things, so the type of value is now Integer.",
+      "droppedUnit": "Only numbers carry a unit, so the unit was removed.",
+      "undo": "Undo"
+    },
     "unitHint": "UN/CEFACT common code; exports and dashboards label the values with it",
     "affordanceLabel": "Used as",
     "affordance": {
@@ -4294,6 +4300,7 @@
       "noMatches": "No model matches.",
       "preview": "Upstream model",
       "pick": "Pick a model to see what would be imported.",
+      "importRefused": "The catalogue's {name} schema cannot be turned into a model. Model Tools said what is wrong below. Pick another model, or start from an empty model and add the fields by hand.",
       "previewFailed": "The model could not be fetched from the catalogue. Try again, or import it by identifier.",
       "keepAll": "Every upstream slot is kept; unpicked ones are marked deprecated.",
       "import": "Import {name}",
@@ -4708,6 +4715,20 @@
       "broken": "{count, plural, one {# entity breaks} other {# entities break}} {rules}",
       "queryAction": "Query",
       "queryLabel": "Open Explore on the {type} entities that have {field}"
+    },
+    "from": "From",
+    "inheritedFrom": "From {type}",
+    "ownField": "This type",
+    "importDialog": {
+      "title": "Import a data model",
+      "description": "Start from a Smart Data Model or a sample file. The import joins the model in the editor; close this to build one by hand.",
+      "close": "Close import"
+    },
+    "sourceMode": {
+      "reading": "The model's source, read-only. Edit types and fields in Structure, or unlock the source to type in it.",
+      "editing": "Editing the model's source. Every view shows what you type here.",
+      "edit": "Edit source",
+      "done": "Done editing"
     }
   },
   "apps": {

@@ -134,8 +134,21 @@ describe("the list of data models", () => {
 
   it("opens the editor when the address asks for one", async () => {
     await renderRoute({ path: "/projects/helsinki/models?new=blank", answer });
-    expect(await screen.findByRole("tab", { name: en.models.view.editor, selected: true })).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: en.models.view.structure, selected: true })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: en.models.importDialog.title })).toBeNull();
     expect(screen.queryByRole("table", { name: en.models.page.listCaption })).toBeNull();
+  });
+
+  it("starts a new model in the import dialog, and closing it leaves the editor (T-6106)", async () => {
+    await renderRoute({ path: "/projects/helsinki/models?new=sdm", answer });
+    const dialog = await screen.findByRole("dialog", { name: en.models.importDialog.title });
+    expect(screen.queryByRole("tab", { name: en.models.view.import })).toBeNull();
+    await userEvent.click(within(dialog).getByRole("button", { name: en.models.importDialog.close }));
+    expect(screen.queryByRole("dialog", { name: en.models.importDialog.title })).toBeNull();
+    expect(await screen.findByRole("tab", { name: en.models.view.structure, selected: true })).toBeInTheDocument();
+    // The rail's import button opens it again.
+    await userEvent.click(screen.getAllByRole("button", { name: en.models.hints.sdmAction })[0]);
+    expect(await screen.findByRole("dialog", { name: en.models.importDialog.title })).toBeInTheDocument();
   });
 });
 

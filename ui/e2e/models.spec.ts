@@ -193,7 +193,7 @@ const KPI_LINKML = [
   "",
 ].join("\n");
 
-async function stubKpi(page: Page, verbs: string[]): Promise<void> {
+async function stubKpi(page: Page, verbs: string[], linkml = KPI_LINKML): Promise<void> {
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const json = (body: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
@@ -207,7 +207,7 @@ async function stubKpi(page: Page, verbs: string[]): Promise<void> {
         apiVersion: "joinedcontext.com/v1alpha1",
         kind: "DataModel",
         metadata: { name: "helsinki-kpi", namespace: "helsinki", title: "Helsinki indicators" },
-        spec: { contextSpaceRef: "helsinki-kpi", version: "1.0.0", lifecycle: "published", linkml: KPI_LINKML },
+        spec: { contextSpaceRef: "helsinki-kpi", version: "1.0.0", lifecycle: "published", linkml },
       }]));
     }
     if (path === "/api/v1/tools/sdm-catalog") return json({ subjects: [] });
@@ -270,6 +270,57 @@ test.describe("one plain model editor (T-4829)", () => {
     await page.getByText("Advanced (IRIs, mixins, profiles)").first().click();
     await expect(page.getByLabel("Class IRI")).toHaveValue(/^[a-z]+:School$/);
   });
+
+  // T-6101: a unit measures a number, so a unit on a text field makes it a Number, said with Undo.
+  for (const width of [1440, 400]) {
+    test(`a unit on a text field makes it a number and offers Undo at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read", "propose"]);
+      await page.goto("/projects/helsinki/models?new=blank&lang=en");
+      const types = page.getByRole("region", { name: "Types" });
+      await types.getByRole("textbox", { name: "New type" }).fill("WeatherObserved");
+      await types.getByRole("button", { name: "Add type" }).click();
+      await page.getByLabel("New field").fill("temperature");
+      await page.getByRole("button", { name: "Add field", exact: true }).click();
+      await page.getByRole("button", { name: "temperature", exact: true }).click();
+      await page.getByRole("combobox", { name: "Unit" }).fill("CEL");
+      await page.keyboard.press("Enter");
+      const notice = page.getByRole("status").filter({ hasText: "A unit measures a number" });
+      await expect(notice).toBeVisible();
+      await expect(page.locator("#slot-range")).toHaveValue("float");
+      await shot(page, `unit-made-number-${width}`);
+      await notice.getByRole("button", { name: "Undo" }).click();
+      await expect(page.locator("#slot-range")).toHaveValue("string");
+      await expect(notice).toHaveCount(0);
+    });
+  }
+
+  // T-6101: Model Tools answers a model it cannot convert with 200 and `errors`; the wizard
+  // showed "Fetching the upstream model..." for good. The answer below is dev's for Event before
+  // the Model Tools fix.
+  for (const width of [1440, 400]) {
+    test(`a catalogue model that cannot be imported says why at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read", "propose"]);
+      await page.route("**/api/v1/tools/**", async (route) => {
+        const path = new URL(route.request().url()).pathname;
+        const body = path.endsWith("/sdm-catalog")
+          ? { subjects: [{ name: "dataModel.TourismDestinations", title: "TourismDestinations", models: [{ id: "dataModel.TourismDestinations/Event", name: "Event", description: "An event of interest to visitors.", attributes: ["subCategory"] }] }] }
+          : { generatorVersion: "1.11.1", errors: ["garden: duplicate key"] };
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+      });
+      await page.goto("/projects/helsinki/models?new=blank&lang=en");
+      await page.getByRole("region", { name: "Types" }).getByRole("button", { name: "Import a Smart Data Model" }).click();
+      await page.getByRole("button", { name: /Event/ }).click();
+      const alert = page.getByRole("alert").filter({ hasText: "garden: duplicate key" });
+      await expect(alert).toContainText("The catalogue's Event schema cannot be turned into a model.");
+      await expect(alert.getByRole("button", { name: "Retry" })).toBeVisible();
+      await expect(page.getByText("Fetching the upstream model…")).toHaveCount(0);
+      const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(0);
+      await shot(page, `sdm-import-error-${width}`);
+    });
+  }
 
   for (const width of [1440, 400]) {
     test(`a viewer reads the same page with no Add field at ${width} px`, async ({ page }) => {
@@ -360,6 +411,54 @@ test.describe("a model change is proposed, and read back (T-4830)", () => {
       const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
       expect(overflow).toBeLessThanOrEqual(0);
       await shot(page, `model-propose-unchanged-${width}`);
+    });
+  }
+});
+
+// A type that specialises another, so the fields table shows what it inherits (T-6106).
+const INHERITING_LINKML = KPI_LINKML.replace(
+  "  KeyPerformanceIndicator:\n",
+  "  Indicator:\n    title: { en: Indicator }\n    slots: [name, location]\n  KeyPerformanceIndicator:\n    is_a: Indicator\n",
+).replace("    slots: [name, currentValue, calculationPeriod, computedBy, location]", "    slots: [currentValue, calculationPeriod, computedBy]");
+
+test.describe("the model editor's import dialog, inherited fields and read-only source (T-6106)", () => {
+  for (const width of [1440, 400]) {
+    test(`a new model opens on the import dialog, and an open one reads its source first at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read", "propose"], INHERITING_LINKML);
+      // Registered after stubKpi, so it answers first: the editor reads the committed source.
+      await page.route("**/datamodels/helsinki-kpi/source", (route) =>
+        route.fulfill({ status: 200, contentType: "text/yaml", body: INHERITING_LINKML }),
+      );
+      await page.goto("/projects/helsinki/models?new=sdm&lang=en");
+      const dialog = page.getByRole("dialog", { name: "Import a data model" });
+      await expect(dialog).toBeVisible();
+      await expect(page.getByRole("tab", { name: "Import", exact: true })).toHaveCount(0);
+      await shot(page, `import-dialog-${width}`);
+      await dialog.getByRole("button", { name: "Close import" }).click();
+      await expect(dialog).toBeHidden();
+      await expect(page.getByRole("tab", { name: "Structure", selected: true })).toBeVisible();
+      await shot(page, `blank-editor-${width}`);
+
+      await page.goto("/projects/helsinki/models?edit=helsinki-kpi&lang=en");
+      await page.getByRole("button", { name: "KeyPerformanceIndicator", exact: true }).click();
+      const fields = page.getByRole("table", { name: "Fields", exact: true });
+      const inherited = fields.getByRole("row").filter({ hasText: "From Indicator" });
+      await expect(inherited).toHaveCount(2);
+      await expect(fields.getByRole("row").filter({ hasText: "This type" })).toHaveCount(3);
+      await inherited.first().scrollIntoViewIfNeeded();
+      await shot(page, `inherited-fields-${width}`);
+
+      await page.getByRole("tab", { name: "Source" }).click();
+      const edit = page.getByRole("button", { name: "Edit source" });
+      await expect(edit).toHaveAttribute("aria-pressed", "false");
+      await expect(page.locator(".monaco-editor .view-lines").first()).toContainText("is_a: Indicator", { timeout: 60_000 });
+      await shot(page, `source-read-only-${width}`);
+      await edit.click();
+      await expect(page.getByRole("button", { name: "Done editing" })).toHaveAttribute("aria-pressed", "true");
+      await shot(page, `source-editing-${width}`);
+      const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(0);
     });
   }
 });

@@ -1440,6 +1440,16 @@
       "date": "2026-10-20",
       "screenshots": []
     },
+    "src/pages/models/LinkmlSourceEditor.tsx": {
+      "walkedBy": "worker-t6106",
+      "date": "2026-10-29",
+      "screenshots": [
+        "evidence/T-6106/source-read-only-1440.png",
+        "evidence/T-6106/source-read-only-400.png",
+        "evidence/T-6106/source-editing-1440.png",
+        "evidence/T-6106/source-editing-400.png"
+      ]
+    },
     "src/pages/models/LinkmlVisualEditor.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",

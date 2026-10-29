@@ -4199,6 +4199,12 @@
     "kind": "Druh NGSI-LD",
     "kindHint": "Property, pokiaľ atribút nie je geometria, väzba alebo jazyková mapa",
     "unit": "Jednotka",
+    "unitRule": {
+      "madeNumber": "Jednotka meria číslo, preto je typ hodnoty teraz Číslo.",
+      "madeInteger": "C62 počíta kusy, preto je typ hodnoty teraz Celé číslo.",
+      "droppedUnit": "Jednotku majú len čísla, preto bola odstránená.",
+      "undo": "Späť"
+    },
     "unitHint": "Spoločný kód UN/CEFACT; exporty a dashboardy ním označia hodnoty",
     "affordanceLabel": "Použitie",
     "affordance": {
@@ -4276,6 +4282,7 @@
       "noMatches": "Žiadny model nevyhovuje.",
       "preview": "Prevzatý model",
       "pick": "Vyberte model a uvidíte, čo sa naimportuje.",
+      "importRefused": "Schému {name} z katalógu nie je možné previesť na model. Model Tools nižšie uvádza, čo je zle. Vyberte iný model alebo začnite prázdnym modelom a polia doplňte ručne.",
       "previewFailed": "Model sa nepodarilo načítať z katalógu. Skúste to znova alebo ho importujte podľa identifikátora.",
       "keepAll": "Všetky prevzaté atribúty zostávajú; nevybrané sa označia ako zastarané.",
       "import": "Importovať {name}",
@@ -4708,6 +4715,20 @@
       "broken": "{count, plural, one {# entita porušuje} few {# entity porušujú} other {# entít porušuje}} {rules}",
       "queryAction": "Dopytovať",
       "queryLabel": "Otvoriť Prieskum na entitách {type}, ktoré majú {field}"
+    },
+    "from": "Odkiaľ",
+    "inheritedFrom": "Z typu {type}",
+    "ownField": "Tento typ",
+    "importDialog": {
+      "title": "Importovať dátový model",
+      "description": "Začnite zo Smart Data Model alebo zo vzorového súboru. Import sa pridá k modelu v editore; zatvorte okno a model si postavíte ručne.",
+      "close": "Zavrieť import"
+    },
+    "sourceMode": {
+      "reading": "Zdroj modelu len na čítanie. Typy a polia upravte v Štruktúre, alebo zdroj odomknite a píšte doň.",
+      "editing": "Upravujete zdroj modelu. Každý pohľad ukazuje, čo tu napíšete.",
+      "edit": "Upraviť zdroj",
+      "done": "Hotovo"
     }
   },
   "apps": {
