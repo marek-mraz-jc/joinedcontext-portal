@@ -44,6 +44,8 @@ mod model;
 const CATALOGUE: &str = include_str!("connector_scenarios/scenarios.yaml");
 const RED: &str = include_str!("connector_scenarios/red.txt");
 const REALM_PATH: &str = "/realms/banskabystrica";
+/// The broker admin token the harness Portal reads from its token file.
+const BROKER_TOKEN: &str = "scn-broker-admin";
 const AUDIENCE: &str = "joinedcontext-portal";
 const KID: &str = "key-scenarios";
 /// The connector client the persona's token is obtained by (CONNECTOR_CLIENTS).
@@ -56,11 +58,12 @@ const CONNECTOR_TASKS: &[&str] = &[
     "T-5956", "T-5957", "T-5958", "T-5959", "T-5960", "T-5961", "T-5962", "T-5964", "T-5965",
     "T-5966", "T-5967", "T-5968", "T-5969", "T-5970", "T-5971", "T-5972", "T-5973", "T-5974",
     "T-5975", "T-5976", "T-5977", "T-5978", "T-5979", "T-5980", "T-5986", "T-5994", "T-5995",
-    "T-5996", "T-5997", "T-5998",
+    "T-5996", "T-5997", "T-5998", "T-6001",
 ];
 /// The kinds a persona's role names; `kinds: ["*"]` would match only the `*` kind.
 const KINDS: &[&str] = &[
     "ContextSpace",
+    "Entity",
     "Endpoint",
     "Pipeline",
     "Policy",
@@ -160,6 +163,11 @@ struct Step {
     /// behind the connector's back, as another person's merged change leaves it.
     #[serde(default)]
     touch: Option<String>,
+    /// A fixture change instead of a request: the Pipeline of this name came back green from a
+    /// runner's test of the spec its draft holds, as `jc_pipeline_test` records it (T-4840). The
+    /// scripted lane runs no Bento runner (T-5972), so this stands for that run.
+    #[serde(default)]
+    runner_tested: Option<String>,
     /// The call asks its Yellow-lane question first (AG-63): the person accepts it on the Portal
     /// page, recorded here in the question store the page writes, and the client sends the call
     /// again naming it (T-5997).
@@ -259,7 +267,7 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
         "ContextSpace",
         "doprava",
         project,
-        json!({ "isSandbox": true }),
+        json!({ "isSandbox": true, "dataModelRef": "bike-counter" }),
     ));
     mirror.upsert(envelope(
         "DataModel",
@@ -297,7 +305,7 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
         "DataModel",
         "reports",
         project,
-        json!({ "contextSpaceRef": "doprava", "linkml": "./reports.linkml.yaml" }),
+        json!({ "contextSpaceRef": "doprava", "version": "1.0.0", "lifecycle": "published", "linkml": "./reports.linkml.yaml" }),
     ));
     mirror.upsert(envelope(
         "Endpoint",
@@ -309,6 +317,18 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
             "audience": "restricted",
             "title": format!("Citizen reports of {project}"),
             "entityTypes": ["PotholeReport"],
+            "enabledRepresentations": ["ngsi-ld"]
+        }),
+    ));
+    // The Pipelines' write target: a valid Endpoint manifest the write checks can read (PL-111).
+    mirror.upsert(envelope(
+        "Endpoint",
+        &format!("{project}-intake"),
+        project,
+        json!({
+            "slug": format!("i{}", slug_of(project)),
+            "contextSpaceRef": "doprava",
+            "audience": "organization",
             "enabledRepresentations": ["ngsi-ld"]
         }),
     ));
@@ -324,16 +344,61 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
         project,
         json!({ "contextSpaceRef": "doprava", "http": { "url": csv_url } }),
     ));
+    mirror.upsert(envelope(
+        "Pipeline",
+        "counters-hourly",
+        project,
+        pipeline_spec(project),
+    ));
+    // A read Endpoint over its own Policy: a Pipeline aimed at it writes nowhere (S-20's deny).
+    mirror.upsert(envelope(
+        "Policy",
+        "public-read",
+        project,
+        json!({
+            "contextSpaceRef": "doprava",
+            "assigner": "did:web:hel.fi",
+            "assignee": { "kind": "role", "id": "public" },
+            "operations": ["queryEntity", "retrieveEntity"],
+            "information": [{ "entities": [{ "type": "BikeCounter" }] }]
+        }),
+    ));
+    mirror.upsert(envelope(
+        "Endpoint",
+        &format!("{project}-readers"),
+        project,
+        json!({
+            "slug": format!("r{}", slug_of(project)),
+            "contextSpaceRef": "doprava",
+            "audience": "public",
+            "policyRef": "public-read",
+            "enabledRepresentations": ["ngsi-ld"]
+        }),
+    ));
+}
+
+/// An hourly poll of the CSV DataSource upserting BikeCounter through the intake Endpoint, which
+/// serves the space and names no Policy, so it binds the Pipeline's derived write (PL-111).
+fn pipeline_spec(project: &str) -> Value {
+    json!({
+        "class": "scheduled",
+        "schedule": "0 * * * *",
+        "source": { "dataSourceRef": { "kind": "DataSource", "name": "counters-csv" } },
+        "targetEndpoint": format!("urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake"),
+        "output": { "type": "BikeCounter", "mode": "upsert" },
+        "quotas": { "maxMemoryMb": 128, "cpuMillicores": 100 }
+    })
 }
 
 /// Roles per persona, and a binding of each persona to every scenario project but `t-scn-other`.
+/// The organization lets no Pipeline run more often than every 15 minutes (PL-116, S-22).
 fn bind_personas(mirror: &Mirror, projects: &[String]) {
     // The organization, whose domain every minted URN carries (a KPI's id, ADR-N-041).
     mirror.upsert(envelope(
         "Organization",
         "hel",
         ORG_NAMESPACE,
-        json!({ "domain": "hel.fi" }),
+        json!({ "domain": "hel.fi", "projects": { "quota": { "minPipelinePeriodSeconds": 900 } } }),
     ));
     let kinds = json!(KINDS);
     for (role, verbs) in [
@@ -574,6 +639,29 @@ async fn data_plane(server: &MockServer) {
         }])))
         .mount(server)
         .await;
+    // The broker's admin read of a type's stored names (T-6001): t-scn-23's BikeCounters hold
+    // `legacyName`, which an older mapping wrote; every other tenant's broker is down (503).
+    Mock::given(method("GET"))
+        .and(path_regex(
+            "^/q/tenants/[a-z0-9-]*t-scn-23[a-z0-9-]*/types/BikeCounter/attributes$",
+        ))
+        .and(header(
+            "authorization",
+            format!("Bearer {BROKER_TOKEN}").as_str(),
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "type": "BikeCounter", "partial": false,
+            "attributes": ["count", "legacyName", "location"]
+        })))
+        .with_priority(1)
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path_regex("^/q/tenants/[^/]+/types/[^/]+/attributes$"))
+        .respond_with(ResponseTemplate::new(503))
+        .with_priority(2)
+        .mount(server)
+        .await;
     use base64::Engine;
     Mock::given(method("GET"))
         .and(path_regex(
@@ -631,6 +719,50 @@ async fn realm_admin(server: &MockServer) {
             .mount(server)
             .await;
     }
+}
+
+/// The broker views of each scenario project's write path, read from the fixture written out as
+/// the forge holds it, the way the reconciler reads it: a Pipeline's write is then judged by its
+/// Endpoint's view of the space's model, as on dev (T-6001: the view decides what a replace may
+/// leave behind). Only the kinds that view is made of are written.
+fn forge_views(
+    mirror: &Mirror,
+    projects: &[String],
+    broker: &str,
+    token: &std::path::Path,
+) -> std::sync::Arc<joinedcontext_portal::reconciler::views::ViewSync> {
+    // One directory per harness: the tests of this binary build theirs at once.
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("scn-forge-{}-{n}", std::process::id()));
+    let wanted = |env: &ResourceEnvelope| {
+        let ns = env.metadata.namespace.as_deref().unwrap_or_default();
+        projects.iter().any(|p| p == ns)
+            && (["ContextSpace", "DataModel", "DataSource", "Pipeline"]
+                .contains(&env.kind.as_str())
+                || env.metadata.name.ends_with("-intake"))
+    };
+    for env in mirror.matching(wanted) {
+        let ns = env.metadata.namespace.clone().unwrap_or_default();
+        let space = env.spec["contextSpaceRef"]
+            .as_str()
+            .unwrap_or(&env.metadata.name);
+        let info = jc_core::registry::by_kind(&env.kind).expect("a registered kind");
+        let file = dir.join(info.repo_path(&ns, space, &env.metadata.name));
+        std::fs::create_dir_all(file.parent().expect("a parent")).expect("mkdir");
+        let text = serde_norway::to_string(&env).expect("yaml");
+        std::fs::write(&file, text).expect("write the manifest");
+        if env.kind == "DataModel" {
+            let linkml = env.spec["linkml"].as_str().expect("a linkml path");
+            let at = file.parent().expect("a parent").join(linkml);
+            std::fs::write(at, MODELS_LINKML).expect("write the model");
+        }
+    }
+    let repo = jcctl::loader::Repository::load(&dir).expect("the fixture loads as the forge's");
+    let views = joinedcontext_portal::reconciler::views::ViewSync::new(broker, token);
+    views.remember(&repo);
+    let _ = std::fs::remove_dir_all(&dir);
+    std::sync::Arc::new(views)
 }
 
 struct Harness {
@@ -712,6 +844,9 @@ impl Harness {
             "JC_OIDC_CLIENT_ID" => Some(AUDIENCE.to_owned()),
             "JC_OIDC_CLIENT_SECRET" => Some("secret".to_owned()),
             "JC_PORTAL_COOKIE_KEY" => Some("k".repeat(64)),
+            // Each Pipeline writes as its own account, as on dev (PL-19).
+            "JC_PORTAL_PIPELINE_IDENTITY" => Some("pipeline".to_owned()),
+            "JC_PORTAL_PIPELINE_NAMESPACE" => Some("pipelines".to_owned()),
             _ => None,
         })
         .expect("config");
@@ -727,6 +862,11 @@ impl Harness {
         std::fs::write(&token_file, "token-scenarios-broker").expect("broker token file");
         config.broker_admin_token_file = Some(token_file);
         config.gateway_url = Some(server.uri());
+        // The broker's admin door is the same server (T-6001); the token is a file, as deployed.
+        let broker_token = std::env::temp_dir().join(format!("scn-broker-{}", std::process::id()));
+        std::fs::write(&broker_token, BROKER_TOKEN).expect("broker token file");
+        config.broker_url = Some(server.uri());
+        config.broker_admin_token_file = Some(broker_token.clone());
 
         let mirror = std::sync::Arc::new(Mirror::new());
         let names: Vec<String> = (1..=projects).map(project_of).collect();
@@ -735,6 +875,7 @@ impl Harness {
         }
         bind_personas(&mirror, &names);
         let mut state = AppState::from_config(config).await.expect("state");
+        state.views = Some(forge_views(&mirror, &names, &server.uri(), &broker_token));
         if let Some(db) = db {
             state = state.with_db(db);
         }
@@ -945,6 +1086,32 @@ impl Harness {
                 .labels
                 .insert("edited-by".to_owned(), "another-person".to_owned());
             self.mirror.upsert(envelope);
+            return Ok(());
+        }
+        if let Some(name) = &step.runner_tested {
+            use joinedcontext_portal::ops::verdict::{digest_of, RecordsVerdict};
+            let draft = self
+                .state
+                .drafts
+                .get(project, "Pipeline", &fill(name))
+                .await
+                .map_err(|e| format!("runner_tested: {e}"))?
+                .ok_or_else(|| format!("runner_tested: no Pipeline draft {name} in {project}"))?;
+            let mut verdict = draft
+                .verdict
+                .ok_or_else(|| format!("runner_tested: the plan left {name} no verdict"))?;
+            verdict.records = Some(Box::new(RecordsVerdict {
+                ok: true,
+                checked: 1,
+                rejected: 0,
+                spec_digest: digest_of(&draft.manifest["spec"]),
+                sample_digest: digest_of(&json!([COUNTERS_CSV])),
+            }));
+            self.state
+                .drafts
+                .set_verdict(project, "Pipeline", &fill(name), verdict)
+                .await
+                .map_err(|e| format!("runner_tested: {e}"))?;
             return Ok(());
         }
         if let Some(who) = &step.unbind {
@@ -1669,6 +1836,29 @@ async fn an_apply_takes_only_its_own_unchanged_plan_and_never_approves() {
           "contains": ["/changes/0/op"] }
     ]);
     assert_eq!(harness.run(&scenario(elsewhere), &own).await, Ok(()));
+}
+
+/// T-6001: a plan turning an output to replace while the broker does not answer says the stored
+/// attributes could not be checked, and stays a warning: the plan is kept, never a silent pass.
+#[tokio::test]
+async fn a_replace_plan_says_when_the_stored_attributes_could_not_be_checked() {
+    let harness = Harness::start(1).await;
+    let own = project_of(1);
+    let scenario: Scenario = serde_json::from_value(json!({
+        "id": "S-00", "segment": "pipeline", "as": "steward", "says": "selftest",
+        "expect": "selftest", "deny": "none", "script": [
+            { "proves": "expect", "call": "jc_change_plan", "args": { "changes": [{ "op": "patch", "kind": "Pipeline", "name": "counters-hourly",
+                  "patch": { "spec": { "output": { "type": "BikeCounter", "mode": "replace" } } } }] },
+              "refused": true, "contains": ["jc_pipeline_test"] },
+            { "proves": "expect", "runner_tested": "counters-hourly" },
+            { "proves": "expect", "call": "jc_change_plan", "args": { "changes": [{ "op": "patch", "kind": "Pipeline", "name": "counters-hourly",
+                  "patch": { "spec": { "output": { "type": "BikeCounter", "mode": "replace" } } } }] },
+              "contains": ["\"planId\"", "\"level\":\"warning\"", "could not be checked", "503",
+                           "WriteGuard::pre_whole"] }
+        ]
+    }))
+    .expect("scenario");
+    assert_eq!(harness.run(&scenario, &own).await, Ok(()));
 }
 
 /// Seconds of CPU this process has used, user and system (`/proc/self/stat`, 100 ticks a second).

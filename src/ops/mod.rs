@@ -25,6 +25,7 @@ pub mod pipeline_templates;
 pub mod plans;
 pub mod previews;
 pub mod proposals;
+pub mod replace_check;
 pub mod resources;
 pub mod runs;
 pub mod schemas;

@@ -99,22 +99,7 @@ impl Counter {
     /// broker named `broker` (PF-111, empty when its `brokerRef` resolves to none). `tenant`
     /// must already be a DNS-1123 name: it becomes a path segment.
     pub async fn usage(&self, broker_name: &str, tenant: &str) -> Result<SpaceUsage, String> {
-        let Some(broker) = crate::spaces::broker_address(
-            broker_name,
-            self.broker.as_deref(),
-            self.template.as_deref(),
-        ) else {
-            return Err(match broker_name {
-                "" => "the space's brokerRef names no ContextBroker; fix the space's manifest"
-                    .to_owned(),
-                jc_core::kinds::IMPLICIT_BROKER => {
-                    "no broker address is configured (JC_PORTAL_BROKER_URL)".to_owned()
-                }
-                name => {
-                    format!("the broker '{name}' has no address; set JC_PORTAL_BROKER_URL_TEMPLATE")
-                }
-            });
-        };
+        let broker = self.reach(broker_name)?;
         let key = format!("{broker}/{tenant}");
         let now = Utc::now();
         if let Some(kept) = self
@@ -166,6 +151,65 @@ impl Counter {
             .unwrap_or_else(|e| e.into_inner())
             .insert(key, usage.clone());
         Ok(usage)
+    }
+
+    /// The address of broker `broker_name`, or why the Portal has none.
+    fn reach(&self, broker_name: &str) -> Result<String, String> {
+        self.address(broker_name).ok_or_else(|| match broker_name {
+            "" => {
+                "the space's brokerRef names no ContextBroker; fix the space's manifest".to_owned()
+            }
+            jc_core::kinds::IMPLICIT_BROKER => {
+                "no broker address is configured (JC_PORTAL_BROKER_URL)".to_owned()
+            }
+            name => {
+                format!("the broker '{name}' has no address; set JC_PORTAL_BROKER_URL_TEMPLATE")
+            }
+        })
+    }
+
+    /// The Attribute names the Entities of `entity_type` hold in `tenant` on broker
+    /// `broker_name`, names only (`GET /q/tenants/{tenant}/types/{type}/attributes`, T-6001).
+    /// Asked on every call: a plan judges what is stored now. The second member is true when
+    /// the broker stopped at its scan ceiling, so the list may miss a name.
+    pub async fn stored_attributes(
+        &self,
+        broker_name: &str,
+        tenant: &str,
+        entity_type: &str,
+    ) -> Result<(Vec<String>, bool), String> {
+        let broker = self.reach(broker_name)?;
+        let token = self.token()?;
+        let mut url = reqwest::Url::parse(&broker)
+            .map_err(|_| "the broker address is not a URL".to_owned())?;
+        url.path_segments_mut()
+            .map_err(|()| "the broker address is not a URL".to_owned())?
+            .pop_if_empty()
+            .extend(["q", "tenants", tenant, "types", entity_type, "attributes"]);
+        let response = self.http.get(url).bearer_auth(token).send().await.map_err(|err| {
+            let reason = unanswered(&err);
+            tracing::warn!(tenant, error = ?err.without_url(), "the broker did not answer a type's attribute names");
+            reason
+        })?;
+        let status = response.status();
+        if !status.is_success() {
+            tracing::warn!(tenant, %status, "the broker refused a type's attribute names");
+            return Err(format!(
+                "the broker answered {status} for the stored attribute names"
+            ));
+        }
+        let body: Value = response
+            .json()
+            .await
+            .map_err(|_| "the broker's answer was not JSON".to_owned())?;
+        let names = body["attributes"]
+            .as_array()
+            .ok_or_else(|| "the broker's answer names no attributes".to_owned())?
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect();
+        Ok((names, body["partial"] == true))
     }
 
     /// The last answer for `key` while it is younger than [`STALE`].
@@ -365,6 +409,50 @@ mod tests {
         let _ = std::fs::remove_file(&file);
         assert_eq!(on_main.map(|u| u.entities), Ok(3));
         assert_eq!(on_canary.map(|u| u.entities), Ok(7));
+    }
+
+    /// T-6001: a type's stored names come from the admin route with the admin token; a broker
+    /// that does not answer, or answers no list, is an error and never an empty list.
+    #[tokio::test]
+    async fn stored_attribute_names_are_read_with_the_admin_token_and_never_made_up() {
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let broker = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/q/tenants/air/types/Counter/attributes"))
+            .and(header("authorization", "Bearer t"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({"tenant": "air", "type": "Counter", "attributes": ["count", "legacy"], "partial": false}),
+            ))
+            .mount(&broker)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/q/tenants/air/types/Odd/attributes"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"tenant": "air"})))
+            .mount(&broker)
+            .await;
+        let file = token_file("attrs");
+        let counter = Counter::new(Some(broker.uri()), Some(file.clone()));
+        let got = counter.stored_attributes("main", "air", "Counter").await;
+        let odd = counter.stored_attributes("main", "air", "Odd").await;
+        let refused = counter.stored_attributes("main", "air", "Gone").await;
+        let down = Counter::new(Some("http://127.0.0.1:1".to_owned()), Some(file.clone()))
+            .stored_attributes("main", "air", "Counter")
+            .await;
+        let _ = std::fs::remove_file(&file);
+        assert_eq!(
+            got,
+            Ok((vec!["count".to_owned(), "legacy".to_owned()], false))
+        );
+        assert!(odd.is_err(), "{odd:?}");
+        assert!(
+            refused.as_ref().is_err_and(|e| e.contains("404")),
+            "{refused:?}"
+        );
+        assert!(
+            down.as_ref().is_err_and(|e| e.contains("cannot reach")),
+            "{down:?}"
+        );
     }
 
     fn token_file(name: &str) -> PathBuf {
