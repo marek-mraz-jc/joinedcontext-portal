@@ -463,7 +463,11 @@ test.describe("the model editor's import dialog, inherited fields and read-only 
       await page.getByRole("tab", { name: "Source" }).click();
       const edit = page.getByRole("button", { name: "Edit source" });
       await expect(edit).toHaveAttribute("aria-pressed", "false");
-      await expect(page.locator(".monaco-editor .view-lines").first()).toContainText("is_a: Indicator", { timeout: 60_000 });
+      await expect(page.locator(".monaco-editor .view-lines").first()).toContainText(
+        // Long lines wrap at a phone's width, so is_a sits below the first screen there.
+        width > 600 ? "is_a: Indicator" : "name: helsinki-kpi",
+        { timeout: 60_000 },
+      );
       await shot(page, `source-read-only-${width}`);
       await edit.click();
       await expect(page.getByRole("button", { name: "Done editing" })).toHaveAttribute("aria-pressed", "true");

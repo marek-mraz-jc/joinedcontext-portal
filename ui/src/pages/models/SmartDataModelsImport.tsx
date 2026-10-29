@@ -380,12 +380,14 @@ export function SmartDataModelsImport({
         {!catalogue.isLoading && !catalogue.isError && visible.length === 0 ? (
           subjects.length === 0 ? (
             <EmptyState
+              className="py-6"
               icon="models"
               title={t("models.sdm.emptyCatalogue")}
               description={t("models.sdm.emptyCatalogueHint")}
             />
           ) : (
             <EmptyState
+              className="py-6"
               icon="search"
               title={t("models.sdm.noMatches")}
               description={t("models.sdm.noMatchesHint")}
