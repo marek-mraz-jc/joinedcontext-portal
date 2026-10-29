@@ -61,7 +61,7 @@ function form(manifest: Manifest, { post }: Flows = {}) {
   /** Every body the page posted, read where the request still has one. */
   const sent: Record<string, unknown>[] = [];
   const rendered = renderPage(
-    <Instantiate project={PROJECT} blueprint={manifest} onBack={onBack} />,
+    <Instantiate project={PROJECT} blueprint={manifest} onBack={onBack} backLabel={i18n.t("datasources.setups.back")} />,
     {
       answer: async (url, request) => {
         if (request.method === "POST" && url.pathname.endsWith("/flows")) {
@@ -127,6 +127,30 @@ describe("a blueprint that asks for parameters", () => {
       version: "1.2.0",
       parameters: { spaceName: "helsinki-air" },
     });
+  });
+
+  // T-6096 (UI judge): the button stayed live after the Change opened, and a second press
+  // proposed the same set-up again.
+  it("proposes once: after the Change opened, another press writes nothing", async () => {
+    const user = userEvent.setup();
+    const { sent } = form(WITH_PARAMETERS);
+
+    await user.type(await screen.findByLabelText(/Space name/), "helsinki-air");
+    await user.click(screen.getByRole("button", { name: en.flows.instantiate.submit }));
+    await waitFor(() => expect(screen.getByText(/chg-7/)).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: en.flows.instantiate.submit }));
+    expect(sent.length).toBe(1);
+  });
+
+  it("proposes once with no parameters too", async () => {
+    const user = userEvent.setup();
+    const { sent } = form(blueprint());
+
+    await user.click(await screen.findByRole("button", { name: en.flows.instantiate.submit }));
+    await waitFor(() => expect(screen.getByText(/chg-7/)).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: en.flows.instantiate.submit }));
+    expect(sent.length).toBe(1);
   });
 
   // T-2757: the app builder's card read "Set up An application from a prompt", took an endpoint's
@@ -231,11 +255,11 @@ describe("a blueprint that asks for parameters", () => {
     expect(within(alert).getByText("spaceName: must be lowercase")).toBeInTheDocument();
   });
 
-  it("goes back to the gallery without writing anything", async () => {
+  it("goes back to the page it came from without writing anything", async () => {
     const user = userEvent.setup();
     const { onBack } = form(WITH_PARAMETERS);
 
-    await user.click(await screen.findByRole("button", { name: en.flows.back }));
+    await user.click(await screen.findByRole("button", { name: en.datasources.setups.back }));
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 });
@@ -346,7 +370,7 @@ describe("the form as a screen reader and a translator find it", () => {
       await screen.findByText(i18n.t("flows.instantiate.noSchema"));
       expectNoRawKeys(container);
       expect(
-        screen.getByRole("button", { name: i18n.t("flows.back") }),
+        screen.getByRole("button", { name: i18n.t("datasources.setups.back") }),
       ).toBeInTheDocument();
       unmount();
     });

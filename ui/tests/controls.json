@@ -1404,7 +1404,7 @@
     },
     "src/pages/flows/Gallery.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 1
       },
       "tests": [
         "part_gallery.test.tsx"

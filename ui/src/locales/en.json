@@ -86,7 +86,6 @@
     "main": "Main navigation",
     "skipToContent": "Skip to content",
     "breadcrumb": "Breadcrumb",
-    "flows": "Flows",
     "models": "Data models",
     "ckan": "Open data",
     "explore": "Explore data",
@@ -2472,6 +2471,11 @@
     "usedBy": {
       "title": "Used by",
       "none": "No pipeline reads this source yet."
+    },
+    "setups": {
+      "title": "Ready-made set-ups",
+      "lead": "A set-up writes the source, its pipeline and its schedule in one change, from a few answers. Example: a city-bike GBFS feed polled every minute.",
+      "back": "Back to data sources"
     }
   },
   "pipelines": {
@@ -4127,14 +4131,6 @@
     }
   },
   "flows": {
-    "title": "Flows",
-    "subtitle": "Pick what you want to set up. The form asks only for what it needs; the platform writes the configuration.",
-    "empty": "No blueprint is available to you yet.",
-    "emptyFiltered": "No blueprint matches this filter.",
-    "category": {
-      "all": "All",
-      "uncategorised": "Other"
-    },
     "risk": {
       "green": "Approved automatically",
       "yellow": "One approver",
@@ -4143,15 +4139,14 @@
     "riskLabel": "Review",
     "version": "Version {version}",
     "run": "Set up",
-    "back": "Back to the gallery",
     "instantiate": {
       "title": "Set up: {name}",
       "submit": "Propose change",
       "hint": "Saving proposes a change; it takes effect once the change is approved.",
       "noSchema": "This blueprint declares no parameters.",
-      "failed": "The parameters were not accepted. Correct the marked fields and propose again."
-    },
-    "emptyHint": "A blueprint sets up a whole use case in one step: the space, the source, the pipeline and the endpoint together. None is available to you in this project yet."
+      "failed": "The parameters were not accepted. Correct the marked fields and propose again.",
+      "proposed": "Proposed: the change above waits for its approval."
+    }
   },
   "export": {
     "title": "Download configuration",
@@ -4403,7 +4398,7 @@
     "dimensionLabel": "Dashboard use",
     "graph": {
       "title": "The model's classes and what joins them",
-      "legend": "A solid line is is_a, a dashed one a mixin, a dotted one a slot whose range names another class, a sparsely dotted one a slot that picks from an enum. An enum's box lists its values; a dashed box comes from an import. In a box every field shows its type: PK marks the key, FK a field that points at another class, with that class and how many it holds. A dotted line says how many at both ends too; * means any number.",
+      "legend": "A solid line ending in a hollow triangle is is_a, a dashed one ending in a triangle a mixin, a dotted one a slot whose range names another class, a sparsely dotted one a slot that picks from an enum. An enum's box lists its values; a dashed box comes from an import. In a box every field shows its type: PK marks the key, FK a field that points at another class, with that class and how many it holds. A dotted line says how many at both ends too; * means any number.",
       "empty": "This model declares no class yet, so there is nothing to draw.",
       "openClass": "Open {name} in the structure view",
       "row": {
@@ -4413,7 +4408,7 @@
       },
       "from": "from {name}",
       "enumBox": "Enum {name}: {values}",
-      "legendRelationship": "A solid line with no arrow is a relationship, named by its field and the inverse. The number at each end says how many entities of that class one entity at the other end is joined to: 1 exactly one, 0..1 at most one, 1..* at least one, * any number.",
+      "legendRelationship": "A solid line with no triangle, its ends marked as in the legend above, is a relationship, named by its field and the inverse. The number at each end says how many entities of that class one entity at the other end is joined to: 1 exactly one, 0..1 at most one, 1..* at least one, * any number.",
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out",
       "fit": "Fit",

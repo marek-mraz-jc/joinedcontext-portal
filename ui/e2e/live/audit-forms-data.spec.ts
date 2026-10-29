@@ -286,17 +286,18 @@ async function walkSteward(page: Page, lang: Lang, at: Plan): Promise<void> {
     }
   }
 
-  // Flows: the gallery, then the wizard of each blueprint as it opens and after its submit.
-  await state(page, { ...base, route: `${P}/flows`, state: "flows-gallery" }, () => open(page, `${P}/flows`, lang));
+  // The ready-made set-ups on Data sources (the Flows page went, T-6096), then the wizard of each
+  // blueprint as it opens and after its submit.
+  await state(page, { ...base, route: `${P}/datasources`, state: "flows-gallery" }, () => open(page, `${P}/datasources`, lang));
   const setUp = page.getByRole("button", { name: words(lang, "flows.run"), exact: true });
   const blueprints = await setUp.count();
   for (let i = 0; i < blueprints; i++) {
-    await state(page, { ...base, route: `${P}/flows`, state: `flows-set-up-${i + 1}` }, async () => {
-      await open(page, `${P}/flows`, lang);
+    await state(page, { ...base, route: `${P}/datasources`, state: `flows-set-up-${i + 1}` }, async () => {
+      await open(page, `${P}/datasources`, lang);
       await setUp.nth(i).click();
     });
-    await state(page, { ...base, route: `${P}/flows`, state: `flows-set-up-${i + 1}-submitted` }, async () => {
-      await open(page, `${P}/flows`, lang);
+    await state(page, { ...base, route: `${P}/datasources`, state: `flows-set-up-${i + 1}-submitted` }, async () => {
+      await open(page, `${P}/datasources`, lang);
       await setUp.nth(i).click();
       await settle(page);
       await submit(page).click();
@@ -333,7 +334,7 @@ async function walkViewer(page: Page, lang: Lang, at: Plan): Promise<void> {
       await state(page, { ...base, route: `${list}/$name/edit`, state: `${plural}-edit` }, () => open(page, `${list}/${encodeURIComponent(name)}/edit`, lang));
     }
   }
-  await state(page, { ...base, route: `${P}/flows`, state: "flows-gallery" }, () => open(page, `${P}/flows`, lang));
+  await state(page, { ...base, route: `${P}/datasources`, state: "flows-gallery" }, () => open(page, `${P}/datasources`, lang));
   await state(page, { ...base, route: `${P}/import`, state: "import" }, () => open(page, `${P}/import`, lang));
   await state(page, { ...base, route: `${P}/models`, state: "models-list" }, () => open(page, `${P}/models`, lang));
   if (at.model) await state(page, { ...base, route: `${P}/models/$name`, state: "model" }, () => open(page, at.model as string, lang));
