@@ -55,9 +55,12 @@ export function ToolbarPopover({
   count,
   wide,
   end,
+  outlined,
   children,
 }: {
   label: string;
+  /** Drawn as a button even with nothing set: outside a toolbar row a ghost summary reads as text. */
+  outlined?: boolean;
   /** How many settings the panel holds, shown beside the label so a set filter is visible. */
   count?: number;
   wide?: boolean;
@@ -87,7 +90,7 @@ export function ToolbarPopover({
     >
       <summary
         className={buttonClass(
-          count ? "secondary" : "ghost",
+          count || outlined ? "secondary" : "ghost",
           "sm",
           clsx("cursor-pointer list-none [&::-webkit-details-marker]:hidden", count ? "border-primary text-primary-soft-fg" : undefined),
         )}

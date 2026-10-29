@@ -212,7 +212,7 @@ function Filters({
         // A Columns menu, not a wall of checkboxes above the data (T-6092): the model's label
         // reads alone, the name the data carries is its tooltip.
         <div>
-          <ToolbarPopover label={t("entities.columns")} count={(value.attrs ?? []).length}>
+          <ToolbarPopover label={t("entities.columns")} count={(value.attrs ?? []).length} outlined>
             <fieldset className="flex flex-col gap-2">
               <legend className="mb-1 text-caption text-fg-muted">{t("entities.attrs")}</legend>
               <p className="text-caption text-fg-muted">{t("entities.hint.attrs")}</p>

@@ -2325,7 +2325,8 @@ function OneLine({ text }: { text: string }): JSX.Element {
   return (
     <div className="flex max-w-prose items-start gap-2 text-body text-fg-muted">
       <p className={clsx("min-w-0", !open && "line-clamp-1")}>{text}</p>
-      {text.length > 80 ? (
+      {/* About what a phone line holds: a shorter text never needs opening. */}
+      {text.length > 40 ? (
         <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>
           {open ? t("spaces.inside.less") : t("spaces.inside.more")}
         </Button>
