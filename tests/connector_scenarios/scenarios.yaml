@@ -318,7 +318,7 @@
       call: jc_change_plan
       args: { changes: [{ op: create, kind: Endpoint, name: '{project}-public', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-public', namespace: '{project}' }, spec: { slug: bikecounterspublicdopravazz, contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, odata, ogc-features] } } }] }
       keep: planId
-      contains: ['"planId"', '"ok":true']
+      contains: ['"planId"', '"ok":true', 'changes nothing live']
     - proves: expect
       call: jc_change_apply
       args: { planId: '{planId}' }
@@ -1092,7 +1092,7 @@
       call: jc_change_plan
       args: { changes: [{ op: create, kind: Layer, name: counters-map, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Layer, metadata: { name: counters-map, namespace: '{project}' }, spec: { sourceEndpointRef: '{project}-counters', entityType: BikeCounter, style: circle, popupProperties: [name, count] } } }, { op: create, kind: Dashboard, name: counters, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Dashboard, metadata: { name: counters, namespace: '{project}' }, spec: { title: Bike counters, visibility: project, pages: [{ title: Overview, layers: [counters-map], widgets: [{ widgetType: bar-chart, endpointRef: '{project}-counters', entityType: BikeCounter, property: count }] }] } } }] }
       keep: planId
-      contains: ['"planId"', '"ok":true', '"kind":"Layer"', '"kind":"Dashboard"']
+      contains: ['"planId"', '"ok":true', '"kind":"Layer"', '"kind":"Dashboard"', 'changes nothing live']
     - proves: expect
       call: jc_change_apply
       args: { planId: '{planId}' }
