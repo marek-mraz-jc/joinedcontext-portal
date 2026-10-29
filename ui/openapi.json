@@ -2503,6 +2503,104 @@
         }
       }
     },
+    "/api/v1/organization/connectors": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "List the Organization's Connectors",
+        "description": "Every person's connectors, live ones first, at most 500: owner, segments, scope, clients, state, last call, calls and denials of the last 24 hours, and `flagged` at `denialsFlag` denials. Never a call's input or a token (T-5975, API/14 §2).",
+        "operationId": "organization_connectors",
+        "responses": {
+          "200": {
+            "description": "The organization's connectors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorOverview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/connectors/{id}": {
+      "delete": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Revoke a Person's Connector",
+        "description": "An administrator revokes any person's connector; the next call through it is refused, and the activity feed names who revoked it (T-5975).",
+        "operationId": "revoke_organization_connector",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The connector id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No live connector with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/costs": {
       "get": {
         "tags": [
@@ -38852,6 +38950,26 @@
           }
         }
       },
+      "ConnectorOverview": {
+        "type": "object",
+        "required": [
+          "items",
+          "denialsFlag"
+        ],
+        "properties": {
+          "denialsFlag": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Refused calls in a day that flag a connector."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConnectorUsage"
+            }
+          }
+        }
+      },
       "ConnectorScopeItem": {
         "type": "object",
         "description": "One item of a connector's scope: a project, and at most one of a space, an Endpoint or a\npipeline in it (`*` for every one the owner reaches). Without one it is the whole project.",
@@ -38936,6 +39054,38 @@
           }
         },
         "additionalProperties": false
+      },
+      "ConnectorUsage": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ConnectorGrant"
+          },
+          {
+            "type": "object",
+            "required": [
+              "callsPerDay",
+              "denialsPerDay",
+              "flagged"
+            ],
+            "properties": {
+              "callsPerDay": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Calls in the last 24 hours, allowed and refused."
+              },
+              "denialsPerDay": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Refused calls in the last 24 hours."
+              },
+              "flagged": {
+                "type": "boolean",
+                "description": "[`DENIALS_FLAG`] refused calls or more in the last 24 hours."
+              }
+            }
+          }
+        ],
+        "description": "A connector as an organization administrator reads it (T-5975): its grant and how much it is\nused, never what a call carried."
       },
       "Consent": {
         "type": "object",

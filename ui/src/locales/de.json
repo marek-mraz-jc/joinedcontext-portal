@@ -7036,7 +7036,8 @@
       "mcp-servers": "MCP-Server der Organisation",
       "brokers": "Broker",
       "agents": "Agenten",
-      "costs": "Kosten"
+      "costs": "Kosten",
+      "connectors": "Konnektoren"
     },
     "settings": {
       "title": "Einstellungen",
@@ -7858,6 +7859,46 @@
         "alertMeHint": "Sie erhalten einen Hinweis im Posteingang, wenn dieser Agent gehäuft abgelehnt wird, sich seinem Token-Limit nähert oder außerhalb der Bürozeiten schreibt.",
         "alertMeNone": "Sie genehmigen in keinem Projekt Änderungen, und nur wer genehmigt, sieht die Läufe aller Personen. Bitten Sie eine verantwortliche Person des Projekts um die Genehmigerrolle."
       }
+    },
+    "connectors": {
+      "title": "Konnektoren",
+      "lead": "Die KI-Konnektoren aller Personen: was jeder erreicht, welchen Clients er antwortet und wie oft er am letzten Tag genutzt und abgewiesen wurde. Aufrufe erscheinen hier nur als Zahlen, ihr Inhalt nie.",
+      "hidden": "Nur eine Administration der Organisation sieht die Konnektoren aller Personen. Ihre eigenen stehen unter Meine Konnektoren.",
+      "caption": "Die Konnektoren aller Personen",
+      "filter": "Filter",
+      "filterHelp": "Name eines Konnektors, seine Inhaberin oder ein Client, z. B. jana oder claude.ai",
+      "state": "Status",
+      "stateHelp": "Aktive Konnektoren beantworten Aufrufe; z. B. Widerrufen wählen, um zu sehen, was ein Austritt beendet hat",
+      "stateAny": "Jeder Status",
+      "states": {
+        "active": "Aktiv",
+        "expired": "Abgelaufen",
+        "revoked": "Widerrufen"
+      },
+      "flaggedOnly": "Nur markierte",
+      "flaggedHelp": "Konnektoren, die am letzten Tag oft abgewiesen wurden, z. B. ein Client, der außerhalb seines Umfangs tastet",
+      "flaggedSummary": "{count, plural, one {# aktiver Konnektor ist markiert} other {# aktive Konnektoren sind markiert}}: {denials} oder mehr abgewiesene Aufrufe am letzten Tag. Prüfen Sie den Umfang oder widerrufen Sie ihn.",
+      "connector": "Konnektor",
+      "owner": "Inhaber",
+      "scope": "Umfang",
+      "clients": "Clients (Anwendungen)",
+      "lastCall": "Letzter Aufruf",
+      "usage": "Letzte 24 Stunden",
+      "actions": "Aktionen",
+      "writes": "Schreibzugriff",
+      "anyClient": "Jeder Client",
+      "never": "Nie genutzt",
+      "calls": "{count, plural, one {# Aufruf} other {# Aufrufe}}",
+      "denials": "{count, plural, =0 {keine Abweisung} one {# abgewiesen} other {# abgewiesen}}",
+      "flagged": "Markiert",
+      "revoke": "Widerrufen",
+      "revokeLabel": "Konnektor {name} widerrufen",
+      "confirmTitle": "Konnektor {name} widerrufen?",
+      "confirmText": "Sein nächster Aufruf wird sofort abgewiesen. {owner} behält die anderen Konnektoren und kann im Rahmen der eigenen Rechte einen neuen anlegen.",
+      "empty": "Noch niemand hat einen Konnektor",
+      "emptyHint": "Eine Person legt ihn unter Meine Konnektoren an, um die Plattform aus Claude, ChatGPT oder Claude Code zu nutzen; dann erscheint er hier mit Umfang und Nutzung.",
+      "noMatch": "Kein Konnektor passt zum Filter",
+      "noMatchHint": "Leeren Sie den Filter oder wählen Sie Jeder Status, um auch widerrufene und abgelaufene Konnektoren zu sehen."
     }
   },
   "projectDelete": {

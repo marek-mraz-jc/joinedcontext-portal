@@ -334,6 +334,8 @@ use crate::tools::model_tools::{
         crate::api::connectors::get_connector,
         crate::api::connectors::revoke_connector,
         crate::api::connectors::connector_activity,
+        crate::api::connectors::organization_connectors,
+        crate::api::connectors::revoke_organization_connector,
     ),
     components(schemas(
         crate::api::access_attributes::AttributeExplained,

@@ -386,6 +386,13 @@ routes:
     rule: "signed-in, own connectors only"
     expect: [401, 404, 404, 404, 404, 404, 404, 404]
     note: "the fixture holds no connector: every person's 404 is the unknown id"
+  - route: GET /organization/connectors
+    rule: "org-admin"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: DELETE /organization/connectors/{id}
+    rule: "org-admin"
+    expect: [403, 403, 403, 403, 403, 404, 403, 403]
+    note: "the fixture holds no connector: the administrator's 404 is the unknown id"
   - route: GET /c/{id}
     rule: "public"
     expect: [405, 405, 405, 405, 405, 405, 405, 405]
