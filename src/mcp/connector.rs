@@ -19,16 +19,20 @@ use axum::{Json, Router};
 use serde_json::{json, Value};
 
 use super::{
-    dispatch, error, json_response, result, too_large, tool_definition, MAX_REQUEST_BYTES,
-    MAX_RESPONSE_BYTES,
+    call_result, dispatch, error, failure_result, json_response, result, too_large,
+    tool_definition, MAX_REQUEST_BYTES, MAX_RESPONSE_BYTES,
 };
 use crate::connectors::{self, Call, Connector};
 use crate::error::ApiError;
+use crate::personal_data::{self, Marks};
 use crate::state::AppState;
 
 /// The methods a connector serves. Resources, prompts and tasks read the platform past the
 /// connector's scope check, so they stay the Portal MCP's (deny by default).
 const METHODS: &[&str] = &["initialize", "ping", "tools/list", "tools/call"];
+
+/// The `_meta` key naming the attributes an answer left out as personal (`Type.attribute`).
+const WITHHELD_META: &str = "joinedcontext.com/withheld";
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -129,7 +133,7 @@ pub async fn handle_connector(
     let (response, verdict) = if connector.owner != identity.subject {
         (unknown(), "refused: not the owner".to_owned())
     } else {
-        judge(&state, &connector, identity.clone(), &message, body).await
+        judge(&state, &connector, identity.clone(), token, &message, body).await
     };
     let call = Call {
         at: chrono::Utc::now(),
@@ -163,7 +167,7 @@ fn audited(message: &Value) -> (String, Option<String>) {
     let target: Vec<String> = [
         word(&args["project"]).or_else(|| word(&params["project"])),
         word(&args["kind"]),
-        word(&args["name"]),
+        word(&args["name"]).or_else(|| word(&args["endpoint"])),
     ]
     .into_iter()
     .flatten()
@@ -217,6 +221,7 @@ async fn judge(
     state: &AppState,
     connector: &Connector,
     identity: crate::auth::session::Identity,
+    token: &str,
     message: &Value,
     body: Bytes,
 ) -> (Response, String) {
@@ -311,7 +316,7 @@ async fn judge(
     if !message.is_object() || method == "notifications/initialized" || message.get("id").is_none()
     {
         return (
-            dispatch(state.clone(), caller(connector, identity), body).await,
+            dispatch(state.clone(), caller(connector, identity, token), body).await,
             "allowed".to_owned(),
         );
     }
@@ -331,7 +336,7 @@ async fn judge(
         .as_str()
         .or_else(|| params["project"].as_str())
         .map(str::to_owned);
-    let caller = caller(connector, identity);
+    let caller = caller(connector, identity, token);
     match method {
         "tools/list" => {
             let project = project.unwrap_or_else(|| {
@@ -367,6 +372,14 @@ async fn judge(
                 );
             }
             let response = dispatch(state.clone(), caller, body).await;
+            let shows = project
+                .as_deref()
+                .is_some_and(|p| connector.shows_personal(p, &params["arguments"]));
+            let response = if shows {
+                response
+            } else {
+                without_personal(state, project.as_deref(), response).await
+            };
             verdict_of(response, id, limits.result_bytes).await
         }
         _ => (
@@ -376,12 +389,51 @@ async fn judge(
     }
 }
 
-fn caller(connector: &Connector, identity: crate::auth::session::Identity) -> crate::ops::Caller {
+fn caller(
+    connector: &Connector,
+    identity: crate::auth::session::Identity,
+    token: &str,
+) -> crate::ops::Caller {
     crate::ops::Caller {
+        bearer: Some(crate::ops::Bearer(token.to_owned())),
         identity,
         via: crate::ops::Via::Mcp,
         access: Some(connector.access()),
     }
+}
+
+/// A call's answer without the attributes the project's models mark personal (AG-158). Only an
+/// answer that carries an entity reads the models; one whose models cannot be read is refused,
+/// since nothing personal could be withheld from it.
+async fn without_personal(state: &AppState, project: Option<&str>, response: Response) -> Response {
+    let (parts, body) = response.into_parts();
+    let Ok(bytes) = axum::body::to_bytes(body, MAX_RESPONSE_BYTES).await else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let mut envelope: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    if !personal_data::carries_entities(&envelope["result"]["structuredContent"]) {
+        return Response::from_parts(parts, Body::from(bytes));
+    }
+    let marks = match project {
+        Some(project) => personal_data::of_project(state, project).await,
+        None => Err("a call that answers entities names its project".to_owned()),
+    };
+    envelope["result"] = match marks {
+        Ok(marks) => answered_without(envelope["result"]["structuredContent"].take(), &marks),
+        Err(why) => failure_result(&why),
+    };
+    json_response(parts.status, &envelope)
+}
+
+/// The `tools/call` result of `output` without what `marks` names, saying which attributes left
+/// so the client's model can tell the person why they are missing.
+fn answered_without(mut output: Value, marks: &Marks) -> Value {
+    let removed = personal_data::withhold(&mut output, marks);
+    let mut answer = call_result(&output);
+    if !removed.is_empty() {
+        answer["_meta"][WITHHELD_META] = json!(removed);
+    }
+    answer
 }
 
 /// The verdict of a dispatched call, read off its envelope; the answer goes back unchanged
@@ -473,5 +525,30 @@ mod tests {
         assert_eq!(target.as_deref(), Some("doprava"));
         let (tool, target) = audited(&json!({ "method": "tools/list", "params": {} }));
         assert_eq!((tool.as_str(), target), ("tools/list", None));
+    }
+
+    #[test]
+    fn an_answer_loses_its_personal_attributes_and_says_which_in_text_and_structure() {
+        let marks = personal_data::marks(
+            "classes:\n  PotholeReport:\n    slots: [description, contactEmail]\nslots:\n  contactEmail:\n    annotations: { personalData: true }\n",
+        );
+        let output = json!({ "entities": [{
+            "id": "urn:ngsi-ld:PotholeReport:1", "type": "PotholeReport",
+            "description": "Hlboká jama", "contactEmail": "jana@example.org"
+        }] });
+        let answer = answered_without(output, &marks);
+        let text = answer.to_string();
+        assert!(!text.contains("jana@example.org"), "{text}");
+        assert!(answer["content"][0]["text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("Hlboká jama"));
+        assert_eq!(
+            answer["_meta"][WITHHELD_META],
+            json!(["PotholeReport.contactEmail"])
+        );
+        assert_eq!(answer["_meta"][super::super::UNTRUSTED_META], json!(true));
+        let plain = answered_without(json!({ "items": [] }), &marks);
+        assert!(plain["_meta"].get(WITHHELD_META).is_none());
     }
 }

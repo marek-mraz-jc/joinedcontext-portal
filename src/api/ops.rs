@@ -45,6 +45,7 @@ pub async fn list_ops(
         return Err(ApiError::NotFound(format!("project '{project}' not found")));
     }
     let caller = Caller {
+        bearer: None,
         identity: user.0.identity,
         via: match front {
             Front::Portal => Via::Session,
@@ -106,6 +107,7 @@ pub async fn run_op(
     };
 
     let caller = Caller {
+        bearer: None,
         identity: user.0.identity,
         via: match front {
             Front::Portal => Via::Session,

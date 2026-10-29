@@ -1511,6 +1511,48 @@
         }
       }
     },
+    "/api/v1/connectors/options": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "What My Connector May Reach",
+        "description": "The presets, the caller's ceiling and, per project the caller reads, the spaces, Endpoints and pipelines they read: what a new connector may name. Create checks every item again (T-5951, AG-150).",
+        "operationId": "connector_options",
+        "responses": {
+          "200": {
+            "description": "What a connector of the caller may name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorOptions"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A service account holds no connector",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors/{id}": {
       "get": {
         "tags": [
@@ -1606,6 +1648,106 @@
           },
           "404": {
             "description": "No live connector of the caller's with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Edit My Connector",
+        "description": "Changes the presets, scope, writes, expiry or allowed clients of the caller's connector that is not revoked; the result is checked as a new one is, against the ceiling and the caller's rights today (API/14 §2, T-5951).",
+        "operationId": "edit_connector",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The connector id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorPatch"
+              },
+              "example": {
+                "expiresAt": "2026-11-27T00:00:00Z",
+                "scope": [
+                  {
+                    "access": "read",
+                    "project": "doprava"
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The connector as it is now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorGrant"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field out of shape; errors names it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Above the ceiling, or a project the caller holds no right in; the detail names the field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No live connector of the caller's with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A scope item names an object the caller does not read",
             "content": {
               "application/json": {
                 "schema": {
@@ -16328,6 +16470,262 @@
         "x-jc-requires": {
           "checkedBy": "project",
           "kind": "CkanInstance",
+          "verb": "read"
+        }
+      }
+    },
+    "/api/v1/projects/{project}/ops/jc_data_query": {
+      "post": {
+        "description": "Reads one Endpoint's entities as you, current or history (temporal), with type, id, q, attrs, a geo-query, count and paging",
+        "operationId": "jc_data_query",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "endpoint": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "attrs": {
+                    "description": "The attributes answered, e.g. [\"count\"]",
+                    "items": {
+                      "maxLength": 128,
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "coordinates": {
+                    "description": "GeoJSON coordinates, longitude first, e.g. [19.146, 48.736]",
+                    "type": "array"
+                  },
+                  "count": {
+                    "description": "Answer the total of matching entities too",
+                    "type": "boolean"
+                  },
+                  "cursor": {
+                    "description": "The nextCursor of the previous page",
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "endpoint": {
+                    "description": "The Endpoint's metadata.name in the project, e.g. doprava-counters",
+                    "maxLength": 253,
+                    "type": "string"
+                  },
+                  "format": {
+                    "enum": [
+                      "normalized",
+                      "concise",
+                      "keyValues"
+                    ],
+                    "type": "string"
+                  },
+                  "geometry": {
+                    "enum": [
+                      "Point",
+                      "LineString",
+                      "Polygon",
+                      "MultiPoint",
+                      "MultiLineString",
+                      "MultiPolygon"
+                    ],
+                    "type": "string"
+                  },
+                  "georel": {
+                    "description": "near;maxDistance==500, within, intersects, contains, disjoint, equals or overlaps",
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "id": {
+                    "description": "One entity's id, e.g. urn:ngsi-ld:BikeCounter:c1",
+                    "maxLength": 512,
+                    "type": "string"
+                  },
+                  "limit": {
+                    "description": "Entities per page; 0 with count answers the total alone",
+                    "maximum": 1000,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "orderBy": {
+                    "description": "attr or attr;desc, e.g. modifiedAt;desc",
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "q": {
+                    "description": "An NGSI-LD q, e.g. count>40;name~=\"Most\"",
+                    "maxLength": 2048,
+                    "type": "string"
+                  },
+                  "temporal": {
+                    "additionalProperties": false,
+                    "description": "Read the history instead of the current values",
+                    "properties": {
+                      "aggrMethods": {
+                        "items": {
+                          "enum": [
+                            "avg",
+                            "min",
+                            "max",
+                            "sum",
+                            "totalCount",
+                            "distinctCount",
+                            "stddev",
+                            "sumsq"
+                          ],
+                          "type": "string"
+                        },
+                        "maxItems": 8,
+                        "type": "array"
+                      },
+                      "aggrPeriodDuration": {
+                        "description": "ISO 8601 duration, e.g. PT1H",
+                        "maxLength": 128,
+                        "type": "string"
+                      },
+                      "endTimeAt": {
+                        "description": "ISO 8601, the end of a between",
+                        "maxLength": 128,
+                        "type": "string"
+                      },
+                      "lastN": {
+                        "maximum": 1000,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "timeAt": {
+                        "description": "ISO 8601, e.g. 2026-10-27T00:00:00Z",
+                        "maxLength": 128,
+                        "type": "string"
+                      },
+                      "timerel": {
+                        "enum": [
+                          "before",
+                          "after",
+                          "between"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "timerel",
+                      "timeAt"
+                    ],
+                    "type": "object"
+                  },
+                  "type": {
+                    "description": "The entity type, e.g. BikeCounter",
+                    "maxLength": 128,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "endpoint"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "entities": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "nextCursor": {
+                      "type": "string"
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "entities"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Query Data",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "Endpoint",
           "verb": "read"
         }
       }
@@ -38382,6 +38780,32 @@
           }
         }
       },
+      "CeilingView": {
+        "type": "object",
+        "required": [
+          "segments",
+          "writes",
+          "maxDays"
+        ],
+        "properties": {
+          "maxDays": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The longest life a connector may get, in days."
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The presets a connector of the caller may carry, e.g. `[\"data-read\"]`."
+          },
+          "writes": {
+            "type": "boolean",
+            "description": "Whether a connector of the caller may hold a write item."
+          }
+        }
+      },
       "Change": {
         "type": "object",
         "description": "The `Change` resource describing a proposed configuration update.",
@@ -38859,6 +39283,22 @@
           "version": {
             "type": "string",
             "description": "The version the space pins."
+          }
+        }
+      },
+      "ClientChoice": {
+        "type": "object",
+        "required": [
+          "id",
+          "isBoundary"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "isBoundary": {
+            "type": "boolean",
+            "description": "Whether naming it binds the connector (a published client id) or only says whom it is\nmeant for (a loopback client anyone can name, AG-153)."
           }
         }
       },
@@ -39344,6 +39784,89 @@
           }
         }
       },
+      "ConnectorOptions": {
+        "type": "object",
+        "description": "What the caller may put in a connector today: the ceiling, and per project they read the\nspaces, Endpoints and pipelines they read there (the \"My connectors\" tree, T-5951).",
+        "required": [
+          "segments",
+          "ceiling",
+          "projects",
+          "clients"
+        ],
+        "properties": {
+          "ceiling": {
+            "$ref": "#/components/schemas/CeilingView"
+          },
+          "clients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientChoice"
+            },
+            "description": "The realm's MCP clients a connector may be bound to, e.g. `mcp-local` (Claude Code)."
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectReach"
+            }
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Every preset a connector may name; those outside `ceiling.segments` need approval."
+          }
+        }
+      },
+      "ConnectorPatch": {
+        "type": "object",
+        "description": "The fields of a connector its owner may change (JSON merge patch, API/14 §2); the name stays.",
+        "properties": {
+          "allowedClients": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "RFC 3339, e.g. `2026-11-27T00:00:00Z`."
+          },
+          "scope": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ConnectorScopeItem"
+            }
+          },
+          "segments": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "writes": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "ConnectorScopeItem": {
         "type": "object",
         "description": "One item of a connector's scope: a project, and at most one of a space, an Endpoint or a\npipeline in it (`*` for every one the owner reaches). Without one it is the whole project.",
@@ -39360,6 +39883,10 @@
               "string",
               "null"
             ]
+          },
+          "personalData": {
+            "type": "boolean",
+            "description": "Whether answers through this item keep the attributes the model marks `personalData`\n(DM-122): off by default, and only where the organization's ceiling allows it (AG-158)."
           },
           "pipeline": {
             "type": [
@@ -45611,6 +46138,39 @@
               "$ref": "#/components/schemas/QuotaUse"
             },
             "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ProjectReach": {
+        "type": "object",
+        "description": "One project the caller reads, with the objects of it they read, in name order.",
+        "required": [
+          "project",
+          "spaces",
+          "endpoints",
+          "pipelines"
+        ],
+        "properties": {
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "pipelines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "project": {
+            "type": "string"
+          },
+          "spaces": {
+            "type": "array",
+            "items": {
               "type": "string"
             }
           }

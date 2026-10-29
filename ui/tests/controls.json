@@ -1476,6 +1476,15 @@
         "assistant_conversations.test.tsx"
       ]
     },
+    "src/pages/mcp/AiConnectorsPage.tsx": {
+      "controls": {
+        "Button": 9,
+        "Checkbox": 3
+      },
+      "tests": [
+        "ai_connectors.test.tsx"
+      ]
+    },
     "src/pages/mcp/ConnectorStar.tsx": {
       "controls": {
         "Button": 1

@@ -9140,11 +9140,11 @@
     "quota": "Počkajte, kým sa kvóta v uvedenom čase obnoví, alebo požiadajte správcu o vyššiu kvótu; miesto na súbory sa uvoľní, keď aplikácia súbory zmaže.",
     "file-too-large": "Uložte menší objekt; jeden objekt môže mať najviac uvedený limit.",
     "unprocessable": "Opravte každé zistenie, ktoré odpoveď uvádza; skúšobný beh ukáže tie isté zistenia ešte pred odoslaním.",
-    "secret-in-argument": "Zadajte prístupový údaj vo formulári tajomstiev v Portáli, nikdy nie v chate ani v manifeste, a odkážte naň cez secretRef.",
     "recipient-refused": "Posielajte len ľuďom z organizácie s overenou e-mailovou adresou.",
     "no-model-key": "Požiadajte správcu organizácie, aby pridal alebo obnovil kľúč k modelu, a skúste to znova.",
     "no-json": "Opýtajte sa znova; odpoveď modelu nezodpovedala požadovanej schéme.",
-    "second-factor-required": "Prihláste sa znova jednorazovým kódom a rozhodnutie zopakujte."
+    "second-factor-required": "Prihláste sa znova jednorazovým kódom a rozhodnutie zopakujte.",
+    "secret-in-argument": "Zadajte prístupový údaj vo formulári tajomstiev v Portáli, nikdy nie v chate ani v manifeste, a odkážte naň cez secretRef."
   },
   "jobs": {
     "title": "Čo ste spustili",
@@ -10542,6 +10542,129 @@
     "view": "Pohľad",
     "tool": "Nástroj",
     "home": "Späť na portál"
+  },
+  "aiConnectors": {
+    "title": "Moje AI konektory",
+    "lead": "Adresy pre Claude, ChatGPT alebo VS Code, ktoré siahajú len na to, čo tu zaškrtnete, a nikdy nie na viac, než smiete vy sami. Každý AI klient vás prihlási sám; táto stránka neukazuje žiadny token.",
+    "new": "Nový AI konektor",
+    "full": "Máte 20 aktívnych AI konektorov; najprv jeden zrušte.",
+    "loading": "Načítavajú sa vaše AI konektory",
+    "empty": "Zatiaľ žiadne AI konektory",
+    "emptyHint": "Vytvorte jeden, vyberte, na čo smie siahať, a jeho adresu vložte do Claude Code, claude.ai, ChatGPT alebo VS Code.",
+    "never": "nikdy",
+    "setup": "Nastaviť",
+    "activity": "Aktivita",
+    "revoke": "Zrušiť",
+    "revokeOf": "Zrušiť AI konektor {name}",
+    "revokeConfirm": "Zrušiť {name}? Ďalšie volanie cez neho bude odmietnuté a znova ho zapnúť nemožno.",
+    "revokeNow": "Zrušiť teraz",
+    "keep": "Ponechať",
+    "scopeOf": "Na čo siaha {name}",
+    "every": "každý, ktorý smiete čítať",
+    "anyClient": "ktorýkoľvek AI klient",
+    "lastCall": "Posledné volanie",
+    "setupTitle": "Pridajte ho do svojho AI klienta",
+    "activityLoading": "Načítavajú sa volania",
+    "noCalls": "Za posledných 30 dní cez tento konektor neprišlo žiadne volanie.",
+    "activityOf": "Volania cez {name}",
+    "noProjects": "Zatiaľ nečítate žiadny projekt, takže konektor nemá na čo siahať. Najprv požiadajte vlastníka projektu o prístup.",
+    "accessOf": "Prístup pre {what}",
+    "inWholeProject": "Už zahrnuté: je zaškrtnutý celý projekt.",
+    "wholeProject": "{project}: celý projekt",
+    "newTitle": "Nový AI konektor",
+    "formLead": "Zaškrtnite, na čo smie konektor siahať. Zoznam obsahuje len to, čo smiete čítať, a Portál pri vytvorení každú položku overí znova.",
+    "create": "Vytvoriť",
+    "loadingOptions": "Načítava sa, čo smiete odovzdať",
+    "needsApproval": "vyžaduje schválenie vašou organizáciou",
+    "aboveCeiling": "Vaša organizácia zatiaľ nedovoľuje konektoru niesť túto predvoľbu.",
+    "binds": "použiť ho môže len tento klient",
+    "intendedFor": "hovorí, pre koho je; uviesť ho môžu aj iné lokálne programy",
+    "state": {
+      "active": "Aktívny",
+      "expired": "Vypršaný",
+      "revoked": "Zrušený"
+    },
+    "kind": {
+      "project": "celý projekt",
+      "space": "priestor",
+      "endpoint": "Endpoint",
+      "pipeline": "Pipeline"
+    },
+    "kinds": {
+      "space": "Kontextové priestory",
+      "endpoint": "Endpointy",
+      "pipeline": "Pipeliny"
+    },
+    "access": {
+      "read": "čítanie",
+      "write": "zápis",
+      "writeNeedsApproval": "zápis (vyžaduje schválenie)"
+    },
+    "field": {
+      "name": "Názov",
+      "segments": "Predvoľby",
+      "scope": "Na čo siaha",
+      "expires": "Platí do",
+      "clients": "Povolení klienti"
+    },
+    "segment": {
+      "data-read": "Čítanie údajov",
+      "context": "Kontext (modely, priestory, Endpointy)",
+      "pipeline": "Pipeliny",
+      "access": "Prístupy",
+      "publish": "Publikovanie",
+      "apps": "Aplikácie",
+      "operate": "Prevádzka",
+      "admin": "Všetko (správca)"
+    },
+    "segmentHint": {
+      "data-read": "číta Endpointy, priestory a modely, napr. na otázky o údajoch",
+      "context": "číta modely, priestory, Endpointy a politiky",
+      "pipeline": "číta pipelines, zdroje a ich metriky",
+      "access": "číta roly, väzby, skupiny a servisné účty",
+      "publish": "číta katalóg a stav CKAN",
+      "apps": "číta aplikácie a ich behy",
+      "operate": "číta aktivitu, zmeny a stav synchronizácie",
+      "admin": "všetky predvoľby vyššie"
+    },
+    "client": {
+      "claudeCode": "Claude Code",
+      "claudeAi": "claude.ai",
+      "chatgpt": "ChatGPT",
+      "vscode": "VS Code (.vscode/mcp.json)",
+      "mcp-local": "Claude Code, VS Code a iní lokálni klienti",
+      "mcp-hub": "MCP hub organizácie",
+      "mcp-mobile": "Mobilný asistent"
+    },
+    "steps": {
+      "claudeAi": "Settings → Connectors → Add custom connector. Vložte adresu, zvoľte Add, potom Connect a prihláste sa účtom Portálu.",
+      "chatgpt": "Settings → Apps & Connectors → Advanced settings: zapnite Developer mode. Potom Create, vložte adresu, zvoľte OAuth a prihláste sa účtom Portálu."
+    },
+    "call": {
+      "at": "Kedy",
+      "tool": "Nástroj",
+      "target": "Cieľ",
+      "client": "Klient",
+      "verdict": "Výsledok"
+    },
+    "help": {
+      "name": "Malé písmená, číslice a pomlčky, napr. doprava-v-claude.",
+      "segments": "Aký druh práce konektor robí, napr. Čítanie údajov pre otázky o údajoch. Sivé predvoľby vyžadujú schválenie organizáciou.",
+      "scope": "Zaškrtnite celý projekt alebo jednotlivé priestory, Endpointy či pipelines, napr. helsinki / Endpoint bike-counters.",
+      "expires": "Posledný deň platnosti, najviac {days} dní odo dneška, napr. koniec tohto mesiaca.",
+      "clients": "Nechajte prázdne pre ktoréhokoľvek klienta, alebo zaškrtnite napr. Claude Code, pre koho je.",
+      "nameStays": "Názov ostáva; podľa neho konektor zobrazuje váš AI klient."
+    },
+    "problem": {
+      "name": "Zadajte názov z malých písmen, číslic a pomlčiek, napr. doprava-v-claude.",
+      "segments": "Vyberte aspoň jednu predvoľbu.",
+      "scope": "Zaškrtnite aspoň jeden projekt, priestor, Endpoint alebo pipeline.",
+      "expires": "Vyberte deň od dneška po posledný ponúkaný deň."
+    },
+    "edit": "Upraviť",
+    "editOf": "Upraviť AI konektor {name}",
+    "editTitle": "Upraviť {name}",
+    "save": "Uložiť"
   },
   "secrets": {
     "title": "Zadať tajomstvo",
