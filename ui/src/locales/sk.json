@@ -4202,6 +4202,12 @@
     "kind": "Druh NGSI-LD",
     "kindHint": "Property, pokiaľ atribút nie je geometria, väzba alebo jazyková mapa",
     "unit": "Jednotka",
+    "unitRule": {
+      "madeNumber": "Jednotka meria číslo, preto je typ hodnoty teraz Číslo.",
+      "madeInteger": "C62 počíta kusy, preto je typ hodnoty teraz Celé číslo.",
+      "droppedUnit": "Jednotku majú len čísla, preto bola odstránená.",
+      "undo": "Späť"
+    },
     "unitHint": "Spoločný kód UN/CEFACT; exporty a dashboardy ním označia hodnoty",
     "affordanceLabel": "Použitie",
     "affordance": {

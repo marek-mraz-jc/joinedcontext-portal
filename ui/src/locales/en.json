@@ -4202,6 +4202,12 @@
     "kind": "NGSI-LD kind",
     "kindHint": "Property unless the attribute is a geometry, a link or a language map",
     "unit": "Unit",
+    "unitRule": {
+      "madeNumber": "A unit measures a number, so the type of value is now Number.",
+      "madeInteger": "C62 counts things, so the type of value is now Integer.",
+      "droppedUnit": "Only numbers carry a unit, so the unit was removed.",
+      "undo": "Undo"
+    },
     "unitHint": "UN/CEFACT common code; exports and dashboards label the values with it",
     "affordanceLabel": "Used as",
     "affordance": {

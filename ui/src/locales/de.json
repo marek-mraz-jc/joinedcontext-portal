@@ -4202,6 +4202,12 @@
     "kind": "NGSI-LD-Art",
     "kindHint": "Property, sofern das Attribut keine Geometrie, Beziehung oder Sprachkarte ist",
     "unit": "Einheit",
+    "unitRule": {
+      "madeNumber": "Eine Einheit misst eine Zahl, daher ist der Werttyp jetzt Zahl.",
+      "madeInteger": "C62 zählt Stück, daher ist der Werttyp jetzt Ganzzahl.",
+      "droppedUnit": "Nur Zahlen tragen eine Einheit, daher wurde sie entfernt.",
+      "undo": "Rückgängig"
+    },
     "unitHint": "UN/CEFACT-Code; Exporte und Dashboards beschriften die Werte damit",
     "affordanceLabel": "Verwendung",
     "affordance": {
