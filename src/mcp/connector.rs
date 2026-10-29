@@ -133,7 +133,7 @@ pub async fn handle_connector(
     let (response, verdict) = if connector.owner != identity.subject {
         (unknown(), "refused: not the owner".to_owned())
     } else {
-        judge(&state, &connector, identity.clone(), &message, body).await
+        judge(&state, &connector, identity.clone(), token, &message, body).await
     };
     let call = Call {
         at: chrono::Utc::now(),
@@ -167,7 +167,7 @@ fn audited(message: &Value) -> (String, Option<String>) {
     let target: Vec<String> = [
         word(&args["project"]).or_else(|| word(&params["project"])),
         word(&args["kind"]),
-        word(&args["name"]),
+        word(&args["name"]).or_else(|| word(&args["endpoint"])),
     ]
     .into_iter()
     .flatten()
@@ -221,6 +221,7 @@ async fn judge(
     state: &AppState,
     connector: &Connector,
     identity: crate::auth::session::Identity,
+    token: &str,
     message: &Value,
     body: Bytes,
 ) -> (Response, String) {
@@ -315,7 +316,7 @@ async fn judge(
     if !message.is_object() || method == "notifications/initialized" || message.get("id").is_none()
     {
         return (
-            dispatch(state.clone(), caller(connector, identity), body).await,
+            dispatch(state.clone(), caller(connector, identity, token), body).await,
             "allowed".to_owned(),
         );
     }
@@ -335,7 +336,7 @@ async fn judge(
         .as_str()
         .or_else(|| params["project"].as_str())
         .map(str::to_owned);
-    let caller = caller(connector, identity);
+    let caller = caller(connector, identity, token);
     match method {
         "tools/list" => {
             let project = project.unwrap_or_else(|| {
@@ -388,8 +389,13 @@ async fn judge(
     }
 }
 
-fn caller(connector: &Connector, identity: crate::auth::session::Identity) -> crate::ops::Caller {
+fn caller(
+    connector: &Connector,
+    identity: crate::auth::session::Identity,
+    token: &str,
+) -> crate::ops::Caller {
     crate::ops::Caller {
+        bearer: Some(crate::ops::Bearer(token.to_owned())),
         identity,
         via: crate::ops::Via::Mcp,
         access: Some(connector.access()),

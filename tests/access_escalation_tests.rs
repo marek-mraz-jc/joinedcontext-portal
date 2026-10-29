@@ -845,6 +845,7 @@ async fn a_project_role_is_read_through_the_operations_beside_the_organizations(
     ));
 
     let caller = Caller {
+        bearer: None,
         identity: person("admin"),
         via: Via::Mcp,
         access: None,

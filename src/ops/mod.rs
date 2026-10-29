@@ -15,6 +15,7 @@ use std::sync::OnceLock;
 pub mod admin;
 pub mod changes;
 pub mod compute;
+pub mod data_query;
 pub mod data_views;
 pub mod drafts;
 pub mod feed_shape;
@@ -91,6 +92,19 @@ pub struct Caller {
     /// decide. A profile is the second half and only ever narrows — an operation the person may
     /// not run stays refused whether the profile names it or not.
     pub access: Option<crate::agents::access::Access>,
+    /// The access token the call arrived with, at the MCP doors: what a data read is exchanged
+    /// from, so the gateway decides as the person (AG-146). `None` for a session or a run.
+    pub bearer: Option<Bearer>,
+}
+
+/// An access token a caller presented; its `Debug` never prints it.
+#[derive(Clone)]
+pub struct Bearer(pub String);
+
+impl std::fmt::Debug for Bearer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Bearer(..)")
+    }
 }
 
 impl Caller {
@@ -99,6 +113,7 @@ impl Caller {
             identity,
             via,
             access: None,
+            bearer: None,
         }
     }
 
@@ -108,6 +123,7 @@ impl Caller {
             identity,
             via: Via::Agent,
             access: Some(access),
+            bearer: None,
         }
     }
 
@@ -752,6 +768,7 @@ pub(super) fn empty_input_schema() -> Value {
 
 fn init_registry() -> Vec<Operation> {
     let mut operations = compute::operations();
+    operations.extend(data_query::operations());
     operations.extend(proposals::operations());
     operations.extend(changes::operations());
     operations.extend(drafts::operations());
