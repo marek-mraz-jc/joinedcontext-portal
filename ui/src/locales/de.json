@@ -553,6 +553,7 @@
     },
     "inside": {
       "total": "Der Raum enthält {count, plural, one {# Entität} other {# Entitäten}}.",
+      "history": "Sein Verlauf enthält {count, plural, one {# Eintrag} other {# Einträge}}.",
       "open": "Inhalt ansehen",
       "data": "Daten",
       "dataEmpty": "Noch nichts: keine Pipeline hat in diesen Raum geschrieben.",
@@ -600,7 +601,8 @@
       "lead": "Sein Datenmodell, seine Entitäten, wer sie liest und was mit ihm geschah.",
       "broker": "Er liegt auf dem Context-Broker {broker}.",
       "size": "Größe",
-      "totalSize": "Er belegt {size} im Speicher des Brokers, davon {history} Verlauf.",
+      "totalSize": "Er belegt {size} im Speicher des Brokers: {entities} aktueller Stand, {history} Verlauf.",
+      "estimated": "Der Verlauf ist aus der Datenbankstatistik geschätzt: Er ist zu lang, um ihn sofort zu zählen.",
       "sections": "Teile des Raums",
       "counting": "Die Entitäten des Raums werden gezählt…",
       "allRows": "Alle Zeilen",
@@ -910,7 +912,6 @@
     },
     "saved": {
       "view": "Ansicht",
-      "none": "Alle Entitäten (keine gespeicherte Ansicht)",
       "save": "Ansicht speichern",
       "saveNew": "Als Ansicht speichern…",
       "saveAs": "Als neue speichern…",

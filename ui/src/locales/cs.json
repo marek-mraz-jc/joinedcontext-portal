@@ -553,6 +553,7 @@
     },
     "inside": {
       "total": "Prostor obsahuje {count, plural, one {# entitu} few {# entity} other {# entit}}.",
+      "history": "Jeho historie obsahuje {count, plural, one {# záznam} few {# záznamy} other {# záznamů}}.",
       "open": "Prohlédnout obsah",
       "data": "Data",
       "dataEmpty": "Zatím nic: do tohoto prostoru ještě nezapsala žádná pipeline.",
@@ -600,7 +601,8 @@
       "lead": "Jeho datový model, entity, kdo je čte a co se s ním stalo.",
       "broker": "Běží na kontextovém brokeru {broker}.",
       "size": "Velikost",
-      "totalSize": "V úložišti brokera zabírá {size}, z toho historie {history}.",
+      "totalSize": "V úložišti brokera zabírá {size}: aktuální stav {entities}, historie {history}.",
+      "estimated": "Historie je odhadnuta ze statistik databáze: je příliš dlouhá na okamžité spočítání.",
       "sections": "Části prostoru",
       "counting": "Počítám entity prostoru…",
       "allRows": "Všechny řádky",
@@ -910,7 +912,6 @@
     },
     "saved": {
       "view": "Pohled",
-      "none": "Všechny entity (bez uloženého pohledu)",
       "save": "Uložit pohled",
       "saveNew": "Uložit jako pohled…",
       "saveAs": "Uložit jako nový…",

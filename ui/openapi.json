@@ -48445,9 +48445,19 @@
         "required": [
           "entities",
           "broker",
-          "observedAt"
+          "observedAt",
+          "estimated"
         ],
         "properties": {
+          "attrInstances": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The space's history: its temporal attribute instances, as the broker counts them; absent\nwhen the broker could neither count nor estimate them (T-6085).",
+            "minimum": 0
+          },
           "broker": {
             "type": "string",
             "description": "The `ContextBroker` the space lives on, which counted it (PF-111)."
@@ -48468,6 +48478,10 @@
             "format": "int64",
             "description": "The entities of the space's tenant, as the broker counts them.",
             "minimum": 0
+          },
+          "estimated": {
+            "type": "boolean",
+            "description": "True when the broker took the history count and size from its database's statistics,\nbecause the history was too long to count within its bound (T-6085)."
           },
           "observedAt": {
             "type": "string",

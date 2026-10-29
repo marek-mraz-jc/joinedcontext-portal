@@ -112,7 +112,7 @@ export function ViewBar({ project, space, type, kind, selected, onSelect, curren
               onSelect(ofType.find((view) => view.id === e.target.value) ?? null);
             }}
           >
-            <option value="">{t("spaces.saved.none")}</option>
+            <option value="">{t("spaces.inside.allRows")}</option>
             {ofType.map((view) => (
               <option key={view.id} value={view.id}>
                 {`${view.title} · ${modeLabel(view.mode)}`}

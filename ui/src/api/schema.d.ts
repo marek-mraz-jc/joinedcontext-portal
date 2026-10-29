@@ -11039,6 +11039,12 @@ export interface components {
         };
         /** @description What one space holds. */
         SpaceUsage: {
+            /**
+             * Format: int64
+             * @description The space's history: its temporal attribute instances, as the broker counts them; absent
+             *     when the broker could neither count nor estimate them (T-6085).
+             */
+            attrInstances?: number | null;
             /** @description The `ContextBroker` the space lives on, which counted it (PF-111). */
             broker: string;
             bytes?: null | components["schemas"]["SpaceBytes"];
@@ -11047,6 +11053,11 @@ export interface components {
              * @description The entities of the space's tenant, as the broker counts them.
              */
             entities: number;
+            /**
+             * @description True when the broker took the history count and size from its database's statistics,
+             *     because the history was too long to count within its bound (T-6085).
+             */
+            estimated: boolean;
             /**
              * Format: date-time
              * @description When the broker answered.
