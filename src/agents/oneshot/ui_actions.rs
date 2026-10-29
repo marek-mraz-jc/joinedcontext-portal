@@ -18,6 +18,7 @@ use std::borrow::Cow;
 use chrono::Utc;
 
 use super::connector_turn::refused;
+use crate::error::ApiError;
 
 /// The names of the browser actions, in the order the model reads them.
 pub(super) const UI_TOOLS: [&str; 5] = [
