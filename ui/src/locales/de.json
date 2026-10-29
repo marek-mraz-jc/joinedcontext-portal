@@ -4402,7 +4402,7 @@
     "dimensionLabel": "Dashboard-Nutzung",
     "graph": {
       "title": "Die Klassen des Modells und was sie verbindet",
-      "legend": "Eine durchgezogene Linie ist is_a, eine gestrichelte ein Mixin, eine gepunktete ein Slot, dessen Range eine andere Klasse nennt, eine locker gepunktete ein Slot, der aus einem Enum wählt. Der Kasten eines Enums listet seine Werte; ein gestrichelter Kasten stammt aus einem Import. Im Kasten zeigt jedes Feld seinen Typ: PK markiert den Schlüssel, FK ein Feld, das auf eine andere Klasse verweist, mit dieser Klasse und der Anzahl. Auch eine gepunktete Linie nennt die Anzahl an beiden Enden; * heißt beliebig viele.",
+      "legend": "Eine durchgezogene Linie mit leerem Dreieck am Ende ist is_a, eine gestrichelte mit Dreieck ein Mixin, eine gepunktete ein Slot, dessen Range eine andere Klasse nennt, eine locker gepunktete ein Slot, der aus einem Enum wählt. Der Kasten eines Enums listet seine Werte; ein gestrichelter Kasten stammt aus einem Import. Im Kasten zeigt jedes Feld seinen Typ: PK markiert den Schlüssel, FK ein Feld, das auf eine andere Klasse verweist, mit dieser Klasse und der Anzahl. Auch eine gepunktete Linie nennt die Anzahl an beiden Enden; * heißt beliebig viele.",
       "empty": "Dieses Modell erklärt noch keine Klasse, also gibt es nichts zu zeichnen.",
       "openClass": "{name} in der Struktur öffnen",
       "row": {
@@ -4412,7 +4412,7 @@
       },
       "from": "aus {name}",
       "enumBox": "Aufzählung {name}: {values}",
-      "legendRelationship": "Eine durchgezogene Linie ohne Pfeil ist eine Beziehung, benannt nach ihrem Feld und dem inversen Feld. Die Zahl an jedem Ende sagt, mit wie vielen Entitäten dieser Klasse eine Entität am anderen Ende verbunden ist: 1 genau eine, 0..1 höchstens eine, 1..* mindestens eine, * beliebig viele.",
+      "legendRelationship": "Eine durchgezogene Linie ohne Dreieck, ihre Enden wie in der Legende oben markiert, ist eine Beziehung, benannt nach ihrem Feld und dem inversen Feld. Die Zahl an jedem Ende sagt, mit wie vielen Entitäten dieser Klasse eine Entität am anderen Ende verbunden ist: 1 genau eine, 0..1 höchstens eine, 1..* mindestens eine, * beliebig viele.",
       "zoomIn": "Vergrößern",
       "zoomOut": "Verkleinern",
       "fit": "Einpassen",

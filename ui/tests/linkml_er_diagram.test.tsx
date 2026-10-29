@@ -246,6 +246,26 @@ describe("reading it without the picture", () => {
     }
   });
 
+  // T-6090 review: at the floor a phone frame opened on the empty corner beside a cut box; it now
+  // opens scrolled to the first class. A drawing that fits is not scrolled.
+  it("opens a drawing wider than its frame on its first class", () => {
+    const wide = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    const scrolled = vi.fn();
+    HTMLElement.prototype.scrollTo = scrolled as unknown as typeof HTMLElement.prototype.scrollTo;
+    try {
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 100000 });
+      renderPart(<LinkmlGraphView source={SCHOOLS} />).unmount();
+      expect(scrolled).not.toHaveBeenCalled();
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 216 });
+      renderPart(<LinkmlGraphView source={SCHOOLS} />).unmount();
+      expect(scrolled).toHaveBeenCalledTimes(1);
+      expect(scrolled.mock.calls[0]?.[0]).toEqual({ left: expect.any(Number), top: expect.any(Number) });
+    } finally {
+      if (wide) Object.defineProperty(HTMLElement.prototype, "clientWidth", wide);
+      delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo;
+    }
+  });
+
   it("draws names that arrive as markup as text", () => {
     const hostile = SCHOOLS.replaceAll("pupils", '"<img src=x onerror=alert(1)>"');
     const { container } = renderPart(<LinkmlGraphView source={hostile} />);

@@ -4402,7 +4402,7 @@
     "dimensionLabel": "Použitie v dashboarde",
     "graph": {
       "title": "Triedy modelu a čo ich spája",
-      "legend": "Plná čiara je is_a, prerušovaná mixin, bodkovaná slot, ktorého rozsah menuje inú triedu, riedko bodkovaná slot, ktorý vyberá z enumu. Rámček enumu vypisuje jeho hodnoty; prerušovaný rámček pochádza z importu. V rámčeku má každé pole svoj typ: PK označuje kľúč, FK pole, ktoré odkazuje na inú triedu, s tou triedou a počtom. Aj bodkovaná čiara uvádza počet na oboch koncoch; * znamená ľubovoľne veľa.",
+      "legend": "Plná čiara zakončená prázdnym trojuholníkom je is_a, prerušovaná zakončená trojuholníkom mixin, bodkovaná slot, ktorého rozsah menuje inú triedu, riedko bodkovaná slot, ktorý vyberá z enumu. Rámček enumu vypisuje jeho hodnoty; prerušovaný rámček pochádza z importu. V rámčeku má každé pole svoj typ: PK označuje kľúč, FK pole, ktoré odkazuje na inú triedu, s tou triedou a počtom. Aj bodkovaná čiara uvádza počet na oboch koncoch; * znamená ľubovoľne veľa.",
       "empty": "Tento model zatiaľ nemá žiadnu triedu, takže niet čo nakresliť.",
       "openClass": "Otvoriť {name} v štruktúre",
       "row": {
@@ -4412,7 +4412,7 @@
       },
       "from": "z {name}",
       "enumBox": "Výčet {name}: {values}",
-      "legendRelationship": "Plná čiara bez šípky je vzťah, pomenovaný poľom a inverzným poľom. Číslo na každom konci hovorí, s koľkými entitami tej triedy je spojená jedna entita na druhom konci: 1 presne jedna, 0..1 najviac jedna, 1..* aspoň jedna, * ľubovoľne veľa.",
+      "legendRelationship": "Plná čiara bez trojuholníka, s koncami označenými ako v legende vyššie, je vzťah, pomenovaný poľom a inverzným poľom. Číslo na každom konci hovorí, s koľkými entitami tej triedy je spojená jedna entita na druhom konci: 1 presne jedna, 0..1 najviac jedna, 1..* aspoň jedna, * ľubovoľne veľa.",
       "zoomIn": "Priblížiť",
       "zoomOut": "Oddialiť",
       "fit": "Prispôsobiť",
