@@ -286,7 +286,10 @@
     },
     "proposedVia": {
       "badge": "Vorgeschlagen über {client} (MCP)",
-      "hint": "Ein KI-Client ({client}) hat diesen Vorschlag über MCP geschrieben, {author} hat ihn bestätigt. Prüfen Sie die Änderungen wie bei jedem anderen."
+      "hint": "Ein KI-Client ({client}) hat diesen Vorschlag über MCP geschrieben, {author} hat ihn bestätigt. Prüfen Sie die Änderungen wie bei jedem anderen.",
+      "badgeConnector": "Über {client}, Konnektor {connector}",
+      "hintConnector": "Ein KI-Client ({client}) hat diesen Vorschlag über den MCP-Konnektor {connector} von {author} geschrieben, {author} hat ihn bestätigt. Prüfen Sie die Änderungen wie bei jedem anderen.",
+      "plan": "Plan {plan}: der Diff, den der KI-Client {author} vor der Anwendung gezeigt hat."
     },
     "workspace": "Aus einer Kopie",
     "fromWorkspace": "Aus der Kopie {name} von {author}, zurückgebracht am {date}: getrennt vom Live-Projekt bearbeitet und vor dem Vorschlag erneut geprüft.",
@@ -6390,7 +6393,10 @@
       "source": "Quelle",
       "severity": "Schweregrad",
       "space": "Kontextraum",
-      "all": "Alle"
+      "all": "Alle",
+      "connector": "Konnektor",
+      "connectorHint": "Nur die Aufrufe und Änderungen eines Ihrer Konnektoren, z. B. doprava-in-claude.",
+      "connectorNone": "Sie haben noch keinen Konnektor: Legen Sie einen unter Meine Konnektoren an, um danach zu filtern."
     },
     "severity": {
       "info": "Info",

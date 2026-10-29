@@ -148,6 +148,8 @@ pub struct ActivityFilter {
     pub severity: Option<String>,
     pub since: Option<DateTime<Utc>>,
     pub object: Option<String>,
+    /// Only the calls and changes of one connector, by id (T-5973): `details.connector`.
+    pub connector: Option<String>,
     pub limit: i64,
     pub cursor: Option<Cursor>,
     /// The spaces the reader's bindings reach; `None` for every space. An event of no space is a
@@ -189,6 +191,11 @@ impl ActivityFilter {
         }
         if let Some(object) = &self.object {
             if event.object() != Some(object.as_str()) {
+                return false;
+            }
+        }
+        if let Some(connector) = &self.connector {
+            if event.details.get("connector").and_then(Value::as_str) != Some(connector.as_str()) {
                 return false;
             }
         }
@@ -427,6 +434,10 @@ impl ActivityStore {
                     n += 1;
                     sql.push_str(&format!(" AND details->>'object' = ${n}"));
                 }
+                if filter.connector.is_some() {
+                    n += 1;
+                    sql.push_str(&format!(" AND details->>'connector' = ${n}"));
+                }
                 if filter.cursor.is_some() {
                     sql.push_str(&format!(" AND (time, id) < (${}, ${})", n + 1, n + 2));
                     n += 2;
@@ -457,6 +468,9 @@ impl ActivityStore {
                 }
                 if let Some(object) = &filter.object {
                     query = query.bind(object);
+                }
+                if let Some(connector) = &filter.connector {
+                    query = query.bind(connector);
                 }
                 if let Some(cursor) = &filter.cursor {
                     query = query.bind(chrono_to_odt(cursor.time)).bind(cursor.id);
@@ -708,6 +722,27 @@ mod tests {
             .expect("a page");
         assert_eq!(page.items.len(), 1);
         assert_eq!(page.items[0].kind, "endpoint.traffic");
+    }
+
+    #[tokio::test]
+    async fn a_connector_filter_sees_only_that_connectors_calls() {
+        let mut through = event("mcp.tool", "info", 4);
+        through.details = json!({ "connector": "abcdefghijklmnopqrstuvwxyz" });
+        let mut other = event("mcp.tool", "info", 3);
+        other.details = json!({ "connector": "bbcdefghijklmnopqrstuvwxyz" });
+        let store = store_with(vec![event("access.denied", "info", 2), other, through]).await;
+        let filter = ActivityFilter {
+            connector: Some("abcdefghijklmnopqrstuvwxyz".into()),
+            limit: 10,
+            ..Default::default()
+        };
+        let page = store.list("helsinki", &filter).await.expect("a page");
+        assert_eq!(page.items.len(), 1);
+        assert_eq!(
+            page.items[0].details["connector"],
+            "abcdefghijklmnopqrstuvwxyz"
+        );
+        assert!(filter.matches(&page.items[0]));
     }
 
     #[tokio::test]
