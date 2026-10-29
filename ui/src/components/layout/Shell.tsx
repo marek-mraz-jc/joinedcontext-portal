@@ -675,10 +675,10 @@ export function Shell({
           aria-label={t("nav.main")}
           className={clsx(
             "z-40 w-sidebar shrink-0 flex-col gap-4 overflow-y-auto border-r border-border bg-surface p-3",
-            // The viewport minus the 14 (3.5rem) header: a computed height, so it stays inline.
+            // The viewport minus the `h-14` header (the below-header token).
             // From lg only: at 768 px the open sidebar left a table 460 px and cut its actions,
             // so a tablet opens it from the menu button like a phone (T-4265, photo audit T-4160 #41).
-            !fill && "lg:sticky lg:top-14 lg:flex lg:h-[calc(100vh-3.5rem)]",
+            !fill && "lg:sticky lg:top-14 lg:flex lg:h-below-header",
             navOpen ? "fixed bottom-0 left-0 top-14 flex shadow-3" : "hidden",
           )}
         >

@@ -147,7 +147,8 @@ test("data sources at 400: the address wraps in a readable column and the frame 
   const cell = page.getByRole("cell", { name: /tie\.digitraffic\.fi\/api\/traffic-message/ });
   await expect(cell).toBeVisible();
   const box = await cell.boundingBox();
-  expect(box?.width ?? 0, "the address column keeps 12rem").toBeGreaterThanOrEqual(190);
+  // min-w-48 is 48 spacing units: 9.6rem since the denser scale of T-6093, about 20 characters.
+  expect(box?.width ?? 0, "the address column keeps min-w-48").toBeGreaterThanOrEqual(150);
   expect(box?.height ?? Infinity, "the address takes a few lines, not 25").toBeLessThan(200);
 
   const cue = page.getByTestId("table-more-columns");

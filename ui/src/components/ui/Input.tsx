@@ -8,7 +8,7 @@ export const CONTROL =
 
 /** The one checkbox of the Portal: the form theme and every hand-placed tick box share it. */
 export const CHECKBOX =
-  "focus-ring size-4 shrink-0 cursor-pointer rounded-sm border-border-strong accent-primary disabled:cursor-not-allowed disabled:opacity-50";
+  "focus-ring size-[1rem] shrink-0 cursor-pointer rounded-sm border-border-strong accent-primary disabled:cursor-not-allowed disabled:opacity-50";
 
 export type InputProps = InputHTMLAttributes<HTMLInputElement>;
 
@@ -20,7 +20,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     <input
       ref={ref}
       type={type ?? "text"}
-      className={clsx(CONTROL, "h-9 px-3", type === "number" && "tabular-nums", className)}
+      className={clsx(CONTROL, "h-control px-3", type === "number" && "tabular-nums", className)}
       {...rest}
     />
   );
@@ -36,7 +36,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
     <textarea
       ref={ref}
       rows={rows ?? 4}
-      className={clsx(CONTROL, "min-h-9 px-3 py-2 leading-relaxed", className)}
+      className={clsx(CONTROL, "min-h-control px-3 py-2 leading-relaxed", className)}
       {...rest}
     />
   );
@@ -62,9 +62,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         multiple={multiple}
         className={clsx(
           quiet
-            ? "focus-ring h-7 cursor-pointer appearance-none rounded-sm bg-transparent pl-1 pr-5 text-caption text-fg-muted transition-colors hover:bg-surface-muted hover:text-fg"
+            ? "focus-ring h-control-xs cursor-pointer appearance-none rounded-sm bg-transparent pl-1 pr-5 text-caption text-fg-muted transition-colors hover:bg-surface-muted hover:text-fg"
             : CONTROL,
-          !quiet && (multiple ? "min-h-24 px-3 py-2" : "h-9 appearance-none pl-3 pr-9"),
+          !quiet && (multiple ? "min-h-24 px-3 py-2" : "h-control appearance-none pl-3 pr-9"),
           className,
         )}
         {...rest}
