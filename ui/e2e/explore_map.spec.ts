@@ -92,6 +92,7 @@ async function stub(page: Page, data: Data = "points"): Promise<string[]> {
     if (path.includes("/basemap/")) return route.fulfill({ status: 404, body: "" });
     if (path.endsWith("/auth/me")) return json({ subject: "s1", username: "jana", name: "Jana Kováčová", roles: [] });
     if (path.endsWith("/access/check")) return json({ decision: false });
+    if (path.endsWith("/access/v1/evaluations")) return json({ evaluations: (JSON.parse(route.request().postData() ?? "{}").evaluations as unknown[]).map(() => ({ decision: false })) });
     if (path.endsWith("/access/attributes")) return json(attributeTable(TYPE, ["availableBikeNumber", "name", "location"]));
     if (path.endsWith("/access")) return json({ permissions: [{ action: "queryEntity", resource: { type: TYPE }, attributes: "*" }], prohibitions: [] });
     if (path.endsWith("/entities")) {

@@ -254,6 +254,7 @@ function writes(fetchMock: ReturnType<typeof vi.fn>): Request[] {
       (request) =>
         (request.method === "POST" || request.method === "PUT") &&
         !request.url.endsWith("/access/check") &&
+        !request.url.endsWith("/access/v1/evaluations") &&
         !request.url.endsWith("/pipelines/test") &&
         // The workbench's steps sample, try and check; they write nothing either (PL-63).
         !/\/ops\/jc_pipeline_(sample_source|try_mapping|validate)$/.test(request.url) &&
