@@ -164,64 +164,81 @@ afterEach(() => {
 });
 
 describe("the explorer", () => {
-  /// T-1116, UI-33, T-3253: the view as a file a person keeps: every row its filters match, read
-  /// through the endpoint with their session, offered as a link once it is written.
-  it("exports the whole view to a file it offers as a download", async () => {
-    const captured: Blob[] = [];
-    const urls = URL as unknown as Record<string, unknown>;
-    const realCreate = urls.createObjectURL;
-    const realRevoke = urls.revokeObjectURL;
-    urls.createObjectURL = (blob: Blob) => {
-      captured.push(blob);
-      return "blob:the-view";
-    };
-    urls.revokeObjectURL = () => undefined;
-    const asked: string[] = [];
-
+  /// T-6107: the page opens on data, read through the space's Endpoint, with the pickers on the
+  /// line under the title and no hint sentence; the export is the space page's own menu.
+  function renderPreselected(representations: string[]) {
+    const [bikes] = (ENDPOINTS as { items: { spec: Record<string, unknown> }[] }).items;
+    const endpoints = list([{ ...bikes, spec: { ...bikes.spec, enabledRepresentations: representations } }]);
     vi.stubGlobal(
       "fetch",
       vi.fn((input: unknown) => {
-        if (urlOf(input).includes("/entities?")) {
-          asked.push(urlOf(input));
-          return Promise.resolve(
-            new Response(JSON.stringify([ROW]), {
-              status: 200,
-              headers: { "Content-Type": "application/json", "NGSILD-Results-Count": "1" },
-            }),
-          );
-        }
-        return Promise.resolve(new Response("", { status: 404 }));
+        const url = urlOf(input);
+        const lists: Record<string, unknown> = {
+          "/endpoints": endpoints,
+          "/spaces": SPACES,
+          "/datamodels": MODELS_INLINE,
+          "/session": { sub: "demo.viewer", groups: ["helsinki"] },
+        };
+        const listed = Object.entries(lists).find(([path]) => url.endsWith(path))?.[1];
+        return Promise.resolve(
+          url.includes("/entities?")
+            ? new Response(JSON.stringify([ROW]), {
+                status: 200,
+                headers: { "Content-Type": "application/json", "NGSILD-Results-Count": "1" },
+              })
+            : listed
+              ? new Response(JSON.stringify(listed), { status: 200, headers: { "Content-Type": "application/json" } })
+              : new Response("", { status: 404 }),
+        );
       }),
     );
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    client.setQueryData(queryKeys.list("helsinki", "endpoints"), ENDPOINTS);
+    client.setQueryData(queryKeys.list("helsinki", "endpoints"), endpoints);
     client.setQueryData(queryKeys.list("helsinki", "spaces"), SPACES);
-    client.setQueryData(queryKeys.list("helsinki", "datamodels"), MODELS);
+    client.setQueryData(queryKeys.list("helsinki", "datamodels"), MODELS_INLINE);
+    client.setQueryData(queryKeys.session(), { sub: "demo.viewer", groups: ["helsinki"] });
+    window.history.replaceState(null, "", "/");
     render(
       <QueryClientProvider client={client}>
         <I18nextProvider i18n={i18n}>
           <InRouter>
-            <ExplorePage project="helsinki" initialSpace="helsinki" initialEndpoint="helsinki-bikes" />
+            <ExplorePage project="helsinki" />
           </InRouter>
         </I18nextProvider>
       </QueryClientProvider>,
     );
+  }
 
-    await userEvent.selectOptions(await screen.findByLabelText(/Entity type/i), "BikeHireDockingStation");
-    await userEvent.selectOptions(await screen.findByLabelText(en.explore.exportView.format), "json");
-    await userEvent.click(await screen.findByRole("button", { name: en.explore.exportView.start }));
+  it("preselects the first space, its Endpoint and type, and says no hint", async () => {
+    renderPreselected(["ngsi-ld", "csv"]);
+    expect(await screen.findByRole("button", { name: `${en.entityGrid.openRow}: 001` })).toBeInTheDocument();
+    expect(screen.getByLabelText(en.explore.space)).toHaveValue("helsinki");
+    expect(screen.getByLabelText(en.explore.endpoint)).toHaveValue("helsinki-bikes");
+    expect(screen.queryByText(/whose Policy decides what you see/)).not.toBeInTheDocument();
+    expect(screen.queryByText(en.explore.noSpace)).not.toBeInTheDocument();
+  });
 
-    const link = await screen.findByRole("link", { name: "Download BikeHireDockingStation.json (1 row)" });
-    expect(link).toHaveAttribute("href", "blob:the-view");
-    expect(link).toHaveAttribute("download", "BikeHireDockingStation.json");
-    expect(captured).toHaveLength(1);
-    expect(JSON.parse(await captured[0].text())).toEqual([ROW]);
-    // The export asks from the first row, with the count, whatever page the grid shows.
-    const exported = asked.find((url) => url.includes("count=true") && url.includes("limit=500"));
-    expect(exported, asked.join("\n")).toBeDefined();
+  it("exports through the Endpoint's own formats, the checked rows alone once some are checked", async () => {
+    renderPreselected(["ngsi-ld", "csv"]);
+    await screen.findByRole("button", { name: `${en.entityGrid.openRow}: 001` });
+    await userEvent.click(screen.getByText(en.explore.export, { selector: "summary" }));
+    const csv = screen.getByRole("link", { name: en.spaces.export.format.csv });
+    expect(csv.getAttribute("href")).toContain("/api/endpoint/scsd2eehkx42n53z2zyd6vshfh7s7irf/file.csv?type=BikeHireDockingStation");
+    expect(csv.getAttribute("href")).not.toContain("id=");
+    await userEvent.click(screen.getAllByRole("checkbox", { name: /Select row/ })[0]);
+    const checked = screen.getByRole("link", { name: en.spaces.export.format.csv });
+    expect(new URL(checked.getAttribute("href")!, "http://x").searchParams.get("id")).toBe(ROW.id);
+  });
 
-    urls.createObjectURL = realCreate;
-    urls.revokeObjectURL = realRevoke;
+  it("offers no format an Endpoint does not serve", async () => {
+    renderPreselected(["ngsi-ld"]);
+    await screen.findByRole("button", { name: `${en.entityGrid.openRow}: 001` });
+    // Export stays in the toolbar, disabled with the reason, and opens no empty menu.
+    const button = screen.getByRole("button", { name: new RegExp(`^${en.explore.export}`) });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAccessibleDescription(en.spaces.export.none);
+    expect(screen.queryByText(en.explore.export, { selector: "summary" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: en.spaces.export.format.csv })).not.toBeInTheDocument();
   });
 
   it("reads the endpoint list another page already cached as the API's List (T-0625)", async () => {
@@ -255,14 +272,10 @@ describe("the first pick (T-2755)", () => {
     vi.unstubAllGlobals();
   });
 
-  it("offers the project's spaces when none is chosen, and one click chooses it", async () => {
+  it("says a project without a space has none, and where to make one", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn((input: unknown) => {
-        const url = urlOf(input);
-        const body = url.includes("/spaces") ? SPACES : url.includes("/endpoints") ? ENDPOINTS : url.includes("/datamodels") ? MODELS : list([]);
-        return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }));
-      }),
+      vi.fn(() => Promise.resolve(new Response(JSON.stringify(list([])), { status: 200, headers: { "Content-Type": "application/json" } }))),
     );
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -274,10 +287,8 @@ describe("the first pick (T-2755)", () => {
         </I18nextProvider>
       </QueryClientProvider>,
     );
-    expect(await screen.findByText(en.explore.noSpace)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "helsinki" }));
-    expect(screen.getByLabelText(en.explore.space)).toHaveValue("helsinki");
-    expect(screen.queryByText(en.explore.noSpace)).not.toBeInTheDocument();
+    expect(await screen.findByText(en.explore.noSpaces)).toBeInTheDocument();
+    expect(screen.getByText(en.explore.noSpacesHint)).toBeInTheDocument();
   });
 });
 
@@ -740,4 +751,39 @@ describe("the endpoint the explorer reads through (T-5604)", () => {
     await waitFor(() => expect(new URLSearchParams(window.location.search).get("endpoint")).toBe("helsinki-air-quality"));
     expect(screen.queryByText(en.explore.endpointUnshown.replace("{name}", "app-air-quality"))).toBeNull();
   });
+});
+
+// T-6107: a read the Endpoint's policy refuses says so in the grid, with no "try again", and the
+// "Your access" menu, which would contradict it, is not offered.
+it("words a refused read as a refusal and hides Your access", async () => {
+  await i18n.changeLanguage("en");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: unknown) => {
+      const url = urlOf(input);
+      if (url.includes("/entities?")) {
+        const problem = { type: "https://uri.etsi.org/ngsi-ld/errors/Forbidden", title: "Forbidden", detail: "the policy of this endpoint does not let you read BikeHireDockingStation" };
+        return Promise.resolve(new Response(JSON.stringify(problem), { status: 403, headers: { "Content-Type": "application/problem+json" } }));
+      }
+      return Promise.resolve(new Response("", { status: 404 }));
+    }),
+  );
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(queryKeys.list("helsinki", "endpoints"), ENDPOINTS);
+  client.setQueryData(queryKeys.list("helsinki", "spaces"), SPACES);
+  client.setQueryData(queryKeys.list("helsinki", "datamodels"), MODELS);
+  render(
+    <QueryClientProvider client={client}>
+      <I18nextProvider i18n={i18n}>
+        <InRouter>
+          <ExplorePage project="helsinki" initialSpace="helsinki" initialEndpoint="helsinki-bikes" />
+        </InRouter>
+      </I18nextProvider>
+    </QueryClientProvider>,
+  );
+  await userEvent.selectOptions(await screen.findByLabelText(/Entity type/i), "BikeHireDockingStation");
+  expect(await screen.findByText(new RegExp(`^${en.entityGrid.refused}`))).toBeInTheDocument();
+  expect(screen.queryByText(new RegExp(en.entityGrid.error))).toBeNull();
+  expect(screen.queryByText(en.explore.yourAccess)).toBeNull();
+  expect(screen.queryByRole("button", { name: en.explore.useData.open })).toBeNull();
 });

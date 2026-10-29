@@ -57,9 +57,12 @@ export function ToolbarPopover({
   end,
   outlined,
   tall,
+  anchored,
   children,
 }: {
   label: string;
+  /** Under its button on a phone too, for a row's first control: no bottom sheet over the toolbar. */
+  anchored?: boolean;
   /** Drawn as a button even with nothing set: outside a toolbar row a ghost summary reads as text. */
   outlined?: boolean;
   /** How many settings the panel holds, shown beside the label so a set filter is visible. */
@@ -104,7 +107,8 @@ export function ToolbarPopover({
       <div
         className={clsx(
           "z-30 overflow-auto rounded-lg border border-border bg-surface-raised p-3 text-body shadow-2",
-          "max-h-96 max-sm:fixed max-sm:inset-x-4 max-sm:bottom-4",
+          "max-h-96",
+          anchored ? "absolute left-0 mt-1 max-sm:w-max max-sm:max-w-xs" : "max-sm:fixed max-sm:inset-x-4 max-sm:bottom-4",
           end ? "sm:absolute sm:right-0 sm:mt-1" : "sm:absolute sm:left-0 sm:mt-1",
           wide ? "sm:w-max sm:max-w-2xl" : "sm:w-72",
           tall ? "sm:max-h-none" : undefined,

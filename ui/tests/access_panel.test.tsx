@@ -129,7 +129,6 @@ describe("your access in the explorer", () => {
     await screen.findByRole("option", { name: "mobility" });
     await userEvent.selectOptions(screen.getByLabelText(en.explore.space), "mobility");
     const panel = await screen.findByRole("region", { name: en.access.panel.title });
-    expect(within(panel).getByText(en.access.panel.chooseType)).toBeInTheDocument();
 
     await userEvent.selectOptions(screen.getByLabelText(en.entities.type), "BikeHireDockingStation");
     expect(await within(panel).findByText(/retrieveEntity, queryEntity/)).toBeInTheDocument();

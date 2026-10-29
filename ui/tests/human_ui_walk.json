@@ -1235,11 +1235,6 @@
       "date": "2026-10-25",
       "screenshots": []
     },
-    "src/pages/explore/ExportView.tsx": {
-      "walkedBy": "deployer",
-      "date": "2026-10-20",
-      "screenshots": []
-    },
     "src/pages/explore/UseThisData.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
