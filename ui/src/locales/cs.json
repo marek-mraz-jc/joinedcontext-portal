@@ -910,7 +910,6 @@
     },
     "saved": {
       "view": "Pohled",
-      "none": "Všechny entity (bez uloženého pohledu)",
       "save": "Uložit pohled",
       "saveNew": "Uložit jako pohled…",
       "saveAs": "Uložit jako nový…",

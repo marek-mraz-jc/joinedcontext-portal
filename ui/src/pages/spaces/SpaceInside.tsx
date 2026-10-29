@@ -93,6 +93,7 @@ import {
   Alert,
   Badge,
   Button,
+  buttonClass,
   Dialog,
   EmptyState,
   Icon,
@@ -1604,7 +1605,9 @@ function TypeList({
             >
               {titleOf(each)}
             </Button>
-            {each === type ? (
+            {/* Without saved views the type itself is all its rows: a lone "All rows" under it
+                only repeated it (T-6084). */}
+            {each === type && ofType.length > 0 ? (
               <ul aria-label={t("spaces.inside.savedViews")} className="ml-3 mt-0.5 flex flex-col gap-0.5 border-l border-border pl-2">
                 <li>
                   <Button
@@ -1981,7 +1984,18 @@ export function SpaceInside({ project, name }: { project: string; name: string }
             }
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Completing works on one space, so it lives here and not on the list (T-6084). */}
+          <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+            <Link
+              to="/projects/$project/spaces/complete"
+              params={{ project }}
+              search={{ space: manifest.metadata.name }}
+              className={buttonClass("secondary", "sm")}
+            >
+              {t("spaces.complete.title")}
+            </Link>
+          </PermissionGuard>
           <Button variant="secondary" size="sm" onClick={() => setAlerting(true)}>
             {t("alerts.forSpace")}
           </Button>
