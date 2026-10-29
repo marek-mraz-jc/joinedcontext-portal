@@ -299,6 +299,7 @@ export function LinkmlGraphView({
   // right edge at its natural size (T-4991). The Fit button may still enlarge a small one.
   // A frame drawn while hidden (a tab not yet open) has no width: fit once it gets one (T-6090).
   const fitted = useRef(false);
+  const startAt = useRef<{ left: number; top: number } | null>(null);
   const [frameWidth, setFrameWidth] = useState(0);
   useEffect(() => {
     const frameAt = frame.current;
@@ -312,8 +313,22 @@ export function LinkmlGraphView({
     if (fitted.current || available <= 0 || placed.length === 0) return;
     fitted.current = true;
     const wide = Math.max(...placed.map((node) => node.x + BOX.width)) + BOX.loop + 8;
-    setZoom(Math.max(ZOOM.readable, Math.min(ZOOM.natural, available / wide)));
+    const start = Math.max(ZOOM.readable, Math.min(ZOOM.natural, available / wide));
+    // A drawing wider than its frame at the readable floor opens on its first class, the top-left
+    // box, not on the empty corner beside it (T-6090 review: a phone showed one cut box).
+    const classes = placed.filter((node) => node.kind === "class");
+    if (wide * start > available && classes.length > 0) {
+      const first = classes.reduce((best, node) => (node.y < best.y || (node.y === best.y && node.x < best.x) ? node : best));
+      startAt.current = { left: Math.max(0, (first.x - 8) * start), top: Math.max(0, (first.y - 8) * start) };
+    }
+    setZoom(start);
   }, [placed, frameWidth]);
+  // The scroll waits for the render that draws the drawing at its new size.
+  useEffect(() => {
+    if (!startAt.current) return;
+    frame.current?.scrollTo?.(startAt.current);
+    startAt.current = null;
+  }, [zoom]);
 
   if (!placed.some((node) => node.kind === "class")) {
     return (
@@ -474,7 +489,7 @@ export function LinkmlGraphView({
         <span className="text-caption text-fg-muted max-sm:sr-only" aria-live="polite">
           {t("models.graph.zoomLevel", { percent: Math.round(zoom * 100) })}
         </span>
-        <ToolbarPopover label={t("models.graph.notation.button")} end>
+        <ToolbarPopover label={t("models.graph.notation.button")} end tall>
           <div className="flex flex-col gap-2">
             <Legend id={markerId} />
             <p className="text-caption text-fg-muted">{t("models.graph.legend")}</p>
