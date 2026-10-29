@@ -13,6 +13,7 @@ use super::*;
 
 use std::borrow::Cow;
 
+use crate::error::ApiError;
 use crate::ops::OperationSummary;
 
 /// Model rounds one message may take before the turn stops and says so.
@@ -66,15 +67,24 @@ pub(super) fn tool_specs(offered: &[OperationSummary]) -> Vec<ToolSpec> {
         .collect()
 }
 
-/// A refusal before the operation runs, in the shape every door answers (API/09).
-pub(super) fn refused(status: u16, slug: &str, title: &str, detail: &str) -> String {
-    json!({
-        "type": format!("https://joinedcontext.com/errors/{slug}"),
-        "title": title,
-        "status": status,
-        "detail": detail,
-    })
-    .to_string()
+/// A refusal before the operation runs, as the document every door answers (API/09).
+pub(super) fn refused(error: ApiError) -> String {
+    error.into_document().1.to_string()
+}
+
+/// `output` without the attributes the project's models mark personal (AG-158), the same
+/// withholding a client's call at `/c/{id}` gets; the removed ones are named beside the answer so
+/// the model can tell the person why they are missing. Models that could not be read are an
+/// `Err`: without their marks nothing personal could be withheld, so the call is refused.
+fn without_personal(
+    mut output: Value,
+    marks: Result<crate::personal_data::Marks, String>,
+) -> Result<Value, String> {
+    let removed = crate::personal_data::withhold(&mut output, &marks?);
+    if removed.is_empty() {
+        return Ok(output);
+    }
+    Ok(json!({ "answer": output, "withheldPersonalAttributes": removed }))
 }
 
 /// The earlier turns of the conversation as plain messages, the newest kept whole first.
@@ -245,9 +255,25 @@ impl Driver {
             );
             self.event("tool", failed_step(&call.name, started, &input, &reason))
                 .await?;
-            return Ok(refused(403, "tool-refused", "Forbidden", &reason));
+            return Ok(refused(ApiError::Denied(reason)));
         };
-        match crate::ops::call(operation, caller, &self.state, &self.project, input.clone()).await {
+        let called =
+            crate::ops::call(operation, caller, &self.state, &self.project, input.clone()).await;
+        let called = match called {
+            Ok(output) if crate::personal_data::carries_entities(&output) => {
+                let marks = crate::personal_data::of_project(&self.state, &self.project).await;
+                match without_personal(output, marks) {
+                    Ok(output) => Ok(output),
+                    Err(why) => {
+                        self.event("tool", failed_step(&call.name, started, &input, &why))
+                            .await?;
+                        return Ok(refused(ApiError::Unavailable(why)));
+                    }
+                }
+            }
+            other => other,
+        };
+        match called {
             Ok(output) => {
                 self.event(
                     "tool",
@@ -420,7 +446,8 @@ mod tests {
         let bodies = sent(&server).await;
         assert_eq!(bodies.len(), 2);
         let second = bodies[1].to_string();
-        assert!(second.contains("tool-refused"), "{second}");
+        assert!(second.contains("errors/forbidden"), "{second}");
+        assert!(second.contains("not one of this conversation"), "{second}");
         let names: Vec<&str> = bodies[0]["tools"]
             .as_array()
             .into_iter()
@@ -450,7 +477,7 @@ mod tests {
         let bodies = sent(&server).await;
         let second = bodies[1].to_string();
         assert!(second.contains("joinedcontext.com/errors/"), "{second}");
-        assert!(!second.contains("tool-refused"), "{second}");
+        assert!(!second.contains("not one of this conversation"), "{second}");
     }
 
     /// A model that keeps calling stops at the step ceiling and the person reads why.
@@ -631,7 +658,7 @@ mod tests {
             let _ = driver.connector_turn(&[], "do it", "pipeline").await;
             let second = sent(&server).await[1].to_string();
             assert!(
-                second.contains("invalid-ui-action"),
+                second.contains("errors/unprocessable"),
                 "{tool} {input}: {second}"
             );
             assert!(second.contains(says), "{tool} {input}: {second}");
@@ -730,6 +757,32 @@ mod tests {
             .plans
             .peek(&id, &probe.identity.subject, "espoo", chrono::Utc::now())
             .is_none());
+    }
+
+    /// An attribute a model marks personal never reaches the model's tool message, and the
+    /// answer names it; unreadable models refuse the call instead of sending it unchecked.
+    #[test]
+    fn a_personal_attribute_never_reaches_the_model() {
+        let marks = crate::personal_data::marks(
+            "classes:\n  PotholeReport:\n    slots: [description, contactEmail]\nslots:\n  contactEmail:\n    annotations: { personalData: true }\n",
+        );
+        let output = json!({ "entities": [{
+            "id": "urn:ngsi-ld:PotholeReport:1", "type": "PotholeReport",
+            "description": "Hlboká jama", "contactEmail": "jana@example.org"
+        }] });
+        assert!(crate::personal_data::carries_entities(&output));
+        let sent = without_personal(output.clone(), Ok(marks.clone()))
+            .map(|answer| bounded(answer.to_string()))
+            .unwrap_or_default();
+        assert!(!sent.contains("jana@example.org"), "{sent}");
+        assert!(sent.contains("Hlboká jama"), "{sent}");
+        assert!(sent.contains("PotholeReport.contactEmail"), "{sent}");
+        let plain = json!({ "entities": [{ "id": "urn:ngsi-ld:Road:1", "type": "Road" }] });
+        assert_eq!(without_personal(plain.clone(), Ok(marks)), Ok(plain));
+        assert_eq!(
+            without_personal(output, Err("model m unreadable".into())),
+            Err("model m unreadable".to_owned())
+        );
     }
 
     #[test]

@@ -124,6 +124,14 @@ pub(super) fn ui_specs() -> Vec<ToolSpec> {
     ]
 }
 
+/// A browser action the Portal will not run, as the 422 every door answers (API/09).
+fn unprocessable(reason: &str) -> ApiError {
+    ApiError::Unprocessable {
+        detail: reason.to_string(),
+        errors: vec![reason.to_string()],
+    }
+}
+
 /// One line of plain text from the model: control characters refused, length bounded.
 fn plain(arguments: &Value, member: &str, max: usize) -> Result<String, String> {
     let text = arguments
@@ -261,7 +269,7 @@ impl Driver {
                 };
                 // `open_page` reports its own tool event, a refusal included.
                 return Ok(match opened.strip_prefix("error: ") {
-                    Some(reason) => refused(422, "invalid-ui-action", "Unprocessable", reason),
+                    Some(reason) => refused(unprocessable(reason)),
                     None => json!({ "opened": opened.trim_start_matches("opened ") }).to_string(),
                 });
             }
@@ -309,7 +317,7 @@ impl Driver {
                     failed_step(&call.name, started, &arguments, &reason),
                 )
                 .await?;
-                Ok(refused(422, "invalid-ui-action", "Unprocessable", &reason))
+                Ok(refused(unprocessable(&reason)))
             }
         }
     }
