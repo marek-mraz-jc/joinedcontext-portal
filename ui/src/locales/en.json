@@ -10674,5 +10674,33 @@
     "addKept": "Add the keys it keeps",
     "submit": "Encrypt and propose",
     "sending": "Sending the secret…"
+  },
+  "pairedTab": {
+    "region": "Tab connected to a connector",
+    "connect": "Connect this tab",
+    "connectOf": "Connect this tab to {name}",
+    "disconnectHere": "Disconnect this tab",
+    "disconnectOf": "Disconnect this tab from {name}",
+    "hint": "Connect this tab to let the AI client using this connector open pages, fill forms and point at fields here, e.g. open the pipeline editor with a mapping filled in. It never saves; you propose. Only this tab, until you disconnect or sign out.",
+    "connected": "Connected to {name}",
+    "explain": "The AI client of this connector can open pages and fill forms in this tab. It cannot save, propose or approve.",
+    "waiting": "No action yet.",
+    "last": "Last: {tool}: {what}",
+    "sent": "{client} via {connector}",
+    "anyClient": "An AI client",
+    "notFound": "not on this page",
+    "showActions": "Actions ({count})",
+    "noActions": "No action has reached this tab yet",
+    "actions": "Actions in this tab",
+    "disconnect": "Disconnect",
+    "ended": "This tab is no longer connected: it was disconnected, another tab was connected, or the session ended. Connect it again on My connectors.",
+    "dismiss": "Dismiss",
+    "tool": {
+      "jc_ui_navigate": "Opened a page",
+      "jc_ui_open_form": "Opened a form",
+      "jc_ui_highlight": "Pointed at a field",
+      "jc_ui_show_diff": "Opened a planned change",
+      "jc_ui_filter_table": "Filtered the table"
+    }
   }
 }

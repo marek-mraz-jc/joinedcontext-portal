@@ -1917,6 +1917,191 @@
         }
       }
     },
+    "/api/v1/connectors/{id}/tab": {
+      "post": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Connect This Tab",
+        "description": "Pairs the caller's open Portal tab with one of their live connectors: until the session ends or the person disconnects, the connector's MCP client may send this tab UI actions (navigate, open_form, highlight, show_diff, filter_table), which never save. A newer tab replaces the one paired before. The answer's `tab` addresses the tab's event stream for this session only (T-5967).",
+        "operationId": "pair_tab",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The connector id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Paired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairedTab"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A workload, an MCP client's token, or a connector that is not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No connector of the caller's with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Disconnect The Tab",
+        "description": "Ends the pairing of the caller's tab with the connector: its event stream closes and the connector's UI tools refuse until a tab is connected again (T-5967).",
+        "operationId": "unpair_tab",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The connector id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No tab is paired any more"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A workload or an MCP client's token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No connector of the caller's with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/{id}/tab/{tab}/events": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "The Paired Tab's Actions",
+        "description": "Server-sent `action` events, one per UI action the connector sent: `frame` (`navigate` or `ui`), its checked `payload`, the `tool`, and `from` (connector name and MCP client). Only the paired tab of the session that paired it reads them; the stream ends when the pairing does (T-5967).",
+        "operationId": "tab_events",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The connector id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tab",
+            "in": "path",
+            "description": "The tab id `Connect This Tab` answered",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The event stream",
+            "content": {
+              "text/event-stream": {}
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A workload or an MCP client's token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No tab of this session is paired with the caller's connector",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/endpoints": {
       "get": {
         "tags": [
@@ -44511,6 +44696,33 @@
           }
         },
         "additionalProperties": false
+      },
+      "PairedTab": {
+        "type": "object",
+        "description": "A Portal tab paired with a connector (T-5967).",
+        "required": [
+          "tab",
+          "connector",
+          "name",
+          "until"
+        ],
+        "properties": {
+          "connector": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tab": {
+            "type": "string",
+            "description": "The tab's id: the address of its event stream, valid only for this person's session."
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the pairing ends with the session, unless the person disconnects before."
+          }
+        }
       },
       "Part": {
         "type": "string",

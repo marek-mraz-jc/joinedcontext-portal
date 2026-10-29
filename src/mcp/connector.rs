@@ -22,6 +22,7 @@ use super::{
     call_result, dispatch, error, failure_result, json_response, result, too_large,
     tool_definition, MAX_REQUEST_BYTES, MAX_RESPONSE_BYTES,
 };
+use crate::agents::oneshot::ui_actions::{self, UI_TOOLS};
 use crate::connectors::{self, Call, Connector};
 use crate::error::ApiError;
 use crate::personal_data::{self, Marks};
@@ -365,6 +366,11 @@ async fn judge(
         .as_str()
         .or_else(|| params["project"].as_str())
         .map(str::to_owned);
+    if method == "tools/call" {
+        if let Some(name) = params["name"].as_str().filter(|n| UI_TOOLS.contains(n)) {
+            return tab_action(state, connector, &identity, name, &params["arguments"], id);
+        }
+    }
     let caller = caller(connector, identity, token);
     match method {
         "tools/list" => {
@@ -375,7 +381,7 @@ async fn judge(
                     .map(|p| (*p).to_owned())
                     .unwrap_or_default()
             });
-            let tools: Vec<Value> = crate::ops::listing(&caller, state, &project)
+            let mut tools: Vec<Value> = crate::ops::listing(&caller, state, &project)
                 .iter()
                 .filter(|summary| {
                     crate::ops::find(&summary.name).is_some_and(|op| {
@@ -385,6 +391,15 @@ async fn judge(
                 })
                 .map(tool_definition)
                 .collect();
+            // The UI tools reach the person's paired tab only, so they are offered only while
+            // one is paired (T-5967).
+            let now = crate::auth::session::now_unix();
+            if state
+                .paired_tabs
+                .is_paired(&connector.id, &connector.owner, now)
+            {
+                tools.extend(ui_actions::mcp_tools(&connector.projects()));
+            }
             let answer = result(id, json!({ "tools": tools }));
             (json_response(StatusCode::OK, &answer), "allowed".to_owned())
         }
@@ -424,6 +439,79 @@ async fn judge(
         _ => (
             dispatch(state.clone(), caller, body).await,
             "allowed".to_owned(),
+        ),
+    }
+}
+
+/// A UI action for the person's paired tab (T-5967): checked as the assistant checks it, held to
+/// the connector's scope, then handed to that tab only. The answer says it was shown and carries
+/// nothing of the tab or the session.
+fn tab_action(
+    state: &AppState,
+    connector: &Connector,
+    identity: &crate::auth::session::Identity,
+    name: &str,
+    arguments: &Value,
+    id: Value,
+) -> (Response, String) {
+    let refused = |status: u16, slug: &str, title: &str, why: &str, verdict: &str| {
+        let answer = tool_problem(id.clone(), status, slug, title, why);
+        (json_response(StatusCode::OK, &answer), verdict.to_owned())
+    };
+    let projects = connector.projects();
+    let Some(project) = arguments["project"]
+        .as_str()
+        .filter(|p| projects.contains(p))
+    else {
+        let why = format!(
+            "name the project of the page as `project`, one of this connector's: {}",
+            projects.join(", ")
+        );
+        return refused(403, "forbidden", "Forbidden", &why, "refused: target");
+    };
+    let mut checked = arguments.clone();
+    if let Some(fields) = checked.as_object_mut() {
+        fields.remove("project");
+    }
+    let asker = ui_actions::Asker {
+        state,
+        identity,
+        project,
+        connector: Some(connector),
+    };
+    let (frame, payload) = match ui_actions::for_tab(&asker, name, &checked) {
+        Ok(done) => done,
+        Err(why) => {
+            return refused(422, "unprocessable", "Unprocessable", &why, "refused: tool");
+        }
+    };
+    let action = json!({
+        "frame": frame,
+        "payload": payload,
+        "tool": name,
+        "project": project,
+        "from": { "connector": connector.name, "client": identity.client },
+        "at": chrono::Utc::now(),
+    });
+    let now = crate::auth::session::now_unix();
+    match state
+        .paired_tabs
+        .deliver(&connector.id, &connector.owner, action, now)
+    {
+        Ok(()) => {
+            let shown = json!({
+                "shown": payload.get("route").or_else(|| payload.get("action")),
+                "note": "The person's Portal tab shows this; nothing is saved until they propose it there.",
+            });
+            let answer = result(id.clone(), call_result(&shown));
+            (json_response(StatusCode::OK, &answer), "allowed".to_owned())
+        }
+        Err(undelivered) => refused(
+            409,
+            "conflict",
+            "Conflict",
+            undelivered.reason(),
+            "refused: no tab",
         ),
     }
 }
@@ -589,5 +677,90 @@ mod tests {
         assert_eq!(answer["_meta"][super::super::UNTRUSTED_META], json!(true));
         let plain = answered_without(json!({ "items": [] }), &marks);
         assert!(plain["_meta"].get(WITHHELD_META).is_none());
+    }
+
+    fn ana() -> crate::auth::session::Identity {
+        crate::auth::session::Identity {
+            subject: "f:1:ana".to_owned(),
+            username: "ana".to_owned(),
+            email: None,
+            name: None,
+            roles: Vec::new(),
+            groups: Vec::new(),
+            client: Some("mcp-local".to_owned()),
+            second_factor: false,
+        }
+    }
+
+    async fn answer_of(response: Response) -> Value {
+        let bytes = axum::body::to_bytes(response.into_body(), 100_000)
+            .await
+            .expect("body");
+        serde_json::from_slice(&bytes).expect("json")
+    }
+
+    #[tokio::test]
+    async fn a_ui_action_reaches_only_the_owners_paired_tab_and_never_submits() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let connector = connectors::of_conversation("r1", "f:1:ana", "doprava", "pipeline");
+        let now = crate::auth::session::now_unix();
+        let navigate = json!({ "project": "doprava", "page": "spaces" });
+        let call =
+            |name: &str, args: &Value| tab_action(&state, &connector, &ana(), name, args, json!(1));
+
+        // No tab paired: refused, and the model is told what the person does.
+        let (response, verdict) = call("jc_ui_navigate", &navigate);
+        assert_eq!(verdict, "refused: no tab");
+        let body = answer_of(response).await;
+        assert_eq!(body["result"]["isError"], true);
+        assert!(body["result"]["structuredContent"]["detail"]
+            .as_str()
+            .is_some_and(|d| d.contains("Connect this tab")));
+
+        // A tab paired by another person with this connector's id hears nothing of ana's.
+        state
+            .paired_tabs
+            .pair(&connector.id, "f:1:bob", 5, now + 3600);
+        assert_eq!(call("jc_ui_navigate", &navigate).1, "refused: no tab");
+
+        let tab = state
+            .paired_tabs
+            .pair(&connector.id, "f:1:ana", 5, now + 3600);
+        let (mut heard, _) = state
+            .paired_tabs
+            .listen(&connector.id, &tab, "f:1:ana", 5, now)
+            .expect("paired");
+        // A project outside the connector's scope, a page the Portal lacks: refused, nothing sent.
+        let other = json!({ "project": "espoo", "page": "spaces" });
+        assert_eq!(call("jc_ui_navigate", &other).1, "refused: target");
+        let nowhere = json!({ "project": "doprava", "page": "admin-secrets" });
+        assert_eq!(call("jc_ui_navigate", &nowhere).1, "refused: tool");
+        assert!(heard.try_recv().is_err());
+
+        let (response, verdict) = call("jc_ui_navigate", &navigate);
+        assert_eq!(verdict, "allowed");
+        let text = answer_of(response).await.to_string();
+        assert!(
+            !text.contains(&tab),
+            "the tab's id never reaches the agent: {text}"
+        );
+        let action = heard.try_recv().expect("the paired tab hears it");
+        assert_eq!(action["frame"], "navigate");
+        assert_eq!(action["payload"]["route"], "/projects/doprava/spaces");
+        assert_eq!(action["from"]["client"], "mcp-local");
+        assert_eq!(action["from"]["connector"], json!(connector.name));
+
+        // The tools a paired connector lists are the five actions, none of which submits; a
+        // submit is no UI tool, so it never reaches the tab.
+        let tools = ui_actions::mcp_tools(&connector.projects());
+        let names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
+        assert_eq!(names, UI_TOOLS);
+        assert!(tools
+            .iter()
+            .all(|t| t["annotations"]["readOnlyHint"] == true
+                && t["inputSchema"]["required"]
+                    .as_array()
+                    .is_some_and(|r| r.contains(&json!("project")))));
+        assert!(!UI_TOOLS.contains(&"jc_ui_submit"));
     }
 }

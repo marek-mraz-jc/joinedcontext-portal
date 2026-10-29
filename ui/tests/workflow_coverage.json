@@ -1783,6 +1783,17 @@
           "POST /api/v1/connectors/{id}/approve"
           ]
         },
+      "pairTab": {
+        "live": {
+          "spec": "connectors.spec.ts",
+          "test": "a person connects a tab to their connector and disconnects it"
+        },
+        "personOnly": "only the person signed in in a tab pairs it with their own connector; an MCP client's token is refused (T-5967)",
+        "routes": [
+          "POST /api/v1/connectors/{id}/tab",
+          "DELETE /api/v1/connectors/{id}/tab"
+        ]
+      },
       "revokeAny": {
         "live": {
           "spec": "connectors.spec.ts",

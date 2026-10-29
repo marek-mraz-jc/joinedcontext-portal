@@ -69,6 +69,37 @@ test("a person creates a read-only connector, revokes it and finds it refused", 
   }
 });
 
+test("a person connects a tab to their connector and disconnects it", async ({ browser }) => {
+  // T-5967: the tab pairs only for its signed-in owner; its stream answers that session, and a
+  // disconnect ends it. The connector is revoked in `finally`.
+  const { context, page } = await signIn(browser, VIEWER, "/?lang=en");
+  const headers = { "x-csrf-token": await csrf(context), "content-type": "application/json" };
+  let id = "";
+  try {
+    const created = await page.request.post("/api/v1/connectors", {
+      headers,
+      data: { name: `t5967-${Date.now()}`, segments: ["data-read"], scope: [{ project: "helsinki", access: "read" }], expiresAt: new Date(Date.now() + 24 * 3600_000).toISOString() },
+    });
+    expect(created.status(), await created.text()).toBe(201);
+    const connector = (await created.json()) as { id: string; name: string };
+    id = connector.id;
+    await page.goto("/ai-connectors?lang=en");
+    const card = page.getByRole("region", { name: connector.name });
+    await card.getByRole("button", { name: `Connect this tab to ${connector.name}` }).click();
+    const bar = page.getByRole("region", { name: "Tab connected to a connector" });
+    await expect(bar.getByText(`Connected to ${connector.name}`)).toBeVisible();
+    await expect(page.locator("body")).not.toContainText(/eyJ|Bearer /);
+    // Another tab id of this session is no stream.
+    const guessed = await page.request.get(`/api/v1/connectors/${id}/tab/${"0".repeat(32)}/events`);
+    expect(guessed.status()).toBe(404);
+    await bar.getByRole("button", { name: "Disconnect" }).click();
+    await expect(bar).toHaveCount(0);
+  } finally {
+    if (id) await page.request.delete(`/api/v1/connectors/${id}`, { headers });
+    await context.close();
+  }
+});
+
 /**
  * T-5975 — the organization's administrator finds a person's connector on the overview, with its
  * scope and usage and no token, and revokes it; the person reads it revoked. A viewer is refused
