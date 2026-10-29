@@ -21,7 +21,10 @@ cd "$ui" || exit 2
 # App probe has a runner and a check of its own (app-probe.sh, T-2795). readiness-project opens
 # and deletes a project, whose name stays reserved for 30 days, so it is nightly too (T-2746).
 spending='/(assistant-paths|assistant-evals|app-generated-full|build-samples|readiness-app|readiness-project|app-probe)\.spec\.ts$'
-mapfile -t specs < <(ls e2e/live/*.spec.ts | grep -vE "$spending")
+# SWEEP_SKIP, an extra regex over the same paths, leaves more out: the release gate (T-5899) skips the
+# critic-* walks, which record shots for the UI critic tasks and took 1,619 s of its first hour.
+skip=${SWEEP_SKIP:-'^$'}
+mapfile -t specs < <(ls e2e/live/*.spec.ts | grep -vE "$spending" | grep -vE -- "$skip")
 
 PLAYWRIGHT_JSON_OUTPUT_NAME="$out/report.json" npx playwright test \
   --config playwright.live.config.ts --reporter=list,json \
