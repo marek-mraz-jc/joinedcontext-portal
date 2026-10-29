@@ -4279,6 +4279,7 @@
       "noMatches": "Žiadny model nevyhovuje.",
       "preview": "Prevzatý model",
       "pick": "Vyberte model a uvidíte, čo sa naimportuje.",
+      "importRefused": "Schému {name} z katalógu nie je možné previesť na model. Model Tools nižšie uvádza, čo je zle. Vyberte iný model alebo začnite prázdnym modelom a polia doplňte ručne.",
       "previewFailed": "Model sa nepodarilo načítať z katalógu. Skúste to znova alebo ho importujte podľa identifikátora.",
       "keepAll": "Všetky prevzaté atribúty zostávajú; nevybrané sa označia ako zastarané.",
       "import": "Importovať {name}",

@@ -4279,6 +4279,7 @@
       "noMatches": "Kein Modell passt.",
       "preview": "Fremdmodell",
       "pick": "Wählen Sie ein Modell, um zu sehen, was importiert würde.",
+      "importRefused": "Das Schema {name} aus dem Katalog lässt sich nicht in ein Modell umwandeln. Model Tools nennt unten den Grund. Wählen Sie ein anderes Modell oder beginnen Sie mit einem leeren Modell und ergänzen Sie die Felder von Hand.",
       "previewFailed": "Das Modell konnte nicht aus dem Katalog geladen werden. Versuchen Sie es erneut oder importieren Sie es über die Kennung.",
       "keepAll": "Alle fremden Attribute bleiben erhalten; nicht gewählte werden als veraltet markiert.",
       "import": "{name} importieren",

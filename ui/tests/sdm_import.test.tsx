@@ -74,7 +74,7 @@ slots:
     slot_uri: sdm:dateObserved
 `;
 
-function renderWizard(options: { catalogue?: unknown; status?: number; spaces?: string[]; previewStatus?: number; linkml?: string } = {}) {
+function renderWizard(options: { catalogue?: unknown; status?: number; spaces?: string[]; previewStatus?: number; linkml?: string; previewErrors?: string[] } = {}) {
   const onImport = vi.fn();
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const request = input as Request;
@@ -92,7 +92,9 @@ function renderWizard(options: { catalogue?: unknown; status?: number; spaces?: 
         JSON.stringify(
           options.previewStatus && options.previewStatus >= 400
             ? { status: options.previewStatus, title: "Service Unavailable" }
-            : { linkml: options.linkml ?? IMPORTED },
+            : options.previewErrors
+              ? { generatorVersion: "1.11.1", errors: options.previewErrors }
+              : { linkml: options.linkml ?? IMPORTED },
         ),
         {
           status: options.previewStatus ?? 200,
@@ -205,6 +207,20 @@ describe("Smart Data Models import wizard", () => {
         ).length,
       ).toBeGreaterThan(before);
     });
+  });
+
+  /// T-6101: Model Tools answers a model it cannot convert with 200 and `errors`; the wizard
+  /// read only `linkml` and showed "Fetching the upstream model..." for good.
+  it("says in words why a catalogue model cannot be imported, instead of loading for ever", async () => {
+    const { user } = renderWizard({ previewErrors: ["garden: duplicate key"] });
+
+    await user.click(await screen.findByRole("button", { name: /AirQualityObserved/ }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(en.models.sdm.importRefused.replace("{name}", "AirQualityObserved"));
+    expect(alert).toHaveTextContent("garden: duplicate key");
+    expect(screen.queryByText(en.models.sdm.loading)).not.toBeInTheDocument();
+    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
   });
 
   /// T-1107: a model of the catalogue can carry two hundred attributes.
