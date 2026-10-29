@@ -491,12 +491,12 @@ export function ExplorePage({
                   {endpoint && query.type && !servedRepresentations(endpoint.spec ?? {}).includes("csv") ? (
                     // Nothing to download: the button says why instead of opening an empty menu.
                     <span className="flex items-center gap-2">
-                      <Button size="sm" variant="ghost" disabled disabledReason={t("spaces.export.none")}>
+                      <Button size="sm" variant="ghost" disabled disabledReason={t("explore.exportNone")}>
                         {t("explore.export")}
                       </Button>
                       {/* The reason in sight too; the button already says it to a screen reader. */}
                       <span aria-hidden="true" className="text-caption text-fg-muted">
-                        {t("spaces.export.none")}
+                        {t("explore.exportNone")}
                       </span>
                     </span>
                   ) : endpoint && query.type ? (
@@ -510,6 +510,7 @@ export function ExplorePage({
                           endpoints={[endpoint]}
                           type={query.type}
                           q={andQ(query.q, gridAsk.q)}
+                          idPattern={gridAsk.idPattern}
                           attrs={query.attrs ?? []}
                           ids={checked}
                           label={checked.length > 0 ? t("spaces.toolbar.exportSelected") : undefined}

@@ -230,13 +230,25 @@ describe("the explorer", () => {
     expect(new URL(checked.getAttribute("href")!, "http://x").searchParams.get("id")).toBe(ROW.id);
   });
 
+  it("exports the rows the grid's ID filter keeps", async () => {
+    renderPreselected(["ngsi-ld", "csv"]);
+    await screen.findByRole("button", { name: `${en.entityGrid.openRow}: 001` });
+    await userEvent.selectOptions(screen.getByLabelText(`${en.entityGrid.filter}: ID`), "pattern");
+    await userEvent.type(screen.getByLabelText(`${en.entityGrid.value}: ID`), "001");
+    await userEvent.click(screen.getByText(en.explore.export, { selector: "summary" }));
+    await waitFor(() => {
+      const csv = screen.getByRole("link", { name: en.spaces.export.format.csv });
+      expect(new URL(csv.getAttribute("href")!, "http://x").searchParams.get("idPattern")).toBe("001");
+    });
+  });
+
   it("offers no format an Endpoint does not serve", async () => {
     renderPreselected(["ngsi-ld"]);
     await screen.findByRole("button", { name: `${en.entityGrid.openRow}: 001` });
     // Export stays in the toolbar, disabled with the reason, and opens no empty menu.
     const button = screen.getByRole("button", { name: new RegExp(`^${en.explore.export}`) });
     expect(button).toHaveAttribute("aria-disabled", "true");
-    expect(button).toHaveAccessibleDescription(en.spaces.export.none);
+    expect(button).toHaveAccessibleDescription(en.explore.exportNone);
     expect(screen.queryByText(en.explore.export, { selector: "summary" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: en.spaces.export.format.csv })).not.toBeInTheDocument();
   });

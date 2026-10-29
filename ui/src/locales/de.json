@@ -1127,7 +1127,7 @@
     "export": {
       "label": "Exportieren:",
       "endpoint": "Exportieren über",
-      "none": "Dieser Endpoint liefert keine CSV-Datei, daher gibt es nichts zu exportieren.",
+      "none": "Kein Endpoint dieses Raums liefert eine CSV-Datei, daher gibt es nichts zu exportieren.",
       "format": {
         "csv": "CSV",
         "xlsx": "Excel",
@@ -5663,6 +5663,7 @@
     "space": "Kontextraum",
     "endpoint": "Endpunkt",
     "export": "Exportieren",
+    "exportNone": "Dieser Endpoint liefert keine CSV-Datei, daher gibt es nichts zu exportieren.",
     "noEndpoint": "Dieser Raum hat keinen Endpunkt zum Lesen.",
     "noType": "Wählen Sie einen Entitätstyp, um Entitäten zu laden.",
     "loadFailed": "Die Entitäten konnten nicht geladen werden. Versuchen Sie es erneut oder lesen Sie über einen anderen Endpunkt.",

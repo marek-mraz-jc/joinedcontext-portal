@@ -1127,7 +1127,7 @@
     "export": {
       "label": "Export:",
       "endpoint": "Export through",
-      "none": "This Endpoint serves no CSV file, so there is nothing to export.",
+      "none": "No Endpoint of this space serves a CSV file, so there is nothing to export.",
       "format": {
         "csv": "CSV",
         "xlsx": "Excel",
@@ -5663,6 +5663,7 @@
     "space": "Context space",
     "endpoint": "Endpoint",
     "export": "Export",
+    "exportNone": "This Endpoint serves no CSV file, so there is nothing to export.",
     "noEndpoint": "This space has no endpoint to read through.",
     "noType": "Choose an entity type to load entities.",
     "loadFailed": "The entities could not be loaded. Try again, or read through another endpoint.",

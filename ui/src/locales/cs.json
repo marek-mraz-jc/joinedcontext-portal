@@ -1127,7 +1127,7 @@
     "export": {
       "label": "Exportovat:",
       "endpoint": "Exportovat přes",
-      "none": "Tento endpoint neposkytuje soubor CSV, takže není co exportovat.",
+      "none": "Žádný endpoint tohoto prostoru neposkytuje soubor CSV, takže není co exportovat.",
       "format": {
         "csv": "CSV",
         "xlsx": "Excel",
@@ -5663,6 +5663,7 @@
     "space": "Kontextový prostor",
     "endpoint": "Endpoint",
     "export": "Exportovat",
+    "exportNone": "Tento endpoint neposkytuje soubor CSV, takže není co exportovat.",
     "noEndpoint": "Tento prostor nemá endpoint, přes který lze číst.",
     "noType": "Vyberte typ entity, aby se načetly entity.",
     "loadFailed": "Entity se nepodařilo načíst. Zkuste to znovu nebo čtěte přes jiný endpoint.",
