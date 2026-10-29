@@ -462,6 +462,17 @@ ends in the trailer `Proposed-Via: mcp; client=mcp-mobile`, and its merge reques
 Portal reads `proposedVia` back from that last line, so the approval page shows it as a badge.
 A Change proposed in the Portal or with the person's own token has no `proposedVia`.
 
+A change a connector opens (`/c/{id}`, AG-144) also names the connector and, for
+`jc_change_apply`, the plan it took (T-5973): `proposedVia` gains `connector` (the id),
+`connectorName` and `plan`, the trailer reads
+`Proposed-Via: mcp; client=claude-code; connector={id}; connectorName=doprava-in-claude; plan={planId}`,
+and the merge request's first line adds "through connector `doprava-in-claude`". Each value comes
+from the verified token and the stored connector, never from a tool argument; a trailer with a
+key outside these or a value outside `[A-Za-z0-9._:-]` shows no `proposedVia`. The `mcp.tool`
+activity rows carry `details.connector` and `details.connectorName`, and
+`GET /api/v1/projects/{project}/activity?connector={id}` (and its stream) keeps only that
+connector's rows; an id that is not 26 characters of `a-z2-7` is 400 naming `connector`.
+
 ### Drafts of a manifest (AG-61, UI-47, UI-48)
 
 A form saves what a person has typed before anything is proposed. A draft is shared, not
@@ -2353,6 +2364,11 @@ run and a person get the same answer (T-4453 removed the `GET …/assistant/cata
 POST /api/v1/projects/{project}/ops/jc_catalog_search   { "q": "bike availability", "scope": "Endpoint" }
 ```
 
+Without `scope`, or with `"scope": "Dataset"`, the answer adds `datasets`: at most 10 public
+datasets of the installation's open-data catalogues (CKAN `package_search`, read anonymously as
+the catalogue page reads them), each `{ title, url, publisher, formats }` with `url` the dataset's
+page; a catalogue that did not answer is named in `unavailable` (T-6027).
+
 ```json
 {
   "q": "bike availability",
@@ -2547,8 +2563,19 @@ route's problem document.
     → 200 { "items": [{ "kind": "Pipeline", "name": "bikes-hsl", "space": "helsinki",
                         "title": "…", "phase": "Ready", "sourceUrl": "…" }] }
     → 422 { "error": "invalid_input", "path": "/kind", "message": "'Bikes' is not a kind …; the kinds are …" }
+    An Endpoint's line adds `types` (its spec's `entityTypes`, else the classes of its space's
+    model) and `url`, its address on the data host (T-6027).
   jc_resource_get      { "kind": "Endpoint", "name": "helsinki-bikes" }
     → 200 the manifest with its status; secret values never, `secretRef` names only
+    An Endpoint's answer adds `access`: `url`, `types`, `surfaces` (one `{ name, url }` per address
+    of each representation the Endpoint serves: `ngsi-ld/v1/`, `odata/v4/`, `ogc/features/` and a
+    `geojson` items address per type, `file.csv`, `sta/v1.1`, `ws`, `mcp`, each feed and calendar
+    output; a representation it does not serve is not offered) and, for a public Endpoint, `embed`,
+    the viz host's frame (`https://viz.{domain}/embed.html#{slug}&type={T}`, as its Embed button
+    writes it). `"writers": true` adds `writers`: each person, group, role or ServiceAccount the
+    gateway grants a write on one of its types, with the types and the Policies (`via`), from the
+    access matrix (§57), so only an organization administrator or a reader of the space's Policies
+    is answered (`403` otherwise) and the read is recorded; on another kind `writers` is `422`.
     → 404 problem: "Endpoint 'helsinki-bike' not found in project 'helsinki'; it has helsinki-bikes, …"
   jc_resource_propose  { "manifest": { "apiVersion": "…", "kind": "Pipeline",
                                        "metadata": { "name": "bikes-hsl" }, "spec": { … } } }
@@ -4213,6 +4240,7 @@ the newest messages a broker received. The allowance is written only as a field 
 GET    /api/v1/projects/{project}/mqtt/allowance                       → 200
 GET    /api/v1/projects/{project}/mqttbrokers/{name}/captured?topic=&limit= → 200
 GET    /api/v1/projects/{project}/mqttbrokers/{name}/bindings          → 200
+GET    /api/v1/projects/{project}/mqttbrokers/{name}/access?account=   → 200
 DELETE /api/v1/projects/{project}/mqttbrokers/{name}/captured          → 204
 ```
 
@@ -4294,6 +4322,22 @@ DELETE /api/v1/projects/{project}/mqttbrokers/{name}/captured          → 204
   flow map (§50), an Endpoint by its space. A hidden hop ends the row there: nothing it leads to
   is shown. A pipeline of another project is never joined. Nothing here holds a secret, a
   password reference or a payload.
+- `access?account=<serviceAccount>` explains which roles of the broker the account holds now:
+  the answer of jc-core `mqtt::roles_held` at the time of the request, the decision the gateway
+  makes at CONNECT and publish (ADR-N-048 §2.13), read over the two manifests and decided nowhere
+  else. Each held role carries its `publish` and `subscribe` filters, `bound` (a RoleBinding
+  `mqtt/<broker>/<role>` or `mqtt/*/<role>` in force), `legacy` (the deprecated
+  `serviceAccounts` list) and `until`, when its last grant ends. `outOfWindow` lists the
+  account's grants of this broker outside their validity window. A caller who may not read the
+  project gets `404` (PF-59), a member who may not read `MqttBroker` `403`, an unknown broker or
+  an account the caller may not read `404`, a missing or malformed `account` `400`.
+
+```json
+{"broker": "air", "account": "air-fleet", "at": "2026-10-29T12:00:00Z",
+ "roles": [{"role": "sensor", "publish": ["air/${clientid}/pm10"], "subscribe": [],
+            "legacy": false, "bound": true, "until": "2026-12-01T00:00:00Z"}],
+ "outOfWindow": []}
+```
 
 ## 48. Pipeline access requests (PL-90…PL-93)
 

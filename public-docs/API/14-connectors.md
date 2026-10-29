@@ -47,6 +47,14 @@ The Portal stores connectors in its database, one owner each, never in Git (AG-1
 | `state` | Read-only: `active`, `pending` (above the ceiling, waiting for an administrator, AG-150), `expired`, `revoked`. |
 | `limits` | Read-only: what the connector may spend (§3.1). |
 
+Each segment lists the reads its jobs need besides `jc_change_plan` (T-6039):
+
+| Segment | Lookup reads |
+|---|---|
+| `access` | `jc_member_list`: the people a RoleBinding of the project reaches, directly or through a Group, with the roles they hold there. Each carries the subject as the binding names it (a Keycloak user id, or an e-mail where the binding names one) and the realm's first and last name; no other e-mail. `search` matches the subject and the name. Only a project the connector's scope names, and only with `read` on RoleBinding there, else `403`. |
+| `publish` | `jc_model_source_get` (the LinkML text, so a KPI or publish block names real attributes) and `jc_kpi_compute`. |
+| `apps` | `Dashboard` and `Layer` besides `App`, and the five UI tools of §2.2 while the owner's Portal tab is paired; none submits. A client without a paired tab gets the plan's `portal` link instead. |
+
 A connector above the person's DelegationPolicy ceiling is either refused with `403` naming the field or, when the policy queues requests, stored as `pending` until an administrator approves it in the Portal.
 
 ## 2. Managing connectors
@@ -133,7 +141,7 @@ A DelegationPolicy may lower these (AG-150); `limits` on the record shows the va
 
 ## 4. The tool contract
 
-Every tool's input is a JSON Schema 2020-12 object with `additionalProperties: false`; every output is structured content beside a short text summary. `kind` is a kind of the platform registry (Development/04 §2) and `project` a project slug. Names are DNS-1123 labels.
+Every tool's input is a JSON Schema 2020-12 object with `additionalProperties: false`; every output is structured content beside a short text summary. `kind` is a kind of the platform registry (Development/04 §2) and `project` a project slug. At `/c/{id}` of a connector whose scope names one project, `project` is optional and defaults to that project, taken from the stored scope and never from the request; a call naming another project is still `403` naming the target. The `initialize` instructions name the projects the connector reaches (T-6064). Names are DNS-1123 labels.
 
 ### 4.1 Errors
 
@@ -153,10 +161,10 @@ Every tool answers its errors as `application/problem+json` (API/09) with these 
 
 | Tool | Input | Output | Notes |
 |---|---|---|---|
-| `get_schema` | `{kind}` | `{kind, schema}`: the kind's JSON Schema | Every kind of the registry; no rights needed beyond the connector's. |
+| `get_schema` | `{kind, path?}` | `{kind, required, fields, example, more}`: the fields every manifest carries, one line per field (`spec.class: one of auto\|resident\|scheduled, required`) and a minimal manifest jc-core's validation accepts; with `path`, a JSON pointer into the manifest such as `/spec/sources/0`, `{kind, path, schema}`: that field's JSON Schema with the definitions it names | Every kind of the registry; no rights needed beyond the connector's. The default answer stays under 4,000 bytes; a `path` naming no field, longer than 256 bytes or not starting with `/` is a 422 on `/path`. |
 | `list` | `{kind, project?, space?, q?, limit? (1-200, default 50), cursor?}` | `{items[{kind, name, project, title, state}], nextCursor?}` | Only objects in the effective scope. `q` matches name and title. |
 | `get` | `{kind, project, name}` | `{manifest, etag, status}` | `secretRef` names only, never a resolved value (AG-155). |
-| `query_data` | `{project, endpoint, type?, id?, q?, attrs?, georel?, geometry?, coordinates?, orderBy?, format? (normalized, concise, keyValues), temporal? {timerel, timeAt, endTimeAt?, lastN?, aggrMethods?, aggrPeriodDuration?}, count?, limit? (0-1000, 0 only with count), cursor?}` | `{entities[], total?, nextCursor?}` | Reads one Endpoint through the gateway as the owner: the Portal exchanges the token the call came with (RFC 8693, audience `mcp-hub`, scope `endpoint:{slug}`) and never reads with a token of its own; the query language is the Data MCP's (AG-84). A temporal read of an Endpoint whose view lists no history is `404` "serves no history". Entity text arrives inside the untrusted-data fence (AG-20). Attributes the model marks `personalData` are left out unless the scope ticks them (§4.6). Registry name `jc_data_query`. |
+| `query_data` | `{project, endpoint, type?, id?, q?, attrs?, georel?, geometry?, coordinates?, orderBy?, format? (normalized, concise, keyValues), temporal? {timerel, timeAt, endTimeAt?, lastN?, aggrMethods?, aggrPeriodDuration?}, count?, limit? (0-1000, 0 only with count), cursor?}` | `{entities[], total?, nextCursor?}` | Reads one Endpoint through the gateway as the owner: the Portal exchanges the token the call came with (RFC 8693, audience `mcp-hub`, scopes `gateway-hub endpoint:{slug}`, both optional scopes of `portal-api`, the only one carrying the hub audience) and never reads with a token of its own; the gateway admits a hub-audience token on an Endpoint only from `portal-api` and only with the `endpoint:{slug}` scope naming that Endpoint ([02](02-endpoint-representations.md)), and decides the read on the person's grants; a refused exchange answers `403` when the person's session ended (sign in again) and `503` naming the realm setting an administrator must change otherwise; the query language is the Data MCP's (AG-84). A temporal read of an Endpoint whose view lists no history is `404` "serves no history". Entity text arrives inside the untrusted-data fence (AG-20). Attributes the model marks `personalData` are left out unless the scope ticks them (§4.6). Registry name `jc_data_query`. |
 
 ### 4.3 Writing: plan, then apply
 
@@ -178,10 +186,12 @@ A DataModel change may carry `source`, the whole LinkML file its `spec.linkml` n
 
 | Tool | Input | Output | Notes |
 |---|---|---|---|
-| `sample_source` | `{project, datasource \| source {…}, limit? (1-50, default 10)}` | `{rows[], contentType, bytes, truncated}` | Reads through the outbound allow-list; never writes Git, never stores the sample. |
-| `try_mapping` | `{project, mapping, input[1..50] \| datasource}` | `{outputs[], errors[{index, message}], verdict}` | Runs the mapping in the pipeline test sandbox (PL-43); writes nothing. |
-| `run_pipeline` | `{project, pipeline}` | `{runId, state, url}` | Requires `run` on the pipeline (segments `pipeline`, `operate`); the run writes through its own Endpoint and Policy, never as the connector. |
-| `pipeline_logs` | `{project, pipeline, runId?, limit? (1-500, default 100)}` | `{lines[{at, level, step, message}], state}` | Masked as the activity pipeline masks them (OPS-48). |
+| `sample_source` | `{project, dataSource \| sample {text, format}}` | `{records[≤20], fields[], count, truncated, errors[]}`; a streaming source `{streamed, seconds, …}` | The project's runner reads the declared DataSource under its egress policy; never writes Git, never stores the sample. Through a connector `sample.url` is refused: a URL a prompt carries is never fetched inside the cluster (T-6028). |
+| `try_mapping` | `{project, pipeline \| draft, sample {text, format} \| messages[], steps?}` | `{input, records[], errors[{stage, step, line, message}], steps?[{step, name, reached, dropped, records[≤5], errors[≤5{line, message}], fields?, truncated?}]}` | Runs the candidate's steps in the pipeline test sandbox (PL-43); writes nothing. As `sample_source`, no `sample.url` through a connector. With `steps: true` the answer also carries what each step made of the sample (T-6082): its distinct records masked as the activity pipeline masks them (OPS-48), how many messages reached it whole (`reached`) and failed at it (`dropped`), and their errors. The per-step records of one answer hold at most 32 KiB; a step past that keeps its counts, errors and `fields` and says `truncated: true`. A message a step deletes counts in neither number. `jc_pipeline_test` takes the same `steps`. |
+| `run_pipeline` | `{project, name}` | `{run, state: queued}` | Queues one run of the approved pipeline now and answers at once, never waiting for the run (PL-78). Offered only with `writes` on a connector whose segments reach Pipeline (`pipeline`, `operate`), held to a scope item with `write` on that pipeline; the caller needs propose and approve on Pipeline. The run writes through its own Endpoint and Policy, never as the connector. A run in progress or a pipeline that always runs is `409`. |
+| `pipeline_logs` | `{project, name, run?, limit? (1-50, default 10), cursor?, step?}` | `{runs[{run, sent, rejected, failed, …}], run, lines[{id, at, recordId, step?, outcome, message}], next?}` | The newest runs with their counts and one run's log (the newest unless `run` names one), newest line first. A page holds at most 32 KiB of lines; `next` is the `cursor` of the following page. `step` keeps only the lines of that step of `spec.steps` (T-6082); `next` then still reads on past the lines it skipped. Masked as the activity pipeline masks them (OPS-48). |
+
+In the Portal's operation registry they are `jc_pipeline_sample_source`, `jc_pipeline_try_mapping`, `jc_pipeline_run` and `jc_pipeline_logs`; segment `pipeline` lists all but the run, `operate` lists `jc_pipeline_logs` (T-6028). Segment `pipeline` also lists `jc_pipeline_test`, the sample test a Pipeline plan needs before it holds (T-4840), with no `sample.url` through a connector either (T-6040).
 
 ### 4.5 The Portal assistant's own tools
 
