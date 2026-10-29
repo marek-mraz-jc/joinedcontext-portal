@@ -369,3 +369,47 @@ async fn a_backlog_is_trimmed_in_bounded_batches() {
     );
     assert!(done.batches >= 3, "{done:?}");
 }
+
+#[tokio::test]
+async fn a_postgres_page_keeps_one_connectors_events_and_pages_on_by_cursor() {
+    use chrono::SubsecRound;
+    use joinedcontext_portal::activity::{ActivityFilter, ActivityStore, Cursor};
+    let Some((pool, project)) = activity_db().await else {
+        return;
+    };
+    // The store keeps whole seconds (`chrono_to_odt`); the id orders events of one second.
+    let now = Utc::now().trunc_subsecs(0);
+    let store = ActivityStore::new(Some(pool));
+    let call = |minutes: i64, connector: &str| {
+        let mut e = event("mcp.tool", "info", "endpoints/public-air");
+        e.project = project.clone();
+        e.time = now - chrono::Duration::minutes(minutes);
+        e.details = json!({ "connector": connector });
+        e
+    };
+    let ours = "abcdefghijklmnopqrstuvwxyz";
+    store
+        .append(&[
+            call(3, ours),
+            call(2, "bbcdefghijklmnopqrstuvwxyz"),
+            call(1, ours),
+        ])
+        .await
+        .expect("appended");
+    let mut filter = ActivityFilter {
+        connector: Some(ours.into()),
+        limit: 1,
+        ..Default::default()
+    };
+
+    let first = store.list(&project, &filter).await.expect("a page");
+    assert_eq!(first.items.len(), 1);
+    assert_eq!(first.items[0].time, call(1, ours).time);
+    let next = first.next.expect("a second page");
+    filter.cursor = Some(Cursor::decode(&next).expect("our own cursor"));
+    let second = store.list(&project, &filter).await.expect("a page");
+    assert_eq!(second.items.len(), 1);
+    assert_eq!(second.items[0].details["connector"], ours);
+    assert_eq!(second.items[0].time, call(3, ours).time);
+    assert_eq!(second.next, None);
+}
