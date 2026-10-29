@@ -384,138 +384,140 @@ impl ActivityStore {
                         .cloned()
                         .collect();
                 hits.sort_by_key(|(id, event)| std::cmp::Reverse((event.time, *id)));
-                let more = hits.len() as i64 > limit;
-                hits.truncate(limit as usize);
-                let next = more.then(|| hits.last()).flatten().map(|(id, event)| {
-                    Cursor {
-                        time: event.time,
-                        id: *id,
-                    }
-                    .encode()
-                });
-                Ok(Page {
-                    items: hits.into_iter().map(|(_, event)| event).collect(),
-                    next,
-                })
+                Ok(Self::page_of(hits, limit))
             }
-            Inner::Db(pool) => {
-                let mut sql = String::from(
-                    "SELECT id, time, project, space, kind, source, summary, severity, correlation_id, details \
-                     FROM activity WHERE project = $1",
-                );
-                let mut n = 1;
-                if filter.space.is_some() {
-                    n += 1;
-                    sql.push_str(&format!(" AND space = ${n}"));
-                }
-                if filter.reach.is_some() {
-                    n += 1;
-                    sql.push_str(&format!(" AND (space IS NULL OR space = ANY(${n}))"));
-                }
-                if !filter.kinds.is_empty() {
-                    n += 1;
-                    sql.push_str(&format!(" AND kind = ANY(${n})"));
-                }
-                if filter.source.is_some() {
-                    n += 1;
-                    sql.push_str(&format!(" AND source = ${n}"));
-                }
-                if filter.severity.is_some() {
-                    n += 1;
-                    sql.push_str(&format!(
-                        " AND CASE severity WHEN 'error' THEN 2 WHEN 'warning' THEN 1 ELSE 0 END >= ${n}"
-                    ));
-                }
-                if filter.since.is_some() {
-                    n += 1;
-                    sql.push_str(&format!(" AND time >= ${n}"));
-                }
-                if filter.object.is_some() {
-                    n += 1;
-                    sql.push_str(&format!(" AND details->>'object' = ${n}"));
-                }
-                if filter.connector.is_some() {
-                    n += 1;
-                    sql.push_str(&format!(" AND details->>'connector' = ${n}"));
-                }
-                if filter.cursor.is_some() {
-                    sql.push_str(&format!(" AND (time, id) < (${}, ${})", n + 1, n + 2));
-                    n += 2;
-                }
-                n += 1;
-                sql.push_str(&format!(" ORDER BY time DESC, id DESC LIMIT ${n}"));
-
-                // The shape is built from the filter's own fields, never from a value: every value is
-                // bound. `AssertSqlSafe` is how sqlx 0.9 takes a query string that is not `'static`.
-                let mut query = sqlx::query(sqlx::AssertSqlSafe(sql)).bind(project);
-                if let Some(space) = &filter.space {
-                    query = query.bind(space);
-                }
-                if let Some(reach) = &filter.reach {
-                    query = query.bind(reach.clone());
-                }
-                if !filter.kinds.is_empty() {
-                    query = query.bind(filter.kinds.clone());
-                }
-                if let Some(source) = &filter.source {
-                    query = query.bind(source);
-                }
-                if let Some(severity) = &filter.severity {
-                    query = query.bind(severity_rank(severity).unwrap_or(0));
-                }
-                if let Some(since) = filter.since {
-                    query = query.bind(chrono_to_odt(since));
-                }
-                if let Some(object) = &filter.object {
-                    query = query.bind(object);
-                }
-                if let Some(connector) = &filter.connector {
-                    query = query.bind(connector);
-                }
-                if let Some(cursor) = &filter.cursor {
-                    query = query.bind(chrono_to_odt(cursor.time)).bind(cursor.id);
-                }
-                let rows = query
-                    .bind(limit + 1)
-                    .fetch_all(pool)
-                    .await
-                    .map_err(|err| ActivityError::Db(err.to_string()))?;
-                let mut items: Vec<(i64, ActivityEvent)> = rows
-                    .iter()
-                    .map(|row| {
-                        (
-                            row.get::<i64, _>("id"),
-                            ActivityEvent {
-                                time: odt_to_chrono(row.get::<time::OffsetDateTime, _>("time")),
-                                project: row.get("project"),
-                                space: row.get("space"),
-                                kind: row.get("kind"),
-                                source: row.get("source"),
-                                summary: row.get("summary"),
-                                severity: row.get("severity"),
-                                correlation_id: row.get("correlation_id"),
-                                details: row
-                                    .get::<Option<Value>, _>("details")
-                                    .unwrap_or(Value::Null),
-                            },
-                        )
-                    })
-                    .collect();
-                let more = items.len() as i64 > limit;
-                items.truncate(limit as usize);
-                let next = more.then(|| items.last()).flatten().map(|(id, event)| {
-                    Cursor {
-                        time: event.time,
-                        id: *id,
-                    }
-                    .encode()
-                });
-                Ok(Page {
-                    items: items.into_iter().map(|(_, event)| event).collect(),
-                    next,
-                })
-            }
+            Inner::Db(pool) => Self::list_db(pool, project, filter, limit).await,
         }
+    }
+
+    /// The page of `rows` (newest first, at most `limit + 1`): the first `limit` and the cursor past
+    /// them when there were more.
+    fn page_of(mut rows: Vec<(i64, ActivityEvent)>, limit: i64) -> Page {
+        let more = rows.len() as i64 > limit;
+        rows.truncate(limit as usize);
+        let next = more.then(|| rows.last()).flatten().map(|(id, event)| {
+            Cursor {
+                time: event.time,
+                id: *id,
+            }
+            .encode()
+        });
+        Page {
+            items: rows.into_iter().map(|(_, event)| event).collect(),
+            next,
+        }
+    }
+
+    /// [`ActivityStore::list`] over Postgres.
+    async fn list_db(
+        pool: &sqlx::PgPool,
+        project: &str,
+        filter: &ActivityFilter,
+        limit: i64,
+    ) -> Result<Page, ActivityError> {
+        let mut sql = String::from(
+            "SELECT id, time, project, space, kind, source, summary, severity, correlation_id, details \
+             FROM activity WHERE project = $1",
+        );
+        let mut n = 1;
+        if filter.space.is_some() {
+            n += 1;
+            sql.push_str(&format!(" AND space = ${n}"));
+        }
+        if filter.reach.is_some() {
+            n += 1;
+            sql.push_str(&format!(" AND (space IS NULL OR space = ANY(${n}))"));
+        }
+        if !filter.kinds.is_empty() {
+            n += 1;
+            sql.push_str(&format!(" AND kind = ANY(${n})"));
+        }
+        if filter.source.is_some() {
+            n += 1;
+            sql.push_str(&format!(" AND source = ${n}"));
+        }
+        if filter.severity.is_some() {
+            n += 1;
+            sql.push_str(&format!(
+                " AND CASE severity WHEN 'error' THEN 2 WHEN 'warning' THEN 1 ELSE 0 END >= ${n}"
+            ));
+        }
+        if filter.since.is_some() {
+            n += 1;
+            sql.push_str(&format!(" AND time >= ${n}"));
+        }
+        if filter.object.is_some() {
+            n += 1;
+            sql.push_str(&format!(" AND details->>'object' = ${n}"));
+        }
+        if filter.connector.is_some() {
+            n += 1;
+            sql.push_str(&format!(" AND details->>'connector' = ${n}"));
+        }
+        if filter.cursor.is_some() {
+            sql.push_str(&format!(" AND (time, id) < (${}, ${})", n + 1, n + 2));
+            n += 2;
+        }
+        n += 1;
+        sql.push_str(&format!(" ORDER BY time DESC, id DESC LIMIT ${n}"));
+
+        // The shape is built from the filter's own fields, never from a value: every value is
+        // bound. `AssertSqlSafe` is how sqlx 0.9 takes a query string that is not `'static`.
+        let mut query = sqlx::query(sqlx::AssertSqlSafe(sql)).bind(project);
+        if let Some(space) = &filter.space {
+            query = query.bind(space);
+        }
+        if let Some(reach) = &filter.reach {
+            query = query.bind(reach.clone());
+        }
+        if !filter.kinds.is_empty() {
+            query = query.bind(filter.kinds.clone());
+        }
+        if let Some(source) = &filter.source {
+            query = query.bind(source);
+        }
+        if let Some(severity) = &filter.severity {
+            query = query.bind(severity_rank(severity).unwrap_or(0));
+        }
+        if let Some(since) = filter.since {
+            query = query.bind(chrono_to_odt(since));
+        }
+        if let Some(object) = &filter.object {
+            query = query.bind(object);
+        }
+        if let Some(connector) = &filter.connector {
+            query = query.bind(connector);
+        }
+        if let Some(cursor) = &filter.cursor {
+            query = query.bind(chrono_to_odt(cursor.time)).bind(cursor.id);
+        }
+        let rows = query
+            .bind(limit + 1)
+            .fetch_all(pool)
+            .await
+            .map_err(|err| ActivityError::Db(err.to_string()))?;
+        let items: Vec<(i64, ActivityEvent)> = rows
+            .iter()
+            .map(|row| {
+                (
+                    row.get::<i64, _>("id"),
+                    ActivityEvent {
+                        time: odt_to_chrono(row.get::<time::OffsetDateTime, _>("time")),
+                        project: row.get("project"),
+                        space: row.get("space"),
+                        kind: row.get("kind"),
+                        source: row.get("source"),
+                        summary: row.get("summary"),
+                        severity: row.get("severity"),
+                        correlation_id: row.get("correlation_id"),
+                        details: row
+                            .get::<Option<Value>, _>("details")
+                            .unwrap_or(Value::Null),
+                    },
+                )
+            })
+            .collect();
+        Ok(Self::page_of(items, limit))
     }
 
     /// Drops what is past the retention window (OPS-49). The Portal trims its own table on a
