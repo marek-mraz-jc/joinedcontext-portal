@@ -25,6 +25,9 @@ pub struct AppState {
     /// `wasm` App's publish then says so (AP-149).
     pub wasm_apps: Option<Arc<crate::apps::wasm_apps::WasmApps>>,
     pub config: Arc<Config>,
+    /// The client every open-data catalogue search goes out through: the platform's outbound
+    /// guard ([`crate::api::catalogue::ckan_client`]); a test serving CKAN on loopback sets its own.
+    pub catalogue_http: reqwest::Client,
     /// `None` when no Keycloak realm is configured: login answers 503, every protected
     /// route answers 401. Fail closed.
     pub oidc: Option<Arc<OidcClient>>,
@@ -198,6 +201,7 @@ impl AppState {
         let activity = crate::activity::ActivityStore::new(None).with_hub(activity_events.clone());
         Self {
             bearer,
+            catalogue_http: crate::api::catalogue::CKAN_HTTP.clone(),
             config: Arc::new(config),
             oidc: oidc.map(Arc::new),
             mirror: Arc::new(Mirror::new()),
