@@ -116,8 +116,7 @@ for (const [who, person] of [
       // A section the installation hides is no page to walk (T-2874).
       const hidden = await hiddenSections(tab.page.request);
       // The routes are gathered on list pages a crash names no route of: once more on a fresh tab.
-      let gathered = await tab.run((page) => visits(page, who));
-      if (gathered.crashed) gathered = await tab.run((page) => visits(page, who));
+      const gathered = await tab.twice((page) => visits(page, who));
       if (gathered.crashed) throw new Error("the browser tab crashed twice while the walker gathered the routes to walk");
       const all = gathered.value.filter((visit) => !inHiddenSection(visit.address, hidden) && (!ONLY || ONLY.test(visit.address)));
       // Each address loads once per language and is judged at every width by resizing the open page:
@@ -125,10 +124,12 @@ for (const [who, person] of [
       for (const lang of LANGS) for (const visit of all) {
         let opened: Opened = { edgeRefused: false, blank: false, document: [] };
         for (const [index, size] of WIDTHS.entries()) {
-          current = [];
-          const judged = await tab.run(async (page) => {
+          // A crash is judged again on a fresh tab, which loads the address anew at any width (T-6009).
+          const judged = await tab.twice(async (page, again) => {
+            const load = index === 0 || again;
+            current = [];
             await page.setViewportSize(size);
-            if (index === 0) {
+            if (load) {
               // A load the edge refused is judged again after its window, without what it logged; a
               // blank or non-2xx document once more after 5 s, as one `document` finding (T-5857).
               opened = await openToWalk(page, `${visit.address}${visit.address.includes("?") ? "&" : "?"}lang=${lang}`, undefined, () => {
@@ -141,16 +142,16 @@ for (const [who, person] of [
             // A blank load is reported once, at the first width: the others resize the same empty tab.
             const viewer = who === "viewer" && !OWN.has(visit.route);
             const findings =
-              index > 0 && opened.blank
+              !load && opened.blank
                 ? current
-                : [...current, ...(await judgeOpened(page, index === 0 ? opened : { ...opened, document: [] }, { namespaces: NAMESPACES, viewer }))];
+                : [...current, ...(await judgeOpened(page, load ? opened : { ...opened, document: [] }, { namespaces: NAMESPACES, viewer }))];
             const screenshot = test.info().outputPath(`${who}-${lang}-${size.width}${visit.address.replace(/[^a-z0-9]+/gi, "-")}.png`);
             await page.screenshot({ path: screenshot, fullPage: true, mask: secretMasks(page) });
             await shot(page, { area: "portal", route: visit.address, state: "open", who, lang });
             return { findings, screenshot };
           });
           if (judged.crashed) {
-            // A person meets this as a dead tab: reported on the page, and the walk goes on.
+            // Crashed on two tabs: a person meets this as a dead tab. Reported on the page, and the walk goes on.
             report.push({ ...visit, width: size.width, lang, findings: ["crash: the browser tab crashed on this page"], screenshot: "" });
             break;
           }
