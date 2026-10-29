@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Fragment, Suspense, useEffect, useRef, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { Link, useMatchRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -532,7 +532,7 @@ export function Shell({
   const organizationActive = Boolean(matchRoute({ to: "/organization/$tab", fuzzy: true }));
   // An Organization's own administrator opens its own sections of Administration (T-5248).
   const { opensAdministration } = useAdministers();
-  const modelsActive = Boolean(matchRoute({ to: "/projects/$project/models", params: { project } }));
+  const modelsActive = Boolean(matchRoute({ to: "/projects/$project/models", params: { project }, fuzzy: true }));
   const exploreActive = Boolean(matchRoute({ to: "/projects/$project/explore", params: { project } }));
   const ckanActive = Boolean(matchRoute({ to: "/projects/$project/ckan", params: { project } }));
   const knowledgeActive = Boolean(
@@ -697,7 +697,8 @@ export function Shell({
               const isActive = section === activeSection;
               const body = <NavLabel icon={section.icon} label={t(section.labelKey)} />;
               return (
-                <li key={section.plural}>
+                <Fragment key={section.plural}>
+                <li>
                   {/* Approvals and Assistant have routes of their own; linking them through the generic
                       template would resolve to that route anyway, with a router warning. */}
                   {section.plural === "home" ? (
@@ -743,24 +744,28 @@ export function Shell({
                     </Link>
                   )}
                 </li>
+                {/* A model says what every space holds, so it sits right under the spaces
+                    (T-6090); it is no resource list, so it has its own route. */}
+                {section.plural === "spaces" ? (
+                  <li>
+                    <Link
+                      to="/projects/$project/models"
+                      params={{ project }}
+                      onClick={closeNav}
+                      aria-current={modelsActive ? "page" : undefined}
+                      className={navLinkClass(modelsActive)}
+                    >
+                      <NavLabel icon="models" label={t("nav.models")} />
+                    </Link>
+                  </li>
+                ) : null}
+                </Fragment>
               );
             })}
           </ul>
-          {/* Not sections of the resource API: the model editor that writes LinkML into the
-              repository, the explorer and the CKAN view hang below the list. Every endpoint
-              across projects is the Organization page's, for administrators (T-2877). */}
+          {/* Not sections of the resource API: the explorer and the CKAN view hang below the
+              list. Every endpoint across projects is the Organization page's, for administrators (T-2877). */}
           <ul className="flex flex-col gap-0.5 border-t border-border pt-3">
-            <li>
-              <Link
-                to="/projects/$project/models"
-                params={{ project }}
-                onClick={closeNav}
-                aria-current={modelsActive ? "page" : undefined}
-                className={navLinkClass(modelsActive)}
-              >
-                <NavLabel icon="models" label={t("nav.models")} />
-              </Link>
-            </li>
             <li>
               <Link
                 to="/projects/$project/explore"

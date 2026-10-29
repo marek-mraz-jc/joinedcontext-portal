@@ -1,10 +1,9 @@
 /**
  * T-2762 (DM-61, DM-62, UI-84): inside a Context Space the data model is one click away. The
- * space page links the model, shows its diagram, form and YAML read-only, and a space with no
- * model offers Create and Import prefilled for it.
+ * space page summarises the model and links its own page (T-6090), and a space with no model
+ * offers Create and Import prefilled for it.
  */
 import { screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../src/locales/en.json";
 import { jsonResponse, list, renderRoute } from "./pageHarness";
@@ -20,6 +19,8 @@ classes:
     slots: [pm10, refStation]
   Station:
     slots: [name]
+  Any:
+    class_uri: linkml:Any
 slots:
   pm10: { range: float }
   refStation: { range: Station }
@@ -69,20 +70,29 @@ afterEach(() => {
 });
 
 describe("the space's data model", () => {
-  it("links the model and shows its diagram, form and YAML", async () => {
+  // T-6090 (owner walk): the tab embedded the whole modeler, a second home for one model. It now
+  // summarises the model and sends the person to the model's own page for everything else.
+  it("summarises the model and links its one page", async () => {
     await renderRoute({ path: "/projects/helsinki/spaces/ilma?tab=model", answer: answer([MODEL]) });
     const model = await section();
-    expect(model.getByRole("link", { name: "Air quality" })).toHaveAttribute("href", "/projects/helsinki/models/air");
+    expect(model.getByText("Air quality")).toBeInTheDocument();
     expect(model.getByText("v1.2.0")).toBeInTheDocument();
-    expect(model.getByRole("link", { name: en.models.page.edit })).toHaveAttribute("href", "/projects/helsinki/models?edit=air");
+    expect(model.getByRole("link", { name: en.spaces.inside.modelOpen })).toHaveAttribute(
+      "href",
+      "/projects/helsinki/models/air",
+    );
+    expect(await model.findByText("2 classes")).toBeInTheDocument();
+    const classes = model.getByRole("list", { name: en.spaces.inside.modelClassList });
+    expect(within(classes).getByRole("link", { name: "Station" })).toHaveAttribute(
+      "href",
+      "/projects/helsinki/models/air?class=Station",
+    );
+    // The modeler lives on the model's page only: no diagram, form, YAML or Edit here.
+    expect(model.queryByRole("group", { name: en.models.graph.title })).toBeNull();
+    expect(model.queryByRole("tab", { name: en.models.page.view.yaml })).toBeNull();
+    expect(model.queryByRole("link", { name: en.models.page.edit })).toBeNull();
     // The model's name in the entity types line opens the model too.
     expect(screen.getByRole("link", { name: "air" })).toHaveAttribute("href", "/projects/helsinki/models/air");
-
-    expect(await model.findByRole("group", { name: en.models.graph.title })).toBeInTheDocument();
-    await userEvent.click(model.getByRole("tab", { name: en.models.page.view.form }));
-    expect(await model.findByDisplayValue("31.4")).toBeInTheDocument();
-    await userEvent.click(model.getByRole("tab", { name: en.models.page.view.yaml }));
-    expect(model.getByLabelText(en.models.page.yaml)).toHaveTextContent("refStation: { range: Station }");
   });
 
   it("offers Create and Import for this space when it has no model", async () => {
@@ -99,12 +109,13 @@ describe("the space's data model", () => {
     );
   });
 
-  it("shows a viewer Edit, Create and Import disabled with the reason", async () => {
+  it("lets a viewer open the model to read it", async () => {
     await renderRoute({ path: "/projects/helsinki/spaces/ilma?tab=model", answer: answer([MODEL]), permissions: READER });
     const model = await section();
-    expect(await model.findByRole("button", { name: en.models.page.edit })).toHaveAttribute("aria-disabled", "true");
-    expect(model.queryByRole("link", { name: en.models.page.edit })).toBeNull();
-    expect(model.getByRole("link", { name: "Air quality" })).toBeInTheDocument();
+    expect(await model.findByRole("link", { name: en.spaces.inside.modelOpen })).toHaveAttribute(
+      "href",
+      "/projects/helsinki/models/air",
+    );
   });
 
   it("shows a viewer of an empty space the ways as disabled", async () => {

@@ -1530,7 +1530,7 @@
     },
     "src/pages/models/LinkmlGraphView.tsx": {
       "controls": {
-        "Button": 9
+        "Button": 8
       },
       "tests": [
         "diagram_editing.test.tsx",
