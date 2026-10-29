@@ -385,4 +385,89 @@ mod tests {
             ]
         );
     }
+
+    /// Project ovzdusie, where pia@hel.fi may propose a DataSource; no forge.
+    fn granted() -> AppState {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let org = crate::permissions::ORG_NAMESPACE;
+        for (kind, spec) in [
+            (
+                "Role",
+                json!({ "rules": [{ "kinds": ["DataSource"], "verbs": ["read", "propose"] }] }),
+            ),
+            (
+                "RoleBinding",
+                json!({ "subjects": [{ "user": "pia@hel.fi" }], "role": "proposer", "scope": { "project": "ovzdusie" } }),
+            ),
+        ] {
+            state.mirror.upsert(ResourceEnvelope {
+                api_version: API_VERSION.to_owned(),
+                kind: kind.to_owned(),
+                metadata: ObjectMeta::new("proposer", org),
+                spec,
+                status: None,
+            });
+        }
+        state
+    }
+
+    fn pia(client: Option<&str>) -> CurrentUser {
+        use crate::auth::session::{Identity, Session};
+        CurrentUser(Session {
+            identity: Identity {
+                client: client.map(str::to_owned),
+                subject: "sub-pia".into(),
+                username: "pia".into(),
+                email: Some("pia@hel.fi".into()),
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+                second_factor: false,
+            },
+            expires_at: 9_999_999_999,
+            issued_at: 1000,
+            id_token: "dummy".into(),
+            access_expires_at: 9_999_999_999,
+            refresh_token: None,
+        })
+    }
+
+    /// MF-24: the person's own grant passes in a session, and the same person's token obtained
+    /// by a connector, an agent or a service account is refused on both doors before any read
+    /// or write.
+    #[tokio::test]
+    async fn a_token_of_a_client_never_reaches_the_secret_doors() {
+        let state = granted();
+        assert!(authorize(&state, &pia(None).0.identity, "ovzdusie").is_ok());
+        for client in ["mcp-local", "agent-runner", "svc-ingest"] {
+            let listed = list_secrets(
+                pia(Some(client)),
+                State(state.clone()),
+                Path("ovzdusie".into()),
+            )
+            .await;
+            assert!(
+                matches!(&listed, Err(ApiError::Denied(m)) if m.contains("MF-24")),
+                "{client}: {:?}",
+                listed.err()
+            );
+            let body = SecretWrite {
+                name: "counters-api".into(),
+                values: [("apiKey".to_owned(), "typed-by-a-connector".to_owned())].into(),
+            };
+            let proposed = propose_secret(
+                pia(Some(client)),
+                State(state.clone()),
+                Path("ovzdusie".into()),
+                Json(body),
+            )
+            .await;
+            assert!(
+                matches!(&proposed, Err(ApiError::Denied(m)) if m.contains("MF-24")),
+                "{client}: {:?}",
+                proposed.err()
+            );
+        }
+    }
 }
