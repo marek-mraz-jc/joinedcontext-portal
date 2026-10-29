@@ -60,6 +60,15 @@ const BOX = {
 const CHARS = 17;
 /** Pixels per drawing unit: natural size, and how far the buttons go each way. */
 const ZOOM = { natural: 1, step: 1.25, min: 0.25, max: 4, fitMax: 2 };
+/**
+ * The least zoom the full-screen canvas fits to (T-6094): the slot text, 10 units, is 11 px there.
+ * The canvas lays its groups out in as many columns as fit at `canvasColumns`, so a model is
+ * read at this size or larger and a wider drawing is panned, never shrunk past reading.
+ */
+const READABLE = 1.1;
+/** The most the canvas fits to: a one-class area at 200 % dwarfed its neighbours' tabs. */
+const CANVAS_FIT_MAX = 1.25;
+const canvasColumns = (frameWidth: number) => Math.max(1, Math.floor((frameWidth / 1.2 + BOX.gapX) / (BOX.width + BOX.gapX)));
 /** One object for "no imports", so the drawing is not recomputed on every render. */
 const NO_IMPORTS: Record<string, string> = {};
 /** How far focus reaches: the class and up to this many lines out. */
@@ -165,12 +174,12 @@ export function layoutEdge(edge: GraphEdge): LayoutEdge {
  * groups stand side by side, wrapped at three boxes so the drawing fits a laptop card at a
  * readable size (T-4991). `bends` holds, per edge, where its line turns as it passes a layer.
  */
-export function place(nodes: GraphNode[], edges: GraphEdge[]): { placed: Placed[]; bends: Point[][] } {
+export function place(nodes: GraphNode[], edges: GraphEdge[], columns = 3): { placed: Placed[]; bends: Point[][] } {
   const height = (node: GraphNode) => BOX.header + lines(node) * BOX.row + BOX.padding;
   const layout = layered(
     nodes.map((node) => ({ id: node.name, width: BOX.width, height: height(node) })),
     edges.map(layoutEdge),
-    { gapX: BOX.gapX, gapY: BOX.gapY, groupGap: BOX.gapX * 2, maxWidth: 3 * (BOX.width + BOX.gapX) },
+    { gapX: BOX.gapX, gapY: BOX.gapY, groupGap: BOX.gapX * 2, maxWidth: columns * (BOX.width + BOX.gapX) },
   );
   // In reading order, top to bottom and left to right: the order Tab walks the boxes in.
   const placed = nodes
@@ -330,7 +339,10 @@ export function LinkmlGraphView({
     const names = new Set(kept.map((node) => node.name));
     return { nodes: kept, edges: all.edges.filter((edge) => names.has(edge.from) && names.has(edge.to)) };
   }, [nodes, edges, folded, only]);
-  const laid = useMemo(() => place(drawn.nodes, drawn.edges), [drawn]);
+  // The canvas wraps its groups at what its frame holds readably; elsewhere at three boxes.
+  const [frameWidth, setFrameWidth] = useState(0);
+  const columns = canvas && frameWidth > 0 ? canvasColumns(frameWidth) : 3;
+  const laid = useMemo(() => place(drawn.nodes, drawn.edges, columns), [drawn, columns]);
   // A box being dragged on the canvas: where it is now, before it is kept.
   const [moving, setMoving] = useState<{ name: string; at: Point; grip: Point; moved: boolean }>();
   // A moved box is drawn where the person put it; a line to it goes straight, its bends were the layout's.
@@ -358,7 +370,6 @@ export function LinkmlGraphView({
   // right edge at its natural size (T-4991). The Fit button may still enlarge a small one.
   // A frame drawn while hidden (a tab not yet open) has no width: fit once it gets one (T-6090).
   const fitted = useRef(false);
-  const [frameWidth, setFrameWidth] = useState(0);
   useEffect(() => {
     const frameAt = frame.current;
     if (!frameAt || typeof ResizeObserver === "undefined") return;
@@ -369,7 +380,7 @@ export function LinkmlGraphView({
   // Another diagram tab is another drawing: it fits again.
   useEffect(() => {
     fitted.current = false;
-  }, [only]);
+  }, [only, columns]);
   useEffect(() => {
     const available = (frame.current?.clientWidth ?? 0) - 16;
     if (fitted.current || available <= 0 || placed.length === 0) return;
@@ -378,7 +389,8 @@ export function LinkmlGraphView({
     // A phone-narrow canvas opens at one box's width, readable, and is panned; the whole model at
     // a phone's width was a quarter size nobody could read (T-6094 UI judge).
     const narrow = canvas && available < 2 * BOX.width;
-    setZoom(Math.max(ZOOM.min, Math.min(ZOOM.natural, available / (narrow ? BOX.width + 16 : wide))));
+    const fits = Math.min(canvas ? CANVAS_FIT_MAX : ZOOM.natural, available / (narrow ? BOX.width + 16 : wide));
+    setZoom(Math.max(canvas && !narrow ? READABLE : ZOOM.min, fits));
   }, [placed, frameWidth, canvas]);
   // The wheel zooms on the canvas, and with Ctrl or Cmd anywhere; the point under the pointer stays put.
   const zoomNow = useRef(zoom);
@@ -534,7 +546,9 @@ export function LinkmlGraphView({
   // Fit: the whole drawing in the frame's width, never blown up past twice its size.
   const fit = () => {
     const available = (frame.current?.clientWidth ?? 0) - 16;
-    setZoom(available > 0 ? Math.min(ZOOM.fitMax, available / (width + 8)) : ZOOM.natural);
+    const narrow = canvas && available < 2 * BOX.width;
+    const fits = Math.min(canvas ? CANVAS_FIT_MAX : ZOOM.fitMax, available / (narrow ? BOX.width + 16 : width + 8));
+    setZoom(available > 0 ? Math.max(canvas && !narrow ? READABLE : ZOOM.min, fits) : ZOOM.natural);
     frame.current?.scrollTo?.({ left: 0, top: 0 });
   };
   // Pan by dragging the background; a press on a box or a line is still a click.

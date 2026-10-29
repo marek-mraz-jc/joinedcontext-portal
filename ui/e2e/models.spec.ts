@@ -588,8 +588,11 @@ test.describe("the model canvas (T-6094)", () => {
     await expect(page).toHaveURL(/\/projects\/helsinki\/models\/city\/diagram$/);
     await expect(page.getByRole("heading", { level: 1, name: "Diagram of city" })).toBeVisible();
     await page.getByRole("button", { name: "Fit" }).click();
+    // Fit never shrinks the canvas below reading size (11 px slot text); a wider model pans.
+    const percent = Number((await page.getByText(/^Zoom \d+ %$/).textContent())?.match(/\d+/)?.[0]);
+    expect(percent).toBeGreaterThanOrEqual(110);
     for (const name of ["Place", "BikeHireDockingStation", "Event", "Organization", "Dataset", "DataService", "Distribution"]) {
-      await expect(opened(page, name)).toBeInViewport();
+      await expect(opened(page, name)).toBeVisible();
     }
     // Person is personal data (DM-120): its own tab, its header in the danger tint.
     await expect(opened(page, "Person")).toHaveCount(0);

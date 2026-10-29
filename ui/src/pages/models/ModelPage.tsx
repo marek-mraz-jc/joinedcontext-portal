@@ -21,6 +21,7 @@ import {
   Alert,
   Badge,
   Button,
+  buttonClass,
   EmptyState,
   Icon,
   PageHeader,
@@ -367,7 +368,7 @@ export function ModelPage({
                 <Link
                   to="/projects/$project/models/$name/diagram"
                   params={{ project, name }}
-                  className="focus-ring inline-flex items-center gap-1 self-start rounded border border-border px-3 py-1 text-body font-medium"
+                  className={buttonClass("secondary", "sm", "self-start")}
                 >
                   <Icon name="expand" className="size-4" />
                   {t("models.canvas.open")}
