@@ -47,6 +47,7 @@ use serde_json::{json, Value};
 use crate::error::ApiError;
 use crate::state::AppState;
 
+pub mod app_view;
 pub mod connector;
 pub mod elicitation;
 pub mod tasks;
@@ -343,7 +344,7 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
             if !may_read(&state, &caller, &project) {
                 return json_response(StatusCode::OK, &result(id, json!({ "resources": [] })));
             }
-            let mut resources = Vec::new();
+            let mut resources = vec![app_view::listed()];
             // Item by item: a grant bound to one context space lists that space's manifests
             // alone, as the REST list does (T-5698).
             let effective = crate::permissions::for_request(&state, &caller.identity, &project);
@@ -471,6 +472,10 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
         }
         "resources/read" => {
             let uri = params.get("uri").and_then(Value::as_str).unwrap_or("");
+            if uri == app_view::URI {
+                let contents = app_view::contents(&state.config.public_base_url);
+                return json_response(StatusCode::OK, &result(id, json!({ "contents": contents })));
+            }
             match read_resource(&state, &caller, uri).await {
                 Some((mime, text)) => json_response(
                     StatusCode::OK,
@@ -976,8 +981,17 @@ pub fn tool_definition(op: &crate::ops::OperationSummary) -> Value {
         "execution": {
             "taskSupport": if tasks::is_long(&op.name) { "required" } else { "forbidden" }
         },
-        // The rule the door applies to the call, as `GET …/ops` names it.
-        "_meta": { "joinedcontext.com/requires": op.requires }
+        // The rule the door applies to the call, as `GET …/ops` names it; a tool whose answer
+        // renders in the plan view names it (MCP Apps, T-5960), under the current key and the
+        // flat one older hosts read.
+        "_meta": match app_view::tool_meta(&op.name) {
+            Some(ui) => json!({
+                "joinedcontext.com/requires": op.requires,
+                "ui/resourceUri": app_view::URI,
+                "ui": ui,
+            }),
+            None => json!({ "joinedcontext.com/requires": op.requires }),
+        }
     })
 }
 
