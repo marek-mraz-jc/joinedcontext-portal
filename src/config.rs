@@ -713,7 +713,6 @@ fn cookie_keys(
     Ok((cookie_key, cookie_keys_previous))
 }
 
-/// The group reconciler's Keycloak client: an id and exactly one proof, or neither.
 /// `JC_PORTAL_DECISIONS_NEED_SECOND_FACTOR` (T-6083): only the literal `false` turns the
 /// decision doors' second-factor gate off, so a typo keeps AUT-2 in force.
 fn decisions_need_second_factor(lookup: &impl Fn(&str) -> Option<String>) -> bool {
@@ -727,6 +726,7 @@ fn decisions_need_second_factor(lookup: &impl Fn(&str) -> Option<String>) -> boo
     on
 }
 
+/// The group reconciler's Keycloak client: an id and exactly one proof, or neither.
 fn keycloak_admin(
     lookup: &impl Fn(&str) -> Option<String>,
     oidc: Option<&OidcConfig>,
