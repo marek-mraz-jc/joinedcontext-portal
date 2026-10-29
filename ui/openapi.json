@@ -21435,6 +21435,159 @@
         }
       }
     },
+    "/api/v1/projects/{project}/ops/jc_pipeline_logs": {
+      "post": {
+        "description": "A pipeline's newest runs with what each sent, rejected and failed, and one run's log (the newest unless run names one): each record's outcome and the message saying why, e.g. the source read that failed or the write the gateway refused. The log comes a page at a time; send next as cursor for the following page",
+        "operationId": "jc_pipeline_logs",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "name": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "cursor": {
+                    "description": "The next of the previous answer: the log's following page",
+                    "type": "integer"
+                  },
+                  "limit": {
+                    "description": "Runs listed, newest first (default 10)",
+                    "maximum": 50,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "name": {
+                    "description": "The Pipeline's name, e.g. counters-hourly",
+                    "maxLength": 253,
+                    "type": "string"
+                  },
+                  "run": {
+                    "description": "The run whose log to read, as runs[].run names it, e.g. 2026-10-29T03:00:00Z; the newest run when absent",
+                    "maxLength": 64,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "lines": {
+                      "description": "The run's log, newest first: each record's id, the step it failed at, its outcome and what happened",
+                      "type": "array"
+                    },
+                    "next": {
+                      "description": "Present when the log goes on: send it as cursor",
+                      "type": "integer"
+                    },
+                    "run": {
+                      "description": "The run whose log lines follow; null when the pipeline never ran",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "runs": {
+                      "description": "The newest runs, each with the records it sent, the model rejected and a step failed",
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "runs",
+                    "run",
+                    "lines"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Read Pipeline Runs and Logs",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "Pipeline",
+          "verb": "read"
+        }
+      }
+    },
     "/api/v1/projects/{project}/ops/jc_pipeline_metrics": {
       "post": {
         "description": "What the runner has counted for one pipeline: state, messages, errors and latency",
@@ -21800,6 +21953,134 @@
           }
         },
         "summary": "Propose Pipeline",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "registry",
+          "kind": "Pipeline",
+          "verb": "propose"
+        }
+      }
+    },
+    "/api/v1/projects/{project}/ops/jc_pipeline_run": {
+      "post": {
+        "description": "Queues one run of a pipeline that runs from the queue (PL-78), now and outside its schedule, and answers its id: the run the run list shows once it wrote. The run waits its turn in its lane, so runs started for many pipelines go one after another. A pipeline whose run is in the runner, and one that waits for pushes and so always runs, answer 409. Needs propose and approve on Pipeline (a steward), and each run is an activity event `pipeline.run`",
+        "operationId": "jc_pipeline_run",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "name": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "description": "The Pipeline's name, e.g. counters-hourly",
+                    "maxLength": 253,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "run": {
+                      "description": "The run's id, as jc_pipeline_logs names it once it wrote",
+                      "type": "string"
+                    },
+                    "state": {
+                      "description": "The run waits its turn in the project's lane",
+                      "enum": [
+                        "queued"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "run"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Run a Pipeline Now",
         "tags": [
           "ops"
         ],
