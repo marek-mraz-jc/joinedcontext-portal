@@ -3788,7 +3788,9 @@
       "grantOrg": "{role} v celé organizaci",
       "emptyHint": "Servisní účet je způsob, jak program mimo Portál čte nebo zapisuje tento projekt: skript, pipeline jinde, jiná platforma. Každý se přihlašuje vlastním klientem v Keycloaku a má jen roli, kterou mu dáte.",
       "emptyOrganization": "Organizace nemá vlastní servisní účet. Servisní účty projektu jsou v nastavení projektu a v sekci Agenti.",
-      "emptyHintOrganization": "Servisní účet organizace je způsob, jakým program mimo Portál čte nebo zapisuje napříč jejími projekty: skript, pipeline jinde, jiná platforma. Každý se přihlašuje vlastním klientem Keycloak a má jen roli, kterou mu dáte."
+      "emptyHintOrganization": "Servisní účet organizace je způsob, jakým program mimo Portál čte nebo zapisuje napříč jejími projekty: skript, pipeline jinde, jiná platforma. Každý se přihlašuje vlastním klientem Keycloak a má jen roli, kterou mu dáte.",
+      "mqttRole": "{role} na MQTT brokeru {broker}",
+      "mqttRoleAny": "{role} na každém MQTT brokeru projektu"
     },
     "matrix": {
       "title": "Přístup k datům",
@@ -9933,7 +9935,28 @@
         "certificate": "Certifikát není certifikátem zařízení tohoto projektu, nebo zařízení poslalo heslo na adresu pro certifikáty."
       }
     },
-    "noAccounts": "V projektu není servisní účet, který můžete číst. Přidejte zařízení na stránce brokeru nebo vytvořte účet v Nastavení projektu, Servisní účty."
+    "noAccounts": "V projektu není servisní účet, který můžete číst. Přidejte zařízení na stránce brokeru nebo vytvořte účet v Nastavení projektu, Servisní účty.",
+    "access": {
+      "title": "Kdo co smí",
+      "account": "Servisní účet",
+      "accountHelp": "Zařízení se přihlašuje jako jeden ze servisních účtů projektu, např. air-fleet; vyberte ho a uvidíte, co mu broker nyní dovolí.",
+      "noAccounts": "Žádný servisní účet k vysvětlení",
+      "noAccountsHint": "Přidejte k brokeru zařízení nebo vytvořte servisní účet na stránce Přístup a pak ho vyberte zde.",
+      "caption": "Role brokeru {broker}, které má {account} nyní",
+      "through": "Uděleno přes",
+      "until": "Do",
+      "noEnd": "Bez konce",
+      "bound": "Přiřazení role",
+      "legacy": "seznam serviceAccounts",
+      "legacyHint": "Role, která uvádí účet v serviceAccounts, je zastaralá: spusťte jcctl migrate mqtt-roles, který ji přesune na přiřazení mqtt/{broker}/<role> na účtu.",
+      "noneTitle": "{account} nemá žádnou roli tohoto brokeru",
+      "noneHint": "Jeho zařízení budou při připojení odmítnuta. Udělte servisnímu účtu roli mqtt/{broker}/<role> s rozsahem tohoto projektu.",
+      "expiredTitle": "Udělení tohoto brokeru, která neplatí",
+      "endedAt": "skončilo {at}",
+      "startsAt": "začíná {at}",
+      "refusedTitle": "Nesmíte číst MQTT brokery tohoto projektu",
+      "failedTitle": "Role brokeru se nepodařilo načíst"
+    }
   },
   "connect": {
     "title": "Připojte AI asistenta",

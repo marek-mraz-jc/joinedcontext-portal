@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use jc_core::kinds::mqtt_broker::{certificate_release_name, release_name};
 use jc_core::kinds::MqttDeviceAuth;
-use jc_core::kinds::{MqttAllowance, MqttBrokerSpec, MqttUsage};
+use jc_core::kinds::{MqttAllowance, MqttBrokerSpec, MqttUsage, ServiceAccountSpec};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
@@ -317,19 +317,77 @@ fn known_accounts(spec: &MqttBrokerSpec, accounts: &BTreeSet<String>) -> Result<
 }
 
 /// The broker clients a ServiceAccount's token names as audiences: every broker of its project
-/// whose roles name it (ADR-N-048 §2.7), whatever else the broker's manifest says, so a device
-/// keeps its audience while a typo elsewhere in the manifest is fixed.
+/// whose roles list it or that a binding `mqtt/<broker>/<role>` of the account names (ADR-N-048
+/// §2.7, §2.13), whatever else the broker's manifest says, so a device keeps its audience while a
+/// typo elsewhere in the manifest is fixed.
 pub fn audiences_of(mirror: &Mirror, project: &str, account: &str) -> Vec<String> {
+    let bound = mirror
+        .get(project, "ServiceAccount", account)
+        .and_then(|envelope| serde_json::from_value::<ServiceAccountSpec>(envelope.spec).ok());
     mirror
         .list(project, "MqttBroker", &ListOptions::default())
         .items
         .into_iter()
         .filter(|envelope| {
-            serde_json::from_value::<MqttBrokerSpec>(envelope.spec.clone())
-                .is_ok_and(|spec| spec.roles_of(account).next().is_some())
+            serde_json::from_value::<MqttBrokerSpec>(envelope.spec.clone()).is_ok_and(|spec| {
+                crate::mqtt_roles::names_account(
+                    &envelope.metadata.name,
+                    &spec,
+                    account,
+                    bound.as_ref(),
+                )
+            })
         })
         .map(|envelope| release_name(project, &envelope.metadata.name))
         .collect()
+}
+
+/// What a broker the platform applies is worth a look for (T-5876), one line each naming the
+/// broker: a role still listing the deprecated `serviceAccounts`, which `jcctl migrate mqtt-roles`
+/// moves to `mqtt/<broker>/<role>` bindings on the accounts, and two roles granting one filter
+/// (`jc_core::mqtt::topics::overlaps`).
+pub fn warnings(brokers: &[Broker]) -> Vec<String> {
+    let mut found = Vec::new();
+    for broker in brokers {
+        let Ok(spec) = &broker.spec else { continue };
+        for role in spec
+            .roles
+            .iter()
+            .filter(|role| !role.service_accounts.is_empty())
+        {
+            found.push(format!(
+                "MQTT broker {} role `{}` still lists serviceAccounts, deprecated since T-5872: \
+                 run `jcctl migrate mqtt-roles` to move them to `mqtt/{}/{}` RoleBindings on \
+                 each account",
+                broker.label(),
+                role.name,
+                broker.name,
+                role.name
+            ));
+        }
+        found.extend(
+            jc_core::mqtt::topics::overlaps(&spec.roles)
+                .into_iter()
+                .map(|overlap| format!("MQTT broker {}: {overlap}", broker.label())),
+        );
+    }
+    found
+}
+
+/// Logs each of [`warnings`] once per process: the reconciler judges the brokers every cycle,
+/// and a line repeated each cycle hides the next one.
+pub fn log_warnings(brokers: &[Broker]) {
+    static LOGGED: std::sync::LazyLock<std::sync::Mutex<BTreeSet<String>>> =
+        std::sync::LazyLock::new(Default::default);
+    let Ok(mut logged) = LOGGED.lock() else {
+        return;
+    };
+    for warning in warnings(brokers) {
+        if !logged.contains(&warning) {
+            tracing::warn!(%warning, "MQTT broker manifest");
+            logged.insert(warning);
+        }
+    }
 }
 
 /// The broker's `max_packet_size`: its `maxMessageBytes`, and never under [`CONNECT_ALLOWANCE`].
@@ -1775,6 +1833,126 @@ spec:
             audiences_of(&mirror, "espoo", "cam-south"),
             Vec::<String>::new()
         );
+    }
+
+    #[test]
+    fn a_binding_alone_gives_the_account_the_brokers_audience() {
+        let mirror = mirror();
+        mirror.upsert(envelope(
+            "ServiceAccount",
+            "helsinki",
+            "air-fleet",
+            json!({
+                "owner": {"user": "anna"}, "purpose": "air", "credentials": [],
+                "roles": [{"role": "mqtt/doors/camera", "scope": {"project": "helsinki"}}]
+            }),
+        ));
+        assert_eq!(
+            audiences_of(&mirror, "helsinki", "air-fleet"),
+            ["mqtt-helsinki-doors"]
+        );
+    }
+
+    #[test]
+    fn a_role_still_listing_accounts_is_a_deprecation_naming_broker_role_and_the_fix() {
+        let found = warnings(&declared(&mirror()));
+        let doors: Vec<&String> = found
+            .iter()
+            .filter(|w| w.starts_with("MQTT broker helsinki/doors role `camera`"))
+            .collect();
+        assert_eq!(doors.len(), 1, "{found:?}");
+        assert!(
+            doors[0].contains("jcctl migrate mqtt-roles"),
+            "{}",
+            doors[0]
+        );
+        assert!(doors[0].contains("mqtt/doors/camera"), "{}", doors[0]);
+        assert_eq!(
+            found.len(),
+            3,
+            "one per legacy role of the three brokers: {found:?}"
+        );
+    }
+
+    /// `espoo/air` as [`declared`] judges it beside the [`mirror`]'s brokers, every mode allowed.
+    fn with_air(spec: Value) -> Broker {
+        let mirror = mirror();
+        // Every mode, so the table's relay cases are judged by their topics alone.
+        mirror.upsert(envelope(
+            "Organization",
+            crate::permissions::ORG_NAMESPACE,
+            "hel",
+            json!({ "domain": "hel.fi", "limits": { "mqtt": {
+                "enabled": true, "brokers": 2, "connections": 20000, "messagesPerSecond": 100000,
+                "addresses": ["platform", "dedicatedPort"], "ports": [18830],
+                "modes": ["ingest", "relay", "capture"]
+            } } }),
+        ));
+        mirror.upsert(envelope("MqttBroker", "espoo", "air", spec));
+        declared(&mirror)
+            .into_iter()
+            .find(|broker| broker.label() == "espoo/air")
+            .expect("declared")
+    }
+
+    #[test]
+    fn two_roles_granting_one_filter_are_warned_about() {
+        let air = with_air(json!({"roles": [
+            {"name": "wide", "publish": ["air/${clientid}/#"]},
+            {"name": "narrow", "publish": ["air/${clientid}/pm10"]},
+        ]}));
+        let found = warnings(&[air]);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(
+            found[0].starts_with("MQTT broker espoo/air: "),
+            "{}",
+            found[0]
+        );
+        assert!(found[0].contains("covers"), "{}", found[0]);
+    }
+
+    /// The validator table jc-core and the gateway run (`topics_cases.json`, copied from the
+    /// pinned platform rev, T-5877), through the Portal's two readings of a broker: the proposal
+    /// check (`registry::validate_yaml`, step 4b) and the reconciler's [`declared`].
+    #[test]
+    fn every_case_of_the_shared_topic_table_gets_its_verdict_in_the_portal() {
+        #[derive(serde::Deserialize)]
+        struct Case {
+            case: String,
+            spec: Value,
+            refused: Option<String>,
+        }
+        let cases: Vec<Case> =
+            serde_json::from_str(include_str!("../../tests/fixtures/mqtt_topics_cases.json"))
+                .expect("the table is JSON");
+        assert!(cases.len() >= 10);
+        for case in cases {
+            let manifest = envelope("MqttBroker", "espoo", "air", case.spec.clone());
+            let text = serde_json::to_string(&manifest).expect("json");
+            let proposed = jc_core::registry::validate_yaml("MqttBroker", &text)
+                .expect("a kind jc-core checks");
+            let reconciled = with_air(case.spec).spec;
+            match &case.refused {
+                None => {
+                    assert!(proposed.is_ok(), "{}: {proposed:?}", case.case);
+                    assert!(reconciled.is_ok(), "{}: {reconciled:?}", case.case);
+                }
+                Some(field) => {
+                    let proposed = proposed.expect_err(&case.case).to_string();
+                    assert!(
+                        proposed.contains(field.as_str()),
+                        "{}: {proposed}",
+                        case.case
+                    );
+                    let reconciled = reconciled.expect_err(&case.case);
+                    assert!(
+                        reconciled.contains(field.as_str()),
+                        "{}: {reconciled}",
+                        case.case
+                    );
+                }
+            }
+        }
     }
 
     #[test]
