@@ -242,6 +242,12 @@
   says: "Infer a DataModel from this CSV sample."
   expect: 'model inference returns slots with ranges matching the sample columns'
   deny: 'none'
+  script:
+    # Model Tools answers what it inferred from these exact bytes (inferred-counters.json).
+    - proves: expect
+      call: jc_model_infer
+      args: { name: counters.csv, sample: "id,name,count,observedAt\nc1,Most SNP,42,2026-10-27T10:00:00Z\n" }
+      contains: ['"count":"integer"', '"name":"string"', '"observedAt":"datetime"', 'Counters']
 - id: S-12
   segment: context
   as: steward
@@ -641,6 +647,31 @@
   says: "Pause the sync source and later resume it."
   expect: 'syncsource pause, status paused, sync resumes'
   deny: 'none'
+  script:
+    - proves: expect
+      call: jc_syncsource_pause
+      args: { name: regional, paused: true }
+      accepted: true
+      contains: ['"paused":true']
+    - proves: expect
+      call: jc_syncsource_status
+      args: { name: regional }
+      contains: ['"paused":true']
+    - proves: expect
+      call: jc_syncsource_pause
+      args: { name: regional, paused: false }
+      accepted: true
+      contains: ['"paused":false']
+    - proves: expect
+      call: jc_syncsource_status
+      args: { name: regional }
+      contains: ['"paused":false']
+    # Pausing is a proposal's right: a viewer of the project is refused.
+    - proves: deny
+      as: viewer
+      call: jc_syncsource_pause
+      args: { name: regional, paused: true }
+      refused: true
 - id: S-26
   segment: pipeline
   as: steward
@@ -1132,18 +1163,18 @@
   script:
     - proves: deny
       call: jc_change_approve
-      args: { number: 42 }
+      args: { id: chg-0000002a }
       refused: true
     - proves: deny
       as: org-admin
       call: jc_change_approve
-      args: { number: 42 }
+      args: { id: chg-0000002a }
       refused: true
     - proves: expect
       call: jc_change_approve
-      args: { number: 42 }
+      args: { id: chg-0000002a }
       refused: true
-      contains: ['/changes/']
+      contains: ['decide it at https://portal.test/projects/{project}/approvals/chg-0000002a']
 - id: S-45
   segment: operate
   as: steward

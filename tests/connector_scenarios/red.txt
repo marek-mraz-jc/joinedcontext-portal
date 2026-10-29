@@ -1,14 +1,11 @@
 # Connector scenarios the scripted lane cannot pass yet (T-5947 ratchet): `S-nn T-xxxx reason`.
 # The task named turns the scenario green and removes its line in the same branch; a line never comes
 # back. tests/connector_scenarios.rs fails when a listed scenario passes or an unlisted one fails.
-S-01 T-5948 jc_resource_list answers name and space only: no entity types, no access URL
-S-06 T-5948 no tool lists an Endpoint's representation URLs
-S-08 T-5948 jc_catalog_search finds one project's resources, not open data catalogue datasets with links
-S-11 T-5962 jc_model_infer needs Model Tools, which the scripted lane does not run
+S-01 T-6027 jc_resource_list answers name and space only: no entity types, no access URL
+S-06 T-6027 no tool lists an Endpoint's representation URLs
+S-08 T-6027 jc_catalog_search finds one project's resources, not open data catalogue datasets with links
 S-23 T-6001 the plan cannot name stored attributes: Antares answers the Portal admin token only on /q and has no route listing a type's held attribute names
-S-25 T-5948 jc_syncsource_pause needs a running sync source the scripted lane does not have
-S-30 T-5948 no tool answers who may write to an Endpoint
-S-39 T-5958 an App run needs the assistant's builder behind the connector tools
-S-40 T-5948 no tool returns a widget embed snippet
-S-44 T-5960 approve is refused, but the answer carries no link to the change's Portal approval page
-S-49 T-5955 no read-only connector token refused below the tools
+S-30 T-6027 no tool answers who may write to an Endpoint
+S-39 T-5962 an App run is built by the builder model on a Gitea runner and answers at its preview URL; the scripted lane runs neither, so only the live walk on dev proves it
+S-40 T-6027 no tool returns a widget embed snippet
+S-49 T-5962 the forged write is refused in the gateway and Antares (T-5955), which the scripted lane mocks; only the live walk on dev proves it
