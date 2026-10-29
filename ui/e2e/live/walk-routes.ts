@@ -10,7 +10,7 @@ export const P = `/projects/${PROJECT}`;
 
 /** The sections that open a create and an edit form at their own address (`NEW_FORMS`). */
 const FORMS = ["spaces", "endpoints", "pipelines", "policies", "subscriptions", "csrs", "datasources", "syncsources"];
-const SECTIONS = ["flows", "spaces", "endpoints", "subscriptions", "datasources", "pipelines", "dashboards", "apps", "syncsources", "policies", "csrs"];
+const SECTIONS = ["spaces", "endpoints", "subscriptions", "datasources", "pipelines", "dashboards", "apps", "syncsources", "policies", "csrs"];
 const ORGANIZATION_TABS = ["settings", "people", "members", "roles", "groups", "service-accounts", "projects"];
 const SETTINGS_TABS = ["general", "members", "roles", "service-accounts", "access", "danger"];
 

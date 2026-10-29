@@ -1170,6 +1170,17 @@ const sharedRedirectRoute = createRoute({
   },
 });
 
+// The Flows page is gone (T-6096): its set-ups start on the Data sources page and "New app".
+// A bookmark of the old address lands on the project's home instead of an unknown section.
+const flowsRedirectRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/flows",
+  component: function FlowsRedirectRoute() {
+    const { project } = flowsRedirectRoute.useParams();
+    return <Navigate replace to="/projects/$project/home" params={{ project }} />;
+  },
+});
+
 /** A resource's own page, for the kinds that have one (UI-01, T-2281, AP-68). */
 const DETAIL_PAGES = new Set(["spaces", "endpoints", "apps", "csrs", "pipelines", "mqttbrokers"]);
 
@@ -1428,6 +1439,7 @@ export const routeTree = rootRoute.addChildren([
     spaceUploadRoute,
     assistantRoute,
     sharedRedirectRoute,
+    flowsRedirectRoute,
     workspacesRoute,
     workspacesNewRoute,
     secretNewRoute,

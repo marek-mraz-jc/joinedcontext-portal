@@ -1366,7 +1366,7 @@
     },
     "src/pages/flows/Gallery.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 1
       },
       "tests": [
         "part_gallery.test.tsx"
@@ -1530,7 +1530,7 @@
     },
     "src/pages/models/LinkmlGraphView.tsx": {
       "controls": {
-        "Button": 9
+        "Button": 8
       },
       "tests": [
         "diagram_editing.test.tsx",

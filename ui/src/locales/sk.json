@@ -86,7 +86,6 @@
     "main": "Hlavná navigácia",
     "skipToContent": "Preskočiť na obsah",
     "breadcrumb": "Navigačná cesta",
-    "flows": "Toky",
     "models": "Dátové modely",
     "ckan": "Otvorené dáta",
     "explore": "Prehliadať dáta",
@@ -597,6 +596,12 @@
       "modelEmptyLead": "Dátový model pomenúva typy entít priestoru a ich atribúty. Vytvorte ho alebo importujte Smart Data Model pre tento priestor.",
       "modelCreate": "Vytvoriť dátový model",
       "modelImport": "Importovať Smart Data Model",
+      "modelOpen": "Otvoriť dátový model",
+      "modelOpenLead": "Model sa číta a upravuje na jeho vlastnej stránke: diagram, formulár, YAML a história.",
+      "modelClasses": "{count, plural, =0 {Zatiaľ bez tried} one {# trieda} few {# triedy} other {# tried}}",
+      "modelClassList": "Triedy dátového modelu",
+      "modelMore": "a ďalšie ({count})",
+      "modelUnreadable": "YAML modelu sa nedá načítať. Otvorte dátový model a pozrite si problém.",
       "tooMany": "Endpoint je zaneprázdnený (priveľa čítaní naraz).",
       "lead": "Jeho dátový model, entity, kto ich číta a čo sa s ním stalo.",
       "broker": "Beží na kontextovom brokeri {broker}.",
@@ -2463,6 +2468,11 @@
     "usedBy": {
       "title": "Používajú ho",
       "none": "Tento zdroj zatiaľ nečíta žiadna pipeline."
+    },
+    "setups": {
+      "title": "Pripravené nastavenia",
+      "lead": "Nastavenie zapíše zdroj, jeho pipeline aj plán v jednej zmene z niekoľkých odpovedí. Príklad: kanál GBFS mestských bicyklov načítaný každú minútu.",
+      "back": "Späť na zdroje údajov"
     }
   },
   "pipelines": {
@@ -4118,14 +4128,6 @@
     }
   },
   "flows": {
-    "title": "Toky",
-    "subtitle": "Vyberte, čo chcete nastaviť. Formulár sa pýta len na potrebné údaje, konfiguráciu zapíše platforma.",
-    "empty": "Zatiaľ pre vás nie je dostupná žiadna šablóna.",
-    "emptyFiltered": "Tomuto filtru nezodpovedá žiadna šablóna.",
-    "category": {
-      "all": "Všetko",
-      "uncategorised": "Ostatné"
-    },
     "risk": {
       "green": "Schvaľuje sa automaticky",
       "yellow": "Jeden schvaľovateľ",
@@ -4134,15 +4136,14 @@
     "riskLabel": "Schvaľovanie",
     "version": "Verzia {version}",
     "run": "Nastaviť",
-    "back": "Späť na prehľad",
     "instantiate": {
       "title": "Nastavenie: {name}",
       "submit": "Navrhnúť zmenu",
       "hint": "Uložením navrhnete zmenu; prejaví sa po jej schválení.",
       "noSchema": "Táto šablóna nemá žiadne parametre.",
-      "failed": "Parametre neboli prijaté. Opravte označené polia a navrhnite znova."
-    },
-    "emptyHint": "Blueprint pripraví celý prípad použitia jedným krokom: priestor, zdroj, pipeline a endpoint spolu. V tomto projekte vám zatiaľ žiadny nie je dostupný."
+      "failed": "Parametre neboli prijaté. Opravte označené polia a navrhnite znova.",
+      "proposed": "Navrhnuté: zmena vyššie čaká na schválenie."
+    }
   },
   "export": {
     "title": "Stiahnuť konfiguráciu",
@@ -4394,7 +4395,7 @@
     "dimensionLabel": "Použitie v dashboarde",
     "graph": {
       "title": "Triedy modelu a čo ich spája",
-      "legend": "Plná čiara je `is_a`, prerušovaná mixin, bodkovaná slot, ktorého rozsah menuje inú triedu, riedko bodkovaná slot, ktorý vyberá z enumu. Rámček enumu vypisuje jeho hodnoty; prerušovaný rámček pochádza z importu. V rámčeku má každé pole svoj typ: PK označuje kľúč, FK pole, ktoré odkazuje na inú triedu, s tou triedou a počtom. Aj bodkovaná čiara uvádza počet na oboch koncoch; * znamená ľubovoľne veľa.",
+      "legend": "Plná čiara zakončená prázdnym trojuholníkom je is_a, prerušovaná zakončená trojuholníkom mixin, bodkovaná slot, ktorého rozsah menuje inú triedu, riedko bodkovaná slot, ktorý vyberá z enumu. Rámček enumu vypisuje jeho hodnoty; prerušovaný rámček pochádza z importu. V rámčeku má každé pole svoj typ: PK označuje kľúč, FK pole, ktoré odkazuje na inú triedu, s tou triedou a počtom. Aj bodkovaná čiara uvádza počet na oboch koncoch; * znamená ľubovoľne veľa.",
       "empty": "Tento model zatiaľ nemá žiadnu triedu, takže niet čo nakresliť.",
       "openClass": "Otvoriť {name} v štruktúre",
       "row": {
@@ -4404,7 +4405,7 @@
       },
       "from": "z {name}",
       "enumBox": "Výčet {name}: {values}",
-      "legendRelationship": "Plná čiara bez šípky je vzťah, pomenovaný poľom a inverzným poľom. Číslo na každom konci hovorí, s koľkými entitami tej triedy je spojená jedna entita na druhom konci: 1 presne jedna, 0..1 najviac jedna, 1..* aspoň jedna, * ľubovoľne veľa.",
+      "legendRelationship": "Plná čiara bez trojuholníka, s koncami označenými ako v legende vyššie, je vzťah, pomenovaný poľom a inverzným poľom. Číslo na každom konci hovorí, s koľkými entitami tej triedy je spojená jedna entita na druhom konci: 1 presne jedna, 0..1 najviac jedna, 1..* aspoň jedna, * ľubovoľne veľa.",
       "zoomIn": "Priblížiť",
       "zoomOut": "Oddialiť",
       "fit": "Prispôsobiť",
@@ -4418,8 +4419,12 @@
       "tableMultiplicity": "Násobnosť",
       "exportSvg": "Stiahnuť SVG",
       "exportMermaid": "Stiahnuť Mermaid",
+      "tools": "Nástroje diagramu",
+      "findHint": "Nájsť triedu, napr. Dataset",
+      "download": "Stiahnuť",
       "notation": {
         "title": "Značenie",
+        "button": "Notácia",
         "isA": "is_a: špecializuje triedu, na ktorú ukazuje trojuholník",
         "mixin": "mixin: primiešava triedu, na ktorú ukazuje trojuholník",
         "one": "presne jedna",

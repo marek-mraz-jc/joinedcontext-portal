@@ -86,7 +86,6 @@
     "main": "Hlavní navigace",
     "skipToContent": "Přeskočit na obsah",
     "breadcrumb": "Drobečková navigace",
-    "flows": "Toky",
     "models": "Datové modely",
     "ckan": "Otevřená data",
     "explore": "Procházet data",
@@ -597,6 +596,12 @@
       "modelEmptyLead": "Datový model pojmenovává typy entit prostoru a jejich atributy. Vytvořte ho nebo importujte Smart Data Model pro tento prostor.",
       "modelCreate": "Vytvořit datový model",
       "modelImport": "Importovat Smart Data Model",
+      "modelOpen": "Otevřít datový model",
+      "modelOpenLead": "Model se čte a upravuje na jeho vlastní stránce: diagram, formulář, YAML a historie.",
+      "modelClasses": "{count, plural, =0 {Zatím bez tříd} one {# třída} few {# třídy} other {# tříd}}",
+      "modelClassList": "Třídy datového modelu",
+      "modelMore": "a další ({count})",
+      "modelUnreadable": "YAML modelu nelze načíst. Otevřete datový model a podívejte se na problém.",
       "tooMany": "Endpoint je zaneprázdněný (příliš mnoho čtení najednou).",
       "lead": "Jeho datový model, entity, kdo je čte a co se s ním stalo.",
       "broker": "Běží na kontextovém brokeru {broker}.",
@@ -2463,6 +2468,11 @@
     "usedBy": {
       "title": "Používají ho",
       "none": "Tento zdroj zatím nečte žádná pipeline."
+    },
+    "setups": {
+      "title": "Připravená nastavení",
+      "lead": "Nastavení zapíše zdroj, jeho pipeline i plán v jedné změně z několika odpovědí. Příklad: kanál GBFS sdílených kol načítaný každou minutu.",
+      "back": "Zpět na zdroje dat"
     }
   },
   "pipelines": {
@@ -4118,14 +4128,6 @@
     }
   },
   "flows": {
-    "title": "Toky",
-    "subtitle": "Vyberte, co chcete nastavit. Formulář se ptá jen na potřebné údaje, konfiguraci zapíše platforma.",
-    "empty": "Zatím pro vás není dostupná žádná šablona.",
-    "emptyFiltered": "Tomuto filtru neodpovídá žádná šablona.",
-    "category": {
-      "all": "Vše",
-      "uncategorised": "Ostatní"
-    },
     "risk": {
       "green": "Schvaluje se automaticky",
       "yellow": "Jeden schvalovatel",
@@ -4134,15 +4136,14 @@
     "riskLabel": "Schvalování",
     "version": "Verze {version}",
     "run": "Nastavit",
-    "back": "Zpět na přehled",
     "instantiate": {
       "title": "Nastavení: {name}",
       "submit": "Navrhnout změnu",
       "hint": "Uložením navrhnete změnu; projeví se po jejím schválení.",
       "noSchema": "Tato šablona nemá žádné parametry.",
-      "failed": "Parametry nebyly přijaty. Opravte označená pole a navrhněte znovu."
-    },
-    "emptyHint": "Blueprint připraví celý případ použití jedním krokem: prostor, zdroj, pipeline a endpoint spolu. V tomto projektu vám zatím žádný není dostupný."
+      "failed": "Parametry nebyly přijaty. Opravte označená pole a navrhněte znovu.",
+      "proposed": "Navrženo: změna výše čeká na schválení."
+    }
   },
   "export": {
     "title": "Stáhnout konfiguraci",
@@ -4394,7 +4395,7 @@
     "dimensionLabel": "Použití v dashboardu",
     "graph": {
       "title": "Třídy modelu a co je spojuje",
-      "legend": "Plná čára je `is_a`, přerušovaná mixin, tečkovaná slot, jehož rozsah jmenuje jinou třídu, řídce tečkovaná slot, který vybírá z enumu. Rámeček enumu vypisuje jeho hodnoty; přerušovaný rámeček pochází z importu. V rámečku má každé pole svůj typ: PK označuje klíč, FK pole, které odkazuje na jinou třídu, s tou třídou a počtem. I tečkovaná čára uvádí počet na obou koncích; * znamená libovolně mnoho.",
+      "legend": "Plná čára zakončená prázdným trojúhelníkem je is_a, přerušovaná zakončená trojúhelníkem mixin, tečkovaná slot, jehož rozsah jmenuje jinou třídu, řídce tečkovaná slot, který vybírá z enumu. Rámeček enumu vypisuje jeho hodnoty; přerušovaný rámeček pochází z importu. V rámečku má každé pole svůj typ: PK označuje klíč, FK pole, které odkazuje na jinou třídu, s tou třídou a počtem. I tečkovaná čára uvádí počet na obou koncích; * znamená libovolně mnoho.",
       "empty": "Tento model zatím nemá žádnou třídu, takže není co kreslit.",
       "openClass": "Otevřít {name} ve struktuře",
       "row": {
@@ -4404,7 +4405,7 @@
       },
       "from": "z {name}",
       "enumBox": "Výčet {name}: {values}",
-      "legendRelationship": "Plná čára bez šipky je vztah, pojmenovaný polem a inverzním polem. Číslo na každém konci říká, s kolika entitami té třídy je spojena jedna entita na druhém konci: 1 právě jedna, 0..1 nejvýše jedna, 1..* aspoň jedna, * libovolně mnoho.",
+      "legendRelationship": "Plná čára bez trojúhelníku, s konci označenými jako v legendě výše, je vztah, pojmenovaný polem a inverzním polem. Číslo na každém konci říká, s kolika entitami té třídy je spojena jedna entita na druhém konci: 1 právě jedna, 0..1 nejvýše jedna, 1..* aspoň jedna, * libovolně mnoho.",
       "zoomIn": "Přiblížit",
       "zoomOut": "Oddálit",
       "fit": "Přizpůsobit",
@@ -4418,8 +4419,12 @@
       "tableMultiplicity": "Násobnost",
       "exportSvg": "Stáhnout SVG",
       "exportMermaid": "Stáhnout Mermaid",
+      "tools": "Nástroje diagramu",
+      "findHint": "Najít třídu, např. Dataset",
+      "download": "Stáhnout",
       "notation": {
         "title": "Značení",
+        "button": "Notace",
         "isA": "is_a: specializuje třídu, na kterou ukazuje trojúhelník",
         "mixin": "mixin: přimíchává třídu, na kterou ukazuje trojúhelník",
         "one": "právě jedna",
