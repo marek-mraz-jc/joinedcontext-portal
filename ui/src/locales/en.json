@@ -5920,6 +5920,7 @@
       "usage": "{tokens} tokens this step.",
       "question": "Asked: {question}",
       "asked": "Asked a question.",
+      "withdrawn": "Question withdrawn: you wrote instead. The assistant asks again if it still needs the answer.",
       "answer": "You answered: {answer}",
       "answered": "You answered.",
       "message": "{who}: {text}",
@@ -5995,8 +5996,8 @@
     },
     "catalog": {
       "title": "What the assistant found",
-      "none": "Nothing in this project matches the search. Try a single word, such as a type or a place.",
-      "noneFor": "Nothing in this project matches “{words}”. Try a single word, such as a type or a place.",
+      "none": "Nothing in this project, the endpoints shared with it or the open data catalogue matches the search. Try a single word, such as a type or a place.",
+      "noneFor": "Nothing in this project, the endpoints shared with it or the open data catalogue matches “{words}”. Try a single word, such as a type or a place.",
       "allowed": "Allowed",
       "restricted": "Restricted",
       "fresh": "Fed {when} by {pipeline}",
@@ -6010,7 +6011,9 @@
       "inUseLabel": "{name} is in use",
       "showMore": "Show {count} more",
       "showLess": "Show less",
-      "fed": "fed {when}"
+      "fed": "fed {when}",
+      "sharedBy": "shared by {owner}",
+      "datasets": "Open data catalogue"
     },
     "proposal": {
       "title": "Endpoint proposal",

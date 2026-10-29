@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { ConversationPanel, answeredSearches, line } from "../src/pages/apps/ConversationPanel";
-import { EVENT_KINDS, openQuestions } from "../src/pages/apps/useAgentRun";
+import { EVENT_KINDS, openQuestions, withdrawnQuestions } from "../src/pages/apps/useAgentRun";
 import type { RunEvent } from "../src/pages/apps/useAgentRun";
 import { expectNoAxeViolations } from "./page_contract";
 
@@ -467,6 +467,35 @@ describe("openQuestions", () => {
   it("keeps the unanswered ones, oldest first", () => {
     const events = [question(1, "a"), question(2, "b"), { seq: 3, kind: "answer", payload: { questionId: "a" } }];
     expect(openQuestions(events).map((q) => q.questionId)).toEqual(["b"]);
+  });
+
+  /// T-6104: "cancel this" typed under "Where does the data come from?" left the form open.
+  it("closes a question the person wrote past instead of answering", () => {
+    const typed = (seq: number, sentBy: string): RunEvent => ({ seq, kind: "message", payload: { text: "cancel this", sentBy } });
+    expect(openQuestions([question(1, "a"), typed(2, "demo.steward")])).toEqual([]);
+    // The agent's own words close nothing, and a question asked after the message stays open.
+    expect(openQuestions([question(1, "a"), typed(2, "agent")]).map((q) => q.questionId)).toEqual(["a"]);
+    expect(openQuestions([typed(1, "demo.steward"), question(2, "b")]).map((q) => q.questionId)).toEqual(["b"]);
+  });
+
+  it("never calls an answered question withdrawn when the person writes on", () => {
+    const events: RunEvent[] = [
+      question(1, "a"),
+      { seq: 2, kind: "answer", payload: { questionId: "a" } },
+      { seq: 3, kind: "message", payload: { text: "thanks, go on", sentBy: "demo.steward" } },
+    ];
+    expect([...withdrawnQuestions(events)]).toEqual([]);
+    expect(openQuestions(events)).toEqual([]);
+  });
+
+  it("drops the form and says the question was withdrawn after a typed message", () => {
+    panel([
+      { seq: 1, kind: "question", payload: { questionId: "q1", schema: { type: "object", title: "Where does the data come from?" } } },
+      { seq: 2, kind: "message", payload: { text: "cancel this", sentBy: "demo.steward" } },
+      { seq: 3, kind: "thought", payload: { text: "Pipeline setup cancelled." } },
+    ]);
+    expect(screen.queryByText(en.agentRun.conversation.question)).toBeNull();
+    expect(screen.getByText(en.agentRun.line.withdrawn)).toBeInTheDocument();
   });
 
   it("marks a question the platform filled, whose answer it checks", () => {

@@ -158,18 +158,44 @@ export function questionOf(event: RunEvent): RunQuestion | null {
   };
 }
 
-/** The questions nobody has answered yet, oldest first. */
-export function openQuestions(events: RunEvent[]): RunQuestion[] {
+/**
+ * The questions a person's later message withdrew (T-6104): the run takes a typed message as
+ * the next turn and waits on no earlier question, so "cancel this" closes the form, and an agent
+ * that still needs the answer asks again.
+ */
+export function withdrawnQuestions(events: RunEvent[]): Set<string> {
   const answered = new Set(
-    events
-      .filter((event) => event.kind === "answer")
-      .map((event) => String(event.payload.questionId ?? "")),
+    events.filter((event) => event.kind === "answer").map((event) => String(event.payload.questionId ?? "")),
   );
+  const withdrawn = new Set<string>();
+  const asked: string[] = [];
+  for (const event of events) {
+    if (event.kind === "question") {
+      asked.push(String(event.payload.questionId ?? ""));
+    } else if (event.kind === "message" && event.payload.sentBy !== "agent") {
+      for (const id of asked.splice(0)) {
+        if (!answered.has(id)) {
+          withdrawn.add(id);
+        }
+      }
+    }
+  }
+  return withdrawn;
+}
+
+/** The questions nobody has answered or withdrawn yet, oldest first. */
+export function openQuestions(events: RunEvent[]): RunQuestion[] {
+  const closed = withdrawnQuestions(events);
+  for (const event of events) {
+    if (event.kind === "answer") {
+      closed.add(String(event.payload.questionId ?? ""));
+    }
+  }
   return events
     .filter((event) => event.kind === "question")
     .map(questionOf)
     .filter((question): question is RunQuestion => question !== null)
-    .filter((question) => !answered.has(question.questionId));
+    .filter((question) => !closed.has(question.questionId));
 }
 
 /**

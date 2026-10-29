@@ -5920,6 +5920,7 @@
       "usage": "{tokens} tokenov v tomto kroku.",
       "question": "Otázka: {question}",
       "asked": "Položil otázku.",
+      "withdrawn": "Otázka stiahnutá: napísali ste niečo iné. Asistent sa spýta znova, ak odpoveď ešte potrebuje.",
       "answer": "Odpovedali ste: {answer}",
       "answered": "Odpovedali ste.",
       "message": "{who}: {text}",
@@ -5995,8 +5996,8 @@
     },
     "catalog": {
       "title": "Čo asistent našiel",
-      "none": "V tomto projekte nič nezodpovedá hľadaniu. Skúste jedno slovo, napríklad typ alebo miesto.",
-      "noneFor": "V tomto projekte nič nezodpovedá „{words}“. Skúste jedno slovo, napríklad typ alebo miesto.",
+      "none": "Hľadaniu nezodpovedá nič v tomto projekte, v endpointoch, ktoré s ním zdieľajú iné projekty, ani v katalógu otvorených údajov. Skúste jedno slovo, napríklad typ alebo miesto.",
+      "noneFor": "Slovám „{words}“ nezodpovedá nič v tomto projekte, v endpointoch, ktoré s ním zdieľajú iné projekty, ani v katalógu otvorených údajov. Skúste jedno slovo, napríklad typ alebo miesto.",
       "allowed": "Prístupné",
       "restricted": "Obmedzené",
       "fresh": "Plnené pred {when} cez {pipeline}",
@@ -6010,7 +6011,9 @@
       "inUseLabel": "{name} sa používa",
       "showMore": "Zobraziť ďalšie ({count})",
       "showLess": "Zobraziť menej",
-      "fed": "plnené pred {when}"
+      "fed": "plnené pred {when}",
+      "sharedBy": "zdieľa {owner}",
+      "datasets": "Katalóg otvorených údajov"
     },
     "proposal": {
       "title": "Návrh endpointu",
