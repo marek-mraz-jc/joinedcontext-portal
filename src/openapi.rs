@@ -338,6 +338,8 @@ use crate::tools::model_tools::{
         crate::api::connectors::connector_activity,
         crate::api::connectors::pending_connectors,
         crate::api::connectors::approve_connector,
+        crate::api::connectors::organization_connectors,
+        crate::api::connectors::revoke_organization_connector,
     ),
     components(schemas(
         crate::api::access_attributes::AttributeExplained,
