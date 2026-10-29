@@ -193,6 +193,50 @@ pub(crate) async fn list_secrets(
     }))
 }
 
+/// Every field the form refuses, named in one 422, before any read or write.
+fn refuse_invalid(body: &SecretWrite) -> Result<(), ApiError> {
+    let mut errors = Vec::new();
+    if !secret_files::valid_name(&body.name) {
+        errors.push("name: letters, digits, '-' and '_', 1 to 63, e.g. counters-api".to_owned());
+    }
+    if body.values.is_empty() || body.values.len() > MAX_KEYS {
+        errors.push(format!(
+            "values: 1 to {MAX_KEYS} keys, e.g. {{\"apiKey\": \"…\"}}"
+        ));
+    }
+    for (key, value) in &body.values {
+        if !secret_files::valid_name(key) {
+            errors.push(format!(
+                "values.{key}: a key is letters, digits, '-' and '_', e.g. apiKey"
+            ));
+        } else if value.trim().is_empty() || value.len() > MAX_VALUE {
+            errors.push(format!("values.{key}: 1 to {MAX_VALUE} bytes"));
+        }
+    }
+    if errors.is_empty() {
+        return Ok(());
+    }
+    Err(ApiError::Unprocessable {
+        detail: "the secret cannot be written as sent; nothing was kept".into(),
+        errors,
+    })
+}
+
+/// The Portal's own recipient first, then every recipient the replaced file had, once each,
+/// so a replace never locks out a reader the old file admitted.
+fn recipients(own: String, replaced: Option<&str>) -> Vec<String> {
+    let mut recipients = vec![own];
+    for kept in replaced
+        .map(secret_files::recipients_of)
+        .unwrap_or_default()
+    {
+        if !recipients.contains(&kept) {
+            recipients.push(kept);
+        }
+    }
+    recipients
+}
+
 #[utoipa::path(
     post,
     path = "/api/v1/projects/{project}/secrets",
@@ -218,30 +262,7 @@ pub(crate) async fn propose_secret(
 ) -> Result<Response, ApiError> {
     let identity = &user.0.identity;
     authorize(&state, identity, &project)?;
-    let mut errors = Vec::new();
-    if !secret_files::valid_name(&body.name) {
-        errors.push("name: letters, digits, '-' and '_', 1 to 63, e.g. counters-api".to_owned());
-    }
-    if body.values.is_empty() || body.values.len() > MAX_KEYS {
-        errors.push(format!(
-            "values: 1 to {MAX_KEYS} keys, e.g. {{\"apiKey\": \"…\"}}"
-        ));
-    }
-    for (key, value) in &body.values {
-        if !secret_files::valid_name(key) {
-            errors.push(format!(
-                "values.{key}: a key is letters, digits, '-' and '_', e.g. apiKey"
-            ));
-        } else if value.trim().is_empty() || value.len() > MAX_VALUE {
-            errors.push(format!("values.{key}: 1 to {MAX_VALUE} bytes"));
-        }
-    }
-    if !errors.is_empty() {
-        return Err(ApiError::Unprocessable {
-            detail: "the secret cannot be written as sent; nothing was kept".into(),
-            errors,
-        });
-    }
+    refuse_invalid(&body)?;
 
     let age_key_file = match state.config.pipeline_secrets.as_ref() {
         Some(crate::pipeline_secrets::Backend::Sops { age_key_file }) => age_key_file.clone(),
@@ -267,16 +288,7 @@ pub(crate) async fn propose_secret(
         .ok_or_else(|| ApiError::Unavailable("this Portal has no forge".into()))?;
     let base = gitea.default_branch().await?;
     let existing = gitea.get_file(&path, &base).await?;
-    let mut recipients = vec![own];
-    for kept in existing
-        .as_ref()
-        .map(|f| secret_files::recipients_of(&f.content))
-        .unwrap_or_default()
-    {
-        if !recipients.contains(&kept) {
-            recipients.push(kept);
-        }
-    }
+    let recipients = recipients(own, existing.as_ref().map(|f| f.content.as_str()));
     let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     let values: BTreeMap<String, Zeroizing<String>> = std::mem::take(&mut body.values)
         .into_iter()
@@ -469,5 +481,52 @@ mod tests {
                 proposed.err()
             );
         }
+    }
+
+    /// Each refused field is named once in one 422; a valid form passes.
+    #[test]
+    fn the_form_names_every_field_it_refuses() {
+        let form = |name: &str, values: &[(&str, &str)]| SecretWrite {
+            name: name.into(),
+            values: values
+                .iter()
+                .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+                .collect(),
+        };
+        assert!(refuse_invalid(&form("counters-api", &[("apiKey", "s3cret")])).is_ok());
+        let long = "x".repeat(MAX_VALUE + 1);
+        let refused = refuse_invalid(&form(
+            "bad name",
+            &[("ok", "  "), ("bad key", "v"), ("big", long.as_str())],
+        ));
+        let Err(ApiError::Unprocessable { errors, .. }) = refused else {
+            panic!("expected 422, got {refused:?}");
+        };
+        assert_eq!(
+            errors
+                .iter()
+                .map(|e| e.split(':').next().unwrap_or_default())
+                .collect::<Vec<_>>(),
+            vec!["name", "values.bad key", "values.big", "values.ok"]
+        );
+        let Err(ApiError::Unprocessable { errors, .. }) = refuse_invalid(&form("empty", &[]))
+        else {
+            panic!("an empty form passed");
+        };
+        assert!(
+            matches!(errors.as_slice(), [only] if only.starts_with("values: 1 to")),
+            "{errors:?}"
+        );
+    }
+
+    /// A replace keeps every reader of the old file once, the Portal's own recipient first.
+    #[test]
+    fn a_replace_keeps_the_old_recipients_once() {
+        assert_eq!(recipients("age1own".into(), None), vec!["age1own"]);
+        let old = "sops:\n  age:\n    - recipient: age1other\n    - recipient: age1own\n";
+        assert_eq!(
+            recipients("age1own".into(), Some(old)),
+            vec!["age1own", "age1other"]
+        );
     }
 }
