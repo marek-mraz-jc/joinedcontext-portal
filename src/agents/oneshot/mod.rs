@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{LazyLock, OnceLock};
+use std::sync::{LazyLock, OnceLock, PoisonError};
 use std::time::Duration;
 
 use serde_json::{json, Value};
@@ -465,6 +465,55 @@ impl Driver {
 }
 
 impl Driver {
+    /// What the person is looking at, when they asked from a form (UI-61, AG-77, T-1611).
+    ///
+    /// The form is the person's own draft, so the assistant works on that draft and nothing else:
+    /// it reads it with `jc_draft_get`, and when asked to fill it in it writes the same draft with
+    /// `jc_draft_put`. The open form is watching that draft and shows what the assistant wrote, so
+    /// the person sees the fields change and decides. Nothing here is proposed.
+    fn looking_at(&self, pack: &mut String) {
+        if let Some(page) = self
+            .page
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_ref()
+        {
+            pack.push_str(&page.section());
+        }
+        if self.form.is_empty() {
+            return;
+        }
+        pack.push_str("\n## THE FORM THE PERSON IS LOOKING AT\n\n");
+        if let Some(kind) = &self.form.kind {
+            pack.push_str(&format!(
+                "They have the {kind} form open in front of them, in this project.\n"
+            ));
+        }
+        if let Some(name) = &self.form.name {
+            pack.push_str(&format!(
+                "It is editing the draft `{name}`. Read it with `jc_draft_get` before you say \
+                 anything about what it holds, and never guess its values.\n"
+            ));
+        }
+        if let Some(field) = &self.form.field {
+            pack.push_str(&format!(
+                "The field they were last in is `{field}`. A question like \"what goes here?\" or \
+                 \"what is this?\" is about that field: answer in two sentences a person filling \
+                 the form can use — what it is for, what happens if it is left empty, and one value \
+                 that would work — and never in the words of the specification.\n"
+            ));
+        }
+        if self.form.name.is_some() {
+            pack.push_str(
+                "\nAsked to fill the form in, or to change what it holds, from a sentence: write \
+                 that same draft with `jc_draft_put`, carrying the whole manifest with your values \
+                 merged into what it already has. The form is watching the draft and shows what you \
+                 wrote, the person reads it and proposes it themselves. Never propose it, never open \
+                 a Change, and never write a different draft than the one named here.\n",
+            );
+        }
+    }
+
     async fn drive(&self) -> Result<(), String> {
         // The stream is subscribed before anything moves, so a message sent while the first
         // pass runs is not lost between the preview and the loop.
