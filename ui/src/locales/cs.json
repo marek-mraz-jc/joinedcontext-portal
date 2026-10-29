@@ -6230,7 +6230,12 @@
         "readPreset": "Čtení nic nemění.",
         "noWrite": "Vaše role přes tento endpoint nezapisuje."
       },
-      "pathLeft": "Ne při volbě {preset}: zapněte to ve Schopnostech."
+      "pathLeft": "Ne při volbě {preset}: zapněte to ve Schopnostech.",
+      "segment": {
+        "label": "Nástroje",
+        "none": "Vedené postupy",
+        "help": "Asistent jde podle vedených postupů. Vyberte předvolbu, např. Pipelines, a dostane její nástroje; každé volání se ověří podle vašich práv."
+      }
     },
     "full": {
       "conversations": "Konverzace",

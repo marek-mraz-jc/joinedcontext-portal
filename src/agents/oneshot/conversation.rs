@@ -201,6 +201,11 @@ impl Driver {
         conversation: &[(String, String)],
         text: &str,
     ) -> Result<String, String> {
+        // A conversation run as a connector segment calls that segment's tools natively
+        // (T-5958); the fenced path below serves a conversation without one.
+        if let Some(segment) = self.capabilities().and_then(|chosen| chosen.segment) {
+            return Box::pin(self.connector_turn(conversation, text, &segment)).await;
+        }
         let catalog = if names_something_new(conversation, text) {
             self.find(text).await?
         } else {
@@ -649,7 +654,7 @@ impl Driver {
     /// it reads it with `jc_draft_get`, and when asked to fill it in it writes the same draft with
     /// `jc_draft_put`. The open form is watching that draft and shows what the assistant wrote, so
     /// the person sees the fields change and decides. Nothing here is proposed.
-    fn looking_at(&self, pack: &mut String) {
+    pub(super) fn looking_at(&self, pack: &mut String) {
         if let Some(page) = self
             .page
             .lock()

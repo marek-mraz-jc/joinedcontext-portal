@@ -7145,6 +7145,11 @@ export interface components {
                 [key: string]: components["schemas"]["EndpointAccess"];
             };
             preset: components["schemas"]["Preset"];
+            /**
+             * @description The connector segment the conversation runs as (T-5958, API/14 §1), e.g. `pipeline`: the
+             *     assistant calls that segment's registry tools natively, checked as a connector's calls.
+             */
+            segment?: string | null;
         };
         /** @description A broker's capture, newest first. */
         Captured: {
