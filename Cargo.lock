@@ -2752,6 +2752,8 @@ dependencies = [
 name = "joinedcontext-portal"
 version = "0.1.0"
 dependencies = [
+ "aes-gcm",
+ "age",
  "argon2",
  "axum",
  "axum-extra",
@@ -2801,6 +2803,7 @@ dependencies = [
  "url",
  "utoipa",
  "wiremock",
+ "zeroize",
  "zip",
 ]
 

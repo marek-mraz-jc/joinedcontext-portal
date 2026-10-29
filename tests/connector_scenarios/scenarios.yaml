@@ -353,6 +353,18 @@
   says: "Create a service account for the city's import script with write to Endpoint X."
   expect: 'ServiceAccount manifest; secret delivered through secretRef only, never in the answer'
   deny: 'any secret value in the chat -> test fails'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: ServiceAccount, name: import-script, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: ServiceAccount, metadata: { name: import-script, namespace: '{project}' }, spec: { owner: { user: scn.project-admin@hel.fi }, purpose: "the city's import script", roles: [{ role: scn-viewer, scope: { project: '{project}' } }], credentials: [{ kind: oauth-client, name: main }] } } }] }
+      contains: ['"planId"', 'import-script', 'oauth-client']
+      absent: ['clientSecret', 'client_secret']
+    - proves: deny
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: ServiceAccount, name: import-script, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: ServiceAccount, metadata: { name: import-script, namespace: '{project}' }, spec: { owner: { user: scn.project-admin@hel.fi }, purpose: "the city's import script", roles: [{ role: scn-viewer, scope: { project: '{project}' } }], credentials: [{ kind: oauth-client, name: main, clientSecret: pasted-client-secret-value }] } } }] }
+      refused: true
+      contains: ['secret-in-argument', 'credentials/0/clientSecret']
+      absent: ['pasted-client-secret-value']
 - id: S-30
   segment: access
   as: project-admin
@@ -661,6 +673,22 @@
   says: 'Integrate this API that needs my key abc... (the key pasted in chat).'
   expect: 'key refused in chat, never stored or echoed; the plan returns a Portal form link; after the person enters it there the pipeline uses a secretRef (T-5971)'
   deny: 'this scenario IS the deny case for the pasted key'
+  script:
+    - proves: deny
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: DataSource, name: counters-api, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: DataSource, metadata: { name: counters-api, namespace: '{project}' }, spec: { type: http, http: { url: 'https://api.example.com/counters.csv?api_key=abc123pastedkey456', headers: { X-Api-Key: abc123pastedkey456 } } } } }] }
+      refused: true
+      contains: ['secret-in-argument', 'http/headers/X-Api-Key', 'http/url']
+      absent: ['abc123pastedkey456']
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: DataSource, name: counters-api, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: DataSource, metadata: { name: counters-api, namespace: '{project}' }, spec: { type: http, http: { url: 'https://api.example.com/counters.csv', authorization: { header: X-Api-Key, headerRef: { name: counters-api, key: apiKey } } } } } }] }
+      contains: ['"needsSecret"', 'https://portal.test/projects/{project}/secrets/new?name=counters-api&key=apiKey']
+    - proves: deny
+      rest: { method: POST, path: '/projects/{project}/secrets', body: { name: counters-api, values: { apiKey: abc123pastedkey456 } } }
+      client: mcp-local
+      refused: true
+      absent: ['abc123pastedkey456']
 - id: S-52
   segment: pipeline
   as: steward
