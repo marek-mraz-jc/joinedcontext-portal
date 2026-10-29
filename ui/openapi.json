@@ -25336,6 +25336,7 @@
                       "Role",
                       "RoleBinding",
                       "Group",
+                      "DelegationPolicy",
                       "ContextBroker",
                       "Environment",
                       "Dashboard",
