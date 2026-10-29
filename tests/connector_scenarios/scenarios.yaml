@@ -241,6 +241,22 @@
   says: "Deprecate the old Endpoint and point users to the new one."
   expect: 'EndpointDeprecation manifest; old Endpoint answers with the deprecation header'
   deny: 'none'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: patch, kind: Endpoint, name: '{project}-counters', patch: { spec: { deprecation: { since: '2026-10-28', sunset: '2027-02-01', link: 'https://data.example.sk/changes/counters-v2' } } } }] }
+      keep: planId
+      contains: ['"planId"', '"ok":true', 'deprecation', '2027-02-01']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
+      absent: ['"merged"']
+    - proves: deny
+      call: jc_change_plan
+      args: { changes: [{ op: patch, kind: Endpoint, name: '{project}-counters', patch: { spec: { deprecation: { since: '2026-10-28', sunset: '2026-11-28' } } } }] }
+      refused: true
+      contains: ['spec.deprecation.sunset', 'EP-146']
 
 - id: S-17
   segment: pipeline
@@ -248,6 +264,21 @@
   says: "Add a DataSource for https://<fixture>/counters.csv, hourly."
   expect: 'DataSource manifest; check of the source succeeds; host on the outbound allow-list'
   deny: 'a host outside the allow-list or a private IP -> refused by the outbound guard'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: DataSource, name: counters-hourly, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: DataSource, metadata: { name: counters-hourly, namespace: '{project}' }, spec: { type: http, http: { url: 'https://data.example.sk/counters.csv', format: csv } } } }] }
+      keep: planId
+      contains: ['"planId"', '"ok":true']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
+    - proves: deny
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: DataSource, name: counters-inside, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: DataSource, metadata: { name: counters-inside, namespace: '{project}' }, spec: { type: http, http: { url: 'http://10.0.0.5/counters.csv', format: csv } } } }] }
+      refused: true
+      contains: ['10.0.0.5']
 - id: S-18
   segment: pipeline
   as: steward
@@ -401,6 +432,22 @@
   says: "Publish Endpoint X to the open data catalogue."
   expect: 'publish.ckan set; dataset appears in CKAN after the sync'
   deny: 'Endpoint not public -> refused naming why'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: patch, kind: Endpoint, name: '{project}-counters', patch: { spec: { publish: { ckan: { instanceRef: opendata, organization: doprava } } } } }] }
+      keep: planId
+      contains: ['"planId"', '"ok":true', 'publish']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
+      absent: ['"merged"']
+    - proves: deny
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-internal', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-internal', namespace: '{project}' }, spec: { slug: countersinternaldopravazzzz, contextSpaceRef: doprava, audience: organization, enabledRepresentations: [ngsi-ld], publish: { ckan: { instanceRef: opendata, organization: doprava } } } } }] }
+      refused: true
+      contains: ["spec.audience is 'organization'", 'EP-83']
 - id: S-34
   segment: publish
   as: steward
@@ -444,12 +491,41 @@
   says: "Define a KPI: daily bike count per counter."
   expect: 'KPI manifest; compute returns numbers equal to a direct aggregation'
   deny: 'none'
+  script:
+    - proves: expect
+      call: jc_kpi_compute
+      args: { name: daily-bike-count, title: Daily bike count, type: BikeCounter, attribute: count, agg: sum, rows: [{ id: c1, count: 42 }, { id: c2, count: 8 }, { id: c3, count: 17 }] }
+      contains: ['KeyPerformanceIndicator', '"value":67', 'sum(count)']
+    - proves: expect
+      call: jc_kpi_compute
+      args: { name: daily-bike-mean, type: BikeCounter, attribute: count, agg: avg, rows: [{ id: c1, count: 42 }, { id: c2, count: 8 }, { id: c3, count: 10 }] }
+      contains: ['"value":20']
+    - proves: deny
+      call: jc_kpi_compute
+      args: { name: daily-bike-median, type: BikeCounter, attribute: count, agg: median, rows: [{ id: c1, count: 42 }] }
+      refused: true
+      contains: ['median']
 - id: S-37
   segment: publish
   as: steward
   says: "Turn on an iCal feed for the events Endpoint."
   expect: 'feed output with SUMMARY/DTSTART on model-required slots; the feed URL validates'
   deny: 'feed on a type without time -> refused'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-events', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-events', namespace: '{project}' }, spec: { slug: eventsdopravapublicfeedzzzz, contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, ical], representations: { ical: [{ name: events, sources: [{ type: Event, preset: sdm-event }] }] } } } }] }
+      keep: planId
+      contains: ['"planId"', '"ok":true']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
+    - proves: deny
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-counter-feed', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-counter-feed', namespace: '{project}' }, spec: { slug: countersdopravacalendarzzzz, contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, ical], representations: { ical: [{ name: counters, sources: [{ type: BikeCounter, mapping: { DTSTART: { attribute: count }, SUMMARY: { attribute: name } } }] }] } } } }] }
+      refused: true
+      contains: ['DTSTART', 'BikeCounter', 'EP-125']
 
 - id: S-38
   segment: apps
@@ -457,6 +533,21 @@
   says: "Build a dashboard with a map of counters and a chart of daily counts."
   expect: 'Dashboard/Visualization manifests from the Endpoint config; preview renders'
   deny: 'none'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Layer, name: counters-map, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Layer, metadata: { name: counters-map, namespace: '{project}' }, spec: { sourceEndpointRef: '{project}-counters', entityType: BikeCounter, style: circle, popupProperties: [name, count] } } }, { op: create, kind: Dashboard, name: counters, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Dashboard, metadata: { name: counters, namespace: '{project}' }, spec: { title: Bike counters, visibility: project, pages: [{ title: Overview, layers: [counters-map], widgets: [{ widgetType: bar-chart, endpointRef: '{project}-counters', entityType: BikeCounter, property: count }] }] } } }] }
+      keep: planId
+      contains: ['"planId"', '"ok":true', '"kind":"Layer"', '"kind":"Dashboard"']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
+    - proves: deny
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Dashboard, name: counters-loose, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Dashboard, metadata: { name: counters-loose, namespace: '{project}' }, spec: { title: Bike counters, pages: [{ title: Overview, widgets: [{ widgetType: bar-chart, entityType: BikeCounter, property: count }] }] } } }] }
+      refused: true
+      contains: ['endpointRef']
 - id: S-39
   segment: apps
   as: steward
