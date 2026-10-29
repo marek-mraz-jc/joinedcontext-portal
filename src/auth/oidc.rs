@@ -70,6 +70,10 @@ const DEFAULT_SESSION_TTL_SECS: i64 = 3600;
 /// Access-token lifetime when the token response does not state one.
 const DEFAULT_ACCESS_TTL_SECS: i64 = 300;
 
+/// The gateway's hub audience, which with an `endpoint:{slug}` scope reaches one Endpoint
+/// (context-gateway `HUB_AUDIENCE`, ADR-N-025 4b).
+const GATEWAY_HUB_AUDIENCE: &str = "mcp-hub";
+
 #[derive(Debug, thiserror::Error)]
 pub enum OidcError {
     #[error("cannot build the OIDC http client: {0}")]
@@ -272,6 +276,37 @@ impl OidcClient {
             now + lifetime.saturating_sub(Duration::from_secs(30)),
         ));
         Ok(token)
+    }
+
+    /// The person's `subject` access token exchanged (RFC 8693) for one the gateway takes for
+    /// Endpoint `slug` alone: audience the hub, scope `endpoint:{slug}` (ADR-N-025 4b). The
+    /// realm judges the subject token live, so a disabled person or a revoked session reads
+    /// nothing; the gateway then decides the read on the person's own grants (AG-146).
+    pub async fn exchange_for_endpoint(
+        &self,
+        subject: &str,
+        slug: &str,
+    ) -> Result<String, ApiError> {
+        let scope = format!("endpoint:{slug}");
+        let response = self
+            .token_request(&[
+                ("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange"),
+                ("subject_token", subject),
+                ("subject_token_type", "urn:ietf:params:oauth:token-type:access_token"),
+                ("requested_token_type", "urn:ietf:params:oauth:token-type:access_token"),
+                ("audience", GATEWAY_HUB_AUDIENCE),
+                ("scope", &scope),
+            ])
+            .await
+            .map_err(|error| {
+                tracing::info!(%error, endpoint = slug, "the realm refused a data read's token exchange");
+                ApiError::Denied(
+                    "the realm did not hand your token on to the gateway for this Endpoint; sign \
+                     in to your MCP client again, and ask an administrator if it persists"
+                        .into(),
+                )
+            })?;
+        Ok(response.access_token().secret().clone())
     }
 
     /// Trades the session's refresh token for a fresh access token at the realm's token

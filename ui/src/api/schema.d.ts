@@ -3570,6 +3570,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/ops/jc_data_query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Query Data
+         * @description Reads one Endpoint's entities as you, current or history (temporal), with type, id, q, attrs, a geo-query, count and paging
+         */
+        post: operations["jc_data_query"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ops/jc_datasource_check": {
         parameters: {
             query?: never;
@@ -23238,6 +23258,127 @@ export interface operations {
                     "application/json": {
                         instances: Record<string, never>[];
                         publications: Record<string, never>[];
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_data_query: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "endpoint": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description The attributes answered, e.g. ["count"] */
+                    attrs?: string[];
+                    /** @description GeoJSON coordinates, longitude first, e.g. [19.146, 48.736] */
+                    coordinates?: unknown[];
+                    /** @description Answer the total of matching entities too */
+                    count?: boolean;
+                    /** @description The nextCursor of the previous page */
+                    cursor?: string;
+                    /** @description The Endpoint's metadata.name in the project, e.g. doprava-counters */
+                    endpoint: string;
+                    /** @enum {string} */
+                    format?: "normalized" | "concise" | "keyValues";
+                    /** @enum {string} */
+                    geometry?: "Point" | "LineString" | "Polygon" | "MultiPoint" | "MultiLineString" | "MultiPolygon";
+                    /** @description near;maxDistance==500, within, intersects, contains, disjoint, equals or overlaps */
+                    georel?: string;
+                    /** @description One entity's id, e.g. urn:ngsi-ld:BikeCounter:c1 */
+                    id?: string;
+                    /** @description Entities per page; 0 with count answers the total alone */
+                    limit?: number;
+                    /** @description attr or attr;desc, e.g. modifiedAt;desc */
+                    orderBy?: string;
+                    /** @description An NGSI-LD q, e.g. count>40;name~="Most" */
+                    q?: string;
+                    /** @description Read the history instead of the current values */
+                    temporal?: {
+                        aggrMethods?: ("avg" | "min" | "max" | "sum" | "totalCount" | "distinctCount" | "stddev" | "sumsq")[];
+                        /** @description ISO 8601 duration, e.g. PT1H */
+                        aggrPeriodDuration?: string;
+                        /** @description ISO 8601, the end of a between */
+                        endTimeAt?: string;
+                        lastN?: number;
+                        /** @description ISO 8601, e.g. 2026-10-27T00:00:00Z */
+                        timeAt: string;
+                        /** @enum {string} */
+                        timerel: "before" | "after" | "between";
+                    };
+                    /** @description The entity type, e.g. BikeCounter */
+                    type?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        entities: Record<string, never>[];
+                        nextCursor?: string;
+                        total?: number;
                     };
                 };
             };
