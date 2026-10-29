@@ -2299,9 +2299,18 @@
         "mqtt_devices.test.tsx"
       ]
     },
+    "src/pages/mqttbrokers/BrokerEditor.tsx": {
+      "controls": {
+        "Button": 6,
+        "Checkbox": 2
+      },
+      "tests": [
+        "mqtt_broker_draft.test.ts"
+      ]
+    },
     "src/pages/mqttbrokers/MqttBrokerPage.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 1
       },
       "tests": [
         "mqtt_allowance_ui.test.tsx",

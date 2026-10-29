@@ -3,7 +3,7 @@
  * device connects (never a secret), and the edges from a device to the Policy, a broken one red
  * with a link to where it is fixed.
  */
-import { cleanup, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
@@ -61,6 +61,17 @@ function world(): Resources {
     accounts: [item("ServiceAccount", "cam-1", {})],
   } as unknown as Resources;
 }
+
+/** The accounts the broker page reads: cam-1 listed on the role, cam-3 bound by a RoleBinding (T-5872). */
+const ACCOUNTS = [
+  item("ServiceAccount", "cam-1", {}),
+  item("ServiceAccount", "cam-2", {}),
+  item("ServiceAccount", "cam-3", { roles: [{ role: "mqtt/cameras/cams", scope: { project: PROJECT } }] }),
+  item("ServiceAccount", "cam-4", {}),
+];
+const READS = ["MqttBroker", "ServiceAccount", "DataSource", "Pipeline", "Endpoint", "Policy"];
+const EDITOR = { project: PROJECT, grants: [{ rule: { kinds: ["MqttBroker", "ServiceAccount"], verbs: ["read", "propose"] } }, { rule: { kinds: READS, verbs: ["read"] } }] };
+const READER = { project: PROJECT, grants: [{ rule: { kinds: READS, verbs: ["read"] } }] };
 
 describe("the connections around a project's brokers", () => {
   it("names each edge with what allows it and turns the broken ones red with their fix", () => {
@@ -244,9 +255,23 @@ describe("the MQTT brokers page", () => {
   });
 });
 
+/** The editor is live once the permissions and the accounts are read. */
+async function editable(): Promise<HTMLElement> {
+  const cams = await screen.findByRole("group", { name: "cams" });
+  await waitFor(() => expect(within(cams).getByRole("combobox", { name: "Add an account to role cams" })).toBeInTheDocument());
+  return cams;
+}
+
 /** One broker's page (T-6103) over stubbed reads: the broker, its lists, measured and watch. */
 function showBroker(
-  options: { broker?: unknown; measured?: () => Response; watch?: () => Response; brokerAnswer?: () => Response } = {},
+  options: {
+    broker?: unknown;
+    measured?: () => Response;
+    watch?: () => Response;
+    brokerAnswer?: () => Response;
+    permissions?: unknown;
+    sent?: { method: string; path: string; body: unknown }[];
+  } = {},
 ) {
   const resources = world();
   const all: Record<string, unknown[]> = {
@@ -254,14 +279,29 @@ function showBroker(
     pipelines: resources.pipelines,
     endpoints: resources.endpoints,
     policies: resources.policies,
-    serviceaccounts: resources.accounts,
+    serviceaccounts: ACCOUNTS,
   };
   return renderPage(<MqttBrokerPage project={PROJECT} name="cameras" />, {
     path: `/projects/${PROJECT}/mqttbrokers/cameras`,
-    answer: (url) => {
+    answer: async (url, request) => {
+      if (url.pathname.endsWith("/permissions/me")) return json(options.permissions ?? EDITOR);
+      if (request.method !== "GET") {
+        options.sent?.push({ method: request.method, path: `${url.pathname}${url.search}`, body: await request.json() });
+        return url.searchParams.has("dryRun")
+          ? json({ valid: true })
+          : json({ apiVersion: API, kind: "Change", metadata: { name: "chg-1" }, status: { phase: "Proposed" } }, 202);
+      }
       if (url.pathname.endsWith("/mqttbrokers/cameras/measured")) return options.measured?.();
       if (url.pathname.endsWith("/mqttbrokers/cameras/watch")) return options.watch?.();
-      if (url.pathname.endsWith("/mqttbrokers/cameras/access")) return json({ roles: [], outOfWindow: [] });
+      if (url.pathname.endsWith("/mqttbrokers/cameras/access")) {
+        // As the gateway decides: cam-1 and cam-2 hold cams through the role's own list, cam-3 by binding.
+        const account = url.searchParams.get("account");
+        const held = ["cam-1", "cam-2", "cam-3"].includes(account ?? "");
+        return json({
+          roles: held ? [{ role: "cams", publish: ["cameras/${clientid}/frames"], subscribe: [], bound: account === "cam-3", legacy: account !== "cam-3" }] : [],
+          outOfWindow: [],
+        });
+      }
       if (url.pathname.endsWith("/mqttbrokers/cameras")) return options.brokerAnswer?.() ?? json(options.broker ?? CAMERAS);
       const plural = url.pathname.split("/").pop() ?? "";
       return all[plural] ? json(list(all[plural])) : undefined;
@@ -311,13 +351,15 @@ describe("one MQTT broker's page (T-6103)", () => {
     vi.restoreAllMocks();
   });
 
-  it("shows each role's topics and accounts, how a device connects, and the data path", async () => {
+  it("shows each role's holders, how a device connects, and the data path, with no panel contradicting another", async () => {
     showBroker();
-    const accounts = await screen.findByText("cam-1, cam-2");
-    const acl = accounts.closest("table") as HTMLElement;
-    expect(acl.querySelector("caption")?.textContent).toBe("Topic access of cameras by role");
-    const cams = accounts.closest("tr") as HTMLElement;
-    expect(within(cams).getByText("cams")).toBeInTheDocument();
+    const cams = await editable();
+    const holders = within(cams).getByRole("list", { name: en.mqttbrokers.acl.accounts });
+    expect(within(holders).getAllByRole("listitem").map((li) => li.textContent?.replace(/×$/, ""))).toEqual([
+      "cam-1· listed on the role",
+      "cam-2· listed on the role",
+      "cam-3",
+    ]);
     expect(within(cams).getByText("cameras/${clientid}/frames")).toBeInTheDocument();
     expect(screen.getByText("espoo-cam-1")).toBeInTheDocument();
     expect(screen.getByText(en.mqttbrokers.connect.token)).toBeInTheDocument();
@@ -325,6 +367,10 @@ describe("one MQTT broker's page (T-6103)", () => {
       expect(screen.getByRole("link", { name: section })).toHaveAttribute("href", expect.stringMatching(/^#broker-/));
     }
     expect((await screen.findAllByText("camera-frames")).length).toBeGreaterThan(0);
+    // Who can do what agrees with the role card: the first account holds cams.
+    expect(await screen.findByRole("table", { name: /cam-1/ })).toHaveTextContent("cams");
+    // Every account the roles name exists, so the data path shows no red account edge.
+    expect(screen.queryByText(/No service account cam-/)).toBeNull();
     expect(document.body.textContent).not.toMatch(/password\s*[:=]|secret\s*[:=]/i);
   });
 
@@ -356,26 +402,89 @@ describe("one MQTT broker's page (T-6103)", () => {
 
   it("states the broker's highest QoS and what happens to an offline device, as checked on RMQTT 0.24", async () => {
     showBroker();
-    const qos = await screen.findByText(en.mqttbrokers.page.qosValue);
+    const qos = await screen.findByRole("list", { name: en.mqttbrokers.edit.qos });
     expect(qos.closest("[data-qos]")).toHaveAttribute("data-qos", "1");
+    expect(within(qos).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["QoS 0 · offered", "QoS 1 · highest", "QoS 2 · not offered"]);
     expect(screen.getByText(en.mqttbrokers.page.qosWords)).toBeInTheDocument();
     expect(screen.getByText(en.mqttbrokers.page.offlineWords)).toBeInTheDocument();
     // No networks named: the page warns that any address may connect.
     expect(screen.getByTestId("broker-sources").textContent).toContain(en.mqttbrokers.connect.anySource);
   });
 
-  it("names a broker's own limits with their units, and its networks as chips", async () => {
+  it("edits limits in place with their units and a use bar, and lists networks as chips", async () => {
     const limited = {
       ...CAMERAS,
       spec: { ...(CAMERAS as { spec: object }).spec, limits: { messagesPerSecond: 5, maxConnections: 20 }, allowedSources: ["192.0.2.0/24"] },
     };
     showBroker({ broker: limited, measured: () => json(MEASURED) });
-    expect(await screen.findByText("5 per second per device")).toBeInTheDocument();
-    expect(screen.getByText("20 connections")).toBeInTheDocument();
-    expect(screen.getByText("65,536 bytes")).toBeInTheDocument();
-    expect(screen.getByText("20 per address")).toBeInTheDocument();
+    await editable();
+    const rate = screen.getByLabelText(en.mqttbrokers.edit.limit.messagesPerSecond);
+    expect(rate).toHaveValue(5);
+    expect(screen.getByLabelText(en.mqttbrokers.edit.limit.maxConnections)).toHaveValue(20);
+    expect(screen.getByLabelText(en.mqttbrokers.edit.limit.maxMessageBytes)).toHaveValue(65536);
+    expect(screen.getAllByText("bytes").length).toBeGreaterThan(0);
     expect(screen.getByRole("meter", { name: "2 of 20 in use" })).toBeInTheDocument();
-    expect(screen.getByTestId("broker-sources").textContent).toBe("192.0.2.0/24");
+    expect(within(screen.getByTestId("broker-sources")).getByText("192.0.2.0/24")).toBeInTheDocument();
+    fireEvent.change(rate, { target: { value: "5000" } });
+    expect(screen.getByText("Write a whole number from 1 to 1,000.")).toBeInTheDocument();
+  });
+
+  it("checks topics and networks as they are typed and names what blocks the proposal", async () => {
+    showBroker();
+    const cams = await editable();
+    const publish = within(cams).getByRole("textbox", { name: en.mqttbrokers.acl.publish });
+    for (const [typed, why] of [
+      ["/cameras/x", en.mqttbrokers.edit.topic.emptyLevel],
+      ["cameras/#/x", en.mqttbrokers.edit.topic.hash],
+      ["cameras/a+/x", en.mqttbrokers.edit.topic.plus],
+      ["#", en.mqttbrokers.edit.topic.everything],
+      ["cameras/+/x", en.mqttbrokers.edit.topic.publishOwn],
+    ]) {
+      fireEvent.change(publish, { target: { value: typed } });
+      expect(within(cams).getByText(why as string)).toBeInTheDocument();
+    }
+    const subscribe = within(cams).getByRole("textbox", { name: en.mqttbrokers.acl.subscribe });
+    fireEvent.change(subscribe, { target: { value: "commands/#" } });
+    expect(within(cams).getByText(en.mqttbrokers.edit.topic.subscribeOwn)).toBeInTheDocument();
+    const sources = within(screen.getByTestId("broker-sources")).getByRole("textbox", { name: en.mqttbrokers.edit.sources });
+    fireEvent.change(sources, { target: { value: "example.org" } });
+    expect(screen.getByText(en.mqttbrokers.edit.topic.source.format)).toBeInTheDocument();
+    // Sharing topics without a reason keeps Propose disabled, with the reason said.
+    fireEvent.click(within(cams).getByLabelText(en.mqttbrokers.edit.shared));
+    const propose = await screen.findByRole("button", { name: en.mqttbrokers.edit.propose });
+    expect(propose).toHaveAttribute("aria-disabled", "true");
+    expect(document.body.textContent).toContain("Role cams shares its topics: write why.");
+  });
+
+  it("proposes a role grant and a limit as one Change, the grant as a binding on the account", async () => {
+    const sent: { method: string; path: string; body: unknown }[] = [];
+    showBroker({ sent });
+    const cams = await editable();
+    fireEvent.change(within(cams).getByRole("combobox", { name: "Add an account to role cams" }), { target: { value: "cam-4" } });
+    fireEvent.change(screen.getByLabelText(en.mqttbrokers.edit.limit.messagesPerSecond), { target: { value: "20" } });
+    const bar = screen.getByRole("region", { name: en.mqttbrokers.edit.bar });
+    expect(within(bar).getByText("Changes not proposed yet: 2")).toBeInTheDocument();
+    expect(within(bar).getByText("cam-4 gets role cams")).toBeInTheDocument();
+    expect(within(bar).getByText("Messages per second per device: 10 → 20")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Limits/ })).toContainHTML(en.mqttbrokers.edit.unsaved);
+    fireEvent.click(within(bar).getByRole("button", { name: en.mqttbrokers.edit.propose }));
+    await waitFor(() => expect(sent.length).toBe(2));
+    expect(sent.map((call) => call.path)).toEqual([`/api/v1/projects/${PROJECT}/import?dryRun=All`, `/api/v1/projects/${PROJECT}/import`]);
+    const manifests = (sent[1]?.body as { manifests: { kind: string; spec: Record<string, unknown> }[] }).manifests;
+    const account = manifests.find((m) => m.kind === "ServiceAccount");
+    expect(account?.spec.roles).toEqual([{ role: "mqtt/cameras/cams", scope: { project: PROJECT } }]);
+    const broker = manifests.find((m) => m.kind === "MqttBroker");
+    expect(broker?.spec.limits).toEqual({ messagesPerSecond: 20 });
+    expect(await screen.findByText("chg-1")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: en.mqttbrokers.edit.bar })).toBeNull();
+  });
+
+  it("shows the settings read only, with the reason, to a reader who may not propose", async () => {
+    showBroker({ permissions: READER });
+    expect(await screen.findByText(en.mqttbrokers.edit.readOnlyTitle)).toBeInTheDocument();
+    expect(screen.getByLabelText(en.mqttbrokers.edit.limit.messagesPerSecond)).toBeDisabled();
+    expect(screen.getByRole("button", { name: en.mqttbrokers.edit.addRole })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByRole("region", { name: en.mqttbrokers.edit.bar })).toBeNull();
   });
 
   it("shows the refusal and no settings to a caller who may not read the broker", async () => {
@@ -387,7 +496,7 @@ describe("one MQTT broker's page (T-6103)", () => {
         }),
     });
     expect(await screen.findByRole("link", { name: en.mqttbrokers.page.back })).toBeInTheDocument();
-    expect(screen.queryByText("cam-1, cam-2")).toBeNull();
+    expect(screen.queryByRole("group", { name: "cams" })).toBeNull();
     expect(screen.queryByText(en.mqttbrokers.page.section.live)).toBeNull();
   });
 });
@@ -423,11 +532,12 @@ describe("what a broker measures (T-4043)", () => {
     expect(document.querySelector("[data-dns='waiting']")).toBeNull();
   });
 
-  it("shows each account's connected clients in its role", async () => {
+  it("shows each account's connected clients and its roles", async () => {
     showBroker({ measured: () => json(MEASURED) });
-    const cams = (await screen.findByText("cam-1, cam-2")).closest("tr") as HTMLElement;
-    expect(await within(cams).findByText(/^cam-1: 2, newest since /)).toBeInTheDocument();
-    expect(within(cams).getByText("cam-2: 0")).toBeInTheDocument();
+    const devices = await screen.findByRole("table", { name: en.mqttbrokers.page.devices });
+    const cam1 = within(devices).getByText("cam-1").closest("tr") as HTMLElement;
+    expect(within(cam1).getByText("2 connected")).toBeInTheDocument();
+    expect(within(cam1).getByText("cams, ops")).toBeInTheDocument();
   });
 
   it("says not measured, and why, when the broker did not answer the Portal", async () => {
@@ -447,8 +557,7 @@ describe("what a broker measures (T-4043)", () => {
     expect(await screen.findByText("the broker did not answer; try again in a minute")).toBeInTheDocument();
     expect(document.querySelector("[data-state='unmeasured']")?.textContent).toBe(en.mqttbrokers.page.state.unmeasured);
     expect(screen.queryByText(en.mqttbrokers.page.figure.rate)).toBeNull();
-    const cams = screen.getByText("cam-1, cam-2").closest("tr") as HTMLElement;
-    expect(within(cams).queryByText(/^cam-1:/)).toBeNull();
+    expect(screen.queryByRole("meter")).toBeNull();
   });
 
   it("says not measured, never a zero, when the Portal itself cannot be read", async () => {

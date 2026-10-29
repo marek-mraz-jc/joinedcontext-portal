@@ -75,8 +75,9 @@ test.describe("MQTT brokers", () => {
     // T-6103: the broker's settings live on its own page; the list keeps the data path.
     await page.getByRole("link", { name: "cameras", exact: true }).first().click();
     await expect(page.getByRole("heading", { level: 1, name: "cameras" })).toBeVisible();
-    const acl = page.getByRole("table", { name: "Topic access of cameras by role" });
-    await expect(acl.getByRole("row", { name: /cams/ })).toContainText("cam-1, cam-2");
+    const cams = page.getByRole("group", { name: "cams" });
+    await expect(cams.getByRole("list", { name: "Service accounts" })).toContainText("cam-1");
+    await expect(cams.getByRole("list", { name: "Service accounts" })).toContainText("cam-2");
     await expect(page.getByText("helsinki-cam-2", { exact: true })).toBeVisible();
 
     // cam-2 is named by the role but not declared in the project: that edge is red, with its fix.
@@ -307,8 +308,8 @@ test.describe("MQTT brokers", () => {
       await expect(page.getByTestId("broker-sources")).toContainText("Any address with a valid token");
       await page.goto(`/projects/${PROJECT}/mqttbrokers/fenced?lang=en`);
       const sources = page.getByTestId("broker-sources");
-      await expect(sources.getByText("203.0.113.0/24")).toBeVisible();
-      await expect(sources.getByText("2001:db8::/48")).toBeVisible();
+      await expect(sources.getByText("203.0.113.0/24", { exact: true })).toBeVisible();
+      await expect(sources.getByText("2001:db8::/48", { exact: true })).toBeVisible();
       const shots = process.env.T5870_SHOTS;
       if (shots) {
         for (const width of [1440, 400]) {
@@ -378,8 +379,25 @@ test.describe("one MQTT broker's page (T-6103)", () => {
     reason: null,
   };
 
-  async function openBroker(page: Page, measured: unknown, refused = false): Promise<void> {
+  // The page's world agrees with itself: both accounts the role lists exist, cam-3 holds the role
+  // by a RoleBinding, and the gateway's answer per account says the same (T-6103 review).
+  const ACCOUNTS = [
+    item("ServiceAccount", "cam-1", {}),
+    item("ServiceAccount", "cam-2", {}),
+    item("ServiceAccount", "cam-3", { roles: [{ role: "mqtt/cameras/cams", scope: { project: PROJECT } }] }),
+    item("ServiceAccount", "cam-4", {}),
+  ];
+  const STEWARD = { project: PROJECT, bootstrap: true, grants: [] };
+  const READER = { project: PROJECT, grants: [{ rule: { kinds: ["MqttBroker", "ServiceAccount", "DataSource", "Pipeline", "Endpoint", "Policy"], verbs: ["read"] } }] };
+
+  async function openBroker(page: Page, measured: unknown, refused = false, permissions: unknown = STEWARD): Promise<void> {
     await stubApi(page);
+    await page.route("**/api/v1/projects/helsinki/permissions/me", (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify(permissions) }),
+    );
+    await page.route("**/api/v1/projects/helsinki/serviceaccounts", (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ apiVersion: API, kind: "List", items: ACCOUNTS }) }),
+    );
     await page.route("**/api/v1/projects/helsinki/mqttbrokers/cameras**", async (route) => {
       const path = new URL(route.request().url()).pathname;
       const json = (body: unknown, status = 200) =>
@@ -389,7 +407,38 @@ test.describe("one MQTT broker's page (T-6103)", () => {
       }
       if (path.endsWith("/measured")) return json(measured);
       if (path.endsWith("/watch")) return json(WATCHED);
-      if (path.endsWith("/access")) return json({ roles: [], outOfWindow: [] });
+      if (path.endsWith("/access")) {
+        const account = new URL(route.request().url()).searchParams.get("account") ?? "";
+        const held = ["cam-1", "cam-2", "cam-3"].includes(account);
+        return json({
+          roles: held ? [{ role: "cams", publish: ["cameras/${clientid}/frames"], subscribe: [], bound: account === "cam-3", legacy: account !== "cam-3" }] : [],
+          outOfWindow: [],
+        });
+      }
+      if (path.endsWith("/bindings")) {
+        // The same edge the data path draws: data source frames reads cameras/+/frames for camera-frames.
+        return json({
+          broker: "cameras",
+          bindings: [
+            {
+              topicFilter: "cameras/+/frames",
+              dataSource: { kind: "DataSource", name: "frames" },
+              pipeline: { kind: "Pipeline", name: "camera-frames" },
+              endpoint: { kind: "Endpoint", name: "cams-in", space: "cameras" },
+              type: "Device",
+              attributes: [{ from: "frame", to: "image" }],
+            },
+          ],
+        });
+      }
+      if (path.endsWith("/devices")) {
+        return json({
+          mayAdd: permissions === STEWARD,
+          roles: [{ name: "cams", publish: ["cameras/${clientid}/frames"] }],
+          tokenUrl: "https://id.dev.joinedcontext.com/realms/jc/protocol/openid-connect/token",
+          issuer: "https://id.dev.joinedcontext.com/realms/jc",
+        });
+      }
       if (path.endsWith("/cameras")) return json(LISTS.mqttbrokers?.[0]);
       return json({ apiVersion: API, kind: "List", items: [] });
     });
@@ -419,7 +468,9 @@ test.describe("one MQTT broker's page (T-6103)", () => {
     await expect(page.getByTestId("live-strip")).toHaveText("58 messages/s · 1 connected · 2 refused sign-ins today");
     await expect(page.getByRole("img", { name: /Messages per second, last 5 min/ })).toBeVisible();
     await expect(page.getByRole("table", { name: "Device accounts and their connections now" })).toContainText("1 connected");
-    await expect(page.getByText("QoS 1 (at least once)")).toBeVisible();
+    await expect(page.getByRole("list", { name: "Highest QoS" })).toContainText("QoS 1 · highest");
+    // No panel contradicts another: the role lists both accounts, both exist, and the gateway agrees.
+    await expect(page.getByText(/holds no role|No service account|No topic is bound|You may not add devices/)).toHaveCount(0);
     await page.getByRole("link", { name: "Limits" }).click();
     await expect(page.locator("#broker-limits")).toBeInViewport();
     await shoot(page, "receiving");
@@ -436,6 +487,26 @@ test.describe("one MQTT broker's page (T-6103)", () => {
     await expect(page.getByText("The chart starts once the broker has kept two samples")).toBeVisible();
     await expect(page.getByRole("table", { name: "Device accounts and their connections now" })).not.toContainText("connected");
     await shoot(page, "no-traffic");
+  });
+
+  test("a steward edits in place and sees the pending changes, a reader sees them read only", async ({ page }) => {
+    await openBroker(page, MEASURED);
+    const cams = page.getByRole("group", { name: "cams" });
+    await cams.getByRole("combobox", { name: "Add an account to role cams" }).selectOption("cam-4");
+    const publish = cams.getByRole("textbox", { name: "Publish" });
+    await publish.fill("cameras/+/frames");
+    await expect(cams.getByText("Put a ${clientid} level before any wildcard")).toBeVisible();
+    await page.getByRole("spinbutton", { name: "Messages per second, per device" }).fill("20");
+    const bar = page.getByRole("region", { name: "Pending changes" });
+    await expect(bar).toContainText("cam-4 gets role cams");
+    await expect(bar).toContainText("Messages per second per device: 10 → 20");
+    await expect(page.getByRole("navigation", { name: "Sections of this broker" }).getByRole("img", { name: "Not proposed" })).toHaveCount(2);
+    await shoot(page, "editing");
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    await openBroker(page, MEASURED, false, READER);
+    await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+    await expect(page.getByRole("spinbutton", { name: "Messages per second, per device" })).toBeDisabled();
+    await shoot(page, "read-only");
   });
 
   test("a caller who may not read the broker sees the refusal and no settings", async ({ page }) => {

@@ -2247,18 +2247,40 @@
         "evidence/T-5532/mqtt-device-pending-sign-in-400.png"
       ]
     },
+    "src/pages/mqttbrokers/BrokerEditor.tsx": {
+      "walkedBy": "worker-t6103",
+      "date": "2026-10-29",
+      "screenshots": [
+        "evidence/T-6103/v2/broker-receiving-1440.png",
+        "evidence/T-6103/v2/broker-receiving-400.png",
+        "evidence/T-6103/v2/broker-idle-1440.png",
+        "evidence/T-6103/v2/broker-idle-400.png",
+        "evidence/T-6103/v2/broker-no-traffic-1440.png",
+        "evidence/T-6103/v2/broker-no-traffic-400.png",
+        "evidence/T-6103/v2/broker-editing-1440.png",
+        "evidence/T-6103/v2/broker-editing-400.png",
+        "evidence/T-6103/v2/broker-read-only-1440.png",
+        "evidence/T-6103/v2/broker-read-only-400.png",
+        "evidence/T-6103/v2/broker-no-permission-1440.png",
+        "evidence/T-6103/v2/broker-no-permission-400.png"
+      ]
+    },
     "src/pages/mqttbrokers/MqttBrokerPage.tsx": {
       "walkedBy": "worker-t6103",
       "date": "2026-10-29",
       "screenshots": [
-        "evidence/T-6103/broker-receiving-1440.png",
-        "evidence/T-6103/broker-receiving-400.png",
-        "evidence/T-6103/broker-idle-1440.png",
-        "evidence/T-6103/broker-idle-400.png",
-        "evidence/T-6103/broker-no-traffic-1440.png",
-        "evidence/T-6103/broker-no-traffic-400.png",
-        "evidence/T-6103/broker-no-permission-1440.png",
-        "evidence/T-6103/broker-no-permission-400.png"
+        "evidence/T-6103/v2/broker-receiving-1440.png",
+        "evidence/T-6103/v2/broker-receiving-400.png",
+        "evidence/T-6103/v2/broker-idle-1440.png",
+        "evidence/T-6103/v2/broker-idle-400.png",
+        "evidence/T-6103/v2/broker-no-traffic-1440.png",
+        "evidence/T-6103/v2/broker-no-traffic-400.png",
+        "evidence/T-6103/v2/broker-editing-1440.png",
+        "evidence/T-6103/v2/broker-editing-400.png",
+        "evidence/T-6103/v2/broker-read-only-1440.png",
+        "evidence/T-6103/v2/broker-read-only-400.png",
+        "evidence/T-6103/v2/broker-no-permission-1440.png",
+        "evidence/T-6103/v2/broker-no-permission-400.png"
       ]
     },
     "src/pages/mqttbrokers/MqttBrokersPage.tsx": {
