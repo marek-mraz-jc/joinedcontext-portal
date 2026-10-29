@@ -43,4 +43,16 @@ export class Tab {
       return { crashed: true };
     }
   }
+
+  /**
+   * Runs `work`, and once more on the fresh tab when the renderer crashed under it (`again` true).
+   * The host's OOM killer takes a renderer on whatever page is open, so one crash names no page; a
+   * page that crashes again on a fresh tab does (T-6009).
+   */
+  async twice<T>(
+    work: (page: Page, again: boolean) => Promise<T>,
+  ): Promise<Outcome<T>> {
+    const first = await this.run((page) => work(page, false));
+    return first.crashed ? this.run((page) => work(page, true)) : first;
+  }
 }

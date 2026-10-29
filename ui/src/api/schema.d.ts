@@ -23169,6 +23169,8 @@ export interface operations {
                         op: "create" | "replace" | "patch" | "delete";
                         /** @description With patch: a JSON merge patch (RFC 7386) onto the current manifest */
                         patch?: Record<string, never>;
+                        /** @description With a DataModel: its whole LinkML file (the one spec.linkml names), e.g. "classes:\n  BikeCounter:\n    attributes:\n      count: { range: integer }\n"; the plan shows each change, the version it takes and the stored entities a breaking one affects */
+                        source?: string;
                     }[];
                     /** @description Commit into this workspace (a copy of the project) instead of opening change requests */
                     workspace?: string;
