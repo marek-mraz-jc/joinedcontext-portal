@@ -19,6 +19,8 @@ export interface PageHeaderProps {
   breadcrumb?: ReactNode;
   /** The page's actions; the first is the only primary on the page. */
   actions?: ReactNode;
+  /** A small control right beside the title, such as a form's User Guide link (T-6105). */
+  titleAction?: ReactNode;
   /** Anything that sits beside the actions: a quota bar, a filter. */
   aside?: ReactNode;
   /** A line under the description, such as why the actions are greyed (T-4263). */
@@ -32,6 +34,7 @@ export function PageHeader({
   description,
   breadcrumb,
   actions,
+  titleAction,
   aside,
   note,
   className,
@@ -64,7 +67,10 @@ export function PageHeader({
       {breadcrumb}
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">
-          <h1 ref={heading} tabIndex={-1} className="focus-ring rounded-sm text-display font-semibold tracking-tight text-fg">{title}</h1>
+          <div className="flex items-center gap-1">
+            <h1 ref={heading} tabIndex={-1} className="focus-ring rounded-sm text-display font-semibold tracking-tight text-fg">{title}</h1>
+            {titleAction}
+          </div>
           {description ? <p className="mt-1 max-w-prose text-body text-fg-muted">{description}</p> : null}
           {note}
         </div>

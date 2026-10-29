@@ -29,11 +29,17 @@
       ]
     },
     "src/components/forms/ResourceFormNotes.tsx": {
-      "walkedBy": "worker-t5515 (stub walk, read by integrator-2)",
-      "date": "2026-10-25",
+      "walkedBy": "worker-t6105 (stub walk e2e/form_opens_on_fields.spec.ts)",
+      "date": "2026-10-29",
       "screenshots": [
-        "evidence/worker-t5515/T-5515/create-checked-1440.png",
-        "evidence/worker-t5515/T-5515/create-checked-400.png"
+        "evidence/T-6105/after/datasource-new-1440.png",
+        "evidence/T-6105/after/datasource-new-400.png",
+        "evidence/T-6105/after/endpoint-new-1440.png",
+        "evidence/T-6105/after/endpoint-new-400.png",
+        "evidence/T-6105/after/pipeline-new-1440.png",
+        "evidence/T-6105/after/pipeline-new-400.png",
+        "evidence/T-6105/after/mqttbroker-new-1440.png",
+        "evidence/T-6105/after/mqttbroker-new-400.png"
       ]
     },
     "src/components/forms/ResourceYamlPanel.tsx": {
