@@ -138,6 +138,7 @@ impl Driver {
             identity: self.identity.clone(),
             via: crate::ops::Via::Agent,
             access: Some(access),
+            bearer: None,
         };
         (caller, offered)
     }
