@@ -4424,6 +4424,7 @@
       "areaMain": "Hlavný",
       "areaPersonal": "Osobné údaje",
       "badge": "{count, plural, =0 {Nesprístupňuje ju žiadny Endpoint} one {Sprístupňuje ju # Endpoint} few {Sprístupňujú ju # Endpointy} other {Sprístupňuje ju # Endpointov}}",
+      "notReached": "{name} sem nesiaha",
       "required": "povinné",
       "personal": "osobné údaje",
       "edit": "Upraviť vo formulári",

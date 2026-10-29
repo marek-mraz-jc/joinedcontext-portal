@@ -202,7 +202,7 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
       aria-labelledby="model-canvas-title"
       className="fixed inset-0 z-40 flex flex-col bg-surface pb-[env(safe-area-inset-bottom,0px)] pt-[env(safe-area-inset-top,0px)] max-sm:overflow-auto"
     >
-      <header className="flex flex-wrap items-end gap-x-4 gap-y-2 border-b border-border px-4 py-2">
+      <header className="flex flex-wrap items-start gap-x-6 gap-y-2 border-b border-border px-4 py-2">
         <div className="flex min-w-0 flex-col">
           {back}
           <h1 id="model-canvas-title" className="text-lg font-semibold [overflow-wrap:anywhere]">
@@ -246,12 +246,16 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
           <span id="model-canvas-overlay-hint" className="max-w-prose">
             {ofSpace.length === 0 ? t("models.canvas.noEndpointsHint") : t("models.canvas.overlayHint")}
           </span>
+          {/* Under the pick it answers, so the header keeps one top line and no ragged row (T-6094 UI judge). */}
+          <p role="status" aria-live="polite" className="min-h-5 font-medium text-fg">
+            {overlaySummary}
+          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:pt-5">
           <Button
             size="sm"
             variant="secondary"
-            className={diagramOnPhone ? undefined : "max-sm:hidden"}
+            className="max-sm:hidden"
             onClick={resetLayout}
             disabled={Object.keys(positions).length === 0}
             disabledReason={t("models.canvas.resetNothing")}
@@ -262,9 +266,6 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
             {diagramOnPhone ? t("models.canvas.showList") : t("models.canvas.showDiagram")}
           </Button>
         </div>
-        <p role="status" aria-live="polite" className="min-h-5 w-full text-caption text-fg-muted">
-          {overlaySummary}
-        </p>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
@@ -296,6 +297,7 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
           areas={areas}
           counts={counts}
           highlight={highlight}
+          pick={overlay.split(":")[1]}
           selected={selected}
           onSelect={setSelected}
           hidden={diagramOnPhone}
@@ -351,6 +353,7 @@ function ClassList({
   areas,
   counts,
   highlight,
+  pick,
   selected,
   onSelect,
   hidden,
@@ -359,6 +362,8 @@ function ClassList({
   areas: ReadonlyMap<string, string>;
   counts: ReadonlyMap<string, number>;
   highlight?: Served;
+  /** The picked Endpoint's or Pipeline's name, when one is. */
+  pick?: string;
   selected?: string;
   onSelect: (name: string) => void;
   hidden: boolean;
@@ -381,7 +386,12 @@ function ClassList({
             >
               <span className="w-full min-w-0 font-mono text-body font-medium [overflow-wrap:anywhere]">{klass.name}</span>
               <Badge tone={areas.get(klass.name) === PERSONAL_AREA ? "danger" : "neutral"}>{areaLabel(areas.get(klass.name), t)}</Badge>
-              <span className="text-caption text-fg-muted">{t("models.canvas.badge", { count: counts.get(klass.name) ?? 0 })}</span>
+              <span className="text-caption text-fg-muted">
+                {/* A faded card says why, not how many serve it: "Served by 1" read as a contradiction (T-6094 UI judge). */}
+                {pick && highlight && !highlight.has(klass.name)
+                  ? t("models.canvas.notReached", { name: pick })
+                  : t("models.canvas.badge", { count: counts.get(klass.name) ?? 0 })}
+              </span>
             </Button>
           </li>
         ))}

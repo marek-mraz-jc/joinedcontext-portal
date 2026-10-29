@@ -4424,6 +4424,7 @@
       "areaMain": "Main",
       "areaPersonal": "Personal data",
       "badge": "{count, plural, =0 {Served by no Endpoint} one {Served by # Endpoint} other {Served by # Endpoints}}",
+      "notReached": "Not reached by {name}",
       "required": "required",
       "personal": "personal data",
       "edit": "Edit in the form",

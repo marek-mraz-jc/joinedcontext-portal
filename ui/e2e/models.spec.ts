@@ -600,6 +600,9 @@ test.describe("the model canvas (T-6094)", () => {
     await page.getByRole("tab", { name: "Personal data" }).click();
     await expect(page.getByRole("tab", { name: "Personal data" })).toHaveAttribute("aria-selected", "true");
     await expect(opened(page, "Person")).toBeVisible();
+    // The shot waits for the tab underline's colour transition and the pointer's hover to end.
+    await page.mouse.move(700, 450);
+    await expect(page.getByRole("tab", { name: "Main" })).toHaveCSS("border-bottom-color", "rgba(0, 0, 0, 0)");
     await shot(page, "canvas-personal-1440");
     await page.getByRole("tab", { name: "Main" }).click();
 
@@ -645,12 +648,16 @@ test.describe("the model canvas (T-6094)", () => {
     await expect(classes.getByRole("button")).toHaveCount(8);
     await expect(classes.getByRole("button", { name: /Person/ })).toContainText("Personal data");
     await page.getByLabel("Show what serves the classes").selectOption("endpoint:catalog");
+    // A faded card says the pick does not reach it, not how many Endpoints serve it.
+    await expect(classes.getByRole("button", { name: /^Place/ })).toContainText("Not reached by catalog");
     await classes.getByRole("button", { name: /Dataset/ }).first().click();
     await expect(page.getByRole("table", { name: "Fields of Dataset" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(400);
     await shot(page, "canvas-list-400");
     await page.getByRole("button", { name: "Show diagram" }).click();
     await expect(opened(page, "Dataset")).toBeVisible();
+    // The canvas opens on the first class the overlay lights, not on a faded one (T-6094 UI judge).
     await shot(page, "canvas-diagram-400");
+    await expect(page.getByTestId("diagram-badge-Dataset")).toBeInViewport();
   });
 });

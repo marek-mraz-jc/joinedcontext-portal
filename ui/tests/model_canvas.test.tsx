@@ -3,6 +3,7 @@
  * classes and attributes it serves, the layout is the same for the same model, and the page
  * shows a picked class with its fields, Endpoints and Pipelines, behind propose rights for Edit.
  */
+import { useState } from "react";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -20,7 +21,7 @@ import {
   writePositions,
   writtenBy,
 } from "../src/pages/models/canvasOverlay";
-import { place } from "../src/pages/models/LinkmlGraphView";
+import { fitRow, LinkmlGraphView, place } from "../src/pages/models/LinkmlGraphView";
 import { fieldsOf, layoutKey } from "../src/pages/models/ModelCanvas";
 import { graphData, parseModel } from "../src/pages/models/linkml";
 import { jsonResponse, list, renderRoute } from "./pageHarness";
@@ -238,5 +239,52 @@ describe("the canvas as a part", () => {
     expect(await screen.findByTestId("diagram-badge-Operator")).toHaveTextContent("2");
     expect(screen.getByText(en.models.canvas.pickHint)).toBeInTheDocument();
     expect(screen.getByLabelText(en.models.canvas.overlay)).toHaveAccessibleDescription(en.models.canvas.overlayHint);
+  });
+});
+
+describe("the canvas drawing (UI judge fixes)", () => {
+  it("lets a short name leave its room to a long type, and cuts both only when both are long", () => {
+    expect(fitRow("publisher", "→ Organization 0..1")).toEqual(["publisher", "→ Organization 0..1"]);
+    expect(fitRow("distribution", "→ DistributionPoint *")).toEqual(["distribution", "→ DistributionPoint *"]);
+    expect(fitRow("aVeryLongSlotNameIndeedHere", "→ AnotherVeryLongClassName 0..1")).toEqual(["aVeryLongSlotNam…", "→ AnotherVeryLon…"]);
+  });
+
+  it("brings the first lit class into view once per overlay", async () => {
+    const { renderPart } = await import("./page_contract");
+    const width = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    const height = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
+    const scrollTo = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 300 });
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get: () => 200 });
+    HTMLElement.prototype.scrollTo = scrollTo;
+    try {
+      const lit = new Map([["Rider", new Set<string>()]]);
+      function Overlays() {
+        const [highlight, setHighlight] = useState(lit);
+        const [, setRenders] = useState(0);
+        return (
+          <>
+            <button onClick={() => setRenders((renders) => renders + 1)}>again</button>
+            <button onClick={() => setHighlight(new Map(lit))}>other</button>
+            <LinkmlGraphView canvas source={BIKES} highlight={highlight} />
+          </>
+        );
+      }
+      renderPart(<Overlays />);
+      await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
+      const [{ left, top }] = scrollTo.mock.calls[0] as [{ left: number; top: number }];
+      // Rider lies outside the 300 x 200 frame at the start, so the frame scrolls to it.
+      expect(left + top).toBeGreaterThan(0);
+      // A render for another reason does not pull the frame back.
+      await userEvent.click(screen.getByRole("button", { name: "again" }));
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      // Another overlay is another reveal.
+      await userEvent.click(screen.getByRole("button", { name: "other" }));
+      await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(2));
+    } finally {
+      if (width) Object.defineProperty(HTMLElement.prototype, "clientWidth", width);
+      if (height) Object.defineProperty(HTMLElement.prototype, "clientHeight", height);
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollTo");
+    }
   });
 });

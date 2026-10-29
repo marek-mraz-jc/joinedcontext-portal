@@ -4424,6 +4424,7 @@
       "areaMain": "Haupt",
       "areaPersonal": "Personenbezogene Daten",
       "badge": "{count, plural, =0 {Von keinem Endpoint bereitgestellt} one {Von # Endpoint bereitgestellt} other {Von # Endpoints bereitgestellt}}",
+      "notReached": "Von {name} nicht erreicht",
       "required": "Pflichtfeld",
       "personal": "personenbezogene Daten",
       "edit": "Im Formular bearbeiten",

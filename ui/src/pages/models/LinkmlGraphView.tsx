@@ -77,6 +77,8 @@ const NO_IMPORTS: Record<string, string> = {};
 const HOPS = [1, 2, 3] as const;
 /** The minimap's width in page pixels. */
 const MINIMAP = 160;
+/** The canvas minimap's height: it sits in the toolbar row, as high as two of its buttons. */
+const MINIMAP_ROW = 56;
 const ARROWS: readonly string[] = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
 /** The opacity of what lies outside a focus or a path: still there to place it, not in the way. */
 const FADED = 0.2;
@@ -238,9 +240,20 @@ function near(start: Point, end: Point): Point {
   return { x: start.x + ux * 16 - uy * 9, y: start.y + uy * 16 + ux * 9 + 3 };
 }
 
-/** `text` cut to `CHARS` characters, with "…" where it was cut. */
-function cut(text: string): string {
-  return text.length > CHARS ? `${text.slice(0, CHARS - 1)}…` : text;
+/** `text` cut to `chars` characters, with "…" where it was cut. */
+function cut(text: string, chars = CHARS): string {
+  return text.length > chars ? `${text.slice(0, chars - 1)}…` : text;
+}
+/**
+ * A row's name and type cut to one line: they share `2 * CHARS`, so a short name leaves its room
+ * to a long type ("→ Organization 0..1" whole beside "publisher"), and each keeps at least `CHARS`
+ * when both are long (T-6094 UI judge: relation types cut with "…").
+ */
+export function fitRow(name: string, type: string): [string, string] {
+  const both = 2 * CHARS;
+  const nameChars = Math.max(CHARS, both - type.length);
+  const typeChars = Math.max(CHARS, both - Math.min(name.length, nameChars));
+  return [cut(name, nameChars), cut(type, typeChars)];
 }
 
 /**
@@ -372,6 +385,9 @@ export function LinkmlGraphView({
   // right edge at its natural size (T-4991). The Fit button may still enlarge a small one.
   // A frame drawn while hidden (a tab not yet open) has no width: fit once it gets one (T-6090).
   const fitted = useRef(false);
+  /** The zoom the last fit set, until it took; and the overlay the canvas last brought into view. */
+  const settling = useRef<number | undefined>(undefined);
+  const revealed = useRef<Served | undefined>(undefined);
   useEffect(() => {
     const frameAt = frame.current;
     if (!frameAt || typeof ResizeObserver === "undefined") return;
@@ -392,8 +408,29 @@ export function LinkmlGraphView({
     // a phone's width was a quarter size nobody could read (T-6094 UI judge).
     const narrow = canvas && available < 2 * BOX.width;
     const fits = Math.min(canvas ? CANVAS_FIT_MAX : ZOOM.natural, available / (narrow ? BOX.width + 16 : wide));
-    setZoom(Math.max(canvas && !narrow ? READABLE : ZOOM.readable, fits));
+    settling.current = Math.max(canvas && !narrow ? READABLE : ZOOM.readable, fits);
+    setZoom(settling.current);
   }, [placed, frameWidth, canvas]);
+  // The canvas brings the first class an overlay lights into view, once per overlay and after the
+  // fit's zoom took: on a phone the frame showed a faded class and none of the lit ones (T-6094 UI judge).
+  useEffect(() => {
+    const frameAt = frame.current;
+    if (!canvas || !frameAt || !highlight || revealed.current === highlight) return;
+    if (!fitted.current || settling.current !== zoom) return;
+    // The picked class when the overlay lights it (a phone picks in the list, then opens the canvas).
+    const lit = placed.filter((node) => node.kind === "class" && highlight.has(node.name));
+    const first = lit.find((node) => node.name === selected) ?? lit[0];
+    if (!first) return;
+    revealed.current = highlight;
+    const left = first.x * zoom;
+    const top = first.y * zoom;
+    const inView =
+      left >= frameAt.scrollLeft &&
+      top >= frameAt.scrollTop &&
+      left + BOX.width * zoom <= frameAt.scrollLeft + frameAt.clientWidth &&
+      top + first.height * zoom <= frameAt.scrollTop + frameAt.clientHeight;
+    if (!inView) frameAt.scrollTo?.({ left: Math.max(0, left - 8), top: Math.max(0, top - 8) });
+  }, [canvas, highlight, placed, zoom, selected]);
   // The wheel zooms on the canvas, and with Ctrl or Cmd anywhere; the point under the pointer stays put.
   const zoomNow = useRef(zoom);
   useEffect(() => {
@@ -644,6 +681,12 @@ export function LinkmlGraphView({
             </Button>
           </>
         ) : null}
+        {canvas ? (
+          // On the canvas the map ends the toolbar row: in the drawing's corner it hid lines (T-6094 UI judge).
+          <div className="ml-auto max-sm:hidden">
+            <Minimap placed={placed} width={width + 8} height={height + 8} view={view} zoom={zoom} faded={faded} onJump={jump} tall={MINIMAP_ROW} />
+          </div>
+        ) : null}
       </div>
       {editing ? <p className="text-caption text-fg-muted">{t("models.graph.edit.hint")}</p> : null}
       <div className="flex flex-wrap items-end gap-2 empty:hidden">
@@ -697,9 +740,11 @@ export function LinkmlGraphView({
       <div className={canvas ? "flex min-h-0 flex-1 flex-col" : "grid gap-3 2xl:grid-cols-[minmax(0,1fr)_28rem]"}>
         <div className={canvas ? "relative min-h-0 min-w-0 flex-1" : "relative min-w-0"}>
         {/* The map rides the drawing's corner, where it costs no row of its own (T-6090). */}
-        <div className={`absolute right-2 z-10 max-sm:hidden ${canvas ? "bottom-4" : "top-2"}`}>
-          <Minimap placed={placed} width={width + 8} height={height + 8} view={view} zoom={zoom} faded={faded} onJump={jump} />
-        </div>
+        {canvas ? null : (
+          <div className="absolute right-2 top-2 z-10 max-sm:hidden">
+            <Minimap placed={placed} width={width + 8} height={height + 8} view={view} zoom={zoom} faded={faded} onJump={jump} />
+          </div>
+        )}
         <div
           ref={frame}
           className={`${canvas ? "h-full" : "max-h-180"} cursor-grab overflow-auto rounded border border-border bg-surface p-2 active:cursor-grabbing`}
@@ -1113,6 +1158,7 @@ function Multiplicity({ at, value }: { at: Point; value?: string }): JSX.Element
  */
 function SlotRow({ row, x, y, tip, served }: { row: GraphRow; x: number; y: number; tip: string; served?: boolean }): JSX.Element {
   const nameAt = x + BOX.padding + BOX.tagWidth + 4;
+  const [nameText, typeShown] = fitRow(row.name, typeText(row));
   // Under the Endpoints overlay a served attribute is in the primary colour, the others fade.
   return (
     <g
@@ -1152,7 +1198,7 @@ function SlotRow({ row, x, y, tip, served }: { row: GraphRow; x: number; y: numb
         className={row.key === "pk" ? "fill-current font-semibold" : "fill-current"}
         fontStyle={row.implied ? "italic" : undefined}
       >
-        {cut(row.name)}
+        {nameText}
         {row.required ? " *" : ""}
       </text>
       {row.personal && !row.key ? (
@@ -1162,7 +1208,7 @@ function SlotRow({ row, x, y, tip, served }: { row: GraphRow; x: number; y: numb
         </text>
       ) : null}
       <text x={x + BOX.width - BOX.padding} y={y + 1} textAnchor="end" fontSize={BOX.slot} className="fill-current">
-        {cut(typeText(row))}
+        {typeShown}
       </text>
     </g>
   );
@@ -1296,6 +1342,7 @@ function Minimap({
   zoom,
   faded,
   onJump,
+  tall = MINIMAP,
 }: {
   placed: Placed[];
   width: number;
@@ -1304,15 +1351,17 @@ function Minimap({
   zoom: number;
   faded: (name: string) => boolean;
   onJump: (point: Point) => void;
+  /** The most it may be high: the canvas sets it in its toolbar row, out of the drawing's way. */
+  tall?: number;
 }): JSX.Element {
   // At most MINIMAP square: a tall drawing would otherwise draw a tall map over the toolbar.
-  const scale = Math.min(MINIMAP / width, MINIMAP / height);
+  const scale = Math.min(MINIMAP / width, tall / height);
   return (
     <svg
       aria-hidden="true"
       data-testid="diagram-minimap"
       width={width * scale}
-      height={Math.max(24, height * scale)}
+      height={Math.max(Math.min(24, tall), height * scale)}
       viewBox={`-4 -4 ${width} ${height}`}
       className="cursor-pointer rounded border border-border bg-surface text-fg-subtle shadow-1"
       onClick={(event) => {

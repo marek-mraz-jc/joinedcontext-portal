@@ -386,7 +386,8 @@ describe("the diagram at first glance (T-2881)", () => {
       .replace("[name, capacity,", "[name, capacityOfTheWholeBuildingInPupils,");
     renderPart(<LinkmlGraphView source={long} />);
     const school = screen.getByRole("button", { name: en.models.graph.openClass.replace("{name}", "School") });
-    expect(school.textContent).toContain("capacityOfTheWho…");
+    // The short type leaves its room to the name (T-6094): it is cut at 27 characters, not 17.
+    expect(school.textContent).toContain("capacityOfTheWholeBuilding…");
     expect([...school.querySelectorAll("title")].map((title) => title.textContent)).toContain(
       "capacityOfTheWholeBuildingInPupils: integer",
     );
