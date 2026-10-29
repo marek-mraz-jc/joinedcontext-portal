@@ -123,6 +123,10 @@ impl Driver {
         &self,
         chosen: &[endpoints::RunEndpoint],
     ) -> Vec<data_query::Openable> {
+        // Shared Endpoints come back from `shared_endpoints` already admitted to the project.
+        let shared = crate::api::assistant::shared_endpoints(&self.state.mirror, &self.project)
+            .into_iter()
+            .map(|(_, endpoint)| endpoint);
         self.state
             .mirror
             .list(
@@ -132,6 +136,7 @@ impl Driver {
             )
             .items
             .into_iter()
+            .chain(shared)
             .filter(|env| !chosen.iter().any(|c| c.name == env.metadata.name))
             .filter(|env| {
                 env.spec["slug"]
@@ -188,8 +193,9 @@ impl Driver {
                     .join(", ")
             ));
         }
-        let opened = endpoints::resolve(&self.state.mirror, &self.project, &[name.to_owned()])
-            .map_err(|err| err.to_string())?;
+        let opened =
+            endpoints::resolve_readable(&self.state.mirror, &self.project, &[name.to_owned()])
+                .map_err(|err| err.to_string())?;
         chosen.extend(opened);
         self.state
             .agents

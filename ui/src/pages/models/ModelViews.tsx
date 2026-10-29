@@ -1,10 +1,10 @@
 /**
- * One published model, read-only, three ways (DM-61, T-2762, T-2765): the diagram of its classes,
- * the entity form each class generates filled with the generated example, and the LinkML itself.
+ * One published model, read-only (DM-61, T-2762, T-2765): the entity form each class generates
+ * filled with the generated example, the LinkML itself, and the sources of the models it imports
+ * for the model page's diagram.
  *
- * The model page and the space page show the same three, so they are one component. Nothing here
- * edits: Edit is the editor's (`/projects/{project}/models?edit=<name>`), and a view that also
- * wrote would be a second writer of the same document. The YAML is shown as text, never as HTML,
+ * Nothing here edits: Edit is the editor's (`/projects/{project}/models?edit=<name>`), and a view
+ * that also wrote would be a second writer of the same document. The YAML is shown as text, never as HTML,
  * and needs no Monaco: a read-only page stays light until the person opens the editor.
  */
 import { useMemo, useState } from "react";
@@ -15,16 +15,12 @@ import { api, ApiError, unwrap } from "../../api/client";
 import { readModelSource } from "../../api/datamodelSource";
 import { SchemaForm } from "../../components/forms/SchemaForm";
 import type { JsonSchema } from "../../components/forms/types";
-import { CodeBlock, Alert, Button, Field, Select, Skeleton, Tabs, tabPanelProps } from "../../components/ui";
+import { CodeBlock, Alert, Button, Field, Select, Skeleton } from "../../components/ui";
 import { download } from "./diagramExport";
-import { LinkmlGraphView } from "./LinkmlGraphView";
 import type { Artifacts } from "./LinkmlPreviewPanel";
 import { formReady } from "./formSchema";
 import { importName, parseModel } from "./linkml";
 import { useProjectList } from "./ModelsList";
-
-export type ModelView = "diagram" | "form" | "yaml";
-export const MODEL_VIEWS: readonly ModelView[] = ["diagram", "form", "yaml"];
 
 /** The artifacts of one source, compiled by Model Tools through the Portal (DM-17). */
 export function useArtifacts(source: string | undefined) {
@@ -228,53 +224,6 @@ export function ModelYaml({ source, name }: { source: string; name: string }): J
           );
         })}
       </CodeBlock>
-    </div>
-  );
-}
-
-/**
- * The three views as tabs: the diagram first, and a click on a class opens its form. `id` keeps
- * two instances on one page from sharing tab ids.
- */
-export function ModelViews({
-  project,
-  source,
-  name,
-  id = "model-views",
-}: {
-  project: string;
-  source: string;
-  name: string;
-  id?: string;
-}): JSX.Element {
-  const { t } = useTranslation();
-  const imports = useImportSources(project, name, source);
-  const [view, setView] = useState<ModelView>("diagram");
-  const [opened, setOpened] = useState<string | undefined>(undefined);
-  return (
-    <div className="flex flex-col gap-3">
-      <Tabs
-        id={id}
-        variant="pill"
-        label={t("models.page.views")}
-        tabs={MODEL_VIEWS.map((one) => ({ value: one, label: t(`models.page.view.${one}`) }))}
-        value={view}
-        onChange={setView}
-      />
-      <div {...tabPanelProps(id, view)}>
-        {view === "diagram" ? (
-          <LinkmlGraphView
-            source={source}
-            imports={imports}
-            onOpenClass={(clicked) => {
-              setOpened(clicked);
-              setView("form");
-            }}
-          />
-        ) : null}
-        {view === "form" ? <ModelForm key={opened} source={source} initialClass={opened} /> : null}
-        {view === "yaml" ? <ModelYaml source={source} name={name} /> : null}
-      </div>
     </div>
   );
 }

@@ -19,6 +19,8 @@ export interface PageHeaderProps {
   breadcrumb?: ReactNode;
   /** The page's actions; the first is the only primary on the page. */
   actions?: ReactNode;
+  /** A small control right beside the title, such as a form's User Guide link (T-6105). */
+  titleAction?: ReactNode;
   /** Anything that sits beside the actions: a quota bar, a filter. */
   aside?: ReactNode;
   /** A line under the description, such as why the actions are greyed (T-4263). */
@@ -32,6 +34,7 @@ export function PageHeader({
   description,
   breadcrumb,
   actions,
+  titleAction,
   aside,
   note,
   className,
@@ -63,10 +66,18 @@ export function PageHeader({
     <div className={clsx("flex flex-col gap-3", className)}>
       {breadcrumb}
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-        <div className="min-w-0">
+        {/* The description <p> stays the h1's next sibling (screen reader order, walker checks); a grid puts titleAction beside the title. */}
+        <div className={clsx("min-w-0", titleAction && "grid grid-cols-[auto_1fr] items-center gap-x-1")}>
           <h1 ref={heading} tabIndex={-1} className="focus-ring rounded-sm text-display font-semibold tracking-tight text-fg">{title}</h1>
-          {description ? <p className="mt-1 max-w-prose text-body text-fg-muted">{description}</p> : null}
-          {note}
+          {description ? <p className={clsx("mt-1 max-w-prose text-body text-fg-muted", titleAction && "col-span-2")}>{description}</p> : null}
+          {titleAction ? (
+            <>
+              {note ? <div className="col-span-2">{note}</div> : null}
+              <span className="col-start-2 row-start-1 flex">{titleAction}</span>
+            </>
+          ) : (
+            note
+          )}
         </div>
         {actions || aside ? (
           <div className="flex flex-wrap items-end gap-x-6 gap-y-3">

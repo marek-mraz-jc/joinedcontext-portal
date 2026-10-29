@@ -259,3 +259,24 @@ test("a viewer meets the model buttons refused with the reason, and the source r
   });
   expect(answer.status(), await answer.text()).toBe(403);
 });
+
+test("a viewer reads a model on the full-screen canvas, lights an Endpoint's classes and may not edit (T-6094)", async ({ browser }) => {
+  const { page, context } = await signIn(browser, VIEWER, `/projects/${PROJECT}/models?lang=en`);
+  const listed = await page.request.get(`/api/v1/projects/${PROJECT}/datamodels`);
+  expect(listed.ok()).toBe(true);
+  const name = ((await listed.json()) as { items: { metadata: { name: string } }[] }).items[0]?.metadata.name;
+  expect(name, "the project has a model").toBeDefined();
+  await page.goto(`/projects/${PROJECT}/models/${name}/diagram?lang=en`);
+  await expect(page.getByRole("heading", { level: 1, name: `Diagram of ${name}` })).toBeVisible();
+  const overlay = page.getByLabel("Show what serves the classes");
+  const endpoints = await overlay.locator('option[value^="endpoint:"]').evaluateAll((options) => options.map((one) => (one as HTMLOptionElement).value));
+  if (endpoints.length > 0) {
+    await overlay.selectOption(endpoints[0]);
+    await expect(page.getByText(/of \d+ (is|are) reached; the rest is faded\./)).toBeVisible();
+  }
+  await page.getByRole("button", { name: / in the structure view$/ }).first().click();
+  const panel = page.getByRole("complementary");
+  await expect(panel.getByRole("table", { name: /^Fields of / })).toBeVisible();
+  await expect(panel.getByRole("button", { name: /Edit in the form/ })).toHaveAttribute("aria-disabled", "true");
+  await context.close();
+});

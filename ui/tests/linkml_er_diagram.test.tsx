@@ -348,11 +348,11 @@ describe("the diagram at first glance (T-2881)", () => {
     expect(rowsOf("School")).toEqual([
       // Inherited along `is_a`: a School is identified by the key Thing declares.
       { name: "id", type: "uriorcurie", key: "pk" },
-      { name: "name", type: "string" },
+      { name: "name", type: "string", required: true },
       { name: "capacity", type: "integer" },
       { name: "location", type: "GeoProperty" },
-      { name: "district", type: "District", key: "fk", multiplicity: "1" },
-      { name: "headteacher", type: "Headteacher", key: "fk", multiplicity: "1" },
+      { name: "district", type: "District", key: "fk", multiplicity: "1", required: true },
+      { name: "headteacher", type: "Headteacher", key: "fk", multiplicity: "1", required: true },
       { name: "pupils", type: "Pupil", key: "fk", multiplicity: "*", multivalued: true },
       { name: "tags", type: "string", multivalued: true },
     ]);
@@ -368,11 +368,12 @@ describe("the diagram at first glance (T-2881)", () => {
     );
     expect(rows).toEqual([
       "PK id uriorcurie",
-      "name string",
+      // A required field carries a `*` after its name (T-6094).
+      "name * string",
       "capacity integer",
       "location GeoProperty",
-      "FK district → District 1",
-      "FK headteacher → Headteacher 1",
+      "FK district * → District 1",
+      "FK headteacher * → Headteacher 1",
       "FK pupils → Pupil *",
       "tags string[]",
     ]);
@@ -405,7 +406,8 @@ describe("the diagram at first glance (T-2881)", () => {
       .replace("[name, capacity,", "[name, capacityOfTheWholeBuildingInPupils,");
     renderPart(<LinkmlGraphView source={long} />);
     const school = screen.getByRole("button", { name: en.models.graph.openClass.replace("{name}", "School") });
-    expect(school.textContent).toContain("capacityOfTheWho…");
+    // The short type leaves its room to the name (T-6094): it is cut at 27 characters, not 17.
+    expect(school.textContent).toContain("capacityOfTheWholeBuilding…");
     expect([...school.querySelectorAll("title")].map((title) => title.textContent)).toContain(
       "capacityOfTheWholeBuildingInPupils: integer",
     );

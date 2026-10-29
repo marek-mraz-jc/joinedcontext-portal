@@ -17,6 +17,7 @@ const PATHS = {
   approvals: "M9 12l2 2 4-4M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z",
   access: "M8 11V8a4 4 0 1 1 8 0v3M5 11h14v10H5zM12 15v2",
   models: "M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5",
+  help: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4V14M12 17v.5",
   explore: "M4 5h16v14H4zM4 10h16M4 15h16M10 5v14",
   ckan: "M4 5h16v14H4zM8 9h8M8 13h5",
   menu: "M4 6h16M4 12h16M4 18h16",

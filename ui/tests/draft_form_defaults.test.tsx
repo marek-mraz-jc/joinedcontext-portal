@@ -177,11 +177,13 @@ describe("what proposing leads to, said in the dialog", () => {
     );
   }
 
-  it("an administrator of the kind hears the change is approved when they propose", async () => {
+  // T-6105: approved on propose is the normal case, and the form says nothing about it.
+  it("an administrator of the kind hears nothing", async () => {
     withVerbs(["propose", "approve", "delete"]);
-    expect(await screen.findByTestId("propose-standing")).toHaveTextContent(
-      en.changes.approvedOnPropose.replace("{kind}", en.kinds.ContextSpace.other),
-    );
+    await waitFor(() => expect(screen.getByRole("button", { name: en.form.check })).toBeInTheDocument());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByTestId("propose-standing")).toBeNull();
+    expect(screen.queryByText(/Approved as soon as you propose it/)).toBeNull();
   });
 
   it("a steward hears the change waits and why", async () => {
