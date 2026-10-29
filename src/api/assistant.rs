@@ -315,6 +315,28 @@ fn feeders(state: &AppState, project: &str) -> BTreeMap<String, String> {
     out
 }
 
+/// The models that match `words`, each with the verdict of its space's door.
+fn model_items(
+    models: &[ResourceEnvelope],
+    project: &str,
+    space_access: &BTreeMap<String, Access>,
+    words: &[String],
+    items: &mut Vec<CatalogItem>,
+) {
+    for env in models {
+        let space = space_of(env);
+        let access = space_access
+            .get(&space)
+            .cloned()
+            .unwrap_or_else(|| Access::restricted("no endpoint of the model's space admits you"));
+        let (hits, reasons) = score(&fields(env), words);
+        if hits == 0 {
+            continue;
+        }
+        items.push(item(env, project, space, hits, reasons, access));
+    }
+}
+
 /// The Endpoints other projects share with this one that match `words`, as far as their
 /// audience admits the project; the reference is the caller's to read like any manifest of the
 /// project, and an Endpoint already in `items` stays there once (T-6104).
@@ -420,18 +442,7 @@ pub async fn search(
         }
         items.push(item(env, project, name, hits, reasons, access));
     }
-    for env in &models {
-        let space = space_of(env);
-        let access = space_access
-            .get(&space)
-            .cloned()
-            .unwrap_or_else(|| Access::restricted("no endpoint of the model's space admits you"));
-        let (hits, reasons) = score(&fields(env), &words);
-        if hits == 0 {
-            continue;
-        }
-        items.push(item(env, project, space, hits, reasons, access));
-    }
+    model_items(&models, project, &space_access, &words, &mut items);
 
     if let Some(scope) = scope {
         items.retain(|i| i.kind == scope);
