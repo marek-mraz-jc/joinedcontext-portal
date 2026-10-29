@@ -24,17 +24,26 @@ export function mcpInstall(hub: string): { claude: string; json: string; vscode:
 }
 
 /** "Connect an AI assistant": the hub's URL and a line per client, each with its copy button. */
-export function ConnectAssistant({ domain }: { domain: string | undefined }): JSX.Element {
+export function ConnectAssistant({
+  domain,
+  heading = true,
+}: {
+  domain: string | undefined;
+  /** A dialog names the content in its own title (T-6095): the section then drops its heading. */
+  heading?: boolean;
+}): JSX.Element {
   const { t } = useTranslation();
   const hub = hubUrl(domain);
   const lines = mcpInstall(hub);
   const link = "text-body text-primary-soft-fg underline hover:no-underline";
   return (
-    <section aria-labelledby="connect-all" className="flex flex-col gap-3">
+    <section aria-labelledby={heading ? "connect-all" : undefined} className="flex flex-col gap-3">
       <div>
-        <h2 id="connect-all" className="text-title font-semibold text-fg">
-          {t("endpoints.hub.title")}
-        </h2>
+        {heading ? (
+          <h2 id="connect-all" className="text-title font-semibold text-fg">
+            {t("endpoints.hub.title")}
+          </h2>
+        ) : null}
         <p className="mt-1 text-body text-fg-muted">{t("endpoints.hub.lead")}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">

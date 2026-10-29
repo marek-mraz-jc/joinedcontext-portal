@@ -209,6 +209,9 @@ async function stubApi(page: Page, options: { write?: boolean } = {}): Promise<S
     if (path.endsWith("/endpoints")) {
       return json(ENDPOINTS);
     }
+    if (path.endsWith("/endpoints/helsinki-bikes")) {
+      return json(ENDPOINTS.items[0]);
+    }
     if (path.endsWith("/datamodels")) {
       return json(MODELS);
     }
@@ -371,8 +374,8 @@ test.describe("the entity grid", () => {
   test("compares the endpoint's page with the space behind it", async ({ page }) => {
     await stubApi(page);
 
-    await page.goto("/projects/helsinki/endpoints?lang=en");
-    await page.getByRole("button", { name: "View data" }).click();
+    // The list has no "View data" since T-6095: the data is on the endpoint's own page.
+    await page.goto("/projects/helsinki/endpoints/helsinki-bikes?lang=en");
     await page.getByRole("button", { name: "Compare with the space" }).click();
 
     const compare = page.getByRole("region", { name: "The space / This endpoint" });

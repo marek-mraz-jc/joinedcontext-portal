@@ -1,7 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { clsx } from "clsx";
+import { useTranslation } from "react-i18next";
 import { setPageTitle } from "../../documentTitle";
+import { Icon } from "./icons";
 
 /** The address the last header mounted on; a header mounting on another one is a route change. */
 let lastPath: string | null = null;
@@ -24,6 +26,60 @@ export interface PageHeaderProps {
   /** A line under the description, such as why the actions are greyed (T-4263). */
   note?: ReactNode;
   className?: string;
+  /**
+   * A list page (T-6095): the title, its description on hover or focus, the search and the actions
+   * share one line, so the grid starts right below. Without it the description is a line of its own.
+   */
+  compact?: boolean;
+  /** The list's search box; a compact header puts it right of the title, before the actions. */
+  search?: ReactNode;
+}
+
+/**
+ * The description of a compact header: an info mark that shows the text on hover or keyboard focus.
+ * The text is always in the document (`aria-describedby`), so a screen reader hears it with the mark.
+ */
+function DescriptionHint({ children }: { children: ReactNode }): React.JSX.Element {
+  const { t } = useTranslation();
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="relative inline-flex">
+      <button
+        type="button"
+        aria-label={t("pageHeader.about")}
+        title={t("pageHeader.about")}
+        aria-describedby={id}
+        aria-expanded={open}
+        className="focus-ring inline-flex size-control-xs items-center justify-center rounded-full text-fg-muted hover:text-fg"
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        // A touch screen has no hover: a tap shows and hides the text.
+        onClick={() => setOpen(!open)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && open) {
+            event.stopPropagation();
+            setOpen(false);
+          }
+        }}
+      >
+        <Icon name="info" className="size-4" />
+      </button>
+      <span
+        id={id}
+        role="tooltip"
+        className={clsx(
+          open
+            ? "absolute left-0 top-full z-50 mt-1 w-72 max-w-[calc(100vw-2rem)] rounded-md border border-border bg-surface p-2 text-caption font-normal text-fg shadow-2"
+            : "sr-only",
+        )}
+      >
+        {children}
+      </span>
+    </span>
+  );
 }
 
 /** The top of every page: what it is, where it is, and what one can do on it (UI-01). */
@@ -35,6 +91,8 @@ export function PageHeader({
   aside,
   note,
   className,
+  compact,
+  search,
 }: PageHeaderProps): React.JSX.Element {
   const heading = useRef<HTMLHeadingElement>(null);
 
@@ -58,13 +116,36 @@ export function PageHeader({
     lastPath = path;
   }, []);
 
+  const h1 = (
+    <h1 ref={heading} tabIndex={-1} className="focus-ring rounded-sm text-display font-semibold tracking-tight text-fg">{title}</h1>
+  );
+
   // A div, not a <header>: the shell's top bar is the one banner landmark of the page.
+  if (compact) {
+    return (
+      <div className={clsx("flex flex-col gap-2", className)}>
+        {breadcrumb}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex min-w-0 items-center gap-1">
+            {h1}
+            {description ? <DescriptionHint>{description}</DescriptionHint> : null}
+          </div>
+          <div className="ms-auto flex flex-wrap items-center gap-2">
+            {search}
+            {aside}
+            {actions}
+          </div>
+        </div>
+        {note}
+      </div>
+    );
+  }
   return (
     <div className={clsx("flex flex-col gap-3", className)}>
       {breadcrumb}
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">
-          <h1 ref={heading} tabIndex={-1} className="focus-ring rounded-sm text-display font-semibold tracking-tight text-fg">{title}</h1>
+          {h1}
           {description ? <p className="mt-1 max-w-prose text-body text-fg-muted">{description}</p> : null}
           {note}
         </div>

@@ -6,7 +6,6 @@ import { Skeleton } from "../components/ui/Skeleton";
 import type { JSX } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Link } from "@tanstack/react-router";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
 import { exactBytes, sizeText, spaceUsageQuery, totalBytes, usageRefusal } from "../api/spaceUsage";
@@ -34,8 +33,6 @@ import {
   TableHead,
   TableHeaderCell,
   TableRow,
-  buttonClass,
-  SourceLink,
 } from "../components/ui";
 
 export interface SpaceForm {
@@ -123,11 +120,13 @@ function SpaceRowActions({
   name,
   target,
   locale,
+  sourceUrl,
 }: {
   project: string;
   name: string;
   target: ResourceTarget;
   locale: string;
+  sourceUrl?: string | null;
 }): JSX.Element {
   const { t } = useTranslation();
   return (
@@ -143,15 +142,8 @@ function SpaceRowActions({
         toManifest: (edited, stored) =>
           toEnvelope(project, edited as unknown as SpaceForm, stored, locale),
       }}
-      primary={
-        <Link
-          to="/projects/$project/$plural/$name"
-          params={{ plural: "spaces", project, name }}
-          className={buttonClass("secondary", "sm")}
-        >
-          {t("spaces.inside.open")}
-        </Link>
-      }
+      // The row's name opens the space (T-6095): no second "Look inside" button beside the menu.
+      sourceUrl={sourceUrl}
     />
   );
 }
@@ -301,8 +293,9 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
           <span aria-hidden="true">{bySize ? " ↓" : ""}</span>
         </Button>
       </TableHeaderCell>
-      <TableHeaderCell align="right">{t("spaces.field.inside")}</TableHeaderCell>
-      <TableHeaderCell align="right" secondary>{t("spaces.field.source")}</TableHeaderCell>
+      <TableHeaderCell align="right">
+        <span className="sr-only">{t("spaces.field.inside")}</span>
+      </TableHeaderCell>
     </TableHead>
   );
 
@@ -351,6 +344,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
   return (
     <div className="flex flex-col gap-section">
       <PageHeader
+        compact
         title={t("spaces.title")}
         description={t("spaces.lead")}
         note={<MayNotCreate project={project} kinds={["ContextSpace"]} />}
@@ -446,14 +440,8 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
                   name={space.metadata.name}
                   target={target}
                   locale={locale}
+                  sourceUrl={space.status?.sourceUrl}
                 />
-              </TableCell>
-              <TableCell align="right" secondary>
-                {space.status?.sourceUrl ? (
-                  <SourceLink href={space.status.sourceUrl} label={t("spaces.field.source")} />
-                ) : (
-                  <span className="text-fg-subtle">—</span>
-                )}
               </TableCell>
             </TableRow>
           );

@@ -309,7 +309,7 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
   if (list.isPending) {
     return (
       <div className="space-y-4">
-        <PageHeader title={t("apps.title")} description={t("apps.subtitle")} />
+        <PageHeader compact title={t("apps.title")} description={t("apps.subtitle")} />
         <PageLoading label={t("app.loading")} />
       </div>
     );
@@ -319,7 +319,7 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
   if (list.isError) {
     return (
       <div className="space-y-4">
-        <PageHeader title={t("apps.title")} description={t("apps.subtitle")} />
+        <PageHeader compact title={t("apps.title")} description={t("apps.subtitle")} />
         <PageFailed
           error={list.error}
           onRetry={() => {
@@ -380,7 +380,7 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <PageHeader
+        <PageHeader compact
           title={t("apps.title")}
           description={t("apps.subtitle")}
           note={<MayNotCreate project={project} kinds={["App"]} />}

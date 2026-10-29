@@ -576,7 +576,7 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <PageHeader title={t("datasources.title")} description={t("datasources.lead")} />
+        <PageHeader compact title={t("datasources.title")} description={t("datasources.lead")} />
         <div className="flex flex-wrap items-end gap-3">
           {addButton}
         </div>

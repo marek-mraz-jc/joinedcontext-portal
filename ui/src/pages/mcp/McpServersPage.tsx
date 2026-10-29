@@ -73,7 +73,7 @@ export function McpServersPage({ project, embedded = false }: { project: string;
           {create}
         </div>
       ) : (
-        <PageHeader title={t("mcp.title")} description={t("mcp.lead")} actions={create} />
+        <PageHeader compact title={t("mcp.title")} description={t("mcp.lead")} actions={create} />
       )}
       {servers.isError ? (
         <PageFailed

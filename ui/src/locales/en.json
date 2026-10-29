@@ -524,7 +524,8 @@
     "askAssistant": "Ask the assistant for one",
     "leadOrganization": "Everything of this kind the organization holds. Each row opens what it names.",
     "emptyHintOrganization": "Nothing of this kind is in the organization yet. This page lists and reads it; ask the assistant for one and decide what it proposes.",
-    "emptyHintCreateOrganization": "Nothing of this kind is in the organization yet. {new} opens the form."
+    "emptyHintCreateOrganization": "Nothing of this kind is in the organization yet. {new} opens the form.",
+    "viewSource": "View source (Git)"
   },
   "spaces": {
     "entitiesUnknown": "The count is not available: {reason}",
@@ -1576,10 +1577,8 @@
     },
     "publicNotice": "An endpoint with a public audience answers anonymous callers, and an anonymous caller may only read. Writes and subscriptions still need a login, whichever representations are enabled.",
     "data": {
-      "action": "View data",
       "title": "What this endpoint answers",
       "type": "Entity type",
-      "notLive": "This endpoint answers nothing yet; it is served once the change is Live.",
       "noSchema": "This endpoint publishes no schema yet, so there is no type to read.",
       "compare": "Compare with the space",
       "compareClose": "Back to this endpoint alone",
@@ -1956,7 +1955,8 @@
       "claudeLine": "Claude Code command",
       "jsonLine": "Configuration for another MCP client",
       "vscode": "Add to VS Code",
-      "cursor": "Add to Cursor"
+      "cursor": "Add to Cursor",
+      "button": "Connect AI"
     },
     "playground": {
       "title": "Try it",
@@ -2330,7 +2330,8 @@
         "until": "The last day of the grant, e.g. 2027-01-31. Leave empty for no end.",
         "reason": "What you need the data for, e.g. Weekly air report for the district office."
       }
-    }
+    },
+    "open": "Open"
   },
   "datasources": {
     "title": "Data sources",
@@ -10749,5 +10750,8 @@
       "jc_ui_show_diff": "Opened a planned change",
       "jc_ui_filter_table": "Filtered the table"
     }
+  },
+  "pageHeader": {
+    "about": "About this page"
   }
 }
