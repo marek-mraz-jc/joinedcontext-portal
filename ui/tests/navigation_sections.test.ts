@@ -53,6 +53,11 @@ describe("the sidebar's sections", () => {
     const plurals = NAV_SECTIONS.map((section) => section.plural);
     expect(new Set(plurals).size).toBe(plurals.length);
   });
+
+  // The owner dropped the Flows page (T-6096): its set-ups start on Data sources and "New app".
+  it("has no Flows entry", () => {
+    expect(NAV_SECTIONS.map((section) => section.plural)).not.toContain("flows");
+  });
 });
 
 describe("where switching project goes (T-2425, UI-05)", () => {

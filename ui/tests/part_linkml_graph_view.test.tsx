@@ -86,9 +86,13 @@ describe("the drawing as a screen reader and a keyboard find it", () => {
     const { container } = renderPart(<LinkmlGraphView source={MODEL} />);
 
     const boxes = screen.getAllByRole("button");
-    // The one stop that is not a button: the search box of T-3589.
+    // The search box of T-3589 leads the toolbar (T-6090); every button, class boxes included,
+    // follows in document order, and the only other stop is the Notation popover's summary.
     const search = screen.getByRole("combobox", { name: en.models.graph.find });
-    expect(focusables(container)).toEqual([...boxes.slice(0, 5), search, ...boxes.slice(5)]);
+    const stops = focusables(container);
+    expect(stops[0]).toBe(search);
+    expect(stops.filter((stop) => boxes.includes(stop))).toEqual(boxes);
+    expect(stops.filter((stop) => stop !== search && !boxes.includes(stop)).map((stop) => stop.tagName)).toEqual(["SUMMARY"]);
     for (const box of boxes) {
       // `className` on an SVG element is an `SVGAnimatedString`, so the attribute is what reads.
       expect(box.getAttribute("class")).toContain("focus-ring");

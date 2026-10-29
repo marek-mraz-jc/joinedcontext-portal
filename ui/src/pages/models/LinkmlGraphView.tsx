@@ -1,7 +1,23 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { JSX, KeyboardEvent, PointerEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Input, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import { ToolbarPopover } from "../../components/entities/GridToolbar";
+import {
+  Button,
+  Icon,
+  Input,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuTrigger,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+} from "../../components/ui";
 import { useDiagramEditing } from "./DiagramEditing";
 import { download, mermaidErDiagram, svgFile } from "./diagramExport";
 import { layered } from "./diagramLayout";
@@ -41,7 +57,9 @@ const BOX = {
  */
 const CHARS = 17;
 /** Pixels per drawing unit: natural size, and how far the buttons go each way. */
-const ZOOM = { natural: 1, step: 1.25, min: 0.25, max: 4, fitMax: 2 };
+// `readable` is the floor of a fit: below it a slot line is ~6 px and unreadable (T-6090 review:
+// helsinki fitted at 58 % on a laptop, 25 % on a phone); a wider drawing scrolls in its frame.
+const ZOOM = { natural: 1, step: 1.25, min: 0.25, max: 4, fitMax: 2, readable: 0.75 };
 /** One object for "no imports", so the drawing is not recomputed on every render. */
 const NO_IMPORTS: Record<string, string> = {};
 /** How far focus reaches: the class and up to this many lines out. */
@@ -277,16 +295,40 @@ export function LinkmlGraphView({
     if (frameAt) setView({ left: frameAt.scrollLeft, top: frameAt.scrollTop, width: frameAt.clientWidth, height: frameAt.clientHeight });
   };
   useEffect(measure, [zoom, placed]);
-  // On load the drawing fits its card's width, never enlarged: a big model ran off the card's
+  // On load the drawing fits its card's width, never enlarged nor below readable: a big model ran off the card's
   // right edge at its natural size (T-4991). The Fit button may still enlarge a small one.
+  // A frame drawn while hidden (a tab not yet open) has no width: fit once it gets one (T-6090).
   const fitted = useRef(false);
+  const startAt = useRef<{ left: number; top: number } | null>(null);
+  const [frameWidth, setFrameWidth] = useState(0);
+  useEffect(() => {
+    const frameAt = frame.current;
+    if (!frameAt || typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(() => setFrameWidth(frameAt.clientWidth));
+    watch.observe(frameAt);
+    return () => watch.disconnect();
+  }, []);
   useEffect(() => {
     const available = (frame.current?.clientWidth ?? 0) - 16;
     if (fitted.current || available <= 0 || placed.length === 0) return;
     fitted.current = true;
     const wide = Math.max(...placed.map((node) => node.x + BOX.width)) + BOX.loop + 8;
-    setZoom(Math.max(ZOOM.min, Math.min(ZOOM.natural, available / wide)));
-  }, [placed]);
+    const start = Math.max(ZOOM.readable, Math.min(ZOOM.natural, available / wide));
+    // A drawing wider than its frame at the readable floor opens on its first class, the top-left
+    // box, not on the empty corner beside it (T-6090 review: a phone showed one cut box).
+    const classes = placed.filter((node) => node.kind === "class");
+    if (wide * start > available && classes.length > 0) {
+      const first = classes.reduce((best, node) => (node.y < best.y || (node.y === best.y && node.x < best.x) ? node : best));
+      startAt.current = { left: Math.max(0, (first.x - 8) * start), top: Math.max(0, (first.y - 8) * start) };
+    }
+    setZoom(start);
+  }, [placed, frameWidth]);
+  // The scroll waits for the render that draws the drawing at its new size.
+  useEffect(() => {
+    if (!startAt.current) return;
+    frame.current?.scrollTo?.(startAt.current);
+    startAt.current = null;
+  }, [zoom]);
 
   if (!placed.some((node) => node.kind === "class")) {
     return (
@@ -379,10 +421,11 @@ export function LinkmlGraphView({
   const local = new Set(placed.filter((node) => node.kind === "class" && !node.from).map((node) => node.name));
 
   const zoomTo = (next: number) => setZoom(Math.min(ZOOM.max, Math.max(ZOOM.min, next)));
-  // Fit: the whole drawing in the frame's width, never blown up past twice its size.
+  // Fit: the whole drawing in the frame's width, never blown up past twice its size nor shrunk
+  // below readable; Zoom out still goes further for an overview.
   const fit = () => {
     const available = (frame.current?.clientWidth ?? 0) - 16;
-    setZoom(available > 0 ? Math.min(ZOOM.fitMax, available / (width + 8)) : ZOOM.natural);
+    setZoom(available > 0 ? Math.max(ZOOM.readable, Math.min(ZOOM.fitMax, available / (width + 8))) : ZOOM.natural);
     frame.current?.scrollTo?.({ left: 0, top: 0 });
   };
   // Pan by dragging the background; a press on a box or a line is still a click.
@@ -400,28 +443,71 @@ export function LinkmlGraphView({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-caption text-fg-muted">{t("models.graph.legend")}</p>
-      {pairs.length > 0 ? <p className="text-caption text-fg-muted">{t("models.graph.legendRelationship")}</p> : null}
-      <Legend id={markerId} />
-      <div className="flex flex-wrap items-center gap-2">
+      {/* One row of tools above the drawing (T-6090): the notation and the downloads sit in a
+          popover and a menu, so the drawing starts right under the row, not below a page of prose. */}
+      <div role="toolbar" aria-label={t("models.graph.tools")} className="flex flex-wrap items-center gap-2">
+        <Input
+          type="search"
+          list={searchList}
+          value={query}
+          aria-label={t("models.graph.find")}
+          placeholder={t("models.graph.findHint")}
+          className="w-full sm:w-56"
+          onChange={(event) => {
+            setQuery(event.target.value);
+            // A name picked from the list is a choice, not a keystroke: focus it at once.
+            if (names.includes(event.target.value)) find(event.target.value);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              find(query);
+            }
+          }}
+        />
+        <datalist id={searchList}>
+          {names.map((option) => (
+            <option key={option} value={option} />
+          ))}
+        </datalist>
         <Button size="sm" variant="secondary" onClick={() => zoomTo(zoom / ZOOM.step)} disabled={zoom <= ZOOM.min} disabledReason={t("models.graph.zoomMin")}>
-          {t("models.graph.zoomOut")}
+          {/* A phone shows the sign alone, so the toolbar keeps to two rows (T-6090 review). */}
+          <span aria-hidden="true" className="sm:hidden">
+            −
+          </span>
+          <span className="max-sm:sr-only">{t("models.graph.zoomOut")}</span>
         </Button>
         <Button size="sm" variant="secondary" onClick={() => zoomTo(zoom * ZOOM.step)} disabled={zoom >= ZOOM.max} disabledReason={t("models.graph.zoomMax")}>
-          {t("models.graph.zoomIn")}
+          <span aria-hidden="true" className="sm:hidden">
+            +
+          </span>
+          <span className="max-sm:sr-only">{t("models.graph.zoomIn")}</span>
         </Button>
         <Button size="sm" variant="secondary" onClick={fit}>
           {t("models.graph.fit")}
         </Button>
-        <span className="text-caption text-fg-muted" aria-live="polite">
+        <span className="text-caption text-fg-muted max-sm:sr-only" aria-live="polite">
           {t("models.graph.zoomLevel", { percent: Math.round(zoom * 100) })}
         </span>
-        <Button size="sm" variant="secondary" onClick={exportSvg}>
-          {t("models.graph.exportSvg")}
-        </Button>
-        <Button size="sm" variant="secondary" onClick={exportMermaid}>
-          {t("models.graph.exportMermaid")}
-        </Button>
+        <ToolbarPopover label={t("models.graph.notation.button")} end tall>
+          <div className="flex flex-col gap-2">
+            <Legend id={markerId} />
+            <p className="text-caption text-fg-muted">{t("models.graph.legend")}</p>
+            {pairs.length > 0 ? <p className="text-caption text-fg-muted">{t("models.graph.legendRelationship")}</p> : null}
+          </div>
+        </ToolbarPopover>
+        <Menu>
+          <MenuTrigger asChild>
+            <Button size="sm" variant="ghost">
+              {t("models.graph.download")}
+              <Icon name="chevronDown" className="size-3.5 text-fg-subtle" />
+            </Button>
+          </MenuTrigger>
+          <MenuContent align="end">
+            <MenuItem onSelect={exportSvg}>{t("models.graph.exportSvg")}</MenuItem>
+            <MenuItem onSelect={exportMermaid}>{t("models.graph.exportMermaid")}</MenuItem>
+          </MenuContent>
+        </Menu>
         {editing ? (
           <>
             <Button size="sm" onClick={editing.addClass}>
@@ -434,32 +520,7 @@ export function LinkmlGraphView({
         ) : null}
       </div>
       {editing ? <p className="text-caption text-fg-muted">{t("models.graph.edit.hint")}</p> : null}
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="flex flex-col gap-1 text-caption text-fg-muted">
-          {t("models.graph.find")}
-          <Input
-            type="search"
-            list={searchList}
-            value={query}
-            className="w-56"
-            onChange={(event) => {
-              setQuery(event.target.value);
-              // A name picked from the list is a choice, not a keystroke: focus it at once.
-              if (names.includes(event.target.value)) find(event.target.value);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                find(query);
-              }
-            }}
-          />
-          <datalist id={searchList}>
-            {names.map((option) => (
-              <option key={option} value={option} />
-            ))}
-          </datalist>
-        </label>
+      <div className="flex flex-wrap items-end gap-2 empty:hidden">
         {focused ? (
           <>
             <label className="flex flex-col gap-1 text-caption text-fg-muted">
@@ -503,12 +564,16 @@ export function LinkmlGraphView({
             {t("models.graph.foldImport", { name: from })}
           </Button>
         ))}
-        <Minimap placed={placed} width={width + 8} height={height + 8} view={view} zoom={zoom} faded={faded} onJump={jump} />
       </div>
-      <p role="status" aria-live="polite" className="min-h-5 text-caption text-fg-muted">
+      <p role="status" aria-live="polite" className="text-caption text-fg-muted">
         {status}
       </p>
       <div className="grid gap-3 2xl:grid-cols-[minmax(0,1fr)_28rem]">
+        <div className="relative min-w-0">
+        {/* The map rides the drawing's corner, where it costs no row of its own (T-6090). */}
+        <div className="absolute right-2 top-2 z-10 max-sm:hidden">
+          <Minimap placed={placed} width={width + 8} height={height + 8} view={view} zoom={zoom} faded={faded} onJump={jump} />
+        </div>
         <div
           ref={frame}
           className="max-h-180 cursor-grab overflow-auto rounded border border-border bg-surface p-2 active:cursor-grabbing"
@@ -827,6 +892,7 @@ export function LinkmlGraphView({
             })}
           </svg>
         </div>
+        </div>
         {editing?.dialogs}
         {pairs.length > 0 ? (
           <Table caption={t("models.graph.table")}>
@@ -1060,7 +1126,7 @@ function Minimap({
       width={width * scale}
       height={Math.max(24, height * scale)}
       viewBox={`-4 -4 ${width} ${height}`}
-      className="ml-auto cursor-pointer rounded border border-border bg-surface text-fg-subtle"
+      className="cursor-pointer rounded border border-border bg-surface text-fg-subtle shadow-1"
       onClick={(event) => {
         const area = event.currentTarget.getBoundingClientRect();
         onJump({ x: (event.clientX - area.left) / scale - 4, y: (event.clientY - area.top) / scale - 4 });

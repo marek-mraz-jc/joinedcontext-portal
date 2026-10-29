@@ -736,7 +736,10 @@ test("9b. a sync source syncs, pauses and resumes, refuses an unsigned webhook, 
 test("9c. a blueprint proposes a flow from its form, and the approver rejects it", async () => {
   test.setTimeout(600_000);
   const page = steward.page;
+  // Its card sits on Data sources since the Flows page went; the old address opens the home (T-6096).
   await page.goto(`/projects/${PROJECT}/flows?lang=en`, { waitUntil: "load" });
+  await expect(page).toHaveURL(new RegExp(`/projects/${PROJECT}/home`));
+  await page.goto(`/projects/${PROJECT}/datasources?lang=en`, { waitUntil: "load" });
   await page
     .getByRole("listitem")
     .filter({ has: page.getByRole("heading", { name: "Poll a JSON feed into a Context Space" }) })

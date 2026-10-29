@@ -48,6 +48,8 @@ import type { CatalogInput, DataSourceType, TypedDataSourceType } from "../../sc
 import { ConnectionTest } from "./ConnectionTest";
 import { useBentoInputs } from "./RunnerInputForm";
 import { TemplateGallery } from "./TemplateGallery";
+import { BlueprintCards } from "../flows/Gallery";
+import { Instantiate } from "../flows/Instantiate";
 import { SecretRefContext } from "../../components/forms/widgets/SecretRef";
 import type { SecretRefValue } from "../../components/forms/widgets/SecretRef";
 
@@ -321,6 +323,8 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
   const [type, setType] = useState<DataSourceType>(initial?.type ?? DATA_SOURCE_TYPES[0]);
   const catalog = useBentoInputs();
   const [editing, setEditing] = useState<Manifest | null>(null);
+  // A ready-made set-up the person chose: its wizard takes the page until they go back (T-6096).
+  const [settingUp, setSettingUp] = useState<Manifest | null>(null);
   const [dialogOpen, setDialogOpen] = useState(initial !== undefined || urlDraftName !== undefined);
   const [draft, setDraft] = useState<DataSourceForm | undefined>(initial?.form);
   const [change, setChange] = useState<Change | null>(null);
@@ -573,6 +577,24 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
     </PermissionGuard>
   );
 
+  // With no source yet a set-up is the next step, so it comes before the empty list; under a
+  // filled list it stays below the table. Placed once the list has answered, so it never jumps (T-6096).
+  const noSources = list.isSuccess && sources.length === 0;
+  const setUps = <BlueprintCards category="ingestion" onRun={setSettingUp} />;
+
+  if (settingUp) {
+    return (
+      <Instantiate
+        project={project}
+        blueprint={settingUp}
+        backLabel={t("datasources.setups.back")}
+        onBack={() => {
+          setSettingUp(null);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -583,6 +605,8 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
       </div>
 
       {change ? <ChangeNotice change={change} project={project} /> : null}
+
+      {noSources ? setUps : null}
 
       <ResourceList
         query={list}
@@ -666,6 +690,8 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
           );
         })}
       </ResourceList>
+
+      {noSources || list.isPending ? null : setUps}
 
       {dialogOpen && editing && viewOnly ? (
         <EditResourceDialog
