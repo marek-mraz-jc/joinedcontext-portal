@@ -481,4 +481,51 @@ mod tests {
             "{reason}"
         );
     }
+
+    /// Step 4b-mqtt sends each kind to its own check: a broker to the allowance, a Project's
+    /// quotas to the organization admin, a ServiceAccount's grants to mqtt_roles, the rest through.
+    #[test]
+    fn check_manifest_sends_each_kind_to_its_check() {
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        let caller = crate::auth::session::Identity {
+            client: None,
+            subject: "sub-aino".into(),
+            username: "aino".into(),
+            email: Some("aino@hel.fi".into()),
+            name: None,
+            roles: vec![],
+            groups: vec![],
+            second_factor: false,
+        };
+        let judge = |kind: &str, name: &str, spec: Value| {
+            check_manifest(
+                &state,
+                &caller,
+                "helsinki",
+                &envelope(kind, name, "helsinki", spec),
+            )
+        };
+        assert!(judge("Endpoint", "air", json!({})).is_ok());
+        match judge("MqttBroker", "cams", broker(10)) {
+            Err(ApiError::Denied(reason)) => assert!(reason.contains("MQTT is off"), "{reason}"),
+            other => panic!("a broker past the allowance: {other:?}"),
+        }
+        let quotas = json!({"quotas": {"mqtt": {"enabled": true, "brokers": 9}}});
+        match judge("Project", "helsinki", quotas) {
+            Err(ApiError::Denied(reason)) => {
+                assert!(reason.contains("spec.quotas.mqtt"), "{reason}")
+            }
+            other => panic!("a quota change by a non-admin: {other:?}"),
+        }
+        let account = json!({
+            "owner": {"user": "aino"}, "purpose": "air", "credentials": [{"kind": "oauth-client", "name": "main"}],
+            "roles": [{"role": "mqtt/air/sensor", "scope": {"project": "helsinki"}}]
+        });
+        match judge("ServiceAccount", "fleet", account) {
+            Err(ApiError::Denied(reason)) => {
+                assert!(reason.starts_with("spec.roles[0].role:"), "{reason}");
+            }
+            other => panic!("a grant by a caller who may not read brokers: {other:?}"),
+        }
+    }
 }
