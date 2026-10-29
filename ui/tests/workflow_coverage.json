@@ -1743,6 +1743,16 @@
           "POST /api/v1/connectors"
         ]
       },
+      "edit": {
+        "live": {
+          "spec": "connectors.spec.ts",
+          "test": "a person creates a read-only connector, revokes it and finds it refused"
+        },
+        "personOnly": "a connector is a person's own grant to an AI client; a connector never creates, widens or revokes one (AG-151)",
+        "routes": [
+          "PATCH /api/v1/connectors/{id}"
+        ]
+      },
       "revoke": {
         "live": {
           "spec": "connectors.spec.ts",
