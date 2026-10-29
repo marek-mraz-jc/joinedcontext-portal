@@ -4725,7 +4725,7 @@ export interface paths {
         put?: never;
         /**
          * Get Kind Schema
-         * @description Reads one manifest kind: its required fields, a line per field with type and limits, and a minimal manifest; with path, one field's whole JSON Schema. Never data
+         * @description One kind's required fields, field lines and minimal manifest; path: a field's JSON Schema
          */
         post: operations["jc_schema_get"];
         delete?: never;
@@ -29093,12 +29093,9 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /**
-                     * @description Manifest kind, e.g. Pipeline
-                     * @enum {string}
-                     */
+                    /** @enum {string} */
                     kind: "Organization" | "Project" | "ContextSpace" | "DataModel" | "Mapping" | "Policy" | "ScopeDefinition" | "Endpoint" | "ModelProjection" | "SharedSpaceReference" | "ContextSourceRegistration" | "Subscription" | "ServiceAccount" | "Pipeline" | "DataSource" | "App" | "CkanInstance" | "KnowledgeSource" | "AssistantDeployment" | "McpServer" | "MqttBroker" | "Blueprint" | "AgentProfile" | "DataSpaceParticipant" | "DataOffer" | "DataAgreement" | "SyncSource" | "Bundle" | "UiSchema" | "Role" | "RoleBinding" | "Group" | "DelegationPolicy" | "ContextBroker" | "Environment" | "Dashboard" | "Layer";
-                    /** @description A JSON pointer into the manifest, e.g. /spec/sources/0: that field's whole JSON Schema */
+                    /** @description e.g. /spec/sources/0 */
                     path?: string;
                 };
             };
