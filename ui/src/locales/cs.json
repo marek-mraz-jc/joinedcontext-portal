@@ -7036,7 +7036,8 @@
       "mcp-servers": "MCP servery organizace",
       "brokers": "Brokery",
       "agents": "Agenti",
-      "costs": "Náklady"
+      "costs": "Náklady",
+      "connectors": "Konektory"
     },
     "settings": {
       "title": "Nastavení",
@@ -7858,6 +7859,46 @@
         "alertMeHint": "Dostanete oznámení do schránky, když má tento agent nával odmítnutí, blíží se limitu tokenů nebo zapisuje mimo pracovní dobu.",
         "alertMeNone": "Neschvalujete změny v žádném projektu a běhy všech lidí vidí jen schvalovatel. Požádejte správce projektu o roli schvalovatele."
       }
+    },
+    "connectors": {
+      "title": "Konektory",
+      "lead": "AI konektory všech lidí: kam každý dosáhne, kterým klientům odpovídá a kolik volání měl a kolik bylo odmítnuto za poslední den. Volání se zde zobrazují jen jako počty, jejich obsah nikdy.",
+      "hidden": "Konektory všech lidí vidí jen administrátor organizace. Vaše vlastní jsou v Moje konektory.",
+      "caption": "Konektory všech lidí",
+      "filter": "Filtr",
+      "filterHelp": "Název konektoru, jeho vlastník nebo klient, např. jana nebo claude.ai",
+      "state": "Stav",
+      "stateHelp": "Aktivní konektory odpovídají na volání; Odvolaný ukazuje, co ukončil administrátor nebo odchod člověka",
+      "stateAny": "Každý stav",
+      "states": {
+        "active": "Aktivní",
+        "expired": "Vypršelý",
+        "revoked": "Odvolaný"
+      },
+      "flaggedOnly": "Jen označené",
+      "flaggedHelp": "Konektory odmítnuté 10 a vícekrát za poslední den, stopa klienta, který zkouší mimo svůj rozsah",
+      "flaggedSummary": "{count, plural, one {# aktivní konektor je označen} few {# aktivní konektory jsou označeny} other {# aktivních konektorů je označeno}}: {denials} nebo více odmítnutých volání za poslední den. Zkontrolujte rozsah vlastníka nebo jej odvolejte.",
+      "connector": "Konektor",
+      "owner": "Vlastník",
+      "scope": "Rozsah",
+      "clients": "Klienti",
+      "lastCall": "Poslední volání",
+      "usage": "Posledních 24 hodin",
+      "actions": "Akce",
+      "writes": "Zápisy",
+      "anyClient": "Libovolný klient",
+      "never": "Nikdy nepoužit",
+      "calls": "{count, plural, one {# volání} few {# volání} other {# volání}}",
+      "denials": "{count, plural, =0 {bez odmítnutí} one {# odmítnuto} few {# odmítnuta} other {# odmítnuto}}",
+      "flagged": "Označen",
+      "revoke": "Odvolat",
+      "revokeLabel": "Odvolat konektor {name}",
+      "confirmTitle": "Odvolat konektor {name}?",
+      "confirmText": "Jeho další volání bude hned odmítnuto. {owner} si ponechá ostatní konektory a může si vytvořit nový v rámci svých práv.",
+      "empty": "Zatím nikdo nemá konektor",
+      "emptyHint": "Člověk si jej vytvoří v Moje konektory, aby používal platformu z Claude, ChatGPT nebo Claude Code; pak se zde zobrazí s rozsahem a používáním.",
+      "noMatch": "Filtru neodpovídá žádný konektor",
+      "noMatchHint": "Vymažte filtr nebo zvolte Každý stav a uvidíte i odvolané a vypršelé konektory."
     }
   },
   "projectDelete": {

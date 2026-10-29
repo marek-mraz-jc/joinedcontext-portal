@@ -373,7 +373,7 @@ fn welcome_page(state: &AppState, project: Option<&str>) -> Option<(String, Stri
 }
 
 /// One `person.changed` event (PF-90): the actor, the action, the person's id.
-async fn record(state: &AppState, identity: &Identity, action: &str, id: &str) {
+pub(crate) async fn record(state: &AppState, identity: &Identity, action: &str, id: &str) {
     let event = crate::activity::ActivityEvent {
         time: chrono::Utc::now(),
         project: ORG_NAMESPACE.to_owned(),
@@ -917,6 +917,23 @@ async fn end_access(state: &AppState, admin: &Admin<'_>, id: &str) -> Result<(),
     admin.sign_out(id).await.map_err(ApiError::from)
 }
 
+/// Offboarding (T-5975): a disabled or removed person's connectors are revoked, not only refused
+/// while the person stays disabled, so enabling them again revives none. The activity row names
+/// how many.
+async fn offboard(state: &AppState, identity: &Identity, id: &str) -> Result<(), ApiError> {
+    let revoked = state.connectors.revoke_all(id).await?;
+    if revoked > 0 {
+        let noun = if revoked == 1 {
+            "connector"
+        } else {
+            "connectors"
+        };
+        let action = format!("revoked {revoked} {noun} of");
+        record(state, identity, &action, id).await;
+    }
+    Ok(())
+}
+
 /// Disable or enable, the person as it now is.
 async fn set_enabled(
     state: &AppState,
@@ -933,6 +950,7 @@ async fn set_enabled(
         .await?;
     if !enabled {
         end_access(state, &admin, &found.id).await?;
+        offboard(state, identity, &found.id).await?;
     }
     record(
         state,
@@ -1410,6 +1428,7 @@ async fn remove(
         for found in people {
             admin.delete(&found.id).await?;
             revoke(state, &found.id).await;
+            offboard(state, identity, &found.id).await?;
             forget_invitation(state, &found.id).await;
             record(state, identity, "deleted", &found.id).await;
         }
@@ -1552,6 +1571,7 @@ async fn remove(
             .update(&found.id, |rep| rep["enabled"] = json!(false))
             .await?;
         end_access(state, admin, &found.id).await?;
+        offboard(state, identity, &found.id).await?;
         record(state, identity, "proposed the removal of", &found.id).await;
     }
     Ok((StatusCode::ACCEPTED, Json(change)).into_response())

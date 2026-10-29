@@ -27,6 +27,8 @@ use tower::ServiceExt;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+use joinedcontext_portal::auth::csrf::{CSRF_COOKIE, CSRF_HEADER};
+use joinedcontext_portal::auth::session::EDGE_TOKEN_HEADER;
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, ResourceKey, API_VERSION};
@@ -76,6 +78,9 @@ const PERSONAS: &[&str] = &[
     "org-admin",
     "approver",
     "anonymous",
+    // A viewer of her own, so the scenario disabling her (S-54) leaves the other personas' tokens
+    // and connectors alone.
+    "jana",
 ];
 const COUNTERS_CSV: &str = "id,name,count,observedAt\nc1,Most SNP,42,2026-10-27T10:00:00Z\n";
 
@@ -296,7 +301,8 @@ fn bind_personas(mirror: &Mirror, projects: &[String]) {
             json!({ "rules": [{ "kinds": kinds, "verbs": verbs }] }),
         ));
     }
-    for persona in ["viewer", "steward", "project-admin", "approver"] {
+    for persona in ["viewer", "steward", "project-admin", "approver", "jana"] {
+        let role = if persona == "jana" { "viewer" } else { persona };
         for project in projects {
             mirror.upsert(envelope(
                 "RoleBinding",
@@ -304,7 +310,7 @@ fn bind_personas(mirror: &Mirror, projects: &[String]) {
                 ORG_NAMESPACE,
                 json!({
                     "subjects": [{ "user": user_of(persona) }],
-                    "role": format!("scn-{persona}"),
+                    "role": format!("scn-{role}"),
                     "scope": { "project": project }
                 }),
             ));
@@ -469,6 +475,52 @@ async fn data_plane(server: &MockServer) {
         .await;
 }
 
+/// The realm's admin API as the people routes call it: each persona is a user whose id is its
+/// token's `sub`, holding no realm group or role of its own; every change answers 204.
+async fn realm_admin(server: &MockServer) {
+    use wiremock::matchers::path_regex;
+    let admin = format!("/admin{REALM_PATH}");
+    Mock::given(method("POST"))
+        .and(path(format!("{REALM_PATH}/protocol/openid-connect/token")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "access_token": "t" })))
+        .mount(server)
+        .await;
+    for persona in PERSONAS.iter().filter(|p| **p != "anonymous") {
+        let user = user_of(persona);
+        Mock::given(method("GET"))
+            .and(path(format!("{admin}/users/sub-scn-{persona}")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": format!("sub-scn-{persona}"), "username": user, "email": user,
+                "firstName": "Scenario", "lastName": persona, "enabled": true, "emailVerified": true,
+                "createdTimestamp": 1_758_700_000_000_i64, "requiredActions": [], "attributes": {},
+            })))
+            .mount(server)
+            .await;
+    }
+    for (verb, pattern) in [
+        ("PUT", format!("^{admin}/users/[a-z-]+$")),
+        ("POST", format!("^{admin}/users/[a-z-]+/logout$")),
+    ] {
+        Mock::given(method(verb))
+            .and(path_regex(pattern))
+            .respond_with(ResponseTemplate::new(204))
+            .mount(server)
+            .await;
+    }
+    for list in [
+        "groups",
+        "role-mappings/realm/composite",
+        "sessions",
+        "credentials",
+    ] {
+        Mock::given(method("GET"))
+            .and(path_regex(format!("^{admin}/users/[a-z-]+/{list}$")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+            .mount(server)
+            .await;
+    }
+}
+
 struct Harness {
     app: axum::Router,
     issuer: String,
@@ -534,6 +586,7 @@ impl Harness {
             .await;
         forge(server).await;
         data_plane(server).await;
+        realm_admin(server).await;
         let csv_url = format!("http://localhost:{}/counters.csv", server.address().port());
 
         let mut config = Config::from_vars(|k| match k {
@@ -545,6 +598,7 @@ impl Harness {
         })
         .expect("config");
         config.public_base_url = "https://portal.test".parse().expect("url");
+        config.trust_edge_token = true;
         config.gateway_url = Some(server.uri());
 
         let mirror = std::sync::Arc::new(Mirror::new());
@@ -557,7 +611,7 @@ impl Harness {
         if let Some(db) = db {
             state = state.with_db(db);
         }
-        let state = state
+        let mut state = state
             .with_mirror(mirror.clone())
             .with_gitea(std::sync::Arc::new(
                 joinedcontext_portal::git::GiteaClient::new(
@@ -568,6 +622,13 @@ impl Harness {
                 )
                 .expect("gitea client"),
             ));
+        // The realm's admin API on the same server, so an administrator disables a persona (S-54).
+        state.people = joinedcontext_portal::people::People::new(
+            &issuer,
+            AUDIENCE.to_owned(),
+            joinedcontext_portal::config::ClientAuth::Secret("secret".to_owned()),
+        )
+        .map(std::sync::Arc::new);
         Self {
             app: server::app(state.clone()),
             issuer,
@@ -627,6 +688,8 @@ impl Harness {
             "email_verified": true,
             "realm_access": { "roles": roles },
             "groups": groups,
+            // The administrator signed in with a one-time code, as a people decision asks (T-5567).
+            "amr": if groups.contains(&"platform-admins") { json!(["pwd", "otp"]) } else { json!(["pwd"]) },
             "exp": now + ttl,
             "iat": now,
         });
@@ -649,12 +712,45 @@ impl Harness {
         token: Option<String>,
         body: Option<Value>,
     ) -> (StatusCode, Value) {
+        let token = token.map(|t| (header::AUTHORIZATION, format!("Bearer {t}")));
+        self.request(method, uri, token.into_iter().collect(), body)
+            .await
+    }
+
+    /// One HTTP request as a person in the browser: the edge's `X-Access-Token`, which the
+    /// Portal reads as the person's own session, never as a workload's token (PF-46), and the
+    /// double-submitted CSRF token a browser echoes on a mutation (AP-28).
+    async fn send_edge(
+        &self,
+        method: &str,
+        uri: &str,
+        token: Option<String>,
+        body: Option<Value>,
+    ) -> (StatusCode, Value) {
+        let mut headers = vec![
+            (header::COOKIE, format!("{CSRF_COOKIE}=scn-csrf")),
+            (
+                header::HeaderName::from_static(CSRF_HEADER),
+                "scn-csrf".to_owned(),
+            ),
+        ];
+        headers.extend(token.map(|t| (EDGE_TOKEN_HEADER, t)));
+        self.request(method, uri, headers, body).await
+    }
+
+    async fn request(
+        &self,
+        method: &str,
+        uri: &str,
+        headers: Vec<(header::HeaderName, String)>,
+        body: Option<Value>,
+    ) -> (StatusCode, Value) {
         let mut request = Request::builder()
             .method(method)
             .uri(uri)
             .header(header::CONTENT_TYPE, "application/json");
-        if let Some(token) = token {
-            request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
+        for (name, value) in headers {
+            request = request.header(name, value);
         }
         let response = self
             .app
@@ -715,16 +811,19 @@ impl Harness {
             let body = serde_json::from_str::<Value>(&fill(&rest.body.to_string()))
                 .map_err(|e| format!("rest body: {e}"))?;
             let uri = format!("/api/v1{}", fill(&rest.path));
-            // A person manages connectors in the Portal, whose own client obtains the token; an
-            // MCP client's token is refused on these routes (AG-151).
-            let token = self.token_for(
-                persona,
-                AUDIENCE,
-                step.client.as_deref().unwrap_or(AUDIENCE),
-            );
-            let (status, answer) = self
-                .send(&rest.method, &uri, token, (!body.is_null()).then_some(body))
-                .await;
+            // A person manages connectors in the Portal, through the edge's login; an MCP
+            // client's bearer token is refused on these routes (AG-151).
+            let body = (!body.is_null()).then_some(body);
+            let (status, answer) = match step.client.as_deref() {
+                Some(client) => {
+                    let token = self.token_for(persona, AUDIENCE, client);
+                    self.send(&rest.method, &uri, token, body).await
+                }
+                None => {
+                    let token = self.token_for(persona, AUDIENCE, AUDIENCE);
+                    self.send_edge(&rest.method, &uri, token, body).await
+                }
+            };
             if status == StatusCode::CREATED {
                 if let Some(id) = answer["id"].as_str() {
                     *self.connector.lock().unwrap_or_else(|p| p.into_inner()) = Some(id.to_owned());
@@ -1573,4 +1672,117 @@ async fn a_flood_hits_429_at_the_connector_and_then_the_person_limit() {
         .await;
     assert_eq!(status, StatusCode::OK);
     assert!(calls.to_string().contains("refused: rate limit"), "{calls}");
+}
+
+/// T-5975: the organization's overview counts a connector's refused calls of the day and flags it
+/// at ten; only an administrator reads it or revokes through it, and a revoked connector's next
+/// call is refused. Here, beside the harness, since the lib test binary does not build on a loaded
+/// host (KNOWLEDGE, T-5960).
+#[tokio::test]
+async fn the_overview_flags_a_refused_connector_and_an_administrator_alone_revokes_it() {
+    let harness = Harness::start(1).await;
+    let own = project_of(1);
+    let portal = |persona: &str| harness.token_for(persona, AUDIENCE, AUDIENCE);
+    let expires = (chrono::Utc::now() + chrono::Duration::days(7)).to_rfc3339();
+    let (status, made) = harness
+        .send(
+            "POST",
+            "/api/v1/connectors",
+            portal("viewer"),
+            Some(json!({ "name": "probe", "segments": ["data-read"],
+                         "scope": [{ "project": own, "access": "read" }], "expiresAt": expires })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{made}");
+    let id = made["id"].as_str().expect("id").to_owned();
+    let address = format!("https://portal.test/c/{id}");
+    // Ten calls into a project outside the connector's scope, one inside it.
+    for project in std::iter::repeat_n(OTHER, 10).chain([own.as_str()]) {
+        let call = json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": { "name": "jc_resource_list", "arguments": { "kind": "Endpoint", "project": project } } });
+        let token = harness.token_for("viewer", &address, CLIENT);
+        let (status, _) = harness
+            .send("POST", &format!("/c/{id}"), token, Some(call))
+            .await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    let overview = "/api/v1/organization/connectors";
+    for persona in ["viewer", "steward", "project-admin"] {
+        let (status, _) = harness.send("GET", overview, portal(persona), None).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{persona}");
+        let (status, _) = harness
+            .send("DELETE", &format!("{overview}/{id}"), portal(persona), None)
+            .await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{persona}");
+    }
+    // An administrator's bearer token (an agent's, a script's) neither lists nor revokes: the
+    // overview and the revoke are a person's decision in a Portal session (AG-133).
+    let (status, _) = harness
+        .send("GET", overview, portal("org-admin"), None)
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, _) = harness
+        .send(
+            "DELETE",
+            &format!("{overview}/{id}"),
+            portal("org-admin"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, listed) = harness
+        .send_edge("GET", overview, portal("org-admin"), None)
+        .await;
+    assert_eq!(status, StatusCode::OK, "{listed}");
+    let row = listed["items"]
+        .as_array()
+        .and_then(|items| items.iter().find(|c| c["id"] == json!(id)))
+        .expect("listed");
+    assert_eq!(
+        (
+            &row["callsPerDay"],
+            &row["denialsPerDay"],
+            &row["flagged"],
+            &row["state"]
+        ),
+        (&json!(11), &json!(10), &json!(true), &json!("active"))
+    );
+    assert_eq!(listed["denialsFlag"], json!(10));
+    let text = listed.to_string();
+    assert!(!text.contains("Bearer") && !text.contains("eyJ"), "{text}");
+
+    let (status, _) = harness
+        .send_edge(
+            "DELETE",
+            &format!("{overview}/{id}"),
+            portal("org-admin"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (status, _) = harness
+        .send_edge(
+            "DELETE",
+            &format!("{overview}/{id}"),
+            portal("org-admin"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let list = json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {} });
+    let token = harness.token_for("viewer", &address, CLIENT);
+    let (status, _) = harness
+        .send("POST", &format!("/c/{id}"), token, Some(list))
+        .await;
+    assert!(status.is_client_error(), "{status}");
+    let (_, own_view) = harness
+        .send(
+            "GET",
+            &format!("/api/v1/connectors/{id}"),
+            portal("viewer"),
+            None,
+        )
+        .await;
+    assert_eq!(own_view["state"], json!("revoked"));
 }
