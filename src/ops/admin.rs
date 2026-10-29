@@ -79,7 +79,7 @@ fn export_input_schema() -> Value {
         "properties": {
             "format": { "type": "string", "enum": ["yaml", "json"], "description": "The bundle's format; yaml when absent" },
             "kinds": text("Comma-separated plurals, e.g. endpoints,pipelines", QUERY),
-            "names": text("Comma-separated names", QUERY),
+            "names": text("Comma-separated metadata.name values, e.g. doprava for the Context Space doprava; the project itself is named by its slug in project", QUERY),
             "revision": text("A commit of the configuration repository", TERM)
         },
         "additionalProperties": false
