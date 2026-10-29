@@ -25,4 +25,3 @@ S-44 T-5960 approve is refused, but the answer carries no link to the change's P
 S-49 T-5955 no read-only connector token refused below the tools
 S-51 T-5971 no secretRef form link; a key pasted in chat is not refused by a plan tool
 S-53 T-5974 no revert plan tool
-S-54 T-5975 no connectors to revoke when a person is disabled

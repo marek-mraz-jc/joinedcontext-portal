@@ -996,6 +996,48 @@
   says: 'Disable person jana.'
   expect: 'every connector of jana revoked; her next Claude Code call refused; activity row (T-5975)'
   deny: 'non-admin -> 403'
+  script:
+    - proves: expect
+      as: jana
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: jana-claude-code, segments: [data-read], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      as: jana
+      via: connector
+      contains: ['jc_resource_list']
+    - proves: deny
+      as: viewer
+      rest: { method: POST, path: /organization/people/sub-scn-jana/disable }
+      refused: true
+    - proves: deny
+      as: viewer
+      rest: { method: GET, path: /organization/connectors }
+      refused: true
+    - proves: expect
+      rest: { method: POST, path: /organization/people/sub-scn-jana/disable }
+      contains: ['sub-scn-jana']
+    # Her next call from Claude Code (mcp-local) is refused: the connector is revoked, whatever
+    # her token's age.
+    - proves: expect
+      as: jana
+      via: connector
+      call: jc_resource_list
+      args: { kind: Endpoint }
+      refused: true
+    - proves: expect
+      rest: { method: GET, path: /organization/connectors }
+      contains: ['"name":"jana-claude-code"', '"state":"revoked"', '"owner":"sub-scn-jana"']
+      absent: ['access_token', 'Bearer']
+    - proves: expect
+      as: jana
+      rest: { method: GET, path: /connectors }
+      refused: true
+    - proves: expect
+      rest: { method: GET, path: /projects/org/activity }
+      contains: ['revoked 1 connector of person sub-scn-jana']
 - id: S-55
   segment: data-read
   as: viewer
