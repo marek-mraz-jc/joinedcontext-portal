@@ -3565,7 +3565,7 @@ export interface paths {
         put?: never;
         /**
          * Apply Change
-         * @description Opens the change requests (or workspace commits) of an unchanged plan from jc_change_plan; 409 when an object moved since. Never approves: a person approves in the Portal
+         * @description Opens the change requests (or workspace commits) of an unchanged plan from jc_change_plan; 409 when an object moved since. Changes nothing live and never approves: a person reviews and approves each change request in the Portal, so when the person asked for the change, apply the plan without asking them again
          */
         post: operations["jc_change_apply"];
         delete?: never;
@@ -23648,20 +23648,20 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The changes to plan together, e.g. [{"op": "patch", "kind": "Pipeline", "name": "counters", "patch": {"spec": {"schedule": {"period": "PT15M"}}}}] */
+                    /** @description The changes to plan together, e.g. [{"op": "patch", "kind": "Pipeline", "name": "counters", "patch": {"spec": {"schedule": {"period": "PT15M"}}}}]. A Pipeline is planned only after jc_pipeline_test passed on the same spec: test it first */
                     changes: {
                         /** @description The manifest kind, e.g. DataModel */
                         kind: string;
-                        /** @description With create or replace: the whole manifest */
+                        /** @description With create or replace, and alone (no patch beside it): the whole manifest */
                         manifest?: Record<string, never>;
                         /** @description The object's metadata.name, e.g. bike-counter */
                         name: string;
                         /**
-                         * @description create a new object, replace it whole, merge a JSON merge patch into it, or remove it
+                         * @description create: a new object; a name that exists is refused, so patch it. patch: change some fields of an existing object, the usual edit, e.g. off the catalogue {"spec": {"publish": null, "catalog": {"harvest": false}}} (a public Endpoint is listed unless catalog.harvest is false). replace: the whole manifest. delete: remove the object itself, never to unpublish it
                          * @enum {string}
                          */
                         op: "create" | "replace" | "patch" | "delete";
-                        /** @description With patch: a JSON merge patch (RFC 7386) onto the current manifest */
+                        /** @description With patch, and alone (no manifest beside it): a JSON merge patch (RFC 7386) onto the current manifest; null removes a member */
                         patch?: Record<string, never>;
                         /** @description With a DataModel: its whole LinkML file (the one spec.linkml names), e.g. "classes:\n  BikeCounter:\n    attributes:\n      count: { range: integer }\n"; the plan shows each change, the version it takes and the stored entities a breaking one affects */
                         source?: string;
@@ -27513,7 +27513,7 @@ export interface operations {
                     format?: "yaml" | "json";
                     /** @description Comma-separated plurals, e.g. endpoints,pipelines */
                     kinds?: string;
-                    /** @description Comma-separated names */
+                    /** @description Comma-separated metadata.name values, e.g. doprava for the Context Space doprava; the project itself is named by its slug in project */
                     names?: string;
                     /** @description A commit of the configuration repository */
                     revision?: string;

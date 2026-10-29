@@ -15699,7 +15699,7 @@
     },
     "/api/v1/projects/{project}/ops/jc_change_apply": {
       "post": {
-        "description": "Opens the change requests (or workspace commits) of an unchanged plan from jc_change_plan; 409 when an object moved since. Never approves: a person approves in the Portal",
+        "description": "Opens the change requests (or workspace commits) of an unchanged plan from jc_change_plan; 409 when an object moved since. Changes nothing live and never approves: a person reviews and approves each change request in the Portal, so when the person asked for the change, apply the plan without asking them again",
         "operationId": "jc_change_apply",
         "parameters": [
           {
@@ -16352,7 +16352,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "changes": {
-                    "description": "The changes to plan together, e.g. [{\"op\": \"patch\", \"kind\": \"Pipeline\", \"name\": \"counters\", \"patch\": {\"spec\": {\"schedule\": {\"period\": \"PT15M\"}}}}]",
+                    "description": "The changes to plan together, e.g. [{\"op\": \"patch\", \"kind\": \"Pipeline\", \"name\": \"counters\", \"patch\": {\"spec\": {\"schedule\": {\"period\": \"PT15M\"}}}}]. A Pipeline is planned only after jc_pipeline_test passed on the same spec: test it first",
                     "items": {
                       "additionalProperties": false,
                       "properties": {
@@ -16362,7 +16362,7 @@
                           "type": "string"
                         },
                         "manifest": {
-                          "description": "With create or replace: the whole manifest",
+                          "description": "With create or replace, and alone (no patch beside it): the whole manifest",
                           "maxProperties": 5,
                           "type": "object"
                         },
@@ -16372,7 +16372,7 @@
                           "type": "string"
                         },
                         "op": {
-                          "description": "create a new object, replace it whole, merge a JSON merge patch into it, or remove it",
+                          "description": "create: a new object; a name that exists is refused, so patch it. patch: change some fields of an existing object, the usual edit, e.g. off the catalogue {\"spec\": {\"publish\": null, \"catalog\": {\"harvest\": false}}} (a public Endpoint is listed unless catalog.harvest is false). replace: the whole manifest. delete: remove the object itself, never to unpublish it",
                           "enum": [
                             "create",
                             "replace",
@@ -16382,7 +16382,7 @@
                           "type": "string"
                         },
                         "patch": {
-                          "description": "With patch: a JSON merge patch (RFC 7386) onto the current manifest",
+                          "description": "With patch, and alone (no manifest beside it): a JSON merge patch (RFC 7386) onto the current manifest; null removes a member",
                           "type": "object"
                         },
                         "source": {
@@ -23321,7 +23321,7 @@
                     "type": "string"
                   },
                   "names": {
-                    "description": "Comma-separated names",
+                    "description": "Comma-separated metadata.name values, e.g. doprava for the Context Space doprava; the project itself is named by its slug in project",
                     "maxLength": 2048,
                     "type": "string"
                   },

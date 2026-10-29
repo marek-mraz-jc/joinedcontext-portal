@@ -1020,7 +1020,7 @@ fn mcp_input_schema(mut schema: Value) -> Value {
                     "project".to_string(),
                     json!({
                         "type": "string",
-                        "description": "Project slug"
+                        "description": "Project slug, the {project} of its Portal address, e.g. ovzdusie; a Context Space or a display name is no project"
                     }),
                 );
             }
