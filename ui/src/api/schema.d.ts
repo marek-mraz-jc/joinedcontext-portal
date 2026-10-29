@@ -4205,7 +4205,7 @@ export interface paths {
         put?: never;
         /**
          * Read Pipeline Runs and Logs
-         * @description A pipeline's newest runs with what each sent, rejected and failed, and one run's log a page at a time: each record's outcome and why, e.g. the source read that failed or the write the gateway refused
+         * @description A pipeline's newest runs with what each sent, rejected and failed, and one run's log a page at a time: each record's outcome and why, by step if asked
          */
         post: operations["jc_pipeline_logs"];
         delete?: never;
@@ -4305,7 +4305,7 @@ export interface paths {
         put?: never;
         /**
          * Try a Pipeline Mapping
-         * @description Runs a candidate pipeline's steps over a sample on the project's runner without writing: each record as it would be written and every failure at its step and line
+         * @description Runs a candidate pipeline's steps over a sample on the runner, writing nothing: each record it would write, each failure at its step and line
          */
         post: operations["jc_pipeline_try_mapping"];
         delete?: never;
@@ -11039,6 +11039,12 @@ export interface components {
         };
         /** @description What one space holds. */
         SpaceUsage: {
+            /**
+             * Format: int64
+             * @description The space's history: its temporal attribute instances, as the broker counts them; absent
+             *     when the broker could neither count nor estimate them (T-6085).
+             */
+            attrInstances?: number | null;
             /** @description The `ContextBroker` the space lives on, which counted it (PF-111). */
             broker: string;
             bytes?: null | components["schemas"]["SpaceBytes"];
@@ -11047,6 +11053,11 @@ export interface components {
              * @description The entities of the space's tenant, as the broker counts them.
              */
             entities: number;
+            /**
+             * @description True when the broker took the history count and size from its database's statistics,
+             *     because the history was too long to count within its bound (T-6085).
+             */
+            estimated: boolean;
             /**
              * Format: date-time
              * @description When the broker answered.
@@ -26426,12 +26437,14 @@ export interface operations {
                 "application/json": {
                     /** @description The previous answer's next */
                     cursor?: number;
-                    /** @description Runs listed, newest first (default 10) */
+                    /** @description Runs listed (default 10) */
                     limit?: number;
                     /** @description The Pipeline's name, e.g. counters-hourly */
                     name: string;
                     /** @description The run, as runs[].run names it; the newest when absent */
                     run?: string;
+                    /** @description This step only */
+                    step?: number;
                 };
             };
         };
@@ -26694,7 +26707,7 @@ export interface operations {
                 "application/json": {
                     /** @description The DataSource to read; or sample */
                     dataSource?: string;
-                    /** @description The sample inline or by URL, and how it is split */
+                    /** @description The sample */
                     sample?: {
                         /**
                          * @description How the sample is split into records
@@ -26819,6 +26832,8 @@ export interface operations {
                         /** @description Or an http(s) URL the runner fetches */
                         url?: string;
                     };
+                    /** @description Per-step records */
+                    steps?: boolean;
                 };
             };
         };
@@ -26906,11 +26921,11 @@ export interface operations {
                         /** @description Draft metadata.name */
                         name: string;
                     };
-                    /** @description Instead of sample: a streamed jc_pipeline_sample_source's records, each tried as one message */
+                    /** @description Instead of sample: a streamed sample's records, one message each */
                     messages?: unknown[];
                     /** @description The Pipeline manifest to try; or draft */
                     pipeline?: Record<string, never>;
-                    /** @description The sample inline or by URL, and how it is split */
+                    /** @description The sample */
                     sample?: {
                         /**
                          * @description How the sample is split into records
@@ -26922,6 +26937,8 @@ export interface operations {
                         /** @description Or an http(s) URL the runner fetches */
                         url?: string;
                     };
+                    /** @description Per-step records */
+                    steps?: boolean;
                 };
             };
         };

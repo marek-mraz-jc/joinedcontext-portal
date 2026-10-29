@@ -92,6 +92,7 @@ import {
   Alert,
   Badge,
   Button,
+  buttonClass,
   Dialog,
   EmptyState,
   Icon,
@@ -1603,7 +1604,9 @@ function TypeList({
             >
               {titleOf(each)}
             </Button>
-            {each === type ? (
+            {/* Without saved views the type itself is all its rows: a lone "All rows" under it
+                only repeated it (T-6084). */}
+            {each === type && ofType.length > 0 ? (
               <ul aria-label={t("spaces.inside.savedViews")} className="ml-3 mt-0.5 flex flex-col gap-0.5 border-l border-border pl-2">
                 <li>
                   <Button
@@ -2033,7 +2036,18 @@ export function SpaceInside({ project, name }: { project: string; name: string }
             }
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Completing works on one space, so it lives here and not on the list (T-6084). */}
+          <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+            <Link
+              to="/projects/$project/spaces/complete"
+              params={{ project }}
+              search={{ space: manifest.metadata.name }}
+              className={buttonClass("secondary", "sm")}
+            >
+              {t("spaces.complete.title")}
+            </Link>
+          </PermissionGuard>
           <Button variant="secondary" size="sm" onClick={() => setAlerting(true)}>
             {t("alerts.forSpace")}
           </Button>
@@ -2311,25 +2325,33 @@ const TAB_LABELS: Record<SpaceTab, string> = {
 
 /**
  * What the whole space holds, the broker's count (T-2889), under the types table: counting, the
- * count with its size and broker, or why there is none (T-4825).
+ * entity and history counts with their sizes and broker, or why there is none (T-4825). A history
+ * too long to count is the broker's estimate, and says so (T-6085).
  */
 function SpaceTotal({ usage }: { usage: UseQueryResult<SpaceUsage> }): JSX.Element {
   const { t, i18n } = useTranslation();
   if (usage.data !== undefined) {
-    const { bytes } = usage.data;
+    const { bytes, attrInstances, estimated } = usage.data;
     return (
       <footer className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-2 text-caption text-fg-muted">
         <span className="text-body text-fg" data-testid="space-total">
           {t("spaces.inside.total", { count: usage.data.entities })}
         </span>
+        {attrInstances != null ? (
+          <span className="text-body text-fg" data-testid="space-history">
+            {t("spaces.inside.history", { count: attrInstances })}
+          </span>
+        ) : null}
         {bytes ? (
           <span data-testid="space-size" title={exactBytes(bytes.entities + bytes.attrInstances, i18n.language)}>
             {t("spaces.inside.totalSize", {
               size: sizeText(bytes.entities + bytes.attrInstances, i18n.language),
+              entities: sizeText(bytes.entities, i18n.language),
               history: sizeText(bytes.attrInstances, i18n.language),
             })}
           </span>
         ) : null}
+        {estimated ? <span data-testid="space-estimated">{t("spaces.inside.estimated")}</span> : null}
         <span data-testid="space-broker">{t("spaces.inside.broker", { broker: usage.data.broker })}</span>
       </footer>
     );

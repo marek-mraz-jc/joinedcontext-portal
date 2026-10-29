@@ -1102,6 +1102,8 @@ import { SpaceComplete } from "./pages/spaces/SpaceComplete";
 const spaceCompleteRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/projects/$project/spaces/complete",
+  validateSearch: (search: Record<string, unknown>): { space?: string } =>
+    typeof search.space === "string" ? { space: search.space } : {},
   component: function SpaceCompleteRoute() {
     const { project } = spaceCompleteRoute.useParams();
     return (

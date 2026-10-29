@@ -20,13 +20,18 @@ use crate::error::ApiError;
 use crate::pipeline_validation::Problem;
 use crate::state::AppState;
 use jc_core::kinds::data_source::DataSourceSpec;
+use jc_core::kinds::pipeline::Step;
 use jc_core::kinds::{PipelineSpec, Verb};
-use jcctl::pipeline_test::{Sample, TestError, MAX_MESSAGES};
+use jcctl::pipeline_test::{Sample, TestError, TestTrace, MAX_MESSAGES, STAGE_RECORDS};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
 /// The most records one validation takes: a page of the workbench's mapped output.
 pub const MAX_RECORDS: usize = 100;
+
+/// The bytes the per-step records of one answer carry together (T-6082): a step past them keeps
+/// its counts, its errors and its records' field names, and says `truncated`.
+pub const STEP_BYTES: usize = 32 * 1024;
 
 /// How long a streaming source is listened to for its sample, at most (T-4841).
 pub const STREAM_SECONDS: u64 = 5;
@@ -63,6 +68,9 @@ struct TryMappingInput {
     messages: Option<Vec<Value>>,
     #[serde(default)]
     draft: Option<DraftRef>,
+    /// Also what each step made of the sample (T-6082).
+    #[serde(default)]
+    steps: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,7 +109,7 @@ fn sample_schema() -> Value {
     use bounds::*;
     json!({
         "type": "object",
-        "description": "The sample inline or by URL, and how it is split",
+        "description": "The sample",
         "properties": {
             "text": text("The sample inline", jcctl::pipeline_test::MAX_SAMPLE_BYTES as u64),
             "url": text("Or an http(s) URL the runner fetches", URL),
@@ -151,13 +159,19 @@ fn try_mapping_input_schema() -> Value {
             "sample": sample_schema(),
             "messages": {
                 "type": "array",
-                "description": "Instead of sample: a streamed jc_pipeline_sample_source's records, each tried as one message",
+                "description": "Instead of sample: a streamed sample's records, one message each",
                 "maxItems": MAX_MESSAGES
             },
-            "draft": draft_ref()
+            "draft": draft_ref(),
+            "steps": steps_flag()
         },
         "additionalProperties": false
     })
+}
+
+/// The `steps` flag of jc_pipeline_try_mapping and jc_pipeline_test (T-6082).
+pub(super) fn steps_flag() -> Value {
+    json!({ "type": "boolean", "description": "Per-step records" })
 }
 
 fn try_mapping_output_schema() -> Value {
@@ -518,11 +532,79 @@ async fn try_mapping(
         crate::ops::proposals::record_records(caller, state, project, &draft, &pipeline, records)
             .await;
     }
-    Ok(json!({
+    let mut answer = json!({
         "input": trace.input,
         "records": trace.mapping,
         "errors": trace.errors,
-    }))
+    });
+    if input.steps {
+        answer["steps"] = json!(step_trace(&pipeline, &trace));
+    }
+    Ok(answer)
+}
+
+/// What each step of `pipeline` made of the sample (T-6082): its name, up to [`STAGE_RECORDS`]
+/// distinct records masked as a run's log is, how many messages reached it whole and failed at
+/// it, and their errors. Past [`STEP_BYTES`] a step's records give way to their field names.
+///
+/// ponytail: a step that deletes a message (`root = deleted()`) leaves no capture, so it counts
+/// in neither `reached` nor `dropped`; a per-step deletion count needs a harness branch per step.
+pub(super) fn step_trace(pipeline: &Value, trace: &TestTrace) -> Vec<Value> {
+    let names: Vec<String> = serde_json::from_value::<PipelineSpec>(pipeline["spec"].clone())
+        .map(|spec| spec.steps().iter().map(step_name).collect())
+        .unwrap_or_default();
+    let mut room = STEP_BYTES;
+    trace
+        .stages
+        .iter()
+        .map(|stage| {
+            let records: Vec<Value> = stage
+                .records
+                .iter()
+                .map(crate::pipeline_outcomes::mask)
+                .collect();
+            let errors: Vec<Value> = trace
+                .errors
+                .iter()
+                .filter(|error| error.step == Some(stage.step))
+                .take(STAGE_RECORDS)
+                .map(|error| {
+                    json!({
+                        "line": error.line,
+                        "message": crate::pipeline_outcomes::mask_text(&error.message),
+                    })
+                })
+                .collect();
+            let size = serde_json::to_vec(&records).map_or(STEP_BYTES + 1, |b| b.len());
+            let mut step = json!({
+                "step": stage.step,
+                "name": names.get(stage.step),
+                "reached": stage.reached,
+                "dropped": stage.dropped,
+                "errors": errors,
+            });
+            if size <= room {
+                room -= size;
+                step["records"] = json!(records);
+            } else {
+                step["records"] = json!([]);
+                step["fields"] = json!(fields_of(&records));
+                step["truncated"] = json!(true);
+            }
+            step
+        })
+        .collect()
+}
+
+/// A step's name as its manifest writes it: the processor's, or the compute kind.
+fn step_name(step: &Step) -> String {
+    match step {
+        Step::Processor(step) => step.processor.keys().next().cloned().unwrap_or_default(),
+        Step::Compute(compute) => serde_json::to_value(compute.kind)
+            .ok()
+            .and_then(|kind| kind.as_str().map(str::to_owned))
+            .unwrap_or_default(),
+    }
 }
 
 /// This module's operations in the registry (`super::init_registry`).
@@ -587,7 +669,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_pipeline_try_mapping",
             title: "Try a Pipeline Mapping",
-            description: "Runs a candidate pipeline's steps over a sample on the project's runner without writing: each record as it would be written and every failure at its step and line",
+            description: "Runs a candidate pipeline's steps over a sample on the runner, writing nothing: each record it would write, each failure at its step and line",
             input: try_mapping_input_schema,
             output: try_mapping_output_schema,
             annotations: OperationAnnotations {
@@ -715,6 +797,83 @@ fn writable_of(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-6082: each step names itself and shows its records masked as a run's log is, its
+    /// counts and errors; a step past the byte budget keeps its field names and says so.
+    #[test]
+    fn the_step_trace_names_each_step_and_masks_and_caps_its_records() {
+        use jcctl::pipeline_test::{Captured, StageSample};
+        let pipeline = json!({ "apiVersion": "joinedcontext.com/v1alpha2", "kind": "Pipeline", "spec": {
+            "class": "scheduled", "schedule": "0 * * * *",
+            "sources": [{ "dataSourceRef": { "kind": "DataSource", "name": "counters" } }],
+            "steps": [
+                { "processor": { "mapping": "root = this" } },
+                { "kind": "bloblang", "bloblang": "root.count = this.count.number()" }
+            ],
+            "outputs": [{ "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:d:intake" }]
+        }});
+        let captured = [
+            Captured {
+                input: Some("a".into()),
+                output: Some(json!({})),
+                steps: Some(vec![
+                    Some(r#"{"count":"4","password":"hunter2"}"#.into()),
+                    Some(r#"{"count":4}"#.into()),
+                ]),
+                ..Captured::default()
+            },
+            Captured {
+                input: Some("b".into()),
+                error: Some("failed assignment (line 1): Bearer abc.def.ghi".into()),
+                step: Some("1".into()),
+                steps: Some(vec![Some(r#"{"count":"x"}"#.into()), None]),
+                ..Captured::default()
+            },
+        ];
+        let trace = jcctl::pipeline_test::trace(&captured);
+        let steps = step_trace(&pipeline, &trace);
+        assert_eq!(steps.len(), 2);
+        assert_eq!(steps[0]["name"], "mapping");
+        assert_eq!(steps[1]["name"], "bloblang");
+        assert_eq!(
+            steps[0]["records"][0]["password"],
+            crate::pipeline_outcomes::MASK
+        );
+        assert_eq!(steps[0]["records"].as_array().map(Vec::len), Some(2));
+        assert_eq!(
+            (steps[1]["reached"].as_u64(), steps[1]["dropped"].as_u64()),
+            (Some(1), Some(1))
+        );
+        assert_eq!(steps[1]["errors"][0]["line"], 1);
+        assert!(
+            !steps[1]["errors"][0]["message"]
+                .to_string()
+                .contains("abc.def"),
+            "{}",
+            steps[1]
+        );
+
+        // One step over the whole budget: its field names, no records, and the next still shown.
+        let big = TestTrace {
+            stages: vec![
+                StageSample {
+                    records: vec![json!({ "blob": "x".repeat(STEP_BYTES) })],
+                    ..StageSample::default()
+                },
+                StageSample {
+                    step: 1,
+                    records: vec![json!({ "count": 4 })],
+                    ..StageSample::default()
+                },
+            ],
+            ..TestTrace::default()
+        };
+        let steps = step_trace(&pipeline, &big);
+        assert_eq!(steps[0]["truncated"], true);
+        assert_eq!(steps[0]["fields"], json!(["blob"]));
+        assert_eq!(steps[0]["records"], json!([]));
+        assert_eq!(steps[1]["records"], json!([{ "count": 4 }]));
+    }
 
     #[test]
     fn fields_are_every_key_once_in_name_order() {
