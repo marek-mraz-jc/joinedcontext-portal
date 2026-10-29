@@ -413,6 +413,86 @@ fn enum_changes(prev: &Value, next: &Value, changes: &mut Vec<ModelChange>) {
     }
 }
 
+/// The types `linkml:types` declares: a slot's range besides a class, an enum or a type.
+const LINKML_TYPES: [&str; 19] = [
+    "string",
+    "integer",
+    "boolean",
+    "float",
+    "double",
+    "decimal",
+    "time",
+    "date",
+    "datetime",
+    "date_or_datetime",
+    "uriorcurie",
+    "curie",
+    "uri",
+    "ncname",
+    "objectidentifier",
+    "nodeidentifier",
+    "jsonpointer",
+    "jsonpath",
+    "sparqlpath",
+];
+
+/// Every slot range of `doc` that names nothing the model or its imports define (S-15): one
+/// `path: message` per range, `path` a JSON pointer into the source without its leading `/`,
+/// e.g. `classes/BikeCounter/attributes/refStation/range`. A relationship to a class the model
+/// lacks is refused here, before Model Tools is asked.
+pub(crate) fn unknown_ranges(doc: &Value, imports: &BTreeMap<String, String>) -> Vec<String> {
+    let imported: Vec<Value> = imports
+        .values()
+        .filter_map(|text| serde_norway::from_str(text).ok())
+        .collect();
+    let defines = |name: &str| {
+        LINKML_TYPES.contains(&name)
+            || std::iter::once(doc).chain(&imported).any(|source| {
+                ["classes", "enums", "types"]
+                    .iter()
+                    .any(|section| source[*section].get(name).is_some())
+            })
+    };
+    let mut ranges: Vec<(String, String)> = Vec::new();
+    let mut collect = |at: String, slots: &Value| {
+        for (slot, definition) in slots.as_object().into_iter().flatten() {
+            if let Some(range) = definition.get("range").and_then(Value::as_str) {
+                ranges.push((format!("{at}/{slot}/range"), range.to_owned()));
+            }
+        }
+    };
+    collect("slots".to_owned(), &doc["slots"]);
+    for (class, definition) in doc["classes"].as_object().into_iter().flatten() {
+        for member in ["attributes", "slot_usage"] {
+            collect(format!("classes/{class}/{member}"), &definition[member]);
+        }
+    }
+    ranges
+        .into_iter()
+        // A CURIE names a type outside the model's namespace; Model Tools judges it.
+        .filter(|(_, range)| !range.contains(':') && !defines(range))
+        .map(|(path, range)| {
+            format!(
+                "{path}: class '{range}' is not in this model or its imports; add class \
+                 '{range}' or import the model that defines it"
+            )
+        })
+        .collect()
+}
+
+/// The lane a model change goes in: a model that did not exist has nothing to break, and an
+/// organization model changes for every project at once, so only an administrator approves it
+/// (DM-75).
+pub(crate) fn model_lane(project: &str, creating: bool, severity: &str) -> Lane {
+    match severity {
+        _ if project == ORG_NAMESPACE => Lane::Red,
+        _ if creating => Lane::Green,
+        "breaking" => Lane::Red,
+        "additive" => Lane::Yellow,
+        _ => Lane::Green,
+    }
+}
+
 /// Classifies changes between previous and next LinkML YAML documents.
 pub fn classify_linkml_changes(prev_val: &Value, next_val: &Value) -> Vec<ModelChange> {
     let mut changes = Vec::new();
@@ -750,6 +830,13 @@ pub(crate) async fn check_source(
     }
 
     let imports = resolve_imports(state, identity, project, &next_val).await?;
+    let unknown = unknown_ranges(&next_val, &imports);
+    if !unknown.is_empty() {
+        return Err(ApiError::Invalid {
+            detail: "a slot's range names a class the model does not define".into(),
+            errors: unknown,
+        });
+    }
     let artifacts = compile_artifacts(state, source, &imports).await?;
     if !artifacts.errors.is_empty() {
         return Err(ApiError::Invalid {
@@ -905,16 +992,7 @@ pub async fn put_source(
     if is_dry {
         return Ok((StatusCode::OK, Json(checked)).into_response());
     }
-    // A model that did not exist has nothing to break, so it lands in the lane a draft gets.
-    // An organization model changes for every project at once, so only an administrator
-    // approves any change to it (DM-75).
-    let lane = match checked.severity.as_str() {
-        _ if project == ORG_NAMESPACE => Lane::Red,
-        _ if creating => Lane::Green,
-        "breaking" => Lane::Red,
-        "additive" => Lane::Yellow,
-        _ => Lane::Green,
-    };
+    let lane = model_lane(&project, creating, &checked.severity);
     let (verb, noun) = if creating {
         ("create", "creation")
     } else {
@@ -1596,6 +1674,45 @@ mod tests {
         let mut classes = imported_classes(&imports);
         classes.sort();
         assert_eq!(classes, ["Dock", "Kiosk", "Station"]);
+    }
+
+    /// S-15: a range names a class, enum or type of the model, its imports or `linkml:types`;
+    /// anything else is refused at its path, naming the class.
+    #[test]
+    fn a_range_naming_no_defined_class_is_refused_at_its_path() {
+        let doc: Value = serde_norway::from_str(concat!(
+            "enums:\n  Direction: {}\n",
+            "types:\n  Percent: { typeof: float }\n",
+            "slots:\n  owner: { range: Owner }\n  seen: { range: datetime }\n",
+            "classes:\n  BikeCounter:\n    attributes:\n",
+            "      refStation: { range: Station }\n      refDepot: { range: Depot }\n",
+            "      direction: { range: Direction }\n      share: { range: Percent }\n",
+            "      kind: { range: 'schema:Thing' }\n",
+            "    slot_usage:\n      owner: { range: Kiosk }\n",
+        ))
+        .expect("yaml");
+        let imports = BTreeMap::from([(
+            "org.a.v1".to_owned(),
+            "classes:\n  Station: {}\n  Kiosk: {}\n".to_owned(),
+        )]);
+        assert_eq!(
+            unknown_ranges(&doc, &imports),
+            [
+                "slots/owner/range: class 'Owner' is not in this model or its imports; add \
+                 class 'Owner' or import the model that defines it",
+                "classes/BikeCounter/attributes/refDepot/range: class 'Depot' is not in this \
+                 model or its imports; add class 'Depot' or import the model that defines it",
+            ]
+        );
+    }
+
+    #[test]
+    fn a_model_lane_follows_its_severity() {
+        assert_eq!(model_lane("p", false, "breaking"), Lane::Red);
+        assert_eq!(model_lane("p", false, "additive"), Lane::Yellow);
+        assert_eq!(model_lane("p", false, "patch"), Lane::Green);
+        assert_eq!(model_lane("p", true, "breaking"), Lane::Green);
+        assert_eq!(model_lane(ORG_NAMESPACE, true, "patch"), Lane::Red);
     }
 
     #[test]
