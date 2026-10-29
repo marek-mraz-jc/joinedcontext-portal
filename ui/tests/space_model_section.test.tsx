@@ -95,6 +95,19 @@ describe("the space's data model", () => {
     expect(screen.getByRole("link", { name: "air" })).toHaveAttribute("href", "/projects/helsinki/models/air");
   });
 
+  // T-6090 review: a model listing no `spec.classes` showed "3 classes" on the card above "the data
+  // model defines no entity type". The types now come from its source then.
+  it("takes the entity types from the model's source when the manifest lists none", async () => {
+    const unlisted = manifest("DataModel", "air", { contextSpaceRef: "ilma", linkml: AIR, version: "1.2.0" });
+    await renderRoute({ path: "/projects/helsinki/spaces/ilma?tab=model", answer: answer([unlisted]) });
+    const model = await section();
+    expect(await model.findByText("2 classes")).toBeInTheDocument();
+    const types = await screen.findByRole("table", { name: en.spaces.inside.types });
+    expect(within(types).getByText("AirQualityObserved")).toBeInTheDocument();
+    expect(within(types).getByText("Station")).toBeInTheDocument();
+    expect(screen.queryByText(en.spaces.inside.noTypes.replace("{model}", "air"))).toBeNull();
+  });
+
   it("offers Create and Import for this space when it has no model", async () => {
     await renderRoute({ path: "/projects/helsinki/spaces/ilma?tab=model", answer: answer([]) });
     const model = await section();

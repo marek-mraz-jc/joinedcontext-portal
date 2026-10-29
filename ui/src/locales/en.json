@@ -4395,7 +4395,7 @@
     "dimensionLabel": "Dashboard use",
     "graph": {
       "title": "The model's classes and what joins them",
-      "legend": "A solid line is `is_a`, a dashed one a mixin, a dotted one a slot whose range names another class, a sparsely dotted one a slot that picks from an enum. An enum's box lists its values; a dashed box comes from an import. In a box every field shows its type: PK marks the key, FK a field that points at another class, with that class and how many it holds. A dotted line says how many at both ends too; * means any number.",
+      "legend": "A solid line is is_a, a dashed one a mixin, a dotted one a slot whose range names another class, a sparsely dotted one a slot that picks from an enum. An enum's box lists its values; a dashed box comes from an import. In a box every field shows its type: PK marks the key, FK a field that points at another class, with that class and how many it holds. A dotted line says how many at both ends too; * means any number.",
       "empty": "This model declares no class yet, so there is nothing to draw.",
       "openClass": "Open {name} in the structure view",
       "row": {
