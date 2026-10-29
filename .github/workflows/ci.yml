@@ -89,8 +89,10 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: every action is a commit, and only a publishing job may publish (T-0851)
         run: python3 scripts/ci/check-workflow-pins.py
-      - name: image.yml's hourly gate waits out the hour after the newest image (T-5449)
+      - name: image.yml's gate finds the newest image to diff against (T-5449, T-6108)
         run: python3 scripts/ci/image-gate.py --selftest
+      - name: every cargo target is stubbed in the Dockerfile's dependency layer (T-6108)
+        run: python3 scripts/ci/check-dockerfile-members.py --selftest && python3 scripts/ci/check-dockerfile-members.py
       - name: a branch preview's tag is pv-<DNS-1123 slug of at most 40>-<sha12>, its GC takes only old pv- images (T-5547)
         run: sh scripts/ci/preview-tag.sh --selftest && python3 scripts/ci/preview-gc.py --selftest
       - name: every crate a Rust App's own lock names is fetched for the builder's seed (T-4150)
