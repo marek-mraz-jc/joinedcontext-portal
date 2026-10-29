@@ -22,6 +22,7 @@ pub mod feed_shape;
 pub mod people;
 pub mod pipeline_steps;
 pub mod pipeline_templates;
+pub mod plans;
 pub mod previews;
 pub mod proposals;
 pub mod resources;
@@ -782,6 +783,7 @@ fn init_registry() -> Vec<Operation> {
     operations.extend(workspaces::operations());
     operations.extend(people::operations());
     operations.extend(schemas::operations());
+    operations.extend(plans::operations());
     operations
 }
 
@@ -1139,6 +1141,8 @@ mod tests {
             "jc_workspace_update_from_main",
             "jc_workspace_preview_start",
             "jc_workspace_preview_stop",
+            "jc_change_plan",
+            "jc_change_apply",
         ];
         const DELETING: &[&str] = &["jc_resource_delete", "jc_project_delete"];
         const ORGANIZATION: &[&str] = &[

@@ -53,7 +53,8 @@ const CONNECTOR_TASKS: &[&str] = &[
     "T-5946", "T-5948", "T-5949", "T-5950", "T-5951", "T-5952", "T-5953", "T-5954", "T-5955",
     "T-5956", "T-5957", "T-5958", "T-5959", "T-5960", "T-5961", "T-5962", "T-5964", "T-5965",
     "T-5966", "T-5967", "T-5968", "T-5969", "T-5970", "T-5971", "T-5972", "T-5973", "T-5974",
-    "T-5975", "T-5976", "T-5977", "T-5978", "T-5979", "T-5980", "T-5986",
+    "T-5975", "T-5976", "T-5977", "T-5978", "T-5979", "T-5980", "T-5986", "T-5994", "T-5995",
+    "T-5996", "T-5997", "T-5998",
 ];
 /// The kinds a persona's role names; `kinds: ["*"]` would match only the `*` kind.
 const KINDS: &[&str] = &[
@@ -70,6 +71,9 @@ const KINDS: &[&str] = &[
     "SyncSource",
     "Project",
     "Workspace",
+    "CkanInstance",
+    "Layer",
+    "Dashboard",
 ];
 const PERSONAS: &[&str] = &[
     "viewer",
@@ -82,6 +86,10 @@ const PERSONAS: &[&str] = &[
     // and connectors alone.
     "jana",
 ];
+/// The LinkML model of every scenario space (DataModel `bike-counter`).
+const MODEL: &str = "id: https://example.org/doprava\nname: doprava\ndefault_range: string\n\
+slots:\n  name: { required: true }\n  count: { range: integer }\n  startDate: { range: datetime, required: true }\n\
+classes:\n  BikeCounter: { slots: [name, count] }\n  Event: { slots: [name, startDate] }\n";
 const COUNTERS_CSV: &str = "id,name,count,observedAt\nc1,Most SNP,42,2026-10-27T10:00:00Z\n";
 
 #[derive(Debug, Deserialize)]
@@ -138,6 +146,14 @@ struct Step {
     /// a merged RoleBinding change leaves it.
     #[serde(default)]
     unbind: Option<String>,
+    /// A member of the answer's `structuredContent` the later steps read as `{member}`, e.g.
+    /// `planId` for the apply after a plan (T-5956).
+    #[serde(default)]
+    keep: Option<String>,
+    /// A fixture change instead of a request: `Kind/name` of the step's project is edited
+    /// behind the connector's back, as another person's merged change leaves it.
+    #[serde(default)]
+    touch: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -226,7 +242,7 @@ fn slug_named(project: &str, what: &str) -> String {
     format!("{tail}{what}zzzzzzzzzzzzzzzzzz")
 }
 
-/// One project's fixture: a space, a model, a public Endpoint, a CSV DataSource.
+/// One project's fixture: a space, a model, a public Endpoint, a CSV DataSource, a CKAN instance.
 fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
     mirror.upsert(envelope(
         "ContextSpace",
@@ -238,7 +254,19 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
         "DataModel",
         "bike-counter",
         project,
-        json!({ "contextSpaceRef": "doprava", "linkml": "./bike-counter.linkml.yaml" }),
+        json!({
+            "contextSpaceRef": "doprava",
+            "linkml": "./bike-counter.linkml.yaml",
+            "version": "1.0.0",
+            "lifecycle": "published",
+            "classes": ["BikeCounter", "Event"],
+            "artifacts": {
+                "jsonSchema": "./schema.json",
+                "context": "./context.jsonld",
+                "docs": "./README.md",
+                "example": "./example.json"
+            }
+        }),
     ));
     mirror.upsert(envelope(
         "Endpoint",
@@ -248,9 +276,8 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
             "slug": slug_of(project),
             "contextSpaceRef": "doprava",
             "audience": "public",
-            "title": format!("Bike counters of {project}"),
-            "entityTypes": ["BikeCounter"],
-            "enabledRepresentations": ["ngsi-ld"]
+            "enabledRepresentations": ["ngsi-ld"],
+            "display": { "BikeCounter": { "fields": ["name", "count"] } }
         }),
     ));
     // Citizen reports whose model marks contactEmail personal (AG-158, S-55); a view without
@@ -275,6 +302,12 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
         }),
     ));
     mirror.upsert(envelope(
+        "CkanInstance",
+        "opendata",
+        project,
+        json!({ "url": "https://data.example.sk", "apiTokenRef": { "name": "ckan-api-token" } }),
+    ));
+    mirror.upsert(envelope(
         "DataSource",
         "counters-csv",
         project,
@@ -284,6 +317,13 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
 
 /// Roles per persona, and a binding of each persona to every scenario project but `t-scn-other`.
 fn bind_personas(mirror: &Mirror, projects: &[String]) {
+    // The organization, whose domain every minted URN carries (a KPI's id, ADR-N-041).
+    mirror.upsert(envelope(
+        "Organization",
+        "hel",
+        ORG_NAMESPACE,
+        json!({ "domain": "hel.fi" }),
+    ));
     let kinds = json!(KINDS);
     for (role, verbs) in [
         ("scn-viewer", json!(["read"])),
@@ -370,6 +410,77 @@ async fn forge(server: &MockServer) {
             .mount(server)
             .await;
     }
+    // A change an apply opens: a branch, one commit of its files, a merge request (T-5956).
+    Mock::given(method("POST"))
+        .and(path(format!("{REPO}/branches")))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+        .mount(server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REPO}/contents")))
+        .respond_with(
+            ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "commit-1" } })),
+        )
+        .mount(server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REPO}/pulls")))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+            "number": 77, "html_url": "https://gitea.example.sk/pulls/77", "state": "open",
+            "mergeable": true, "merged": false
+        })))
+        .mount(server)
+        .await;
+    for verb in ["PUT", "POST", "DELETE"] {
+        Mock::given(method(verb))
+            .and(wiremock::matchers::path_regex(format!(
+                "^{REPO}/contents/.*"
+            )))
+            .respond_with(
+                ResponseTemplate::new(201)
+                    .set_body_json(json!({ "commit": { "sha": "commit-1" } })),
+            )
+            .mount(server)
+            .await;
+    }
+    for (route, body) in [
+        ("git/trees", json!({ "tree": [], "truncated": false })),
+        (
+            "branches",
+            json!({ "name": "main", "commit": { "id": "commit-0" } }),
+        ),
+    ] {
+        Mock::given(method("GET"))
+            .and(wiremock::matchers::path_regex(format!(
+                "^{REPO}/{route}/.*"
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(body))
+            .with_priority(9)
+            .mount(server)
+            .await;
+    }
+    // The space's model, which the Endpoint checks read (EP-125): counters without a time, and
+    // events with a required name and start.
+    let model = base64::engine::general_purpose::STANDARD.encode(MODEL);
+    Mock::given(method("GET"))
+        .and(wiremock::matchers::path_regex(format!(
+            "^{REPO}/contents/.*/bike-counter\\.linkml\\.yaml$"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "content": model, "encoding": "base64", "sha": "model-0",
+            "path": "bike-counter.linkml.yaml", "name": "bike-counter.linkml.yaml", "type": "file"
+        })))
+        .with_priority(1)
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(wiremock::matchers::path_regex(format!(
+            "^{REPO}/contents/.*"
+        )))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({ "message": "not found" })))
+        .with_priority(9)
+        .mount(server)
+        .await;
 }
 
 /// One LinkML text for every model of the fixture: the forge serves it at each model's path.
@@ -529,8 +640,12 @@ struct Harness {
     state: AppState,
     /// The connector the running scenario created last.
     connector: std::sync::Mutex<Option<String>>,
+    /// What `keep` steps remembered, by member name.
+    kept: std::sync::Mutex<BTreeMap<String, String>>,
     /// The forge, CSV source and identity provider; the model lane counts the forge writes.
     server: &'static MockServer,
+    /// The CSV source's address, `{csvUrl}` in a script.
+    csv_url: String,
 }
 
 impl Harness {
@@ -636,7 +751,9 @@ impl Harness {
             mirror,
             state,
             connector: std::sync::Mutex::default(),
+            kept: std::sync::Mutex::default(),
             server,
+            csv_url,
         }
     }
 
@@ -791,11 +908,33 @@ impl Harness {
             .clone()
             .unwrap_or_default();
         let in7days = (chrono::Utc::now() + chrono::Duration::days(7)).to_rfc3339();
+        let kept = self.kept.lock().unwrap_or_else(|p| p.into_inner()).clone();
         let fill = |text: &str| {
-            text.replace("{project}", project)
+            let mut text = text
+                .replace("{project}", project)
                 .replace("{connector}", &connector)
                 .replace("{in7days}", &in7days)
+                .replace("{csvUrl}", &self.csv_url);
+            for (member, value) in &kept {
+                text = text.replace(&format!("{{{member}}}"), value);
+            }
+            text
         };
+        if let Some(target) = &step.touch {
+            let (kind, name) = target
+                .split_once('/')
+                .ok_or_else(|| format!("touch `{target}` is not Kind/name"))?;
+            let mut envelope = self
+                .mirror
+                .get(project, kind, &fill(name))
+                .ok_or_else(|| format!("touch: no {target} in {project}"))?;
+            envelope
+                .metadata
+                .labels
+                .insert("edited-by".to_owned(), "another-person".to_owned());
+            self.mirror.upsert(envelope);
+            return Ok(());
+        }
         if let Some(who) = &step.unbind {
             let key = ResourceKey {
                 namespace: ORG_NAMESPACE.to_owned(),
@@ -871,6 +1010,15 @@ impl Harness {
             }
             other => return Err(format!("the door answered {other}: {answer}")),
         };
+        if let Some(member) = &step.keep {
+            let value = answer["result"]["structuredContent"][member.as_str()]
+                .as_str()
+                .ok_or_else(|| format!("keep: no {member} in {answer}"))?;
+            self.kept
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .insert(member.clone(), value.to_owned());
+        }
         let what = step.call.as_deref().unwrap_or("tools/list");
         // A tools/list step judges tool names, a call the whole answer.
         let text = if step.call.is_none() && !refused {
@@ -1186,6 +1334,24 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
         .await;
     assert_eq!(status, StatusCode::OK, "{answer}");
     assert!(answer.to_string().contains("jc_resource_list"), "{answer}");
+    // The plan view is the one resource it reads: a static MCP App page (T-5960), which the
+    // plan and mapping tools name.
+    let view = json!({ "jsonrpc": "2.0", "id": 3, "method": "resources/read",
+                       "params": { "uri": "ui://joinedcontext/plan-view.html" } });
+    let (status, answer) = harness
+        .send("POST", &door(a), token_a.clone(), Some(view))
+        .await;
+    let page = &answer["result"]["contents"][0];
+    assert_eq!(status, StatusCode::OK, "{answer}");
+    assert_eq!(page["mimeType"], "text/html;profile=mcp-app", "{answer}");
+    assert_eq!(page["_meta"]["ui"]["csp"]["connectDomains"], json!([]));
+    assert!(
+        !page["text"]
+            .as_str()
+            .unwrap_or("")
+            .contains(token_a.as_deref().expect("a token")),
+        "{answer}"
+    );
 
     // The audit names who, which client, what and the verdict; never the token.
     let (status, calls) = harness
@@ -1409,6 +1575,63 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
         .send("GET", "/api/v1/connectors/options", None, None)
         .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+/// T-5956, AG-149: an apply takes only its own plan, once, with the base it was planned on; and it
+/// opens a change request a person approves, never an approval.
+#[tokio::test]
+async fn an_apply_takes_only_its_own_unchanged_plan_and_never_approves() {
+    let harness = Harness::start(1).await;
+    let own = project_of(1);
+    let scenario = |script: Value| -> Scenario {
+        serde_json::from_value(json!({
+            "id": "S-00", "segment": "context", "as": "steward", "says": "selftest",
+            "expect": "selftest", "deny": "selftest", "script": script
+        }))
+        .expect("scenario")
+    };
+    let plan = json!({ "proves": "expect", "call": "jc_change_plan", "keep": "planId",
+        "args": { "changes": [{ "op": "patch", "kind": "ContextSpace", "name": "doprava",
+                                "patch": { "spec": { "isSandbox": false } } }] },
+        "contains": ["\"planId\"", "spec.isSandbox"] });
+    let apply = |extra: Value| {
+        let mut step = json!({ "proves": "deny", "call": "jc_change_apply",
+                               "args": { "planId": "{planId}" } });
+        for (k, v) in extra.as_object().expect("object") {
+            step[k] = v.clone();
+        }
+        step
+    };
+    // The base moved between plan and apply: 409, nothing opened.
+    let moved = json!([
+        plan,
+        { "proves": "deny", "touch": "ContextSpace/doprava" },
+        apply(json!({ "refused": true, "contains": ["\"status\":409", "ContextSpace doprava changed"] }))
+    ]);
+    assert_eq!(harness.run(&scenario(moved), &own).await, Ok(()));
+    // Planned by the steward, applied by another person: not there for them, and still there
+    // for the steward, who applies it once.
+    let other = json!([
+        plan,
+        apply(json!({ "as": "project-admin", "refused": true, "contains": ["is not there"] })),
+        apply(
+            json!({ "proves": "expect", "contains": ["changeRequests", "pulls/77"],
+                      "absent": ["\"merged\"", "\"phase\":\"approved\""] })
+        ),
+        apply(json!({ "refused": true, "contains": ["is not there"] }))
+    ]);
+    assert_eq!(harness.run(&scenario(other), &own).await, Ok(()));
+    // A plan for another project's object is refused before any check runs.
+    let elsewhere = json!([
+        { "proves": "expect", "call": "jc_change_plan", "project": "other", "refused": true,
+          "args": { "changes": [{ "op": "patch", "kind": "ContextSpace", "name": "doprava",
+                                  "patch": { "spec": { "isSandbox": false } } }] } },
+        { "proves": "deny", "call": "jc_change_plan", "refused": true,
+          "args": { "changes": [{ "op": "create", "kind": "ContextSpace", "name": "doprava",
+                                  "manifest": { "kind": "ContextSpace" } }] },
+          "contains": ["/changes/0/op"] }
+    ]);
+    assert_eq!(harness.run(&scenario(elsewhere), &own).await, Ok(()));
 }
 
 /// Seconds of CPU this process has used, user and system (`/proc/self/stat`, 100 ticks a second).
@@ -1785,4 +2008,48 @@ async fn the_overview_flags_a_refused_connector_and_an_administrator_alone_revok
         )
         .await;
     assert_eq!(own_view["state"], json!("revoked"));
+}
+
+/// The plan view (T-5960): an MCP Apps page whose only link is the Portal's origin and which
+/// connects nowhere; the plan and mapping tools name it, the apply does not.
+#[test]
+fn the_plan_view_links_only_to_the_portal_and_connects_nowhere() {
+    use joinedcontext_portal::mcp::{app_view, tool_definition};
+    use joinedcontext_portal::ops;
+
+    let base = url::Url::parse("https://portal.example.org/some/path").expect("url");
+    let contents = app_view::contents(&base);
+    let item = &contents[0];
+    assert_eq!(item["uri"], app_view::URI);
+    assert_eq!(item["mimeType"], "text/html;profile=mcp-app");
+    assert_eq!(item["_meta"]["ui"]["csp"]["connectDomains"], json!([]));
+    assert_eq!(item["_meta"]["ui"]["csp"]["resourceDomains"], json!([]));
+    let text = item["text"].as_str().expect("text");
+    assert!(text.contains(r#"var PORTAL = "https://portal.example.org";"#));
+    assert!(!text.contains("__PORTAL_ORIGIN__"));
+    // It reads only what the host posts: no request of its own, no token, no markup from a value.
+    for absent in [
+        "fetch(",
+        "XMLHttpRequest",
+        "WebSocket",
+        "EventSource",
+        "innerHTML",
+        "Bearer",
+        "localStorage",
+        "<script src",
+    ] {
+        assert!(!text.contains(absent), "the view holds {absent}");
+    }
+
+    for (tool, renders) in [
+        ("jc_change_plan", true),
+        ("jc_pipeline_try_mapping", true),
+        ("jc_change_apply", false),
+    ] {
+        let op = ops::find(tool).expect("a registry op");
+        let listed = tool_definition(&ops::summary(op));
+        let uri = renders.then_some(app_view::URI);
+        assert_eq!(listed["_meta"]["ui"]["resourceUri"].as_str(), uri, "{tool}");
+        assert_eq!(listed["_meta"]["ui/resourceUri"].as_str(), uri, "{tool}");
+    }
 }

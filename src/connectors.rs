@@ -36,8 +36,9 @@ const OVERVIEW_PAGE: i64 = 500;
 pub const DENIALS_FLAG: i64 = 10;
 
 /// A segment (API/14 §1, Architecture/07 §11): the read tools it lists and the kinds those tools
-/// may name. Writes arrive with `plan_change`/`apply_change` (T-5956), so no segment lists a
-/// write here, and cross-project tools (people, projects, every Endpoint) are in none.
+/// may name. A segment that proposes lists `jc_change_plan` (a dry run, nothing saved); the one
+/// write, `jc_change_apply`, comes with the connector's `writes` switch alone (AG-149, T-5956).
+/// Cross-project tools (people, projects, every Endpoint) are in none.
 pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
     (
         "data-read",
@@ -53,6 +54,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
     (
         "context",
         &[
+            "jc_change_plan",
             "jc_schema_get",
             "jc_resource_list",
             "jc_resource_get",
@@ -63,6 +65,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
     (
         "pipeline",
         &[
+            "jc_change_plan",
             "jc_schema_get",
             "jc_resource_list",
             "jc_resource_get",
@@ -80,12 +83,18 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
     ),
     (
         "access",
-        &["jc_schema_get", "jc_resource_list", "jc_resource_get"],
+        &[
+            "jc_change_plan",
+            "jc_schema_get",
+            "jc_resource_list",
+            "jc_resource_get",
+        ],
         &["Role", "RoleBinding", "ServiceAccount", "Policy", "Group"],
     ),
     (
         "publish",
         &[
+            "jc_change_plan",
             "jc_schema_get",
             "jc_resource_list",
             "jc_resource_get",
@@ -96,6 +105,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
     (
         "apps",
         &[
+            "jc_change_plan",
             "jc_schema_get",
             "jc_resource_list",
             "jc_resource_get",
@@ -107,6 +117,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
     (
         "operate",
         &[
+            "jc_change_plan",
             "jc_activity_list",
             "jc_pipeline_metrics",
             "jc_syncsource_status",
@@ -116,6 +127,10 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
         &["Pipeline", "SyncSource"],
     ),
 ];
+
+/// The plan and apply tools (API/14 §4.3).
+pub const PLAN: &str = "jc_change_plan";
+pub const APPLY: &str = "jc_change_apply";
 
 /// `admin` is every segment above.
 pub const ADMIN: &str = "admin";
@@ -307,6 +322,9 @@ impl Connector {
                 kinds.extend_from_slice(seg_kinds);
             }
         }
+        if self.writes {
+            tools.push(APPLY);
+        }
         tools.sort_unstable();
         tools.dedup();
         kinds.sort_unstable();
@@ -324,6 +342,54 @@ impl Connector {
                 "kinds": kinds.iter().map(|k| json!({ "kind": k, "verbs": ["read"] })).collect::<Vec<_>>(),
             }
         }))
+        .through(self.clone())
+    }
+
+    /// Whether a plan (or, with `write`, an apply) may name `kind`/`name` of `project`: a kind of
+    /// the segments, a scope item that reaches the object, and for a write the `writes` switch and
+    /// `write` on that item (AG-144, AG-149). `Err` says which, naming the target.
+    pub fn may_change(
+        &self,
+        project: &str,
+        kind: &str,
+        name: &str,
+        write: bool,
+    ) -> Result<(), String> {
+        let (_, kinds) = self.reach();
+        if !kinds.contains(&kind) {
+            return Err(format!(
+                "this connector's segments ({}) change only {}, not {kind}",
+                self.segments.join(", "),
+                kinds.join(", ")
+            ));
+        }
+        let mut items = self
+            .scope
+            .iter()
+            .filter(|i| i.project == project && i.names(kind, name))
+            .peekable();
+        if items.peek().is_none() {
+            return Err(format!(
+                "this connector does not reach {kind} {name} of project {project}"
+            ));
+        }
+        if !write {
+            return Ok(());
+        }
+        if !self.writes {
+            return Err(format!(
+                "this connector has writes off: apply the plan in the Portal, or turn writes on \
+                 for connector {} on the My connectors page",
+                self.name
+            ));
+        }
+        if items.any(|i| i.access == ItemAccess::Write) {
+            return Ok(());
+        }
+        Err(format!(
+            "this connector only reads {kind} {name} of project {project}: its scope gives no \
+             write there"
+        ))
     }
 
     /// The projects the scope names, in order, once each.
@@ -378,7 +444,9 @@ impl Connector {
                 }
             }
         }
-        if self.whole(project) || op.name == "jc_schema_get" {
+        // A plan or an apply names its objects per change; the operation holds each one to
+        // the scope with `may_change` (T-5956).
+        if self.whole(project) || matches!(op.name, "jc_schema_get" | PLAN | APPLY) {
             return Ok(());
         }
         let name = names_its_object(op)
@@ -436,7 +504,7 @@ impl Connector {
 /// A tool whose call names one object by `name`: what a narrowed scope can hold it to.
 fn names_its_object(op: &Operation) -> bool {
     let input = (op.input)();
-    op.name == "jc_resource_get"
+    matches!(op.name, "jc_resource_get" | PLAN | APPLY)
         || (matches!(op.kind, "Endpoint" | "ContextSpace" | "Pipeline")
             && input.pointer("/properties/name").is_some())
         || (op.kind == "Endpoint" && input.pointer("/properties/endpoint").is_some())
@@ -1188,6 +1256,47 @@ mod tests {
         .view("https://portal.test", Utc::now())
     }
 
+    /// T-5956, AG-149: a segment that proposes plans; only `writes` brings the apply, and an
+    /// apply needs `write` on the item; a plan stays within the segments' kinds and the scope.
+    #[test]
+    fn a_plan_is_held_to_the_scope_and_an_apply_to_the_writes_switch() {
+        let mut c = connector(&["context"], vec![item("doprava", None)]);
+        let access = c.access();
+        assert!(access.names(op(PLAN)));
+        assert!(!access.names(op(APPLY)), "writes off: no apply");
+        assert_eq!(c.may_change("doprava", "DataModel", "bikes", false), Ok(()));
+        assert!(c
+            .may_change("doprava", "DataModel", "bikes", true)
+            .expect_err("writes off")
+            .contains("writes off"));
+        assert!(c
+            .may_change("doprava", "Pipeline", "p", false)
+            .expect_err("not a context kind")
+            .contains("not Pipeline"));
+        assert!(c.may_change("other", "DataModel", "bikes", false).is_err());
+        c.writes = true;
+        assert!(c.access().names(op(APPLY)));
+        assert!(c
+            .may_change("doprava", "DataModel", "bikes", true)
+            .expect_err("read item")
+            .contains("only reads"));
+        c.scope[0].access = ItemAccess::Write;
+        assert_eq!(c.may_change("doprava", "DataModel", "bikes", true), Ok(()));
+        // A data-read connector plans nothing.
+        let read = connector(&["data-read"], vec![item("doprava", None)]);
+        assert!(!read.access().names(op(PLAN)));
+        // Narrowed to one Endpoint: that Endpoint alone.
+        let narrow = connector(&["context"], vec![item("doprava", Some("counters"))]);
+        assert!(narrow.lists(op(PLAN), "doprava"));
+        assert_eq!(
+            narrow.may_change("doprava", "Endpoint", "counters", false),
+            Ok(())
+        );
+        assert!(narrow
+            .may_change("doprava", "Endpoint", "other", false)
+            .is_err());
+    }
+
     fn new(segments: &[&str], writes: bool, days: i64) -> NewConnector {
         NewConnector {
             name: "doprava-in-claude".into(),
@@ -1213,8 +1322,9 @@ mod tests {
         for (segment, tools, _) in SEGMENTS {
             for tool in *tools {
                 let op = op(tool);
+                // The plan saves nothing but is offered only to who may propose (T-5956).
                 assert!(
-                    op.annotations.read_only_hint,
+                    op.annotations.read_only_hint || op.name == PLAN,
                     "{segment}: {tool} is not read-only"
                 );
             }

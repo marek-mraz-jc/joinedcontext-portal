@@ -3470,6 +3470,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/ops/jc_change_apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Change
+         * @description Opens the change requests (or workspace commits) of an unchanged plan from jc_change_plan; 409 when an object moved since. Never approves: a person approves in the Portal
+         */
+        post: operations["jc_change_apply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ops/jc_change_approve": {
         parameters: {
             query?: never;
@@ -3524,6 +3544,26 @@ export interface paths {
          * @description Lists open change proposals and merge requests for review
          */
         post: operations["jc_change_list"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_change_plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Plan Change
+         * @description Checks one or more changes of any kind with the dry run (every check, nothing saved) and answers the diff, the verdict and a planId valid 30 minutes; a failing check answers 422 naming each field
+         */
+        post: operations["jc_change_plan"];
         delete?: never;
         options?: never;
         head?: never;
@@ -22726,6 +22766,90 @@ export interface operations {
             };
         };
     };
+    jc_change_apply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "planId": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description The planId jc_change_plan answered */
+                    planId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        approve?: string;
+                        changeRequests?: Record<string, never>[];
+                        workspaceChanges?: Record<string, never>[];
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     jc_change_approve: {
         parameters: {
             query?: never;
@@ -22956,6 +23080,118 @@ export interface operations {
                         }[];
                         /** @enum {string} */
                         kind: "ChangeList";
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_change_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "changes": [
+                 *         {
+                 *           "kind": "example",
+                 *           "name": "example",
+                 *           "op": "create"
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": {
+                    /** @description The changes to plan together, e.g. [{"op": "patch", "kind": "Pipeline", "name": "counters", "patch": {"spec": {"schedule": {"period": "PT15M"}}}}] */
+                    changes: {
+                        /** @description The manifest kind, e.g. DataModel */
+                        kind: string;
+                        /** @description With create or replace: the whole manifest */
+                        manifest?: Record<string, never>;
+                        /** @description The object's metadata.name, e.g. bike-counter */
+                        name: string;
+                        /**
+                         * @description create a new object, replace it whole, merge a JSON merge patch into it, or remove it
+                         * @enum {string}
+                         */
+                        op: "create" | "replace" | "patch" | "delete";
+                        /** @description With patch: a JSON merge patch (RFC 7386) onto the current manifest */
+                        patch?: Record<string, never>;
+                    }[];
+                    /** @description Commit into this workspace (a copy of the project) instead of opening change requests */
+                    workspace?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        baseEtag: string;
+                        diff: Record<string, never>[];
+                        /** Format: date-time */
+                        expiresAt: string;
+                        /** @enum {string} */
+                        lane?: "green" | "yellow" | "red";
+                        next?: string;
+                        planId: string;
+                        verdict: Record<string, never>;
                     };
                 };
             };
