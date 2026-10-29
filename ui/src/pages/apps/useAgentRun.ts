@@ -37,6 +37,7 @@ export const EVENT_KINDS = [
   "tests",
   "usage",
   "navigate",
+  "ui",
   "lag",
   "endpoints",
   "app-build",
