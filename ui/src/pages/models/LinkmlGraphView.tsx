@@ -386,7 +386,6 @@ export function LinkmlGraphView({
   // A frame drawn while hidden (a tab not yet open) has no width: fit once it gets one (T-6090).
   const fitted = useRef(false);
   const startAt = useRef<{ left: number; top: number } | null>(null);
-  const [frameWidth, setFrameWidth] = useState(0);
   /** The zoom the last fit set, until it took; and the overlay the canvas last brought into view. */
   const settling = useRef<number | undefined>(undefined);
   const revealed = useRef<Served | undefined>(undefined);
@@ -412,15 +411,16 @@ export function LinkmlGraphView({
     const fits = Math.min(canvas ? CANVAS_FIT_MAX : ZOOM.natural, available / (narrow ? BOX.width + 16 : wide));
     const start = Math.max(canvas && !narrow ? READABLE : ZOOM.readable, fits);
     // A drawing wider than its frame at the readable floor opens on its first class, the top-left
-    // box, not on the empty corner beside it (T-6090 review: a phone showed one cut box).
+    // box, not on the empty corner beside it (T-6090 review: a phone showed one cut box). A canvas
+    // overlay brings its own first lit class into view instead (the reveal below).
     const classes = placed.filter((node) => node.kind === "class");
-    if (wide * start > available && classes.length > 0) {
+    if (wide * start > available && classes.length > 0 && !(canvas && highlight)) {
       const first = classes.reduce((best, node) => (node.y < best.y || (node.y === best.y && node.x < best.x) ? node : best));
       startAt.current = { left: Math.max(0, (first.x - 8) * start), top: Math.max(0, (first.y - 8) * start) };
     }
     settling.current = start;
     setZoom(start);
-  }, [placed, frameWidth, canvas]);
+  }, [placed, frameWidth, canvas, highlight]);
   // The scroll waits for the render that draws the drawing at its new size.
   useEffect(() => {
     if (!startAt.current) return;

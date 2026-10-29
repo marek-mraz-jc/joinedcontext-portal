@@ -92,6 +92,7 @@ import {
   Alert,
   Badge,
   Button,
+  buttonClass,
   Dialog,
   EmptyState,
   Icon,
