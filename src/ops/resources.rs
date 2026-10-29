@@ -37,6 +37,9 @@ pub struct ResourceListInput {
 pub struct ResourceGetInput {
     pub kind: String,
     pub name: String,
+    /// An Endpoint's writers: who may write to it, from the gateway's PDP (T-6027).
+    #[serde(default)]
+    pub writers: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -157,7 +160,11 @@ fn get_input_schema() -> Value {
         "type": "object",
         "properties": {
             "kind": text("The manifest kind, e.g. Pipeline", TERM),
-            "name": text("The resource's metadata.name", NAME)
+            "name": text("The resource's metadata.name", NAME),
+            "writers": {
+                "type": "boolean",
+                "description": "Endpoint only: also list who may write to it (persons, groups, service accounts), for whoever reads the space's Policies"
+            }
         },
         "required": ["kind", "name"],
         "additionalProperties": false
@@ -272,7 +279,15 @@ async fn list(
                 serde_json::to_value(envelope).is_ok_and(|doc| filter.matches(&doc))
             })
         })
-        .map(|envelope| row(&envelope))
+        .map(|envelope| {
+            let mut row = row(&envelope);
+            if info.kind == "Endpoint" {
+                let reach = super::endpoint_reach::reach(state, project, &envelope);
+                row["types"] = json!(reach.types);
+                row["url"] = json!(reach.url);
+            }
+            row
+        })
         .collect();
     Ok(json!({ "items": items }))
 }
@@ -284,6 +299,12 @@ async fn get(
     input: ResourceGetInput,
 ) -> Result<Value, OpError> {
     let info = kind_named(&input.kind)?;
+    if input.writers && info.kind != "Endpoint" {
+        return Err(OpError::InvalidInput {
+            path: "/writers".into(),
+            message: format!("writers is an Endpoint's; a {} has none", info.kind),
+        });
+    }
     let homes = crate::resource::homes(info, project);
     let project = &home_holding(state, info, project, &input.name);
     readable(caller, state, project, info)?;
@@ -295,6 +316,17 @@ async fn get(
         .get(project, info.kind, &input.name)
         .filter(|envelope| effective.may_read_envelope(info.kind, envelope))
     {
+        Some(envelope) if info.kind == "Endpoint" => {
+            let access =
+                super::endpoint_reach::reach(state, project, &envelope).detail(state, &envelope);
+            let mut answer = serde_json::to_value(&envelope)?;
+            answer["access"] = access;
+            if input.writers {
+                answer["writers"] =
+                    super::endpoint_reach::writers(caller, state, project, &input.name).await?;
+            }
+            Ok(answer)
+        }
         Some(envelope) => Ok(serde_json::to_value(envelope)?),
         None => {
             // The names it could have been are every name of every place this kind lives in,
