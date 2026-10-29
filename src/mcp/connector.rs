@@ -428,8 +428,8 @@ async fn judge(
             {
                 tools.extend(ui_actions::mcp_tools(&connector.projects()));
             }
-            if let [only] = connector.projects()[..] {
-                optional_project(&mut tools, only);
+            if connector.projects().len() == 1 {
+                optional_project(&mut tools);
             }
             let answer = result(id, json!({ "tools": tools }));
             (json_response(StatusCode::OK, &answer), "allowed".to_owned())
@@ -577,16 +577,12 @@ fn defaults_project(connector: &Connector, message: &mut Value) -> bool {
     }
 }
 
-/// A one-project connector's tools take `project` as optional, defaulting to that project.
-fn optional_project(tools: &mut [Value], only: &str) {
+/// A one-project connector's tools take `project` as optional; `initialize` says it defaults to
+/// that project, once rather than in every tool a model re-reads each turn (T-6058).
+fn optional_project(tools: &mut [Value]) {
     for schema in tools.iter_mut().map(|t| &mut t["inputSchema"]) {
         if let Some(required) = schema["required"].as_array_mut() {
             required.retain(|r| r != "project");
-        }
-        if schema["properties"]["project"].is_object() {
-            schema["properties"]["project"]["description"] = json!(format!(
-                "Project slug; leave it out for {only}, the one project this connector reaches"
-            ));
         }
     }
 }
@@ -829,14 +825,13 @@ mod tests {
         // tools/list of a one-project connector: no tool requires project.
         let mut tools = vec![tool_definition(&crate::ops::summary(op))];
         tools.extend(ui_actions::mcp_tools(&connector.projects()));
-        optional_project(&mut tools, "doprava");
+        optional_project(&mut tools);
         assert!(tools.iter().all(|t| !t["inputSchema"]["required"]
             .as_array()
             .is_some_and(|r| r.contains(&json!("project")))));
-        assert!(
-            tools[0]["inputSchema"]["properties"]["project"]["description"]
-                .as_str()
-                .is_some_and(|d| d.contains("doprava"))
+        assert_eq!(
+            tools[0]["inputSchema"]["properties"]["project"]["maxLength"],
+            63
         );
 
         // initialize names the project.
