@@ -149,6 +149,10 @@ export function SpaceTemporalAudit({ project, space }: { project: string; space:
                     {row.verdict !== "ok" && (
                       <span className="text-caption text-fg-muted">{t(`spaces.temporal.fix.${row.verdict}`)}</span>
                     )}
+                    {/* Stamped on receipt but no measurement: say why it still matches (T-6089). */}
+                    {row.verdict === "ok" && row.record !== "none" && row.observedAt.includes("received") && (
+                      <span className="text-caption text-fg-muted">{t("spaces.temporal.receivedOk")}</span>
+                    )}
                   </span>
                 </TableCell>
                 <TableCell>
