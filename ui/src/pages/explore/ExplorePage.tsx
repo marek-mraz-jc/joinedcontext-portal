@@ -490,9 +490,15 @@ export function ExplorePage({
                 <div className="flex flex-wrap items-center gap-2">
                   {endpoint && query.type && !servedRepresentations(endpoint.spec ?? {}).includes("csv") ? (
                     // Nothing to download: the button says why instead of opening an empty menu.
-                    <Button size="sm" variant="ghost" disabled disabledReason={t("spaces.export.none")}>
-                      {t("explore.export")}
-                    </Button>
+                    <span className="flex items-center gap-2">
+                      <Button size="sm" variant="ghost" disabled disabledReason={t("spaces.export.none")}>
+                        {t("explore.export")}
+                      </Button>
+                      {/* The reason in sight too; the button already says it to a screen reader. */}
+                      <span aria-hidden="true" className="text-caption text-fg-muted">
+                        {t("spaces.export.none")}
+                      </span>
+                    </span>
                   ) : endpoint && query.type ? (
                     // The space page's own export (T-6107): the formats this Endpoint serves, the
                     // checked rows alone once some are checked.
@@ -511,27 +517,30 @@ export function ExplorePage({
                       )}
                     </ToolbarPopover>
                   ) : null}
+                  {/* A refused read offers nothing built on it: no access summary, no reuse, no chart. */}
                   {refused ? null : (
-                    <ToolbarPopover label={t("explore.yourAccess")} wide>
-                      <AccessPanel slug={slug} type={unknownType === undefined ? query.type : undefined} access={access} />
-                    </ToolbarPopover>
+                    <>
+                      <ToolbarPopover label={t("explore.yourAccess")} wide>
+                        <AccessPanel slug={slug} type={unknownType === undefined ? query.type : undefined} access={access} />
+                      </ToolbarPopover>
+                      <UseThisData
+                        project={project}
+                        slug={slug}
+                        query={{ ...query, q: andQ(query.q, gridAsk.q), idPattern: gridAsk.idPattern }}
+                        open={endpoint?.spec.audience === "public"}
+                      />
+                      {endpoint && query.type ? (
+                        <ChartFromView
+                          project={project}
+                          endpoint={endpoint.metadata.name}
+                          slug={slug}
+                          type={query.type}
+                          q={andQ(query.q, gridAsk.q)}
+                          slots={slots}
+                        />
+                      ) : null}
+                    </>
                   )}
-                  <UseThisData
-                    project={project}
-                    slug={slug}
-                    query={{ ...query, q: andQ(query.q, gridAsk.q), idPattern: gridAsk.idPattern }}
-                    open={endpoint?.spec.audience === "public"}
-                  />
-                  {endpoint && query.type ? (
-                    <ChartFromView
-                      project={project}
-                      endpoint={endpoint.metadata.name}
-                      slug={slug}
-                      type={query.type}
-                      q={andQ(query.q, gridAsk.q)}
-                      slots={slots}
-                    />
-                  ) : null}
                 </div>
               ) : null
             }

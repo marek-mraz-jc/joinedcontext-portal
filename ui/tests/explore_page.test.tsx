@@ -785,4 +785,5 @@ it("words a refused read as a refusal and hides Your access", async () => {
   expect(await screen.findByText(new RegExp(`^${en.entityGrid.refused}`))).toBeInTheDocument();
   expect(screen.queryByText(new RegExp(en.entityGrid.error))).toBeNull();
   expect(screen.queryByText(en.explore.yourAccess)).toBeNull();
+  expect(screen.queryByRole("button", { name: en.explore.useData.open })).toBeNull();
 });

@@ -180,6 +180,7 @@ for (const width of [1440, 400]) {
     await expect(page.getByText("You may not read this", { exact: false })).toBeVisible();
     await expect(page.getByText("try again", { exact: false })).toHaveCount(0);
     await expect(page.locator("summary", { hasText: "Your access" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Use this data" })).toHaveCount(0);
     await page.screenshot({ path: `${AFTER}/refused-${width}.png`, fullPage: true });
   });
 
