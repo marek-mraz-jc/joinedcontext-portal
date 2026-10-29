@@ -85,6 +85,7 @@ const PAGES = [
   `/projects/${PROJECT}/shared`,
   `/projects/${PROJECT}/workspaces`,
   `/projects/${PROJECT}/workspaces/new`,
+  `/projects/${PROJECT}/secrets/new`,
   `/projects/${PROJECT}/workspaces/kopia/compare`,
   `/projects/${PROJECT}/workspaces/kopia/try-it`,
   `/projects/${PROJECT}/workspaces/kopia/bring-back`,
