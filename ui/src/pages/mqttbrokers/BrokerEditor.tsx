@@ -546,10 +546,10 @@ function ChipInput({
           </ul>
         ) : null}
         {!disabled ? (
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex gap-2">
             <Input
               id={`${id}-input`}
-              className="min-w-0 font-mono sm:flex-1"
+              className="min-w-0 flex-1 font-mono"
               value={text}
               placeholder={placeholder ?? t("mqttbrokers.edit.hint.topicExample")}
               aria-invalid={wrong ? true : undefined}
@@ -562,7 +562,7 @@ function ChipInput({
                 }
               }}
             />
-            <Button className="self-start" onClick={add} disabled={typed === "" || wrong !== undefined} disabledReason={typed === "" ? t("mqttbrokers.edit.typeFirst") : undefined}>
+            <Button onClick={add} disabled={typed === "" || wrong !== undefined} disabledReason={typed === "" ? t("mqttbrokers.edit.typeFirst") : undefined}>
               {t("mqttbrokers.edit.add")}
             </Button>
           </div>

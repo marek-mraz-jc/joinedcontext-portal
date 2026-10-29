@@ -575,7 +575,7 @@ export function RateChart({
   }
   if (rates.length < 2) {
     return (
-      <p className="text-body text-fg-muted" data-chart="empty">
+      <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-body text-fg-muted" data-chart="empty">
         {t("mqttbrokers.page.chartEmpty")}
       </p>
     );
