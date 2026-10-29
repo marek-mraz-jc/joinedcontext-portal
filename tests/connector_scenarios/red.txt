@@ -5,41 +5,32 @@ S-01 T-5948 jc_resource_list answers name and space only: no entity types, no ac
 S-06 T-5948 no tool lists an Endpoint's representation URLs
 S-07 T-5948 anonymous gets 401 at the Portal door; no public data tool
 S-08 T-5948 jc_catalog_search finds one project's resources, not open data catalogue datasets with links
-S-09 T-5956 no plan_change/apply_change; no per-connector write switch
-S-10 T-5956 no plan_change diff with the breaking change and affected entity count
+S-10 T-5995 jc_change_plan diffs the manifest, but slots live in the LinkML file: no slot edit or count of entities a breaking change affects
 S-11 T-5962 jc_model_infer needs Model Tools, which the scripted lane does not run
-S-12 T-5956 no plan_change/apply_change for a ContextSpace with retention
-S-13 T-5956 no plan_change/apply_change for an Endpoint; slug error not a field-path problem
-S-14 T-5956 no plan_change for a view projection
-S-15 T-5956 no plan_change that refuses a relationship to a missing class
-S-16 T-5956 no plan_change for an EndpointDeprecation
-S-17 T-5956 no plan_change/apply_change for a DataSource with its check
+S-15 T-5995 jc_change_plan has no LinkML file change, so no refusal of a relationship to a missing class
+S-16 T-5996 jc_change_plan exists; no EndpointDeprecation script and fixture yet
+S-17 T-5996 jc_change_plan exists; no DataSource plan script with the source probe yet
 S-18 T-5948 no generic sample_source tool on the connector door
 S-19 T-5948 no generic try_mapping tool on the connector door
-S-20 T-5956 no plan_change/apply_change for a Pipeline
+S-20 T-5994 jc_change_plan exists; the fixture has no Pipeline write target that passes the write checks
 S-21 T-5948 no pipeline run state and logs tool on the connector door
-S-22 T-5956 no plan_change one-field diff with the minimum period check
-S-23 T-5956 no plan_change WriteGuard warning on upsert to replace
+S-22 T-5994 no Pipeline fixture, and the dry run has no project minimum period check
+S-23 T-5994 the dry run does not name the attributes an older mapping wrote (WriteGuard) on upsert to replace
 S-24 T-5948 no pipeline run tool on the connector door
 S-25 T-5948 jc_syncsource_pause needs a running sync source the scripted lane does not have
 S-26 T-5948 the end-to-end integration needs sample_source, try_mapping and plan_change
-S-27 T-5956 no plan_change for a RoleBinding with within_own_rights
-S-28 T-5956 no plan_change for a Role
-S-29 T-5956 no plan_change for a ServiceAccount with its secretRef
+S-27 T-5998 the plan reaches RoleBinding, but a binding lives in the organization namespace and a project-scoped admin holds no propose there (PF-52 decides at org)
+S-29 T-5996 jc_change_plan exists; no ServiceAccount script proving the secretRef-only answer yet
 S-30 T-5948 no tool answers who may write to an Endpoint
 S-31 T-5953 no DelegationPolicy ceiling or approval queue
-S-33 T-5956 no plan_change for publish.ckan
-S-34 T-5956 no plan_change for catalog.harvest false
-S-35 T-5956 no plan_change refusing a duplicate quality rule name
-S-36 T-5956 no plan_change for a KPI
-S-37 T-5956 no plan_change for an iCal feed output
-S-38 T-5956 no plan_change for Dashboard and Visualization
+S-33 T-5996 publish.ckan needs a CkanInstance the scripted fixture lacks
+S-36 T-5996 jc_change_plan exists; no KPI script comparing compute with a direct aggregation
+S-37 T-5996 jc_change_plan exists; no iCal feed script and no refusal for a type without time
+S-38 T-5996 jc_change_plan exists; no Dashboard and Visualization script
 S-39 T-5958 an App run needs the assistant's builder behind the connector tools
 S-40 T-5948 no tool returns a widget embed snippet
 S-41 T-5959 no browser UI action tools (navigate, open_form)
-S-43 T-5956 the workspace preview and propose need plan_change/apply_change
 S-44 T-5960 approve is refused, but the answer carries no link to the change's Portal approval page
-S-45 T-5956 jc_project_export is org-admin only (UI-87); import as one change request needs apply_change
 S-49 T-5955 no read-only connector token refused below the tools
 S-51 T-5971 no secretRef form link; a key pasted in chat is not refused by a plan tool
 S-53 T-5974 no revert plan tool
