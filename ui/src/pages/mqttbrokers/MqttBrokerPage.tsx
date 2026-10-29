@@ -3,9 +3,9 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { api, queryKeys, unwrap } from "../../api/client";
+import { ApiError, api, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized } from "../../api/manifest";
-import { useReadableList } from "../../api/permissions";
+import { usePermissions, useReadableList } from "../../api/permissions";
 import type { Manifest } from "../../api/manifest";
 import type { components } from "../../api/schema";
 import { CopyUrlButton } from "../../components/endpoints/links";
@@ -15,6 +15,7 @@ import {
   Badge,
   Button,
   CodeBlock,
+  EmptyState,
   PageHeader,
   PageLoading,
   SourceLink,
@@ -89,12 +90,25 @@ export function MqttBrokerPage({
   });
   const measured = useMeasured(project, name);
   const refusals = useRefusalsToday(project, name);
+  const permissions = usePermissions(project);
   if (broker.isPending) return <PageLoading label={t("app.loading")} />;
+  // The 404 hides whether the broker exists (PF-59); the caller's own grants say which sentence
+  // applies, and those grants are theirs to know.
+  if (broker.error instanceof ApiError && broker.error.status === 404) {
+    if (permissions.checking) return <PageLoading label={t("app.loading")} />;
+    return (
+      <BrokerRefused
+        project={project}
+        name={name}
+        noRight={!permissions.can("MqttBroker", "read")}
+      />
+    );
+  }
   if (broker.isError) {
     return (
       <ResourcePageFailed
         title={name}
-        description={t("mqttbrokers.page.unreadable")}
+        description={t("mqttbrokers.page.refused.purpose")}
         error={broker.error}
         onRetry={() => void broker.refetch()}
         back={<BackLink project={project} />}
@@ -281,6 +295,34 @@ function BrokerHeader({
 
 const FACTS =
   "grid grid-cols-[minmax(0,1fr)] gap-x-4 gap-y-2 text-body sm:grid-cols-[max-content_minmax(0,1fr)]";
+
+/** The broker cannot be shown: the caller may not read brokers here, or none has this name. */
+function BrokerRefused({
+  project,
+  name,
+  noRight,
+}: {
+  project: string;
+  name: string;
+  noRight: boolean;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const why = noRight ? "noRight" : "missing";
+  return (
+    <div className="flex flex-col gap-4" data-refused={why}>
+      <PageHeader
+        title={name}
+        description={t("mqttbrokers.page.refused.purpose")}
+      />
+      <EmptyState
+        icon="access"
+        title={t(`mqttbrokers.page.refused.${why}`, { name })}
+        description={t(`mqttbrokers.page.refused.${why}Hint`, { project, name })}
+        action={<BackLink project={project} />}
+      />
+    </div>
+  );
+}
 
 function BackLink({ project }: { project: string }): JSX.Element {
   const { t } = useTranslation();
@@ -522,6 +564,15 @@ export function RateChart({
     i18n.resolvedLanguage ?? i18n.language ?? "en",
     { maximumFractionDigits: 1 },
   );
+  const quiet = rates.length >= 2 && rates.every((point) => point.perSecond === 0);
+  if (quiet) {
+    const span = new Date(rates[rates.length - 1]?.at ?? 0).getTime() - new Date(rates[0]?.at ?? 0).getTime();
+    return (
+      <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-body text-fg-muted" data-chart="quiet">
+        {t("mqttbrokers.page.chartQuiet", { minutes: Math.max(1, Math.round(span / 60_000)) })}
+      </p>
+    );
+  }
   if (rates.length < 2) {
     return (
       <p className="text-body text-fg-muted" data-chart="empty">
@@ -613,7 +664,7 @@ function Devices({
       .filter((role) => (role.serviceAccounts ?? []).includes(account))
       .map((role) => role.name ?? "");
   return (
-    <Table caption={t("mqttbrokers.page.devices")}>
+    <Table stack caption={t("mqttbrokers.page.devices")}>
       <TableHead>
         <TableHeaderCell>{t("mqttbrokers.page.account")}</TableHeaderCell>
         <TableHeaderCell>{t("mqttbrokers.acl.role")}</TableHeaderCell>
@@ -627,10 +678,10 @@ function Devices({
             data-account={account.serviceAccount}
           >
             <TableCell primary>{account.serviceAccount}</TableCell>
-            <TableCell>
+            <TableCell data-label={t("mqttbrokers.acl.role")}>
               {rolesOf(account.serviceAccount).join(", ") || "—"}
             </TableCell>
-            <TableCell>
+            <TableCell data-label={t("mqttbrokers.measured.connected")}>
               {account.connected > 0 ? (
                 <Badge tone="success">
                   {t("mqttbrokers.page.connectedCount", {
@@ -641,7 +692,7 @@ function Devices({
                 <Badge tone="neutral">{t("mqttbrokers.page.offlineNow")}</Badge>
               )}
             </TableCell>
-            <TableCell>
+            <TableCell data-label={t("mqttbrokers.page.since")}>
               {account.since ? time.format(new Date(account.since)) : "—"}
             </TableCell>
           </TableRow>

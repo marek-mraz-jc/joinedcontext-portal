@@ -354,7 +354,7 @@ test.describe("one MQTT broker's page (T-6103)", () => {
   const MEASURED = {
     measured: true,
     observedAt: "2026-10-29T20:15:00Z",
-    messagesPerSecond: 58,
+    messagesPerSecond: 6.2,
     publishers: 1,
     reason: null,
     accounts: [
@@ -363,7 +363,7 @@ test.describe("one MQTT broker's page (T-6103)", () => {
     ],
     rates: Array.from({ length: 59 }, (_, i) => ({
       at: new Date(Date.UTC(2026, 9, 29, 20, 10, 5 + i * 5)).toISOString(),
-      perSecond: 50 + Math.round(10 * Math.sin(i / 4)),
+      perSecond: Math.round(60 + 15 * Math.sin(i / 4)) / 10,
     })),
     refusedPublishes: 812,
   };
@@ -455,8 +455,11 @@ test.describe("one MQTT broker's page (T-6103)", () => {
     if (!shots) return;
     for (const width of [1440, 400]) {
       await page.setViewportSize({ width, height: 900 });
-      await page.evaluate(() => window.scrollTo(0, 0));
-      await page.screenshot({ path: `${shots}/broker-${state}-${width}.png`, fullPage: true });
+      // The viewport takes the page's whole height, so the sticky proposal bar sits where it
+      // stands at the foot of the editor; a fullPage capture paints it at the first fold instead.
+      const height = await page.evaluate(() => document.documentElement.scrollHeight);
+      await page.setViewportSize({ width, height });
+      await page.screenshot({ path: `${shots}/broker-${state}-${width}.png` });
     }
     await page.setViewportSize({ width: 1440, height: 900 });
   }
@@ -465,7 +468,7 @@ test.describe("one MQTT broker's page (T-6103)", () => {
     await openBroker(page, MEASURED);
     await expect(page.getByRole("heading", { level: 1, name: "cameras" })).toBeVisible();
     await expect(page.locator("[data-state='receiving']")).toHaveText("Receiving");
-    await expect(page.getByTestId("live-strip")).toHaveText("58 messages/s · 1 connected · 2 refused sign-ins today");
+    await expect(page.getByTestId("live-strip")).toHaveText("6.2 messages/s · 1 connected · 2 refused sign-ins today");
     await expect(page.getByRole("img", { name: /Messages per second, last 5 min/ })).toBeVisible();
     await expect(page.getByRole("table", { name: "Device accounts and their connections now" })).toContainText("1 connected");
     await expect(page.getByRole("list", { name: "Highest QoS" })).toContainText("QoS 1 · highest");
@@ -480,6 +483,7 @@ test.describe("one MQTT broker's page (T-6103)", () => {
     const quiet = MEASURED.rates.map((point) => ({ ...point, perSecond: 0 }));
     await openBroker(page, { ...MEASURED, messagesPerSecond: 0, rates: quiet });
     await expect(page.locator("[data-state='idle']")).toHaveText("Idle");
+    await expect(page.locator("[data-chart='quiet']")).toContainText("No message arrived in the last 5 min");
     await shoot(page, "idle");
     await page.unrouteAll({ behavior: "ignoreErrors" });
     const offline = MEASURED.accounts.map((account) => ({ ...account, connected: 0, since: null }));
@@ -510,10 +514,10 @@ test.describe("one MQTT broker's page (T-6103)", () => {
   });
 
   test("a caller who may not read the broker sees the refusal and no settings", async ({ page }) => {
-    await openBroker(page, MEASURED, true);
+    await openBroker(page, MEASURED, true, { project: PROJECT, grants: [] });
     await expect(page.getByRole("link", { name: "← MQTT brokers" })).toBeVisible();
     await expect(page.getByText("Topic access of cameras by role")).toHaveCount(0);
-    await expect(page.getByText(/your role may not read this project's MQTT brokers/)).toBeVisible();
+    await expect(page.getByText("Your role may not read MQTT brokers here")).toBeVisible();
     await shoot(page, "no-permission");
   });
 });

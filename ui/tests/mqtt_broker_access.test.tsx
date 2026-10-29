@@ -75,8 +75,8 @@ describe("who can do what on a broker", () => {
     expect(within(table).getByText("sensor")).toBeTruthy();
     expect(within(table).getByText("air/${clientid}/pm10")).toBeTruthy();
     expect(within(table).getByText("Role binding")).toBeTruthy();
-    expect(within(table).getByText("serviceAccounts list")).toBeTruthy();
-    expect(within(region).getByText(/jcctl migrate mqtt-roles/)).toBeTruthy();
+    expect(within(table).getByText("Listed on the role")).toBeTruthy();
+    expect(within(region).getByText(/the older way/)).toBeTruthy();
     expect(asked).toEqual(["fleet"]);
   });
 

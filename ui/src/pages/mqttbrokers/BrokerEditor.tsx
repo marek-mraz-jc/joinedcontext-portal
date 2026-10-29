@@ -391,7 +391,8 @@ function RoleCard({
   return (
     <Card padding="sm">
     <fieldset className="flex flex-col gap-3" data-role={role.name || index}>
-      <legend className="px-1 font-semibold text-fg">{role.name || t("mqttbrokers.edit.newRole")}</legend>
+      {/* The name field below shows the role's name; the legend names the group for a screen reader only. */}
+      <legend className="sr-only">{role.name || t("mqttbrokers.edit.newRole")}</legend>
       <Field id={`${id}-name`} label={t("mqttbrokers.field.roleName")} help={t("mqttbrokers.edit.hint.roleNameHint")}>
         <Input id={`${id}-name`} value={role.name ?? ""} disabled={disabled} title={disabled ? t("mqttbrokers.edit.readOnly") : undefined} onChange={(event) => onChange({ ...role, name: event.target.value.trim() })} />
       </Field>
@@ -599,7 +600,7 @@ function Limits({
         errors={wrong ? [t("mqttbrokers.edit.outside", { max: number.format(LIMIT_MAX[key]) })] : undefined}
       >
         <div className="flex flex-col gap-1" data-limit={key}>
-          <div className="flex items-center gap-2">
+          <div className="flex max-w-64 items-center gap-2">
             <Input
               id={`${id}-${key}`}
               aria-invalid={wrong || undefined}

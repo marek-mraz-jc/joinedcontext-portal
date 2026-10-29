@@ -241,7 +241,7 @@ export function Connections({ project, brokers, bare }: { project: string; broke
       });
   const hidden = lists.some((query) => query.hidden);
   const table = (
-    <Table caption={t("mqttbrokers.connections.title")}>
+    <Table stack caption={t("mqttbrokers.connections.title")}>
       <TableHead>
         <TableHeaderCell>{t("mqttbrokers.connections.edge")}</TableHeaderCell>
         <TableHeaderCell>{t("mqttbrokers.connections.from")}</TableHeaderCell>
@@ -277,10 +277,10 @@ function EdgeRow({ project, edge }: { project: string; edge: Edge }): JSX.Elemen
   return (
     <TableRow data-edge={edge.problem ? "red" : "green"}>
       <TableCell>{t(`mqttbrokers.connections.kind.${edge.kind}`)}</TableCell>
-      <TableCell primary>{edge.from}</TableCell>
-      <TableCell>{edge.to || "—"}</TableCell>
-      <TableCell>{t(edge.allowedBy.key, edge.allowedBy.values)}</TableCell>
-      <TableCell>
+      <TableCell primary data-label={t("mqttbrokers.connections.from")}>{edge.from}</TableCell>
+      <TableCell data-label={t("mqttbrokers.connections.to")}>{edge.to || "—"}</TableCell>
+      <TableCell data-label={t("mqttbrokers.connections.allowedBy")}>{t(edge.allowedBy.key, edge.allowedBy.values)}</TableCell>
+      <TableCell data-label={t("mqttbrokers.connections.state")}>
         {edge.problem ? (
           <span className="flex flex-col gap-1">
             <Badge tone="danger">{t(edge.problem.key, edge.problem.values)}</Badge>

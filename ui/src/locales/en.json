@@ -9759,7 +9759,7 @@
     "connect": {
       "address": "Address",
       "copy": "Copy address",
-      "noAddress": "Shown when the Portal is opened at its own address (portal.<domain>).",
+      "noAddress": "The address shows when you open the Portal at its usual web address.",
       "anySource": "Any address with a valid token",
       "client": "Client id and user name",
       "password": "Password",
@@ -9801,8 +9801,8 @@
         "endpoint": "Pipeline writes to Endpoint",
         "policy": "Policy guards Endpoint"
       },
-      "byRole": "role {role}, client {client}",
-      "byListener": "the internal listener, runner identity",
+      "byRole": "role {role}; the device signs in as {client}",
+      "byListener": "the broker's own connection to the platform",
       "byRunner": "the pipeline runner",
       "byPipelineAccount": "the service account of {pipeline}",
       "byPolicy": "the Endpoint's Policy",
@@ -9966,10 +9966,10 @@
       "until": "Until",
       "noEnd": "No end",
       "bound": "Role binding",
-      "legacy": "serviceAccounts list",
-      "legacyHint": "A role that lists the account under serviceAccounts is deprecated: run jcctl migrate mqtt-roles to move it to an mqtt/{broker}/<role> binding on the account.",
+      "legacy": "Listed on the role",
+      "legacyHint": "The role names this account in its own list, the older way. It still works; a project steward can move it to a grant on the service account.",
       "noneTitle": "{account} holds no role of this broker",
-      "noneHint": "Its devices are refused when they connect. Grant it the role mqtt/{broker}/<role> on the service account, scoped to this project.",
+      "noneHint": "Its devices are refused when they connect. Add the account to a role under Who may connect.",
       "expiredTitle": "Grants of this broker that are not in force",
       "endedAt": "ended {at}",
       "startsAt": "starts {at}",
@@ -10041,7 +10041,14 @@
       "use": "{use} of {limit} in use",
       "anySourceHint": "Any address with a valid token can connect now. Add the networks your devices use below to turn others away before TLS, e.g. 192.0.2.0/24.",
       "cname": "CNAME target",
-      "unreadable": "This broker does not exist, or your role may not read this project's MQTT brokers. Ask a project steward to grant you read access, or go back to the list."
+      "chartQuiet": "No message arrived in the last {minutes} min. The chart draws the rate once devices send again.",
+      "refused": {
+        "purpose": "An MQTT broker of this project.",
+        "noRight": "Your role may not read MQTT brokers here",
+        "noRightHint": "Ask a steward of project {project} to give you read access to its MQTT brokers, then open this page again.",
+        "missing": "No MQTT broker is called {name}",
+        "missingHint": "It may have been removed or renamed. Pick a broker from the list."
+      }
     },
     "edit": {
       "accessLead": "A device signs in with its service account's token and may use the topics of each role its account holds. Adding an account here grants it the role; the change is proposed with the broker.",

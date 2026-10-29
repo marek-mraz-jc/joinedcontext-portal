@@ -391,6 +391,14 @@ describe("one MQTT broker's page (T-6103)", () => {
     expect(screen.getByTestId("live-strip").textContent).toBe("2.5 messages/s · 2 connected · 3 refused sign-ins today");
   });
 
+  it("says idle when every kept sample is zero, instead of a flat line", async () => {
+    const quiet = { ...MEASURED, messagesPerSecond: 0, rates: MEASURED.rates.map((point) => ({ ...point, perSecond: 0 })) };
+    showBroker({ measured: () => json(quiet), watch: () => json(WATCHED) });
+    expect(await screen.findByText(en.mqttbrokers.page.state.idle)).toBeInTheDocument();
+    expect(screen.getByText(en.mqttbrokers.page.chartQuiet.replace("{minutes}", "1"))).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /highest/ })).toBeNull();
+  });
+
   it("says idle with no traffic yet: no chart until two samples, and what to do without a device", async () => {
     const idle = { ...MEASURED, messagesPerSecond: 0, accounts: [], rates: [], refusedPublishes: 0 };
     showBroker({ measured: () => json(idle), watch: () => json({ ...WATCHED, refusals: [] }) });
@@ -487,17 +495,25 @@ describe("one MQTT broker's page (T-6103)", () => {
     expect(screen.queryByRole("region", { name: en.mqttbrokers.edit.bar })).toBeNull();
   });
 
-  it("shows the refusal and no settings to a caller who may not read the broker", async () => {
-    showBroker({
-      brokerAnswer: () =>
-        new Response(JSON.stringify({ type: "about:blank", title: "Not Found", status: 404, detail: "MQTT broker 'cameras' not found in project 'espoo'" }), {
-          status: 404,
-          headers: { "content-type": "application/problem+json" },
-        }),
+  const notFound = () =>
+    new Response(JSON.stringify({ type: "about:blank", title: "Not Found", status: 404, detail: "MQTT broker 'cameras' not found in project 'espoo'" }), {
+      status: 404,
+      headers: { "content-type": "application/problem+json" },
     });
-    expect(await screen.findByRole("link", { name: en.mqttbrokers.page.back })).toBeInTheDocument();
+
+  it("shows the refusal and no settings to a caller who may not read the broker", async () => {
+    showBroker({ brokerAnswer: notFound, permissions: { project: PROJECT, grants: [] } });
+    expect(await screen.findByText(en.mqttbrokers.page.refused.noRight)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: en.mqttbrokers.page.back })).toBeInTheDocument();
+    expect(screen.queryByText(en.mqttbrokers.page.refused.missing.replace("{name}", "cameras"))).toBeNull();
     expect(screen.queryByRole("group", { name: "cams" })).toBeNull();
     expect(screen.queryByText(en.mqttbrokers.page.section.live)).toBeNull();
+  });
+
+  it("says no broker has the name to a caller who may read brokers", async () => {
+    showBroker({ brokerAnswer: notFound });
+    expect(await screen.findByText(en.mqttbrokers.page.refused.missing.replace("{name}", "cameras"))).toBeInTheDocument();
+    expect(screen.queryByText(en.mqttbrokers.page.refused.noRight)).toBeNull();
   });
 });
 

@@ -9759,7 +9759,7 @@
     "connect": {
       "address": "Adresa",
       "copy": "Kopírovat adresu",
-      "noAddress": "Zobrazí se, když je Portál otevřen na vlastní adrese (portal.<doména>).",
+      "noAddress": "Adresa se zobrazí, když Portál otevřete na jeho obvyklé webové adrese.",
       "anySource": "Jakákoli adresa s platným tokenem",
       "client": "ID klienta a uživatelské jméno",
       "password": "Heslo",
@@ -9801,8 +9801,8 @@
         "endpoint": "Pipeline zapisuje do Endpointu",
         "policy": "Policy chrání Endpoint"
       },
-      "byRole": "role {role}, klient {client}",
-      "byListener": "interní listener, identita runneru",
+      "byRole": "role {role}; zařízení se přihlašuje jako {client}",
+      "byListener": "vlastní připojení brokeru k platformě",
       "byRunner": "runner pipeline",
       "byPipelineAccount": "servisní účet pipeline {pipeline}",
       "byPolicy": "Policy Endpointu",
@@ -9966,10 +9966,10 @@
       "until": "Do",
       "noEnd": "Bez konce",
       "bound": "Přiřazení role",
-      "legacy": "seznam serviceAccounts",
-      "legacyHint": "Role, která uvádí účet v serviceAccounts, je zastaralá: spusťte jcctl migrate mqtt-roles, který ji přesune na přiřazení mqtt/{broker}/<role> na účtu.",
+      "legacy": "Uvedený na roli",
+      "legacyHint": "Role uvádí tento účet ve vlastním seznamu, starším způsobem. Stále funguje; správce projektu ho může přesunout na přiřazení na servisním účtu.",
       "noneTitle": "{account} nemá žádnou roli tohoto brokeru",
-      "noneHint": "Jeho zařízení budou při připojení odmítnuta. Udělte servisnímu účtu roli mqtt/{broker}/<role> s rozsahem tohoto projektu.",
+      "noneHint": "Jeho zařízení budou při připojení odmítnuta. Přidejte účet k roli v části Kdo se může připojit.",
       "expiredTitle": "Udělení tohoto brokeru, která neplatí",
       "endedAt": "skončilo {at}",
       "startsAt": "začíná {at}",
@@ -10041,7 +10041,14 @@
       "use": "Využito {use} z {limit}",
       "anySourceHint": "Nyní se může připojit každá adresa s platným tokenem. Níže přidejte sítě, které vaše zařízení používají, a ostatní budou odmítnuty ještě před TLS, např. 192.0.2.0/24.",
       "cname": "Cíl CNAME",
-      "unreadable": "Tento broker neexistuje, nebo vaše role nesmí číst MQTT brokery tohoto projektu. Požádejte správce projektu o přístup ke čtení, nebo se vraťte na seznam."
+      "chartQuiet": "Za posledních {minutes} min nepřišla žádná zpráva. Graf vykreslí tok, jakmile zařízení znovu začnou posílat.",
+      "refused": {
+        "purpose": "MQTT broker tohoto projektu.",
+        "noRight": "Vaše role zde nesmí číst MQTT brokery",
+        "noRightHint": "Požádejte správce projektu {project} o přístup ke čtení jeho MQTT brokerů a pak otevřete tuto stránku znovu.",
+        "missing": "Žádný MQTT broker se nejmenuje {name}",
+        "missingHint": "Mohl být odstraněn nebo přejmenován. Vyberte broker ze seznamu."
+      }
     },
     "edit": {
       "accessLead": "Zařízení se přihlásí tokenem svého servisního účtu a smí používat témata každé role, kterou jeho účet drží. Přidáním účtu sem mu udělíte roli; změna se navrhne spolu s brokerem.",

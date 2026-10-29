@@ -123,7 +123,7 @@ function TopicsTable({ project, broker, messages }: { project: string; broker: s
       {rows.length === 0 ? (
         <EmptyState bare title={t("mqttbrokers.topics.empty")} description={t("mqttbrokers.topics.emptyHint", { broker })} />
       ) : (
-        <Table caption={t("mqttbrokers.topics.caption", { broker })}>
+        <Table stack caption={t("mqttbrokers.topics.caption", { broker })}>
           <TableHead>
             <TableHeaderCell>{t("mqttbrokers.topics.filter")}</TableHeaderCell>
             <TableHeaderCell>{t("mqttbrokers.topics.via")}</TableHeaderCell>
@@ -138,15 +138,15 @@ function TopicsTable({ project, broker, messages }: { project: string; broker: s
                 <TableCell primary>
                   {row.topicFilter ? <code className="font-mono text-caption">{row.topicFilter}</code> : <HopCell project={project} hop={row.dataSource} />}
                 </TableCell>
-                <TableCell>
+                <TableCell data-label={t("mqttbrokers.topics.via")}>
                   <Via project={project} row={row} />
                 </TableCell>
-                <TableCell>{row.type ?? "—"}</TableCell>
-                <TableCell>
+                <TableCell data-label={t("mqttbrokers.topics.type")}>{row.type ?? "—"}</TableCell>
+                <TableCell data-label={t("mqttbrokers.topics.attributes")}>
                   <Attributes row={row} />
                 </TableCell>
-                <TableCell>{row.endpoint ? <HopCell project={project} hop={row.endpoint} /> : "—"}</TableCell>
-                {messages ? <TableCell>{last(row.topicFilter ?? undefined)}</TableCell> : null}
+                <TableCell data-label={t("mqttbrokers.topics.endpoint")}>{row.endpoint ? <HopCell project={project} hop={row.endpoint} /> : "—"}</TableCell>
+                {messages ? <TableCell data-label={t("mqttbrokers.topics.last")}>{last(row.topicFilter ?? undefined)}</TableCell> : null}
               </TableRow>
             ))}
           </TableBody>

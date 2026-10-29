@@ -96,7 +96,7 @@ test.describe("who can do what on a broker", () => {
     await expect(panel.getByRole("table", { name: "Roles of air that air-fleet holds now" })).toContainText("Role binding");
     await shoot(page, panel, "bound");
     await picker.selectOption("old-cam");
-    await expect(panel.getByText(/jcctl migrate mqtt-roles/)).toBeVisible();
+    await expect(panel.getByText(/the older way/)).toBeVisible();
     await shoot(page, panel, "legacy");
     await picker.selectOption("spare");
     await expect(panel.getByText("spare holds no role of this broker")).toBeVisible();
