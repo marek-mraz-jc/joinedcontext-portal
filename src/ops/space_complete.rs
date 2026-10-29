@@ -1206,12 +1206,7 @@ fn failing_check(drafts: &[CompletedDraft]) -> &'static str {
                 .as_ref()
                 .is_none_or(|v| !v.is_fresh_for(&d.manifest))
         })
-        .map(|d| match d.kind.as_str() {
-            "DataModel" => "jc_model_propose",
-            "DataSource" => "jc_datasource_check",
-            "Pipeline" => "jc_pipeline_test",
-            _ => "jc_manifest_dry_run",
-        })
+        .map(|d| super::check_for_kind(&d.kind))
         .unwrap_or("jc_manifest_dry_run")
 }
 

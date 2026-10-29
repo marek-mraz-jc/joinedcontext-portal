@@ -389,19 +389,9 @@ pub(crate) async fn record_records(
     record_verdict(caller, state, project, draft, manifest, &verdict).await;
 }
 
-/// The check an operation's gate names when it refuses a draft nobody has checked (PF-57).
-///
-/// One table, read by the operation itself and by the MCP door before it offers an
-/// elicitation, so both doors name the same check (ADR-N-021).
-pub fn check_operation_for(op_name: &str) -> &'static str {
-    match op_name {
-        "jc_datasource_propose" => "jc_datasource_check",
-        "jc_pipeline_propose" => "jc_pipeline_test",
-        _ => "jc_manifest_dry_run",
-    }
-}
-
-/// The check that judges a manifest of `kind`, as the gate names it.
+/// The check that judges a manifest of `kind`, as the gate names it when it refuses a draft
+/// nobody has checked (PF-57). One table, read by the operation itself and by the MCP door
+/// before it offers an elicitation, so both doors name the same check (ADR-N-021).
 pub fn check_for_kind(kind: &str) -> &'static str {
     match kind {
         "DataSource" => "jc_datasource_check",
@@ -620,14 +610,14 @@ pub async fn verdict_refusal(
     project: &str,
     input: &Value,
 ) -> Option<Value> {
-    if op.verb != Some(Verb::Propose) {
+    if op.verb != Some(Verb::Propose) && op.name != "jc_resource_propose" {
         return None;
     }
     let draft_ref = input.get("draft")?;
     let kind = draft_ref.get("kind").and_then(Value::as_str)?;
     let name = draft_ref.get("name").and_then(Value::as_str)?;
     let draft = draft_store(state).get(project, kind, name).await.ok()??;
-    match apply_verdict_gate(state, &draft, check_operation_for(op.name)) {
+    match apply_verdict_gate(state, &draft, check_for_kind(kind)) {
         Err(OpError::Conflict(body)) => Some(body),
         _ => None,
     }
@@ -773,10 +763,12 @@ async fn propose_bare(
 
 /// This module's operations in the registry (`super::init_registry`).
 pub fn operations() -> Vec<Operation> {
-    vec![        Operation {
+    vec![
+        Operation {
             name: "jc_endpoint_propose",
             title: "Propose Endpoint",
-            description: "Renders an Endpoint and its draft Policy manifests from a request to share data",
+            description:
+                "Renders an Endpoint and its draft Policy manifests from a request to share data",
             input: endpoint_propose_input_schema,
             output: proposal_output_schema,
             // Parameters render a proposal and nothing is written, but a `manifest` or a
@@ -791,9 +783,7 @@ pub fn operations() -> Vec<Operation> {
             kind: "Endpoint",
             verb: Some(Verb::Propose),
             lane: Lane::Yellow,
-            validate: |val| {
-                parse_input::<EndpointProposeInput>(val.clone()).map(|_| ())
-            },
+            validate: |val| parse_input::<EndpointProposeInput>(val.clone()).map(|_| ()),
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     let input: EndpointProposeInput = parse_input(val)?;
@@ -838,10 +828,12 @@ pub fn operations() -> Vec<Operation> {
                     Ok(serde_json::to_value(proposal)?)
                 })
             },
-        },        Operation {
+        },
+        Operation {
             name: "jc_manifest_dry_run",
             title: "Manifest Dry Run",
-            description: "Dry-runs candidate manifest changes and returns validation result and plan diff",
+            description:
+                "Dry-runs candidate manifest changes and returns validation result and plan diff",
             input: manifest_input_schema,
             output: dry_run_output_schema,
             annotations: OperationAnnotations {
@@ -865,7 +857,8 @@ pub fn operations() -> Vec<Operation> {
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     let input: ManifestInput = parse_input(val)?;
-                    let (manifest, draft_ref) = resolve_manifest_input(caller, state, project, &input).await?;
+                    let (manifest, draft_ref) =
+                        resolve_manifest_input(caller, state, project, &input).await?;
                     let answer = dry_run::execute_dry_run(
                         &caller.identity,
                         state,
@@ -881,7 +874,8 @@ pub fn operations() -> Vec<Operation> {
                     let res = match answer {
                         Ok(res) => res,
                         Err(err) => {
-                            return refused_check_output(state, project, &manifest, err.into()).await
+                            return refused_check_output(state, project, &manifest, err.into())
+                                .await
                         }
                     };
                     let ok = res.valid;
@@ -910,7 +904,8 @@ pub fn operations() -> Vec<Operation> {
                     Ok(out)
                 })
             },
-        },        Operation {
+        },
+        Operation {
             name: "jc_datasource_check",
             title: "Check DataSource",
             description: "Dry-runs a DataSource manifest and probes the external feed",
@@ -928,8 +923,19 @@ pub fn operations() -> Vec<Operation> {
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     let input: ManifestInput = parse_input(val)?;
-                    let (manifest, draft_ref) = resolve_manifest_input(caller, state, project, &input).await?;
-                    let mut out = match mutate_manifest(caller, state, project, "datasources", manifest.clone(), true, false).await {
+                    let (manifest, draft_ref) =
+                        resolve_manifest_input(caller, state, project, &input).await?;
+                    let mut out = match mutate_manifest(
+                        caller,
+                        state,
+                        project,
+                        "datasources",
+                        manifest.clone(),
+                        true,
+                        false,
+                    )
+                    .await
+                    {
                         Ok(out) => out,
                         // The same refusal a `DataSource` used to answer as a 4xx: a probe that
                         // failed was always a red verdict, a manifest the door rejected never was
@@ -944,90 +950,6 @@ pub fn operations() -> Vec<Operation> {
                     }
                     out["verdict"] = serde_json::to_value(&verdict)?;
                     Ok(out)
-                })
-            },
-        },        Operation {
-            name: "jc_datasource_propose",
-            title: "Propose DataSource",
-            description: "Proposes creation or update of a DataSource manifest, from a draft when one is named",
-            input: manifest_input_schema,
-            output: change_schema,
-            annotations: OperationAnnotations {
-                read_only_hint: false,
-                destructive_hint: false,
-                idempotent_hint: false,
-            },
-            kind: "DataSource",
-            verb: Some(Verb::Propose),
-            lane: Lane::Yellow,
-            validate: |val| parse_input::<ManifestInput>(val.clone()).map(|_| ()),
-            run: |caller, state, project, val| {
-                Box::pin(async move {
-                    let input: ManifestInput = parse_input(val)?;
-                    propose_with_optional_draft(caller, state, project, "datasources", check_operation_for("jc_datasource_propose"), input).await
-                })
-            },
-        },        Operation {
-            name: "jc_pipeline_propose",
-            title: "Propose Pipeline",
-            description: "Proposes creation or update of a Pipeline manifest, from a draft when one is named",
-            input: manifest_input_schema,
-            output: change_schema,
-            annotations: OperationAnnotations {
-                read_only_hint: false,
-                destructive_hint: false,
-                idempotent_hint: false,
-            },
-            kind: "Pipeline",
-            verb: Some(Verb::Propose),
-            lane: Lane::Yellow,
-            validate: |val| parse_input::<ManifestInput>(val.clone()).map(|_| ()),
-            run: |caller, state, project, val| {
-                Box::pin(async move {
-                    let input: ManifestInput = parse_input(val)?;
-                    propose_with_optional_draft(caller, state, project, "pipelines", check_operation_for("jc_pipeline_propose"), input).await
-                })
-            },
-        },        Operation {
-            name: "jc_space_propose",
-            title: "Propose ContextSpace",
-            description: "Proposes creation or update of a ContextSpace manifest, from a draft when one is named",
-            input: manifest_input_schema,
-            output: change_schema,
-            annotations: OperationAnnotations {
-                read_only_hint: false,
-                destructive_hint: false,
-                idempotent_hint: false,
-            },
-            kind: "ContextSpace",
-            verb: Some(Verb::Propose),
-            lane: Lane::Yellow,
-            validate: |val| parse_input::<ManifestInput>(val.clone()).map(|_| ()),
-            run: |caller, state, project, val| {
-                Box::pin(async move {
-                    let input: ManifestInput = parse_input(val)?;
-                    propose_with_optional_draft(caller, state, project, "spaces", "jc_manifest_dry_run", input).await
-                })
-            },
-        },        Operation {
-            name: "jc_model_propose",
-            title: "Propose DataModel",
-            description: "Proposes creation or update of a DataModel manifest, from a draft when one is named",
-            input: manifest_input_schema,
-            output: change_schema,
-            annotations: OperationAnnotations {
-                read_only_hint: false,
-                destructive_hint: false,
-                idempotent_hint: false,
-            },
-            kind: "DataModel",
-            verb: Some(Verb::Propose),
-            lane: Lane::Yellow,
-            validate: |val| parse_input::<ManifestInput>(val.clone()).map(|_| ()),
-            run: |caller, state, project, val| {
-                Box::pin(async move {
-                    let input: ManifestInput = parse_input(val)?;
-                    propose_with_optional_draft(caller, state, project, "datamodels", "jc_manifest_dry_run", input).await
                 })
             },
         },

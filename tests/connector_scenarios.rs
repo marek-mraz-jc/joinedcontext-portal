@@ -2294,6 +2294,29 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
             "{tool}"
         );
     }
+    // The door lists only its segment's tools, whatever the person may run elsewhere, and a call
+    // to a tool it does not list is refused before it runs (T-6067).
+    let segment: BTreeSet<&str> = connectors::SEGMENTS
+        .iter()
+        .find(|(name, _, _)| *name == "data-read")
+        .map(|(_, tools, _)| tools.iter().copied().collect())
+        .expect("data-read");
+    let listed: BTreeSet<&str> = answer["result"]["tools"]
+        .as_array()
+        .map(|tools| tools.iter().filter_map(|t| t["name"].as_str()).collect())
+        .unwrap_or_default();
+    assert!(listed.is_subset(&segment), "{listed:?} beyond {segment:?}");
+    let outside = json!({ "jsonrpc": "2.0", "id": 4, "method": "tools/call",
+                          "params": { "name": "jc_resource_propose", "arguments": {
+                              "project": own, "draft": { "kind": "Endpoint", "name": "x" } } } });
+    let (status, refused) = harness
+        .send("POST", &door(a), token_a.clone(), Some(outside))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{refused}");
+    assert!(
+        refused["error"].is_object() || refused["result"]["isError"] == json!(true),
+        "a tool outside the segment ran: {refused}"
+    );
     // The plan view is the one resource it reads: a static MCP App page (T-5960), which the
     // plan and mapping tools name.
     let view = json!({ "jsonrpc": "2.0", "id": 3, "method": "resources/read",

@@ -133,7 +133,7 @@ test("an MCP client with a ServiceAccount token checks and proposes a data sourc
 
     // AG-64: what the account may do is what it is offered, and nothing a person decides.
     const tools = ((await mcp.rpc("tools/list", { project: PROJECT })).result?.tools ?? []).map((tool) => tool.name);
-    for (const offered of ["jc_datasource_check", "jc_datasource_propose", "jc_pipeline_test", "jc_pipeline_propose"]) {
+    for (const offered of ["jc_datasource_check", "jc_pipeline_test", "jc_resource_propose"]) {
       expect(tools, offered).toContain(offered);
     }
     for (const withheld of ["jc_change_approve", "jc_workspace_propose"]) {
@@ -143,7 +143,7 @@ test("an MCP client with a ServiceAccount token checks and proposes a data sourc
     // The data source: checked (PF-57), proposed, and not approved by the account.
     const sourceCheck = await mcp.call("jc_datasource_check", { manifest: SOURCE_MANIFEST });
     expect((sourceCheck.structuredContent?.verdict as { ok?: boolean } | undefined)?.ok, said(sourceCheck)).toBe(true);
-    const sourceChange = changeOf(await mcp.call("jc_datasource_propose", { manifest: SOURCE_MANIFEST }));
+    const sourceChange = changeOf(await mcp.call("jc_resource_propose", { manifest: SOURCE_MANIFEST }));
     open.add(sourceChange);
 
     // AG-11, PF-58: a workload proposes, a person approves; called anyway, the door says why.
@@ -160,7 +160,7 @@ test("an MCP client with a ServiceAccount token checks and proposes a data sourc
     // The pipeline: its mapping tested on the feed itself (PL-49), proposed, approved by the person.
     const mapping = await mcp.call("jc_pipeline_test", { pipeline: PIPELINE_MANIFEST, sample: { url: FEED, format: "json" } });
     expect((mapping.structuredContent?.verdict as { ok?: boolean } | undefined)?.ok, said(mapping)).toBe(true);
-    const pipelineChange = changeOf(await mcp.call("jc_pipeline_propose", { manifest: PIPELINE_MANIFEST }));
+    const pipelineChange = changeOf(await mcp.call("jc_resource_propose", { manifest: PIPELINE_MANIFEST }));
     open.add(pipelineChange);
 
     // AG-82: bringing a workspace back is a person's too, whatever the workspace.

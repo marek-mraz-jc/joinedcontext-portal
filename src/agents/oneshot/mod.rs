@@ -903,20 +903,28 @@ fn failed_step(tool: &str, started: std::time::Instant, input: &Value, reason: &
     })
 }
 
-/// The prompt section that teaches each tool, by heading, and the operation behind the tool.
-const TOOL_SECTIONS: [(&str, &str); 4] = [
+/// The prompt section that teaches each tool, by heading, the operation behind the tool, and the
+/// kind it proposes when that operation is the one `jc_resource_propose`.
+const TOOL_SECTIONS: [(&str, &str, Option<&str>); 4] = [
     (
         "## WHEN THE PERSON ASKS TO SHARE OR PUBLISH DATA",
         "jc_endpoint_propose",
+        None,
     ),
-    ("## WHEN THE PERSON ASKS FOR AN INDICATOR", "jc_kpi_compute"),
+    (
+        "## WHEN THE PERSON ASKS FOR AN INDICATOR",
+        "jc_kpi_compute",
+        None,
+    ),
     (
         "## WHEN THE PERSON ASKS TO KEEP AN INDICATOR UPDATED",
-        "jc_pipeline_propose",
+        "jc_resource_propose",
+        Some("Pipeline"),
     ),
     (
         "## WHEN THE PERSON ASKS TO COMPLETE A CONTEXT SPACE",
         "jc_space_complete",
+        None,
     ),
 ];
 

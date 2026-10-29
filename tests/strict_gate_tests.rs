@@ -164,7 +164,7 @@ async fn strict_mode_propose_without_verdict_refused_409() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/v1/projects/ovzdusie/ops/jc_datasource_propose")
+                .uri("/api/v1/projects/ovzdusie/ops/jc_resource_propose")
                 .header(header::COOKIE, &steward_cookie)
                 .header(CSRF_HEADER, TEST_CSRF_TOKEN)
                 .header(header::CONTENT_TYPE, "application/json")
@@ -268,7 +268,7 @@ async fn strict_mode_check_runs_and_attaches_verdict_then_propose_succeeds() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/v1/projects/ovzdusie/ops/jc_datasource_propose")
+                .uri("/api/v1/projects/ovzdusie/ops/jc_resource_propose")
                 .header(header::COOKIE, &steward_cookie)
                 .header(CSRF_HEADER, TEST_CSRF_TOKEN)
                 .header(header::CONTENT_TYPE, "application/json")
@@ -374,7 +374,7 @@ async fn strict_mode_stale_verdict_refused_409() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/v1/projects/ovzdusie/ops/jc_datasource_propose")
+                .uri("/api/v1/projects/ovzdusie/ops/jc_resource_propose")
                 .header(header::COOKIE, &steward_cookie)
                 .header(CSRF_HEADER, TEST_CSRF_TOKEN)
                 .header(header::CONTENT_TYPE, "application/json")
@@ -454,7 +454,7 @@ async fn strict_mode_red_verdict_refused_409() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/v1/projects/ovzdusie/ops/jc_datasource_propose")
+                .uri("/api/v1/projects/ovzdusie/ops/jc_resource_propose")
                 .header(header::COOKIE, &steward_cookie)
                 .header(CSRF_HEADER, TEST_CSRF_TOKEN)
                 .header(header::CONTENT_TYPE, "application/json")
@@ -525,7 +525,7 @@ async fn lax_mode_allows_propose_with_warning() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/v1/projects/ovzdusie/ops/jc_datasource_propose")
+                .uri("/api/v1/projects/ovzdusie/ops/jc_resource_propose")
                 .header(header::COOKIE, &steward_cookie)
                 .header(CSRF_HEADER, TEST_CSRF_TOKEN)
                 .header(header::CONTENT_TYPE, "application/json")
@@ -597,7 +597,7 @@ async fn pipeline_propose_requires_jc_pipeline_test() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/v1/projects/ovzdusie/ops/jc_pipeline_propose")
+                .uri("/api/v1/projects/ovzdusie/ops/jc_resource_propose")
                 .header(header::COOKIE, &steward_cookie)
                 .header(CSRF_HEADER, TEST_CSRF_TOKEN)
                 .header(header::CONTENT_TYPE, "application/json")
@@ -658,7 +658,7 @@ async fn space_propose_requires_jc_manifest_dry_run() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/v1/projects/ovzdusie/ops/jc_space_propose")
+                .uri("/api/v1/projects/ovzdusie/ops/jc_resource_propose")
                 .header(header::COOKIE, &steward_cookie)
                 .header(CSRF_HEADER, TEST_CSRF_TOKEN)
                 .header(header::CONTENT_TYPE, "application/json")
@@ -820,9 +820,9 @@ async fn a_changed_or_refused_manifest_is_not_proposed_on_an_earlier_check() {
     assert_eq!(branches_created(&forge).await, 0);
 }
 
-/// The operations registry is a door like the REST route: a bare manifest proposed through
-/// `jc_space_propose` needs the verdict `jc_manifest_dry_run` records for it, and a person's own
-/// draft of the same resource, with other content, survives a bare proposal of it.
+/// The operations registry is a door like the REST route: a bare ContextSpace manifest proposed
+/// through `jc_resource_propose` needs the verdict `jc_manifest_dry_run` records for it, and a
+/// person's own draft of the same resource, with other content, survives a bare proposal of it.
 #[tokio::test]
 async fn the_operation_door_gates_a_bare_manifest_and_leaves_a_persons_draft_alone() {
     let (_forge, state, app) = strict_portal().await;
@@ -832,7 +832,7 @@ async fn the_operation_door_gates_a_bare_manifest_and_leaves_a_persons_draft_alo
     let (status, refused) = rest(
         &app,
         "POST",
-        &format!("{ops}/jc_space_propose"),
+        &format!("{ops}/jc_resource_propose"),
         &json!({ "manifest": manifest }),
     )
     .await;
@@ -866,7 +866,7 @@ async fn the_operation_door_gates_a_bare_manifest_and_leaves_a_persons_draft_alo
     let (status, change) = rest(
         &app,
         "POST",
-        &format!("{ops}/jc_space_propose"),
+        &format!("{ops}/jc_resource_propose"),
         &json!({ "manifest": manifest }),
     )
     .await;
@@ -1171,7 +1171,7 @@ async fn a_check_naming_an_unsaved_draft_creates_it_so_propose_follows_at_once()
     assert!(saved.verdict.as_ref().is_some_and(|v| v.ok));
 
     let propose = app
-        .oneshot(call("jc_datasource_propose", json!({ "draft": draft })))
+        .oneshot(call("jc_resource_propose", json!({ "draft": draft })))
         .await
         .unwrap();
     assert_eq!(propose.status(), StatusCode::ACCEPTED);

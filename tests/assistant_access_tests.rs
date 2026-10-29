@@ -1168,7 +1168,7 @@ fn bikes_space() -> Vec<ResourceEnvelope> {
 #[tokio::test]
 async fn an_indicator_kept_updated_is_a_drafted_pipeline_into_a_new_indicator_space() {
     let access = json!({
-        "operations": ["jc_catalog_search", "jc_pipeline_propose", "jc_pipeline_test"],
+        "operations": ["jc_catalog_search", "jc_resource_propose", "jc_pipeline_test"],
         "kinds": [{ "kind": "Pipeline", "verbs": ["read", "propose"] }]
     });
     let (state, events, prompts) = converse_with(
@@ -1281,7 +1281,7 @@ async fn an_indicator_pipeline_outside_the_profile_is_neither_offered_nor_drafte
     assert_eq!(tool["status"], "failed", "{tool}");
     assert!(tool["error"]
         .as_str()
-        .is_some_and(|e| e.contains("jc_pipeline_propose")));
+        .is_some_and(|e| e.contains("propose on Pipeline through jc_resource_propose")));
     assert!(state
         .drafts
         .get("helsinki", "Pipeline", "free-bikes")

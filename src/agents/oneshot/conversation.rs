@@ -1066,9 +1066,8 @@ The platform checks the manifest, tests what that kind tests, keeps it as the pe
 opens the kind's page with the form filled from it; the person reads it there and proposes it. What
 the check refuses comes back to you with the reason: send the call again with the fields fixed. A
 test that is not green still opens the form, with what it found, because a pipeline's mapping is
-finished in the editor. You never propose it yourself, and never with `jc_space_propose`,
-`jc_datasource_propose`, `jc_pipeline_propose` or `jc_resource_propose` — a change nobody read
-must not reach the approval queue.
+finished in the editor. You never propose it yourself, and never with `jc_resource_propose` — a change nobody read must
+not reach the approval queue.
 "#,
             kinds = creatable.join(", "),
         ));
