@@ -150,11 +150,15 @@ fn offset_of(cursor: Option<&str>) -> Result<u64, OpError> {
     }
 }
 
+/// Adds one query pair.
+fn put(query: &mut Query, key: &str, value: &str) {
+    query.push((key.to_owned(), value.to_owned()));
+}
+
 /// The gateway path under the Endpoint and its query, from a checked input: what a person would
 /// send to the Endpoint's NGSI-LD API themselves.
 pub fn request_of(input: &DataQueryInput) -> Result<(&'static str, Query), OpError> {
     let mut query = Query::new();
-    let mut put = |k: &str, v: &str| query.push((k.to_owned(), v.to_owned()));
     for (key, value) in [
         ("type", &input.entity_type),
         ("id", &input.id),
@@ -162,26 +166,43 @@ pub fn request_of(input: &DataQueryInput) -> Result<(&'static str, Query), OpErr
         ("orderBy", &input.order_by),
     ] {
         if let Some(value) = value.as_deref().filter(|v| !v.is_empty()) {
-            put(key, value);
+            put(&mut query, key, value);
         }
     }
     if !input.attrs.is_empty() {
-        put("attrs", &input.attrs.join(","));
+        put(&mut query, "attrs", &input.attrs.join(","));
     }
+    geo_of(input, &mut query)?;
+    page_of(input, &mut query)?;
+    let Some(temporal) = &input.temporal else {
+        if let Some(format) = &input.format {
+            put(&mut query, "format", format);
+        }
+        return Ok(("ngsi-ld/v1/entities", query));
+    };
+    temporal_of(temporal, input.format.as_deref(), &mut query)?;
+    Ok(("ngsi-ld/v1/temporal/entities", query))
+}
+
+/// The geo-query pairs: georel, geometry and coordinates together or none of them.
+fn geo_of(input: &DataQueryInput, query: &mut Query) -> Result<(), OpError> {
     match (&input.georel, &input.geometry, &input.coordinates) {
-        (None, None, None) => {}
+        (None, None, None) => Ok(()),
         (Some(georel), Some(geometry), Some(coordinates)) if coordinates.is_array() => {
-            put("georel", georel);
-            put("geometry", geometry);
-            put("coordinates", &coordinates.to_string());
+            put(query, "georel", georel);
+            put(query, "geometry", geometry);
+            put(query, "coordinates", &coordinates.to_string());
+            Ok(())
         }
-        _ => {
-            return Err(invalid(
-                "/georel",
-                "a geo-query takes georel, geometry and coordinates together, e.g. near;maxDistance==500, Point, [19.146, 48.736]",
-            ))
-        }
+        _ => Err(invalid(
+            "/georel",
+            "a geo-query takes georel, geometry and coordinates together, e.g. near;maxDistance==500, Point, [19.146, 48.736]",
+        )),
     }
+}
+
+/// The paging pairs: limit, the cursor's offset and count.
+fn page_of(input: &DataQueryInput, query: &mut Query) -> Result<(), OpError> {
     let limit = input.limit.unwrap_or(DEFAULT_LIMIT);
     if limit == 0 && !input.count {
         return Err(invalid(
@@ -189,20 +210,23 @@ pub fn request_of(input: &DataQueryInput) -> Result<(&'static str, Query), OpErr
             "limit 0 answers nothing unless count is true",
         ));
     }
-    put("limit", &limit.to_string());
+    put(query, "limit", &limit.to_string());
     let offset = offset_of(input.cursor.as_deref())?;
     if offset > 0 {
-        put("offset", &offset.to_string());
+        put(query, "offset", &offset.to_string());
     }
     if input.count {
-        put("count", "true");
+        put(query, "count", "true");
     }
-    let Some(temporal) = &input.temporal else {
-        if let Some(format) = &input.format {
-            put("format", format);
-        }
-        return Ok(("ngsi-ld/v1/entities", query));
-    };
+    Ok(())
+}
+
+/// The history pairs: the time window, lastN and either the format asked or an aggregation.
+fn temporal_of(
+    temporal: &Temporal,
+    format: Option<&str>,
+    query: &mut Query,
+) -> Result<(), OpError> {
     if chrono::DateTime::parse_from_rfc3339(&temporal.time_at).is_err() {
         return Err(invalid(
             "/temporal/timeAt",
@@ -221,28 +245,28 @@ pub fn request_of(input: &DataQueryInput) -> Result<(&'static str, Query), OpErr
         }
         _ => {}
     }
-    put("timerel", &temporal.timerel);
-    put("timeAt", &temporal.time_at);
+    put(query, "timerel", &temporal.timerel);
+    put(query, "timeAt", &temporal.time_at);
     if let Some(end) = &temporal.end_time_at {
-        put("endTimeAt", end);
+        put(query, "endTimeAt", end);
     }
     if let Some(n) = temporal.last_n {
-        put("lastN", &n.to_string());
+        put(query, "lastN", &n.to_string());
     }
     match (
         temporal.aggr_methods.is_empty(),
         &temporal.aggr_period_duration,
     ) {
         (true, None) => {
-            if let Some(format) = &input.format {
-                put("format", format);
+            if let Some(format) = format {
+                put(query, "format", format);
             }
         }
         (false, period) => {
-            put("format", "aggregatedValues");
-            put("aggrMethods", &temporal.aggr_methods.join(","));
+            put(query, "format", "aggregatedValues");
+            put(query, "aggrMethods", &temporal.aggr_methods.join(","));
             if let Some(period) = period {
-                put("aggrPeriodDuration", period);
+                put(query, "aggrPeriodDuration", period);
             }
         }
         (true, Some(_)) => {
@@ -252,7 +276,7 @@ pub fn request_of(input: &DataQueryInput) -> Result<(&'static str, Query), OpErr
             ));
         }
     }
-    Ok(("ngsi-ld/v1/temporal/entities", query))
+    Ok(())
 }
 
 /// The gateway's own words for a refusal, when its body has them.
@@ -266,14 +290,14 @@ fn detail_of(body: &Value) -> String {
         .collect()
 }
 
-async fn run(
+/// The slug of Endpoint `name`, when the caller may read its manifest; any other case reads as
+/// a missing Endpoint, so a refusal tells nothing about Endpoints the caller cannot see.
+fn readable_slug(
     caller: &Caller,
     state: &AppState,
     project: &str,
-    input: DataQueryInput,
-) -> Result<Value, OpError> {
-    let (path, query) = request_of(&input)?;
-    let name = &input.endpoint;
+    name: &str,
+) -> Result<String, OpError> {
     let missing = || {
         OpError::Api(ApiError::NotFound(format!(
             "no Endpoint {name} in project {project}"
@@ -295,6 +319,72 @@ async fn run(
             "Endpoint {name} has no slug yet; read it again once it is served"
         ))
     })?;
+    Ok(slug.to_owned())
+}
+
+/// The gateway's status for an NGSI-LD read, as the error the caller can act on; `Ok` on 200.
+fn refusal_of(
+    status: u16,
+    history: bool,
+    name: &str,
+    slug: &str,
+    body: &Value,
+) -> Result<(), OpError> {
+    match status {
+        200 => Ok(()),
+        400 => Err(OpError::Api(ApiError::BadRequest(format!("the Endpoint refused the query: {}", detail_of(body))))),
+        401 | 403 => Err(OpError::Api(ApiError::Denied(format!(
+            "Endpoint {name} does not let you read this: {}",
+            detail_of(body)
+        )))),
+        404 if history => Err(OpError::Api(ApiError::NotFound(format!(
+            "Endpoint {name} serves no history: its view lists no temporal read; ask without temporal"
+        )))),
+        404 => Err(OpError::Api(ApiError::NotFound(format!("the gateway does not serve Endpoint {name} yet")))),
+        _ => {
+            tracing::warn!(status, endpoint = slug, "the gateway failed a data read");
+            Err(OpError::Api(ApiError::Unavailable(format!(
+                "the gateway answered {status} for Endpoint {name}; try again shortly"
+            ))))
+        }
+    }
+}
+
+/// The tool's answer from the gateway's body: the entities, the total when counted and the
+/// next cursor while a full page may have more behind it.
+fn answer_of(input: &DataQueryInput, body: Value, total: Option<u64>) -> Result<Value, OpError> {
+    let entities = match body {
+        Value::Array(entities) => entities,
+        Value::Object(_) => vec![body],
+        _ => {
+            return Err(OpError::Api(ApiError::Unavailable(
+                "the gateway answered something that is not entities".into(),
+            )))
+        }
+    };
+    let limit = u64::from(input.limit.unwrap_or(DEFAULT_LIMIT));
+    let next = offset_of(input.cursor.as_deref())?.saturating_add(entities.len() as u64);
+    let more =
+        limit > 0 && entities.len() as u64 == limit && total.is_none_or(|total| next < total);
+    let mut out = json!({ "entities": entities });
+    if let Some(total) = total {
+        out["total"] = json!(total);
+    }
+    if more {
+        out["nextCursor"] = json!(next.to_string());
+    }
+    Ok(out)
+}
+
+async fn run(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    input: DataQueryInput,
+) -> Result<Value, OpError> {
+    let (path, query) = request_of(&input)?;
+    let name = &input.endpoint;
+    let slug = readable_slug(caller, state, project, name)?;
     let bearer = caller.bearer.as_ref().ok_or_else(|| {
         ApiError::Denied(
             "jc_data_query reads as you with the token your MCP client presented: call it through \
@@ -308,7 +398,7 @@ async fn run(
     let oidc = state.oidc.as_ref().ok_or_else(|| {
         ApiError::Unavailable("this Portal has no Keycloak client to read data with".into())
     })?;
-    let token = oidc.exchange_for_endpoint(&bearer.0, slug).await?;
+    let token = oidc.exchange_for_endpoint(&bearer.0, &slug).await?;
     let answer = crate::api::pipelines::http()
         .get(format!("{}/api/endpoint/{slug}/{path}", base.trim_end_matches('/')))
         .query(&query)
@@ -338,50 +428,8 @@ async fn run(
         ));
     }
     let body: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-    let history = input.temporal.is_some();
-    match status {
-        200 => {}
-        400 => return Err(OpError::Api(ApiError::BadRequest(format!("the Endpoint refused the query: {}", detail_of(&body))))),
-        401 | 403 => {
-            return Err(OpError::Api(ApiError::Denied(format!(
-                "Endpoint {name} does not let you read this: {}",
-                detail_of(&body)
-            ))))
-        }
-        404 if history => {
-            return Err(OpError::Api(ApiError::NotFound(format!(
-                "Endpoint {name} serves no history: its view lists no temporal read; ask without temporal"
-            ))))
-        }
-        404 => return Err(OpError::Api(ApiError::NotFound(format!("the gateway does not serve Endpoint {name} yet")))),
-        _ => {
-            tracing::warn!(status, endpoint = slug, "the gateway failed a data read");
-            return Err(OpError::Api(ApiError::Unavailable(format!(
-                "the gateway answered {status} for Endpoint {name}; try again shortly"
-            ))));
-        }
-    }
-    let entities = match body {
-        Value::Array(entities) => entities,
-        Value::Object(_) => vec![body],
-        _ => {
-            return Err(OpError::Api(ApiError::Unavailable(
-                "the gateway answered something that is not entities".into(),
-            )))
-        }
-    };
-    let limit = u64::from(input.limit.unwrap_or(DEFAULT_LIMIT));
-    let next = offset_of(input.cursor.as_deref())?.saturating_add(entities.len() as u64);
-    let more =
-        limit > 0 && entities.len() as u64 == limit && total.is_none_or(|total| next < total);
-    let mut out = json!({ "entities": entities });
-    if let Some(total) = total {
-        out["total"] = json!(total);
-    }
-    if more {
-        out["nextCursor"] = json!(next.to_string());
-    }
-    Ok(out)
+    refusal_of(status, input.temporal.is_some(), name, &slug, &body)?;
+    answer_of(&input, body, total)
 }
 
 pub fn operations() -> Vec<Operation> {

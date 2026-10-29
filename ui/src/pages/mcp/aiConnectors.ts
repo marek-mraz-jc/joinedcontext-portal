@@ -3,7 +3,6 @@
 import type { components } from "../../api/schema";
 
 export type AiConnector = components["schemas"]["ConnectorGrant"];
-export type AiConnectorCall = components["schemas"]["ConnectorCall"];
 export type ConnectorOptions = components["schemas"]["ConnectorOptions"];
 export type ScopeItem = components["schemas"]["ConnectorScopeItem"];
 export type NewAiConnector = components["schemas"]["NewConnector"];

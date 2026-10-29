@@ -1344,17 +1344,6 @@
         "evidence/worker-t4869/T-4869/conversations-400.png"
       ]
     },
-    "src/pages/mcp/ConnectorStar.tsx": {
-      "walkedBy": "worker-t4871",
-      "date": "2026-10-21",
-      "screenshots": [
-        "evidence/worker-t4871/T-4871/star-steward-off-1440.png",
-        "evidence/worker-t4871/T-4871/star-steward-on-1440.png",
-        "evidence/worker-t4871/T-4871/star-steward-on-400.png",
-        "evidence/worker-t4871/T-4871/star-viewer-1440.png",
-        "evidence/worker-t4871/T-4871/star-viewer-400.png"
-      ]
-    },
     "src/pages/mcp/AiConnectorsPage.tsx": {
       "walkedBy": "worker-t5951 (e2e stub walk)",
       "date": "2026-10-28",
@@ -1371,17 +1360,6 @@
         "evidence/worker-t5951/T-5951/ai-connectors-error-400.png",
         "evidence/worker-t5951/T-5951/ai-connectors-refusal-1440.png",
         "evidence/worker-t5951/T-5951/ai-connectors-refusal-400.png"
-      ]
-    },
-    "src/pages/mcp/ConnectorsPage.tsx": {
-      "walkedBy": "deployer",
-      "date": "2026-10-20",
-      "screenshots": [
-        "evidence/deployer/T-3986/new-pages-1320/portal-connectors-dialog-new-connector-steward-en-1440.png",
-        "evidence/deployer/T-3986/new-pages-1320/portal-connectors-open-steward-en-1440.png",
-        "evidence/deployer/T-3986/new-pages-1320/portal-connectors-open-steward-en-2560.png",
-        "evidence/deployer/T-3986/new-pages-1320/portal-connectors-open-viewer-en-1440.png",
-        "evidence/deployer/T-3986/new-pages-1320/portal-connectors-open-viewer-en-2560.png"
       ]
     },
     "src/pages/mcp/McpServerDialog.tsx": {
