@@ -184,32 +184,39 @@ impl Mirror {
         lock.get(&key).cloned()
     }
 
-    pub fn list(&self, namespace: &str, kind: &str, opts: &ListOptions) -> ListPage {
+    /// The resources of `kind` in `namespace` that `keep` accepts, by name. The map is ordered by
+    /// namespace, kind and name, so this reads one range, and only what `keep` accepts is
+    /// copied: a caller after a few of many (the caller's own RoleBindings) parses the rest in
+    /// place (T-5978).
+    pub fn kind_where(
+        &self,
+        namespace: &str,
+        kind: &str,
+        mut keep: impl FnMut(&ResourceEnvelope) -> bool,
+    ) -> Vec<ResourceEnvelope> {
         let lock = self.resources.read().unwrap_or_else(|p| p.into_inner());
+        let from = ResourceKey {
+            namespace: namespace.to_owned(),
+            kind: kind.to_owned(),
+            name: String::new(),
+        };
+        lock.range(from..)
+            .take_while(|(key, _)| key.namespace == namespace && key.kind == kind)
+            .filter(|(_, env)| keep(env))
+            .map(|(_, env)| env.clone())
+            .collect()
+    }
 
-        let mut filtered: Vec<ResourceEnvelope> = lock
-            .values()
-            .filter(|env| {
-                let ns = env.metadata.namespace.as_deref().unwrap_or_default();
-                if ns != namespace || env.kind != kind {
-                    return false;
-                }
-                if let Some(ref ls) = opts.label_selector {
-                    if !ls.matches(&env.metadata.labels) {
-                        return false;
-                    }
-                }
-                if let Some(ref fs) = opts.field_selector {
-                    if !fs.matches(env) {
-                        return false;
-                    }
-                }
-                true
-            })
-            .cloned()
-            .collect();
-
-        filtered.sort_by(|a, b| a.metadata.name.cmp(&b.metadata.name));
+    pub fn list(&self, namespace: &str, kind: &str, opts: &ListOptions) -> ListPage {
+        let filtered = self.kind_where(namespace, kind, |env| {
+            opts.label_selector
+                .as_ref()
+                .is_none_or(|ls| ls.matches(&env.metadata.labels))
+                && opts
+                    .field_selector
+                    .as_ref()
+                    .is_none_or(|fs| fs.matches(env))
+        });
 
         let mut items = filtered;
         if let Some(ref token) = opts.continue_token {
@@ -290,6 +297,33 @@ mod tests {
 
     /// T-2544, MF-02: a name that is not a name of its kind is left out, like a bad namespace;
     /// a space keeps its own, looser form.
+    #[test]
+    fn kind_where_reads_one_namespace_and_kind_by_name() {
+        let mirror = Mirror::new();
+        for (ns, kind, name) in [
+            ("org", "RoleBinding", "b"),
+            ("org", "RoleBinding", "a"),
+            ("org", "RoleBinding", "c"),
+            ("org", "Role", "a"),
+            ("orga", "RoleBinding", "a"),
+            ("doprava", "RoleBinding", "a"),
+        ] {
+            mirror.upsert(sample(ns, kind, name, &[]));
+        }
+        let names = |envs: Vec<ResourceEnvelope>| -> Vec<String> {
+            envs.into_iter().map(|e| e.metadata.name).collect()
+        };
+        assert_eq!(
+            names(mirror.kind_where("org", "RoleBinding", |_| true)),
+            ["a", "b", "c"]
+        );
+        assert_eq!(
+            names(mirror.kind_where("org", "RoleBinding", |e| e.metadata.name != "b")),
+            ["a", "c"]
+        );
+        assert!(mirror.kind_where("org", "Policy", |_| true).is_empty());
+    }
+
     #[test]
     fn a_name_outside_its_kinds_form_is_left_out_of_the_mirror() {
         let mirror = Mirror::new();
