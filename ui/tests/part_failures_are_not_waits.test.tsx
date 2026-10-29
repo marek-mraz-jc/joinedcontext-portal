@@ -122,13 +122,13 @@ function Panel(): React.JSX.Element {
 
 describe("the access panel", () => {
   it("says_the_permissions_could_not_be_checked_rather_than_checking_for_good", async () => {
-    // `/access` answers, `/access/check` does not: the grants are on screen and the decisions
+    // `/access` answers, `/access/v1/evaluations` does not: the grants are on screen and the decisions
     // are what could not be made, which is the case the chips used to swallow.
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
         const url = input instanceof Request ? input.url : String(input);
-        return url.includes("/access/check")
+        return url.includes("/access/v1/evaluations")
           ? Promise.reject(new Error("The gateway is not answering."))
           : Promise.resolve(
               new Response(JSON.stringify(GRANTS), {
@@ -152,7 +152,7 @@ describe("the access panel", () => {
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
         const url = input instanceof Request ? input.url : String(input);
-        const body = url.includes("/access/check") ? { decision: true } : GRANTS;
+        const body = url.includes("/access/v1/evaluations") ? { evaluations: [{ decision: true }, { decision: true }] } : GRANTS;
         return Promise.resolve(
           new Response(JSON.stringify(body), {
             status: 200,
@@ -170,5 +170,23 @@ describe("the access panel", () => {
       ),
     );
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says_the_permissions_could_not_be_checked_when_the_batch_answers_fewer_decisions", async () => {
+    // A decision missing from the answer is not a "no": the panel says it could not check.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = input instanceof Request ? input.url : String(input);
+        const body = url.includes("/access/v1/evaluations") ? { evaluations: [{ decision: true }] } : GRANTS;
+        return Promise.resolve(
+          new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }),
+        );
+      }),
+    );
+    wrap(<Panel />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(en.app.error.generic);
+    expect(screen.queryByRole("list", { name: en.access.panel.checks })).toBeNull();
   });
 });

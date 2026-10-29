@@ -29,6 +29,7 @@ async function stub(page: Page, mayDelete = true): Promise<(string | null)[]> {
     }
     if (path.endsWith("/auth/me")) return json({ subject: "s1", username: "jana", name: "Jana Kováčová", roles: [] });
     if (path.endsWith("/access/check")) return json({ decision: mayDelete || !(request.postData() ?? "").includes("deleteEntity") });
+    if (path.endsWith("/access/v1/evaluations")) return json({ evaluations: (JSON.parse(request.postData() ?? "{}").evaluations as { action: { name: string } }[]).map((item) => ({ decision: mayDelete || item.action.name !== "deleteEntity" })) });
     if (path.endsWith("/access/attributes")) return json(attributeTable(TYPE, ["name"]));
     if (path.endsWith("/access")) {
       const read = { actions: ["queryEntity", "retrieveEntity", "queryTemporal", "retrieveTemporal"], resource: { type: TYPE }, attributes: "*" };
