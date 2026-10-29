@@ -26,11 +26,15 @@ const ENDPOINTS = [
   endpoint("events", "Cultural events", "kultura"),
 ];
 
-const SPACES = ["otvorene-data", "ovzdusie", "kultura"].map((name) => ({
+const SPACES = [
+  ["otvorene-data", "Open data", "bbsk-catalogue"],
+  ["ovzdusie", "Air quality", "air-quality"],
+  ["kultura", "Culture", "events"],
+].map(([name, title, model]) => ({
   apiVersion: API,
   kind: "ContextSpace",
-  metadata: { name, namespace: "bbsk", title: { en: name } },
-  spec: {},
+  metadata: { name, namespace: "bbsk", title: { en: title } },
+  spec: { dataModelRef: model },
   status: { phase: "Live", sourceUrl: `${SOURCE}/spaces/${name}/space.yaml` },
 }));
 
@@ -45,7 +49,8 @@ async function stub(page: Page, filled: boolean) {
     if (path === "/api/v1/projects") return json({ apiVersion: API, kind: "ProjectList", items: [{ name: "bbsk" }] });
     if (path === "/api/v1/projects/bbsk/endpoints") return json({ apiVersion: API, kind: "List", items: filled ? ENDPOINTS : [] });
     if (path === "/api/v1/projects/bbsk/spaces") return json({ apiVersion: API, kind: "List", items: filled ? SPACES : [] });
-    if (/\/spaces\/[^/]+\/usage$/.test(path)) return json({ entities: 1200, broker: "main", observedAt: "2026-10-29T10:00:00Z" });
+    const usage = /\/spaces\/([^/]+)\/usage$/.exec(path);
+    if (usage) return json({ entities: { "otvorene-data": 48210, ovzdusie: 1312, kultura: 0 }[usage[1]] ?? 0, broker: "main", observedAt: "2026-10-29T10:00:00Z" });
     if (path.endsWith("/events")) return route.fulfill({ status: 200, contentType: "text/event-stream", body: "" });
     return json({ apiVersion: API, kind: "List", items: [] });
   });
@@ -113,12 +118,12 @@ for (const width of [1440, 400]) {
     await page.setViewportSize({ width, height: 900 });
     await stub(page, true);
     await page.goto("/projects/bbsk/spaces?lang=en");
-    await expect(page.getByRole("link", { name: "ovzdusie" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Air quality" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Look inside" })).toHaveCount(0);
     await expect(page.getByRole("columnheader", { name: "Source" })).toHaveCount(0);
     await page.screenshot({ path: join(dir, `spaces-filled-${width}.png`) });
     expect(await axeViolations(page)).toEqual([]);
-    await page.getByRole("button", { name: /More actions.*ovzdusie/ }).click();
+    await page.getByRole("button", { name: /More actions.*Air quality/ }).click();
     await expect(page.getByRole("menuitem", { name: "Open" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "View source (Git)" })).toBeVisible();
     await page.screenshot({ path: join(dir, `spaces-menu-${width}.png`) });

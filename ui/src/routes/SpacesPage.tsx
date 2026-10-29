@@ -418,13 +418,14 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
                     {title}
                   </RecordLink>
                 </div>
-                <div className="mt-0.5 flex flex-wrap items-center gap-1.5 font-mono text-caption text-fg-subtle">
+                {/* The entity-id segment is detail, read on hover like a description (T-6095). */}
+                <div
+                  className="mt-0.5 flex flex-wrap items-center gap-1.5 font-mono text-caption text-fg-subtle"
+                  title={t("spaces.segment", {
+                    segment: spaceSegment(project, space.metadata.name, spec.urnSegment),
+                  })}
+                >
                   {space.metadata.title ? <span>{space.metadata.name}</span> : null}
-                  <span>
-                    {t("spaces.segment", {
-                      segment: spaceSegment(project, space.metadata.name, spec.urnSegment),
-                    })}
-                  </span>
                   {spec.isSandbox ? (
                     <Badge tone="warning">{t("spaces.sandbox", { days: spec.ttlDays ?? 0 })}</Badge>
                   ) : null}

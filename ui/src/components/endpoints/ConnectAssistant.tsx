@@ -61,7 +61,7 @@ export function ConnectAssistant({
       <div className="flex flex-col gap-1">
         <CodeBlock
           label={t("endpoints.hub.claudeLine")}
-          className="overflow-x-auto rounded bg-surface-muted p-2 font-mono text-caption"
+          className="whitespace-pre-wrap break-all rounded bg-surface-muted p-2 font-mono text-caption"
         >
           {lines.claude}
         </CodeBlock>
