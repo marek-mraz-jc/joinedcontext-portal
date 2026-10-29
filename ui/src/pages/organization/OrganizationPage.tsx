@@ -43,6 +43,7 @@ import { OrganizationSetup, SetupReminder } from "./OrganizationSetup";
 import { People } from "./People";
 import { KindList } from "../../routes/ResourceListPage";
 import { ValidationHealth } from "./ValidationHealth";
+import { OrganizationConnectors } from "./OrganizationConnectors";
 import { HealthLog } from "../health/HealthLog";
 import { Brokers } from "./Brokers";
 import { Costs } from "./Costs";
@@ -343,6 +344,7 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
             <Agents />
           </Suspense>
         ) : null}
+        {tab === "connectors" ? <OrganizationConnectors /> : null}
         {tab === "blueprints" ? <OrganizationKind plural="blueprints" kind="Blueprint" /> : null}
         {tab === "agentprofiles" ? <OrganizationKind plural="agentprofiles" kind="AgentProfile" /> : null}
         {tab === "dataspaceparticipants" ? <OrganizationKind plural="dataspaceparticipants" kind="DataSpaceParticipant" /> : null}

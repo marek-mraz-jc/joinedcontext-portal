@@ -8,10 +8,8 @@ S-08 T-5948 jc_catalog_search finds one project's resources, not open data catal
 S-11 T-5962 jc_model_infer needs Model Tools, which the scripted lane does not run
 S-18 T-5948 no generic sample_source tool on the connector door
 S-19 T-5948 no generic try_mapping tool on the connector door
-S-20 T-5994 jc_change_plan exists; the fixture has no Pipeline write target that passes the write checks
 S-21 T-5948 no pipeline run state and logs tool on the connector door
-S-22 T-5994 no Pipeline fixture, and the dry run has no project minimum period check
-S-23 T-5994 the dry run does not name the attributes an older mapping wrote (WriteGuard) on upsert to replace
+S-23 T-6001 the plan cannot name stored attributes: Antares answers the Portal admin token only on /q and has no route listing a type's held attribute names
 S-24 T-5948 no pipeline run tool on the connector door
 S-25 T-5948 jc_syncsource_pause needs a running sync source the scripted lane does not have
 S-26 T-5948 the end-to-end integration needs sample_source, try_mapping and plan_change
@@ -24,4 +22,3 @@ S-44 T-5960 approve is refused, but the answer carries no link to the change's P
 S-49 T-5955 no read-only connector token refused below the tools
 S-51 T-5971 no secretRef form link; a key pasted in chat is not refused by a plan tool
 S-53 T-5974 no revert plan tool
-S-54 T-5975 no connectors to revoke when a person is disabled
