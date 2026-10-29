@@ -25999,7 +25999,7 @@
     },
     "/api/v1/projects/{project}/ops/jc_schema_get": {
       "post": {
-        "description": "Reads the JSON Schema of one manifest kind: its fields, their types and limits, never data",
+        "description": "Reads one manifest kind: its required fields, a line per field with type and limits, and a minimal manifest; with path, one field's whole JSON Schema. Never data",
         "operationId": "jc_schema_get",
         "parameters": [
           {
@@ -26068,6 +26068,12 @@
                       "Layer"
                     ],
                     "type": "string"
+                  },
+                  "path": {
+                    "description": "A JSON pointer into the manifest, e.g. /spec/sources/0: that field's whole JSON Schema",
+                    "maxLength": 256,
+                    "pattern": "^(/[^/]*)*$",
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -26085,17 +26091,33 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "example": {
+                      "type": "object"
+                    },
+                    "fields": {
+                      "type": "string"
+                    },
                     "kind": {
                       "type": "string"
                     },
+                    "more": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
                     "schema": {
-                      "description": "The kind's JSON Schema (draft-07, as jc-core exports it)",
                       "type": "object"
                     }
                   },
                   "required": [
-                    "kind",
-                    "schema"
+                    "kind"
                   ],
                   "type": "object"
                 }

@@ -4725,7 +4725,7 @@ export interface paths {
         put?: never;
         /**
          * Get Kind Schema
-         * @description Reads the JSON Schema of one manifest kind: its fields, their types and limits, never data
+         * @description Reads one manifest kind: its required fields, a line per field with type and limits, and a minimal manifest; with path, one field's whole JSON Schema. Never data
          */
         post: operations["jc_schema_get"];
         delete?: never;
@@ -29098,6 +29098,8 @@ export interface operations {
                      * @enum {string}
                      */
                     kind: "Organization" | "Project" | "ContextSpace" | "DataModel" | "Mapping" | "Policy" | "ScopeDefinition" | "Endpoint" | "ModelProjection" | "SharedSpaceReference" | "ContextSourceRegistration" | "Subscription" | "ServiceAccount" | "Pipeline" | "DataSource" | "App" | "CkanInstance" | "KnowledgeSource" | "AssistantDeployment" | "McpServer" | "MqttBroker" | "Blueprint" | "AgentProfile" | "DataSpaceParticipant" | "DataOffer" | "DataAgreement" | "SyncSource" | "Bundle" | "UiSchema" | "Role" | "RoleBinding" | "Group" | "DelegationPolicy" | "ContextBroker" | "Environment" | "Dashboard" | "Layer";
+                    /** @description A JSON pointer into the manifest, e.g. /spec/sources/0: that field's whole JSON Schema */
+                    path?: string;
                 };
             };
         };
@@ -29109,9 +29111,13 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        example?: Record<string, never>;
+                        fields?: string;
                         kind: string;
-                        /** @description The kind's JSON Schema (draft-07, as jc-core exports it) */
-                        schema: Record<string, never>;
+                        more?: string;
+                        path?: string;
+                        required?: string[];
+                        schema?: Record<string, never>;
                     };
                 };
             };
