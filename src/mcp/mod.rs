@@ -842,10 +842,7 @@ async fn answer_call(
                     .map(|outcome| outcome.entry("_meta").or_insert_with(|| json!({})))
                     .and_then(Value::as_object_mut)
                 {
-                    meta.insert(
-                        "joinedcontext.com/grounding".to_owned(),
-                        grounding(&state_for_task),
-                    );
+                    meta.insert(GROUNDING_META.to_owned(), grounding(&state_for_task));
                 }
                 outcome
             }),
@@ -898,12 +895,15 @@ fn grounding_of(
     })
 }
 
+/// The `_meta` key of a `tools/call` result's [`grounding`] (AG-12).
+pub(crate) const GROUNDING_META: &str = "joinedcontext.com/grounding";
+
 /// Writes [`grounding`] into the result of a JSON-RPC envelope; an error envelope has none.
 fn ground(state: &AppState, envelope: &mut Value) {
     if let Some(result) = envelope.get_mut("result").and_then(Value::as_object_mut) {
         let meta = result.entry("_meta").or_insert_with(|| json!({}));
         if let Some(meta) = meta.as_object_mut() {
-            meta.insert("joinedcontext.com/grounding".to_owned(), grounding(state));
+            meta.insert(GROUNDING_META.to_owned(), grounding(state));
         }
     }
 }
