@@ -1246,6 +1246,7 @@ async fn the_connector_door_holds_its_budget_under_load() {
                     space: None,
                     endpoint: None,
                     pipeline: None,
+                    personal_data: false,
                     access: joinedcontext_portal::connectors::ItemAccess::Read,
                 }],
                 writes: false,
