@@ -1527,6 +1527,39 @@ mod tests {
         admin
     }
 
+    /// T-5953: a pending connector goes through once, approved by an administrator who did not
+    /// ask for it; a stranger, the owner and a second approval do not let it through.
+    #[tokio::test]
+    async fn another_administrator_approves_a_pending_connector_once() {
+        let state = AppState::new(Config::for_tests(), None);
+        let new = body("ana-asks").expect("body").0;
+        let made = state
+            .connectors
+            .create("f:1:ana", new, vec!["writes: above".into()], "")
+            .await
+            .expect("kept");
+        assert_eq!(made.state, "pending");
+        let approve = |who: CurrentUser, id: &str| {
+            approve_connector(who, State(state.clone()), Path(id.to_owned()))
+        };
+
+        let stranger = approve(user("bob"), &made.id).await;
+        assert!(matches!(stranger, Err(ApiError::Denied(why)) if why.contains("AG-150")));
+        let mut owner = administrator_user();
+        owner.0.identity.subject = "f:1:ana".into();
+        let own = approve(owner, &made.id).await;
+        assert!(matches!(own, Err(ApiError::Denied(why)) if why.contains("another administrator")));
+        let unknown = approve(administrator_user(), &"a".repeat(26)).await;
+        assert!(matches!(unknown, Err(ApiError::NotFound(_))));
+
+        let Json(approved) = approve(administrator_user(), &made.id)
+            .await
+            .expect("approved");
+        assert_eq!(approved.state, "active");
+        let again = approve(administrator_user(), &made.id).await;
+        assert!(matches!(again, Err(ApiError::NotFound(_))));
+    }
+
     /// T-5975: only an administrator lists every person's connectors, with the day's calls and
     /// denials and the flag, and revokes one; nobody else reads or revokes them.
     #[tokio::test]
