@@ -82,6 +82,7 @@ pub mod projects;
 pub mod quality;
 pub mod resources;
 pub mod restore;
+pub mod secrets;
 pub mod setup;
 pub mod space_move;
 pub mod space_retention;
@@ -149,6 +150,7 @@ pub fn router() -> Router<AppState> {
         .merge(access_matrix::router())
         .merge(agent_access::router())
         .merge(account_secret::router())
+        .merge(secrets::router())
         .merge(endpoint_preview::router())
         .merge(kpi_check::router())
         .merge(setup::router())

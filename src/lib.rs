@@ -76,6 +76,8 @@ pub mod record_check;
 pub mod references;
 pub mod request_id;
 pub mod resource;
+pub mod secret_files;
+pub mod secret_scan;
 pub mod server;
 pub mod space_move;
 pub mod space_usage;

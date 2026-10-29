@@ -2090,6 +2090,14 @@
         "workspaces_ui.test.tsx"
       ]
     },
+    "src/pages/secrets/SecretFormPage.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "secret_form.test.tsx"
+      ]
+    },
     "src/pages/workspaces/TryItPage.tsx": {
       "controls": {
         "Button": 3

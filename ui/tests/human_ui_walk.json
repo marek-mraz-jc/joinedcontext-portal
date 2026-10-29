@@ -2042,6 +2042,16 @@
         "supervisor/reports/workflows-2026-10-21/copies/walk/bring-back-400.png"
       ]
     },
+    "src/pages/secrets/SecretFormPage.tsx": {
+      "walkedBy": "worker-t5971",
+      "date": "2026-10-29",
+      "screenshots": [
+        "evidence/T-5971/secret-form-empty-1440.png",
+        "evidence/T-5971/secret-form-proposed-1440.png",
+        "evidence/T-5971/secret-form-refused-1440.png",
+        "evidence/T-5971/secret-form-empty-400.png"
+      ]
+    },
     "src/pages/workspaces/TryItPage.tsx": {
       "walkedBy": "worker-t4868",
       "date": "2026-10-21",

@@ -443,11 +443,28 @@ pub async fn call(
     project: &str,
     input: Value,
 ) -> Result<Value, OpError> {
+    // A credential in any argument is refused before anything reads it: it would sit in the
+    // model's context, the plan and the audit row (MF-24, T-5971).
+    let pasted = crate::secret_scan::find(&input);
+    if !pasted.is_empty() {
+        return Err(OpError::Api(ApiError::SecretInArgument(pasted)));
+    }
     caller.may_run(op)?;
     permitted(op, &caller.identity, state, project)?;
     within_schema(op, &input)?;
     (op.validate)(&input)?;
-    (op.run)(caller, state, project, input).await
+    let answer = (op.run)(caller, state, project, input).await?;
+    Ok(shown(caller.via, answer))
+}
+
+/// What a caller reads of an answer: a connector or an agent run puts it in a model's context,
+/// so a credential a log line or a record carries is masked there; a person's own session and
+/// token read it whole (T-5971).
+fn shown(via: Via, answer: Value) -> Value {
+    match via {
+        Via::Session | Via::Bearer => answer,
+        Via::Mcp | Via::Agent => crate::secret_scan::masked(&answer),
+    }
 }
 
 /// The input against the schema the operation publishes (T-1659): what `tools/list` promises an
@@ -1009,6 +1026,58 @@ mod tests {
             }
             other => panic!("expected InvalidInput, got {other:?}"),
         }
+    }
+
+    /// T-5971: a key pasted into any argument is refused by path, before a permission or a
+    /// schema reads it, and never echoed; a connector reads a credential in an answer masked.
+    #[tokio::test]
+    async fn a_pasted_secret_is_refused_at_the_door_and_an_answer_to_a_model_is_masked() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let caller = Caller::new(
+            Identity {
+                client: Some("mcp-local".into()),
+                subject: "f:1:nobody".into(),
+                username: "nobody".into(),
+                email: None,
+                name: None,
+                roles: vec![],
+                groups: vec![],
+                second_factor: false,
+            },
+            Via::Mcp,
+        );
+        let op = find("jc_change_plan").expect("registered");
+        let input = serde_json::json!({ "changes": [{ "op": "create", "kind": "DataSource",
+            "name": "feed", "manifest": { "spec": { "http": {
+                "headers": { "X-Api-Key": "pasted-key-0123456789" } } } } }] });
+        let refused = call(op, &caller, &state, "p", input)
+            .await
+            .expect_err("refused")
+            .into_api_error();
+        let (status, document) = refused.into_document();
+        assert_eq!(status, axum::http::StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            document["type"],
+            "https://joinedcontext.com/errors/secret-in-argument"
+        );
+        assert_eq!(
+            document["errors"],
+            serde_json::json!([{
+                "path": "/changes/0/manifest/spec/http/headers/X-Api-Key",
+                "message": "reads like a credential"
+            }])
+        );
+        assert!(!document.to_string().contains("pasted-key-0123456789"));
+
+        let log = serde_json::json!({ "lines": [
+            "GET https://feed.example/x failed: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnbmF0dXJl",
+            "fetched 12 rows"
+        ] });
+        let masked = shown(Via::Mcp, log.clone());
+        assert!(!masked.to_string().contains("eyJhbGci"));
+        assert_eq!(masked["lines"][1], "fetched 12 rows");
+        assert_eq!(shown(Via::Agent, log.clone()), masked);
+        assert_eq!(shown(Via::Session, log.clone()), log);
     }
 
     #[test]

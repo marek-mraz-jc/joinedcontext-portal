@@ -105,6 +105,8 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/projects/{project}/serviceaccounts/{name}/revoke", "a person revokes an agent's grant at once in the Portal; an agent never changes access (API/01 §52, AG-132)"),
 ("GET", "/projects/{project}/endpoints/{name}/access/attributes", "the cell inspector names the Policy behind a refused attribute for its own caller; an agent reads its decisions from the Endpoint's access/attributes (API/01 §58, T-5528)"),
 ("POST", "/projects/{project}/serviceaccounts/{name}/secret", "a person issues an account's client secret once in the Portal; no tool ever sees a secret (PF-37, T-5626)"),
+("GET", "/projects/{project}/secrets", "the secret form lists names and keys, never a value, for a person; no tool may carry a credential (MF-24, T-5971)"),
+("POST", "/projects/{project}/secrets", "a person types a credential into the Portal's secret form; no tool may carry one (MF-24, T-5971)"),
 ("POST", "/projects/{project}/endpoints/{name}/access/simulate", "an administrator's question from the Policies page about another person's rights; no tool asks it (EP-103)"),
 ("GET", "/organization/people", "jc_person_list"),
 ("POST", "/organization/people", "jc_person_create"),

@@ -9140,6 +9140,7 @@
     "quota": "Počkajte, kým sa kvóta v uvedenom čase obnoví, alebo požiadajte správcu o vyššiu kvótu; miesto na súbory sa uvoľní, keď aplikácia súbory zmaže.",
     "file-too-large": "Uložte menší objekt; jeden objekt môže mať najviac uvedený limit.",
     "unprocessable": "Opravte každé zistenie, ktoré odpoveď uvádza; skúšobný beh ukáže tie isté zistenia ešte pred odoslaním.",
+    "secret-in-argument": "Zadajte prístupový údaj vo formulári tajomstiev v Portáli, nikdy nie v chate ani v manifeste, a odkážte naň cez secretRef.",
     "recipient-refused": "Posielajte len ľuďom z organizácie s overenou e-mailovou adresou.",
     "no-model-key": "Požiadajte správcu organizácie, aby pridal alebo obnovil kľúč k modelu, a skúste to znova.",
     "no-json": "Opýtajte sa znova; odpoveď modelu nezodpovedala požadovanej schéme.",
@@ -10541,5 +10542,22 @@
     "view": "Pohľad",
     "tool": "Nástroj",
     "home": "Späť na portál"
+  },
+  "secrets": {
+    "title": "Zadať tajomstvo",
+    "description": "Prístupový údaj, ktorý potrebuje zdroj alebo plán: API kľúč, heslo, token. Uloží sa zašifrovaný do repozitára projektu a otvorí zmenu na schválenie.",
+    "neverInChat": "Prístupový údaj píšte len sem, nikdy do chatu s asistentom ani s AI konektorom: chat by ho poslal cez model. Manifest naň odkazuje cez secretRef.",
+    "name": "Názov tajomstva",
+    "nameHint": "Písmená, číslice, - a _, napr. counters-api. Manifest ho uvádza ako meno v secretRef.",
+    "key": "Kľúč",
+    "keyHint": "Čo je táto hodnota v rámci tajomstva, napr. apiKey alebo password.",
+    "value": "Hodnota",
+    "valueHint": "Samotný prístupový údaj, napr. API kľúč od poskytovateľa. Tu ho už nikto neprečíta.",
+    "empty": "Projekt zatiaľ nemá žiadne tajomstvo: zadajte prvé nižšie.",
+    "replaces": "Toto tajomstvo existuje s kľúčmi {keys}. Uloženie ho nahradí celé: zadajte každý kľúč, ktorý má zostať.",
+    "addKey": "Pridať kľúč",
+    "addKept": "Pridať kľúče, ktoré zostávajú",
+    "submit": "Zašifrovať a navrhnúť",
+    "sending": "Tajomstvo sa odosiela…"
   }
 }

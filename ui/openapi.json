@@ -15896,6 +15896,12 @@
                       ],
                       "type": "string"
                     },
+                    "needsSecret": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "next": {
                       "type": "string"
                     },
@@ -29589,6 +29595,160 @@
           },
           "503": {
             "description": "No repository configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/secrets": {
+      "get": {
+        "tags": [
+          "access"
+        ],
+        "summary": "List The Project's Secrets",
+        "description": "Names and keys of every secret the repository's encrypted files declare, never a value (CC-06, T-5971). Only a person in a Portal session with `propose` on DataSource; a token of a connector, an agent or a service account is refused.",
+        "operationId": "list_secrets",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The secrets, by name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A bearer token, or no `propose` on DataSource here",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No forge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Propose A Secret",
+        "description": "Encrypts the values with SOPS + age for the Portal's own recipient (and every recipient the replaced file had) into `projects/{project}/secrets/{name}.enc.yaml` and opens a change request a person approves (CC-06, T-5971). The values are never stored in plain text, logged or answered. A secret that exists replaces whole: send every key. Only a person in a Portal session with `propose` on DataSource; a token of a connector, an agent or a service account is refused.",
+        "operationId": "propose_secret",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The change request that adds the secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A bearer token, or no `propose` on DataSource here",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another file declares the name, or a change of it is open already",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A name, key or value the form refuses, each named in errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No forge, or this Portal holds no age identity",
             "content": {
               "application/json": {
                 "schema": {
@@ -46864,6 +47024,52 @@
         },
         "additionalProperties": false
       },
+      "SecretList": {
+        "type": "object",
+        "description": "The project's secrets, by name.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoredSecret"
+            }
+          }
+        }
+      },
+      "SecretWrite": {
+        "type": "object",
+        "description": "What the form sends: the whole secret, every key of it.",
+        "required": [
+          "name",
+          "values"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The secret's name, letters, digits, `-` and `_`, e.g. `counters-api`."
+          },
+          "values": {
+            "type": "object",
+            "description": "Each key with its value, e.g. `{\"apiKey\": \"…\"}`. A secret that exists already is replaced\nwhole, so every key it keeps is sent again.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "example": {
+          "name": "counters-api",
+          "values": {
+            "apiKey": "typed-in-the-form"
+          }
+        }
+      },
       "SetupItem": {
         "type": "object",
         "description": "One step or operator item and whether it is done.",
@@ -47554,6 +47760,32 @@
           "ok",
           "refused"
         ]
+      },
+      "StoredSecret": {
+        "type": "object",
+        "description": "A secret the repository declares: its name and keys, never a value.",
+        "required": [
+          "name",
+          "keys",
+          "path"
+        ],
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Its keys, e.g. `[\"apiKey\"]`; empty for a secret holding one value."
+          },
+          "name": {
+            "type": "string",
+            "description": "The name a `secretRef` gives, e.g. `counters-api`."
+          },
+          "path": {
+            "type": "string",
+            "description": "The repository file that holds it."
+          }
+        }
       },
       "SubjectRequest": {
         "type": "object",
