@@ -74,6 +74,70 @@ const DEFAULT_ACCESS_TTL_SECS: i64 = 300;
 /// (context-gateway `HUB_AUDIENCE`, ADR-N-025 4b).
 const GATEWAY_HUB_AUDIENCE: &str = "mcp-hub";
 
+/// The realm scope that maps [`GATEWAY_HUB_AUDIENCE`] into the Portal's exchanged token, optional
+/// on `portal-api` alone (deployment `components/keycloak`, T-6063): Keycloak's standard token
+/// exchange hands out only an audience one of the requester's scopes maps.
+const GATEWAY_HUB_SCOPE: &str = "gateway-hub";
+
+/// A refusal of the realm's token endpoint: the text names the status and the OAuth `error`
+/// code; `description` is the realm's `error_description`, kept to tell refusals apart and
+/// never put into an answer (the realm writes fixed sentences there, no token).
+#[derive(Debug, Default)]
+struct TokenRefusal {
+    text: String,
+    code: String,
+    description: String,
+}
+
+impl std::fmt::Display for TokenRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.text)
+    }
+}
+
+impl From<String> for TokenRefusal {
+    fn from(text: String) -> Self {
+        Self {
+            text,
+            ..Self::default()
+        }
+    }
+}
+
+/// What a refused Endpoint exchange tells the caller (T-6063). Keycloak answers
+/// `invalid_request` both for a subject token whose session ended ("Invalid token") and for a
+/// realm not set up for the exchange, so the description decides between them.
+fn exchange_refused(refusal: &TokenRefusal, slug: &str) -> ApiError {
+    let ended = refusal.code == "invalid_grant"
+        || refusal.code == "invalid_token"
+        || (refusal.code == "invalid_request" && refusal.description == "Invalid token");
+    if ended {
+        return ApiError::Denied(
+            "your sign-in has ended (signed out, disabled or expired): sign in to your MCP \
+             client again"
+                .into(),
+        );
+    }
+    if refusal.code == "invalid_scope" {
+        return ApiError::Unavailable(format!(
+            "Endpoint {slug} is not open to data reads yet: the realm links its \
+             `endpoint:{slug}` scope on the next run of the admin-permissions Job; try again \
+             in a few minutes, and ask an administrator to run the Job if it persists"
+        ));
+    }
+    ApiError::Unavailable(format!(
+        "the realm is not set up to hand your token on to the gateway ({}): an administrator \
+         must enable standard token exchange on the Portal client `portal-api` with its \
+         optional `{GATEWAY_HUB_SCOPE}` scope (deployment components/keycloak); signing in \
+         again does not help",
+        if refusal.code.is_empty() {
+            "no answer"
+        } else {
+            refusal.code.as_str()
+        }
+    ))
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum OidcError {
     #[error("cannot build the OIDC http client: {0}")]
@@ -213,12 +277,12 @@ impl OidcClient {
     }
 
     /// One request to the realm's token endpoint as the Portal's client: `grant` plus the
-    /// client's proof (`ClientAuth::form`, PF-47). The error carries the status and the OAuth
-    /// `error` code, never a token or the realm's free-text description.
+    /// client's proof (`ClientAuth::form`, PF-47). The error's text carries the status and the
+    /// OAuth `error` code, never a token or the realm's free-text description.
     async fn token_request(
         &self,
         grant: &[(&'static str, &str)],
-    ) -> Result<openidconnect::core::CoreTokenResponse, String> {
+    ) -> Result<openidconnect::core::CoreTokenResponse, TokenRefusal> {
         let form = self.auth.form(&self.client_id, grant).await?;
         let response = self
             .http
@@ -237,17 +301,25 @@ impl OidcClient {
             #[derive(Deserialize)]
             struct Refusal {
                 error: String,
+                #[serde(default)]
+                error_description: String,
             }
-            let code = serde_json::from_slice::<Refusal>(&body)
-                .map(|refusal| refusal.error)
+            let refusal = serde_json::from_slice::<Refusal>(&body).ok();
+            let (code, description) = refusal
+                .map(|refusal| (refusal.error, refusal.error_description))
                 .unwrap_or_default();
-            return Err(format!("the token endpoint answered {status} {code}")
-                .trim_end()
-                .to_owned());
+            return Err(TokenRefusal {
+                text: format!("the token endpoint answered {status} {code}")
+                    .trim_end()
+                    .to_owned(),
+                code,
+                description,
+            });
         }
         // Not the parser's message: it can quote a value of the body, and the body holds tokens.
         serde_json::from_slice(&body).map_err(|_| {
             format!("the token endpoint answered {status} with a body that is not a token response")
+                .into()
         })
     }
 
@@ -287,7 +359,7 @@ impl OidcClient {
         subject: &str,
         slug: &str,
     ) -> Result<String, ApiError> {
-        let scope = format!("endpoint:{slug}");
+        let scope = format!("{GATEWAY_HUB_SCOPE} endpoint:{slug}");
         let response = self
             .token_request(&[
                 ("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange"),
@@ -299,12 +371,8 @@ impl OidcClient {
             ])
             .await
             .map_err(|error| {
-                tracing::info!(%error, endpoint = slug, "the realm refused a data read's token exchange");
-                ApiError::Denied(
-                    "the realm did not hand your token on to the gateway for this Endpoint; sign \
-                     in to your MCP client again, and ask an administrator if it persists"
-                        .into(),
-                )
+                tracing::info!(%error, reason = %error.description, endpoint = slug, "the realm refused a data read's token exchange");
+                exchange_refused(&error, slug)
             })?;
         Ok(response.access_token().secret().clone())
     }
@@ -1357,7 +1425,8 @@ mod tests {
         );
         assert_eq!(field("subject_token"), Some("person-token"));
         assert_eq!(field("audience"), Some(GATEWAY_HUB_AUDIENCE));
-        assert_eq!(field("scope"), Some("endpoint:counters-abc"));
+        // The realm hands out the hub audience only through a scope of the requester (T-6063).
+        assert_eq!(field("scope"), Some("gateway-hub endpoint:counters-abc"));
 
         // A disabled person or a revoked session: the realm refuses, the caller reads nothing.
         let err = client
@@ -1365,6 +1434,55 @@ mod tests {
             .await
             .expect_err("refused");
         assert!(matches!(err, ApiError::Denied(_)), "{err:?}");
+    }
+
+    /// What Keycloak 26.8.1 answers a refused exchange (T-6063, reproduced on a local realm):
+    /// only an ended session is the person's to fix; a realm not set up says what an
+    /// administrator must change and never "sign in again".
+    #[test]
+    fn an_endpoint_exchange_refusal_names_who_can_fix_it() {
+        let refusal = |code: &str, description: &str| TokenRefusal {
+            text: format!("the token endpoint answered 400 Bad Request {code}"),
+            code: code.into(),
+            description: description.into(),
+        };
+        for ended in [
+            refusal("invalid_request", "Invalid token"),
+            refusal("invalid_grant", ""),
+            refusal("invalid_token", ""),
+        ] {
+            let err = exchange_refused(&ended, "counters-abc");
+            assert!(
+                matches!(&err, ApiError::Denied(m) if m.contains("sign in")),
+                "{err:?}"
+            );
+        }
+        let err = exchange_refused(
+            &refusal("invalid_scope", "Invalid scopes: endpoint:counters-abc"),
+            "counters-abc",
+        );
+        assert!(
+            matches!(&err, ApiError::Unavailable(m) if m.contains("`endpoint:counters-abc`") && m.contains("admin-permissions")),
+            "{err:?}"
+        );
+        for setup in [
+            refusal(
+                "invalid_request",
+                "Standard token exchange is not enabled for the requested client",
+            ),
+            refusal(
+                "invalid_request",
+                "Requested audience not available: mcp-hub",
+            ),
+            refusal("unauthorized_client", ""),
+            TokenRefusal::from("the token endpoint did not answer".to_owned()),
+        ] {
+            let err = exchange_refused(&setup, "counters-abc");
+            assert!(
+                matches!(&err, ApiError::Unavailable(m) if m.contains("portal-api") && m.contains("gateway-hub") && !m.contains("sign in to")),
+                "{err:?}"
+            );
+        }
     }
 
     /// The fields of every request the realm's token endpoint received, in order.
