@@ -250,6 +250,22 @@ fn manifest_of(
             ));
         }
     }
+    // A kind kept in the organization's namespace (a RoleBinding) is written there whatever
+    // project the call names: say where, at the member, before the dry run's generic mismatch.
+    if let Some(namespace) = manifest
+        .pointer("/metadata/namespace")
+        .and_then(Value::as_str)
+        .filter(|ns| !ns.is_empty() && *ns != home)
+    {
+        return Err(invalid(
+            format!("{at}/manifest/metadata/namespace"),
+            format!(
+                "{} lives in namespace '{home}', not '{namespace}': set metadata.namespace to \
+                 '{home}' or leave it out",
+                change.kind
+            ),
+        ));
+    }
     Ok(Some(manifest))
 }
 

@@ -28,7 +28,8 @@ use crate::personal_data::{self, Marks};
 use crate::state::AppState;
 
 /// The methods a connector serves. Resources, prompts and tasks read the platform past the
-/// connector's scope check, so they stay the Portal MCP's (deny by default).
+/// connector's scope check, so they stay the Portal MCP's (deny by default); the one resource a
+/// connector reads is the plan view, a static page that holds no data (T-5960).
 const METHODS: &[&str] = &["initialize", "ping", "tools/list", "tools/call"];
 
 /// The `_meta` key naming the attributes an answer left out as personal (`Type.attribute`).
@@ -329,11 +330,16 @@ async fn judge(
             "allowed".to_owned(),
         );
     }
+    if method == "resources/read" && message["params"]["uri"] == super::app_view::URI {
+        let contents = super::app_view::contents(&state.config.public_base_url);
+        let answer = result(id, json!({ "contents": contents }));
+        return (json_response(StatusCode::OK, &answer), "allowed".to_owned());
+    }
     if !METHODS.contains(&method) {
         let answer = error(
             id,
             -32601,
-            "a connector serves initialize, ping, tools/list and tools/call",
+            "a connector serves initialize, ping, tools/list, tools/call and its plan view",
         );
         return (
             json_response(StatusCode::OK, &answer),

@@ -148,5 +148,12 @@ for (const width of [1440, 400]) {
       await expect(dialog.getByRole("checkbox", { name: /Pipelines/ }).first()).toHaveAttribute("aria-disabled", "true");
       await shot(page, `ai-connectors-refusal-${width}`);
     });
+
+    test("the old connectors address opens My AI connectors (T-5970)", async ({ page }) => {
+      await stubApi(page);
+      await page.goto("/connectors?lang=en");
+      await expect(page).toHaveURL(/\/ai-connectors/);
+      await expect(page.getByRole("heading", { name: "My AI connectors", level: 1 })).toBeVisible();
+    });
   });
 }

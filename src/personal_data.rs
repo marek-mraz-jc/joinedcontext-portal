@@ -165,6 +165,33 @@ slots:
     annotations: { personalData: true }
 "#;
 
+    fn data_model(name: &str, project: &str) -> crate::resource::ResourceEnvelope {
+        crate::resource::ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.to_owned(),
+            kind: "DataModel".to_owned(),
+            metadata: crate::resource::ObjectMeta::new(name, project),
+            spec: json!({ "linkml": "model.linkml.yaml" }),
+            status: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn a_project_marks_only_its_own_models_and_refuses_a_model_it_cannot_read() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        state.mirror.upsert(data_model("residents", "other"));
+        assert_eq!(of_project(&state, "helsinki").await, Ok(Marks::new()));
+
+        // No forge to read the model from: without its marks nothing could be withheld.
+        state.mirror.upsert(data_model("reports", "helsinki"));
+        let err = of_project(&state, "helsinki")
+            .await
+            .expect_err("unreadable");
+        assert!(
+            err.contains("data model reports of project helsinki"),
+            "{err}"
+        );
+    }
+
     #[test]
     fn marks_name_the_slot_the_usage_and_the_whole_class() {
         let marks = marks(MODEL);
