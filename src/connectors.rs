@@ -971,6 +971,21 @@ pub fn address(base: &str, id: &str) -> String {
     format!("{}/c/{id}", base.trim_end_matches('/'))
 }
 
+/// The audience of every connector token (T-5954, ADR-N-064 §3.3). Keycloak 26.8 mints no
+/// audience per connector, so the realm's `connector` scope names this one (and the Portal's
+/// client, which exchanges the token for Endpoint reads), and the token's one [`scope`] says
+/// which connector it is for.
+pub const AUDIENCE: &str = "portal-connectors";
+
+/// The realm's parameterized scope `connector`: a token holding any `connector:` scope is a
+/// connector token, taken only at `/c/{id}`.
+pub const SCOPE_FAMILY: &str = "connector";
+
+/// The OAuth scope that binds a token to connector `id`.
+pub fn scope(id: &str) -> String {
+    format!("{SCOPE_FAMILY}:{id}")
+}
+
 /// 26 random base32 characters (`a-z`, `2-7`): 130 bits, not guessable, not a secret either.
 fn new_id() -> String {
     const ALPHABET: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";

@@ -30,6 +30,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 use joinedcontext_portal::auth::csrf::{CSRF_COOKIE, CSRF_HEADER};
 use joinedcontext_portal::auth::session::EDGE_TOKEN_HEADER;
 use joinedcontext_portal::config::Config;
+use joinedcontext_portal::connectors;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, ResourceKey, API_VERSION};
 use joinedcontext_portal::server;
@@ -992,9 +993,20 @@ impl Harness {
         ttl: i64,
     ) -> String {
         let now = joinedcontext_portal::auth::session::now_unix();
-        let claims = json!({
+        // A client asks a token for a connector's address (RFC 8707 `resource`); the realm's
+        // `connector` scope answers with the Portal's and the connectors' audiences and that
+        // one scope (T-5954).
+        let (audience, scope) = match audience.strip_prefix("https://portal.test/c/") {
+            Some(id) => (
+                json!([AUDIENCE, connectors::AUDIENCE]),
+                connectors::scope(id),
+            ),
+            None => (json!(audience), String::new()),
+        };
+        self.signed(json!({
             "iss": self.issuer,
             "aud": audience,
+            "scope": scope,
             "azp": client,
             "sub": sub,
             "preferred_username": user,
@@ -1006,7 +1018,11 @@ impl Harness {
             "amr": if groups.contains(&"platform-admins") { json!(["pwd", "otp"]) } else { json!(["pwd"]) },
             "exp": now + ttl,
             "iat": now,
-        });
+        }))
+    }
+
+    /// `claims` signed with the realm's key.
+    fn signed(&self, claims: Value) -> String {
         let mut header = Header::new(Algorithm::ES256);
         header.kid = Some(KID.to_owned());
         encode(&header, &claims, &self.signer).expect("sign")
@@ -1548,6 +1564,10 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
         )),
         "{challenge}"
     );
+    assert!(
+        challenge.ends_with(&format!(", scope=\"connector:{a}\"")),
+        "{challenge}"
+    );
     let (status, meta) = harness
         .send(
             "GET",
@@ -1560,12 +1580,34 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
         (status, meta["resource"].as_str()),
         (StatusCode::OK, Some(address(a).as_str()))
     );
+    assert_eq!(meta["scopes_supported"], json!([connectors::scope(a)]));
 
     // A Portal token, and a token for connector b, are no tokens for connector a.
     for token in [
         portal("viewer"),
         mcp.clone(),
         harness.token_for("viewer", &address(b), CLIENT),
+    ] {
+        let (status, _) = harness
+            .send("POST", &door(a), token, Some(list.clone()))
+            .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
+    // Connector a's scope under the Portal's audience, and a token naming both connectors, are
+    // no tokens for a either (T-5954).
+    let now = joinedcontext_portal::auth::session::now_unix();
+    let forged = |aud: &str, scope: String| {
+        Some(harness.signed(json!({
+            "iss": harness.issuer, "aud": aud, "azp": CLIENT, "sub": "sub-scn-viewer",
+            "preferred_username": user_of("viewer"), "scope": scope, "exp": now + 600, "iat": now,
+        })))
+    };
+    for token in [
+        forged(AUDIENCE, connectors::scope(a)),
+        forged(
+            connectors::AUDIENCE,
+            format!("openid {} {}", connectors::scope(a), connectors::scope(b)),
+        ),
     ] {
         let (status, _) = harness
             .send("POST", &door(a), token, Some(list.clone()))
