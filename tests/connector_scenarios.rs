@@ -3350,3 +3350,78 @@ fn the_counters_mock_keeps_the_attrs_asked() {
     members.sort();
     assert_eq!(members, ["count", "id", "type"]);
 }
+
+/// T-6057: the minimal manifest jc_schema_get answers is one jc_change_plan accepts. Each
+/// project kind's example, with the project's namespace and its placeholder references filled
+/// with what the harness seeds, is planned as a create; a Pipeline after its test, as always.
+/// The steward proposes only some kinds: a kind it holds no right on is refused before any check.
+#[tokio::test]
+async fn a_schema_example_plans_as_a_create() {
+    let harness = Harness::start(1).await;
+    let own = project_of(1);
+    let mut planned = Vec::new();
+    let mut refused = Vec::new();
+    for info in jc_core::registry::KINDS {
+        if info.scope == jc_core::envelope::Scope::Organization {
+            continue;
+        }
+        let (status, answer) = harness
+            .rpc(
+                "steward",
+                json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+                    "name": "jc_schema_get", "arguments": { "project": own, "kind": info.kind } } }),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "{answer}");
+        let mut manifest = answer["result"]["structuredContent"]["example"].clone();
+        manifest["metadata"]["namespace"] = json!(own);
+        let name = manifest["metadata"]["name"].clone();
+        if manifest["spec"].get("contextSpaceRef").is_some() {
+            manifest["spec"]["contextSpaceRef"] = json!("doprava");
+        }
+        if let Some(need) = manifest.pointer_mut("/spec/dataNeeds/0/contextSpaceRef") {
+            *need = json!("doprava");
+        }
+        if manifest["spec"].get("targetEndpoint").is_some() {
+            manifest["spec"]["targetEndpoint"] = json!(format!(
+                "urn:ngsi-ld:Endpoint:hel.fi:{own}-doprava:{own}-intake"
+            ));
+        }
+        let args = json!({ "changes": [{ "op": "create", "kind": info.kind, "name": name,
+                                         "manifest": manifest }] });
+        let plan = json!({ "proves": "expect", "call": "jc_change_plan", "args": args,
+                           "contains": ["\"planId\""] });
+        let script = if info.kind == "Pipeline" {
+            json!([
+                { "proves": "expect", "call": "jc_change_plan", "args": args, "refused": true,
+                  "contains": ["jc_pipeline_test"] },
+                { "proves": "expect", "runner_tested": name },
+                plan
+            ])
+        } else {
+            json!([plan])
+        };
+        let scenario: Scenario = serde_json::from_value(json!({
+            "id": "S-00", "segment": "context", "as": "steward", "says": "selftest",
+            "expect": "selftest", "deny": "none", "script": script
+        }))
+        .expect("scenario");
+        match harness.run(&scenario, &own).await {
+            Ok(()) => planned.push(info.kind),
+            Err(why) if why.contains("no role grants propose on") => {}
+            Err(why) => refused.push(format!("{}: {why}", info.kind)),
+        }
+    }
+    assert!(refused.is_empty(), "{}", refused.join("\n"));
+    for kind in [
+        "ContextSpace",
+        "DataModel",
+        "Policy",
+        "Endpoint",
+        "Pipeline",
+        "DataSource",
+        "App",
+    ] {
+        assert!(planned.contains(&kind), "{kind} not planned: {planned:?}");
+    }
+}

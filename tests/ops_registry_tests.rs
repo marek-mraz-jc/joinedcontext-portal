@@ -973,10 +973,25 @@ async fn get_schema_answers_every_kind_of_jc_core() {
                 .expect("json");
         assert_eq!(body["kind"], *kind);
         assert!(
-            body["schema"]["properties"]["spec"].is_object(),
+            body["fields"]
+                .as_str()
+                .is_some_and(|f| f.contains("spec: object, required")),
             "{kind}: {body}"
         );
+        assert_eq!(body["example"]["kind"], *kind);
     }
+    let resp = app
+        .clone()
+        .oneshot(post(json!({ "kind": "Pipeline", "path": "/spec/class" })))
+        .await
+        .expect("response");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let resp = app
+        .clone()
+        .oneshot(post(json!({ "kind": "Pipeline", "path": "/spec/nosuch" })))
+        .await
+        .expect("response");
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
     let resp = app
         .clone()
         .oneshot(post(json!({ "kind": "NoSuchKind" })))
