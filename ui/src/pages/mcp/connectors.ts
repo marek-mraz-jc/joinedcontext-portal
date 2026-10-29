@@ -6,9 +6,21 @@ import type { components } from "../../api/schema";
 import type { Manifest } from "../../api/manifest";
 import { mcpOrigin } from "../../components/endpoints/links";
 
-export type Connector = components["schemas"]["Connector"];
-export type ConnectorSelect = components["schemas"]["ConnectorSelect"];
-type Preferences = components["schemas"]["Preferences"];
+// The old preferences shape, gone from the server since T-5970 moved every connector into the
+// connector store (API/14); My AI connectors (T-5951) replaces this page and module.
+export interface ConnectorSelect {
+  projects?: string[];
+  spaces?: string[];
+  domains?: string[];
+  themes?: string[];
+  accessLevel?: string[];
+  endpoints?: string[];
+}
+export interface Connector {
+  name: string;
+  select?: ConnectorSelect;
+}
+type Preferences = components["schemas"]["Preferences"] & { connectors?: Connector[] };
 
 export const MAX_CONNECTORS = 10;
 export const MAX_SELECT_VALUES = 50;
@@ -179,7 +191,7 @@ export async function saveConnectors(change: (current: Connector[]) => Connector
     refusal.fields = problemLines(problem);
     throw refusal;
   }
-  publish(answer.data.connectors ?? []);
+  publish((answer.data as Preferences).connectors ?? []);
 }
 
 export function useConnectors(): Connector[] {

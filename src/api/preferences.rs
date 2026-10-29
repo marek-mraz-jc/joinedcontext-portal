@@ -24,12 +24,6 @@ const MAX_LAYOUTS_BYTES: usize = 64 * 1024;
 const MAX_RECENT: usize = 10;
 /// The pages a person starred (UI-90).
 const MAX_FAVOURITES: usize = 50;
-/// A person's own MCP connectors (UI-98, ADR-N-043 §7).
-const MAX_CONNECTORS: usize = 10;
-/// Values per selector field, and favourite Endpoints per connector (MF-55, UI-98).
-const MAX_SELECT_VALUES: usize = 50;
-/// The access levels of the per-caller catalogue a selector may name (MF-55, T-4503).
-const ACCESS_LEVELS: [&str; 4] = ["public", "organization", "project", "grant"];
 
 /// A page of the Portal a person went to or starred: where it is and what it was called.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -57,111 +51,6 @@ impl Place {
         let title_len = self.title.chars().count();
         if title_len == 0 || title_len > 200 || self.title.chars().any(char::is_control) {
             return Err("a place's title is 1 to 200 characters of text".into());
-        }
-        Ok(())
-    }
-}
-
-/// What a personal connector reaches: the McpServer selector fields (MF-55) and the person's
-/// favourite Endpoints. An Endpoint is selected when it matches every field given; the gateway
-/// only ever narrows the caller's own reach with it (ADR-N-043 §7.2).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub struct ConnectorSelect {
-    /// Project names.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub projects: Vec<String>,
-    /// `{project}/{space}`.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub spaces: Vec<String>,
-    /// Smart Data Models domains of the Endpoint's classification.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub domains: Vec<String>,
-    /// EU data-theme codes (`ENVI`, `TRAN`, …).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub themes: Vec<String>,
-    /// `public`, `organization`, `project` or `grant`.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub access_level: Vec<String>,
-    /// Favourite Endpoints by slug, each one the person could read when it was starred.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub endpoints: Vec<String>,
-}
-
-/// One personal MCP connector, served at `/api/mcp/me/{name}` to its owner alone (UI-98, EP-123).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-#[serde(deny_unknown_fields)]
-pub struct Connector {
-    /// A DNS label, unique among the person's connectors.
-    pub name: String,
-    #[serde(default)]
-    pub select: ConnectorSelect,
-}
-
-impl Connector {
-    fn validate(&self) -> Result<(), String> {
-        let name = &self.name;
-        if !is_dns1123(name) {
-            return Err(format!("connector name '{name}' is not a DNS label"));
-        }
-        let select = &self.select;
-        for (field, values) in [
-            ("projects", &select.projects),
-            ("spaces", &select.spaces),
-            ("domains", &select.domains),
-            ("themes", &select.themes),
-            ("accessLevel", &select.access_level),
-            ("endpoints", &select.endpoints),
-        ] {
-            if values.len() > MAX_SELECT_VALUES {
-                return Err(format!(
-                    "connector '{name}': {field} holds {} values, the limit is {MAX_SELECT_VALUES}",
-                    values.len()
-                ));
-            }
-        }
-        let wrong =
-            |field: &str, value: &str| format!("connector '{name}': {field} '{value}' is not one");
-        if let Some(p) = select.projects.iter().find(|p| !is_dns1123(p)) {
-            return Err(wrong("project", p));
-        }
-        if let Some(sp) = select.spaces.iter().find(|sp| {
-            sp.split_once('/').is_none_or(|(p, space)| {
-                !is_dns1123(p) || jc_core::names::validate_space_name(space).is_err()
-            })
-        }) {
-            return Err(wrong("project/space", sp));
-        }
-        // The picker offers the classification's domains and the EU data themes alone, and the
-        // same lists decide here (T-4948), as they do for an McpServer's selector (MF-55).
-        if let Some(d) = select
-            .domains
-            .iter()
-            .find(|d| !jc_core::classification::is_domain(d))
-        {
-            return Err(wrong("domain", d));
-        }
-        if let Some(t) = select.themes.iter().find(|t| {
-            serde_json::from_value::<jc_core::kinds::catalog::DataTheme>(serde_json::json!(t))
-                .is_err()
-        }) {
-            return Err(wrong("theme", t));
-        }
-        if let Some(a) = select
-            .access_level
-            .iter()
-            .find(|a| !ACCESS_LEVELS.contains(&a.as_str()))
-        {
-            return Err(wrong("accessLevel", a));
-        }
-        if let Some(e) = select.endpoints.iter().find(|e| {
-            e.is_empty()
-                || e.len() > 64
-                || !e
-                    .chars()
-                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
-        }) {
-            return Err(wrong("endpoint slug", e));
         }
         Ok(())
     }
@@ -199,9 +88,6 @@ pub struct Preferences {
     /// The pages the person starred, at most 50 (UI-90).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub favourites: Vec<Place>,
-    /// The person's own MCP connectors, at most 10 (UI-98).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub connectors: Vec<Connector>,
 }
 
 impl Preferences {
@@ -241,21 +127,6 @@ impl Preferences {
         }
         for place in self.recent.iter().chain(&self.favourites) {
             place.validate()?;
-        }
-        if self.connectors.len() > MAX_CONNECTORS {
-            return Err(format!(
-                "connectors holds {}, the limit is {MAX_CONNECTORS}",
-                self.connectors.len()
-            ));
-        }
-        for (i, connector) in self.connectors.iter().enumerate() {
-            connector.validate()?;
-            if self.connectors[..i]
-                .iter()
-                .any(|c| c.name == connector.name)
-            {
-                return Err(format!("connector name '{}' is used twice", connector.name));
-            }
         }
         let layouts_len = serde_json::to_vec(&self.dashboard_layouts)
             .map(|bytes| bytes.len())
@@ -298,6 +169,7 @@ pub async fn get_preferences(
     user: CurrentUser,
     State(state): State<AppState>,
 ) -> Result<Json<Preferences>, ApiError> {
+    crate::personal_connectors::move_one(&state, &user.0.identity.subject).await?;
     let stored = db::load_preferences(pool(&state)?, &user.0.identity.subject)
         .await
         .map_err(db_error)?;
@@ -339,116 +211,14 @@ pub async fn put_preferences(
     preferences.validate().map_err(ApiError::BadRequest)?;
     let pool = pool(&state)?;
     let subject = &user.0.identity.subject;
-    // A favourite, a project and a space are checked when they are added: one added earlier and
-    // no longer readable stays stored (the gateway leaves it out of the reach, EP-123), so a later
-    // save of a theme still goes through. An unknown one reads like an unreadable one (T-4948).
-    if preferences.connectors.iter().any(|c| {
-        let s = &c.select;
-        !(s.endpoints.is_empty() && s.projects.is_empty() && s.spaces.is_empty())
-    }) {
-        let stored = db::load_preferences(pool, subject)
-            .await
-            .map_err(db_error)?
-            .and_then(|value| serde_json::from_value::<Preferences>(value).ok())
-            .unwrap_or_default();
-        unreadable_selection(&state, &user, &preferences, &stored).map_or(
-            Ok(()),
-            |(field, value)| {
-                Err(ApiError::Invalid {
-                    detail: format!("{field} '{value}' is not one you may read"),
-                    errors: vec![field.to_owned()],
-                })
-            },
-        )?;
-    }
+    // Old connectors still in the row move first, so this whole-document save cannot drop them.
+    crate::personal_connectors::move_one(&state, subject).await?;
     let value = serde_json::to_value(&preferences)
         .map_err(|e| ApiError::Internal(format!("preferences did not serialize: {e}")))?;
     db::save_preferences(pool, subject, &value)
         .await
         .map_err(db_error)?;
     Ok(Json(preferences))
-}
-
-/// The first connector value added since `stored` that the caller may not read, with its field:
-/// a project by the project list's own rule, a space by its manifest, an Endpoint by its slug.
-fn unreadable_selection<'a>(
-    state: &AppState,
-    user: &CurrentUser,
-    preferences: &'a Preferences,
-    stored: &Preferences,
-) -> Option<(&'static str, &'a str)> {
-    let kept = |pick: fn(&ConnectorSelect) -> &Vec<String>, value: &String| {
-        stored
-            .connectors
-            .iter()
-            .any(|c| pick(&c.select).contains(value))
-    };
-    let identity = &user.0.identity;
-    preferences.connectors.iter().find_map(|c| {
-        let s = &c.select;
-        let project = s
-            .projects
-            .iter()
-            .find(|p| !kept(|s| &s.projects, p) && !super::projects::readable(state, identity, p))
-            .map(|p| ("projects", p.as_str()));
-        let space = || {
-            s.spaces
-                .iter()
-                .find(|sp| !kept(|s| &s.spaces, sp) && !readable_space(state, identity, sp))
-                .map(|sp| ("spaces", sp.as_str()))
-        };
-        let endpoint = || {
-            s.endpoints
-                .iter()
-                .find(|e| !kept(|s| &s.endpoints, e) && !readable_endpoint(state, user, e))
-                .map(|e| ("endpoints", e.as_str()))
-        };
-        project.or_else(space).or_else(endpoint)
-    })
-}
-
-/// Whether the caller may read the space written `{project}/{space}`.
-fn readable_space(
-    state: &AppState,
-    identity: &crate::auth::session::Identity,
-    written: &str,
-) -> bool {
-    let Some((project, name)) = written.split_once('/') else {
-        return false;
-    };
-    let Some(space) = state.mirror.get(project, "ContextSpace", name) else {
-        return false;
-    };
-    let manifest = serde_json::to_value(&space).unwrap_or(serde_json::Value::Null);
-    super::projects::readable(state, identity, project)
-        && crate::permissions::for_request(state, identity, project)
-            .may_read_manifest("ContextSpace", &manifest)
-}
-
-/// Whether the caller may read the Endpoint with this slug: a public one, or one whose manifest
-/// their grants in its project read (PF-59). An unknown slug reads like an unreadable one, so
-/// the answer never says which Endpoints exist.
-fn readable_endpoint(state: &AppState, user: &CurrentUser, slug: &str) -> bool {
-    let Some(endpoint) = state.mirror.find(|env| {
-        env.kind == "Endpoint"
-            && env.spec.get("slug").and_then(serde_json::Value::as_str) == Some(slug)
-    }) else {
-        return false;
-    };
-    if endpoint
-        .spec
-        .get("audience")
-        .and_then(serde_json::Value::as_str)
-        == Some("public")
-    {
-        return true;
-    }
-    let Some(project) = endpoint.metadata.namespace.as_deref() else {
-        return false;
-    };
-    let manifest = serde_json::to_value(&endpoint).unwrap_or(serde_json::Value::Null);
-    crate::permissions::for_request(state, &user.0.identity, project)
-        .may_read_manifest("Endpoint", &manifest)
 }
 
 /// The pages a person opened since the last report, newest first (UI-90).
@@ -639,54 +409,10 @@ mod tests {
     }
 
     #[test]
-    fn connectors_are_bounded_named_once_and_select_known_values() {
-        let one = |name: &str| serde_json::json!({ "name": name, "select": { "accessLevel": ["public"] } });
-        let ok = prefs(serde_json::json!({ "connectors": [{
-            "name": "air",
-            "select": { "projects": ["mesto"], "spaces": ["mesto/ovzdusie"], "domains": ["Environment"],
-                        "themes": ["ENVI"], "accessLevel": ["public", "grant"], "endpoints": ["air7"] }
-        }] }));
-        assert_eq!(ok.validate(), Ok(()));
-        let ten: Vec<_> = (0..10).map(|i| one(&format!("c{i}"))).collect();
-        assert!(prefs(serde_json::json!({ "connectors": ten.clone() }))
-            .validate()
-            .is_ok());
-        let mut eleven = ten;
-        eleven.push(one("c10"));
-        assert!(
-            prefs(serde_json::json!({ "connectors": eleven }))
-                .validate()
-                .is_err(),
-            "ten at most"
-        );
-        let slugs = |n: usize| (0..n).map(|i| format!("e{i}")).collect::<Vec<_>>();
-        let fav = |n: usize| serde_json::json!({ "connectors": [{ "name": "fav", "select": { "endpoints": slugs(n) } }] });
-        assert!(prefs(fav(50)).validate().is_ok());
-        assert!(
-            prefs(fav(51)).validate().is_err(),
-            "fifty favourites at most"
-        );
-        assert!(
-            prefs(serde_json::json!({ "connectors": [one("x"), one("x")] }))
-                .validate()
-                .is_err()
-        );
-        for wrong in [
-            serde_json::json!({ "name": "Air" }),
-            serde_json::json!({ "name": "a", "select": { "accessLevel": ["everyone"] } }),
-            serde_json::json!({ "name": "a", "select": { "spaces": ["mesto"] } }),
-            serde_json::json!({ "name": "a", "select": { "themes": ["envi"] } }),
-            // Only the EU data themes and the classification's domains (T-4948).
-            serde_json::json!({ "name": "a", "select": { "themes": ["SPACE"] } }),
-            serde_json::json!({ "name": "a", "select": { "domains": ["Astrology"] } }),
-            serde_json::json!({ "name": "a", "select": { "endpoints": ["../x"] } }),
-        ] {
-            let p = prefs(serde_json::json!({ "connectors": [wrong.clone()] }));
-            assert!(p.validate().is_err(), "{wrong} is refused");
-        }
-        let unknown =
-            serde_json::json!({ "connectors": [{ "name": "a", "select": { "owner": "x" } }] });
-        assert!(serde_json::from_value::<Preferences>(unknown).is_err());
+    fn the_old_connectors_list_is_no_preference_any_more() {
+        // They live in the connector store since T-5970 (personal_connectors moved them).
+        let old = serde_json::json!({ "connectors": [{ "name": "air", "select": {} }] });
+        assert!(serde_json::from_value::<Preferences>(old).is_err());
     }
 
     #[test]

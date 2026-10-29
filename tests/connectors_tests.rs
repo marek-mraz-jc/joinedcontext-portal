@@ -1,5 +1,7 @@
-//! Personal MCP connectors (UI-98, EP-123, T-4531): kept per person, a favourite only when the
-//! person may read it, and handed out on the internal listener to the gateway's client alone.
+//! Personal MCP connectors (UI-98, EP-123, T-4531, T-5970): one store, the connector record of
+//! API/14; the old list in a person's preferences moves into it once, read-only and never wider,
+//! and the internal listener hands a person's data-reading connectors to the gateway's client
+//! alone.
 //!
 //! Runs when `JC_PORTAL_TEST_DATABASE_URL` points at a PostgreSQL the test may write to; skips
 //! with a note otherwise (see preferences_db_tests.rs).
@@ -55,7 +57,7 @@ async fn state(url: &str) -> AppState {
             "Endpoint",
             name,
             "mesto",
-            json!({ "slug": format!("{name}1"), "audience": audience }),
+            json!({ "contextSpaceRef": "mesto", "slug": slug(name), "audience": audience }),
         ));
     }
     state
@@ -70,8 +72,9 @@ fn fresh(tag: &str) -> String {
     format!("{tag}{nanos}")
 }
 
-fn connectors(endpoints: &[&str]) -> Value {
-    json!({ "connectors": [{ "name": "fav", "select": { "endpoints": endpoints } }] })
+/// A 26-character slug of base32 letters.
+fn slug(name: &str) -> String {
+    name.chars().cycle().take(26).collect()
 }
 
 async fn internal(state: &AppState, sub: &str, bearer: &str) -> (StatusCode, Value) {
@@ -99,53 +102,98 @@ async fn internal(state: &AppState, sub: &str, bearer: &str) -> (StatusCode, Val
 }
 
 #[tokio::test]
-async fn a_persons_connectors_reach_the_gateway_and_nobody_else() {
+async fn old_connectors_move_once_read_only_and_reach_the_gateway_alone() {
     let Some(url) = database_url() else {
         eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
         return;
     };
     let state = state(&url).await;
     let (a, b) = (fresh("a"), fresh("b"));
-    let saved = common::send(
+    let (sub_a, sub_b) = (format!("sub-{a}"), format!("sub-{b}"));
+    let pool = state.db.clone().expect("a pool");
+    joinedcontext_portal::db::save_preferences(
+        &pool,
+        &sub_a,
+        &json!({
+            "theme": "dark",
+            "connectors": [
+                { "name": "fav", "select": { "endpoints": [slug("air")] } },
+                { "name": "whole", "select": {} },
+                { "name": "nothing", "select": { "themes": ["AGRI"] } },
+            ],
+        }),
+    )
+    .await
+    .expect("an old row");
+
+    let gateway = common::REALM.workload(GATEWAY_CLIENT);
+    let (status, body) = internal(&state, &sub_a, &gateway).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let mut moved: Vec<Value> = body["connectors"].as_array().expect("a list").clone();
+    moved.sort_by_key(|c| c["name"].as_str().map(str::to_owned));
+    assert_eq!(
+        moved.len(),
+        2,
+        "a selector taking nothing today moves nowhere: {body}"
+    );
+    assert_eq!(moved[0]["name"], "fav");
+    assert_eq!(
+        moved[0]["scope"],
+        json!([{ "project": "mesto", "endpoint": "air", "access": "read" }]),
+        "a favourite stays that one Endpoint, read-only"
+    );
+    assert_eq!(moved[1]["name"], "whole");
+    assert_eq!(
+        moved[1]["scope"],
+        json!([{ "project": "mesto", "access": "read" }])
+    );
+    assert!(moved
+        .iter()
+        .all(|c| c["id"].as_str().is_some_and(|id| id.len() == 26)));
+    assert!(moved.iter().all(|c| c["allowedClients"] == json!([])));
+
+    let mine = state
+        .connectors
+        .of_owner(&sub_a, "https://portal.test")
+        .await
+        .expect("the store");
+    assert_eq!(mine.len(), 2, "moved once: {mine:?}");
+    assert!(mine
+        .iter()
+        .all(|c| !c.writes && c.segments == ["data-read"]));
+    let (status, again) = internal(&state, &sub_a, &gateway).await;
+    assert_eq!(
+        (status, again["connectors"].as_array().map(Vec::len)),
+        (StatusCode::OK, Some(2))
+    );
+
+    let kept = joinedcontext_portal::db::load_preferences(&pool, &sub_a)
+        .await
+        .expect("the row")
+        .expect("a row");
+    assert_eq!(
+        kept,
+        json!({ "theme": "dark" }),
+        "the old list left, the rest stayed"
+    );
+    let prefs = common::send(
         &state,
         common::person(&a),
-        "PUT",
-        "/api/v1/preferences",
-        Some(connectors(&["air1"])),
-    )
-    .await;
-    assert_eq!(saved.status, StatusCode::OK, "{}", saved.text);
-
-    let theirs = common::send(
-        &state,
-        common::person(&b),
         "GET",
         "/api/v1/preferences",
         None,
     )
     .await;
-    assert_eq!(theirs.status, StatusCode::OK);
+    assert_eq!(prefs.status, StatusCode::OK);
     assert!(
-        !theirs.text.contains("fav"),
-        "B sees none of A's: {}",
-        theirs.text
+        prefs.text.contains("dark") && !prefs.text.contains("fav"),
+        "{}",
+        prefs.text
     );
 
-    let sub_a = format!("sub-{a}");
-    let (status, body) = internal(&state, &sub_a, &common::REALM.workload(GATEWAY_CLIENT)).await;
-    assert_eq!(status, StatusCode::OK);
+    let (status, theirs) = internal(&state, &sub_b, &gateway).await;
     assert_eq!(
-        body["connectors"][0]["select"]["endpoints"],
-        json!(["air1"])
-    );
-    let (status, body) = internal(
-        &state,
-        &format!("sub-{b}"),
-        &common::REALM.workload(GATEWAY_CLIENT),
-    )
-    .await;
-    assert_eq!(
-        (status, body),
+        (status, theirs),
         (StatusCode::OK, json!({ "connectors": [] }))
     );
 
@@ -160,190 +208,102 @@ async fn a_persons_connectors_reach_the_gateway_and_nobody_else() {
             status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN,
             "{status} {body}"
         );
-        assert!(!body.to_string().contains("air1"));
+        assert!(!body.to_string().contains("fav"));
     }
 }
 
 #[tokio::test]
-async fn an_endpoint_the_person_cannot_read_is_not_starred() {
+async fn a_save_of_preferences_never_drops_old_connectors_and_refuses_the_old_field() {
     let Some(url) = database_url() else {
         eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
         return;
     };
     let state = state(&url).await;
     let a = fresh("a");
-    for slug in ["inner1", "nosuch1"] {
-        let refused = common::send(
-            &state,
-            common::person(&a),
-            "PUT",
-            "/api/v1/preferences",
-            Some(connectors(&["air1", slug])),
-        )
-        .await;
-        assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.text);
-        assert!(refused.text.contains(slug), "{}", refused.text);
-    }
-    let eleven: Vec<Value> = (0..11)
-        .map(|i| json!({ "name": format!("c{i}") }))
-        .collect();
-    let refused = common::send(
+    let sub_a = format!("sub-{a}");
+    let pool = state.db.clone().expect("a pool");
+    joinedcontext_portal::db::save_preferences(
+        &pool,
+        &sub_a,
+        &json!({ "connectors": [{ "name": "fav", "select": { "projects": ["mesto"] } }] }),
+    )
+    .await
+    .expect("an old row");
+    let saved = common::send(
         &state,
         common::person(&a),
         "PUT",
         "/api/v1/preferences",
-        Some(json!({ "connectors": eleven })),
+        Some(json!({ "theme": "light" })),
     )
     .await;
-    assert_eq!(refused.status, StatusCode::BAD_REQUEST);
-    let mine = common::send(
-        &state,
-        common::person(&a),
-        "GET",
-        "/api/v1/preferences",
-        None,
-    )
-    .await;
-    assert_eq!(mine.text, "{}", "nothing refused was kept");
-}
-
-/// Binds `{who}@hel.fi` to reading spaces in `project` (and so the project itself).
-fn bind_space_reader(state: &AppState, who: &str, project: &str) {
-    let org = joinedcontext_portal::permissions::ORG_NAMESPACE;
-    state.mirror.upsert(common::envelope(
-        "Role",
-        "space-readers",
-        org,
-        json!({ "rules": [{ "kinds": ["ContextSpace"], "verbs": ["read"] }] }),
-    ));
-    state.mirror.upsert(common::envelope(
-        "RoleBinding",
-        &format!("{who}-spaces-in-{project}"),
-        org,
-        json!({ "subjects": [{ "user": format!("{who}@hel.fi") }], "role": "space-readers",
-                "scope": { "project": project } }),
-    ));
-}
-
-/// A connector's projects and spaces are picked from what the person reads, and the server checks
-/// each one again on save (T-4948): a project or space they cannot read, of another organization's
-/// or one that does not exist, is refused by the same answer, naming the field.
-#[tokio::test]
-async fn a_connector_selects_only_projects_and_spaces_the_person_reads() {
-    let Some(url) = database_url() else {
-        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
-        return;
-    };
-    let state = state(&url).await;
-    let a = fresh("a");
-    for (project, space) in [("mesto", "air"), ("mesto", "noise"), ("kraj", "roads")] {
-        state
-            .mirror
-            .upsert(common::envelope("ContextSpace", space, project, json!({})));
-    }
-    bind_space_reader(&state, &a, "mesto");
-    // `kraj` is readable through an App grant alone: its spaces are not.
-    common::bind(&state.mirror, &a, "kraj");
-    let put = |select: Value| {
-        let state = state.clone();
-        let a = a.clone();
-        async move {
-            common::send(
-                &state,
-                common::person(&a),
-                "PUT",
-                "/api/v1/preferences",
-                Some(json!({ "connectors": [{ "name": "pick", "select": select }] })),
-            )
-            .await
-        }
-    };
-
-    let saved = put(json!({ "projects": ["mesto", "kraj"], "spaces": ["mesto/air"] })).await;
     assert_eq!(saved.status, StatusCode::OK, "{}", saved.text);
+    let mine = state
+        .connectors
+        .of_owner(&sub_a, "https://portal.test")
+        .await
+        .expect("the store");
+    assert_eq!(
+        mine.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+        ["fav"]
+    );
 
-    for (field, value) in [
-        ("projects", "elsewhere"),
-        ("projects", "nosuch"),
-        ("spaces", "kraj/roads"),
-        ("spaces", "elsewhere/air"),
-        ("spaces", "mesto/nosuch"),
-    ] {
-        state.mirror.upsert(common::envelope(
-            "ContextSpace",
-            "air",
-            "elsewhere",
-            json!({}),
-        ));
-        let refused = put(json!({ field: [value] })).await;
-        assert_eq!(
-            refused.status,
-            StatusCode::BAD_REQUEST,
-            "{value}: {}",
-            refused.text
-        );
-        let body: Value = serde_json::from_str(&refused.text).unwrap_or(Value::Null);
-        assert_eq!(
-            body["errors"][0]["path"],
-            json!(field),
-            "{value}: {}",
-            refused.text
-        );
-        assert!(
-            body["detail"]
-                .as_str()
-                .is_some_and(|d| d.ends_with(&format!("'{value}' is not one you may read"))),
-            "{value}: unknown and unreadable read alike: {}",
-            refused.text
-        );
-    }
+    let old = common::send(
+        &state,
+        common::person(&a),
+        "PUT",
+        "/api/v1/preferences",
+        Some(json!({ "connectors": [{ "name": "x", "select": {} }] })),
+    )
+    .await;
+    assert_eq!(old.status, StatusCode::BAD_REQUEST, "{}", old.text);
 }
 
-/// T-4949, UI-98: a viewer of a project adds an Endpoint they read to their own connectors (the
-/// write is to their own preferences and reaches nothing they could not read already); the same
-/// organization Endpoint is refused to a person with no grant in its project.
 #[tokio::test]
-async fn a_viewer_adds_an_endpoint_they_read_and_a_stranger_cannot() {
+async fn only_live_data_reading_connectors_reach_the_gateway() {
     let Some(url) = database_url() else {
         eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
         return;
     };
     let state = state(&url).await;
-    let org = joinedcontext_portal::permissions::ORG_NAMESPACE;
-    let viewer = fresh("viewer");
-    state.mirror.upsert(common::envelope(
-        "Role",
-        "endpoint-viewers",
-        org,
-        json!({ "rules": [{ "kinds": ["Endpoint"], "verbs": ["read"] }] }),
-    ));
-    state.mirror.upsert(common::envelope(
-        "RoleBinding",
-        &format!("{viewer}-reads-mesto"),
-        org,
-        json!({ "subjects": [{ "user": format!("{viewer}@hel.fi") }], "role": "endpoint-viewers",
-                "scope": { "project": "mesto" } }),
-    ));
-    let added = common::send(
-        &state,
-        common::person(&viewer),
-        "PUT",
-        "/api/v1/preferences",
-        Some(connectors(&["inner1"])),
-    )
-    .await;
-    assert_eq!(added.status, StatusCode::OK, "{}", added.text);
-    assert!(added.text.contains("inner1"), "{}", added.text);
-
-    let stranger = fresh("stranger");
-    let refused = common::send(
-        &state,
-        common::person(&stranger),
-        "PUT",
-        "/api/v1/preferences",
-        Some(connectors(&["inner1"])),
-    )
-    .await;
-    assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.text);
-    assert!(refused.text.contains("inner1"), "{}", refused.text);
+    let sub = format!("sub-{}", fresh("c"));
+    let new = |name: &str, segment: &str| -> joinedcontext_portal::connectors::NewConnector {
+        serde_json::from_value(json!({
+            "name": name,
+            "segments": [segment],
+            "scope": [{ "project": "mesto", "access": "read" }],
+            "expiresAt": "2999-01-01T00:00:00Z",
+        }))
+        .expect("a connector")
+    };
+    let base = "https://portal.test";
+    state
+        .connectors
+        .create(&sub, new("reads", "data-read"), base)
+        .await
+        .expect("created");
+    state
+        .connectors
+        .create(&sub, new("models", "context"), base)
+        .await
+        .expect("created");
+    let gone = state
+        .connectors
+        .create(&sub, new("gone", "data-read"), base)
+        .await
+        .expect("created");
+    assert!(state
+        .connectors
+        .revoke(&gone.id, &sub)
+        .await
+        .expect("revoked"));
+    let (status, body) = internal(&state, &sub, &common::REALM.workload(GATEWAY_CLIENT)).await;
+    assert_eq!(status, StatusCode::OK);
+    let names: Vec<&str> = body["connectors"]
+        .as_array()
+        .expect("a list")
+        .iter()
+        .filter_map(|c| c["name"].as_str())
+        .collect();
+    assert_eq!(names, ["reads"], "{body}");
 }
