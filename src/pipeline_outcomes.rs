@@ -448,12 +448,14 @@ pub fn credential_shaped(text: &str) -> bool {
     {
         return true;
     }
-    // `scheme://user:password@host`.
+    // `scheme://user:password@host`; a whole `${VAR}` as the password names the secret the
+    // runner injects and holds none.
     if let Some((_, rest)) = trimmed.split_once("://") {
         let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
         if authority
             .split_once('@')
-            .is_some_and(|(userinfo, _)| userinfo.contains(':'))
+            .and_then(|(userinfo, _)| userinfo.split_once(':'))
+            .is_some_and(|(_, password)| !crate::api::mutate::is_variable_reference(password))
         {
             return true;
         }
@@ -555,6 +557,10 @@ mod tests {
         // T-5971: a manifest's `${VAR}` names the secret and holds none.
         let named = json!({ "password": "${FEED_PASSWORD}" });
         assert_eq!(mask(&named), named);
+        // T-6130: so does a `${VAR}` in a URL's password place; a written-out one is masked.
+        assert!(!credential_shaped("nats://demo:${FEED_PASSWORD}@nats:4222"));
+        assert!(credential_shaped("nats://demo:s3cret@nats:4222"));
+        assert!(credential_shaped("nats://demo:${FEED_PASSWORD}x@nats:4222"));
     }
 
     /// T-3272: the platform's own API key is a credential; an operation name is not.
