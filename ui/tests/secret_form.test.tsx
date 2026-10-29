@@ -91,6 +91,20 @@ describe("the secret form", () => {
     await waitFor(() => expect(alert).toHaveTextContent("values.apiKey"));
   });
 
+  it("keeps its heading and purpose line when the secrets read is refused (T-6048)", async () => {
+    const { container } = mount((url) =>
+      url.pathname.endsWith("/projects/helsinki/secrets")
+        ? json({ type: "https://joinedcontext.com/errors/forbidden", title: "Forbidden", status: 403, detail: "you may not read the secrets of helsinki" }, 403)
+        : undefined,
+    );
+    expect(await screen.findByText(/you may not read the secrets of helsinki/)).toBeInTheDocument();
+    const headings = screen.getAllByRole("heading", { level: 1 });
+    expect(headings.map((h) => h.textContent)).toEqual([en.secrets.title]);
+    expect(headings[0]?.nextElementSibling?.textContent).toBe(en.secrets.description);
+    expect(screen.queryByRole("button", { name: en.secrets.submit })).toBeNull();
+    await expectNoAxeViolations(container);
+  });
+
   it("has its words in every language", async () => {
     await inEveryLocale(async () => {
       cleanup();
