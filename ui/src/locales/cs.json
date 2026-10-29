@@ -1480,6 +1480,7 @@
     "lead": "Kde je prostor publikován: kdo ho smí volat, v jakých reprezentacích a pod jakou URL.",
     "title": "Rozhraní",
     "empty": "Projekt zatím nezveřejnil žádné rozhraní.",
+    "searchNoMatch": "Žádné rozhraní nemá v názvu „{text}“.",
     "add": "Nové rozhraní",
     "edit": "Upravit",
     "addHint": "Uložením vznikne návrh změny; rozhraní začne odpovídat po jeho schválení.",
@@ -1654,7 +1655,6 @@
       "alias": "alias",
       "gone": "Endpoint už není sdílený",
       "goneSource": "Zdroj nedostupný",
-      "emptyHint": "Jiný projekt může tomuto dovolit čist svůj endpoint bez kopírování dat. S tímto projektem zatím nikdo nic nesdílí.",
       "edit": {
         "alias": "Alias",
         "aliasHelp": "Název, pod kterým tento projekt čte sdílený prostor; používají jej zdejší dotazy a pipeliny.",

@@ -233,8 +233,22 @@ describe("the endpoints page", () => {
     await search("EP-0119");
     expect(rowLinks().map((link) => link.textContent)).toEqual(["ep-0119"]);
     expect(screen.getByText("Showing 1 of 1")).toBeInTheDocument();
+    // A search matching nothing names the text and clears back to the first page (T-6095).
     await search("nothing-like-it");
-    expect(screen.getByText("Showing 0 of 0")).toBeInTheDocument();
+    expect(screen.queryByText(/^Showing/)).toBeNull();
+    expect(screen.getByText(i18n.t("endpoints.searchNoMatch", { text: "nothing-like-it" }))).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: en.spaces.inside.clearSearch }));
+    expect(screen.getByRole("searchbox", { name: en.endpoints.find })).toHaveValue("");
+    expect(rowLinks()).toHaveLength(50);
+  });
+
+  it("nothing_shared_with_the_project_is_one_line_and_no_second_table", async () => {
+    await renderRoute({ path: PATH, answer: answering([endpoint("public-air")]) });
+    await screen.findByRole("link", { name: "public-air" });
+    expect(await screen.findByText(en.endpoints.shared.empty)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: en.endpoints.shared.browse })).toHaveAttribute("href", "/endpoints");
+    expect(screen.queryByText(en.endpoints.shared.lead)).toBeNull();
+    expect(screen.getAllByRole("table")).toHaveLength(1);
   });
 
   it("finds_by_title_ignores_blank_search_and_starts_a_new_search_on_page_one", async () => {

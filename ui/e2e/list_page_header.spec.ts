@@ -38,7 +38,7 @@ const SPACES = [
   status: { phase: "Live", sourceUrl: `${SOURCE}/spaces/${name}/space.yaml` },
 }));
 
-async function stub(page: Page, filled: boolean) {
+async function stub(page: Page, filled: boolean, list: "ok" | "loading" | "error" = "ok") {
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const json = (body: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
@@ -47,6 +47,14 @@ async function stub(page: Page, filled: boolean) {
     }
     if (path.endsWith("/permissions/me")) return json({ project: "bbsk", bootstrap: true, grants: [] });
     if (path === "/api/v1/projects") return json({ apiVersion: API, kind: "ProjectList", items: [{ name: "bbsk" }] });
+    if (path === "/api/v1/projects/bbsk/endpoints" && list === "loading") return; // never answers
+    if (path === "/api/v1/projects/bbsk/endpoints" && list === "error") {
+      return route.fulfill({
+        status: 503,
+        contentType: "application/problem+json",
+        body: JSON.stringify({ type: "about:blank", title: "Service Unavailable", status: 503, detail: "The configuration store did not answer in time." }),
+      });
+    }
     if (path === "/api/v1/projects/bbsk/endpoints") return json({ apiVersion: API, kind: "List", items: filled ? ENDPOINTS : [] });
     if (path === "/api/v1/projects/bbsk/spaces") return json({ apiVersion: API, kind: "List", items: filled ? SPACES : [] });
     const usage = /\/spaces\/([^/]+)\/usage$/.exec(path);
@@ -75,14 +83,31 @@ for (const width of [1440, 400]) {
     // The description shows on hover of the info mark.
     await page.getByRole("button", { name: "About this page" }).hover();
     await expect(page.getByRole("tooltip")).toBeVisible();
+    // The open description covers none of the header's controls, at 400 px neither (T-6095 review).
+    const tip = (await page.getByRole("tooltip").boundingBox())!;
+    for (const control of [
+      page.getByRole("searchbox", { name: "Find an endpoint" }),
+      page.getByRole("button", { name: "Connect AI" }),
+      page.getByRole("button", { name: "New endpoint" }),
+    ]) {
+      const box = (await control.boundingBox())!;
+      const overlaps = tip.x < box.x + box.width && box.x < tip.x + tip.width && tip.y < box.y + box.height && box.y < tip.y + tip.height;
+      expect(overlaps).toBe(false);
+    }
     await page.screenshot({ path: join(dir, `endpoints-description-${width}.png`) });
     await page.mouse.move(0, 0);
 
-    // The search narrows the rows.
-    await page.getByRole("searchbox", { name: "Find an endpoint" }).fill("air");
+    // The search narrows the rows; a search matching nothing says so and offers the way back.
+    const search = page.getByRole("searchbox", { name: "Find an endpoint" });
+    await search.fill("air");
     await expect(page.getByRole("link", { name: "Air quality" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Parking" })).toHaveCount(0);
-    await page.getByRole("searchbox", { name: "Find an endpoint" }).fill("");
+    await search.fill("tram");
+    await expect(page.getByText("No endpoint name or title holds “tram”.")).toBeVisible();
+    await page.screenshot({ path: join(dir, `endpoints-nomatch-${width}.png`) });
+    await page.getByRole("button", { name: "Clear the search" }).click();
+    await expect(search).toHaveValue("");
+    await expect(page.getByRole("link", { name: "Parking" })).toBeVisible();
 
     // One menu: Open, Edit, View source (Git) among the rest.
     await page.getByRole("button", { name: /More actions.*Parking/ }).click();
@@ -110,7 +135,28 @@ for (const width of [1440, 400]) {
     await page.goto("/projects/bbsk/endpoints?lang=en");
     await expect(page.getByText("This project publishes no endpoint yet.")).toBeVisible();
     await expect(page.getByRole("searchbox", { name: "Find an endpoint" })).toHaveCount(0);
+    // Nothing shared is one line with the way to find a shared endpoint, not a second empty table.
+    await expect(page.getByText("No other project shares an endpoint with this one yet.")).toBeVisible();
+    await expect(page.getByRole("table", { name: "Shared with this project" })).toHaveCount(0);
     await page.screenshot({ path: join(dir, `endpoints-empty-${width}.png`) });
+  });
+
+  test(`the Endpoints list shows loading and a failed load under the compact header at ${width} px`, async ({ page }) => {
+    mkdirSync(dir, { recursive: true });
+    await page.setViewportSize({ width, height: 900 });
+    await stub(page, true, "loading");
+    await page.goto("/projects/bbsk/endpoints?lang=en");
+    await expect(page.getByRole("heading", { level: 1, name: "Endpoints" })).toBeVisible();
+    await expect(page.getByRole("table", { name: "Endpoints" })).toHaveAttribute("aria-busy", "true");
+    await page.screenshot({ path: join(dir, `endpoints-loading-${width}.png`) });
+
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    await stub(page, true, "error");
+    await page.goto("/projects/bbsk/endpoints?lang=en");
+    await expect(page.getByText("The configuration store did not answer in time.")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+    await page.screenshot({ path: join(dir, `endpoints-error-${width}.png`) });
+    expect(await axeViolations(page)).toEqual([]);
   });
 
   test(`the Context Spaces list has no Look inside and no Source column at ${width} px`, async ({ page }) => {

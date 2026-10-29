@@ -3,6 +3,7 @@ import { CopyUrlButton } from "../components/endpoints/links";
 import { ConnectAssistant } from "../components/endpoints/ConnectAssistant";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
+import { clsx } from "clsx";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -66,7 +67,6 @@ import { CodeBlock,
   Alert,
   Badge,
   Button,
-  buttonClass,
   Dialog,
   EmptyState,
   Icon,
@@ -75,7 +75,6 @@ import { CodeBlock,
   Table,
   TableBody,
   TableCell,
-  TableEmpty,
   TableHead,
   TableHeaderCell,
   TableRow,
@@ -356,7 +355,6 @@ function isLive(endpoint: Manifest | null): boolean {
 }
 
 const COLUMNS = 5;
-const SHARED_COLUMNS = 4;
 
 /** `schema` without `allowedProjects`: the manifest refuses the list outside `project-list`. */
 function withoutBurst(schema: JsonSchema): JsonSchema {
@@ -1145,6 +1143,8 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         ),
       ),
   );
+  const sharedPending = projects.isPending || otherLists.some((other) => other.isPending);
+  const sharedNone = !sharedPending && shared.length === 0 && orphaned.length === 0;
   const pickable =
     others.length > 0
       ? [
@@ -1276,8 +1276,21 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         caption={t("endpoints.title")}
         head={head}
         columns={COLUMNS}
-        count={endpoints.length}
+        count={matching.length}
         empty={
+          endpoints.length > 0 ? (
+            // A search that matches nothing names the text and offers the way back (T-6095).
+            <EmptyState
+              bare
+              icon="search"
+              title={t("endpoints.searchNoMatch", { text: needle.trim() })}
+              action={
+                <Button variant="secondary" size="sm" onClick={() => setNeedle("")}>
+                  {t("spaces.inside.clearSearch")}
+                </Button>
+              }
+            />
+          ) : (
           <EmptyState
             bare
             icon="endpoints"
@@ -1285,6 +1298,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
             description={t("endpoints.addHint")}
             action={addButton}
           />
+          )
         }
       >
         {visible.map((endpoint) => {
@@ -1345,7 +1359,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
           );
         })}
       </ResourceList>
-      {matching.length > visible.length || (needle.trim() && endpoints.length > 0) ? (
+      {matching.length > visible.length || (needle.trim() && matching.length > 0) ? (
         <div className="flex flex-wrap items-center gap-3">
           <p role="status" className="text-caption text-fg-muted">
             {t("endpoints.shownOf", { shown: visible.length, count: matching.length })}
@@ -1360,19 +1374,26 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
 
 
       <section aria-labelledby="shared-with-project" className="flex flex-col gap-3">
-        <div>
+        {/* Nothing shared is one line, not a table with an empty state (T-6095 review). */}
+        <div className={clsx(sharedNone && "flex flex-wrap items-baseline gap-x-3 gap-y-1")}>
           <h2 id="shared-with-project" className="text-title font-semibold text-fg">
             {t("endpoints.shared.title")}
           </h2>
-          <p className="mt-1 text-body text-fg-muted">{t("endpoints.shared.lead")}</p>
+          {sharedNone ? (
+            <p className="text-body text-fg-muted">
+              {t("endpoints.shared.empty")}{" "}
+              {/* What other projects publish is where a person finds one to ask for (T-3246). */}
+              <Link to="/endpoints" className="focus-ring rounded-sm text-primary-soft-fg underline underline-offset-2">
+                {t("endpoints.shared.browse")}
+              </Link>
+            </p>
+          ) : (
+            <p className="mt-1 text-body text-fg-muted">{t("endpoints.shared.lead")}</p>
+          )}
         </div>
-        <Table
+        {sharedNone ? null : <Table
           caption={t("endpoints.shared.title")}
-          status={
-            projects.isPending || otherLists.some((other) => other.isPending)
-              ? t("app.loading")
-              : undefined
-          }
+          status={sharedPending ? t("app.loading") : undefined}
         >
           <TableHead>
             <TableHeaderCell secondary>{t("endpoints.shared.source")}</TableHeaderCell>
@@ -1381,21 +1402,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
             <TableHeaderCell align="right">{t("endpoints.shared.reference")}</TableHeaderCell>
           </TableHead>
           <TableBody>
-            {shared.length === 0 && orphaned.length === 0 ? (
-              <TableEmpty columns={SHARED_COLUMNS}>
-                <EmptyState bare
-                  icon="globe"
-                  title={t("endpoints.shared.empty")}
-                  description={t("endpoints.shared.emptyHint")}
-                  action={
-                    // What other projects publish is where a person finds one to ask for (T-3246).
-                    <Link to="/endpoints" className={buttonClass("secondary", "md")}>
-                      {t("endpoints.shared.browse")}
-                    </Link>
-                  } />
-              </TableEmpty>
-            ) : (
-              shared.map(({ source, endpoint }) => {
+            {shared.map(({ source, endpoint }) => {
                 const spec = endpoint.spec as { slug?: string; enabledRepresentations?: string[] };
                 const slug = spec.slug ?? "";
                 const space = spaceOf(endpoint);
@@ -1492,8 +1499,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                     </TableCell>
                   </TableRow>
                 );
-              })
-            )}
+              })}
             {orphaned.map((reference) => {
               const alias = String((reference.spec as { alias?: string }).alias ?? "");
               return (
@@ -1539,7 +1545,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
               );
             })}
           </TableBody>
-        </Table>
+        </Table>}
         {reference.isError ? (
           <Alert role="alert" tone="danger">
             {reference.error instanceof ApiError

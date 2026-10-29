@@ -2199,7 +2199,7 @@
     },
     "src/routes/EndpointsPage.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 5
       },
       "tests": [
         "edit_prefill.test.tsx",

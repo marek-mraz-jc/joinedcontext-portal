@@ -1480,6 +1480,7 @@
     "lead": "Wo ein Raum veröffentlicht ist: wer ihn aufrufen darf, in welchen Darstellungen, unter welcher URL.",
     "title": "Endpunkte",
     "empty": "Dieses Projekt veröffentlicht noch keinen Endpunkt.",
+    "searchNoMatch": "Kein Endpunkt hat „{text}“ im Namen.",
     "add": "Neuer Endpunkt",
     "edit": "Bearbeiten",
     "addHint": "Das Speichern schlägt eine Änderung vor; der Endpunkt antwortet nach der Freigabe.",
@@ -1631,7 +1632,6 @@
       "alias": "Alias",
       "gone": "Endpunkt nicht mehr geteilt",
       "goneSource": "Quelle nicht verfügbar",
-      "emptyHint": "Ein anderes Projekt kann diesem erlauben, seinen Endpunkt zu lesen, ohne die Daten zu kopieren. Mit diesem Projekt wird noch nichts geteilt.",
       "edit": {
         "alias": "Alias",
         "aliasHelp": "Der Name, unter dem dieses Projekt den geteilten Raum liest; Abfragen und Pipelines hier nutzen ihn.",

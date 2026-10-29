@@ -1480,6 +1480,7 @@
     "lead": "Where a space is published: who may call it, in which representations, under which URL.",
     "title": "Endpoints",
     "empty": "This project publishes no endpoint yet.",
+    "searchNoMatch": "No endpoint name or title holds “{text}”.",
     "add": "New endpoint",
     "edit": "Edit",
     "addHint": "Saving proposes a change; the endpoint answers once the change is approved.",
@@ -1654,7 +1655,6 @@
       "alias": "alias",
       "gone": "Endpoint no longer shared",
       "goneSource": "Source unavailable",
-      "emptyHint": "Another project can let this one read its endpoint without copying the data. Nothing is shared with this project yet.",
       "edit": {
         "alias": "Alias",
         "aliasHelp": "The name this project reads the shared space by; queries and pipelines here use it.",
