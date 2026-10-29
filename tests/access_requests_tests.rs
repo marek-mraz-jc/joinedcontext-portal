@@ -725,7 +725,7 @@ async fn the_door_refuses_what_the_form_would_not_offer() {
     let refused = send(&state, "jana", "POST", &uri, no_attr).await;
     assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.text);
     assert!(
-        refused.text.contains("types[0].attrs: 'secret'"),
+        refused.names_field("types[0].attrs", "'secret'"),
         "{}",
         refused.text
     );
@@ -939,19 +939,19 @@ async fn a_person_asks_on_the_endpoint_and_an_owner_approves() {
 async fn a_persons_request_is_refused_field_by_field() {
     let state = world(&unique("air"), true).await;
     modelled(&state);
-    for (body, field) in [
+    for (body, (field, message)) in [
         (
             person_ask(&["Vehicle"]),
-            "types[0]: 'Vehicle' is no type this endpoint serves",
+            ("types[0]", "'Vehicle' is no type this endpoint serves"),
         ),
-        (person_ask(&[]), "types: choose one"),
+        (person_ask(&[]), ("types", "choose one")),
         (
             json!({ "types": ["AirQualityObserved"], "until": "2020-01-01T00:00:00Z", "reason": "r" }),
-            "until: until has passed",
+            ("until", "until has passed"),
         ),
         (
             json!({ "types": ["AirQualityObserved"], "reason": "  " }),
-            "reason: reason is required",
+            ("reason", "reason is required"),
         ),
     ] {
         let refused = send(&state, "eve", "POST", MINE, Some(body)).await;
@@ -961,7 +961,11 @@ async fn a_persons_request_is_refused_field_by_field() {
             "{field}: {}",
             refused.text
         );
-        assert!(refused.text.contains(field), "{field}: {}", refused.text);
+        assert!(
+            refused.names_field(field, message),
+            "{field}: {}",
+            refused.text
+        );
     }
     let grantee = json!({ "types": ["AirQualityObserved"], "reason": "r", "person": "olli" });
     let refused = send(&state, "eve", "POST", MINE, Some(grantee)).await;

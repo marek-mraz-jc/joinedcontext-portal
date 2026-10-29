@@ -329,9 +329,7 @@ async fn an_endpoint_hiding_what_the_template_reads_is_a_422_naming_the_field() 
         answer.text
     );
     assert!(
-        answer
-            .text
-            .contains("endpointName: attribute 'name' is hidden"),
+        answer.names_field("endpointName", "attribute 'name' is hidden"),
         "{}",
         answer.text
     );
