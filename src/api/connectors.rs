@@ -503,13 +503,11 @@ pub async fn connector_activity(
 /// it: whoever may approve a `DelegationPolicy` change (AG-150, AG-151).
 fn administrator(state: &AppState, identity: &Identity) -> Result<(), ApiError> {
     person(state, identity)?;
-    if identity
-        .client
-        .as_deref()
-        .is_some_and(|c| state.config.connector_clients.iter().any(|k| k == c))
-    {
+    // Any client's token, an AI client's or a token-exchanged agent's: only the person in the
+    // Portal decides (AG-151); a Portal session carries no client.
+    if identity.client.is_some() {
         return Err(ApiError::Denied(
-            "an AI client's token decides no connector request; approve it in the Portal (AG-151)"
+            "a client's token decides no connector request; approve it signed in to the Portal (AG-151)"
                 .into(),
         ));
     }
@@ -756,6 +754,12 @@ mod tests {
         match administrator(&state, &admin) {
             Err(ApiError::Denied(why)) => assert!(why.contains("AG-151"), "{why}"),
             other => panic!("{other:?}"),
+        }
+        // Nor through an agent's token exchanged for the administrator (no connector client).
+        admin.client = Some("agent-runner".into());
+        match administrator(&state, &admin) {
+            Err(ApiError::Denied(why)) => assert!(why.contains("AG-151"), "{why}"),
+            other => panic!("an agent token decided a request: {other:?}"),
         }
         // A workload's account is no person.
         let mut workload = person("service-account-pipeline");

@@ -27,6 +27,8 @@ use tower::ServiceExt;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+use joinedcontext_portal::auth::csrf::{CSRF_COOKIE, CSRF_HEADER};
+use joinedcontext_portal::auth::session::EDGE_TOKEN_HEADER;
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, ResourceKey, API_VERSION};
@@ -560,6 +562,8 @@ impl Harness {
         .expect("config");
         config.public_base_url = "https://portal.test".parse().expect("url");
         config.gateway_url = Some(server.uri());
+        // People reach the REST routes through the edge, as in the deployment.
+        config.trust_edge_token = true;
 
         let mirror = std::sync::Arc::new(Mirror::new());
         let names: Vec<String> = (1..=projects).map(project_of).collect();
@@ -664,12 +668,34 @@ impl Harness {
         token: Option<String>,
         body: Option<Value>,
     ) -> (StatusCode, Value) {
+        self.send_as(method, uri, token, body, header::AUTHORIZATION)
+            .await
+    }
+
+    /// One HTTP request with the token in `front`: `Authorization` (a client's bearer) or the
+    /// edge's `X-Access-Token` (a person signed in through APISIX).
+    async fn send_as(
+        &self,
+        method: &str,
+        uri: &str,
+        token: Option<String>,
+        body: Option<Value>,
+        front: header::HeaderName,
+    ) -> (StatusCode, Value) {
         let mut request = Request::builder()
             .method(method)
             .uri(uri)
             .header(header::CONTENT_TYPE, "application/json");
         if let Some(token) = token {
-            request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
+            request = if front == header::AUTHORIZATION {
+                request.header(front, format!("Bearer {token}"))
+            } else {
+                // The browser behind the edge double-submits its CSRF cookie on a write.
+                request
+                    .header(front, token)
+                    .header(header::COOKIE, format!("{CSRF_COOKIE}=scn"))
+                    .header(CSRF_HEADER, "scn")
+            };
         }
         let response = self
             .app
@@ -749,15 +775,27 @@ impl Harness {
             let body = serde_json::from_str::<Value>(&fill(&rest.body.to_string()))
                 .map_err(|e| format!("rest body: {e}"))?;
             let uri = format!("/api/v1{}", fill(&rest.path));
-            // A person manages connectors in the Portal, whose own client obtains the token; an
-            // MCP client's token is refused on these routes (AG-151).
+            // A person manages connectors signed in to the Portal through the edge, whose
+            // `X-Access-Token` stands for no client; a step naming a client sends that client's
+            // bearer, which these routes refuse (AG-151).
             let token = self.token_for(
                 persona,
                 AUDIENCE,
                 step.client.as_deref().unwrap_or(AUDIENCE),
             );
+            let front = if step.client.is_some() {
+                header::AUTHORIZATION
+            } else {
+                EDGE_TOKEN_HEADER
+            };
             let (status, answer) = self
-                .send(&rest.method, &uri, token, (!body.is_null()).then_some(body))
+                .send_as(
+                    &rest.method,
+                    &uri,
+                    token,
+                    (!body.is_null()).then_some(body),
+                    front,
+                )
                 .await;
             if status == StatusCode::CREATED {
                 if let Some(id) = answer["id"].as_str() {
@@ -1439,7 +1477,7 @@ async fn the_connector_door_holds_its_budget_under_load() {
             let connector = harness
                 .state
                 .connectors
-                .create(&owner, new, BASE)
+                .create(&owner, new, Vec::new(), BASE)
                 .await
                 .expect("a connector");
             let token = harness.sign(&owner, &user(i), (&[], &[]), (&connector.url, CLIENT), 3600);
