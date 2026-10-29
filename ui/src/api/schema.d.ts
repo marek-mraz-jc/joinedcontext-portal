@@ -3565,7 +3565,7 @@ export interface paths {
         put?: never;
         /**
          * Apply Change
-         * @description Opens the change requests (or workspace commits) of an unchanged plan from jc_change_plan; 409 when an object moved since. Changes nothing live and never approves: a person reviews and approves each change request in the Portal, so when the person asked for the change, apply the plan without asking them again
+         * @description Opens the change requests (or workspace commits) of an unchanged jc_change_plan plan; 409 when an object moved since. Nothing goes live until a person approves each in the Portal, so apply what the person asked for without asking again
          */
         post: operations["jc_change_apply"];
         delete?: never;
@@ -3645,7 +3645,7 @@ export interface paths {
         put?: never;
         /**
          * Plan Change
-         * @description Checks one or more changes of any kind with the dry run (every check, nothing saved) and answers the diff, the verdict and a planId valid 30 minutes; a failing check answers 422 naming each field
+         * @description Dry-runs one or more changes of any kind (nothing saved): the diff, the verdict and a planId valid 30 minutes; a failing check answers 422 naming each field
          */
         post: operations["jc_change_plan"];
         delete?: never;
@@ -4225,7 +4225,7 @@ export interface paths {
         put?: never;
         /**
          * Read Pipeline Runs and Logs
-         * @description A pipeline's newest runs with what each sent, rejected and failed, and one run's log (the newest unless run names one): each record's outcome and the message saying why, e.g. the source read that failed or the write the gateway refused. The log comes a page at a time; send next as cursor for the following page
+         * @description A pipeline's newest runs with what each sent, rejected and failed, and one run's log a page at a time: each record's outcome and why, e.g. the source read that failed or the write the gateway refused
          */
         post: operations["jc_pipeline_logs"];
         delete?: never;
@@ -4285,7 +4285,7 @@ export interface paths {
         put?: never;
         /**
          * Run a Pipeline Now
-         * @description Queues one run of a pipeline that runs from the queue (PL-78), now and outside its schedule, and answers its id: the run the run list shows once it wrote. The run waits its turn in its lane, so runs started for many pipelines go one after another. A pipeline whose run is in the runner, and one that waits for pushes and so always runs, answer 409. Needs propose and approve on Pipeline (a steward), and each run is an activity event `pipeline.run`
+         * @description Queues one run of a queued pipeline now, outside its schedule, and answers its id; it waits its turn in its lane. 409 while its run is in the runner or for a pipeline fed by pushes. Needs propose and approve on Pipeline (a steward); each run is an activity event `pipeline.run`
          */
         post: operations["jc_pipeline_run"];
         delete?: never;
@@ -4305,7 +4305,7 @@ export interface paths {
         put?: never;
         /**
          * Sample a Pipeline Source
-         * @description Reads the first records of a DataSource, or of a sample file or URL, on the project's runner: the records, their fields and the count (the workbench's sample step, ADR-N-034)
+         * @description Reads the first records of a DataSource, sample file or URL on the project's runner: the records, their fields and the count
          */
         post: operations["jc_pipeline_sample_source"];
         delete?: never;
@@ -4345,7 +4345,7 @@ export interface paths {
         put?: never;
         /**
          * Try a Pipeline Mapping
-         * @description Runs a candidate pipeline's steps over a sample on the project's runner without writing: each record as it would be written and every failure at its step and line (the workbench's mapped output, ADR-N-034)
+         * @description Runs a candidate pipeline's steps over a sample on the project's runner without writing: each record as it would be written and every failure at its step and line
          */
         post: operations["jc_pipeline_try_mapping"];
         delete?: never;
@@ -4365,7 +4365,7 @@ export interface paths {
         put?: never;
         /**
          * Validate Pipeline Records
-         * @description Checks records against the target space's data model, the target Endpoint's Policies and view, and the lifetime: a verdict per record with each finding and its expiresAt (the workbench's validation step, PL-59, ADR-N-034)
+         * @description Checks records against the target space's data model, the target Endpoint's Policies and view, and the lifetime: a verdict per record with each finding and its expiresAt
          */
         post: operations["jc_pipeline_validate"];
         delete?: never;
@@ -5293,7 +5293,7 @@ export interface paths {
         put?: never;
         /**
          * Run a Pipeline Now
-         * @description Queues one run of a pipeline that runs from the queue (PL-78), now and outside its schedule, and answers its id: the run the run list shows once it wrote. The run waits its turn in its lane, so runs started for many pipelines go one after another. A pipeline whose run is in the runner, and one that waits for pushes and so always runs, answer 409. Needs propose and approve on Pipeline (a steward), and each run is an activity event `pipeline.run`.
+         * @description Queues one run of a queued pipeline now, outside its schedule, and answers its id; it waits its turn in its lane. 409 while its run is in the runner or for a pipeline fed by pushes. Needs propose and approve on Pipeline (a steward); each run is an activity event `pipeline.run`.
          */
         post: operations["post_run"];
         delete?: never;
@@ -18827,7 +18827,7 @@ export interface operations {
                 version?: string;
                 /** @description Set to 'All' for dry run */
                 dryRun?: string;
-                /** @description The space a model the project does not hold yet is created in (DM-57) */
+                /** @description The space a new model is created in */
                 space?: string;
             };
             header?: never;
@@ -23025,13 +23025,13 @@ export interface operations {
             content: {
                 /** @example {} */
                 "application/json": {
-                    /** @description Where the previous page ended, as that page returned it */
+                    /** @description The previous page's cursor */
                     cursor?: string;
                     /** @description One or more event kinds, comma-separated */
                     kind?: string;
                     /** @description At most this many events */
                     limit?: number;
-                    /** @description One object the events belong to, as {plural}/{name} */
+                    /** @description Events of one object, as {plural}/{name} */
                     object?: string;
                     /**
                      * @description This severity and everything above it
@@ -23043,9 +23043,9 @@ export interface operations {
                      * @description RFC 3339 instant, the oldest event to return
                      */
                     since?: string;
-                    /** @description Only the events this component wrote, e.g. reconciler */
+                    /** @description Events of this component, e.g. reconciler */
                     source?: string;
-                    /** @description Only the events of this context space, by name */
+                    /** @description Events of this context space */
                     space?: string;
                 };
             };
@@ -23208,11 +23208,11 @@ export interface operations {
             content: {
                 /** @example {} */
                 "application/json": {
-                    /** @description Search keywords, matched against names, titles and descriptions */
+                    /** @description Keywords in names, titles and descriptions */
                     q?: string;
-                    /** @description The same as q, for clients that name it query; q wins when both are set */
+                    /** @description Alias of q; q wins */
                     query?: string;
-                    /** @description Narrow to one kind: ContextSpace, Endpoint, DataModel or Dataset (the open-data catalogue) */
+                    /** @description One kind only; Dataset is the open-data catalogue */
                     scope?: string;
                 };
             };
@@ -23382,7 +23382,7 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description For a red-lane Change: the Change's name, typed out as the confirmation (CC-19) */
+                    /** @description Red lane: the Change's name typed out to confirm */
                     confirm?: string;
                     /** @description The Change to approve */
                     id: string;
@@ -23668,25 +23668,25 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The changes to plan together, e.g. [{"op": "patch", "kind": "Pipeline", "name": "counters", "patch": {"spec": {"schedule": {"period": "PT15M"}}}}]. A Pipeline is planned only after jc_pipeline_test passed on the same spec: test it first */
+                    /** @description The changes to plan together. A Pipeline is planned only after jc_pipeline_test passed on the same spec */
                     changes: {
                         /** @description The manifest kind, e.g. DataModel */
                         kind: string;
-                        /** @description With create or replace, and alone (no patch beside it): the whole manifest */
+                        /** @description With create or replace, no patch: the whole manifest */
                         manifest?: Record<string, never>;
-                        /** @description The object's metadata.name, e.g. bike-counter */
+                        /** @description metadata.name, e.g. bike-counter */
                         name: string;
                         /**
-                         * @description create: a new object; a name that exists is refused, so patch it. patch: change some fields of an existing object, the usual edit, e.g. off the catalogue {"spec": {"publish": null, "catalog": {"harvest": false}}} (a public Endpoint is listed unless catalog.harvest is false). replace: the whole manifest. delete: remove the object itself, never to unpublish it
+                         * @description create: a new object (an existing name is refused: patch it). patch: the usual edit of some fields, e.g. off the catalogue {"spec": {"publish": null, "catalog": {"harvest": false}}}. replace: the whole manifest. delete: removes the object, never to unpublish it
                          * @enum {string}
                          */
                         op: "create" | "replace" | "patch" | "delete";
-                        /** @description With patch, and alone (no manifest beside it): a JSON merge patch (RFC 7386) onto the current manifest; null removes a member */
+                        /** @description With patch, no manifest: a JSON merge patch (RFC 7386); null removes a member */
                         patch?: Record<string, never>;
-                        /** @description With a DataModel: its whole LinkML file (the one spec.linkml names), e.g. "classes:\n  BikeCounter:\n    attributes:\n      count: { range: integer }\n"; the plan shows each change, the version it takes and the stored entities a breaking one affects */
+                        /** @description With a DataModel: its whole LinkML file (spec.linkml); the plan shows each change, its version and the stored entities a breaking one affects */
                         source?: string;
                     }[];
-                    /** @description Commit into this workspace (a copy of the project) instead of opening change requests */
+                    /** @description Commit into this workspace instead of change requests */
                     workspace?: string;
                 };
             };
@@ -23892,7 +23892,7 @@ export interface operations {
                 "application/json": {
                     /** @description The merged Change to undo, e.g. chg-0000002a */
                     id: string;
-                    /** @description Commit the revert into this workspace (a copy of the project) instead of opening change requests */
+                    /** @description Commit the revert into this workspace instead of change requests */
                     workspace?: string;
                 };
             };
@@ -24068,11 +24068,17 @@ export interface operations {
                     count?: boolean;
                     /** @description The nextCursor of the previous page */
                     cursor?: string;
-                    /** @description The Endpoint's metadata.name in the project, e.g. doprava-counters */
+                    /** @description Endpoint name, e.g. doprava-counters */
                     endpoint: string;
-                    /** @enum {string} */
+                    /**
+                     * @description keyValues answers plain values
+                     * @enum {string}
+                     */
                     format?: "normalized" | "concise" | "keyValues";
-                    /** @enum {string} */
+                    /**
+                     * @description The GeoJSON type of coordinates
+                     * @enum {string}
+                     */
                     geometry?: "Point" | "LineString" | "Polygon" | "MultiPoint" | "MultiLineString" | "MultiPolygon";
                     /** @description near;maxDistance==500, within, intersects, contains, disjoint, equals or overlaps */
                     georel?: string;
@@ -24084,17 +24090,22 @@ export interface operations {
                     orderBy?: string;
                     /** @description An NGSI-LD q, e.g. count>40;name~="Most" */
                     q?: string;
-                    /** @description Read the history instead of the current values */
+                    /** @description History instead of current values */
                     temporal?: {
+                        /** @description Aggregates; per aggrPeriodDuration when given */
                         aggrMethods?: ("avg" | "min" | "max" | "sum" | "totalCount" | "distinctCount" | "stddev" | "sumsq")[];
                         /** @description ISO 8601 duration, e.g. PT1H */
                         aggrPeriodDuration?: string;
                         /** @description ISO 8601, the end of a between */
                         endTimeAt?: string;
+                        /** @description The newest N per attribute */
                         lastN?: number;
                         /** @description ISO 8601, e.g. 2026-10-27T00:00:00Z */
                         timeAt: string;
-                        /** @enum {string} */
+                        /**
+                         * @description Against timeAt (and endTimeAt)
+                         * @enum {string}
+                         */
                         timerel: "before" | "after" | "between";
                     };
                     /** @description The entity type, e.g. BikeCounter */
@@ -24177,14 +24188,14 @@ export interface operations {
             content: {
                 /** @example {} */
                 "application/json": {
-                    /** @description A saved draft to use instead of an inline manifest */
+                    /** @description A saved draft instead of a manifest */
                     draft?: {
-                        /** @description The draft's kind, e.g. Endpoint */
+                        /** @description Draft kind, e.g. Endpoint */
                         kind: string;
-                        /** @description The draft's metadata.name */
+                        /** @description Draft metadata.name */
                         name: string;
                     };
-                    /** @description The whole manifest; give this or draft */
+                    /** @description The whole manifest, or draft */
                     manifest?: Record<string, never>;
                 };
             };
@@ -24297,14 +24308,14 @@ export interface operations {
             content: {
                 /** @example {} */
                 "application/json": {
-                    /** @description A saved draft to use instead of an inline manifest */
+                    /** @description A saved draft instead of a manifest */
                     draft?: {
-                        /** @description The draft's kind, e.g. Endpoint */
+                        /** @description Draft kind, e.g. Endpoint */
                         kind: string;
-                        /** @description The draft's metadata.name */
+                        /** @description Draft metadata.name */
                         name: string;
                     };
-                    /** @description The whole manifest; give this or draft */
+                    /** @description The whole manifest, or draft */
                     manifest?: Record<string, never>;
                 };
             };
@@ -24416,11 +24427,11 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The draft's kind, e.g. Endpoint */
+                    /** @description Draft kind, e.g. Endpoint */
                     kind: string;
-                    /** @description The draft's metadata.name */
+                    /** @description Draft metadata.name */
                     name: string;
-                    /** @description The workspace (copy) the draft belongs to; leave out for the project's own drafts */
+                    /** @description The draft's workspace; absent for the project's own */
                     workspace?: string;
                 };
             };
@@ -24503,11 +24514,11 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The draft's kind, e.g. Endpoint */
+                    /** @description Draft kind, e.g. Endpoint */
                     kind: string;
-                    /** @description The draft's metadata.name */
+                    /** @description Draft metadata.name */
                     name: string;
-                    /** @description The workspace (copy) the draft belongs to; leave out for the project's own drafts */
+                    /** @description The draft's workspace; absent for the project's own */
                     workspace?: string;
                 };
             };
@@ -24608,7 +24619,7 @@ export interface operations {
             content: {
                 /** @example {} */
                 "application/json": {
-                    /** @description The workspace (copy) the draft belongs to; leave out for the project's own drafts */
+                    /** @description The draft's workspace; absent for the project's own */
                     workspace?: string;
                 };
             };
@@ -24708,15 +24719,15 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The version last read; a save over a newer one is refused as a conflict */
+                    /** @description The version last read; a newer one refuses the save */
                     expectedVersion?: number;
-                    /** @description The draft's kind, e.g. Endpoint */
+                    /** @description Draft kind, e.g. Endpoint */
                     kind: string;
                     /** @description The whole manifest to save as the draft */
                     manifest: Record<string, never>;
-                    /** @description The draft's metadata.name */
+                    /** @description Draft metadata.name */
                     name: string;
-                    /** @description The workspace (copy) the draft belongs to; leave out for the project's own drafts */
+                    /** @description The draft's workspace; absent for the project's own */
                     workspace?: string;
                 };
             };
@@ -24900,38 +24911,38 @@ export interface operations {
             content: {
                 /** @example {} */
                 "application/json": {
-                    /** @description With audience project-list: the projects that may read, by name */
+                    /** @description With project-list: the projects that may read */
                     allowedProjects?: string[];
                     /**
-                     * @description Who may read it: the listed projects, the whole organization, or the public
+                     * @description Who may read it
                      * @enum {string}
                      */
                     audience?: "project-list" | "organization" | "public";
-                    /** @description The ContextSpace the endpoint serves, by name */
+                    /** @description The ContextSpace served */
                     contextSpace?: string;
-                    /** @description A saved draft to use instead of an inline manifest */
+                    /** @description A saved draft instead of a manifest */
                     draft?: {
-                        /** @description The draft's kind, e.g. Endpoint */
+                        /** @description Draft kind, e.g. Endpoint */
                         kind: string;
-                        /** @description The draft's metadata.name */
+                        /** @description Draft metadata.name */
                         name: string;
                     };
                     /** @description The entity types it serves */
                     entityTypes?: string[];
                     /** @description Attributes the endpoint never returns */
                     hiddenAttributes?: string[];
-                    /** @description A whole Endpoint manifest to propose instead of the fields above */
+                    /** @description A whole Endpoint manifest instead of the fields */
                     manifest?: Record<string, never>;
                     /** @description The endpoint's name (DNS-1123) */
                     name?: string;
-                    /** @description Only when the person asks for a limit; leave it out otherwise, an endpoint has no limit by default */
+                    /** @description Only when the person asks for a limit; none by default */
                     rateLimits?: {
-                        /** @description Requests allowed at once above the steady rate */
+                        /** @description Requests at once above the steady rate */
                         burst?: number;
                         /** @description Requests a minute per caller */
                         requestsPerMinute: number;
                     };
-                    /** @description The formats it serves; ngsi-ld and csv when left out */
+                    /** @description Formats served; ngsi-ld and csv when absent */
                     representations?: ("ngsi-ld" | "csv" | "mcp" | "ogc-features" | "sta")[];
                     /** @description The endpoint's title as people read it */
                     title?: string;
@@ -25131,9 +25142,9 @@ export interface operations {
                 "application/json": {
                     /** @description The organisation Blueprint to run */
                     blueprint: string;
-                    /** @description What the blueprint's parameterSchema asks for (CC-24) */
+                    /** @description What the blueprint's parameterSchema asks for */
                     parameters: Record<string, never>;
-                    /** @description The version the parameters were filled against (CC-26) */
+                    /** @description The version the parameters were filled against */
                     version: string;
                 };
             };
@@ -25253,11 +25264,11 @@ export interface operations {
                     agg: "avg" | "sum" | "count" | "min" | "max";
                     /** @description The attribute folded; ignored by count */
                     attribute?: string;
-                    /** @description The indicator's name, the {localId} of its URN */
+                    /** @description The indicator, its URN's {localId} */
                     name: string;
                     /** @description An NGSI-LD q narrowing the entities read */
                     q?: string;
-                    /** @description The entities to compute over, when the caller already holds them */
+                    /** @description Entities the caller already holds, to compute over */
                     rows?: Record<string, never>[];
                     /** @description The indicator's title as people read it */
                     title?: string;
@@ -25339,14 +25350,14 @@ export interface operations {
             content: {
                 /** @example {} */
                 "application/json": {
-                    /** @description A saved draft to use instead of an inline manifest */
+                    /** @description A saved draft instead of a manifest */
                     draft?: {
-                        /** @description The draft's kind, e.g. Endpoint */
+                        /** @description Draft kind, e.g. Endpoint */
                         kind: string;
-                        /** @description The draft's metadata.name */
+                        /** @description Draft metadata.name */
                         name: string;
                     };
-                    /** @description The whole manifest; give this or draft */
+                    /** @description The whole manifest, or draft */
                     manifest?: Record<string, never>;
                 };
             };
@@ -25459,7 +25470,7 @@ export interface operations {
             content: {
                 /** @example {} */
                 "application/json": {
-                    /** @description A part of the person's name or user id, e.g. jana */
+                    /** @description Part of a name or user id, e.g. jana */
                     search?: string;
                 };
             };
@@ -25554,7 +25565,7 @@ export interface operations {
                     name?: string;
                     /** @description The sample as plain text, instead of content */
                     sample?: string;
-                    /** @description An http(s) address answering JSON records, fetched once on the project's runner instead of a sample */
+                    /** @description Instead of a sample: an http(s) URL answering JSON records */
                     url?: string;
                 };
             };
@@ -25630,14 +25641,14 @@ export interface operations {
             content: {
                 /** @example {} */
                 "application/json": {
-                    /** @description A saved draft to use instead of an inline manifest */
+                    /** @description A saved draft instead of a manifest */
                     draft?: {
-                        /** @description The draft's kind, e.g. Endpoint */
+                        /** @description Draft kind, e.g. Endpoint */
                         kind: string;
-                        /** @description The draft's metadata.name */
+                        /** @description Draft metadata.name */
                         name: string;
                     };
-                    /** @description The whole manifest; give this or draft */
+                    /** @description The whole manifest, or draft */
                     manifest?: Record<string, never>;
                 };
             };
@@ -25839,9 +25850,9 @@ export interface operations {
                     name: string;
                     /** @description The LinkML document */
                     source: string;
-                    /** @description The space a model the project does not hold yet is created in (DM-57) */
+                    /** @description The space a new model is created in */
                     space?: string;
-                    /** @description The version to write; the next one the check computes when absent */
+                    /** @description The version to write; the computed next when absent */
                     version?: string;
                 };
             };
@@ -25991,13 +26002,13 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The person's e-mail address: their sign-in name and where the invitation goes */
+                    /** @description E-mail: sign-in name and where the invitation goes */
                     email: string;
                     /** @description Given name */
                     firstName: string;
                     /** @description Family name */
                     lastName: string;
-                    /** @description The Portal language they start in: en, sk, cs or de */
+                    /** @description Portal language: en, sk, cs or de */
                     locale?: string;
                 };
             };
@@ -26083,7 +26094,7 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The person's Keycloak user id */
+                    /** @description Keycloak user id */
                     id: string;
                 };
             };
@@ -26167,7 +26178,7 @@ export interface operations {
                     email?: string;
                     /** @description Given name */
                     firstName?: string;
-                    /** @description The person's Keycloak user id */
+                    /** @description Keycloak user id */
                     id: string;
                     /** @description Family name */
                     lastName?: string;
@@ -26251,7 +26262,7 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The person's Keycloak user id */
+                    /** @description Keycloak user id */
                     id: string;
                 };
             };
@@ -26331,7 +26342,7 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The person's Keycloak user id */
+                    /** @description Keycloak user id */
                     id: string;
                 };
             };
@@ -26491,7 +26502,7 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The person's Keycloak user id */
+                    /** @description Keycloak user id */
                     id: string;
                 };
             };
@@ -26574,13 +26585,13 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The next of the previous answer: the log's following page */
+                    /** @description The previous answer's next */
                     cursor?: number;
                     /** @description Runs listed, newest first (default 10) */
                     limit?: number;
                     /** @description The Pipeline's name, e.g. counters-hourly */
                     name: string;
-                    /** @description The run whose log to read, as runs[].run names it, e.g. 2026-10-29T03:00:00Z; the newest run when absent */
+                    /** @description The run, as runs[].run names it; the newest when absent */
                     run?: string;
                 };
             };
@@ -26754,14 +26765,14 @@ export interface operations {
             content: {
                 /** @example {} */
                 "application/json": {
-                    /** @description A saved draft to use instead of an inline manifest */
+                    /** @description A saved draft instead of a manifest */
                     draft?: {
-                        /** @description The draft's kind, e.g. Endpoint */
+                        /** @description Draft kind, e.g. Endpoint */
                         kind: string;
-                        /** @description The draft's metadata.name */
+                        /** @description Draft metadata.name */
                         name: string;
                     };
-                    /** @description The whole manifest; give this or draft */
+                    /** @description The whole manifest, or draft */
                     manifest?: Record<string, never>;
                 };
             };
@@ -26956,9 +26967,9 @@ export interface operations {
             content: {
                 /** @example {} */
                 "application/json": {
-                    /** @description The DataSource of this project to read the first records of; give this or sample */
+                    /** @description The DataSource to read; or sample */
                     dataSource?: string;
-                    /** @description The sample inline or a URL the runner fetches it from, and how it is split */
+                    /** @description The sample inline or by URL, and how it is split */
                     sample?: {
                         /**
                          * @description How the sample is split into records
@@ -26967,7 +26978,7 @@ export interface operations {
                         format?: "csv" | "json" | "text";
                         /** @description The sample inline */
                         text?: string;
-                        /** @description An http(s) URL the runner fetches the sample from instead */
+                        /** @description Or an http(s) URL the runner fetches */
                         url?: string;
                     };
                 };
@@ -27062,16 +27073,16 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description A saved draft to use instead of an inline manifest */
+                    /** @description A saved draft instead of a manifest */
                     draft?: {
-                        /** @description The draft's kind, e.g. Endpoint */
+                        /** @description Draft kind, e.g. Endpoint */
                         kind: string;
-                        /** @description The draft's metadata.name */
+                        /** @description Draft metadata.name */
                         name: string;
                     };
-                    /** @description The Pipeline manifest to run; give this or draft */
+                    /** @description The Pipeline manifest to run; or draft */
                     pipeline?: Record<string, never>;
-                    /** @description What the pipeline is run on: the sample inline or a URL to fetch it from */
+                    /** @description The sample inline or by URL */
                     sample: {
                         /**
                          * @description How the sample is split into messages
@@ -27080,7 +27091,7 @@ export interface operations {
                         format?: "csv" | "json" | "text";
                         /** @description The sample inline */
                         text?: string;
-                        /** @description An http(s) URL the runner fetches the sample from instead */
+                        /** @description Or an http(s) URL the runner fetches */
                         url?: string;
                     };
                 };
@@ -27163,18 +27174,18 @@ export interface operations {
             content: {
                 /** @example {} */
                 "application/json": {
-                    /** @description A saved draft to use instead of an inline manifest */
+                    /** @description A saved draft instead of a manifest */
                     draft?: {
-                        /** @description The draft's kind, e.g. Endpoint */
+                        /** @description Draft kind, e.g. Endpoint */
                         kind: string;
-                        /** @description The draft's metadata.name */
+                        /** @description Draft metadata.name */
                         name: string;
                     };
-                    /** @description Instead of sample: the records of a streamed jc_pipeline_sample_source, each tried as one message, as the live input hands it over */
+                    /** @description Instead of sample: a streamed jc_pipeline_sample_source's records, each tried as one message */
                     messages?: unknown[];
-                    /** @description The Pipeline manifest whose steps are tried; give this or draft */
+                    /** @description The Pipeline manifest to try; or draft */
                     pipeline?: Record<string, never>;
-                    /** @description The sample inline or a URL the runner fetches it from, and how it is split */
+                    /** @description The sample inline or by URL, and how it is split */
                     sample?: {
                         /**
                          * @description How the sample is split into records
@@ -27183,7 +27194,7 @@ export interface operations {
                         format?: "csv" | "json" | "text";
                         /** @description The sample inline */
                         text?: string;
-                        /** @description An http(s) URL the runner fetches the sample from instead */
+                        /** @description Or an http(s) URL the runner fetches */
                         url?: string;
                     };
                 };
@@ -27271,20 +27282,20 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description A saved draft to use instead of an inline manifest */
+                    /** @description A saved draft instead of a manifest */
                     draft?: {
-                        /** @description The draft's kind, e.g. Endpoint */
+                        /** @description Draft kind, e.g. Endpoint */
                         kind: string;
-                        /** @description The draft's metadata.name */
+                        /** @description Draft metadata.name */
                         name: string;
                     };
-                    /** @description The Pipeline whose target space's model checks the records; give this, draft or space */
+                    /** @description The Pipeline whose target model checks the records; or draft or space */
                     pipeline?: Record<string, never>;
-                    /** @description The records as the pipeline would write them (the records of jc_pipeline_try_mapping) */
+                    /** @description The records jc_pipeline_try_mapping answered */
                     records: Record<string, never>[];
-                    /** @description The ContextSpace whose model checks the records, instead of a pipeline's */
+                    /** @description The ContextSpace whose model checks the records */
                     space?: string;
-                    /** @description With a pipeline or draft: an entity type of the space's model; the answer's writable lists each of its attributes and whether the pipeline may write it through its Endpoint */
+                    /** @description With a pipeline or draft: a type of the space's model; writable answers which of its attributes the pipeline may write */
                     type?: string;
                 };
             };
@@ -27392,7 +27403,7 @@ export interface operations {
                     description?: string;
                     /** @description What people call it; the slug when absent */
                     displayName?: string;
-                    /** @description The project slug: a DNS-1123 label, and the {project} segment of every path of it (PF-67) */
+                    /** @description The project slug, a DNS-1123 label */
                     name: string;
                 };
             };
@@ -27503,7 +27514,7 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The project to delete; it is named rather than taken from the path, because this one is not undone (PF-77) */
+                    /** @description The project to delete, typed out: this is not undone */
                     name: string;
                 };
             };
@@ -27617,7 +27628,7 @@ export interface operations {
                     format?: "yaml" | "json";
                     /** @description Comma-separated plurals, e.g. endpoints,pipelines */
                     kinds?: string;
-                    /** @description Comma-separated metadata.name values, e.g. doprava for the Context Space doprava; the project itself is named by its slug in project */
+                    /** @description Comma-separated metadata.name values, e.g. doprava */
                     names?: string;
                     /** @description A commit of the configuration repository */
                     revision?: string;
@@ -27791,13 +27802,13 @@ export interface operations {
                     /** @description The bundle document an export answered */
                     bundle: string;
                     /**
-                     * @description What to do with a resource the project already has; refusing the whole import when absent (MF-23)
+                     * @description For a resource the project has; absent refuses the import
                      * @enum {string}
                      */
                     conflictPolicy?: "fail" | "skip" | "replace" | "rename";
                     /** @description Answer the plan and write nothing */
                     dryRun?: boolean;
-                    /** @description The organisation every imported id is rewritten to; this one when absent */
+                    /** @description Organisation imported ids are rewritten to; this one when absent */
                     orgDomain?: string;
                 };
             };
@@ -27998,7 +28009,7 @@ export interface operations {
                 "application/json": {
                     /** @description The resource's name typed back */
                     confirm: string;
-                    /** @description The manifest kind, e.g. Pipeline */
+                    /** @description Manifest kind, e.g. Pipeline */
                     kind: string;
                     /** @description The resource's metadata.name */
                     name: string;
@@ -28112,11 +28123,11 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The manifest kind, e.g. Pipeline */
+                    /** @description Manifest kind, e.g. Pipeline */
                     kind: string;
                     /** @description The resource's metadata.name */
                     name: string;
-                    /** @description Endpoint only: also list who may write to it (persons, groups, service accounts), for whoever reads the space's Policies */
+                    /** @description Endpoint only: also who may write to it, for readers of the space's Policies */
                     writers?: boolean;
                 };
             };
@@ -28196,9 +28207,9 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description AIP-160 subset over manifest fields, as the REST list takes it, e.g. labels.team = "air" AND spec.schedule:* */
+                    /** @description AIP-160 over manifest fields, e.g. labels.team = "air" AND spec.schedule:* */
                     filter?: string;
-                    /** @description The manifest kind, e.g. Pipeline */
+                    /** @description Manifest kind, e.g. Pipeline */
                     kind: string;
                     /** @description Only the resources of this context space */
                     space?: string;
@@ -28278,14 +28289,14 @@ export interface operations {
             content: {
                 /** @example {} */
                 "application/json": {
-                    /** @description A saved draft to use instead of an inline manifest */
+                    /** @description A saved draft instead of a manifest */
                     draft?: {
-                        /** @description The draft's kind, e.g. Endpoint */
+                        /** @description Draft kind, e.g. Endpoint */
                         kind: string;
-                        /** @description The draft's metadata.name */
+                        /** @description Draft metadata.name */
                         name: string;
                     };
-                    /** @description The whole manifest; give this or draft */
+                    /** @description The whole manifest, or draft */
                     manifest?: Record<string, never>;
                 };
             };
@@ -28579,31 +28590,31 @@ export interface operations {
                  */
                 "application/json": {
                     /**
-                     * @description How the App is built and served, as the App kind spells it (AP-124)
+                     * @description How the App is built and served
                      * @enum {string}
                      */
                     appClass: "ui" | "ui-rust" | "wasm";
-                    /** @description Name of the application to build; becomes the App manifest's name */
+                    /** @description The App manifest's name */
                     appName: string;
-                    /** @description The types, attributes and operations the application needs, as the App's spec.dataNeeds spells them: contextSpaceRef, types, attrs, operations, q, scopeQ, geoQ; checked against what the endpoint publishes (AP-44) */
+                    /** @description As the App's spec.dataNeeds: contextSpaceRef, types, attrs, operations, q, scopeQ, geoQ; checked against the endpoint */
                     dataNeeds: Record<string, never>[];
-                    /** @description The one Endpoint the application reads through; endpointNames for several */
+                    /** @description The one Endpoint read; endpointNames for several */
                     endpointName?: string;
-                    /** @description The Endpoints the application reads, one to five, the first the primary (AP-44) */
+                    /** @description The Endpoints read, the first the primary */
                     endpointNames?: string[];
                     /**
                      * @description What kind of run to execute
                      * @enum {string}
                      */
                     kind?: "application" | "dashboard" | "analysis" | "conversation";
-                    /** @description Which AgentProfile runs; the platform's app-builder when left out */
+                    /** @description The AgentProfile; app-builder when absent */
                     profile?: string;
                     /** @description What the application should do, in the person's own words */
                     prompt: string;
-                    /** @description Whether the run works without asking the person questions */
+                    /** @description true: the run asks the person nothing */
                     unattended?: boolean;
                     /**
-                     * @description Who may reach the published application; public is refused (AP-42)
+                     * @description Who may reach the published App; public is refused
                      * @enum {string}
                      */
                     visibility?: "private" | "project" | "organization";
@@ -28779,7 +28790,7 @@ export interface operations {
             content: {
                 /** @example {} */
                 "application/json": {
-                    /** @description Only the runs that build this application, by name */
+                    /** @description Runs building this App, by name */
                     app?: string;
                     /**
                      * @description Only runs of this kind
@@ -28885,7 +28896,7 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description On a conversation: the endpoints the assistant may query from here on (AG-75) */
+                    /** @description On a conversation: the endpoints the assistant may query from now on */
                     endpointNames?: string[];
                     /** @description The run's id */
                     id: string;
@@ -29083,7 +29094,7 @@ export interface operations {
                  */
                 "application/json": {
                     /**
-                     * @description The manifest kind, e.g. Pipeline
+                     * @description Manifest kind, e.g. Pipeline
                      * @enum {string}
                      */
                     kind: "Organization" | "Project" | "ContextSpace" | "DataModel" | "Mapping" | "Policy" | "ScopeDefinition" | "Endpoint" | "ModelProjection" | "SharedSpaceReference" | "ContextSourceRegistration" | "Subscription" | "ServiceAccount" | "Pipeline" | "DataSource" | "App" | "CkanInstance" | "KnowledgeSource" | "AssistantDeployment" | "McpServer" | "MqttBroker" | "Blueprint" | "AgentProfile" | "DataSpaceParticipant" | "DataOffer" | "DataAgreement" | "SyncSource" | "Bundle" | "UiSchema" | "Role" | "RoleBinding" | "Group" | "DelegationPolicy" | "ContextBroker" | "Environment" | "Dashboard" | "Layer";
@@ -29165,22 +29176,22 @@ export interface operations {
             content: {
                 /** @example {} */
                 "application/json": {
-                    /** @description What the data is, from the person's description and specification */
+                    /** @description What the data is, in the person's words */
                     description?: string;
                     /** @description Text files defining or describing the space */
                     files?: {
-                        /** @description The file's text; all files together at most 10 MiB (DM-55) */
+                        /** @description The file's text; all files at most 10 MiB together */
                         content: string;
                         /** @description The file's name, as the person uploaded it */
                         name: string;
                     }[];
-                    /** @description Propose all drafts as a single change if ready */
+                    /** @description Propose all drafts as one change when ready */
                     propose?: boolean;
                     /** @description Context space name (dns-1123 label) */
                     space?: string;
-                    /** @description Entity type of the inferred model and the pipeline's output, PascalCase */
+                    /** @description Entity type of the model and pipeline output, PascalCase */
                     typeName?: string;
-                    /** @description The person writes the sample file's rows through the space: draft its Endpoint when it has none and the person's write grant (DM-81) */
+                    /** @description The person writes the sample's rows: draft the space's Endpoint and write grant when missing */
                     upload?: boolean;
                     /** @description HTTP endpoint (JSON, GeoJSON, GBFS or NGSI-LD) */
                     url?: string;
@@ -29265,14 +29276,14 @@ export interface operations {
             content: {
                 /** @example {} */
                 "application/json": {
-                    /** @description A saved draft to use instead of an inline manifest */
+                    /** @description A saved draft instead of a manifest */
                     draft?: {
-                        /** @description The draft's kind, e.g. Endpoint */
+                        /** @description Draft kind, e.g. Endpoint */
                         kind: string;
-                        /** @description The draft's metadata.name */
+                        /** @description Draft metadata.name */
                         name: string;
                     };
-                    /** @description The whole manifest; give this or draft */
+                    /** @description The whole manifest, or draft */
                     manifest?: Record<string, never>;
                 };
             };
@@ -29472,7 +29483,7 @@ export interface operations {
                 "application/json": {
                     /** @description The SyncSource's name */
                     name: string;
-                    /** @description true switches the loop off, false switches it back on */
+                    /** @description true pauses the loop, false resumes it */
                     paused: boolean;
                 };
             };
@@ -29744,7 +29755,7 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The workspace's name */
+                    /** @description Workspace name */
                     name: string;
                 };
             };
@@ -29827,7 +29838,7 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The workspace's name */
+                    /** @description Workspace name */
                     name: string;
                 };
             };
@@ -29909,7 +29920,7 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The workspace's name */
+                    /** @description Workspace name */
                     name: string;
                 };
             };
@@ -29931,9 +29942,9 @@ export interface operations {
                         owner: string;
                         previewState?: string;
                         project: string;
-                        /** @description {kind: project}, {kind: space, name}, or {kind: resources, items: [{kind, name}]}; the whole project when absent */
+                        /** @description {kind: project}, {kind: space, name} or {kind: resources, items: [{kind, name}]}; project when absent */
                         scope: {
-                            /** @description With kind resources: the resources the workspace covers */
+                            /** @description With kind resources: the resources */
                             items?: {
                                 /** @description The resource's kind, e.g. Pipeline */
                                 kind: string;
@@ -29941,7 +29952,7 @@ export interface operations {
                                 name: string;
                             }[];
                             /**
-                             * @description What the workspace covers: the whole project, one space and what it holds, or a list of resources
+                             * @description What the workspace covers
                              * @enum {string}
                              */
                             kind: "project" | "space" | "resources";
@@ -30033,9 +30044,9 @@ export interface operations {
                             owner: string;
                             previewState?: string;
                             project: string;
-                            /** @description {kind: project}, {kind: space, name}, or {kind: resources, items: [{kind, name}]}; the whole project when absent */
+                            /** @description {kind: project}, {kind: space, name} or {kind: resources, items: [{kind, name}]}; project when absent */
                             scope: {
-                                /** @description With kind resources: the resources the workspace covers */
+                                /** @description With kind resources: the resources */
                                 items?: {
                                     /** @description The resource's kind, e.g. Pipeline */
                                     kind: string;
@@ -30043,7 +30054,7 @@ export interface operations {
                                     name: string;
                                 }[];
                                 /**
-                                 * @description What the workspace covers: the whole project, one space and what it holds, or a list of resources
+                                 * @description What the workspace covers
                                  * @enum {string}
                                  */
                                 kind: "project" | "space" | "resources";
@@ -30120,11 +30131,11 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description A DNS label of at most 20 characters, unique in the organization */
+                    /** @description A DNS label, unique in the organization */
                     name: string;
-                    /** @description {kind: project}, {kind: space, name}, or {kind: resources, items: [{kind, name}]}; the whole project when absent */
+                    /** @description {kind: project}, {kind: space, name} or {kind: resources, items: [{kind, name}]}; project when absent */
                     scope?: {
-                        /** @description With kind resources: the resources the workspace covers */
+                        /** @description With kind resources: the resources */
                         items?: {
                             /** @description The resource's kind, e.g. Pipeline */
                             kind: string;
@@ -30132,7 +30143,7 @@ export interface operations {
                             name: string;
                         }[];
                         /**
-                         * @description What the workspace covers: the whole project, one space and what it holds, or a list of resources
+                         * @description What the workspace covers
                          * @enum {string}
                          */
                         kind: "project" | "space" | "resources";
@@ -30141,7 +30152,7 @@ export interface operations {
                     };
                     /** @description What people call the workspace */
                     title?: string;
-                    /** @description Days until the workspace expires; seven when absent */
+                    /** @description Days to expiry; seven when absent */
                     ttlDays?: number;
                 };
             };
@@ -30163,9 +30174,9 @@ export interface operations {
                         owner: string;
                         previewState?: string;
                         project: string;
-                        /** @description {kind: project}, {kind: space, name}, or {kind: resources, items: [{kind, name}]}; the whole project when absent */
+                        /** @description {kind: project}, {kind: space, name} or {kind: resources, items: [{kind, name}]}; project when absent */
                         scope: {
-                            /** @description With kind resources: the resources the workspace covers */
+                            /** @description With kind resources: the resources */
                             items?: {
                                 /** @description The resource's kind, e.g. Pipeline */
                                 kind: string;
@@ -30173,7 +30184,7 @@ export interface operations {
                                 name: string;
                             }[];
                             /**
-                             * @description What the workspace covers: the whole project, one space and what it holds, or a list of resources
+                             * @description What the workspace covers
                              * @enum {string}
                              */
                             kind: "project" | "space" | "resources";
@@ -30249,7 +30260,7 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The workspace's name */
+                    /** @description Workspace name */
                     name: string;
                 };
             };
@@ -30340,7 +30351,7 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The workspace's name */
+                    /** @description Workspace name */
                     name: string;
                 };
             };
@@ -30431,7 +30442,7 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The workspace's name */
+                    /** @description Workspace name */
                     name: string;
                 };
             };
@@ -30513,7 +30524,7 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The workspace's name */
+                    /** @description Workspace name */
                     name: string;
                 };
             };
@@ -30599,11 +30610,11 @@ export interface operations {
                  *     }
                  */
                 "application/json": {
-                    /** @description The workspace's name */
+                    /** @description Workspace name */
                     name: string;
-                    /** @description The side kept for every conflicting field; none when main brought no conflict (CC-80) */
+                    /** @description The side kept for each conflicting field; none without conflicts */
                     resolutions?: {
-                        /** @description The field, as the conflict lists it; empty for the whole file */
+                        /** @description The field as the conflict lists it; empty: the whole file */
                         field?: string;
                         /**
                          * @description ours keeps the workspace's value, theirs takes main's

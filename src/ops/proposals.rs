@@ -65,25 +65,25 @@ fn endpoint_propose_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "contextSpace": text("The ContextSpace the endpoint serves, by name", NAME),
+            "contextSpace": text("The ContextSpace served", NAME),
             "name": text("The endpoint's name (DNS-1123)", NAME),
             "title": text("The endpoint's title as people read it", TITLE),
             "audience": {
                 "type": "string",
-                "description": "Who may read it: the listed projects, the whole organization, or the public",
+                "description": "Who may read it",
                 "enum": ["project-list", "organization", "public"]
             },
-            "allowedProjects": texts("With audience project-list: the projects that may read, by name", NAME),
+            "allowedProjects": texts("With project-list: the projects that may read", NAME),
             "representations": {
                 "type": "array",
-                "description": "The formats it serves; ngsi-ld and csv when left out",
+                "description": "Formats served; ngsi-ld and csv when absent",
                 "items": { "type": "string", "enum": crate::agents::share::REPRESENTATIONS }
             },
             "hiddenAttributes": texts("Attributes the endpoint never returns", TERM),
             "entityTypes": texts("The entity types it serves", TERM),
             "rateLimits": {
                 "type": "object",
-                "description": "Only when the person asks for a limit; leave it out otherwise, an endpoint has no limit by default",
+                "description": "Only when the person asks for a limit; none by default",
                 "properties": {
                     "requestsPerMinute": {
                         "type": "integer",
@@ -93,7 +93,7 @@ fn endpoint_propose_input_schema() -> Value {
                     },
                     "burst": {
                         "type": "integer",
-                        "description": "Requests allowed at once above the steady rate",
+                        "description": "Requests at once above the steady rate",
                         "minimum": 0,
                         "maximum": crate::agents::share::MAX_REQUESTS_PER_MINUTE
                     }
@@ -101,7 +101,7 @@ fn endpoint_propose_input_schema() -> Value {
                 "required": ["requestsPerMinute"],
                 "additionalProperties": false
             },
-            "manifest": manifest("A whole Endpoint manifest to propose instead of the fields above"),
+            "manifest": manifest("A whole Endpoint manifest instead of the fields"),
             "draft": draft_ref()
         },
         "additionalProperties": false
@@ -113,7 +113,7 @@ pub(crate) fn manifest_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "manifest": manifest("The whole manifest; give this or draft"),
+            "manifest": manifest("The whole manifest, or draft"),
             "draft": draft_ref()
         },
         "additionalProperties": false

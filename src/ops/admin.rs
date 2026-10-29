@@ -79,7 +79,7 @@ fn export_input_schema() -> Value {
         "properties": {
             "format": { "type": "string", "enum": ["yaml", "json"], "description": "The bundle's format; yaml when absent" },
             "kinds": text("Comma-separated plurals, e.g. endpoints,pipelines", QUERY),
-            "names": text("Comma-separated metadata.name values, e.g. doprava for the Context Space doprava; the project itself is named by its slug in project", QUERY),
+            "names": text("Comma-separated metadata.name values, e.g. doprava", QUERY),
             "revision": text("A commit of the configuration repository", TERM)
         },
         "additionalProperties": false
@@ -101,7 +101,7 @@ fn create_project_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "name": text("The project slug: a DNS-1123 label, and the {project} segment of every path of it (PF-67)", 63),
+            "name": text("The project slug, a DNS-1123 label", 63),
             "displayName": text("What people call it; the slug when absent", TITLE),
             "description": text("One line about what the project is for", TITLE)
         },
@@ -114,7 +114,7 @@ fn delete_project_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "name": text("The project to delete; it is named rather than taken from the path, because this one is not undone (PF-77)", 63)
+            "name": text("The project to delete, typed out: this is not undone", 63)
         },
         "required": ["name"],
         "additionalProperties": false
@@ -129,11 +129,11 @@ fn import_input_schema() -> Value {
                 "The bundle document an export answered",
                 crate::api::import::MAX_UPLOAD_BYTES as u64
             ),
-            "orgDomain": text("The organisation every imported id is rewritten to; this one when absent", NAME),
+            "orgDomain": text("Organisation imported ids are rewritten to; this one when absent", NAME),
             "conflictPolicy": {
                 "type": "string",
                 "enum": ["fail", "skip", "replace", "rename"],
-                "description": "What to do with a resource the project already has; refusing the whole import when absent (MF-23)"
+                "description": "For a resource the project has; absent refuses the import"
             },
             "dryRun": { "type": "boolean", "description": "Answer the plan and write nothing" }
         },
@@ -168,8 +168,8 @@ fn source_put_input_schema() -> Value {
                 "The LinkML document",
                 crate::tools::model_tools::MAX_REQUEST_BYTES as u64
             ),
-            "space": text("The space a model the project does not hold yet is created in (DM-57)", NAME),
-            "version": text("The version to write; the next one the check computes when absent", TERM),
+            "space": text("The space a new model is created in", NAME),
+            "version": text("The version to write; the computed next when absent", TERM),
             "dryRun": { "type": "boolean", "description": "Answer the check and write nothing" }
         },
         "required": ["name", "source"],

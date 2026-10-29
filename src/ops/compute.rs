@@ -88,9 +88,9 @@ fn catalog_search_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "q": text("Search keywords, matched against names, titles and descriptions", QUERY),
-            "query": text("The same as q, for clients that name it query; q wins when both are set", QUERY),
-            "scope": text("Narrow to one kind: ContextSpace, Endpoint, DataModel or Dataset (the open-data catalogue)", TERM)
+            "q": text("Keywords in names, titles and descriptions", QUERY),
+            "query": text("Alias of q; q wins", QUERY),
+            "scope": text("One kind only; Dataset is the open-data catalogue", TERM)
         },
         "additionalProperties": false
     })
@@ -122,7 +122,7 @@ fn kpi_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "name": text("The indicator's name, the {localId} of its URN", NAME),
+            "name": text("The indicator, its URN's {localId}", NAME),
             "title": text("The indicator's title as people read it", TITLE),
             "type": text("The entity type the value is computed over", TERM),
             "attribute": text("The attribute folded; ignored by count", TERM),
@@ -135,7 +135,7 @@ fn kpi_input_schema() -> Value {
             "q": text("An NGSI-LD q narrowing the entities read", QUERY),
             "rows": {
                 "type": "array",
-                "description": "The entities to compute over, when the caller already holds them",
+                "description": "Entities the caller already holds, to compute over",
                 "items": { "type": "object", "maxProperties": RECORD_MEMBERS }
             }
         },
@@ -149,16 +149,16 @@ fn pipeline_test_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "pipeline": manifest("The Pipeline manifest to run; give this or draft"),
+            "pipeline": manifest("The Pipeline manifest to run; or draft"),
             "sample": {
                 "type": "object",
-                "description": "What the pipeline is run on: the sample inline or a URL to fetch it from",
+                "description": "The sample inline or by URL",
                 "properties": {
                     "text": text(
                         "The sample inline",
                         jcctl::pipeline_test::MAX_SAMPLE_BYTES as u64
                     ),
-                    "url": text("An http(s) URL the runner fetches the sample from instead", URL),
+                    "url": text("Or an http(s) URL the runner fetches", URL),
                     "format": {
                         "type": "string",
                         "description": "How the sample is split into messages",
@@ -190,7 +190,7 @@ fn model_infer_input_schema() -> Value {
             },
             "url": {
                 "type": "string",
-                "description": "An http(s) address answering JSON records, fetched once on the project's runner instead of a sample",
+                "description": "Instead of a sample: an http(s) URL answering JSON records",
                 "pattern": "^https?://",
                 "maxLength": 2048
             }

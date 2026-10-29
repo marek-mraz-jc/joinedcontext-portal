@@ -925,12 +925,12 @@ fn draft_put_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "kind": text("The draft's kind, e.g. Endpoint", TERM),
-            "name": text("The draft's metadata.name", NAME),
+            "kind": text("Draft kind, e.g. Endpoint", TERM),
+            "name": text("Draft metadata.name", NAME),
             "manifest": manifest("The whole manifest to save as the draft"),
             "expectedVersion": {
                 "type": "integer",
-                "description": "The version last read; a save over a newer one is refused as a conflict",
+                "description": "The version last read; a newer one refuses the save",
                 "minimum": 0
             },
             "workspace": workspace()
@@ -945,8 +945,8 @@ fn draft_get_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "kind": text("The draft's kind, e.g. Endpoint", TERM),
-            "name": text("The draft's metadata.name", NAME),
+            "kind": text("Draft kind, e.g. Endpoint", TERM),
+            "name": text("Draft metadata.name", NAME),
             "workspace": workspace()
         },
         "required": ["kind", "name"],

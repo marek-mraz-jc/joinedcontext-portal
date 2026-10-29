@@ -1535,7 +1535,7 @@ struct UpdateInput {
 fn name_schema() -> Value {
     json!({
         "type": "object",
-        "properties": { "name": text("The workspace's name", MAX_NAME as u64) },
+        "properties": { "name": text("Workspace name", MAX_NAME as u64) },
         "required": ["name"],
         "additionalProperties": false
     })
@@ -1548,17 +1548,17 @@ fn empty_schema() -> Value {
 fn scope_schema() -> Value {
     json!({
         "type": "object",
-        "description": "{kind: project}, {kind: space, name}, or {kind: resources, items: [{kind, name}]}; the whole project when absent",
+        "description": "{kind: project}, {kind: space, name} or {kind: resources, items: [{kind, name}]}; project when absent",
         "properties": {
             "kind": {
                 "type": "string",
-                "description": "What the workspace covers: the whole project, one space and what it holds, or a list of resources",
+                "description": "What the workspace covers",
                 "enum": ["project", "space", "resources"]
             },
             "name": text("With kind space: the context space, by name", NAME),
             "items": {
                 "type": "array",
-                "description": "With kind resources: the resources the workspace covers",
+                "description": "With kind resources: the resources",
                 "items": {
                     "type": "object",
                     "properties": {
@@ -1580,7 +1580,7 @@ fn open_schema() -> Value {
         "type": "object",
         "properties": {
             "name": text(
-                "A DNS label of at most 20 characters, unique in the organization",
+                "A DNS label, unique in the organization",
                 MAX_NAME as u64
             ),
             "title": text("What people call the workspace", MAX_TITLE as u64),
@@ -1589,7 +1589,7 @@ fn open_schema() -> Value {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 14,
-                "description": "Days until the workspace expires; seven when absent"
+                "description": "Days to expiry; seven when absent"
             }
         },
         "required": ["name"],
@@ -1601,15 +1601,15 @@ fn update_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "name": text("The workspace's name", MAX_NAME as u64),
+            "name": text("Workspace name", MAX_NAME as u64),
             "resolutions": {
                 "type": "array",
-                "description": "The side kept for every conflicting field; none when main brought no conflict (CC-80)",
+                "description": "The side kept for each conflicting field; none without conflicts",
                 "items": {
                     "type": "object",
                     "properties": {
                         "path": text("The file, as the comparison lists it", QUERY),
-                        "field": text("The field, as the conflict lists it; empty for the whole file", QUERY),
+                        "field": text("The field as the conflict lists it; empty: the whole file", QUERY),
                         "keep": {
                             "type": "string",
                             "description": "ours keeps the workspace's value, theirs takes main's",

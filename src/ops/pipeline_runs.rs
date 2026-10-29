@@ -74,9 +74,9 @@ fn runs_input_schema() -> Value {
         "type": "object",
         "properties": {
             "name": text("The Pipeline's name, e.g. counters-hourly", NAME),
-            "run": text("The run whose log to read, as runs[].run names it, e.g. 2026-10-29T03:00:00Z; the newest run when absent", 64),
+            "run": text("The run, as runs[].run names it; the newest when absent", 64),
             "limit": { "type": "integer", "minimum": 1, "maximum": MAX_RUNS, "description": "Runs listed, newest first (default 10)" },
-            "cursor": { "type": "integer", "description": "The next of the previous answer: the log's following page" }
+            "cursor": { "type": "integer", "description": "The previous answer's next" }
         },
         "required": ["name"],
         "additionalProperties": false
@@ -164,7 +164,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_pipeline_run",
             title: "Run a Pipeline Now",
-            description: "Queues one run of a pipeline that runs from the queue (PL-78), now and outside its schedule, and answers its id: the run the run list shows once it wrote. The run waits its turn in its lane, so runs started for many pipelines go one after another. A pipeline whose run is in the runner, and one that waits for pushes and so always runs, answer 409. Needs propose and approve on Pipeline (a steward), and each run is an activity event `pipeline.run`",
+            description: "Queues one run of a queued pipeline now, outside its schedule, and answers its id; it waits its turn in its lane. 409 while its run is in the runner or for a pipeline fed by pushes. Needs propose and approve on Pipeline (a steward); each run is an activity event `pipeline.run`",
             input: run_input_schema,
             output: run_output_schema,
             annotations: Annotations {
@@ -193,7 +193,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: LOGS,
             title: "Read Pipeline Runs and Logs",
-            description: "A pipeline's newest runs with what each sent, rejected and failed, and one run's log (the newest unless run names one): each record's outcome and the message saying why, e.g. the source read that failed or the write the gateway refused. The log comes a page at a time; send next as cursor for the following page",
+            description: "A pipeline's newest runs with what each sent, rejected and failed, and one run's log a page at a time: each record's outcome and why, e.g. the source read that failed or the write the gateway refused",
             input: runs_input_schema,
             output: runs_output_schema,
             annotations: Annotations {

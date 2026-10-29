@@ -20,7 +20,7 @@ use serde_json::{json, Value};
 
 use super::{
     call_result, dispatch, error, failure_result, json_response, result, too_large,
-    tool_definition, MAX_REQUEST_BYTES, MAX_RESPONSE_BYTES,
+    tool_definition, GROUNDING_META, MAX_REQUEST_BYTES, MAX_RESPONSE_BYTES,
 };
 use crate::agents::oneshot::ui_actions::{self, UI_TOOLS};
 use crate::connectors::{self, Call, Connector};
@@ -644,11 +644,25 @@ async fn without_personal(state: &AppState, project: Option<&str>, response: Res
         Some(project) => personal_data::of_project(state, project).await,
         None => Err("a call that answers entities names its project".to_owned()),
     };
-    envelope["result"] = match marks {
-        Ok(marks) => answered_without(envelope["result"]["structuredContent"].take(), &marks),
+    envelope["result"] = without(envelope["result"].take(), marks);
+    json_response(parts.status, &envelope)
+}
+
+/// The `tools/call` `result` without what `marks` names, or the refusal when the models could not
+/// be read. Either keeps the grounding the call was evaluated against (AG-12).
+fn without(mut result: Value, marks: Result<Marks, String>) -> Value {
+    let grounding = result
+        .get_mut("_meta")
+        .and_then(|meta| meta.get_mut(GROUNDING_META))
+        .map(Value::take);
+    let mut answer = match marks {
+        Ok(marks) => answered_without(result["structuredContent"].take(), &marks),
         Err(why) => failure_result(&why),
     };
-    json_response(parts.status, &envelope)
+    if let Some(grounding) = grounding {
+        answer["_meta"][GROUNDING_META] = grounding;
+    }
+    answer
 }
 
 /// The `tools/call` result of `output` without what `marks` names, saying which attributes left
@@ -839,6 +853,46 @@ mod tests {
             "Tool answers carry text. This connector reaches project doprava; every tool's \
              `project` defaults to it."
         );
+    }
+
+    #[test]
+    fn a_withheld_answer_keeps_the_grounding_it_was_evaluated_against() {
+        let marks = || {
+            Ok(personal_data::marks(
+                "classes:\n  PotholeReport:\n    slots: [contactEmail]\nslots:\n  contactEmail:\n    annotations: { personalData: true }\n",
+            ))
+        };
+        let grounding = json!({ "revision": "abc123", "drift": "none",
+            "syncedAt": null, "evaluatedAt": "2026-10-29T13:00:00Z" });
+        let grounded = |output: Value| {
+            let mut result = call_result(&output);
+            result["_meta"][GROUNDING_META] = grounding.clone();
+            result
+        };
+        let withheld = grounded(json!({ "entities": [{ "id": "urn:ngsi-ld:PotholeReport:1",
+            "type": "PotholeReport", "contactEmail": "jana@example.org" }] }));
+        let answer = without(withheld, marks());
+        assert_eq!(answer["_meta"][GROUNDING_META], grounding);
+        assert_eq!(
+            answer["_meta"][WITHHELD_META],
+            json!(["PotholeReport.contactEmail"])
+        );
+        assert_eq!(answer["_meta"][super::super::UNTRUSTED_META], json!(true));
+        assert!(!answer.to_string().contains("jana@example.org"));
+        let kept = without(
+            grounded(json!({ "entities": [{ "id": "urn:ngsi-ld:PotholeReport:2",
+            "type": "PotholeReport" }] })),
+            marks(),
+        );
+        assert_eq!(kept["_meta"][GROUNDING_META], grounding);
+        assert!(kept["_meta"].get(WITHHELD_META).is_none());
+        let refused = without(
+            grounded(json!({ "entities": [] })),
+            Err("no models".to_owned()),
+        );
+        assert_eq!(refused["_meta"][GROUNDING_META], grounding);
+        assert_eq!(refused["isError"], true);
+        assert!(refused["_meta"].get(super::super::UNTRUSTED_META).is_none());
     }
 
     fn ana() -> crate::auth::session::Identity {
