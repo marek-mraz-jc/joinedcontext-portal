@@ -298,6 +298,20 @@ async fn checked(
     workspace: Option<&str>,
 ) -> Result<(Value, Planned), OpError> {
     let info = super::resources::kind_named(&change.kind)?;
+    if change.source.is_some() {
+        let refuse = |why: &str| Err(invalid(format!("{at}/source"), why.to_owned()));
+        if info.kind != "DataModel" {
+            return refuse("only a DataModel change carries a LinkML source");
+        }
+        if change.op == Op::Delete {
+            return refuse("op delete takes no source");
+        }
+        if workspace.is_some() {
+            return refuse(
+                "a model's source opens its own change request: plan it without workspace",
+            );
+        }
+    }
     through_connector(caller, project, info.kind, &change.name, false)?;
     let home = super::resources::home_holding(state, info, project, &change.name);
     let manifest = manifest_of(state, at, &home, change)?;
@@ -344,18 +358,7 @@ async fn checked(
     };
     let model = match change.source {
         None => None,
-        Some(_) => Some(
-            model_checked(
-                caller,
-                state,
-                at,
-                &home,
-                change,
-                manifest.as_ref(),
-                workspace,
-            )
-            .await?,
-        ),
+        Some(_) => Some(model_checked(caller, state, at, &home, change, manifest.as_ref()).await?),
     };
     let mut diff = json!({
         "op": change.op_word(),
@@ -408,26 +411,14 @@ async fn model_checked(
     home: &str,
     change: &ChangeInput,
     manifest: Option<&Value>,
-    workspace: Option<&str>,
 ) -> Result<(Value, Result<ModelPlan, Vec<Value>>), OpError> {
     let source = change.source.as_deref().unwrap_or_default();
-    let refuse = |why: &str| invalid(format!("{at}/source"), why.to_owned());
-    if change.kind != "DataModel" {
-        return Err(refuse("only a DataModel change carries a LinkML source"));
-    }
     let Some(manifest) = manifest else {
-        return Err(refuse("op delete takes no source"));
-    };
-    if workspace.is_some() {
-        return Err(refuse(
-            "a model's source opens its own change request: plan it without workspace",
+        return Err(invalid(
+            format!("{at}/source"),
+            "op delete takes no source".into(),
         ));
-    }
-    if source.len() > MAX_REQUEST_BYTES {
-        return Err(refuse(&format!(
-            "the source is larger than the {MAX_REQUEST_BYTES} byte limit"
-        )));
-    }
+    };
     let current = state.mirror.get(home, "DataModel", &change.name);
     let creating = current.is_none();
     let spec = current.map_or_else(|| manifest["spec"].clone(), |envelope| envelope.spec);
@@ -633,6 +624,22 @@ async fn plan(
     let mut items = Vec::new();
     let mut errors = Vec::new();
     let mut seen = std::collections::BTreeSet::new();
+    // A plan waits in memory with its sources: all of them together stay under one source's cap.
+    let sources: usize = input
+        .changes
+        .iter()
+        .filter_map(|change| change.source.as_ref())
+        .map(String::len)
+        .sum();
+    if sources > MAX_REQUEST_BYTES {
+        return Err(invalid(
+            "/changes".into(),
+            format!(
+                "the plan's LinkML sources take {sources} bytes together, more than the \
+                 {MAX_REQUEST_BYTES} byte limit: plan the models one at a time"
+            ),
+        ));
+    }
     for (n, change) in input.changes.iter().enumerate() {
         let at = format!("/changes/{n}");
         if !seen.insert((change.kind.clone(), change.name.clone())) {
@@ -1106,6 +1113,53 @@ mod tests {
         assert!(store.take(&id, "sub-jana", Some("c1"), now).is_none());
         let stale = kept(&store, "sub-jana", None, -1);
         assert!(store.take(&stale, "sub-jana", None, now).is_none());
+    }
+
+    /// A LinkML source rides only with a DataModel, never with a delete or into a workspace, and a
+    /// plan's sources together stay under one source's cap: each refused at its path before
+    /// anything is read or kept.
+    #[tokio::test]
+    async fn a_source_is_refused_off_a_model_in_a_workspace_and_over_the_cap() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let change = |op: Op, kind: &str, source: &str| ChangeInput {
+            op,
+            kind: kind.into(),
+            name: "bike-counter".into(),
+            manifest: None,
+            patch: None,
+            source: Some(source.into()),
+        };
+        let refused = |changes: Vec<ChangeInput>, workspace: Option<&str>| {
+            let input = PlanInput {
+                changes,
+                workspace: workspace.map(str::to_owned),
+            };
+            let state = &state;
+            async move {
+                plan(&caller(None), state, "doprava", input)
+                    .await
+                    .expect_err("refused")
+                    .to_string()
+            }
+        };
+        let off_model = refused(vec![change(Op::Patch, "ContextSpace", "classes: {}")], None).await;
+        assert!(off_model.contains("/changes/0/source"), "{off_model}");
+        assert!(off_model.contains("only a DataModel"), "{off_model}");
+        let delete = refused(vec![change(Op::Delete, "DataModel", "classes: {}")], None).await;
+        assert!(delete.contains("op delete takes no source"), "{delete}");
+        let workspace = refused(
+            vec![change(Op::Patch, "DataModel", "classes: {}")],
+            Some("w1"),
+        )
+        .await;
+        assert!(workspace.contains("without workspace"), "{workspace}");
+        let half = "x".repeat(MAX_REQUEST_BYTES / 2 + 1);
+        let mut other = change(Op::Patch, "DataModel", &half);
+        other.name = "station".into();
+        let over = refused(vec![change(Op::Patch, "DataModel", &half), other], None).await;
+        assert!(over.contains("one at a time"), "{over}");
+        let kept = state.plans.plans.lock().map(|p| p.len()).unwrap_or(1);
+        assert_eq!(kept, 0);
     }
 
     /// A connector with writes off is refused at the apply before any plan is looked at.
