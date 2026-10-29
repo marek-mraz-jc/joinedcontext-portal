@@ -51,7 +51,8 @@ const CONNECTOR_TASKS: &[&str] = &[
     "T-5946", "T-5948", "T-5949", "T-5950", "T-5951", "T-5952", "T-5953", "T-5954", "T-5955",
     "T-5956", "T-5957", "T-5958", "T-5959", "T-5960", "T-5961", "T-5962", "T-5964", "T-5965",
     "T-5966", "T-5967", "T-5968", "T-5969", "T-5970", "T-5971", "T-5972", "T-5973", "T-5974",
-    "T-5975", "T-5976", "T-5977", "T-5978", "T-5979", "T-5980", "T-5986",
+    "T-5975", "T-5976", "T-5977", "T-5978", "T-5979", "T-5980", "T-5986", "T-5994", "T-5995",
+    "T-5996", "T-5997", "T-5998",
 ];
 /// The kinds a persona's role names; `kinds: ["*"]` would match only the `*` kind.
 const KINDS: &[&str] = &[
@@ -133,6 +134,26 @@ struct Step {
     /// a merged RoleBinding change leaves it.
     #[serde(default)]
     unbind: Option<String>,
+    /// A member of the answer's `structuredContent` the later steps read as `{member}`, e.g.
+    /// `planId` for the apply after a plan (T-5956).
+    #[serde(default)]
+    keep: Option<String>,
+    /// A fixture change instead of a request: `Kind/name` of the step's project is edited
+    /// behind the connector's back, as another person's merged change leaves it.
+    #[serde(default)]
+    touch: Option<String>,
+    /// A fixture change instead of a request: an organization manifest the reconciler loaded
+    /// from Git (a merged DelegationPolicy, a Group), gone again when the scenario ends.
+    #[serde(default)]
+    manifest: Option<Manifest>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Manifest {
+    kind: String,
+    name: String,
+    spec: Value,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -364,6 +385,63 @@ async fn forge(server: &MockServer) {
             .mount(server)
             .await;
     }
+    // A change an apply opens: a branch, one commit of its files, a merge request (T-5956).
+    Mock::given(method("POST"))
+        .and(path(format!("{REPO}/branches")))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+        .mount(server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REPO}/contents")))
+        .respond_with(
+            ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "commit-1" } })),
+        )
+        .mount(server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REPO}/pulls")))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+            "number": 77, "html_url": "https://gitea.example.sk/pulls/77", "state": "open",
+            "mergeable": true, "merged": false
+        })))
+        .mount(server)
+        .await;
+    for verb in ["PUT", "POST", "DELETE"] {
+        Mock::given(method(verb))
+            .and(wiremock::matchers::path_regex(format!(
+                "^{REPO}/contents/.*"
+            )))
+            .respond_with(
+                ResponseTemplate::new(201)
+                    .set_body_json(json!({ "commit": { "sha": "commit-1" } })),
+            )
+            .mount(server)
+            .await;
+    }
+    for (route, body) in [
+        ("git/trees", json!({ "tree": [], "truncated": false })),
+        (
+            "branches",
+            json!({ "name": "main", "commit": { "id": "commit-0" } }),
+        ),
+    ] {
+        Mock::given(method("GET"))
+            .and(wiremock::matchers::path_regex(format!(
+                "^{REPO}/{route}/.*"
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(body))
+            .with_priority(9)
+            .mount(server)
+            .await;
+    }
+    Mock::given(method("GET"))
+        .and(wiremock::matchers::path_regex(format!(
+            "^{REPO}/contents/.*"
+        )))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({ "message": "not found" })))
+        .with_priority(9)
+        .mount(server)
+        .await;
 }
 
 /// One LinkML text for every model of the fixture: the forge serves it at each model's path.
@@ -477,6 +555,10 @@ struct Harness {
     state: AppState,
     /// The connector the running scenario created last.
     connector: std::sync::Mutex<Option<String>>,
+    /// What `keep` steps remembered, by member name.
+    kept: std::sync::Mutex<BTreeMap<String, String>>,
+    /// The manifests the running scenario added, removed when it ends.
+    added: std::sync::Mutex<Vec<ResourceKey>>,
     /// The forge, CSV source and identity provider; the model lane counts the forge writes.
     server: &'static MockServer,
 }
@@ -575,6 +657,8 @@ impl Harness {
             mirror,
             state,
             connector: std::sync::Mutex::default(),
+            kept: std::sync::Mutex::default(),
+            added: std::sync::Mutex::default(),
             server,
         }
     }
@@ -695,11 +779,32 @@ impl Harness {
             .clone()
             .unwrap_or_default();
         let in7days = (chrono::Utc::now() + chrono::Duration::days(7)).to_rfc3339();
+        let kept = self.kept.lock().unwrap_or_else(|p| p.into_inner()).clone();
         let fill = |text: &str| {
-            text.replace("{project}", project)
+            let mut text = text
+                .replace("{project}", project)
                 .replace("{connector}", &connector)
-                .replace("{in7days}", &in7days)
+                .replace("{in7days}", &in7days);
+            for (member, value) in &kept {
+                text = text.replace(&format!("{{{member}}}"), value);
+            }
+            text
         };
+        if let Some(target) = &step.touch {
+            let (kind, name) = target
+                .split_once('/')
+                .ok_or_else(|| format!("touch `{target}` is not Kind/name"))?;
+            let mut envelope = self
+                .mirror
+                .get(project, kind, &fill(name))
+                .ok_or_else(|| format!("touch: no {target} in {project}"))?;
+            envelope
+                .metadata
+                .labels
+                .insert("edited-by".to_owned(), "another-person".to_owned());
+            self.mirror.upsert(envelope);
+            return Ok(());
+        }
         if let Some(who) = &step.unbind {
             let key = ResourceKey {
                 namespace: ORG_NAMESPACE.to_owned(),
@@ -710,6 +815,25 @@ impl Harness {
                 Some(_) => Ok(()),
                 None => Err(format!("unbind: {who} holds no binding in {project}")),
             };
+        }
+        if let Some(manifest) = &step.manifest {
+            let spec = serde_json::from_str::<Value>(&fill(&manifest.spec.to_string()))
+                .map_err(|e| format!("manifest spec: {e}"))?;
+            self.mirror.upsert(envelope(
+                &manifest.kind,
+                &manifest.name,
+                ORG_NAMESPACE,
+                spec,
+            ));
+            self.added
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .push(ResourceKey {
+                    namespace: ORG_NAMESPACE.to_owned(),
+                    kind: manifest.kind.clone(),
+                    name: manifest.name.clone(),
+                });
+            return Ok(());
         }
         if let Some(rest) = &step.rest {
             let body = serde_json::from_str::<Value>(&fill(&rest.body.to_string()))
@@ -772,6 +896,15 @@ impl Harness {
             }
             other => return Err(format!("the door answered {other}: {answer}")),
         };
+        if let Some(member) = &step.keep {
+            let value = answer["result"]["structuredContent"][member.as_str()]
+                .as_str()
+                .ok_or_else(|| format!("keep: no {member} in {answer}"))?;
+            self.kept
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .insert(member.clone(), value.to_owned());
+        }
         let what = step.call.as_deref().unwrap_or("tools/list");
         // A tools/list step judges tool names, a call the whole answer.
         let text = if step.call.is_none() && !refused {
@@ -801,10 +934,18 @@ impl Harness {
         if scenario.deny != "none" && !has(Proves::Deny) {
             return Err("no deny step scripted".into());
         }
+        let mut outcome = Ok(());
         for step in &scenario.script {
-            self.step(scenario, own, step).await?;
+            outcome = self.step(scenario, own, step).await;
+            if outcome.is_err() {
+                break;
+            }
         }
-        Ok(())
+        let added = std::mem::take(&mut *self.added.lock().unwrap_or_else(|p| p.into_inner()));
+        for key in added {
+            self.mirror.remove(&key);
+        }
+        outcome
     }
 }
 
@@ -994,7 +1135,13 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
             Some(ask("c")),
         )
         .await;
-    assert_eq!((status, &body), (StatusCode::OK, &json!({ "valid": true })));
+    assert_eq!(
+        (status, &body),
+        (
+            StatusCode::OK,
+            &json!({ "valid": true, "pending": false, "aboveCeiling": [] })
+        )
+    );
 
     // No bearer: 401 naming the connector's own metadata.
     let response = harness
@@ -1312,6 +1459,63 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
+/// T-5956, AG-149: an apply takes only its own plan, once, with the base it was planned on; and it
+/// opens a change request a person approves, never an approval.
+#[tokio::test]
+async fn an_apply_takes_only_its_own_unchanged_plan_and_never_approves() {
+    let harness = Harness::start(1).await;
+    let own = project_of(1);
+    let scenario = |script: Value| -> Scenario {
+        serde_json::from_value(json!({
+            "id": "S-00", "segment": "context", "as": "steward", "says": "selftest",
+            "expect": "selftest", "deny": "selftest", "script": script
+        }))
+        .expect("scenario")
+    };
+    let plan = json!({ "proves": "expect", "call": "jc_change_plan", "keep": "planId",
+        "args": { "changes": [{ "op": "patch", "kind": "ContextSpace", "name": "doprava",
+                                "patch": { "spec": { "isSandbox": false } } }] },
+        "contains": ["\"planId\"", "spec.isSandbox"] });
+    let apply = |extra: Value| {
+        let mut step = json!({ "proves": "deny", "call": "jc_change_apply",
+                               "args": { "planId": "{planId}" } });
+        for (k, v) in extra.as_object().expect("object") {
+            step[k] = v.clone();
+        }
+        step
+    };
+    // The base moved between plan and apply: 409, nothing opened.
+    let moved = json!([
+        plan,
+        { "proves": "deny", "touch": "ContextSpace/doprava" },
+        apply(json!({ "refused": true, "contains": ["\"status\":409", "ContextSpace doprava changed"] }))
+    ]);
+    assert_eq!(harness.run(&scenario(moved), &own).await, Ok(()));
+    // Planned by the steward, applied by another person: not there for them, and still there
+    // for the steward, who applies it once.
+    let other = json!([
+        plan,
+        apply(json!({ "as": "project-admin", "refused": true, "contains": ["is not there"] })),
+        apply(
+            json!({ "proves": "expect", "contains": ["changeRequests", "pulls/77"],
+                      "absent": ["\"merged\"", "\"phase\":\"approved\""] })
+        ),
+        apply(json!({ "refused": true, "contains": ["is not there"] }))
+    ]);
+    assert_eq!(harness.run(&scenario(other), &own).await, Ok(()));
+    // A plan for another project's object is refused before any check runs.
+    let elsewhere = json!([
+        { "proves": "expect", "call": "jc_change_plan", "project": "other", "refused": true,
+          "args": { "changes": [{ "op": "patch", "kind": "ContextSpace", "name": "doprava",
+                                  "patch": { "spec": { "isSandbox": false } } }] } },
+        { "proves": "deny", "call": "jc_change_plan", "refused": true,
+          "args": { "changes": [{ "op": "create", "kind": "ContextSpace", "name": "doprava",
+                                  "manifest": { "kind": "ContextSpace" } }] },
+          "contains": ["/changes/0/op"] }
+    ]);
+    assert_eq!(harness.run(&scenario(elsewhere), &own).await, Ok(()));
+}
+
 /// Seconds of CPU this process has used, user and system (`/proc/self/stat`, 100 ticks a second).
 fn cpu_seconds() -> f64 {
     let stat = std::fs::read_to_string("/proc/self/stat").expect("/proc/self/stat");
@@ -1391,7 +1595,7 @@ async fn the_connector_door_holds_its_budget_under_load() {
             let connector = harness
                 .state
                 .connectors
-                .create(&owner, new, BASE)
+                .create(&owner, new, Vec::new(), BASE)
                 .await
                 .expect("a connector");
             let token = harness.sign(&owner, &user(i), (&[], &[]), (&connector.url, CLIENT), 3600);
@@ -1573,4 +1777,105 @@ async fn a_flood_hits_429_at_the_connector_and_then_the_person_limit() {
         .await;
     assert_eq!(status, StatusCode::OK);
     assert!(calls.to_string().contains("refused: rate limit"), "{calls}");
+}
+
+/// T-5979: the three connector events each reach, once, the people who may act on them, and
+/// carry names and a link, never the manifest the change holds.
+#[tokio::test]
+async fn connector_events_notify_who_may_act_once() {
+    let harness = Harness::start(1).await;
+    let own = project_of(1);
+    let scenario: Scenario = serde_json::from_value(json!({
+        "id": "S-00", "segment": "context", "as": "steward", "says": "selftest",
+        "expect": "selftest", "deny": "selftest", "script": [
+            { "proves": "expect", "manifest": { "kind": "Group", "name": "notice-writers",
+              "spec": { "members": [{ "user": user_of("steward") }] } } },
+            { "proves": "expect", "manifest": { "kind": "DelegationPolicy", "name": "notice-writers",
+              "spec": { "subjects": [{ "kind": "Group", "name": "notice-writers" }],
+                        "projects": ["{project}"], "segments": ["context"], "writes": true,
+                        "maxExpiry": "P90D", "aboveCeiling": "queue" } } },
+            // Above the ceiling (segment admin): queued for an administrator, not granted.
+            { "proves": "deny", "rest": { "method": "POST", "path": "/connectors",
+              "body": { "name": "notice-wide", "segments": ["admin"],
+                        "scope": [{ "project": "{project}", "access": "read" }],
+                        "expiresAt": "{in7days}" } },
+              "contains": ["\"state\":\"pending\""] },
+            { "proves": "expect", "rest": { "method": "POST", "path": "/connectors",
+              "body": { "name": "notice-writer", "segments": ["context"], "writes": true,
+                        "scope": [{ "project": "{project}", "access": "write" }],
+                        "expiresAt": "{in7days}" } },
+              "contains": ["\"state\":\"active\""] },
+            { "proves": "expect", "via": "connector", "call": "jc_change_plan", "keep": "planId",
+              "args": { "changes": [{ "op": "patch", "kind": "ContextSpace", "name": "doprava",
+                                      "patch": { "spec": { "isSandbox": false } } }] },
+              "contains": ["\"planId\""] },
+            { "proves": "expect", "via": "connector", "call": "jc_change_apply",
+              "args": { "planId": "{planId}" }, "contains": ["changeRequests"] }
+        ]
+    }))
+    .expect("scenario");
+    assert_eq!(harness.run(&scenario, &own).await, Ok(()));
+
+    let notices = |persona: &'static str| {
+        let token = harness.token_for(persona, AUDIENCE, AUDIENCE);
+        let harness = &harness;
+        async move {
+            let (status, body) = harness
+                .send("GET", "/api/v1/notifications", token, None)
+                .await;
+            assert_eq!(status, StatusCode::OK, "{body}");
+            body["items"].as_array().cloned().unwrap_or_default()
+        }
+    };
+    let of_kind = |items: &[Value], kind: &str| -> Vec<Value> {
+        items
+            .iter()
+            .filter(|i| i["kind"] == kind)
+            .cloned()
+            .collect()
+    };
+
+    // The approver of the project learns of the change, once, with its approval page.
+    let first = notices("approver").await;
+    let again = notices("approver").await;
+    let opened = of_kind(&again, "change.opened");
+    assert_eq!(opened.len(), 1, "{again:?}");
+    assert_eq!(of_kind(&first, "change.opened").len(), 1);
+    let change = opened[0]["urn"].as_str().expect("change id");
+    assert_eq!(
+        opened[0]["link"],
+        json!(format!("/projects/{own}/approvals/{change}"))
+    );
+    assert_eq!(opened[0]["excerpt"], json!("notice-writer"));
+    assert_eq!(opened[0]["author"], json!(user_of("steward")));
+    assert!(
+        !opened[0].to_string().contains("isSandbox"),
+        "names and links only: {}",
+        opened[0]
+    );
+    // A viewer holds no approve: nothing. The steward caused it: not their own change.
+    assert!(of_kind(&notices("viewer").await, "change.opened").is_empty());
+    let steward = notices("steward").await;
+    assert!(of_kind(&steward, "change.opened").is_empty(), "{steward:?}");
+
+    // Only a decider of connector requests learns of the queued one, once, without its scope.
+    assert!(of_kind(&notices("approver").await, "connector.pending").is_empty());
+    let _ = notices("org-admin").await;
+    let pending = of_kind(&notices("org-admin").await, "connector.pending");
+    assert_eq!(pending.len(), 1, "{pending:?}");
+    assert_eq!(pending[0]["excerpt"], json!("notice-wide"));
+    assert_eq!(pending[0]["link"], json!("/ai-connectors"));
+    assert!(
+        !pending[0].to_string().contains("admin\""),
+        "{}",
+        pending[0]
+    );
+    assert!(of_kind(&steward, "connector.pending").is_empty());
+
+    // The owner learns their active connector ends within 7 days, once; the pending one waits
+    // for a decision and is no active connector to extend. Nobody else hears of it.
+    let expiring = of_kind(&notices("steward").await, "connector.expiring");
+    assert_eq!(expiring.len(), 1, "{expiring:?}");
+    assert_eq!(expiring[0]["excerpt"], json!("notice-writer"));
+    assert!(of_kind(&notices("approver").await, "connector.expiring").is_empty());
 }

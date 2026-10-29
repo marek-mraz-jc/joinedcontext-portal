@@ -515,6 +515,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connectors/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Connector Requests Above the Ceiling
+         * @description Every live connector waiting for an administrator, oldest first, with what it asks above its owner's DelegationPolicy ceiling (AG-150). Only an administrator of the organization, or a person who may approve a DelegationPolicy change, reads it.
+         */
+        get: operations["pending_connectors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connectors/{id}": {
         parameters: {
             query?: never;
@@ -554,6 +574,26 @@ export interface paths {
         get: operations["connector_activity"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connectors/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a Connector Request
+         * @description Lets a `pending` connector through: it turns `active` and calls run with what it asked, while a DelegationPolicy binding its owner still queues requests. The approver is an administrator of the organization or a person who may approve a DelegationPolicy change, not the owner, and holds every right the connector asks for (AG-150, PF-51); an AI client's token is refused (AG-151).
+         */
+        post: operations["approve_connector"];
         delete?: never;
         options?: never;
         head?: never;
@@ -734,7 +774,7 @@ export interface paths {
         };
         /**
          * List My Notifications
-         * @description The caller's notifications, newest first, at most 100, with how many are unread (API/01 §35).
+         * @description The caller's notifications, newest first, at most 100, with how many are unread (API/01 §35): mentions, and the connector events the caller may act on (a change opened through a connector, a connector request above the ceiling, a connector of theirs ending within 7 days).
          */
         get: operations["list_notifications"];
         put?: never;
@@ -3430,6 +3470,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/ops/jc_change_apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Change
+         * @description Opens the change requests (or workspace commits) of an unchanged plan from jc_change_plan; 409 when an object moved since. Never approves: a person approves in the Portal
+         */
+        post: operations["jc_change_apply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ops/jc_change_approve": {
         parameters: {
             query?: never;
@@ -3484,6 +3544,26 @@ export interface paths {
          * @description Lists open change proposals and merge requests for review
          */
         post: operations["jc_change_list"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_change_plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Plan Change
+         * @description Checks one or more changes of any kind with the dry run (every check, nothing saved) and answers the diff, the verdict and a planId valid 30 minutes; a failing check answers 422 naming each field
+         */
+        post: operations["jc_change_plan"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7690,6 +7770,13 @@ export interface components {
         };
         /** @enum {string} */
         ConnectorAccess: "read" | "write";
+        /** @description Who let a request above the ceiling through, and when. */
+        ConnectorApproval: {
+            /** Format: date-time */
+            at: string;
+            /** @description The approver's Keycloak user id. */
+            by: string;
+        };
         /** @description One row of a connector's audit (AG-147). */
         ConnectorCall: {
             /** Format: date-time */
@@ -7711,7 +7798,13 @@ export interface components {
         };
         /** @description A connector as its owner reads it (API/14 §1). */
         ConnectorGrant: {
+            /**
+             * @description What the request asked above the owner's DelegationPolicy ceiling; set while pending and
+             *     kept after an approval.
+             */
+            aboveCeiling?: string[];
             allowedClients: string[];
+            approval?: null | components["schemas"]["ConnectorApproval"];
             /**
              * @description Whether the allowed clients bind the connector (claude.ai, ChatGPT) or only say whom it
              *     is meant for (Claude Code, `mcp-local`): AG-153.
@@ -7727,10 +7820,19 @@ export interface components {
             /** @description What the connector may spend; shown on My connectors. */
             limits: components["schemas"]["ConnectorLimits"];
             name: string;
+            /**
+             * @description The parts of this connector the owner's DelegationPolicy ceiling takes away today, each
+             *     one line such as `segment pipeline`; calls run without them (AG-150, "narrowed by
+             *     policy"). Empty when it fits.
+             */
+            narrowedBy?: string[];
             owner: string;
             scope: components["schemas"]["ConnectorScopeItem"][];
             segments: string[];
-            /** @description `active`, `expired` or `revoked`. */
+            /**
+             * @description `active`, `pending` (above the ceiling, waiting for an administrator), `expired` or
+             *     `revoked`.
+             */
             state: string;
             /** @description The MCP address a client adds: `https://portal.{domain}/c/{id}`. */
             url: string;
@@ -9181,21 +9283,34 @@ export interface components {
             "1m": components["schemas"]["NodeCounters"];
             "5m": components["schemas"]["NodeCounters"];
         };
-        /** @description One notification of a mention. */
+        /** @description One notification: a mention, or an event of a person's connectors (T-5979). */
         Notification: {
             author: string;
             authorName: string;
-            /** Format: int64 */
-            commentId: number;
+            /**
+             * Format: int64
+             * @description The comment of a mention.
+             */
+            commentId?: number | null;
             /** @description RFC 3339. */
             createdAt: string;
-            /** @description The first [`EXCERPT`] characters of the comment. */
+            /** @description The first [`EXCERPT`] characters of the comment; for a connector event the connector's name. */
             excerpt: string;
             /** Format: int64 */
             id: number;
+            /**
+             * @description `mention`, `change.opened` (a change opened through a connector waits for approval),
+             *     `connector.pending` (a connector request waits above the ceiling) or `connector.expiring`
+             *     (a connector of the reader's ends within seven days).
+             */
+            kind: string;
+            /** @description The Portal page a connector event opens, e.g. `/projects/helsinki/approvals/cr-12`. */
+            link?: string | null;
             project: string;
             read: boolean;
+            /** @description The mention's space; empty for a connector event. */
             space: string;
+            /** @description The mentioned entity, or for a connector event the change or connector it is about. */
             urn: string;
         };
         /** @description The caller's notifications. */
@@ -12371,7 +12486,7 @@ export interface operations {
                     "application/json": Record<string, never>;
                 };
             };
-            /** @description Created */
+            /** @description Created: `active`, or `pending` when it asks above the caller's DelegationPolicy ceiling and that policy queues such requests (AG-150) */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -12455,6 +12570,44 @@ export interface operations {
                 };
             };
             /** @description A service account holds no connector */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    pending_connectors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pending connectors */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorList"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an administrator of the ceiling, or an AI client's token */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12668,6 +12821,56 @@ export interface operations {
                 };
             };
             /** @description No connector of the caller's with this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    approve_connector: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The connector id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Approved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorGrant"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not an administrator, the owner, a right the approver lacks, or an AI client's token; the detail says which */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No pending connector with this id */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -22601,6 +22804,90 @@ export interface operations {
             };
         };
     };
+    jc_change_apply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "planId": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description The planId jc_change_plan answered */
+                    planId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        approve?: string;
+                        changeRequests?: Record<string, never>[];
+                        workspaceChanges?: Record<string, never>[];
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     jc_change_approve: {
         parameters: {
             query?: never;
@@ -22831,6 +23118,118 @@ export interface operations {
                         }[];
                         /** @enum {string} */
                         kind: "ChangeList";
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_change_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "changes": [
+                 *         {
+                 *           "kind": "example",
+                 *           "name": "example",
+                 *           "op": "create"
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": {
+                    /** @description The changes to plan together, e.g. [{"op": "patch", "kind": "Pipeline", "name": "counters", "patch": {"spec": {"schedule": {"period": "PT15M"}}}}] */
+                    changes: {
+                        /** @description The manifest kind, e.g. DataModel */
+                        kind: string;
+                        /** @description With create or replace: the whole manifest */
+                        manifest?: Record<string, never>;
+                        /** @description The object's metadata.name, e.g. bike-counter */
+                        name: string;
+                        /**
+                         * @description create a new object, replace it whole, merge a JSON merge patch into it, or remove it
+                         * @enum {string}
+                         */
+                        op: "create" | "replace" | "patch" | "delete";
+                        /** @description With patch: a JSON merge patch (RFC 7386) onto the current manifest */
+                        patch?: Record<string, never>;
+                    }[];
+                    /** @description Commit into this workspace (a copy of the project) instead of opening change requests */
+                    workspace?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        baseEtag: string;
+                        diff: Record<string, never>[];
+                        /** Format: date-time */
+                        expiresAt: string;
+                        /** @enum {string} */
+                        lane?: "green" | "yellow" | "red";
+                        next?: string;
+                        planId: string;
+                        verdict: Record<string, never>;
                     };
                 };
             };
@@ -27845,7 +28244,7 @@ export interface operations {
                      * @description The manifest kind, e.g. Pipeline
                      * @enum {string}
                      */
-                    kind: "Organization" | "Project" | "ContextSpace" | "DataModel" | "Mapping" | "Policy" | "ScopeDefinition" | "Endpoint" | "ModelProjection" | "SharedSpaceReference" | "ContextSourceRegistration" | "Subscription" | "ServiceAccount" | "Pipeline" | "DataSource" | "App" | "CkanInstance" | "KnowledgeSource" | "AssistantDeployment" | "McpServer" | "MqttBroker" | "Blueprint" | "AgentProfile" | "DataSpaceParticipant" | "DataOffer" | "DataAgreement" | "SyncSource" | "Bundle" | "UiSchema" | "Role" | "RoleBinding" | "Group" | "ContextBroker" | "Environment" | "Dashboard" | "Layer";
+                    kind: "Organization" | "Project" | "ContextSpace" | "DataModel" | "Mapping" | "Policy" | "ScopeDefinition" | "Endpoint" | "ModelProjection" | "SharedSpaceReference" | "ContextSourceRegistration" | "Subscription" | "ServiceAccount" | "Pipeline" | "DataSource" | "App" | "CkanInstance" | "KnowledgeSource" | "AssistantDeployment" | "McpServer" | "MqttBroker" | "Blueprint" | "AgentProfile" | "DataSpaceParticipant" | "DataOffer" | "DataAgreement" | "SyncSource" | "Bundle" | "UiSchema" | "Role" | "RoleBinding" | "Group" | "DelegationPolicy" | "ContextBroker" | "Environment" | "Dashboard" | "Layer";
                 };
             };
         };

@@ -1762,6 +1762,16 @@
         "routes": [
           "DELETE /api/v1/connectors/{id}"
         ]
+      },
+      "approve": {
+        "live": {
+          "spec": "connectors.spec.ts",
+          "test": "a request above the ceiling waits for an administrator and nobody else decides it"
+        },
+        "personOnly": "an administrator decides a connector request above the DelegationPolicy ceiling in the Portal; no AI client decides one (AG-150, AG-151)",
+        "routes": [
+          "POST /api/v1/connectors/{id}/approve"
+        ]
       }
     }
   },

@@ -1449,7 +1449,7 @@
             }
           },
           "201": {
-            "description": "Created",
+            "description": "Created: `active`, or `pending` when it asks above the caller's DelegationPolicy ceiling and that policy queues such requests (AG-150)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1542,6 +1542,48 @@
           },
           "403": {
             "description": "A service account holds no connector",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/pending": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Connector Requests Above the Ceiling",
+        "description": "Every live connector waiting for an administrator, oldest first, with what it asks above its owner's DelegationPolicy ceiling (AG-150). Only an administrator of the organization, or a person who may approve a DelegationPolicy change, reads it.",
+        "operationId": "pending_connectors",
+        "responses": {
+          "200": {
+            "description": "The pending connectors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the ceiling, or an AI client's token",
             "content": {
               "application/json": {
                 "schema": {
@@ -1801,6 +1843,69 @@
           },
           "404": {
             "description": "No connector of the caller's with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/{id}/approve": {
+      "post": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Approve a Connector Request",
+        "description": "Lets a `pending` connector through: it turns `active` and calls run with what it asked, while a DelegationPolicy binding its owner still queues requests. The approver is an administrator of the organization or a person who may approve a DelegationPolicy change, not the owner, and holds every right the connector asks for (AG-150, PF-51); an AI client's token is refused (AG-151).",
+        "operationId": "approve_connector",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The connector id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Approved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorGrant"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator, the owner, a right the approver lacks, or an AI client's token; the detail says which",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No pending connector with this id",
             "content": {
               "application/json": {
                 "schema": {
@@ -2289,7 +2394,7 @@
           "auth"
         ],
         "summary": "List My Notifications",
-        "description": "The caller's notifications, newest first, at most 100, with how many are unread (API/01 §35).",
+        "description": "The caller's notifications, newest first, at most 100, with how many are unread (API/01 §35): mentions, and the connector events the caller may act on (a change opened through a connector, a connector request above the ceiling, a connector of theirs ending within 7 days).",
         "operationId": "list_notifications",
         "responses": {
           "200": {
@@ -15296,6 +15401,135 @@
         }
       }
     },
+    "/api/v1/projects/{project}/ops/jc_change_apply": {
+      "post": {
+        "description": "Opens the change requests (or workspace commits) of an unchanged plan from jc_change_plan; 409 when an object moved since. Never approves: a person approves in the Portal",
+        "operationId": "jc_change_apply",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "planId": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "planId": {
+                    "description": "The planId jc_change_plan answered",
+                    "maxLength": 128,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "planId"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "approve": {
+                      "type": "string"
+                    },
+                    "changeRequests": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "workspaceChanges": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Apply Change",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "*",
+          "verb": "propose"
+        }
+      }
+    },
     "/api/v1/projects/{project}/ops/jc_change_approve": {
       "post": {
         "description": "Approves and merges a change proposal",
@@ -15788,6 +16022,209 @@
           "checkedBy": "route",
           "kind": "*",
           "verb": "read"
+        }
+      }
+    },
+    "/api/v1/projects/{project}/ops/jc_change_plan": {
+      "post": {
+        "description": "Checks one or more changes of any kind with the dry run (every check, nothing saved) and answers the diff, the verdict and a planId valid 30 minutes; a failing check answers 422 naming each field",
+        "operationId": "jc_change_plan",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "changes": [
+                  {
+                    "kind": "example",
+                    "name": "example",
+                    "op": "create"
+                  }
+                ]
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "changes": {
+                    "description": "The changes to plan together, e.g. [{\"op\": \"patch\", \"kind\": \"Pipeline\", \"name\": \"counters\", \"patch\": {\"spec\": {\"schedule\": {\"period\": \"PT15M\"}}}}]",
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "kind": {
+                          "description": "The manifest kind, e.g. DataModel",
+                          "maxLength": 128,
+                          "type": "string"
+                        },
+                        "manifest": {
+                          "description": "With create or replace: the whole manifest",
+                          "maxProperties": 5,
+                          "type": "object"
+                        },
+                        "name": {
+                          "description": "The object's metadata.name, e.g. bike-counter",
+                          "maxLength": 253,
+                          "type": "string"
+                        },
+                        "op": {
+                          "description": "create a new object, replace it whole, merge a JSON merge patch into it, or remove it",
+                          "enum": [
+                            "create",
+                            "replace",
+                            "patch",
+                            "delete"
+                          ],
+                          "type": "string"
+                        },
+                        "patch": {
+                          "description": "With patch: a JSON merge patch (RFC 7386) onto the current manifest",
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "op",
+                        "kind",
+                        "name"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 50,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "workspace": {
+                    "description": "Commit into this workspace (a copy of the project) instead of opening change requests",
+                    "maxLength": 253,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "changes"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "baseEtag": {
+                      "type": "string"
+                    },
+                    "diff": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "expiresAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "lane": {
+                      "enum": [
+                        "green",
+                        "yellow",
+                        "red"
+                      ],
+                      "type": "string"
+                    },
+                    "next": {
+                      "type": "string"
+                    },
+                    "planId": {
+                      "type": "string"
+                    },
+                    "verdict": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "planId",
+                    "baseEtag",
+                    "expiresAt",
+                    "diff",
+                    "verdict"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Plan Change",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "*",
+          "verb": "propose"
         }
       }
     },
@@ -24716,6 +25153,7 @@
                       "Role",
                       "RoleBinding",
                       "Group",
+                      "DelegationPolicy",
                       "ContextBroker",
                       "Environment",
                       "Dashboard",
@@ -39108,6 +39546,24 @@
           "write"
         ]
       },
+      "ConnectorApproval": {
+        "type": "object",
+        "description": "Who let a request above the ceiling through, and when.",
+        "required": [
+          "by",
+          "at"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "by": {
+            "type": "string",
+            "description": "The approver's Keycloak user id."
+          }
+        }
+      },
       "ConnectorCall": {
         "type": "object",
         "description": "One row of a connector's audit (AG-147).",
@@ -39187,11 +39643,28 @@
           "limits"
         ],
         "properties": {
+          "aboveCeiling": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What the request asked above the owner's DelegationPolicy ceiling; set while pending and\nkept after an approval."
+          },
           "allowedClients": {
             "type": "array",
             "items": {
               "type": "string"
             }
+          },
+          "approval": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ConnectorApproval"
+              }
+            ]
           },
           "clientIsBoundary": {
             "type": "boolean",
@@ -39222,6 +39695,13 @@
           "name": {
             "type": "string"
           },
+          "narrowedBy": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The parts of this connector the owner's DelegationPolicy ceiling takes away today, each\none line such as `segment pipeline`; calls run without them (AG-150, \"narrowed by\npolicy\"). Empty when it fits."
+          },
           "owner": {
             "type": "string"
           },
@@ -39239,7 +39719,7 @@
           },
           "state": {
             "type": "string",
-            "description": "`active`, `expired` or `revoked`."
+            "description": "`active`, `pending` (above the ceiling, waiting for an administrator), `expired` or\n`revoked`."
           },
           "url": {
             "type": "string",
@@ -43203,13 +43683,13 @@
       },
       "Notification": {
         "type": "object",
-        "description": "One notification of a mention.",
+        "description": "One notification: a mention, or an event of a person's connectors (T-5979).",
         "required": [
           "id",
+          "kind",
           "project",
           "space",
           "urn",
-          "commentId",
           "author",
           "authorName",
           "excerpt",
@@ -43224,8 +43704,12 @@
             "type": "string"
           },
           "commentId": {
-            "type": "integer",
-            "format": "int64"
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The comment of a mention."
           },
           "createdAt": {
             "type": "string",
@@ -43233,11 +43717,22 @@
           },
           "excerpt": {
             "type": "string",
-            "description": "The first [`EXCERPT`] characters of the comment."
+            "description": "The first [`EXCERPT`] characters of the comment; for a connector event the connector's name."
           },
           "id": {
             "type": "integer",
             "format": "int64"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`mention`, `change.opened` (a change opened through a connector waits for approval),\n`connector.pending` (a connector request waits above the ceiling) or `connector.expiring`\n(a connector of the reader's ends within seven days)."
+          },
+          "link": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Portal page a connector event opens, e.g. `/projects/helsinki/approvals/cr-12`."
           },
           "project": {
             "type": "string"
@@ -43246,10 +43741,12 @@
             "type": "boolean"
           },
           "space": {
-            "type": "string"
+            "type": "string",
+            "description": "The mention's space; empty for a connector event."
           },
           "urn": {
-            "type": "string"
+            "type": "string",
+            "description": "The mentioned entity, or for a connector event the change or connector it is about."
           }
         }
       },

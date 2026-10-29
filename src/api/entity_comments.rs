@@ -379,7 +379,7 @@ pub async fn remove_comment(
     get,
     path = "/api/v1/notifications",
     summary = "List My Notifications",
-    description = "The caller's notifications, newest first, at most 100, with how many are unread (API/01 §35).",
+    description = "The caller's notifications, newest first, at most 100, with how many are unread (API/01 §35): mentions, and the connector events the caller may act on (a change opened through a connector, a connector request above the ceiling, a connector of theirs ending within 7 days).",
     tag = "auth",
     responses(
         (status = 200, description = "The caller's notifications", body = Notifications),
@@ -391,11 +391,18 @@ pub async fn list_notifications(
     user: CurrentUser,
     State(state): State<AppState>,
 ) -> Result<Json<Notifications>, ApiError> {
-    let (items, unread) = state
+    let ids = recipients(&user);
+    let identity = &user.0.identity;
+    // The connector events (T-5979): the caller's own expiring connectors, then the audience
+    // notices they may act on today, each copied to them once.
+    crate::api::connectors::notify_expiring(&state, identity, &ids[0]).await?;
+    let audiences = crate::api::connectors::audiences(&state, identity);
+    state
         .comments
-        .notifications(&recipients(&user))
+        .deliver(&ids[0], &ids, &audiences)
         .await
         .map_err(stored)?;
+    let (items, unread) = state.comments.notifications(&ids).await.map_err(stored)?;
     Ok(Json(Notifications { items, unread }))
 }
 
