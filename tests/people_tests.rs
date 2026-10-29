@@ -1547,6 +1547,73 @@ async fn a_disabled_person_is_refused_before_their_token_expires() {
         .any(|(s, _)| s == "pia-id"));
 }
 
+/// T-5975: disabling a person revokes every live connector of theirs, not another person's, and
+/// the feed names how many; enabling them again revives none.
+#[tokio::test]
+async fn disabling_a_person_revokes_their_connectors_on_the_feed() {
+    let (kc, gitea) = (realm(true).await, forge().await);
+    let state = state_with(&kc, &gitea);
+    let mut feed = state.activity_events.subscribe(ORG_NAMESPACE).await;
+    let new = |name: &str| -> joinedcontext_portal::connectors::NewConnector {
+        serde_json::from_value(json!({
+            "name": name, "segments": ["data-read"],
+            "scope": [{ "project": "doprava", "access": "read" }],
+            "expiresAt": (chrono::Utc::now() + chrono::Duration::days(7)).to_rfc3339(),
+        }))
+        .expect("a connector")
+    };
+    for (owner, name) in [
+        ("jana-id", "claude-code"),
+        ("jana-id", "chatgpt"),
+        ("pia-id", "pia"),
+    ] {
+        state
+            .connectors
+            .create(owner, new(name), "")
+            .await
+            .expect("created");
+    }
+
+    for verb in ["disable", "enable"] {
+        let answer = send(
+            &state,
+            person("ada"),
+            "POST",
+            &format!("{PEOPLE}/jana-id/{verb}"),
+            None,
+        )
+        .await;
+        assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+    }
+    let states = |owner: &'static str| {
+        let state = state.clone();
+        async move {
+            state
+                .connectors
+                .of_owner(owner, "")
+                .await
+                .expect("list")
+                .into_iter()
+                .map(|c| c.state)
+                .collect::<Vec<_>>()
+        }
+    };
+    assert_eq!(states("jana-id").await, ["revoked", "revoked"]);
+    assert_eq!(states("pia-id").await, ["active"]);
+    let actions: Vec<Value> = person_changes(&mut feed)
+        .into_iter()
+        .map(|d| d["action"].clone())
+        .collect();
+    assert_eq!(
+        actions,
+        [
+            json!("revoked 2 connectors of"),
+            json!("disabled"),
+            json!("enabled")
+        ]
+    );
+}
+
 const JANA_ID: &str = "00000000-0000-4000-8000-00000000000a";
 
 /// ADR-N-061 (T-5711): the names behind ids go to whoever updates people or approves groups, and
@@ -1580,7 +1647,8 @@ async fn names_behind_ids_are_read_by_a_people_admin_or_a_group_approver_alone()
     )
     .await;
     assert_eq!(bad.status, StatusCode::UNPROCESSABLE_ENTITY, "{}", bad.text);
-    assert!(bad.text.contains("ids:"), "{}", bad.text);
+    let bad_body: Value = serde_json::from_str(&bad.text).expect("json");
+    assert_eq!(bad_body["errors"][0]["path"], "ids", "{}", bad.text);
 }
 
 /// ADR-N-061 (T-5711): the dry run over the organization's repository rewrites every address a

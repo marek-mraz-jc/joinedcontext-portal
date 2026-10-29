@@ -310,6 +310,15 @@ routes:
     rule: "approve on ServiceAccount, from a person's session"
     expect: [403, 403, 403, allow, allow, allow, 403, 403]
     note: "issues the account's client secret once (PF-37, T-5626); an allowed caller meets the fixture's 409 (its account has an empty spec), the 200 allow path is tests/account_secret_tests.rs an_approver_gets_the_secret_once_and_no_read_shows_it_again; a bearer token is 403"
+  - route: GET /projects/{project}/secrets
+    rule: "propose on DataSource, from a person's session"
+    expect: [401, 403, allow, allow, 403, allow, 403, 403]
+    note: "names and keys of the repository's encrypted files, never a value (T-5971); an allowed caller meets the fixture forge's answer"
+  - route: POST /projects/{project}/secrets
+    rule: "propose on DataSource, from a person's session"
+    expect: [403, 403, allow, allow, 403, allow, 403, 403]
+    body: {"name": "counters-api", "values": {"apiKey": "typed-in-the-form"}}
+    note: "the secret form (T-5971): an allowed caller meets the fixture's 503 (no age identity); the 202 path is tests/secret_form_tests.rs; a bearer token is 403"
   - route: GET /projects/{project}/endpoints/{name}/quality
     rule: "project-read and read on the Endpoint in its space; the fixes for space-read (T-5112)"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
@@ -393,6 +402,13 @@ routes:
     rule: "signed-in, own connectors only"
     expect: [401, 404, 404, 404, 404, 404, 404, 404]
     note: "the fixture holds no connector: every person's 404 is the unknown id"
+  - route: GET /organization/connectors
+    rule: "org-admin"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+  - route: DELETE /organization/connectors/{id}
+    rule: "org-admin"
+    expect: [403, 403, 403, 403, 403, 404, 403, 403]
+    note: "the fixture holds no connector: the administrator's 404 is the unknown id"
   - route: GET /c/{id}
     rule: "public"
     expect: [405, 405, 405, 405, 405, 405, 405, 405]

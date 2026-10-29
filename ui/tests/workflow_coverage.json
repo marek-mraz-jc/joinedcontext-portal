@@ -900,6 +900,16 @@
           "POST /api/v1/projects/{project}/serviceaccounts/{name}/revoke",
           "POST /api/v1/projects/{project}/serviceaccounts/{name}/secret"
         ]
+      },
+      "secret-form": {
+        "live": {
+          "spec": "secret-form.spec.ts",
+          "test": "the secret form a plan links to opens prefilled with its hints"
+        },
+        "personOnly": "a credential is typed by a person into the Portal's secret form; no tool or assistant may carry one (MF-24, T-5971)",
+        "routes": [
+          "POST /api/v1/projects/{project}/secrets"
+        ]
       }
     },
     "subscription": {
@@ -1761,6 +1771,16 @@
         "personOnly": "a connector is a person's own grant to an AI client; a connector never creates, widens or revokes one (AG-151)",
         "routes": [
           "DELETE /api/v1/connectors/{id}"
+        ]
+      },
+      "revokeAny": {
+        "live": {
+          "spec": "connectors.spec.ts",
+          "test": "an administrator finds a person's connector on the overview and revokes it"
+        },
+        "personOnly": "an administrator revokes a person's connector in the Portal; a connector never revokes one (AG-151, T-5975)",
+        "routes": [
+          "DELETE /api/v1/organization/connectors/{id}"
         ]
       }
     }

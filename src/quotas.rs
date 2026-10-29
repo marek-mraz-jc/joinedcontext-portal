@@ -173,6 +173,9 @@ pub fn check(
             return Err(over(dimension, after, limit, project));
         }
     }
+    if kind == "Pipeline" {
+        check_clock(mirror, project, spec)?;
+    }
     // What one Endpoint may serve is capped by the project's quota, so the gateway's rate limit
     // can never be rendered above it (PF-74, EP-17).
     if kind == "Endpoint" {
@@ -192,6 +195,65 @@ pub fn check(
         }
     }
     Ok(())
+}
+
+/// The shortest clock a Pipeline of `project` may run on, in seconds, and the field that sets
+/// it: the stricter of the project's own `spec.quotas` and the organization's default, so a
+/// project only tightens the floor its organization sets (PL-116).
+pub fn min_pipeline_period(mirror: &Mirror, project: &str) -> Option<(u32, String)> {
+    let own = mirror
+        .get(ORG_NAMESPACE, "Project", project)
+        .and_then(|env| serde_json::from_value::<Quotas>(env.spec.get("quotas")?.clone()).ok())
+        .and_then(|q| q.min_pipeline_period_seconds)
+        .map(|floor| {
+            (
+                floor,
+                format!("spec.quotas.minPipelinePeriodSeconds of project {project}"),
+            )
+        });
+    let organization = organization_default(mirror)
+        .min_pipeline_period_seconds
+        .map(|floor| {
+            (
+                floor,
+                "spec.projects.quota.minPipelinePeriodSeconds of the organization".to_owned(),
+            )
+        });
+    own.into_iter()
+        .chain(organization)
+        .max_by_key(|(floor, _)| *floor)
+}
+
+/// Refuses a Pipeline whose period or schedule runs faster than the project's floor, naming the
+/// field, the floor and where it is set (PL-116, S-22).
+fn check_clock(mirror: &Mirror, project: &str, spec: &Value) -> Result<(), ApiError> {
+    let Some((floor, set_by)) = min_pipeline_period(mirror, project) else {
+        return Ok(());
+    };
+    let Ok(pipeline) = serde_json::from_value::<jc_core::kinds::PipelineSpec>(spec.clone()) else {
+        return Ok(());
+    };
+    let Some(shortest) = pipeline.shortest_clock_seconds() else {
+        return Ok(());
+    };
+    if shortest >= u64::from(floor) {
+        return Ok(());
+    }
+    let field = if pipeline.period_seconds() == Some(shortest) {
+        "spec.period"
+    } else {
+        "spec.schedule"
+    };
+    Err(ApiError::Unprocessable {
+        detail: format!(
+            "the pipeline runs every {shortest} s, faster than the minimum period of {floor} s \
+             project {project} allows (PL-116)"
+        ),
+        errors: vec![format!(
+            "{field}: runs every {shortest} s, below the minimum period of {floor} s \
+             ({set_by}); choose {floor} s or longer, or ask an admin to lower the minimum"
+        )],
+    })
 }
 
 #[cfg(test)]
@@ -572,6 +634,63 @@ mod tests {
         assert!(
             refused.to_string().contains("publicEndpoints 2 of 1"),
             "{refused}"
+        );
+    }
+
+    /// PL-116, S-22: the stricter floor holds, a slower clock passes, and the refusal names the
+    /// field, the floor and where it is set.
+    #[test]
+    fn a_pipeline_faster_than_the_floor_is_refused_naming_it() {
+        let mirror = mirror_with(vec![
+            envelope(
+                "Organization",
+                "bb",
+                ORG_NAMESPACE,
+                json!({ "domain": "bb.sk", "projects": { "quota": { "minPipelinePeriodSeconds": 300 } } }),
+            ),
+            envelope(
+                "Project",
+                "ovzdusie",
+                ORG_NAMESPACE,
+                json!({ "organizationRef": { "name": "bb" }, "quotas": { "minPipelinePeriodSeconds": 900 } }),
+            ),
+        ]);
+        let poll = |period: &str, schedule: Option<&str>| {
+            let mut spec = json!({ "class": "auto", "period": period, "source": { "dataSourceRef": { "kind": "DataSource", "name": "mqtt" } } });
+            if let Some(cron) = schedule {
+                spec = json!({ "class": "scheduled", "schedule": cron, "source": { "dataSourceRef": { "kind": "DataSource", "name": "mqtt" } } });
+            }
+            check(&mirror, "ovzdusie", "Pipeline", "counters", &spec)
+        };
+        assert!(poll("15m", None).is_ok(), "on the floor passes");
+        assert!(poll("1h", None).is_ok());
+        let Err(ApiError::Unprocessable { errors, .. }) = poll("5m", None) else {
+            panic!("the project's stricter floor of 900 s holds over the organization's 300 s");
+        };
+        assert!(
+            errors[0]
+                .starts_with("spec.period: runs every 300 s, below the minimum period of 900 s")
+                && errors[0].contains("spec.quotas.minPipelinePeriodSeconds of project ovzdusie"),
+            "{errors:?}"
+        );
+        let Err(ApiError::Unprocessable { errors, .. }) = poll("", Some("*/5 * * * *")) else {
+            panic!("a schedule every five minutes is under the floor too");
+        };
+        assert!(
+            errors[0].starts_with("spec.schedule: runs every 300 s"),
+            "{errors:?}"
+        );
+        assert!(poll("", Some("*/15 * * * *")).is_ok());
+        assert!(
+            check(
+                &mirror,
+                "doprava",
+                "Pipeline",
+                "x",
+                &json!({ "class": "auto", "period": "1m", "source": { "dataSourceRef": { "kind": "DataSource", "name": "mqtt" } } })
+            )
+            .is_err(),
+            "a project without its own floor keeps the organization's"
         );
     }
 }

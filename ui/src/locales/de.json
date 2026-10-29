@@ -6230,7 +6230,12 @@
         "readPreset": "Lesen ändert nichts.",
         "noWrite": "Ihre Rolle schreibt über diesen Endpunkt nicht."
       },
-      "pathLeft": "Nicht mit {preset}: in Fähigkeiten einschalten."
+      "pathLeft": "Nicht mit {preset}: in Fähigkeiten einschalten.",
+      "segment": {
+        "label": "Werkzeuge",
+        "none": "Geführte Wege",
+        "help": "Der Assistent folgt den geführten Wegen. Wählen Sie eine Vorgabe, z. B. Pipelines, dann nutzt er deren Werkzeuge, jeder Aufruf geprüft gegen Ihre Rechte."
+      }
     },
     "full": {
       "conversations": "Unterhaltungen",
@@ -7036,7 +7041,8 @@
       "mcp-servers": "MCP-Server der Organisation",
       "brokers": "Broker",
       "agents": "Agenten",
-      "costs": "Kosten"
+      "costs": "Kosten",
+      "connectors": "Konnektoren"
     },
     "settings": {
       "title": "Einstellungen",
@@ -7858,6 +7864,46 @@
         "alertMeHint": "Sie erhalten einen Hinweis im Posteingang, wenn dieser Agent gehäuft abgelehnt wird, sich seinem Token-Limit nähert oder außerhalb der Bürozeiten schreibt.",
         "alertMeNone": "Sie genehmigen in keinem Projekt Änderungen, und nur wer genehmigt, sieht die Läufe aller Personen. Bitten Sie eine verantwortliche Person des Projekts um die Genehmigerrolle."
       }
+    },
+    "connectors": {
+      "title": "Konnektoren",
+      "lead": "Die KI-Konnektoren aller Personen: was jeder erreicht, welchen Clients er antwortet und wie oft er am letzten Tag genutzt und abgewiesen wurde. Aufrufe erscheinen hier nur als Zahlen, ihr Inhalt nie.",
+      "hidden": "Nur eine Administration der Organisation sieht die Konnektoren aller Personen. Ihre eigenen stehen unter Meine Konnektoren.",
+      "caption": "Die Konnektoren aller Personen",
+      "filter": "Filter",
+      "filterHelp": "Name eines Konnektors, seine Inhaberin oder ein Client, z. B. jana oder claude.ai",
+      "state": "Status",
+      "stateHelp": "Aktive Konnektoren beantworten Aufrufe; Widerrufen zeigt, was eine Administration oder ein Austritt beendet hat",
+      "stateAny": "Jeder Status",
+      "states": {
+        "active": "Aktiv",
+        "expired": "Abgelaufen",
+        "revoked": "Widerrufen"
+      },
+      "flaggedOnly": "Nur markierte",
+      "flaggedHelp": "Konnektoren, die am letzten Tag 10 Mal oder öfter abgewiesen wurden: die Spur eines Clients, der außerhalb seines Umfangs tastet",
+      "flaggedSummary": "{count, plural, one {# aktiver Konnektor ist markiert} other {# aktive Konnektoren sind markiert}}: {denials} oder mehr abgewiesene Aufrufe am letzten Tag. Prüfen Sie den Umfang oder widerrufen Sie ihn.",
+      "connector": "Konnektor",
+      "owner": "Inhaber",
+      "scope": "Umfang",
+      "clients": "Clients (Anwendungen)",
+      "lastCall": "Letzter Aufruf",
+      "usage": "Letzte 24 Stunden",
+      "actions": "Aktionen",
+      "writes": "Schreibzugriff",
+      "anyClient": "Jeder Client",
+      "never": "Nie genutzt",
+      "calls": "{count, plural, one {# Aufruf} other {# Aufrufe}}",
+      "denials": "{count, plural, =0 {keine Abweisung} one {# abgewiesen} other {# abgewiesen}}",
+      "flagged": "Markiert",
+      "revoke": "Widerrufen",
+      "revokeLabel": "Konnektor {name} widerrufen",
+      "confirmTitle": "Konnektor {name} widerrufen?",
+      "confirmText": "Sein nächster Aufruf wird sofort abgewiesen. {owner} behält die anderen Konnektoren und kann im Rahmen der eigenen Rechte einen neuen anlegen.",
+      "empty": "Noch niemand hat einen Konnektor",
+      "emptyHint": "Eine Person legt ihn unter Meine Konnektoren an, um die Plattform aus Claude, ChatGPT oder Claude Code zu nutzen; dann erscheint er hier mit Umfang und Nutzung.",
+      "noMatch": "Kein Konnektor passt zum Filter",
+      "noMatchHint": "Leeren Sie den Filter oder wählen Sie Jeder Status, um auch widerrufene und abgelaufene Konnektoren zu sehen."
     }
   },
   "projectDelete": {
@@ -9143,7 +9189,8 @@
     "recipient-refused": "Senden Sie nur an Personen der Organisation mit bestätigter E-Mail-Adresse.",
     "no-model-key": "Bitten Sie die Administration der Organisation, den Modellschlüssel hinzuzufügen oder zu erneuern, und versuchen Sie es erneut.",
     "no-json": "Fragen Sie erneut; die Antwort des Modells entsprach nicht dem angeforderten Schema.",
-    "second-factor-required": "Melden Sie sich erneut mit Ihrem Einmalcode an und wiederholen Sie die Entscheidung."
+    "second-factor-required": "Melden Sie sich erneut mit Ihrem Einmalcode an und wiederholen Sie die Entscheidung.",
+    "secret-in-argument": "Geben Sie den Zugangswert im Geheimnis-Formular des Portals ein, nie im Chat oder im Manifest, und verweisen Sie per secretRef darauf."
   },
   "jobs": {
     "title": "Was Sie gestartet haben",
@@ -10603,5 +10650,24 @@
     "editOf": "KI-Konnektor {name} bearbeiten",
     "editTitle": "{name} bearbeiten",
     "save": "Speichern"
+  },
+  "secrets": {
+    "title": "Geheimnis eingeben",
+    "description": "Ein Zugangswert, den eine Quelle oder ein Plan braucht: API-Schlüssel, Passwort, Token. Er wird verschlüsselt im Repository des Projekts abgelegt und öffnet eine Änderung zur Freigabe.",
+    "neverInChat": "Geben Sie einen Zugangswert nur hier ein, nie im Chat mit dem Assistenten oder einem KI-Konnektor: ein Chat trüge ihn durch das Modell. Ein Manifest verweist per secretRef darauf.",
+    "name": "Name des Geheimnisses",
+    "hint": {
+      "name": "Buchstaben, Ziffern, - und _, z. B. counters-api. Ein Manifest nennt ihn als Namen in secretRef.",
+      "key": "Was dieser Wert im Geheimnis ist, z. B. apiKey oder password.",
+      "value": "Der Zugangswert selbst, z. B. der API-Schlüssel des Anbieters. Hier liest ihn niemand mehr aus."
+    },
+    "key": "Schlüssel",
+    "value": "Wert",
+    "empty": "Dieses Projekt hat noch kein Geheimnis: geben Sie unten das erste ein.",
+    "replaces": "Dieses Geheimnis existiert mit den Schlüsseln {keys}. Speichern ersetzt es ganz: geben Sie jeden Schlüssel ein, der bleibt.",
+    "addKey": "Schlüssel hinzufügen",
+    "addKept": "Bleibende Schlüssel hinzufügen",
+    "submit": "Verschlüsseln und vorschlagen",
+    "sending": "Das Geheimnis wird gesendet…"
   }
 }

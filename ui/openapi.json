@@ -2645,6 +2645,104 @@
         }
       }
     },
+    "/api/v1/organization/connectors": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "List the Organization's Connectors",
+        "description": "Every person's connectors, live ones first, at most 500: owner, segments, scope, clients, state, last call, calls and denials of the last 24 hours, and `flagged` at `denialsFlag` denials. Never a call's input or a token (T-5975, API/14 §2).",
+        "operationId": "organization_connectors",
+        "responses": {
+          "200": {
+            "description": "The organization's connectors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorOverview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/connectors/{id}": {
+      "delete": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Revoke a Person's Connector",
+        "description": "An administrator revokes any person's connector; the next call through it is refused, and the activity feed names who revoked it (T-5975).",
+        "operationId": "revoke_organization_connector",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The connector id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No live connector with this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/costs": {
       "get": {
         "tags": [
@@ -16043,6 +16141,12 @@
                       ],
                       "type": "string"
                     },
+                    "needsSecret": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "next": {
                       "type": "string"
                     },
@@ -25053,6 +25157,7 @@
                       "Role",
                       "RoleBinding",
                       "Group",
+                      "DelegationPolicy",
                       "ContextBroker",
                       "Environment",
                       "Dashboard",
@@ -29992,6 +30097,160 @@
           },
           "503": {
             "description": "No repository configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/secrets": {
+      "get": {
+        "tags": [
+          "access"
+        ],
+        "summary": "List The Project's Secrets",
+        "description": "Names and keys of every secret the repository's encrypted files declare, never a value (CC-06, T-5971). Only a person in a Portal session with `propose` on DataSource; a token of a connector, an agent or a service account is refused.",
+        "operationId": "list_secrets",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The secrets, by name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A bearer token, or no `propose` on DataSource here",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No forge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Propose A Secret",
+        "description": "Encrypts the values with SOPS + age for the Portal's own recipient (and every recipient the replaced file had) into `projects/{project}/secrets/{name}.enc.yaml` and opens a change request a person approves (CC-06, T-5971). The values are never stored in plain text, logged or answered. A secret that exists replaces whole: send every key. Only a person in a Portal session with `propose` on DataSource; a token of a connector, an agent or a service account is refused.",
+        "operationId": "propose_secret",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The change request that adds the secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Change"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A bearer token, or no `propose` on DataSource here",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another file declares the name, or a change of it is open already",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A name, key or value the form refuses, each named in errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No forge, or this Portal holds no age identity",
             "content": {
               "application/json": {
                 "schema": {
@@ -37643,6 +37902,13 @@
           },
           "preset": {
             "$ref": "#/components/schemas/Preset"
+          },
+          "segment": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The connector segment the conversation runs as (T-5958, API/14 §1), e.g. `pipeline`: the\nassistant calls that segment's registry tools natively, checked as a connector's calls."
           }
         },
         "additionalProperties": false
@@ -39647,6 +39913,26 @@
           }
         }
       },
+      "ConnectorOverview": {
+        "type": "object",
+        "required": [
+          "items",
+          "denialsFlag"
+        ],
+        "properties": {
+          "denialsFlag": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Refused calls in a day that flag a connector."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConnectorUsage"
+            }
+          }
+        }
+      },
       "ConnectorPatch": {
         "type": "object",
         "description": "The fields of a connector its owner may change (JSON merge patch, API/14 §2); the name stays.",
@@ -39734,6 +40020,38 @@
           }
         },
         "additionalProperties": false
+      },
+      "ConnectorUsage": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ConnectorGrant"
+          },
+          {
+            "type": "object",
+            "required": [
+              "callsPerDay",
+              "denialsPerDay",
+              "flagged"
+            ],
+            "properties": {
+              "callsPerDay": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Calls in the last 24 hours, allowed and refused."
+              },
+              "denialsPerDay": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Refused calls in the last 24 hours."
+              },
+              "flagged": {
+                "type": "boolean",
+                "description": "[`DENIALS_FLAG`] refused calls or more in the last 24 hours."
+              }
+            }
+          }
+        ],
+        "description": "A connector as an organization administrator reads it (T-5975): its grant and how much it is\nused, never what a call carried."
       },
       "Consent": {
         "type": "object",
@@ -47356,6 +47674,52 @@
         },
         "additionalProperties": false
       },
+      "SecretList": {
+        "type": "object",
+        "description": "The project's secrets, by name.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoredSecret"
+            }
+          }
+        }
+      },
+      "SecretWrite": {
+        "type": "object",
+        "description": "What the form sends: the whole secret, every key of it.",
+        "required": [
+          "name",
+          "values"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The secret's name, letters, digits, `-` and `_`, e.g. `counters-api`."
+          },
+          "values": {
+            "type": "object",
+            "description": "Each key with its value, e.g. `{\"apiKey\": \"…\"}`. A secret that exists already is replaced\nwhole, so every key it keeps is sent again.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "example": {
+          "name": "counters-api",
+          "values": {
+            "apiKey": "typed-in-the-form"
+          }
+        }
+      },
       "SetupItem": {
         "type": "object",
         "description": "One step or operator item and whether it is done.",
@@ -48046,6 +48410,32 @@
           "ok",
           "refused"
         ]
+      },
+      "StoredSecret": {
+        "type": "object",
+        "description": "A secret the repository declares: its name and keys, never a value.",
+        "required": [
+          "name",
+          "keys",
+          "path"
+        ],
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Its keys, e.g. `[\"apiKey\"]`; empty for a secret holding one value."
+          },
+          "name": {
+            "type": "string",
+            "description": "The name a `secretRef` gives, e.g. `counters-api`."
+          },
+          "path": {
+            "type": "string",
+            "description": "The repository file that holds it."
+          }
+        }
       },
       "SubjectRequest": {
         "type": "object",

@@ -1594,6 +1594,22 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
       ]
     },
+    "src/pages/organization/OrganizationConnectors.tsx": {
+      "walkedBy": "worker-t5975 (stub walk)",
+      "date": "2026-10-29",
+      "screenshots": [
+        "evidence/worker-t5975/T-5975/org-connectors-filled-desktop.png",
+        "evidence/worker-t5975/T-5975/org-connectors-filled-phone.png",
+        "evidence/worker-t5975/T-5975/org-connectors-confirm-desktop.png",
+        "evidence/worker-t5975/T-5975/org-connectors-confirm-phone.png",
+        "evidence/worker-t5975/T-5975/org-connectors-revoked-desktop.png",
+        "evidence/worker-t5975/T-5975/org-connectors-revoked-phone.png",
+        "evidence/worker-t5975/T-5975/org-connectors-empty-desktop.png",
+        "evidence/worker-t5975/T-5975/org-connectors-empty-phone.png",
+        "evidence/worker-t5975/T-5975/org-connectors-refused-desktop.png",
+        "evidence/worker-t5975/T-5975/org-connectors-refused-phone.png"
+      ]
+    },
     "src/pages/organization/OrganizationPage.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
@@ -2036,6 +2052,16 @@
       "screenshots": [
         "supervisor/reports/workflows-2026-10-21/copies/walk/bring-back-1440.png",
         "supervisor/reports/workflows-2026-10-21/copies/walk/bring-back-400.png"
+      ]
+    },
+    "src/pages/secrets/SecretFormPage.tsx": {
+      "walkedBy": "worker-t5971",
+      "date": "2026-10-29",
+      "screenshots": [
+        "evidence/T-5971/secret-form-empty-1440.png",
+        "evidence/T-5971/secret-form-proposed-1440.png",
+        "evidence/T-5971/secret-form-refused-1440.png",
+        "evidence/T-5971/secret-form-empty-400.png"
       ]
     },
     "src/pages/workspaces/TryItPage.tsx": {

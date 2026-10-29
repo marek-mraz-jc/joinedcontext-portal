@@ -1687,12 +1687,22 @@
         "organization_page.test.tsx"
       ]
     },
+    "src/pages/organization/OrganizationConnectors.tsx": {
+      "controls": {
+        "Button": 1,
+        "Checkbox": 1
+      },
+      "tests": [
+        "organization_connectors.test.tsx"
+      ]
+    },
     "src/pages/organization/OrganizationPage.tsx": {
       "controls": {
         "Button": 1
       },
       "tests": [
         "organization_brokers.test.tsx",
+        "organization_connectors.test.tsx",
         "organization_costs.test.tsx",
         "organization_health.test.tsx",
         "organization_limits.test.tsx",
@@ -2080,6 +2090,14 @@
       "tests": [
         "page_bring_back_page.test.tsx",
         "workspaces_ui.test.tsx"
+      ]
+    },
+    "src/pages/secrets/SecretFormPage.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "secret_form.test.tsx"
       ]
     },
     "src/pages/workspaces/TryItPage.tsx": {
