@@ -133,6 +133,18 @@ struct Step {
     /// a merged RoleBinding change leaves it.
     #[serde(default)]
     unbind: Option<String>,
+    /// A fixture change instead of a request: an organization manifest the reconciler loaded
+    /// from Git (a merged DelegationPolicy, a Group), gone again when the scenario ends.
+    #[serde(default)]
+    manifest: Option<Manifest>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Manifest {
+    kind: String,
+    name: String,
+    spec: Value,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -343,6 +355,8 @@ struct Harness {
     mirror: std::sync::Arc<Mirror>,
     /// The connector the running scenario created last.
     connector: std::sync::Mutex<Option<String>>,
+    /// The manifests the running scenario added, removed when it ends.
+    added: std::sync::Mutex<Vec<ResourceKey>>,
     /// The forge, CSV source and identity provider; the model lane counts the forge writes.
     server: &'static MockServer,
 }
@@ -431,6 +445,7 @@ impl Harness {
             signer,
             mirror,
             connector: std::sync::Mutex::default(),
+            added: std::sync::Mutex::default(),
             server,
         }
     }
@@ -548,6 +563,25 @@ impl Harness {
                 None => Err(format!("unbind: {who} holds no binding in {project}")),
             };
         }
+        if let Some(manifest) = &step.manifest {
+            let spec = serde_json::from_str::<Value>(&fill(&manifest.spec.to_string()))
+                .map_err(|e| format!("manifest spec: {e}"))?;
+            self.mirror.upsert(envelope(
+                &manifest.kind,
+                &manifest.name,
+                ORG_NAMESPACE,
+                spec,
+            ));
+            self.added
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .push(ResourceKey {
+                    namespace: ORG_NAMESPACE.to_owned(),
+                    kind: manifest.kind.clone(),
+                    name: manifest.name.clone(),
+                });
+            return Ok(());
+        }
         if let Some(rest) = &step.rest {
             let body = serde_json::from_str::<Value>(&fill(&rest.body.to_string()))
                 .map_err(|e| format!("rest body: {e}"))?;
@@ -638,10 +672,18 @@ impl Harness {
         if scenario.deny != "none" && !has(Proves::Deny) {
             return Err("no deny step scripted".into());
         }
+        let mut outcome = Ok(());
         for step in &scenario.script {
-            self.step(scenario, own, step).await?;
+            outcome = self.step(scenario, own, step).await;
+            if outcome.is_err() {
+                break;
+            }
         }
-        Ok(())
+        let added = std::mem::take(&mut *self.added.lock().unwrap_or_else(|p| p.into_inner()));
+        for key in added {
+            self.mirror.remove(&key);
+        }
+        outcome
     }
 }
 
@@ -831,7 +873,13 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
             Some(ask("c")),
         )
         .await;
-    assert_eq!((status, &body), (StatusCode::OK, &json!({ "valid": true })));
+    assert_eq!(
+        (status, &body),
+        (
+            StatusCode::OK,
+            &json!({ "valid": true, "pending": false, "aboveCeiling": [] })
+        )
+    );
 
     // No bearer: 401 naming the connector's own metadata.
     let response = harness
