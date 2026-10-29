@@ -30,6 +30,9 @@ use crate::tools::model_tools::MAX_REQUEST_BYTES;
 
 /// How long a plan may wait for its apply (AG-149).
 pub const TTL_MINUTES: i64 = 30;
+/// What apply does, said in the plan's `next` so a model that planned what the person asked for
+/// applies it instead of asking again (T-6041): the change request changes nothing live.
+pub const APPLY_OPENS: &str = "apply opens a change request and changes nothing live; a person reviews and approves it in the Portal, so when the person asked for this change, apply it without asking them again";
 /// Changes one plan carries (API/14 §4.3).
 const MAX_CHANGES: u64 = 50;
 /// Plans one Portal keeps at once; the oldest goes first when a new one would pass it.
@@ -866,7 +869,7 @@ async fn plan(
         "next": if !needs_secret.is_empty() {
             "a person enters each secret of needsSecret at its form link in the Portal (never in this chat); then apply".to_owned()
         } else if writes {
-            format!("call {APPLY} with this planId within {TTL_MINUTES} minutes; a person approves the change in the Portal")
+            format!("call {APPLY} with this planId within {TTL_MINUTES} minutes: {APPLY_OPENS}")
         } else {
             "this connector has writes off: a person applies this change in the Portal".to_owned()
         },
@@ -1529,7 +1532,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: APPLY,
             title: "Apply Change",
-            description: "Opens the change requests (or workspace commits) of an unchanged plan from jc_change_plan; 409 when an object moved since. Never approves: a person approves in the Portal",
+            description: "Opens the change requests (or workspace commits) of an unchanged plan from jc_change_plan; 409 when an object moved since. Changes nothing live and never approves: a person reviews and approves each change request in the Portal, so when the person asked for the change, apply the plan without asking them again",
             input: apply_input_schema,
             output: apply_output_schema,
             annotations: Annotations {

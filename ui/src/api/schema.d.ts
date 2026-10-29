@@ -3565,7 +3565,7 @@ export interface paths {
         put?: never;
         /**
          * Apply Change
-         * @description Opens the change requests (or workspace commits) of an unchanged plan from jc_change_plan; 409 when an object moved since. Never approves: a person approves in the Portal
+         * @description Opens the change requests (or workspace commits) of an unchanged plan from jc_change_plan; 409 when an object moved since. Changes nothing live and never approves: a person reviews and approves each change request in the Portal, so when the person asked for the change, apply the plan without asking them again
          */
         post: operations["jc_change_apply"];
         delete?: never;

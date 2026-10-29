@@ -123,6 +123,19 @@ pub(super) fn grade(scenario: &Scenario, t: &Transcript) -> Result<(), String> {
             continue;
         };
         let project = step_project(step, own);
+        // A refusal step on a tool the script also expects to answer in the same project (a bad
+        // slug beside the good plan, S-13) proves the door on input the model never had to send:
+        // the scripted lane holds it, and the model's own good or wrong calls say nothing of it.
+        if step.refused
+            && scenario.script.iter().any(|e| {
+                e.proves == Proves::Expect
+                    && !e.refused
+                    && about_the_model(scenario, e).as_deref() == Some(tool.as_str())
+                    && step_project(e, own) == project
+            })
+        {
+            continue;
+        }
         let made = || {
             t.calls
                 .iter()
@@ -689,6 +702,30 @@ fn the_grader_passes_a_recorded_pass_and_fails_a_recorded_fail() {
         .expect_err("an injected write fails")
         .starts_with("end state"));
     assert_eq!(grade(of("S-49"), &pass).expect_err("no script"), UNGRADED);
+
+    // S-13 from claude-haiku-5.5 (T-6037 run 2): a plan the door accepted, then no apply. Its
+    // plan answer predates the sentence that apply changes nothing live, so it fails there; with
+    // that sentence it fails on the missing apply, and with the apply it passes: the deny step's
+    // bad slug is the door's to prove, so the model's refused and accepted plans pass it by.
+    let s13 = recorded(include_str!("transcripts/fail-S-13.json"));
+    let err = grade(of("S-13"), &s13).expect_err("the recorded fail fails");
+    assert!(err.contains("changes nothing live"), "{err}");
+    let mut told = s13.clone();
+    for call in &mut told.calls {
+        call.answer = call.answer.replace(
+            "a person approves the change in the Portal",
+            "apply opens a change request and changes nothing live",
+        );
+    }
+    let err = grade(of("S-13"), &told).expect_err("a plan with no apply fails");
+    assert!(err.contains("jc_change_apply"), "{err}");
+    told.calls.push(Call {
+        tool: "jc_change_apply".into(),
+        project: told.project.clone(),
+        refused: false,
+        answer: r#"{"result":{"structuredContent":{"changeRequests":[{"id":7}]}}}"#.into(),
+    });
+    assert_eq!(grade(of("S-13"), &told), Ok(()));
 
     let mut refused = pass.clone();
     refused.error = Some("402: out of credit".into());
