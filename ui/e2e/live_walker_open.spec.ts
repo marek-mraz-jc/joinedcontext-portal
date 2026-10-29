@@ -190,3 +190,48 @@ test("the walker keeps the http finding of one route answering 502 beside reads 
   expect(current).toEqual(["http: 502 /api/v1/branding"]);
   expect(loads).toBe(1);
 });
+
+// T-6012: in the walk after the 25e2920 rollout, /projects/helsinki/import read /api/v1/branding
+// (the browser holds it 5 min) while /auth/me and /branding/logo answered 502, so the load was not
+// "every read 5xx" and the walker filed a task per read (T-6012, T-6013). Two 5xx reads are enough.
+const MIXED = `${ROLES.replace(
+  "</body>",
+  "<script>fetch('/api/v1/branding');fetch('/api/v1/auth/me');fetch('/api/v1/branding/logo');</script></body>",
+)}`;
+
+async function walkMixed(page: Page, failing: number[]): Promise<{ findings: string[]; loads: number }> {
+  let loads = 0;
+  let current: string[] = [];
+  page.on("response", (response) => {
+    if (response.url().includes("/api/") && response.status() >= 400) current.push(`http: ${response.status()} ${new URL(response.url()).pathname}`);
+  });
+  await page.route("http://portal.test/**", (route) => {
+    const url = route.request().url();
+    if (!url.includes("/api/")) {
+      loads += 1;
+      return route.fulfill({ status: 200, body: MIXED, contentType: "text/html" });
+    }
+    const status = url.endsWith("/api/v1/branding") ? 200 : (failing[loads - 1] ?? 200);
+    return route.fulfill({ status, body: "{}", contentType: "application/json" });
+  });
+  const opened = await openToWalk(page, "http://portal.test/projects/helsinki/import?lang=en", 1_000, () => {
+    current = [];
+  }, 100);
+  return { findings: [...current, ...(await judgeOpened(page, opened, { namespaces: [], viewer: false }))], loads };
+}
+
+test("the walker reports a load whose two /api reads answered 502 beside one that answered as one api finding, fine on retry", async ({ page }) => {
+  test.setTimeout(60_000);
+  const { findings, loads } = await walkMixed(page, [502, 200]);
+  expect(findings.filter((finding) => finding.startsWith("http:"))).toEqual([]);
+  expect(findings.filter((finding) => finding.startsWith("api:"))).toEqual(["api: 2 of 3 /api reads answered 502; fine on retry"]);
+  expect(loads).toBe(2);
+});
+
+test("the walker keeps the http findings of two /api reads answering 502 on the load again", async ({ page }) => {
+  test.setTimeout(60_000);
+  const { findings, loads } = await walkMixed(page, [502, 502]);
+  expect(findings.filter((finding) => finding.startsWith("http:")).sort()).toEqual(["http: 502 /api/v1/auth/me", "http: 502 /api/v1/branding/logo"]);
+  expect(findings.filter((finding) => finding.startsWith("api:"))).toEqual([]);
+  expect(loads).toBe(2);
+});

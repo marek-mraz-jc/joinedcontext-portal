@@ -99,3 +99,16 @@ test("a person connects a tab to their connector and disconnects it", async ({ b
     await context.close();
   }
 });
+
+// T-6015: the old /connectors address (UI-98) lands on My AI connectors, which answers a real state:
+// the person's connectors or the designed empty state with its create action.
+test("the old /connectors address opens My AI connectors", async ({ browser }) => {
+  const { context, page } = await signIn(browser, VIEWER, "/connectors?lang=en");
+  try {
+    await expect(page).toHaveURL(/\/ai-connectors(\?|$)/, { timeout: 60_000 });
+    await expect(page.getByRole("heading", { level: 1, name: "My AI connectors" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Set up" }).first().or(page.getByText("No AI connectors yet"))).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});

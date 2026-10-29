@@ -685,7 +685,14 @@ mod tests {
     /// show_diff opens the editor on the person's own plan; another person's plan is not theirs.
     #[tokio::test]
     async fn show_diff_opens_the_editor_on_the_persons_own_plan() {
-        let (probe, state) = as_segment("http://localhost:1", "pipeline");
+        // The plan is the means here, not the subject: in lax mode a Pipeline plans without the
+        // sample test strict mode asks for first (T-5994), which this conversation does not run.
+        let branding = std::env::temp_dir().join(format!("t5959-lax-{}.yaml", std::process::id()));
+        std::fs::write(&branding, "instanceName: \"Test\"\nvalidation: lax\n").expect("branding");
+        let mut config = crate::config::Config::for_tests();
+        config.branding_file = Some(branding.to_string_lossy().into_owned());
+        let state = AppState::new(config, None);
+        let probe = in_state(&state, "http://localhost:1", "pipeline");
         pipeline(&state);
         let (caller, _) = probe.connector_offered("pipeline");
         let plan = crate::ops::find(crate::connectors::PLAN).expect("plan op");

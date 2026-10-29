@@ -218,6 +218,33 @@ fn tool_problem(id: Value, status: u16, slug: &str, title: &str, why: &str) -> V
     )
 }
 
+/// What the connector answers itself: a read of the plan view, or the refusal of a method it
+/// does not serve; `None` for a method the owner's call answers.
+fn answered_here(
+    state: &AppState,
+    method: &str,
+    id: &Value,
+    message: &Value,
+) -> Option<(Response, String)> {
+    if method == "resources/read" && message["params"]["uri"] == super::app_view::URI {
+        let contents = super::app_view::contents(&state.config.public_base_url);
+        let answer = result(id.clone(), json!({ "contents": contents }));
+        return Some((json_response(StatusCode::OK, &answer), "allowed".to_owned()));
+    }
+    if !METHODS.contains(&method) {
+        let answer = error(
+            id.clone(),
+            -32601,
+            "a connector serves initialize, ping, tools/list, tools/call and its plan view",
+        );
+        return Some((
+            json_response(StatusCode::OK, &answer),
+            "refused: method".to_owned(),
+        ));
+    }
+    None
+}
+
 /// The owner's call, narrowed by the connector: the answer and its verdict.
 async fn judge(
     state: &AppState,
@@ -322,21 +349,8 @@ async fn judge(
             "allowed".to_owned(),
         );
     }
-    if method == "resources/read" && message["params"]["uri"] == super::app_view::URI {
-        let contents = super::app_view::contents(&state.config.public_base_url);
-        let answer = result(id, json!({ "contents": contents }));
-        return (json_response(StatusCode::OK, &answer), "allowed".to_owned());
-    }
-    if !METHODS.contains(&method) {
-        let answer = error(
-            id,
-            -32601,
-            "a connector serves initialize, ping, tools/list, tools/call and its plan view",
-        );
-        return (
-            json_response(StatusCode::OK, &answer),
-            "refused: method".to_owned(),
-        );
+    if let Some(answered) = answered_here(state, method, &id, message) {
+        return answered;
     }
     let params = &message["params"];
     let project = params["arguments"]["project"]
