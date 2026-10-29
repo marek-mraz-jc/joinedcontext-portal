@@ -119,6 +119,7 @@ for (const width of [1440, 400]) {
     await page.screenshot({ path: join(dir, `spaces-filled-${width}.png`) });
     expect(await axeViolations(page)).toEqual([]);
     await page.getByRole("button", { name: /More actions.*ovzdusie/ }).click();
+    await expect(page.getByRole("menuitem", { name: "Open" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "View source (Git)" })).toBeVisible();
     await page.screenshot({ path: join(dir, `spaces-menu-${width}.png`) });
   });

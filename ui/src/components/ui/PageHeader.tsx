@@ -131,7 +131,8 @@ export function PageHeader({
             {description ? <DescriptionHint>{description}</DescriptionHint> : null}
           </div>
           <div className="ms-auto flex flex-wrap items-center gap-2">
-            {search}
+            {/* A control fills its parent: the slot gives the search its width. */}
+            {search ? <div className="w-full sm:w-64">{search}</div> : null}
             {aside}
             {actions}
           </div>

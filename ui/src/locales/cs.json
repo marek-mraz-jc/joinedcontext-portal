@@ -525,7 +525,8 @@
     "leadOrganization": "Vše tohoto druhu, co organizace drží. Každý řádek otevře, co pojmenovává.",
     "emptyHintOrganization": "V organizaci zatím nic tohoto druhu není. Tato stránka to zobrazuje a čte; požádejte asistenta a rozhodněte o jeho návrhu.",
     "emptyHintCreateOrganization": "V organizaci zatím nic tohoto druhu není. {new} otevře formulář.",
-    "viewSource": "Zobrazit zdroj (Git)"
+    "viewSource": "Zobrazit zdroj (Git)",
+    "open": "Otevřít"
   },
   "spaces": {
     "entitiesUnknown": "Počet není k dispozici: {reason}",
@@ -2330,8 +2331,7 @@
         "until": "Poslední den oprávnění, např. 2027-01-31. Prázdné znamená bez konce.",
         "reason": "K čemu data potřebujete, např. Týdenní zpráva o ovzduší pro okresní úřad."
       }
-    },
-    "open": "Otevřít"
+    }
   },
   "datasources": {
     "title": "Zdroje dat",

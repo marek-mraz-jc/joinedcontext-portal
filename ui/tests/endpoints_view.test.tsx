@@ -237,7 +237,7 @@ describe("endpoints view", () => {
     await userEvent.click(within(cell).getByRole("button", { name: /More actions/ }));
     const menu = await screen.findByRole("menu");
     expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
-      en.endpoints.open,
+      en.resourceList.open,
       en.endpoints.edit,
       en.resourceList.viewSource,
       en.endpoints.copyUrl,

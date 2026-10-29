@@ -411,7 +411,7 @@ function EndpointRowActions({
   const actions: RowAction[] = [
     {
       key: "open",
-      label: t("endpoints.open"),
+      label: t("resourceList.open"),
       onSelect: () => void navigate({ to: "/projects/$project/$plural/$name", params: { project, plural: "endpoints", name } }),
     },
     { key: "edit", label: t("endpoints.edit"), onSelect: onEdit, disabledReason: denied("propose") },
@@ -1244,7 +1244,6 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                 setNeedle(event.target.value);
                 setShown(ROWS_PER_PAGE);
               }}
-              className="w-56 max-w-full"
             />
           ) : undefined
         }

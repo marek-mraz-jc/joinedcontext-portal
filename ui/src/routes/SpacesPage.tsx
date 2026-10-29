@@ -1,6 +1,7 @@
 import { useCreateForm } from "../components/forms/FormRoute";
 import { RecordLink } from "../components/RecordLink";
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
 import { Skeleton } from "../components/ui/Skeleton";
 import type { JSX } from "react";
@@ -129,11 +130,20 @@ function SpaceRowActions({
   sourceUrl?: string | null;
 }): JSX.Element {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   return (
     <ResourceRowActions
       project={project}
       target={target}
       scope={{ kind: "space", name }}
+      // Open first, as on every list's menu (T-6095); the name opens it too.
+      extra={[
+        {
+          key: "open",
+          label: t("resourceList.open"),
+          onSelect: () => void navigate({ to: "/projects/$project/$plural/$name", params: { project, plural: "spaces", name } }),
+        },
+      ]}
       // The kind's own form, not the manifest as text: the same schema and envelope the create
       // dialog uses (T-2278, UI-61).
       form={{

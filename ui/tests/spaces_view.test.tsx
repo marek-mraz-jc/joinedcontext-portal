@@ -584,6 +584,7 @@ describe("a viewer on the spaces list", () => {
       .getAllByRole("menuitem")
       .map((item) => item.textContent);
     expect(items).toEqual([
+      en.resourceList.open,
       en.resourceEdit.button,
       en.resourceList.viewSource,
       en.saveAs.button,

@@ -525,7 +525,8 @@
     "leadOrganization": "Alles dieser Art, was die Organisation hält. Jede Zeile öffnet, was sie nennt.",
     "emptyHintOrganization": "Von dieser Art ist noch nichts in der Organisation. Diese Seite listet und liest es; bitten Sie den Assistenten darum und entscheiden Sie über seinen Vorschlag.",
     "emptyHintCreateOrganization": "Von dieser Art ist noch nichts in der Organisation. {new} öffnet das Formular.",
-    "viewSource": "Quelle anzeigen (Git)"
+    "viewSource": "Quelle anzeigen (Git)",
+    "open": "Öffnen"
   },
   "spaces": {
     "entitiesUnknown": "Die Anzahl ist nicht verfügbar: {reason}",
@@ -2330,8 +2331,7 @@
         "until": "Der letzte Tag der Berechtigung, z. B. 2027-01-31. Leer bedeutet ohne Ende.",
         "reason": "Wofür Sie die Daten brauchen, z. B. Wöchentlicher Luftbericht für das Bezirksamt."
       }
-    },
-    "open": "Öffnen"
+    }
   },
   "datasources": {
     "title": "Datenquellen",

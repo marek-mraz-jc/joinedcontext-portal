@@ -525,7 +525,8 @@
     "leadOrganization": "Everything of this kind the organization holds. Each row opens what it names.",
     "emptyHintOrganization": "Nothing of this kind is in the organization yet. This page lists and reads it; ask the assistant for one and decide what it proposes.",
     "emptyHintCreateOrganization": "Nothing of this kind is in the organization yet. {new} opens the form.",
-    "viewSource": "View source (Git)"
+    "viewSource": "View source (Git)",
+    "open": "Open"
   },
   "spaces": {
     "entitiesUnknown": "The count is not available: {reason}",
@@ -2330,8 +2331,7 @@
         "until": "The last day of the grant, e.g. 2027-01-31. Leave empty for no end.",
         "reason": "What you need the data for, e.g. Weekly air report for the district office."
       }
-    },
-    "open": "Open"
+    }
   },
   "datasources": {
     "title": "Data sources",
