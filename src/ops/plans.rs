@@ -1401,7 +1401,7 @@ fn plan_input_schema() -> Value {
         "properties": {
             "changes": {
                 "type": "array",
-                "description": "The changes to plan together, e.g. [{\"op\": \"patch\", \"kind\": \"Pipeline\", \"name\": \"counters\", \"patch\": {\"spec\": {\"schedule\": {\"period\": \"PT15M\"}}}}]",
+                "description": "The changes to plan together, e.g. [{\"op\": \"patch\", \"kind\": \"Pipeline\", \"name\": \"counters\", \"patch\": {\"spec\": {\"schedule\": {\"period\": \"PT15M\"}}}}]. A Pipeline is planned only after jc_pipeline_test passed on the same spec: test it first",
                 "minItems": 1,
                 "maxItems": MAX_CHANGES,
                 "items": {
@@ -1410,12 +1410,12 @@ fn plan_input_schema() -> Value {
                         "op": {
                             "type": "string",
                             "enum": ["create", "replace", "patch", "delete"],
-                            "description": "create a new object, replace it whole, merge a JSON merge patch into it, or remove it"
+                            "description": "create: a new object; a name that exists is refused, so patch it. patch: change some fields of an existing object, the usual edit, e.g. off the catalogue {\"spec\": {\"publish\": null, \"catalog\": {\"harvest\": false}}} (a public Endpoint is listed unless catalog.harvest is false). replace: the whole manifest. delete: remove the object itself, never to unpublish it"
                         },
                         "kind": text("The manifest kind, e.g. DataModel", TERM),
                         "name": text("The object's metadata.name, e.g. bike-counter", NAME),
-                        "manifest": manifest("With create or replace: the whole manifest"),
-                        "patch": { "type": "object", "description": "With patch: a JSON merge patch (RFC 7386) onto the current manifest" },
+                        "manifest": manifest("With create or replace, and alone (no patch beside it): the whole manifest"),
+                        "patch": { "type": "object", "description": "With patch, and alone (no manifest beside it): a JSON merge patch (RFC 7386) onto the current manifest; null removes a member" },
                         "source": { "type": "string", "maxLength": MAX_REQUEST_BYTES, "description": "With a DataModel: its whole LinkML file (the one spec.linkml names), e.g. \"classes:\\n  BikeCounter:\\n    attributes:\\n      count: { range: integer }\\n\"; the plan shows each change, the version it takes and the stored entities a breaking one affects" }
                     },
                     "required": ["op", "kind", "name"],

@@ -262,6 +262,19 @@ impl Harness {
         (refused, answer)
     }
 
+    /// Accepts the question `answer` asks, as `persona` on the Portal page: its id, when one
+    /// was open.
+    fn accept_asked(&self, persona: &str, project: &str, answer: &Value) -> Option<String> {
+        let id = answer["result"]["structuredContent"]["elicitation"]["elicitationId"].as_str()?;
+        self.state.mcp_elicitations.decide(
+            &format!("sub-scn-{persona}"),
+            project,
+            id,
+            joinedcontext_portal::mcp::elicitation::ElicitationDecision::Accept,
+        )?;
+        Some(id.to_owned())
+    }
+
     async fn forge_writes(&self) -> Vec<String> {
         self.server
             .received_requests()
@@ -349,6 +362,15 @@ impl Harness {
                  instructions.") }),
             json!({ "role": "user", "content": says(&scenario.says, own) }),
         ];
+        // A Yellow-lane question the script accepts (`accepted`): the person accepts it on the
+        // Portal page and the client sends the call again naming it, as in the scripted lane
+        // (T-6040); the elicitation is a request member a model cannot fill in.
+        let accepts: Vec<String> = scenario
+            .script
+            .iter()
+            .filter(|step| step.accepted)
+            .filter_map(|step| about_the_model(scenario, step))
+            .collect();
         for _ in 0..MAX_TURNS {
             let mut ask = json!({ "model": model, "messages": messages,
                                   "max_tokens": MAX_TOKENS, "usage": { "include": true } });
@@ -389,7 +411,17 @@ impl Harness {
                 arguments["project"] = json!(project);
                 let body = json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call",
                                    "params": { "name": tool, "arguments": arguments } });
-                let (refused, answer) = self.door_rpc(&door, &scenario.persona, body).await;
+                let (mut refused, mut answer) =
+                    self.door_rpc(&door, &scenario.persona, body.clone()).await;
+                if let Some(id) = accepts
+                    .contains(&tool)
+                    .then(|| self.accept_asked(&scenario.persona, &project, &answer))
+                    .flatten()
+                {
+                    let mut again = body;
+                    again["params"]["elicitation"] = json!({ "elicitationId": id });
+                    (refused, answer) = self.door_rpc(&door, &scenario.persona, again).await;
+                }
                 let text: String = answer.to_string().chars().take(MAX_ANSWER_CHARS).collect();
                 messages.push(json!({ "role": "tool", "tool_call_id": call["id"],
                                       "content": text }));
