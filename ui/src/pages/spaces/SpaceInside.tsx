@@ -17,6 +17,7 @@ import { ActivityFeed } from "../../components/ActivityFeed";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import {
   ENDPOINT_LINKS,
+  CopyUrlButton,
   EndpointLink,
   endpointUrl,
   REPRESENTATION_PATHS,
@@ -109,7 +110,7 @@ import {
   tabPanelProps,
   Term,
 } from "../../components/ui";
-import { buttonClass, Card, ConfirmDialog, Field, Input, RadioGroup, Select } from "../../components/ui";
+import { Card, ConfirmDialog, Field, Input, RadioGroup, Select } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { SourceRemovalsPanel } from "../pipelines/PipelineSourceReport";
 import { useUrlParam, useUrlText, useUrlUrn } from "../../navigation/urlState";
@@ -481,6 +482,10 @@ function SpaceData({
   // The view is in the address, so back, reload and a sent link open it (T-3239).
   const [view, setView] = useUrlParam<DataView>("view", "grid", DATA_VIEWS);
   const [q, setQ] = useState<string | undefined>(undefined);
+  // The columns the views beside the grid read (`attrs`), kept with the type they were chosen for,
+  // so another type starts with all of its attributes again (T-6092).
+  const [chosen, setChosen] = useState<{ type: string; attrs?: string[] }>({ type: "" });
+  const attrs = chosen.type === type ? chosen.attrs : undefined;
   // A field is a slot of the type's class: offered only when the space's model declares the type.
   const ownClass = useMemo(
     () => modelSource !== undefined && parseModel(modelSource).classes.some((c) => c.name === type),
@@ -1143,8 +1148,11 @@ function SpaceData({
             id="space-view-filter"
             types={[type]}
             slots={slots}
-            value={{ type, q }}
-            onChange={(next) => setQ(next.q)}
+            value={{ type, q, attrs }}
+            onChange={(next) => {
+              setQ(next.q);
+              setChosen({ type, attrs: next.attrs });
+            }}
           />
           <OtherView
             project={project}
@@ -1153,6 +1161,7 @@ function SpaceData({
             space={space}
             type={type}
             q={q}
+            attrs={attrs}
             view={view}
             enums={enums}
             endpoints={endpoints.map((endpoint) => endpoint.metadata.name)}
@@ -1653,6 +1662,7 @@ function OtherView({
   space,
   type,
   q,
+  attrs,
   view,
   enums,
   endpoints,
@@ -1665,6 +1675,8 @@ function OtherView({
   space: string;
   type: string;
   q: string | undefined;
+  /** The attributes the person chose in Columns; none: every attribute. */
+  attrs: string[] | undefined;
   view: Exclude<DataView, "grid" | "api" | "form">;
   /** The enum slots of the type, by attribute, titled in the page's language (UI-86). */
   enums: Record<string, EnumChoice[]>;
@@ -1673,7 +1685,7 @@ function OtherView({
 }): JSX.Element {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const rows = useViewRows(source, space, type, q);
+  const rows = useViewRows(source, space, type, q, attrs);
   // Someone changed rows of this type, anywhere: the page is read again with this session (T-3105).
   const [live, setLive] = useState<LiveChange | null>(null);
   useLive(project, space, type, (change) => {
@@ -2015,9 +2027,11 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
+    <div className="space-y-4">
+      {/* One line: the way back, the name with its identifier as a copy chip and the state, the
+          actions at the right; what the space is for on one line below (T-6092). */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           <Link
             to="/projects/$project/$plural"
             params={{ project, plural: "spaces" }}
@@ -2025,16 +2039,9 @@ export function SpaceInside({ project, name }: { project: string; name: string }
           >
             {t("spaces.inside.back")}
           </Link>
-          <PageHeader
-            title={localized(manifest.metadata.title, locale, manifest.metadata.name)}
-            description={
-              <>
-                {/* What the space is for comes first; its name is the identifier beside it (T-3851). */}
-                {localized(manifest.metadata.description, locale, "") || t("spaces.inside.lead")}{" "}
-                <span className="font-mono">{manifest.metadata.name}</span>
-              </>
-            }
-          />
+          <PageHeader title={localized(manifest.metadata.title, locale, manifest.metadata.name)} />
+          <CopyUrlButton url={manifest.metadata.name} label={manifest.metadata.name} />
+          <LifecycleBadge kind="phase" value={manifest.status?.phase} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Completing works on one space, so it lives here and not on the list (T-6084). */}
@@ -2051,9 +2058,9 @@ export function SpaceInside({ project, name }: { project: string; name: string }
           <Button variant="secondary" size="sm" onClick={() => setAlerting(true)}>
             {t("alerts.forSpace")}
           </Button>
-          <LifecycleBadge kind="phase" value={manifest.status?.phase} />
         </div>
       </div>
+      <OneLine text={localized(manifest.metadata.description, locale, "") || t("spaces.inside.lead")} />
       {alerting ? (
         <AlertDialog
           project={project}
@@ -2306,6 +2313,22 @@ export function SpaceInside({ project, name }: { project: string; name: string }
         <div {...tabPanelProps("space-inside", tab)}>
           <ActivityFeed project={project} compact fixed={{ space: name }} limit={10} />
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** A description on one line, opened whole by "More" (T-6092): the data stays near the top. */
+function OneLine({ text }: { text: string }): JSX.Element {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex max-w-prose items-start gap-2 text-body text-fg-muted">
+      <p className={clsx("min-w-0", !open && "line-clamp-1")}>{text}</p>
+      {text.length > 80 ? (
+        <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? t("spaces.inside.less") : t("spaces.inside.more")}
+        </Button>
       ) : null}
     </div>
   );

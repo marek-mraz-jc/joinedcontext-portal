@@ -30,12 +30,12 @@ export const VIEW_ROWS = 500;
 export const CARD_FIELDS = 5;
 
 /** One page of the type, filtered by `q`, for every view that is not the grid. */
-export function useViewRows(source: EntitySource, space: string, type: string, q: string | undefined) {
+export function useViewRows(source: EntitySource, space: string, type: string, q: string | undefined, attrs?: string[]) {
   return useQuery({
-    queryKey: ["space-view-rows", space, type, q ?? ""],
+    queryKey: ["space-view-rows", space, type, q ?? "", attrs ?? []],
     enabled: type !== "",
     retry: false,
-    queryFn: () => source.query({ type, q }, { offset: 0, limit: VIEW_ROWS }),
+    queryFn: () => source.query({ type, q, ...(attrs && attrs.length > 0 ? { attrs } : {}) }, { offset: 0, limit: VIEW_ROWS }),
   });
 }
 
