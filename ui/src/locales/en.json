@@ -3788,7 +3788,9 @@
       "grantOrg": "{role} in the whole organization",
       "emptyHint": "A service account is how a program outside the Portal reads or writes this project: a script, a pipeline elsewhere, another platform. Each signs in with its own Keycloak client and holds only the role you give it.",
       "emptyOrganization": "The organization has no service account of its own. A project's service accounts are on that project's settings and in Agents.",
-      "emptyHintOrganization": "A service account of the organization is how a program outside the Portal reads or writes across its projects: a script, a pipeline elsewhere, another platform. Each signs in with its own Keycloak client and holds only the role you give it."
+      "emptyHintOrganization": "A service account of the organization is how a program outside the Portal reads or writes across its projects: a script, a pipeline elsewhere, another platform. Each signs in with its own Keycloak client and holds only the role you give it.",
+      "mqttRole": "{role} on MQTT broker {broker}",
+      "mqttRoleAny": "{role} on every MQTT broker of the project"
     },
     "matrix": {
       "title": "Data access",
@@ -9933,7 +9935,28 @@
         "certificate": "The certificate is not a device certificate of this project, or the device sent a password to the certificate address."
       }
     },
-    "noAccounts": "No service account of this project that you can read. Add a device from the broker's page, or create one under Project settings, Service accounts."
+    "noAccounts": "No service account of this project that you can read. Add a device from the broker's page, or create one under Project settings, Service accounts.",
+    "access": {
+      "title": "Who can do what",
+      "account": "Service account",
+      "accountHelp": "A device signs in as one of the project's service accounts, e.g. air-fleet; pick one to see what the broker lets it do now.",
+      "noAccounts": "No service account to explain",
+      "noAccountsHint": "Add a device to this broker, or create a service account on the Access page, then pick it here.",
+      "caption": "Roles of {broker} that {account} holds now",
+      "through": "Granted by",
+      "until": "Until",
+      "noEnd": "No end",
+      "bound": "Role binding",
+      "legacy": "serviceAccounts list",
+      "legacyHint": "A role that lists the account under serviceAccounts is deprecated: run jcctl migrate mqtt-roles to move it to an mqtt/{broker}/<role> binding on the account.",
+      "noneTitle": "{account} holds no role of this broker",
+      "noneHint": "Its devices are refused when they connect. Grant it the role mqtt/{broker}/<role> on the service account, scoped to this project.",
+      "expiredTitle": "Grants of this broker that are not in force",
+      "endedAt": "ended {at}",
+      "startsAt": "starts {at}",
+      "refusedTitle": "You may not read this project's MQTT brokers",
+      "failedTitle": "The broker's roles could not be read"
+    }
   },
   "connect": {
     "title": "Connect an AI assistant",
