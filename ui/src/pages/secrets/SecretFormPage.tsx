@@ -62,8 +62,17 @@ export function SecretFormPage({
     },
   });
 
+  // The heading and its purpose line stay through a wait and a refused read (UI-01, T-6048): a
+  // viewer the secrets door refuses still sees which page refused them.
+  const header = <PageHeader title={t("secrets.title")} description={t("secrets.description")} />;
   if (stored.isPending) return <PageLoading label={t("secrets.title")} />;
-  if (stored.isError) return <PageFailed error={stored.error} onRetry={() => void stored.refetch()} />;
+  if (stored.isError)
+    return (
+      <div className="mx-auto max-w-2xl space-y-4">
+        {header}
+        <PageFailed error={stored.error} onRetry={() => void stored.refetch()} />
+      </div>
+    );
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -74,7 +83,7 @@ export function SecretFormPage({
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <PageHeader title={t("secrets.title")} description={t("secrets.description")} />
+      {header}
       <Alert tone="info">{t("secrets.neverInChat")}</Alert>
       {change ? <ChangeNotice change={change} project={project} /> : null}
       {problems.length > 0 ? (
