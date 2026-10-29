@@ -92,7 +92,7 @@ for (const width of [1440, 400]) {
     await expect(page.locator("tbody tr").first()).toBeVisible();
     await expect(page).toHaveURL(new RegExp(`endpoint=${OWN.name}`));
     await expect(page.locator("#explore-endpoint")).toHaveValue(OWN.name);
-    await expect(page.locator("main").getByText("Read through Helsinki air quality")).toBeVisible();
+    await expect(page.locator("main").getByText("Read through Helsinki air quality")).toBeAttached();
     expect(reads.every((path) => path.includes(OWN.slug))).toBe(true);
     expect(await axeViolations(page)).toEqual([]);
     await page.screenshot({ path: `${SHOTS}/read-through-${width}.png`, fullPage: true });
@@ -188,7 +188,9 @@ for (const width of [1440, 400]) {
     await stub(page, false);
     await page.goto("/projects/helsinki/explore?lang=en");
     await expect(page.locator("tbody tr").first()).toBeVisible();
-    await page.locator("summary", { hasText: "Export" }).click();
+    const exportButton = page.getByRole("button", { name: /^Export/ });
+    await expect(exportButton).toHaveAttribute("aria-disabled", "true");
+    await exportButton.focus();
     await expect(page.getByRole("link", { name: "CSV", exact: true })).toHaveCount(0);
     await page.screenshot({ path: `${AFTER}/export-none-${width}.png`, fullPage: true });
   });

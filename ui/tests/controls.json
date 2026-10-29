@@ -1328,7 +1328,7 @@
     },
     "src/pages/explore/ExplorePage.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
         "explore_controls.test.tsx",

@@ -233,9 +233,12 @@ describe("the explorer", () => {
   it("offers no format an Endpoint does not serve", async () => {
     renderPreselected(["ngsi-ld"]);
     await screen.findByRole("button", { name: `${en.entityGrid.openRow}: 001` });
-    await userEvent.click(screen.getByText(en.explore.export, { selector: "summary" }));
+    // Export stays in the toolbar, disabled with the reason, and opens no empty menu.
+    const button = screen.getByRole("button", { name: new RegExp(`^${en.explore.export}`) });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAccessibleDescription(en.spaces.export.none);
+    expect(screen.queryByText(en.explore.export, { selector: "summary" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: en.spaces.export.format.csv })).not.toBeInTheDocument();
-    expect(screen.getByText(en.spaces.export.none)).toBeInTheDocument();
   });
 
   it("reads the endpoint list another page already cached as the API's List (T-0625)", async () => {

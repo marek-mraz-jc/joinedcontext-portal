@@ -108,7 +108,7 @@ export function ToolbarPopover({
         className={clsx(
           "z-30 overflow-auto rounded-lg border border-border bg-surface-raised p-3 text-body shadow-2",
           "max-h-96",
-          anchored ? "absolute left-0 mt-1 max-sm:w-max max-sm:max-w-[calc(100vw-3rem)]" : "max-sm:fixed max-sm:inset-x-4 max-sm:bottom-4",
+          anchored ? "absolute left-0 mt-1 max-sm:w-max max-sm:max-w-xs" : "max-sm:fixed max-sm:inset-x-4 max-sm:bottom-4",
           end ? "sm:absolute sm:right-0 sm:mt-1" : "sm:absolute sm:left-0 sm:mt-1",
           wide ? "sm:w-max sm:max-w-2xl" : "sm:w-72",
           tall ? "sm:max-h-none" : undefined,

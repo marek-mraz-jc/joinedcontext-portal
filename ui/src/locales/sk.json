@@ -1127,7 +1127,7 @@
     "export": {
       "label": "Exportovať:",
       "endpoint": "Exportovať cez",
-      "none": "Žiadny endpoint tohto priestoru neposkytuje CSV, Excel ani JSON, takže nie je cez čo exportovať.",
+      "none": "Tento endpoint neposkytuje súbor CSV, takže nie je čo exportovať.",
       "format": {
         "csv": "CSV",
         "xlsx": "Excel",

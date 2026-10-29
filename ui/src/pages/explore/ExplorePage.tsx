@@ -16,6 +16,7 @@ import { enumsOfModel, fetchEntity, filterSlotsOf, qProblem, relationsOfModel, r
 import type { EntityQuery } from "../../components/entities/filters";
 import { Alert, Button, Card, EmptyState, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
 import { ToolbarPopover } from "../../components/entities/GridToolbar";
+import { servedRepresentations } from "../../components/endpoints/links";
 import { ExportLinks } from "../spaces/ImportRows";
 import { MAX_EXPORT_IDS } from "../spaces/importRows";
 import { TypeQuality } from "./TypeQuality";
@@ -487,7 +488,12 @@ export function ExplorePage({
             toolbar={
               slug ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  {endpoint && query.type ? (
+                  {endpoint && query.type && !servedRepresentations(endpoint.spec ?? {}).includes("csv") ? (
+                    // Nothing to download: the button says why instead of opening an empty menu.
+                    <Button size="sm" variant="ghost" disabled disabledReason={t("spaces.export.none")}>
+                      {t("explore.export")}
+                    </Button>
+                  ) : endpoint && query.type ? (
                     // The space page's own export (T-6107): the formats this Endpoint serves, the
                     // checked rows alone once some are checked.
                     <ToolbarPopover label={t("explore.export")} count={checked.length || undefined} wide anchored>

@@ -1127,7 +1127,7 @@
     "export": {
       "label": "Export:",
       "endpoint": "Export through",
-      "none": "No Endpoint of this space serves CSV, Excel or JSON, so there is nothing to export through.",
+      "none": "This Endpoint serves no CSV file, so there is nothing to export.",
       "format": {
         "csv": "CSV",
         "xlsx": "Excel",

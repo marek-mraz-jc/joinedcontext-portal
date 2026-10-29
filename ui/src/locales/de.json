@@ -1127,7 +1127,7 @@
     "export": {
       "label": "Exportieren:",
       "endpoint": "Exportieren über",
-      "none": "Kein Endpoint dieses Raums liefert CSV, Excel oder JSON, daher gibt es nichts, worüber exportiert werden kann.",
+      "none": "Dieser Endpoint liefert keine CSV-Datei, daher gibt es nichts zu exportieren.",
       "format": {
         "csv": "CSV",
         "xlsx": "Excel",
