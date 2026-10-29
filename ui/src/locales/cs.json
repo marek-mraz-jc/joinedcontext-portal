@@ -9189,7 +9189,8 @@
     "recipient-refused": "Posílejte jen lidem z organizace s ověřenou e-mailovou adresou.",
     "no-model-key": "Požádejte správce organizace, aby přidal nebo obnovil klíč k modelu, a zkuste to znovu.",
     "no-json": "Zeptejte se znovu; odpověď modelu neodpovídala požadovanému schématu.",
-    "second-factor-required": "Přihlaste se znovu jednorázovým kódem a rozhodnutí zopakujte."
+    "second-factor-required": "Přihlaste se znovu jednorázovým kódem a rozhodnutí zopakujte.",
+    "secret-in-argument": "Zadejte přístupový údaj ve formuláři tajemství v Portálu, nikdy ne v chatu ani v manifestu, a odkažte na něj přes secretRef."
   },
   "jobs": {
     "title": "Co jste spustili",
@@ -10649,5 +10650,24 @@
     "editOf": "Upravit AI konektor {name}",
     "editTitle": "Upravit {name}",
     "save": "Uložit"
+  },
+  "secrets": {
+    "title": "Zadat tajemství",
+    "description": "Přístupový údaj, který potřebuje zdroj nebo plán: API klíč, heslo, token. Uloží se zašifrovaný do repozitáře projektu a otevře změnu ke schválení.",
+    "neverInChat": "Přístupový údaj pište jen sem, nikdy do chatu s asistentem ani s AI konektorem: chat by ho poslal přes model. Manifest na něj odkazuje přes secretRef.",
+    "name": "Název tajemství",
+    "hint": {
+      "name": "Písmena, číslice, - a _, např. counters-api. Manifest ho uvádí jako jméno v secretRef.",
+      "key": "Co je tato hodnota v rámci tajemství, např. apiKey nebo password.",
+      "value": "Samotný přístupový údaj, např. API klíč od poskytovatele. Zde ho už nikdo nepřečte."
+    },
+    "key": "Klíč",
+    "value": "Hodnota",
+    "empty": "Projekt zatím nemá žádné tajemství: zadejte první níže.",
+    "replaces": "Toto tajemství existuje s klíči {keys}. Uložení ho nahradí celé: zadejte každý klíč, který má zůstat.",
+    "addKey": "Přidat klíč",
+    "addKept": "Přidat klíče, které zůstávají",
+    "submit": "Zašifrovat a navrhnout",
+    "sending": "Tajemství se odesílá…"
   }
 }

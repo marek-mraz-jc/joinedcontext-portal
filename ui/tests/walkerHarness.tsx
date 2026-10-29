@@ -53,6 +53,7 @@ export const ADDRESSES: Record<string, string[]> = {
   "/organization/$tab/$": ["/organization/people/new", "/organization/people/p-1", "/organization/groups/new", "/organization/groups/stewards"],
   "/projects/$project/workspaces": [`${P}/workspaces`],
   "/projects/$project/workspaces/new": [`${P}/workspaces/new`],
+  "/projects/$project/secrets/new": [`${P}/secrets/new?name=counters-api&key=apiKey`],
   "/projects/$project/workspaces/$name/compare": [`${P}/workspaces/air-v2/compare`],
   "/projects/$project/workspaces/$name/try-it": [`${P}/workspaces/air-v2/try-it`],
   "/projects/$project/workspaces/$name/bring-back": [`${P}/workspaces/air-v2/bring-back`],

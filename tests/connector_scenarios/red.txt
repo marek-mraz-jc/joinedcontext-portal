@@ -13,7 +13,6 @@ S-23 T-6001 the plan cannot name stored attributes: Antares answers the Portal a
 S-24 T-5948 no pipeline run tool on the connector door
 S-25 T-5948 jc_syncsource_pause needs a running sync source the scripted lane does not have
 S-26 T-5948 the end-to-end integration needs sample_source, try_mapping and plan_change
-S-29 T-5996 jc_change_plan exists; no ServiceAccount script proving the secretRef-only answer yet
 S-30 T-5948 no tool answers who may write to an Endpoint
 S-31 T-5953 no DelegationPolicy ceiling or approval queue
 S-39 T-5958 an App run needs the assistant's builder behind the connector tools
@@ -21,5 +20,4 @@ S-40 T-5948 no tool returns a widget embed snippet
 S-41 T-5959 no browser UI action tools (navigate, open_form)
 S-44 T-5960 approve is refused, but the answer carries no link to the change's Portal approval page
 S-49 T-5955 no read-only connector token refused below the tools
-S-51 T-5971 no secretRef form link; a key pasted in chat is not refused by a plan tool
 S-53 T-5974 no revert plan tool
