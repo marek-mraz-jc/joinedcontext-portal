@@ -42,6 +42,7 @@ import {
   navigatedSeq,
   noticeSnapshot,
   onAssistantChange,
+  actedSeq,
   onAskRequest,
   onPickChange,
   formContext,
@@ -50,6 +51,7 @@ import {
   parseRun,
   pickElement,
   pickedElement,
+  rememberActed,
   rememberNavigated,
   rememberPrefill,
   rememberRun,
@@ -58,6 +60,7 @@ import {
   settlePrefill,
   trail,
 } from "./state";
+import { runUiAction, uiActionOf } from "./uiActions";
 
 // The model parser and the app builder load when the dock shows them, not with every page (T-3316).
 const ModelFileDrop = lazy(() => import("../pages/models/ModelFileDrop").then((m) => ({ default: m.ModelFileDrop })));
@@ -410,6 +413,28 @@ export function AssistantDock({
     // bar but not the router's search, so a page already open is not remounted for it (T-0770).
     void navigate({ href: targetRoute });
   }, [events, navigate, runId]);
+
+  // The browser actions of the run (T-5959): each runs once, in order, after the navigation
+  // before it has mounted its page; a remount replays the stream and skips what already ran.
+  useEffect(() => {
+    if (runId === null) {
+      return;
+    }
+    const pending = events.filter((event) => event.kind === "ui" && event.seq > actedSeq(runId));
+    if (pending.length === 0) {
+      return;
+    }
+    const last = pending[pending.length - 1];
+    rememberActed(runId, last.seq);
+    void (async () => {
+      for (const event of pending) {
+        const action = uiActionOf(event.payload);
+        if (action) {
+          await runUiAction(action);
+        }
+      }
+    })();
+  }, [events, runId]);
 
   const startConversation = async (promptText: string, path?: PathId) => {
     setStartError(null);

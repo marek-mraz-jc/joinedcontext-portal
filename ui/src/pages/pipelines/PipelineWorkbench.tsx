@@ -1022,6 +1022,7 @@ export function PipelineWorkbench({
           <Field id="workbench-bloblang" label={t("pipelines.field.bloblang")} description={t("pipelines.workbench.mapping.bloblangHint")}>
             <Textarea
               id="workbench-bloblang"
+              data-field="compute.bloblang"
               rows={14}
               spellCheck={false}
               className="font-mono"
