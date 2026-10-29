@@ -296,7 +296,7 @@ const SCREENS: Screen[] = [
   { name: "knowledge", path: `/projects/${PROJECT}/knowledge`, extra: true },
   { name: "endpoint-new", path: `/projects/${PROJECT}/endpoints/new`, extra: true },
   { name: "catalogue", path: "/catalogue", extra: true },
-  { name: "connectors", path: "/connectors", extra: true },
+  { name: "ai-connectors", path: "/ai-connectors", extra: true },
   { name: "organization", path: "/organization", extra: true },
 ];
 

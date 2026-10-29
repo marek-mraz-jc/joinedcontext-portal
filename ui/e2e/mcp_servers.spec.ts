@@ -122,18 +122,6 @@ for (const width of [375, 1440]) {
       expect(await axeViolations(page)).toEqual([]);
     });
 
-    // T-4531: a person's own connectors, with their address, entry and reach, beside org/all.
-    test("my connectors show their own address and reach beside org/all, with no axe violations", async ({ page }) => {
-      await stubApi(page);
-      await page.goto("/connectors?lang=en");
-      await expect(page.getByRole("heading", { level: 1, name: "My MCP connectors" })).toBeVisible();
-      const card = page.getByRole("region", { name: "air" });
-      await expect(card.getByText("https://api.dev.example/api/mcp/me/air", { exact: true })).toBeVisible();
-      await expect(card.getByRole("list", { name: "What air reaches" }).getByText("helsinki/bikes")).toBeVisible();
-      await expect(page.getByText("https://api.dev.example/api/mcp/org/all", { exact: true })).toBeVisible();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-      expect(await axeViolations(page)).toEqual([]);
-    });
 
     test("a new server over two projects' Endpoints is proposed by keyboard as a checked Change", async ({ page }) => {
       const { writes } = await stubApi(page);

@@ -51,7 +51,6 @@ import { filterSlotsOf, useModelSource } from "../../components/entities/filters
 import { parseModel } from "../models/linkml";
 import type { CatalogManifest } from "./catalog";
 import { TypeLink } from "../models/ModelLinks";
-import { ConnectorStar } from "../mcp/ConnectorStar";
 import { EndpointDataView } from "../../components/entities/EndpointDataView";
 import type { DataLink } from "../../components/entities/EndpointDataView";
 import { PublishDatasetDialog } from "../catalogue/PublishDataset";
@@ -336,7 +335,6 @@ export function EndpointPage({
           label={t("export.action")}
           size="sm"
         />
-        {slug ? <ConnectorStar slug={slug} /> : null}
         <RowActions label={localized(manifest.metadata.title, locale, name)} actions={actions} />
         <SaveAsResourceAction
           target={target}
