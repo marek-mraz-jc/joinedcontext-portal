@@ -515,6 +515,7 @@ async fn the_reads_that_had_only_a_route_answer_through_the_registry() {
     });
     let state = AppState::new(config, None).with_mirror(mirror);
     let caller = ops::Caller {
+        bearer: None,
         identity: joinedcontext_portal::auth::session::Identity {
             client: None,
             subject: "sub-steward".into(),
@@ -588,6 +589,7 @@ async fn the_run_operations_answer_and_an_agent_is_refused_by_name() {
     let config = Config::for_tests();
     let state = AppState::new(config, None).with_mirror(Arc::new(Mirror::new()));
     let steward = ops::Caller {
+        bearer: None,
         identity: joinedcontext_portal::auth::session::Identity {
             client: None,
             subject: "sub-steward".into(),
@@ -602,6 +604,7 @@ async fn the_run_operations_answer_and_an_agent_is_refused_by_name() {
         access: None,
     };
     let agent = ops::Caller {
+        bearer: None,
         via: ops::Via::Agent,
         ..steward.clone()
     };
@@ -658,6 +661,7 @@ async fn jc_project_create_follows_the_organizations_own_setting() {
         ));
     };
     let caller = ops::Caller {
+        bearer: None,
         identity: common::person("nobody"),
         via: ops::Via::Mcp,
         access: None,
@@ -747,6 +751,7 @@ async fn a_change_is_never_decided_over_mcp_or_by_an_agent() {
     let config = Config::for_tests();
     let state = AppState::new(config, None).with_mirror(Arc::new(Mirror::new()));
     let person = ops::Caller {
+        bearer: None,
         identity: joinedcontext_portal::auth::session::Identity {
             client: None,
             subject: "sub-steward".into(),
@@ -761,10 +766,12 @@ async fn a_change_is_never_decided_over_mcp_or_by_an_agent() {
         access: None,
     };
     let over_mcp = ops::Caller {
+        bearer: None,
         via: ops::Via::Mcp,
         ..person.clone()
     };
     let agent = ops::Caller {
+        bearer: None,
         via: ops::Via::Agent,
         ..person.clone()
     };
@@ -816,6 +823,7 @@ async fn a_run_is_offered_its_profile_and_not_its_starter_whole_reach() {
     };
 
     let person = ops::Caller {
+        bearer: None,
         identity: identity.clone(),
         via: ops::Via::Session,
         access: None,
@@ -880,6 +888,7 @@ async fn the_services_catalog_is_one_read_only_operation() {
         status: None,
     });
     let caller = ops::Caller {
+        bearer: None,
         identity: joinedcontext_portal::auth::session::Identity {
             client: None,
             subject: "sub-agent".into(),

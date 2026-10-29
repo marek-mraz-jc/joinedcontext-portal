@@ -731,6 +731,7 @@ async fn an_organization_kind_is_read_through_the_operations_of_any_project() {
     ));
     let state = AppState::new(config, None).with_mirror(mirror);
     let caller = Caller {
+        bearer: None,
         identity: steward(),
         via: Via::Mcp,
         access: None,
@@ -803,6 +804,7 @@ async fn a_kind_no_binding_reads_is_not_there_through_the_operations_either() {
     ));
     let state = AppState::new(config, None).with_mirror(mirror);
     let caller = Caller {
+        bearer: None,
         identity: identity("viewer", &[]),
         via: Via::Mcp,
         access: None,
