@@ -9,7 +9,7 @@
 //! answered 422 with every finding and is not kept, so a plan never holds a value the write path
 //! refuses, a credential typed into a manifest included (MF-24, S-29).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Mutex;
 
 use chrono::{DateTime, Duration, Utc};
@@ -19,12 +19,14 @@ use sha2::{Digest, Sha256};
 
 use super::bounds::{manifest, text, NAME, TERM};
 use super::{parse_input, Annotations, Caller, OpError, Operation};
+use crate::api::datamodels::{self, ModelChange, SourceDryRunResult};
 use crate::api::delete::{self, DeleteOutcome};
 use crate::api::mutate::{self, ProposeOutcome};
 use crate::change::{Lane, Operation as ChangeOp};
 use crate::connectors::{APPLY, PLAN};
 use crate::error::ApiError;
 use crate::state::AppState;
+use crate::tools::model_tools::MAX_REQUEST_BYTES;
 
 /// How long a plan may wait for its apply (AG-149).
 pub const TTL_MINUTES: i64 = 30;
@@ -52,6 +54,9 @@ struct ChangeInput {
     manifest: Option<Value>,
     #[serde(default)]
     patch: Option<Value>,
+    /// With a DataModel: the whole LinkML file `spec.linkml` names (S-10, S-15).
+    #[serde(default)]
+    source: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -77,6 +82,20 @@ struct Planned {
     name: String,
     /// The whole manifest to propose; `None` for a delete.
     manifest: Option<Value>,
+    base: String,
+    /// A DataModel planned with its LinkML file, checked as the source route checks it.
+    model: Option<ModelPlan>,
+}
+
+/// The LinkML half of a DataModel change, and the published file it was checked against.
+#[derive(Debug, Clone)]
+struct ModelPlan {
+    source: String,
+    checked: SourceDryRunResult,
+    next_val: Value,
+    imports: BTreeMap<String, String>,
+    creating: bool,
+    /// [`source_etag`] of the published file at plan time.
     base: String,
 }
 
@@ -144,6 +163,19 @@ fn etag(state: &AppState, home: &str, kind: &str, name: &str) -> String {
             .unwrap_or_default();
             format!("{:x}", Sha256::digest(bytes))
         }
+    }
+}
+
+/// What the published LinkML file of a DataModel is now: its hash, or `absent`. An apply over a
+/// file that moved since the plan would overwrite someone's change.
+async fn source_etag(state: &AppState, home: &str, name: &str) -> Result<String, OpError> {
+    if state.mirror.get(home, "DataModel", name).is_none() {
+        return Ok("absent".to_owned());
+    }
+    match datamodels::read_source(state, home, name).await {
+        Ok(text) => Ok(format!("{:x}", Sha256::digest(text.as_bytes()))),
+        Err(ApiError::NotFound(_)) => Ok("absent".to_owned()),
+        Err(err) => Err(OpError::Api(err)),
     }
 }
 
@@ -221,7 +253,10 @@ fn manifest_of(
         Op::Replace if !exists => return Err(missing()),
         Op::Replace => named("manifest")?,
         Op::Patch => {
-            let patch = named("patch")?;
+            let patch = match (&change.patch, &change.source) {
+                (None, Some(_)) => json!({}),
+                _ => named("patch")?,
+            };
             let mut whole = serde_json::to_value(current.ok_or_else(missing)?)?;
             if let Some(map) = whole.as_object_mut() {
                 map.remove("status");
@@ -279,6 +314,20 @@ async fn checked(
     workspace: Option<&str>,
 ) -> Result<(Value, Planned), OpError> {
     let info = super::resources::kind_named(&change.kind)?;
+    if change.source.is_some() {
+        let refuse = |why: &str| Err(invalid(format!("{at}/source"), why.to_owned()));
+        if info.kind != "DataModel" {
+            return refuse("only a DataModel change carries a LinkML source");
+        }
+        if change.op == Op::Delete {
+            return refuse("op delete takes no source");
+        }
+        if workspace.is_some() {
+            return refuse(
+                "a model's source opens its own change request: plan it without workspace",
+            );
+        }
+    }
     through_connector(caller, project, info.kind, &change.name, false)?;
     let home = super::resources::home_holding(state, info, project, &change.name);
     let manifest = manifest_of(state, at, &home, change)?;
@@ -323,7 +372,11 @@ async fn checked(
             }
         },
     };
-    let diff = json!({
+    let model = match change.source {
+        None => None,
+        Some(_) => Some(model_checked(caller, state, at, &home, change, manifest.as_ref()).await?),
+    };
+    let mut diff = json!({
         "op": change.op_word(),
         "kind": info.kind,
         "name": change.name,
@@ -333,6 +386,24 @@ async fn checked(
         "restartsStream": answer.get("restartsStream"),
         "verdict": answer.get("verdict"),
     });
+    let model = match model {
+        None => None,
+        Some((shown, Err(findings))) => {
+            diff["model"] = shown;
+            diff["verdict"]["ok"] = json!(false);
+            if let Some(all) = diff["verdict"]["findings"].as_array_mut() {
+                all.extend(findings);
+            } else {
+                diff["verdict"]["findings"] = Value::Array(findings);
+            }
+            None
+        }
+        Some((shown, Ok(model))) => {
+            diff["lane"] = shown["lane"].clone();
+            diff["model"] = shown;
+            Some(model)
+        }
+    };
     let planned = Planned {
         kind: info.kind.to_owned(),
         plural: info.plural,
@@ -340,8 +411,181 @@ async fn checked(
         name: change.name.clone(),
         manifest,
         base,
+        model,
     };
     Ok((diff, planned))
+}
+
+/// The LinkML half of a DataModel change (S-10, S-15): the check `PUT .../source` runs (no
+/// literal secret, versioning, ranges that name a defined class, Model Tools), and for each
+/// breaking change the stored entities of the classes it touches. Answers what the diff shows,
+/// and the plan's half or the findings that refuse it.
+async fn model_checked(
+    caller: &Caller,
+    state: &AppState,
+    at: &str,
+    home: &str,
+    change: &ChangeInput,
+    manifest: Option<&Value>,
+) -> Result<(Value, Result<ModelPlan, Vec<Value>>), OpError> {
+    let source = change.source.as_deref().unwrap_or_default();
+    let Some(manifest) = manifest else {
+        return Err(invalid(
+            format!("{at}/source"),
+            "op delete takes no source".into(),
+        ));
+    };
+    let current = state.mirror.get(home, "DataModel", &change.name);
+    let creating = current.is_none();
+    let spec = current.map_or_else(|| manifest["spec"].clone(), |envelope| envelope.spec);
+    let wanted = manifest.pointer("/spec/version").and_then(Value::as_str);
+    let version = match (creating, wanted) {
+        (true, wanted) => Some(wanted.unwrap_or("0.1.0")),
+        (false, Some(wanted)) if spec["version"].as_str() != Some(wanted) => Some(wanted),
+        (false, _) => None,
+    };
+    let base = source_etag(state, home, &change.name).await?;
+    let checked = datamodels::check_source(
+        state,
+        &caller.identity,
+        home,
+        &change.name,
+        &spec,
+        source,
+        version,
+    )
+    .await;
+    let finding = |path: &str, message: String| json!({ "level": "error", "at": format!("/source{path}"), "message": message });
+    let (checked, next_val, imports) = match checked {
+        Ok(done) => done,
+        Err(ApiError::Invalid { detail, errors }) => {
+            let findings = errors
+                .iter()
+                .map(|error| match error.split_once(": ") {
+                    Some((path, message)) if !path.contains(' ') => {
+                        finding(&format!("/{path}"), message.to_owned())
+                    }
+                    _ => finding("", format!("{detail}: {error}")),
+                })
+                .collect();
+            return Ok((json!({ "ok": false }), Err(findings)));
+        }
+        Err(ApiError::BadRequest(message)) => {
+            return Ok((json!({ "ok": false }), Err(vec![finding("", message)])))
+        }
+        Err(err) => return Err(OpError::Api(err)),
+    };
+    let lane = datamodels::model_lane(home, creating, &checked.severity);
+    let changes = affected(state, home, &change.name, manifest, &checked.changes).await;
+    let shown = json!({
+        "ok": true,
+        "file": manifest.pointer("/spec/linkml"),
+        "severity": checked.severity,
+        "version": checked.version,
+        "lane": lane,
+        "changes": changes,
+    });
+    let plan = ModelPlan {
+        source: source.to_owned(),
+        checked,
+        next_val,
+        imports,
+        creating,
+        base,
+    };
+    Ok((shown, Ok(plan)))
+}
+
+/// The model's changes, each breaking one with `affectedEntities`: how many stored entities of
+/// the classes it touches the model's space holds, as its broker counts them by type.
+// ponytail: counts the class itself, not its `is_a` subclasses; add those when a seeded model
+// stores entities of a subclass.
+async fn affected(
+    state: &AppState,
+    home: &str,
+    name: &str,
+    manifest: &Value,
+    changes: &[ModelChange],
+) -> Vec<Value> {
+    let mut rows: Vec<Value> = changes
+        .iter()
+        .map(|change| serde_json::to_value(change).unwrap_or_default())
+        .collect();
+    if !changes.iter().any(|change| change.severity == "breaking") {
+        return rows;
+    }
+    let published: Value = datamodels::read_source(state, home, name)
+        .await
+        .ok()
+        .and_then(|text| serde_norway::from_str(&text).ok())
+        .unwrap_or(Value::Null);
+    let space = manifest
+        .pointer("/spec/contextSpaceRef")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let counted: Result<BTreeMap<String, u64>, String> = if space.is_empty() {
+        Err("the model names no contextSpaceRef".to_owned())
+    } else {
+        let broker = crate::spaces::broker(&state.mirror, home, space);
+        let tenant = crate::spaces::segment(&state.mirror, home, space);
+        match state.space_usage.usage(&broker, &tenant).await {
+            Ok(usage) => match usage.bytes {
+                Some(bytes) => Ok(bytes.by_type),
+                None if usage.entities == 0 => Ok(BTreeMap::new()),
+                None => Err(format!("broker '{broker}' does not count by type")),
+            },
+            Err(why) => Err(why),
+        }
+    };
+    for (row, change) in rows.iter_mut().zip(changes) {
+        let classes = classes_of(&published, &change.subject);
+        if change.severity != "breaking" || classes.is_empty() {
+            continue;
+        }
+        match &counted {
+            Ok(by_type) => {
+                let held: u64 = by_type
+                    .iter()
+                    .filter(|(iri, _)| {
+                        let term = iri.rsplit(['/', '#']).next().unwrap_or(iri);
+                        classes.iter().any(|class| class == term)
+                    })
+                    .map(|(_, n)| *n)
+                    .sum();
+                row["affectedEntities"] = json!(held);
+                row["space"] = json!(space);
+            }
+            Err(why) => {
+                row["affectedEntities"] = Value::Null;
+                row["notCounted"] = json!(format!(
+                    "the stored {} entities could not be counted: {why}",
+                    classes.join(", ")
+                ));
+            }
+        }
+    }
+    rows
+}
+
+/// The classes of the published model a change's subject touches: `Class` or `Class.slot`, or
+/// every class that lists a top-level slot.
+fn classes_of(published: &Value, subject: &str) -> Vec<String> {
+    let Some(classes) = published["classes"].as_object() else {
+        return Vec::new();
+    };
+    let head = subject.split('.').next().unwrap_or(subject);
+    if classes.contains_key(head) {
+        return vec![head.to_owned()];
+    }
+    classes
+        .iter()
+        .filter(|(_, class)| {
+            class["slots"]
+                .as_array()
+                .is_some_and(|slots| slots.iter().any(|slot| slot == subject))
+        })
+        .map(|(class, _)| class.clone())
+        .collect()
 }
 
 impl ChangeInput {
@@ -367,7 +611,9 @@ fn findings_of(at: &str, diff: &Value) -> Vec<String> {
         .filter(|f| f["level"].as_str() != Some("warning") && f["level"].as_str() != Some("info"))
         .map(|f| {
             let path = f["path"].as_str().unwrap_or_default().replace('.', "/");
-            let path = if path.is_empty() {
+            let path = if let Some(within) = f["at"].as_str() {
+                format!("{at}{within}")
+            } else if path.is_empty() {
                 format!("{at}/manifest")
             } else {
                 format!("{at}/manifest/{path}")
@@ -413,6 +659,22 @@ async fn plan(
     let mut items = Vec::new();
     let mut errors = Vec::new();
     let mut seen = std::collections::BTreeSet::new();
+    // A plan waits in memory with its sources: all of them together stay under one source's cap.
+    let sources: usize = input
+        .changes
+        .iter()
+        .filter_map(|change| change.source.as_ref())
+        .map(String::len)
+        .sum();
+    if sources > MAX_REQUEST_BYTES {
+        return Err(invalid(
+            "/changes".into(),
+            format!(
+                "the plan's LinkML sources take {sources} bytes together, more than the \
+                 {MAX_REQUEST_BYTES} byte limit: plan the models one at a time"
+            ),
+        ));
+    }
     for (n, change) in input.changes.iter().enumerate() {
         let at = format!("/changes/{n}");
         if !seen.insert((change.kind.clone(), change.name.clone())) {
@@ -544,12 +806,16 @@ async fn apply(
     for item in &plan.items {
         through_connector(caller, project, &item.kind, &item.name, true)?;
     }
-    let moved: Vec<String> = plan
-        .items
-        .iter()
-        .filter(|item| etag(state, &item.home, &item.kind, &item.name) != item.base)
-        .map(|item| format!("{} {}", item.kind, item.name))
-        .collect();
+    let mut moved: Vec<String> = Vec::new();
+    for item in &plan.items {
+        let file_moved = match &item.model {
+            Some(model) => source_etag(state, &item.home, &item.name).await? != model.base,
+            None => false,
+        };
+        if file_moved || etag(state, &item.home, &item.kind, &item.name) != item.base {
+            moved.push(format!("{} {}", item.kind, item.name));
+        }
+    }
     if !moved.is_empty() {
         return Err(OpError::Api(ApiError::Conflict(format!(
             "{} changed since the plan was made; nothing was applied. Read it again and call {PLAN} \
@@ -594,6 +860,11 @@ async fn apply(
                 })),
                 Err(err) => Err(err),
             },
+            Some(manifest) if item.model.is_some() => {
+                let outcome = propose_source(caller, state, item, manifest).await;
+                super::forget_check(state, &item.home, manifest).await;
+                outcome.map(ProposeOutcome::Change)
+            }
             Some(manifest) => {
                 let op = if item.base == "absent" {
                     ChangeOp::Create
@@ -640,6 +911,54 @@ async fn apply(
     }))
 }
 
+/// Opens the change of a DataModel planned with its LinkML file: manifest, source and generated
+/// artifacts in one change request, as `PUT .../source` opens it (DM-22).
+async fn propose_source(
+    caller: &Caller,
+    state: &AppState,
+    item: &Planned,
+    manifest: &Value,
+) -> Result<crate::change::Change, ApiError> {
+    let model = item
+        .model
+        .as_ref()
+        .ok_or_else(|| ApiError::Internal("a model change without its source".into()))?;
+    crate::permissions::for_request(state, &caller.identity, &item.home).check(
+        "DataModel",
+        jc_core::kinds::Verb::Propose,
+        Some(manifest),
+    )?;
+    let envelope: crate::resource::ResourceEnvelope = serde_json::from_value(manifest.clone())
+        .map_err(|e| ApiError::BadRequest(format!("invalid DataModel manifest: {e}")))?;
+    let (verb, noun) = if model.creating {
+        ("create", "creation")
+    } else {
+        ("update", "update")
+    };
+    datamodels::propose_model(
+        state,
+        &caller.identity,
+        datamodels::ModelProposal {
+            namespace: &item.home,
+            name: &item.name,
+            envelope,
+            source: &model.source,
+            checked: model.checked.clone(),
+            next_val: model.next_val.clone(),
+            imports: model.imports.clone(),
+            creating: model.creating,
+            lane: datamodels::model_lane(&item.home, model.creating, &model.checked.severity),
+            title: format!("{verb} DataModel {}", item.name),
+            body: format!(
+                "Proposed {noun} of DataModel `{}` source, manifest and generated artifacts in \
+                 project `{}` through a plan (AG-149).",
+                item.name, item.home
+            ),
+        },
+    )
+    .await
+}
+
 /// What an apply opened, as API/14 §4.3 names it; never an approval.
 fn opened_row(outcome: ProposeOutcome) -> Value {
     match outcome {
@@ -679,7 +998,8 @@ fn plan_input_schema() -> Value {
                         "kind": text("The manifest kind, e.g. DataModel", TERM),
                         "name": text("The object's metadata.name, e.g. bike-counter", NAME),
                         "manifest": manifest("With create or replace: the whole manifest"),
-                        "patch": { "type": "object", "description": "With patch: a JSON merge patch (RFC 7386) onto the current manifest" }
+                        "patch": { "type": "object", "description": "With patch: a JSON merge patch (RFC 7386) onto the current manifest" },
+                        "source": { "type": "string", "maxLength": MAX_REQUEST_BYTES, "description": "With a DataModel: its whole LinkML file (the one spec.linkml names), e.g. \"classes:\\n  BikeCounter:\\n    attributes:\\n      count: { range: integer }\\n\"; the plan shows each change, the version it takes and the stored entities a breaking one affects" }
                     },
                     "required": ["op", "kind", "name"],
                     "additionalProperties": false
@@ -779,6 +1099,22 @@ pub fn operations() -> Vec<Operation> {
 mod tests {
     use super::*;
 
+    /// S-10: a breaking change counts the stored entities of the class it touches, also for a
+    /// top-level slot a class lists.
+    #[test]
+    fn a_change_touches_its_class_or_every_class_listing_its_slot() {
+        let published = json!({ "classes": {
+            "BikeCounter": { "slots": ["owner"] },
+            "Station": { "slots": ["owner", "name"] },
+            "Kiosk": {}
+        } });
+        assert_eq!(classes_of(&published, "BikeCounter.count"), ["BikeCounter"]);
+        assert_eq!(classes_of(&published, "Kiosk"), ["Kiosk"]);
+        assert_eq!(classes_of(&published, "owner"), ["BikeCounter", "Station"]);
+        assert!(classes_of(&published, "Direction.in").is_empty());
+        assert!(classes_of(&Value::Null, "BikeCounter.count").is_empty());
+    }
+
     fn caller(access: Option<crate::agents::access::Access>) -> Caller {
         Caller {
             identity: crate::auth::session::Identity {
@@ -827,6 +1163,53 @@ mod tests {
         assert!(store.take(&id, "sub-jana", Some("c1"), now).is_none());
         let stale = kept(&store, "sub-jana", None, -1);
         assert!(store.take(&stale, "sub-jana", None, now).is_none());
+    }
+
+    /// A LinkML source rides only with a DataModel, never with a delete or into a workspace, and a
+    /// plan's sources together stay under one source's cap: each refused at its path before
+    /// anything is read or kept.
+    #[tokio::test]
+    async fn a_source_is_refused_off_a_model_in_a_workspace_and_over_the_cap() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let change = |op: Op, kind: &str, source: &str| ChangeInput {
+            op,
+            kind: kind.into(),
+            name: "bike-counter".into(),
+            manifest: None,
+            patch: None,
+            source: Some(source.into()),
+        };
+        let refused = |changes: Vec<ChangeInput>, workspace: Option<&str>| {
+            let input = PlanInput {
+                changes,
+                workspace: workspace.map(str::to_owned),
+            };
+            let state = &state;
+            async move {
+                plan(&caller(None), state, "doprava", input)
+                    .await
+                    .expect_err("refused")
+                    .to_string()
+            }
+        };
+        let off_model = refused(vec![change(Op::Patch, "ContextSpace", "classes: {}")], None).await;
+        assert!(off_model.contains("/changes/0/source"), "{off_model}");
+        assert!(off_model.contains("only a DataModel"), "{off_model}");
+        let delete = refused(vec![change(Op::Delete, "DataModel", "classes: {}")], None).await;
+        assert!(delete.contains("op delete takes no source"), "{delete}");
+        let workspace = refused(
+            vec![change(Op::Patch, "DataModel", "classes: {}")],
+            Some("w1"),
+        )
+        .await;
+        assert!(workspace.contains("without workspace"), "{workspace}");
+        let half = "x".repeat(MAX_REQUEST_BYTES / 2 + 1);
+        let mut other = change(Op::Patch, "DataModel", &half);
+        other.name = "station".into();
+        let over = refused(vec![change(Op::Patch, "DataModel", &half), other], None).await;
+        assert!(over.contains("one at a time"), "{over}");
+        let kept = state.plans.plans.lock().map(|p| p.len()).unwrap_or(1);
+        assert_eq!(kept, 0);
     }
 
     /// A connector with writes off is refused at the apply before any plan is looked at.
