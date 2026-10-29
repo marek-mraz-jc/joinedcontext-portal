@@ -88,7 +88,7 @@ pub fn input_schema() -> Value {
                         "name": { "type": "string", "description": "The file's name, as the person uploaded it", "maxLength": super::bounds::TITLE },
                         "content": {
                             "type": "string",
-                            "description": "The file's text; all files together at most 10 MiB (DM-55)",
+                            "description": "The file's text; all files at most 10 MiB together",
                             "maxLength": MAX_TOTAL_FILES_BYTES
                         }
                     },
@@ -101,15 +101,15 @@ pub fn input_schema() -> Value {
             "typeName": {
                 "type": "string",
                 "pattern": "^[A-Z][A-Za-z0-9]{0,62}$",
-                "description": "Entity type of the inferred model and the pipeline's output, PascalCase"
+                "description": "Entity type of the model and pipeline output, PascalCase"
             },
             "description": {
                 "type": "string",
                 "maxLength": MAX_DESCRIPTION_CHARS,
-                "description": "What the data is, from the person's description and specification"
+                "description": "What the data is, in the person's words"
             },
-            "propose": { "type": "boolean", "description": "Propose all drafts as a single change if ready" },
-            "upload": { "type": "boolean", "description": "The person writes the sample file's rows through the space: draft its Endpoint when it has none and the person's write grant (DM-81)" }
+            "propose": { "type": "boolean", "description": "Propose all drafts as one change when ready" },
+            "upload": { "type": "boolean", "description": "The person writes the sample's rows: draft the space's Endpoint and write grant when missing" }
         },
         "additionalProperties": false
     })

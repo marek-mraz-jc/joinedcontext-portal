@@ -101,10 +101,10 @@ fn sample_schema() -> Value {
     use bounds::*;
     json!({
         "type": "object",
-        "description": "The sample inline or a URL the runner fetches it from, and how it is split",
+        "description": "The sample inline or by URL, and how it is split",
         "properties": {
             "text": text("The sample inline", jcctl::pipeline_test::MAX_SAMPLE_BYTES as u64),
-            "url": text("An http(s) URL the runner fetches the sample from instead", URL),
+            "url": text("Or an http(s) URL the runner fetches", URL),
             "format": {
                 "type": "string",
                 "description": "How the sample is split into records",
@@ -120,7 +120,7 @@ fn sample_source_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "dataSource": text("The DataSource of this project to read the first records of; give this or sample", NAME),
+            "dataSource": text("The DataSource to read; or sample", NAME),
             "sample": sample_schema()
         },
         "additionalProperties": false
@@ -147,11 +147,11 @@ fn try_mapping_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "pipeline": manifest("The Pipeline manifest whose steps are tried; give this or draft"),
+            "pipeline": manifest("The Pipeline manifest to try; or draft"),
             "sample": sample_schema(),
             "messages": {
                 "type": "array",
-                "description": "Instead of sample: the records of a streamed jc_pipeline_sample_source, each tried as one message, as the live input hands it over",
+                "description": "Instead of sample: a streamed jc_pipeline_sample_source's records, each tried as one message",
                 "maxItems": MAX_MESSAGES
             },
             "draft": draft_ref()
@@ -176,13 +176,13 @@ fn validate_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "pipeline": manifest("The Pipeline whose target space's model checks the records; give this, draft or space"),
+            "pipeline": manifest("The Pipeline whose target model checks the records; or draft or space"),
             "draft": draft_ref(),
-            "space": text("The ContextSpace whose model checks the records, instead of a pipeline's", NAME),
-            "type": text("With a pipeline or draft: an entity type of the space's model; the answer's writable lists each of its attributes and whether the pipeline may write it through its Endpoint", NAME),
+            "space": text("The ContextSpace whose model checks the records", NAME),
+            "type": text("With a pipeline or draft: a type of the space's model; writable answers which of its attributes the pipeline may write", NAME),
             "records": {
                 "type": "array",
-                "description": "The records as the pipeline would write them (the records of jc_pipeline_try_mapping)",
+                "description": "The records jc_pipeline_try_mapping answered",
                 "maxItems": MAX_RECORDS,
                 "items": { "type": "object", "maxProperties": RECORD_MEMBERS }
             }
@@ -531,7 +531,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_pipeline_sample_source",
             title: "Sample a Pipeline Source",
-            description: "Reads the first records of a DataSource, or of a sample file or URL, on the project's runner: the records, their fields and the count (the workbench's sample step, ADR-N-034)",
+            description: "Reads the first records of a DataSource, sample file or URL on the project's runner: the records, their fields and the count",
             input: sample_source_input_schema,
             output: sample_source_output_schema,
             annotations: OperationAnnotations {
@@ -587,7 +587,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_pipeline_try_mapping",
             title: "Try a Pipeline Mapping",
-            description: "Runs a candidate pipeline's steps over a sample on the project's runner without writing: each record as it would be written and every failure at its step and line (the workbench's mapped output, ADR-N-034)",
+            description: "Runs a candidate pipeline's steps over a sample on the project's runner without writing: each record as it would be written and every failure at its step and line",
             input: try_mapping_input_schema,
             output: try_mapping_output_schema,
             annotations: OperationAnnotations {
@@ -604,7 +604,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: "jc_pipeline_validate",
             title: "Validate Pipeline Records",
-            description: "Checks records against the target space's data model, the target Endpoint's Policies and view, and the lifetime: a verdict per record with each finding and its expiresAt (the workbench's validation step, PL-59, ADR-N-034)",
+            description: "Checks records against the target space's data model, the target Endpoint's Policies and view, and the lifetime: a verdict per record with each finding and its expiresAt",
             input: validate_input_schema,
             output: validate_output_schema,
             annotations: OperationAnnotations {

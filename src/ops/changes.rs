@@ -28,7 +28,7 @@ fn change_approve_input_schema() -> Value {
         "properties": {
             "id": text("The Change to approve", ID),
             "confirm": text(
-                "For a red-lane Change: the Change's name, typed out as the confirmation (CC-19)",
+                "Red lane: the Change's name typed out to confirm",
                 NAME
             )
         },

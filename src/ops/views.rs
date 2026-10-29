@@ -104,14 +104,14 @@ fn activity_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "space": text("Only the events of this context space, by name", NAME),
+            "space": text("Events of this context space", NAME),
             "kind": text("One or more event kinds, comma-separated", QUERY),
-            "source": text("Only the events this component wrote, e.g. reconciler", TERM),
+            "source": text("Events of this component, e.g. reconciler", TERM),
             "severity": { "type": "string", "enum": ["info", "warning", "error"], "description": "This severity and everything above it" },
             "since": { "type": "string", "format": "date-time", "description": "RFC 3339 instant, the oldest event to return", "maxLength": 64 },
-            "object": text("One object the events belong to, as {plural}/{name}", NAME),
+            "object": text("Events of one object, as {plural}/{name}", NAME),
             "limit": { "type": "integer", "minimum": 1, "maximum": 200, "description": "At most this many events" },
-            "cursor": text("Where the previous page ended, as that page returned it", ID)
+            "cursor": text("The previous page's cursor", ID)
         },
         "additionalProperties": false
     })
@@ -198,7 +198,7 @@ fn run_list_input_schema() -> Value {
         "type": "object",
         "properties": {
             "limit": { "type": "integer", "minimum": 1, "description": "At most this many runs, newest first" },
-            "app": text("Only the runs that build this application, by name", NAME),
+            "app": text("Runs building this App, by name", NAME),
             "kind": {
                 "type": "string",
                 "description": "Only runs of this kind",

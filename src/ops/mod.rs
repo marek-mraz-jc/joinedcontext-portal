@@ -735,10 +735,10 @@ pub(crate) mod bounds {
     pub fn draft_ref() -> Value {
         json!({
             "type": "object",
-            "description": "A saved draft to use instead of an inline manifest",
+            "description": "A saved draft instead of a manifest",
             "properties": {
-                "kind": text("The draft's kind, e.g. Endpoint", TERM),
-                "name": text("The draft's metadata.name", NAME)
+                "kind": text("Draft kind, e.g. Endpoint", TERM),
+                "name": text("Draft metadata.name", NAME)
             },
             "required": ["kind", "name"],
             "additionalProperties": false
@@ -747,10 +747,7 @@ pub(crate) mod bounds {
 
     /// The workspace a draft belongs to; absent is the project's own (CC-76, T-2267).
     pub fn workspace() -> Value {
-        text(
-            "The workspace (copy) the draft belongs to; leave out for the project's own drafts",
-            NAME,
-        )
+        text("The draft's workspace; absent for the project's own", NAME)
     }
 }
 

@@ -927,7 +927,7 @@ pub struct RunStarted {
     post,
     path = "/api/v1/projects/{project}/pipelines/{name}/runs",
     summary = "Run a Pipeline Now",
-    description = "Queues one run of a pipeline that runs from the queue (PL-78), now and outside its schedule, and answers its id: the run the run list shows once it wrote. The run waits its turn in its lane, so runs started for many pipelines go one after another. A pipeline whose run is in the runner, and one that waits for pushes and so always runs, answer 409. Needs propose and approve on Pipeline (a steward), and each run is an activity event `pipeline.run`.",
+    description = "Queues one run of a queued pipeline now, outside its schedule, and answers its id; it waits its turn in its lane. 409 while its run is in the runner or for a pipeline fed by pushes. Needs propose and approve on Pipeline (a steward); each run is an activity event `pipeline.run`.",
     tag = "pipelines",
     params(
         ("project" = String, Path, description = "Project name"),

@@ -34,7 +34,7 @@ fn input_schema() -> Value {
         "properties": {
             "kind": {
                 "type": "string",
-                "description": "The manifest kind, e.g. Pipeline",
+                "description": "Manifest kind, e.g. Pipeline",
                 "enum": kinds()
             }
         },

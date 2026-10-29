@@ -65,23 +65,23 @@ fn create_input_schema() -> Value {
         "type": "object",
         "description": "What an unattended run is given (AG-69, AP-44); the same body the route takes",
         "properties": {
-            "appName": text("Name of the application to build; becomes the App manifest's name", NAME),
-            "endpointName": text("The one Endpoint the application reads through; endpointNames for several", NAME),
+            "appName": text("The App manifest's name", NAME),
+            "endpointName": text("The one Endpoint read; endpointNames for several", NAME),
             "endpointNames": {
                 "type": "array",
-                "description": "The Endpoints the application reads, one to five, the first the primary (AP-44)",
+                "description": "The Endpoints read, the first the primary",
                 "items": { "type": "string", "maxLength": NAME },
                 "maxItems": 5
             },
-            "profile": text("Which AgentProfile runs; the platform's app-builder when left out", NAME),
+            "profile": text("The AgentProfile; app-builder when absent", NAME),
             "appClass": {
                 "type": "string",
-                "description": "How the App is built and served, as the App kind spells it (AP-124)",
+                "description": "How the App is built and served",
                 "enum": ["ui", "ui-rust", "wasm"]
             },
             "visibility": {
                 "type": "string",
-                "description": "Who may reach the published application; public is refused (AP-42)",
+                "description": "Who may reach the published App; public is refused",
                 "enum": ["private", "project", "organization"]
             },
             "prompt": text("What the application should do, in the person's own words", TEXT),
@@ -92,11 +92,11 @@ fn create_input_schema() -> Value {
             },
             "unattended": {
                 "type": "boolean",
-                "description": "Whether the run works without asking the person questions"
+                "description": "true: the run asks the person nothing"
             },
             "dataNeeds": {
                 "type": "array",
-                "description": "The types, attributes and operations the application needs, as the App's spec.dataNeeds spells them: contextSpaceRef, types, attrs, operations, q, scopeQ, geoQ; checked against what the endpoint publishes (AP-44)",
+                "description": "As the App's spec.dataNeeds: contextSpaceRef, types, attrs, operations, q, scopeQ, geoQ; checked against the endpoint",
                 "items": { "type": "object", "maxProperties": RECORD_MEMBERS },
                 "minItems": 1
             }
@@ -205,7 +205,7 @@ fn message_input_schema() -> Value {
             "id": text("The run's id", ID),
             "text": text("The message, in the person's own words", TEXT),
             "endpointNames": texts(
-                "On a conversation: the endpoints the assistant may query from here on (AG-75)",
+                "On a conversation: the endpoints the assistant may query from now on",
                 NAME
             )
         },
@@ -227,10 +227,10 @@ fn flow_input_schema() -> Value {
         "type": "object",
         "properties": {
             "blueprint": text("The organisation Blueprint to run", NAME),
-            "version": text("The version the parameters were filled against (CC-26)", TERM),
+            "version": text("The version the parameters were filled against", TERM),
             "parameters": {
                 "type": "object",
-                "description": "What the blueprint's parameterSchema asks for (CC-24)",
+                "description": "What the blueprint's parameterSchema asks for",
                 "maxProperties": RECORD_MEMBERS
             }
         },

@@ -81,26 +81,27 @@ fn input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "endpoint": text("The Endpoint's metadata.name in the project, e.g. doprava-counters", NAME),
+            "endpoint": text("Endpoint name, e.g. doprava-counters", NAME),
             "type": text("The entity type, e.g. BikeCounter", TERM),
             "id": text("One entity's id, e.g. urn:ngsi-ld:BikeCounter:c1", ID),
             "q": text("An NGSI-LD q, e.g. count>40;name~=\"Most\"", QUERY),
             "attrs": texts("The attributes answered, e.g. [\"count\"]", TERM),
             "georel": text("near;maxDistance==500, within, intersects, contains, disjoint, equals or overlaps", TERM),
-            "geometry": { "type": "string", "enum": ["Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"] },
+            "geometry": { "type": "string", "description": "The GeoJSON type of coordinates", "enum": ["Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"] },
             "coordinates": { "type": "array", "description": "GeoJSON coordinates, longitude first, e.g. [19.146, 48.736]" },
             "orderBy": text("attr or attr;desc, e.g. modifiedAt;desc", TERM),
-            "format": { "type": "string", "enum": ["normalized", "concise", "keyValues"] },
+            "format": { "type": "string", "description": "keyValues answers plain values", "enum": ["normalized", "concise", "keyValues"] },
             "temporal": {
                 "type": "object",
-                "description": "Read the history instead of the current values",
+                "description": "History instead of current values",
                 "properties": {
-                    "timerel": { "type": "string", "enum": ["before", "after", "between"] },
+                    "timerel": { "type": "string", "description": "Against timeAt (and endTimeAt)", "enum": ["before", "after", "between"] },
                     "timeAt": text("ISO 8601, e.g. 2026-10-27T00:00:00Z", TERM),
                     "endTimeAt": text("ISO 8601, the end of a between", TERM),
-                    "lastN": { "type": "integer", "minimum": 1, "maximum": MAX_LIMIT },
+                    "lastN": { "type": "integer", "description": "The newest N per attribute", "minimum": 1, "maximum": MAX_LIMIT },
                     "aggrMethods": {
                         "type": "array",
+                        "description": "Aggregates; per aggrPeriodDuration when given",
                         "items": { "type": "string", "enum": ["avg", "min", "max", "sum", "totalCount", "distinctCount", "stddev", "sumsq"] },
                         "maxItems": 8
                     },
