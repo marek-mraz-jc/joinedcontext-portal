@@ -7742,12 +7742,6 @@ export interface components {
          * @enum {string}
          */
         ConflictPolicy: "fail" | "skip" | "replace" | "rename";
-        /** @description One personal MCP connector, served at `/api/mcp/me/{name}` to its owner alone (UI-98, EP-123). */
-        Connector: {
-            /** @description A DNS label, unique among the person's connectors. */
-            name: string;
-            select?: components["schemas"]["ConnectorSelect"];
-        };
         /** @enum {string} */
         ConnectorAccess: "read" | "write";
         /** @description One row of a connector's audit (AG-147). */
@@ -7862,25 +7856,6 @@ export interface components {
             /** @description A project slug, e.g. `doprava`. */
             project: string;
             space?: string | null;
-        };
-        /**
-         * @description What a personal connector reaches: the McpServer selector fields (MF-55) and the person's
-         *     favourite Endpoints. An Endpoint is selected when it matches every field given; the gateway
-         *     only ever narrows the caller's own reach with it (ADR-N-043 §7.2).
-         */
-        ConnectorSelect: {
-            /** @description `public`, `organization`, `project` or `grant`. */
-            accessLevel?: string[];
-            /** @description Smart Data Models domains of the Endpoint's classification. */
-            domains?: string[];
-            /** @description Favourite Endpoints by slug, each one the person could read when it was starred. */
-            endpoints?: string[];
-            /** @description Project names. */
-            projects?: string[];
-            /** @description `{project}/{space}`. */
-            spaces?: string[];
-            /** @description EU data-theme codes (`ENVI`, `TRAN`, …). */
-            themes?: string[];
         };
         /**
          * @description One client a person consented to (the hub, an Endpoint's MCP client, an App), as the realm's
@@ -9876,8 +9851,6 @@ export interface components {
              *     display preference: it changes what a form shows, never what a write may do.
              */
             advancedMode?: boolean | null;
-            /** @description The person's own MCP connectors, at most 10 (UI-98). */
-            connectors?: components["schemas"]["Connector"][];
             /** @description Free JSON per dashboard name, the browser's own saved state. */
             dashboardLayouts?: Record<string, never>;
             /** @description The project the shell opens on. */

@@ -6,7 +6,6 @@
  */
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
-import { axeViolations } from "./axe";
 
 const SHOTS = process.env.T4948_SHOTS ?? "test-results/dropdowns-apps";
 const API = "joinedcontext.com/v1alpha1";
@@ -97,29 +96,6 @@ for (const width of [1440, 400]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     });
 
-    test("a connector picks projects, then the spaces of those projects, and themes", async ({ page }) => {
-      await stubApi(page);
-      await page.goto("/connectors?lang=en");
-      await page.getByRole("button", { name: "New connector" }).first().click();
-      const dialog = page.getByRole("dialog", { name: "New connector" });
-      const projects = dialog.getByRole("combobox", { name: /^Projects/ });
-      await states(page, projects, "connector-projects", "esp");
-      await projects.fill("hel");
-      await page.getByRole("option", { name: /helsinki/ }).click();
-      await page.keyboard.press("Escape");
-      const spaces = dialog.getByRole("combobox", { name: /^Context spaces/ });
-      await states(page, spaces, "connector-spaces", "park");
-      await spaces.click();
-      await expect(page.getByRole("option", { name: /City bikes/ })).toHaveCount(0);
-      await page.getByRole("option", { name: /Air quality/ }).click();
-      // Escape closes the open list and leaves the dialog and its picks.
-      await page.keyboard.press("Escape");
-      await expect(page.getByRole("listbox")).toHaveCount(0);
-      await expect(dialog).toBeVisible();
-      await expect(dialog.getByRole("list", { name: /Context spaces/ })).toContainText("Air quality");
-      await shoot(page, "connector-5-filled");
-      expect(await axeViolations(page)).toEqual([]);
-    });
 
     test("an MCP server admits projects picked from the person's own", async ({ page }) => {
       await stubApi(page);

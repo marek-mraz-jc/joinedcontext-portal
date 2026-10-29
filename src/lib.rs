@@ -44,6 +44,7 @@ pub mod live;
 pub mod mcp;
 pub mod openapi;
 pub mod ops;
+pub mod personal_connectors;
 pub use ops::drafts;
 pub use ops::verdict;
 pub mod costs;

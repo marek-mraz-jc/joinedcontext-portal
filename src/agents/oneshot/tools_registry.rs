@@ -29,7 +29,7 @@ pub(super) fn opens_a_change(name: &str) -> Option<&'static str> {
             "open the removal with change_resource and `delete: true`; the person types the name \
              there and proposes it",
         ),
-        _ if name.ends_with("_propose") => Some(
+        _ if name.ends_with("_propose") || name == crate::connectors::APPLY => Some(
             "draft it with change_resource — `create: true` for a resource that does not exist \
              yet, a `patch` for one that does — and the kind's form opens filled for the person to \
              propose",
@@ -60,15 +60,10 @@ pub(super) fn offered(
         // T-5948: kind schemas reach MCP clients (tools/list, jc_schema_get), not this prompt,
         // which keeps its 4k-token turn (AG-72) until T-5958 replaces it.
         .filter(|op| op.name != crate::ops::schemas::GET)
-        // T-5956, T-5974: plan, revert plan and apply are the connectors' write path; the dock
-        // opens a change in the kind's form for the person (AG-77) until T-5958 moves it over.
+        // T-5956, T-5974: a plan or revert plan is applied only through a connector
+        // (jc_change_apply); here the person proposes from the form change_resource opens.
         .filter(|op| {
-            ![
-                crate::connectors::PLAN,
-                crate::connectors::REVERT,
-                crate::connectors::APPLY,
-            ]
-            .contains(&op.name.as_str())
+            ![crate::connectors::PLAN, crate::connectors::REVERT].contains(&op.name.as_str())
         })
         // A run reads data through the agent proxy's query_endpoint; jc_data_query exchanges the
         // caller's own token, which a run does not hold (T-5986).
@@ -1340,6 +1335,7 @@ mod tests {
                 "jc_resource_delete",
                 "jc_project_delete",
                 "jc_workspace_propose",
+                "jc_change_apply",
             ],
             "the operations the conversation may not call, in registry order"
         );

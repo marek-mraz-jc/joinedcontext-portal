@@ -821,6 +821,17 @@ fn roles(mirror: &Mirror, namespace: &str) -> Vec<(String, RoleSpec)> {
 /// whose roles it may reach (PF-69). A space name is unique in the organization (PF-44, PF-76);
 /// a mirror holding it in two projects breaks that, and such a binding then applies nowhere
 /// rather than in both (T-4589).
+/// The project a binding's scope lies in (S-27): its project, or the project holding its context
+/// space. None for an organization scope, which only the organization decides.
+pub fn binding_project(mirror: &Mirror, spec: &Value) -> Option<String> {
+    let binding: RoleBindingSpec = serde_json::from_value(spec.clone()).ok()?;
+    match Reach::of(&binding.scope)? {
+        Reach::Project(project) => Some(project),
+        Reach::Space(space) => project_of_space(mirror, &space),
+        Reach::Organization(_) => None,
+    }
+}
+
 fn project_of_space(mirror: &Mirror, space: &str) -> Option<String> {
     let mut holders: Vec<String> = mirror
         .matching(|env| env.kind == "ContextSpace" && env.metadata.name == space)
@@ -867,10 +878,9 @@ fn role_of(
 fn in_force(mirror: &Mirror, identity: &Identity, now: DateTime<Utc>) -> Vec<(Reach, Grant)> {
     let organization = roles(mirror, ORG_NAMESPACE);
     let mut grants = Vec::new();
-    for env in mirror
-        .list(ORG_NAMESPACE, "RoleBinding", &ListOptions::default())
-        .items
-    {
+    for env in mirror.kind_where(ORG_NAMESPACE, "RoleBinding", |env| {
+        names_caller(identity, &env.spec)
+    }) {
         let binding = match serde_json::from_value::<RoleBindingSpec>(env.spec) {
             Ok(spec) => spec,
             Err(e) => {
@@ -907,6 +917,24 @@ fn in_force(mirror: &Mirror, identity: &Identity, now: DateTime<Utc>) -> Vec<(Re
     }
     grants.extend(account_grants(mirror, &organization, identity, now));
     grants
+}
+
+/// Whether a RoleBinding's spec names the caller, read in place: an organization holds a
+/// binding per person and project, so parsing only the caller's own keeps a call's rights
+/// computation from growing with everybody else's (T-5978). A subject that does not parse names
+/// nobody; the binding is parsed whole, and judged again, only when one names the caller.
+fn names_caller(identity: &Identity, spec: &Value) -> bool {
+    spec.get("subjects")
+        .and_then(Value::as_array)
+        .is_some_and(|subjects| {
+            subjects.iter().any(|subject| {
+                names(
+                    identity,
+                    subject.get("user").and_then(Value::as_str),
+                    subject.get("group").and_then(Value::as_str),
+                )
+            })
+        })
 }
 
 /// Whether one of a ServiceAccount's roles names a `Role` (§2a), so the account acts on the
@@ -1605,24 +1633,26 @@ pub fn is_person_id(value: &str) -> bool {
 }
 
 fn is_subject(identity: &Identity, subject: &jc_core::kinds::Subject) -> bool {
-    if let Some(user) = &subject.user {
+    names(identity, subject.user.as_deref(), subject.group.as_deref())
+}
+
+/// [`is_subject`] over a subject's `user` and `group`.
+fn names(identity: &Identity, user: Option<&str>, group: Option<&str>) -> bool {
+    if let Some(user) = user {
         // A person's id matches their `sub` and nothing else: a username or an address that
         // spells somebody's id is not them (ADR-N-061). Any other value is an e-mail an older
         // manifest wrote, or a `service-account-<client>` user.
         if is_person_id(user) {
-            return identity.subject == *user;
+            return identity.subject == user;
         }
         return identity
             .email
             .as_deref()
             .is_some_and(|e| e.eq_ignore_ascii_case(user))
             || identity.username.eq_ignore_ascii_case(user)
-            || identity.subject == *user;
+            || identity.subject == user;
     }
-    subject
-        .group
-        .as_deref()
-        .is_some_and(|g| in_group(identity, g))
+    group.is_some_and(|g| in_group(identity, g))
 }
 
 /// The audience of the manifest under approval, when it has one (EP-14).
@@ -1845,6 +1875,41 @@ mod tests {
         assert!(!is_person_id("jana@hel.fi"));
         assert!(!is_person_id(&id.to_uppercase()));
         assert!(!is_person_id("2f1c6b1e7a4d4c559e0e3b8f1a2d4c6e"));
+    }
+
+    #[test]
+    fn a_binding_spec_is_read_in_place_for_its_subjects() {
+        let jana = Identity {
+            client: None,
+            subject: "sub-jana".to_owned(),
+            username: "jana".to_owned(),
+            email: Some("jana@hel.fi".to_owned()),
+            name: None,
+            roles: Vec::new(),
+            groups: vec!["doprava-team".to_owned()],
+            second_factor: false,
+        };
+        let spec = |subjects: Value| serde_json::json!({ "subjects": subjects, "role": "viewer" });
+        assert!(names_caller(
+            &jana,
+            &spec(serde_json::json!([{ "user": "JANA@hel.fi" }]))
+        ));
+        assert!(names_caller(
+            &jana,
+            &spec(serde_json::json!([{ "user": "x@hel.fi" }, { "group": "doprava-team" }]))
+        ));
+        assert!(!names_caller(
+            &jana,
+            &spec(serde_json::json!([{ "user": "x@hel.fi" }]))
+        ));
+        assert!(!names_caller(
+            &jana,
+            &spec(serde_json::json!([{ "user": 7 }]))
+        ));
+        assert!(!names_caller(
+            &jana,
+            &serde_json::json!({ "subjects": "jana" })
+        ));
     }
 
     #[test]
