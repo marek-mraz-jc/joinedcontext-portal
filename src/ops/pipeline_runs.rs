@@ -47,6 +47,9 @@ pub struct RunsInput {
     /// The `next` of the previous page.
     #[serde(default)]
     pub cursor: Option<i64>,
+    /// Only the lines of this step of `spec.steps` (T-6082).
+    #[serde(default)]
+    pub step: Option<i32>,
 }
 
 fn run_input_schema() -> Value {
@@ -75,8 +78,9 @@ fn runs_input_schema() -> Value {
         "properties": {
             "name": text("The Pipeline's name, e.g. counters-hourly", NAME),
             "run": text("The run, as runs[].run names it; the newest when absent", 64),
-            "limit": { "type": "integer", "minimum": 1, "maximum": MAX_RUNS, "description": "Runs listed, newest first (default 10)" },
-            "cursor": { "type": "integer", "description": "The previous answer's next" }
+            "limit": { "type": "integer", "minimum": 1, "maximum": MAX_RUNS, "description": "Runs listed (default 10)" },
+            "cursor": { "type": "integer", "description": "The previous answer's next" },
+            "step": { "type": "integer", "description": "This step only" }
         },
         "required": ["name"],
         "additionalProperties": false
@@ -116,6 +120,20 @@ fn page(mut lines: Vec<LogLine>, asked: usize) -> (Vec<LogLine>, Option<i64>) {
     (lines, next)
 }
 
+/// A store page of lines cut as [`page`] cuts it, only those of `step` when one is named. A page
+/// the filter thinned still names the cursor past every line it read, so the next page goes on.
+fn of_step(lines: Vec<LogLine>, step: Option<i32>) -> (Vec<LogLine>, Option<i64>) {
+    let Some(step) = step else {
+        return page(lines, LOG_LINES);
+    };
+    let read_on = (lines.len() == LOG_LINES)
+        .then(|| lines.last().map(|line| line.id))
+        .flatten();
+    let kept = lines.into_iter().filter(|line| line.step == Some(step));
+    let (kept, next) = page(kept.collect(), LOG_LINES);
+    (kept, next.or(read_on))
+}
+
 async fn runs(
     caller: &super::Caller,
     state: &crate::state::AppState,
@@ -147,7 +165,7 @@ async fn runs(
                 }),
             )
             .await?;
-            page(log.items, LOG_LINES)
+            of_step(log.items, input.step)
         }
         None => (Vec::new(), None),
     };
@@ -193,7 +211,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: LOGS,
             title: "Read Pipeline Runs and Logs",
-            description: "A pipeline's newest runs with what each sent, rejected and failed, and one run's log a page at a time: each record's outcome and why, e.g. the source read that failed or the write the gateway refused",
+            description: "A pipeline's newest runs with what each sent, rejected and failed, and one run's log a page at a time: each record's outcome and why, by step if asked",
             input: runs_input_schema,
             output: runs_output_schema,
             annotations: Annotations {
@@ -241,6 +259,29 @@ mod tests {
         assert!(bytes <= LOG_BYTES, "{bytes}");
         assert!(kept.len() < 120, "{}", kept.len());
         assert_eq!(next, kept.last().map(|l| l.id));
+    }
+
+    /// T-6082: a step filter keeps that step's lines and still pages past the lines it skipped.
+    #[test]
+    fn a_step_filter_keeps_its_steps_lines_and_reads_on_past_the_others() {
+        let at = |id: i64, step: Option<i32>| LogLine {
+            step,
+            ..line(id, "m")
+        };
+        let lines = vec![at(3, Some(1)), at(2, Some(0)), at(1, None)];
+        let (kept, next) = of_step(lines.clone(), Some(1));
+        assert_eq!(kept.iter().map(|l| l.id).collect::<Vec<_>>(), [3]);
+        assert_eq!(next, None, "a short store page has no more");
+        assert_eq!(of_step(lines, None).0.len(), 3);
+        let full: Vec<LogLine> = (0..LOG_LINES as i64)
+            .rev()
+            .map(|id| at(id, Some(0)))
+            .collect();
+        assert_eq!(
+            of_step(full, Some(1)),
+            (Vec::new(), Some(0)),
+            "read on past a page of other steps"
+        );
     }
 
     #[test]
