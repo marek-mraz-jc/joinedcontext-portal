@@ -821,6 +821,17 @@ fn roles(mirror: &Mirror, namespace: &str) -> Vec<(String, RoleSpec)> {
 /// whose roles it may reach (PF-69). A space name is unique in the organization (PF-44, PF-76);
 /// a mirror holding it in two projects breaks that, and such a binding then applies nowhere
 /// rather than in both (T-4589).
+/// The project a binding's scope lies in (S-27): its project, or the project holding its context
+/// space. None for an organization scope, which only the organization decides.
+pub fn binding_project(mirror: &Mirror, spec: &Value) -> Option<String> {
+    let binding: RoleBindingSpec = serde_json::from_value(spec.clone()).ok()?;
+    match Reach::of(&binding.scope)? {
+        Reach::Project(project) => Some(project),
+        Reach::Space(space) => project_of_space(mirror, &space),
+        Reach::Organization(_) => None,
+    }
+}
+
 fn project_of_space(mirror: &Mirror, space: &str) -> Option<String> {
     let mut holders: Vec<String> = mirror
         .matching(|env| env.kind == "ContextSpace" && env.metadata.name == space)
