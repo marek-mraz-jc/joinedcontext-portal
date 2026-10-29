@@ -1476,9 +1476,17 @@
         "assistant_conversations.test.tsx"
       ]
     },
+    "src/connectors/PairedTabBar.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "paired_tab.test.tsx"
+      ]
+    },
     "src/pages/mcp/AiConnectorsPage.tsx": {
       "controls": {
-        "Button": 9,
+        "Button": 10,
         "Checkbox": 3
       },
       "tests": [

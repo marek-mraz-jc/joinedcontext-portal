@@ -90,6 +90,8 @@ pub struct AppState {
     pub feedback: Arc<crate::feedback::FeedbackStore>,
     /// People's connectors and their audit (AG-142, AG-147).
     pub connectors: Arc<crate::connectors::ConnectorStore>,
+    /// Portal tabs paired with a connector, which hear its UI actions (T-5967).
+    pub paired_tabs: Arc<crate::paired_tabs::PairedTabs>,
     /// Plans waiting for their apply (AG-149, T-5956).
     pub plans: Arc<crate::ops::plans::PlanStore>,
     /// The alerts people chose, their incidents and notices (API/01 §37, T-3261).
@@ -227,6 +229,7 @@ impl AppState {
             comments: Arc::new(crate::entity_comments::CommentStore::new(None)),
             feedback: Arc::new(crate::feedback::FeedbackStore::new(None)),
             connectors: Arc::new(crate::connectors::ConnectorStore::new(None)),
+            paired_tabs: Arc::default(),
             plans: Arc::default(),
             alerts: Arc::new(crate::alerts::AlertStore::new(None)),
             health_log: Arc::new(crate::health_log::HealthStore::new(None)),

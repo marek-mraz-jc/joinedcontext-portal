@@ -17,11 +17,12 @@ use std::borrow::Cow;
 
 use chrono::Utc;
 
-use super::connector_turn::refused;
 use crate::error::ApiError;
 
+use super::connector_turn::refused;
+
 /// The names of the browser actions, in the order the model reads them.
-pub(super) const UI_TOOLS: [&str; 5] = [
+pub(crate) const UI_TOOLS: [&str; 5] = [
     "jc_ui_navigate",
     "jc_ui_open_form",
     "jc_ui_highlight",
@@ -274,25 +275,7 @@ impl Driver {
                     None => json!({ "opened": opened.trim_start_matches("opened ") }).to_string(),
                 });
             }
-            "jc_ui_open_form" => self.open_form(&arguments),
-            "jc_ui_show_diff" => self.show_diff(&arguments),
-            "jc_ui_highlight" => kind_schema(
-                arguments.get("kind").and_then(Value::as_str).unwrap_or(""),
-            )
-            .and_then(|(info, schema)| {
-                let field = plain(&arguments, "field", FIELD_CHARS)?;
-                if !has_field(&schema, &field) {
-                    return Err(format!(
-                        "'{field}' is no field of {}; name it as its manifest path, e.g. spec.title",
-                        info.kind
-                    ));
-                }
-                let message = plain(&arguments, "message", MESSAGE_CHARS)?;
-                Ok(("ui", json!({ "action": "highlight", "kind": info.kind, "field": field, "message": message })))
-            }),
-            "jc_ui_filter_table" => plain(&arguments, "query", QUERY_CHARS)
-                .map(|query| ("ui", json!({ "action": "filter", "query": query }))),
-            other => Err(format!("'{other}' is not a browser action")),
+            other => for_tab(&self.asker(), other, &arguments),
         };
         match done {
             Ok((kind, payload)) => {
@@ -322,21 +305,144 @@ impl Driver {
             }
         }
     }
+}
+
+/// `jc_ui_highlight`: one field of the kind's form and a one-line message.
+fn highlight(arguments: &Value) -> Result<(&'static str, Value), String> {
+    let (info, schema) = kind_schema(arguments.get("kind").and_then(Value::as_str).unwrap_or(""))?;
+    let field = plain(arguments, "field", FIELD_CHARS)?;
+    if !has_field(&schema, &field) {
+        return Err(format!(
+            "'{field}' is no field of {}; name it as its manifest path, e.g. spec.title",
+            info.kind
+        ));
+    }
+    let message = plain(arguments, "message", MESSAGE_CHARS)?;
+    Ok((
+        "ui",
+        json!({ "action": "highlight", "kind": info.kind, "field": field, "message": message }),
+    ))
+}
+
+/// One browser action but `jc_ui_navigate` of the assistant, which resolves a draft's kind
+/// first: the frame the page runs, `navigate` (a route and its form values) or `ui`.
+pub(crate) fn for_tab(
+    asker: &Asker<'_>,
+    name: &str,
+    arguments: &Value,
+) -> Result<(&'static str, Value), String> {
+    match name {
+        "jc_ui_navigate" => {
+            let call = tools_registry::navigate_args(arguments)?;
+            let route = tools_registry::route_of(asker.project, &call)?;
+            Ok(("navigate", json!({ "route": route })))
+        }
+        "jc_ui_open_form" => asker.open_form(arguments),
+        "jc_ui_show_diff" => asker.show_diff(arguments),
+        "jc_ui_highlight" => highlight(arguments),
+        "jc_ui_filter_table" => plain(arguments, "query", QUERY_CHARS)
+            .map(|query| ("ui", json!({ "action": "filter", "query": query }))),
+        other => Err(format!("'{other}' is not a browser action")),
+    }
+}
+
+/// The browser actions as the MCP tools of a connector whose owner paired a tab (T-5967), each
+/// naming one of the connector's `projects`. They change nothing: the person reads and proposes.
+pub(crate) fn mcp_tools(projects: &[&str]) -> Vec<Value> {
+    ui_specs()
+        .into_iter()
+        .map(|spec| {
+            let mut input = spec.input_schema;
+            input["properties"]["project"] = json!({
+                "type": "string",
+                "enum": projects,
+                "description": "The project whose page the person's tab opens",
+            });
+            if let Some(required) = input["required"].as_array_mut() {
+                required.push(json!("project"));
+            }
+            json!({
+                "name": spec.name,
+                "title": spec.name,
+                "description": format!("{} Runs in the Portal tab the person connected to this connector; it never saves, proposes or approves.", spec.description),
+                "inputSchema": input,
+                "annotations": { "readOnlyHint": true, "destructiveHint": false, "openWorldHint": false },
+            })
+        })
+        .collect()
+}
+
+impl Driver {
+    pub(super) fn asker(&self) -> Asker<'_> {
+        Asker {
+            state: &self.state,
+            identity: &self.identity,
+            project: &self.project,
+            connector: None,
+        }
+    }
+}
+
+/// Who asks for a browser action, in which project, and through which connector: the checks
+/// every action passes before a browser sees it, for the Portal assistant and for a connector
+/// steering a paired tab (T-5967) alike.
+pub(crate) struct Asker<'a> {
+    pub state: &'a AppState,
+    pub identity: &'a Identity,
+    pub project: &'a str,
+    /// The connector a paired tab is steered through: an editor opens only on what its scope
+    /// reaches, besides what the person reads.
+    pub connector: Option<&'a crate::connectors::Connector>,
+}
+
+impl Asker<'_> {
+    pub(super) fn home(&self, kind: &str) -> String {
+        match crate::resource::by_kind(kind) {
+            Some(info) => crate::resource::home(info, self.project),
+            None => self.project.to_owned(),
+        }
+    }
+
+    pub(super) fn names_of(&self, kind: &str) -> Vec<String> {
+        let homes = match crate::resource::by_kind(kind) {
+            Some(info) => crate::resource::homes(info, self.project),
+            None => vec![self.project.to_owned()],
+        };
+        let mut names: Vec<String> = homes
+            .iter()
+            .flat_map(|home| {
+                self.state
+                    .mirror
+                    .list(home, kind, &crate::store::ListOptions::default())
+                    .items
+            })
+            .map(|envelope| envelope.metadata.name)
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// Whether the connector, if any, reaches `kind` `name` of the project.
+    fn reaches(&self, kind: &str, name: &str) -> Result<(), String> {
+        self.connector
+            .map_or(Ok(()), |c| c.may_change(self.project, kind, name, false))
+    }
 
     /// Whether the person may read `kind` where it lives: an editor opens only on what they read.
     fn may_read_kind(&self, kind: &str) -> Result<(), String> {
-        crate::permissions::for_request(&self.state, &self.identity, &self.home(kind))
+        crate::permissions::for_request(self.state, self.identity, &self.home(kind))
             .check(kind, Verb::Read, None)
             .map_err(|err| err.to_string())
     }
 
     /// `jc_ui_open_form`: the object's manifest with the prefill merged in, checked against the
     /// kind's schema, as the values of the kind's editor.
-    fn open_form(&self, arguments: &Value) -> Result<(&'static str, Value), String> {
+    pub(crate) fn open_form(&self, arguments: &Value) -> Result<(&'static str, Value), String> {
         let (info, schema) =
             kind_schema(arguments.get("kind").and_then(Value::as_str).unwrap_or(""))?;
         self.may_read_kind(info.kind)?;
         let name = plain(arguments, "name", 200)?;
+        self.reaches(info.kind, &name)?;
         let prefill = match arguments.get("prefill") {
             None | Some(Value::Null) => json!({}),
             Some(value) if value.is_object() => value.clone(),
@@ -361,7 +467,7 @@ impl Driver {
             }
             (None, true) => (
                 crate::agents::change::manifest(info.kind, &home, &name, json!({})),
-                crate::agents::change::create_route(&self.project, info.kind, info.plural),
+                crate::agents::change::create_route(self.project, info.kind, info.plural),
             ),
             (None, false) => {
                 let names = self.names_of(info.kind);
@@ -380,7 +486,7 @@ impl Driver {
             }
             (Some(envelope), false) => (
                 serde_json::to_value(&envelope).map_err(|e| e.to_string())?,
-                crate::agents::change::route(&self.project, info.kind, info.plural, &name, false),
+                crate::agents::change::route(self.project, info.kind, info.plural, &name, false),
             ),
         };
         // `patched` keeps the kind, the name and the namespace, and drops `status`; a form
@@ -403,12 +509,12 @@ impl Driver {
 
     /// `jc_ui_show_diff`: the first change of the person's own plan, opened in its editor with
     /// the planned manifest as the values.
-    fn show_diff(&self, arguments: &Value) -> Result<(&'static str, Value), String> {
+    pub(crate) fn show_diff(&self, arguments: &Value) -> Result<(&'static str, Value), String> {
         let id = plain(arguments, "planId", 64)?;
         let items = self
             .state
             .plans
-            .peek(&id, &self.identity.subject, &self.project, Utc::now())
+            .peek(&id, &self.identity.subject, self.project, Utc::now())
             .ok_or_else(|| {
                 format!(
                     "no plan '{id}' of yours in this project; a plan lives {} minutes, plan the \
@@ -424,6 +530,7 @@ impl Driver {
         let info = crate::resource::by_kind(&item.kind)
             .ok_or_else(|| format!("'{}' is not a kind of the Portal", item.kind))?;
         self.may_read_kind(info.kind)?;
+        self.reaches(info.kind, &item.name)?;
         let exists = self
             .state
             .mirror
@@ -431,10 +538,10 @@ impl Driver {
             .is_some();
         let route = match (&item.manifest, exists) {
             (Some(_), false) => {
-                crate::agents::change::create_route(&self.project, info.kind, info.plural)
+                crate::agents::change::create_route(self.project, info.kind, info.plural)
             }
             (manifest, _) => crate::agents::change::route(
-                &self.project,
+                self.project,
                 info.kind,
                 info.plural,
                 &item.name,

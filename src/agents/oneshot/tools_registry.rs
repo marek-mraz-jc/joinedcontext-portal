@@ -526,7 +526,7 @@ pub(super) fn navigate_args(arguments: &Value) -> Result<NavigateCall, String> {
 /// The route a call opens, or the reason it opens none (UI-59). Every placeholder the template
 /// names has to be filled, so a route cannot reach a page with a hole in it; `q` alone is
 /// optional, because a question without a filter is the whole grid.
-fn route_of(project: &str, call: &NavigateCall) -> Result<String, String> {
+pub(super) fn route_of(project: &str, call: &NavigateCall) -> Result<String, String> {
     let template = PAGES
         .iter()
         .find(|(name, _)| *name == call.page)

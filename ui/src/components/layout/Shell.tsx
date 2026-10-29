@@ -11,6 +11,7 @@ import { FeedbackButton } from "../FeedbackButton";
 import { JobsMenu } from "../JobsMenu";
 import { useFirstRun } from "../../pages/home/firstRun";
 import { AssistantDock } from "../../assistant/AssistantDock";
+import { PairedTabBar } from "../../connectors/PairedTabBar";
 import { CommandPalette } from "../../navigation/CommandPalette";
 import { PageTools } from "../../navigation/PageTools";
 import { useAuth } from "../../auth/AuthProvider";
@@ -980,6 +981,8 @@ export function Shell({
         {/* The assistant is on the right of every page a run is remembered: a column beside
             the page, or a bubble at the bottom right when hidden (UI-45). */}
         <AssistantDock project={project} launcherSlot={assistantSlot} />
+        {/* A tab connected to a connector says so on every page, with its disconnect (T-5967). */}
+        <PairedTabBar />
         <CommandPalette project={project} />
       </div>
 
