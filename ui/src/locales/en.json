@@ -910,7 +910,6 @@
     },
     "saved": {
       "view": "View",
-      "none": "All entities (no saved view)",
       "save": "Save view",
       "saveNew": "Save as a view…",
       "saveAs": "Save as new…",

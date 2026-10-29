@@ -910,7 +910,6 @@
     },
     "saved": {
       "view": "Ansicht",
-      "none": "Alle Entitäten (keine gespeicherte Ansicht)",
       "save": "Ansicht speichern",
       "saveNew": "Als Ansicht speichern…",
       "saveAs": "Als neue speichern…",
