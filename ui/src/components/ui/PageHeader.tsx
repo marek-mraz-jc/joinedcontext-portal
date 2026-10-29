@@ -66,13 +66,18 @@ export function PageHeader({
     <div className={clsx("flex flex-col gap-3", className)}>
       {breadcrumb}
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-1">
-            <h1 ref={heading} tabIndex={-1} className="focus-ring rounded-sm text-display font-semibold tracking-tight text-fg">{title}</h1>
-            {titleAction}
-          </div>
-          {description ? <p className="mt-1 max-w-prose text-body text-fg-muted">{description}</p> : null}
-          {note}
+        {/* The description <p> stays the h1's next sibling (screen reader order, walker checks); a grid puts titleAction beside the title. */}
+        <div className={clsx("min-w-0", titleAction && "grid grid-cols-[auto_1fr] items-center gap-x-1")}>
+          <h1 ref={heading} tabIndex={-1} className="focus-ring rounded-sm text-display font-semibold tracking-tight text-fg">{title}</h1>
+          {description ? <p className={clsx("mt-1 max-w-prose text-body text-fg-muted", titleAction && "col-span-2")}>{description}</p> : null}
+          {titleAction ? (
+            <>
+              {note ? <div className="col-span-2">{note}</div> : null}
+              <span className="col-start-2 row-start-1 flex">{titleAction}</span>
+            </>
+          ) : (
+            note
+          )}
         </div>
         {actions || aside ? (
           <div className="flex flex-wrap items-end gap-x-6 gap-y-3">

@@ -99,7 +99,7 @@ export function FormGuideLink({ kind, href }: { kind?: string; href?: string | n
       hideIcon
       aria-label={label}
       title={label}
-      className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-fg-muted no-underline hover:bg-surface-muted hover:text-fg"
+      className="inline-flex size-control shrink-0 items-center justify-center rounded-md text-fg-muted no-underline hover:bg-surface-muted hover:text-fg"
     >
       <Icon name="help" className="size-4" aria-hidden="true" />
     </ExternalLink>
