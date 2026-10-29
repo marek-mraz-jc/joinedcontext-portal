@@ -394,7 +394,7 @@ function RoleCard({
       {/* The name field below shows the role's name; the legend names the group for a screen reader only. */}
       <legend className="sr-only">{role.name || t("mqttbrokers.edit.newRole")}</legend>
       <Field id={`${id}-name`} label={t("mqttbrokers.field.roleName")} help={t("mqttbrokers.edit.hint.roleNameHint")}>
-        <Input id={`${id}-name`} value={role.name ?? ""} disabled={disabled} title={disabled ? t("mqttbrokers.edit.readOnly") : undefined} onChange={(event) => onChange({ ...role, name: event.target.value.trim() })} />
+        <Input id={`${id}-name`} className="max-w-md" value={role.name ?? ""} disabled={disabled} title={disabled ? t("mqttbrokers.edit.readOnly") : undefined} onChange={(event) => onChange({ ...role, name: event.target.value.trim() })} />
       </Field>
       <div className="flex flex-col gap-1">
         <span id={`${id}-accounts`} className="text-body font-medium text-fg">
@@ -474,7 +474,7 @@ function RoleCard({
         </Field>
       ) : null}
       {!disabled ? (
-        <Button variant="ghost" className="self-start" onClick={onRemove}>
+        <Button variant="danger" size="sm" className="self-start" onClick={onRemove}>
           {t("mqttbrokers.edit.removeRole", { role: role.name || index + 1 })}
         </Button>
       ) : null}
@@ -530,7 +530,7 @@ function ChipInput({
   };
   return (
     <Field id={`${id}-input`} label={label} help={help} errors={wrong ? [t(`mqttbrokers.edit.topic.${wrong}`)] : undefined}>
-      <div className="flex flex-col gap-2">
+      <div className="flex max-w-2xl flex-col gap-2">
         {values.length > 0 ? (
           <ul aria-label={label} className="flex flex-wrap gap-1">
             {values.map((value) => (
@@ -546,7 +546,7 @@ function ChipInput({
           </ul>
         ) : null}
         {!disabled ? (
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               id={`${id}-input`}
               className="min-w-0 flex-1 font-mono"
@@ -562,7 +562,7 @@ function ChipInput({
                 }
               }}
             />
-            <Button onClick={add} disabled={typed === "" || wrong !== undefined} disabledReason={typed === "" ? t("mqttbrokers.edit.typeFirst") : undefined}>
+            <Button className="self-start" onClick={add} disabled={typed === "" || wrong !== undefined} disabledReason={typed === "" ? t("mqttbrokers.edit.typeFirst") : undefined}>
               {t("mqttbrokers.edit.add")}
             </Button>
           </div>

@@ -95,7 +95,7 @@ function TopicsTable({ project, broker, messages }: { project: string; broker: s
         }),
       ),
   });
-  const heading = <h3 className="text-body font-semibold text-fg">{t("mqttbrokers.topics.title")}</h3>;
+  const heading = <h3 className="border-t border-border pt-3 text-body font-semibold text-fg">{t("mqttbrokers.topics.title")}</h3>;
   if (bindings.isPending) {
     return (
       <div aria-busy="true" className="flex flex-col gap-2" data-topics="loading">
@@ -213,7 +213,7 @@ interface CapturedQuery {
 
 function CapturedPanel({ project, broker, mode, captured }: { project: string; broker: string; mode: string; captured: CapturedQuery }): JSX.Element {
   const { t } = useTranslation();
-  const heading = <h3 className="text-body font-semibold text-fg">{t("mqttbrokers.captured.title")}</h3>;
+  const heading = <h3 className="border-t border-border pt-3 text-body font-semibold text-fg">{t("mqttbrokers.captured.title")}</h3>;
   if (mode !== "capture") {
     return (
       <div className="flex flex-col gap-2" data-captured="off">

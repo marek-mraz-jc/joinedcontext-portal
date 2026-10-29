@@ -35,7 +35,7 @@ export function BrokerAccess({ project, broker }: { project: string; broker: str
   const names = asManifests(accounts.data?.items ?? []).map((account) => account.metadata.name);
   const [picked, setPicked] = useState("");
   const account = picked !== "" && names.includes(picked) ? picked : (names[0] ?? "");
-  const heading = <h3 className="text-body font-semibold text-fg">{t("mqttbrokers.access.title")}</h3>;
+  const heading = <h3 className="border-t border-border pt-3 text-body font-semibold text-fg">{t("mqttbrokers.access.title")}</h3>;
   if (accounts.hidden) return <></>;
   if (accounts.isPending) {
     return (
