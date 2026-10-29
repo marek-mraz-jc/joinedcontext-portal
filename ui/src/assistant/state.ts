@@ -11,6 +11,7 @@ const RUN_KEY = "jc.assistant.run";
 const PREFILL_KEY = "jc.assistant.prefill";
 const NOTICE_KEY = "jc.assistant.notice";
 const NAVIGATED_KEY = "jc.assistant.navigated";
+const ACTED_KEY = "jc.assistant.acted";
 const NOTICE_SEEN_KEY = "jc.assistant.noticeSeen";
 const TRAIL_KEY = "jc.assistant.trail";
 
@@ -188,6 +189,16 @@ export function navigatedSeq(runId: string): number {
 
 export function rememberNavigated(runId: string, seq: number): void {
   write(NAVIGATED_KEY, { runId, seq });
+}
+
+/** The `seq` of the last `ui` action of `runId` the page ran (T-5959), kept like [`navigatedSeq`]. */
+export function actedSeq(runId: string): number {
+  const value = read(ACTED_KEY) as { runId?: unknown; seq?: unknown } | null;
+  return value?.runId === runId && typeof value.seq === "number" ? value.seq : 0;
+}
+
+export function rememberActed(runId: string, seq: number): void {
+  write(ACTED_KEY, { runId, seq });
 }
 
 /** The route the assistant last opened, until dismissed; a stable snapshot. */

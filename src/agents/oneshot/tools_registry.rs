@@ -485,17 +485,27 @@ pub(super) fn navigate_call(answer: &str) -> Option<Result<NavigateCall, String>
     let value = blocks(answer)
         .find(|value| value.get("tool").and_then(Value::as_str) == Some("jc_ui_navigate"))?;
     let arguments = value.get("arguments").cloned().unwrap_or(value.clone());
+    Some(navigate_args(&arguments))
+}
+
+/// The page names the assistant may open, as a tool's `enum` lists them.
+pub(super) fn page_names() -> Vec<&'static str> {
+    PAGES.iter().map(|(name, _)| *name).collect()
+}
+
+/// A `jc_ui_navigate` call's arguments, the page checked against [`PAGES`].
+pub(super) fn navigate_args(arguments: &Value) -> Result<NavigateCall, String> {
     let Some(page) = arguments.get("page").and_then(Value::as_str) else {
-        return Some(Err(format!(
+        return Err(format!(
             "jc_ui_navigate names no page; the pages are {}",
             PAGES.map(|(name, _)| name).join(", ")
-        )));
+        ));
     };
     if !PAGES.iter().any(|(name, _)| *name == page) {
-        return Some(Err(format!(
+        return Err(format!(
             "'{page}' is not a page of the Portal; the pages are {}",
             PAGES.map(|(name, _)| name).join(", ")
-        )));
+        ));
     }
     let text = |key: &str| {
         arguments
@@ -503,14 +513,14 @@ pub(super) fn navigate_call(answer: &str) -> Option<Result<NavigateCall, String>
             .and_then(Value::as_str)
             .map(str::to_owned)
     };
-    Some(Ok(NavigateCall {
+    Ok(NavigateCall {
         page: page.to_owned(),
         name: text("name"),
         plural: text("plural"),
         endpoint: text("endpoint"),
         entity_type: text("type"),
         q: text("q"),
-    }))
+    })
 }
 
 /// The route a call opens, or the reason it opens none (UI-59). Every placeholder the template

@@ -732,6 +732,24 @@
   says: "Open the pipeline editor for pipeline P with your mapping filled in."
   expect: 'Portal assistant: ui navigate + open_form prefilled, nothing submitted; Claude: MCP App diff view or a Portal link'
   deny: 'UI action tries to submit -> not possible (no such tool)'
+  script:
+    # Claude's half: a plan's diff names where the person opens that change in the Portal. The
+    # Portal assistant's half (jc_ui_open_form and jc_ui_show_diff opening the pipeline editor
+    # prefilled, nothing saved) runs in the browser and is proven in
+    # src/agents/oneshot/connector_turn.rs and ui/e2e/assistant_ui_actions.spec.ts (T-5959). The
+    # plan here changes the scenario's DataModel: a Pipeline plan needs a write grant on its
+    # target Endpoint that these fixtures do not hold.
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: patch, kind: DataModel, name: bike-counter, patch: { spec: { version: 0.1.0, lifecycle: draft } } }] }
+      contains: ['"planId"', '"portal":"/projects/{project}/models?edit=bike-counter"']
+    # No door submits a form: neither the MCP tool list nor a call names one.
+    - proves: deny
+      absent: ['submit']
+    - proves: deny
+      call: jc_ui_submit
+      args: { form: pipeline }
+      refused: true
 
 - id: S-42
   segment: operate
