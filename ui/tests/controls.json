@@ -2178,6 +2178,7 @@
         "Button": 3
       },
       "tests": [
+        "assistant_ui_actions.test.tsx",
         "pipeline_overview.test.tsx",
         "pipelines_view.test.tsx"
       ]
