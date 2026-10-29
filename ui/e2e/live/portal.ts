@@ -4,6 +4,7 @@ import { expect } from "@playwright/test";
 import type { APIRequestContext, Browser, BrowserContext, Locator, Page, Request, Response } from "@playwright/test";
 import { axeViolations } from "../axe";
 import { blankDocument, edgeRetryMs, pageFindings, viewerWriteFindings } from "../../tests/pageChecks";
+import { openedTwice } from "./tab";
 import { answerOtp, submitted } from "./totp";
 
 /**
@@ -146,8 +147,8 @@ export async function signIn(
   }
   const context = await browser.newContext();
   await withLocalUi(context);
-  const page = await context.newPage();
-  await goSignedIn(page, who, path, ready);
+  // A crash while signing in is signed in again on a fresh page of the same context (T-6011).
+  const page = await openedTwice(context, (page) => goSignedIn(page, who, path, ready), `${who.user} signed in`);
   return { context, page };
 }
 
