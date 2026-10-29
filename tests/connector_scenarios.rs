@@ -34,6 +34,8 @@ use joinedcontext_portal::server;
 use joinedcontext_portal::state::AppState;
 use joinedcontext_portal::store::Mirror;
 
+#[path = "connector_scenarios/forge.rs"]
+mod forge;
 #[path = "connector_scenarios/model.rs"]
 mod model;
 
@@ -72,6 +74,9 @@ const KINDS: &[&str] = &[
     "CkanInstance",
     "Layer",
     "Dashboard",
+    // The data itself: a steward's pipeline writes only into a space whose entities the steward
+    // reads (PL-94).
+    "Entity",
 ];
 const PERSONAS: &[&str] = &[
     "viewer",
@@ -149,6 +154,11 @@ struct Step {
     /// behind the connector's back, as another person's merged change leaves it.
     #[serde(default)]
     touch: Option<String>,
+    /// The call asks its Yellow-lane question first (AG-63): the person accepts it on the Portal
+    /// page, recorded here in the question store the page writes, and the client sends the call
+    /// again naming it (T-5997).
+    #[serde(default)]
+    accepted: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -404,19 +414,7 @@ async fn forge(server: &MockServer) {
             .mount(server)
             .await;
     }
-    // A change an apply opens: a branch, one commit of its files, a merge request (T-5956).
-    Mock::given(method("POST"))
-        .and(path(format!("{REPO}/branches")))
-        .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
-        .mount(server)
-        .await;
-    Mock::given(method("POST"))
-        .and(path(format!("{REPO}/contents")))
-        .respond_with(
-            ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "commit-1" } })),
-        )
-        .mount(server)
-        .await;
+    // A change an apply opens: a merge request over the branch the forge below holds (T-5956).
     Mock::given(method("POST"))
         .and(path(format!("{REPO}/pulls")))
         .respond_with(ResponseTemplate::new(201).set_body_json(json!({
@@ -425,34 +423,6 @@ async fn forge(server: &MockServer) {
         })))
         .mount(server)
         .await;
-    for verb in ["PUT", "POST", "DELETE"] {
-        Mock::given(method(verb))
-            .and(wiremock::matchers::path_regex(format!(
-                "^{REPO}/contents/.*"
-            )))
-            .respond_with(
-                ResponseTemplate::new(201)
-                    .set_body_json(json!({ "commit": { "sha": "commit-1" } })),
-            )
-            .mount(server)
-            .await;
-    }
-    for (route, body) in [
-        ("git/trees", json!({ "tree": [], "truncated": false })),
-        (
-            "branches",
-            json!({ "name": "main", "commit": { "id": "commit-0" } }),
-        ),
-    ] {
-        Mock::given(method("GET"))
-            .and(wiremock::matchers::path_regex(format!(
-                "^{REPO}/{route}/.*"
-            )))
-            .respond_with(ResponseTemplate::new(200).set_body_json(body))
-            .with_priority(9)
-            .mount(server)
-            .await;
-    }
     // The space's model, which the Endpoint checks read (EP-125): counters without a time, and
     // events with a required name and start.
     let model = base64::engine::general_purpose::STANDARD.encode(MODEL);
@@ -467,14 +437,21 @@ async fn forge(server: &MockServer) {
         .with_priority(1)
         .mount(server)
         .await;
-    Mock::given(method("GET"))
-        .and(wiremock::matchers::path_regex(format!(
-            "^{REPO}/contents/.*"
-        )))
-        .respond_with(ResponseTemplate::new(404).set_body_json(json!({ "message": "not found" })))
-        .with_priority(9)
-        .mount(server)
-        .await;
+    // Branches, trees and files with memory (T-5997): what an apply commits into a workspace is
+    // what its comparison and bring-back read, and main holds S-45's space for its export.
+    let repo = forge::Repo::new(REPO);
+    repo.seed(
+        "main",
+        "projects/t-scn-45/spaces/doprava/space.yaml",
+        &space.replace("t-scn-42", "t-scn-45"),
+    );
+    Mock::given(wiremock::matchers::path_regex(format!(
+        "^{REPO}/(branches|contents|git/trees)(/.*)?$"
+    )))
+    .respond_with(repo)
+    .with_priority(9)
+    .mount(server)
+    .await;
 }
 
 /// One LinkML text for every model of the fixture: the forge serves it at each model's path.
@@ -585,6 +562,7 @@ struct Harness {
     issuer: String,
     signer: EncodingKey,
     mirror: std::sync::Arc<Mirror>,
+    /// The Portal's state, for what a person decides on a Portal page with their session.
     state: AppState,
     /// The connector the running scenario created last.
     connector: std::sync::Mutex<Option<String>>,
@@ -893,6 +871,24 @@ impl Harness {
                             "params": { "project": project } }),
         };
         let (status, answer) = match step.via.as_deref() {
+            None if step.accepted => {
+                let (_, asked) = self.rpc(persona, body.clone()).await;
+                let id = asked["result"]["structuredContent"]["elicitation"]["elicitationId"]
+                    .as_str()
+                    .ok_or_else(|| format!("accepted: no question asked in {asked}"))?;
+                self.state
+                    .mcp_elicitations
+                    .decide(
+                        &format!("sub-scn-{persona}"),
+                        project,
+                        id,
+                        joinedcontext_portal::mcp::elicitation::ElicitationDecision::Accept,
+                    )
+                    .ok_or_else(|| format!("accepted: question {id} is not open"))?;
+                let mut again = body;
+                again["params"]["elicitation"] = json!({ "elicitationId": id });
+                self.rpc(persona, again).await
+            }
             None => self.rpc(persona, body).await,
             Some("connector") => {
                 let address = format!("https://portal.test/c/{connector}");
@@ -918,7 +914,7 @@ impl Harness {
             self.kept
                 .lock()
                 .unwrap_or_else(|p| p.into_inner())
-                .insert(member.clone(), value.to_owned());
+                .insert(member.clone(), escaped(value));
         }
         let what = step.call.as_deref().unwrap_or("tools/list");
         // A tools/list step judges tool names, a call the whole answer.
@@ -954,6 +950,13 @@ impl Harness {
         }
         Ok(())
     }
+}
+
+/// A kept value as it stands inside a JSON string: the later steps fill it into their args'
+/// JSON text, and a bundle's newlines and quotes stay one string there.
+fn escaped(value: &str) -> String {
+    let quoted = Value::from(value).to_string();
+    quoted[1..quoted.len() - 1].to_owned()
 }
 
 /// Whether one answer holds what its step asks: the refusal, and the texts present and absent.
