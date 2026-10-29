@@ -81,6 +81,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_pipeline_logs",
             "jc_pipeline_sample_source",
             "jc_pipeline_try_mapping",
+            "jc_pipeline_test",
             "jc_syncsource_status",
         ],
         &[
@@ -1897,7 +1898,13 @@ mod tests {
             .admits(op(RUN), "doprava", &json!({ "name": "p" }))
             .expect_err("writes off")
             .contains("writes off"));
-        for tool in ["jc_pipeline_sample_source", "jc_pipeline_try_mapping"] {
+        // T-6040: the test a Pipeline plan asks for is the segment's too, held to the same rule.
+        for tool in [
+            "jc_pipeline_sample_source",
+            "jc_pipeline_try_mapping",
+            "jc_pipeline_test",
+        ] {
+            assert!(c.access().names(op(tool)), "{tool}");
             let url = json!({ "sample": { "url": "http://10.0.0.5/a.csv", "format": "csv" } });
             assert!(c
                 .admits(op(tool), "doprava", &url)
@@ -1927,8 +1934,12 @@ mod tests {
                 .expect_err("outside the scope")
                 .contains("other"));
         }
-        // Sampling and trying name no pipeline, so a narrowed scope cannot hold them.
-        for tool in ["jc_pipeline_sample_source", "jc_pipeline_try_mapping"] {
+        // Sampling, trying and testing name no pipeline, so a narrowed scope cannot hold them.
+        for tool in [
+            "jc_pipeline_sample_source",
+            "jc_pipeline_try_mapping",
+            "jc_pipeline_test",
+        ] {
             assert!(!narrow.lists(op(tool), "doprava"), "{tool}");
             assert!(narrow.admits(op(tool), "doprava", &json!({})).is_err());
         }

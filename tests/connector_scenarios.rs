@@ -18,7 +18,7 @@
 //! token (S-07, T-6026): the real context-gateway router, serving one public and one
 //! organization-only Endpoint over the same mock broker.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
@@ -120,6 +120,11 @@ struct Scenario {
     #[serde(rename = "as")]
     persona: String,
     says: String,
+    /// The material the person has on screen besides `says` (a pasted sample, which Endpoint is
+    /// meant): the model lane sends it after the request, the scripted lane carries it in its
+    /// arguments (T-6038).
+    #[serde(default)]
+    given: Option<String>,
     expect: String,
     deny: String,
     #[serde(default)]
@@ -810,41 +815,13 @@ async fn data_plane(server: &MockServer) {
         .mount(server)
         .await;
     let bearer = format!("Bearer {EXCHANGED}");
-    let counter = |id: &str, count: u64, lon: f64, lat: f64| {
-        json!({ "id": format!("urn:ngsi-ld:BikeCounter:{id}"), "type": "BikeCounter",
-                "count": { "type": "Property", "value": count, "observedAt": "2026-10-27T10:00:00Z" },
-                "location": { "type": "GeoProperty",
-                              "value": { "type": "Point", "coordinates": [lon, lat] } } })
-    };
     let counters = "^/api/endpoint/[a-z2-7]+counterszz+/ngsi-ld/v1";
-    for (matcher, answer) in [
-        (
-            query_param("georel", "near;maxDistance==500"),
-            json!([counter("snp", 42, 19.1462, 48.7361)]),
-        ),
-        (
-            query_param("type", "BikeCounter"),
-            json!([
-                counter("snp", 42, 19.1462, 48.7361),
-                counter("hron", 7, 19.13, 48.73)
-            ]),
-        ),
-    ] {
-        Mock::given(method("GET"))
-            .and(path_regex(format!("{counters}/entities$")))
-            .and(header("authorization", bearer.as_str()))
-            .and(matcher)
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .insert_header(
-                        "NGSILD-Results-Count",
-                        answer.as_array().map_or(0, Vec::len).to_string().as_str(),
-                    )
-                    .set_body_json(answer),
-            )
-            .mount(server)
-            .await;
-    }
+    Mock::given(method("GET"))
+        .and(path_regex(format!("{counters}/entities$")))
+        .and(header("authorization", bearer.as_str()))
+        .respond_with(Counters)
+        .mount(server)
+        .await;
     Mock::given(method("GET"))
         .and(path_regex(format!("{counters}/temporal/entities$")))
         .and(header("authorization", bearer.as_str()))
@@ -901,6 +878,105 @@ async fn data_plane(server: &MockServer) {
         })))
         .mount(server)
         .await;
+}
+
+/// The fixture's BikeCounters, as every Endpoint of a project serves them.
+fn counter(id: &str, count: u64, lon: f64, lat: f64) -> Value {
+    json!({ "id": format!("urn:ngsi-ld:BikeCounter:{id}"), "type": "BikeCounter",
+            "count": { "type": "Property", "value": count, "observedAt": "2026-10-27T10:00:00Z" },
+            "location": { "type": "GeoProperty",
+                          "value": { "type": "Point", "coordinates": [lon, lat] } } })
+}
+
+/// The broker's entity query over the fixture's BikeCounters (T-6038): type, id, a numeric q,
+/// a near georel, attrs, limit and count, so a query of any shape answers what the fixture
+/// holds, and one it cannot judge answers 400 with the reason instead of an unmatched 404.
+/// The total, and the page.
+fn counters_answer(query: &HashMap<String, String>) -> Result<(usize, Vec<Value>), String> {
+    let mut rows = vec![
+        counter("snp", 42, 19.1462, 48.7361),
+        counter("hron", 7, 19.13, 48.73),
+    ];
+    let listed = |key: &str| query.get(key).map(|v| v.split(',').collect::<Vec<_>>());
+    if let Some(types) = listed("type") {
+        rows.retain(|r| types.iter().any(|t| r["type"] == *t));
+    }
+    if let Some(ids) = listed("id") {
+        rows.retain(|r| ids.iter().any(|i| r["id"] == *i));
+    }
+    for clause in query.get("q").into_iter().flat_map(|q| q.split(';')) {
+        let (attr, op, number) = ["<=", ">=", "==", "!=", "<", ">"]
+            .iter()
+            .find_map(|op| clause.split_once(op).map(|(a, n)| (a, *op, n)))
+            .and_then(|(a, op, n)| Some((a, op, n.parse::<f64>().ok()?)))
+            .ok_or_else(|| format!("the fixture's broker compares numbers only: {clause}"))?;
+        rows.retain(|r| {
+            r[attr]["value"].as_f64().is_some_and(|v| match op {
+                "<=" => v <= number,
+                ">=" => v >= number,
+                "==" => v == number,
+                "!=" => v != number,
+                "<" => v < number,
+                _ => v > number,
+            })
+        });
+    }
+    if let Some(georel) = query.get("georel") {
+        let meters = georel
+            .strip_prefix("near;maxDistance==")
+            .and_then(|m| m.parse::<f64>().ok())
+            .ok_or_else(|| {
+                format!("the fixture's broker answers near;maxDistance==<m> only: {georel}")
+            })?;
+        let at: [f64; 2] = query
+            .get("coordinates")
+            .and_then(|c| serde_json::from_str(c).ok())
+            .ok_or("near takes Point coordinates [longitude, latitude]")?;
+        rows.retain(|r| {
+            let [lon, lat] = [0, 1].map(|i| {
+                r["location"]["value"]["coordinates"][i]
+                    .as_f64()
+                    .unwrap_or(f64::NAN)
+            });
+            let dx = (lon - at[0]).to_radians() * lat.to_radians().cos();
+            let dy = (lat - at[1]).to_radians();
+            dx.hypot(dy) * 6_371_000.0 <= meters
+        });
+    }
+    if let Some(attrs) = listed("attrs") {
+        for row in &mut rows {
+            if let Some(members) = row.as_object_mut() {
+                members.retain(|k, _| k == "id" || k == "type" || attrs.contains(&k.as_str()));
+            }
+        }
+    }
+    let total = rows.len();
+    let limit = query
+        .get("limit")
+        .map_or(Ok(20), |l| l.parse::<usize>())
+        .map_err(|e| format!("limit: {e}"))?;
+    rows.truncate(limit);
+    Ok((total, rows))
+}
+
+/// [`counters_answer`] as the broker sends it: the total in `NGSILD-Results-Count` when asked.
+struct Counters;
+
+impl wiremock::Respond for Counters {
+    fn respond(&self, request: &wiremock::Request) -> ResponseTemplate {
+        let query: HashMap<String, String> = request.url.query_pairs().into_owned().collect();
+        match counters_answer(&query) {
+            Ok((total, rows)) if query.get("count").is_some_and(|c| c == "true") => {
+                ResponseTemplate::new(200)
+                    .insert_header("NGSILD-Results-Count", total.to_string().as_str())
+                    .set_body_json(rows)
+            }
+            Ok((_, rows)) => ResponseTemplate::new(200).set_body_json(rows),
+            Err(detail) => ResponseTemplate::new(400).set_body_json(json!({
+                "type": "https://uri.etsi.org/ngsi-ld/errors/BadRequestData",
+                "title": "the query is not valid", "detail": detail })),
+        }
+    }
 }
 
 /// The public Endpoint of the gateway hub (S-07): anybody reads its air quality.
@@ -3158,4 +3234,78 @@ async fn an_endpoints_writers_are_refused_to_a_reader_of_endpoints_alone() {
         json!("scn-writers"),
         "{answered}"
     );
+}
+
+/// The fixture's broker answers any entity query from its rows (T-6038), one shape per test.
+fn counters_for(pairs: &[(&str, &str)]) -> Result<(usize, Vec<Value>), String> {
+    counters_answer(
+        &pairs
+            .iter()
+            .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+            .collect(),
+    )
+}
+
+fn ids(rows: &[Value]) -> Vec<&str> {
+    rows.iter().filter_map(|r| r["id"].as_str()).collect()
+}
+
+#[test]
+fn the_counters_mock_counts_without_a_page() {
+    let (total, rows) = counters_for(&[("type", "BikeCounter"), ("count", "true"), ("limit", "0")])
+        .expect("answer");
+    assert_eq!((total, rows.len()), (2, 0));
+}
+
+#[test]
+fn the_counters_mock_pages_by_limit() {
+    let (total, rows) = counters_for(&[("limit", "1")]).expect("answer");
+    assert_eq!(
+        (total, ids(&rows)),
+        (2, vec!["urn:ngsi-ld:BikeCounter:snp"])
+    );
+}
+
+#[test]
+fn the_counters_mock_filters_by_type_and_id() {
+    assert_eq!(counters_for(&[("type", "Station")]).expect("answer").0, 0);
+    let (_, rows) = counters_for(&[("id", "urn:ngsi-ld:BikeCounter:hron")]).expect("answer");
+    assert_eq!(ids(&rows), vec!["urn:ngsi-ld:BikeCounter:hron"]);
+}
+
+#[test]
+fn the_counters_mock_judges_a_numeric_q() {
+    let (_, rows) = counters_for(&[("q", "count>40")]).expect("answer");
+    assert_eq!(ids(&rows), vec!["urn:ngsi-ld:BikeCounter:snp"]);
+    let (_, rows) = counters_for(&[("q", "count>=7;count<10")]).expect("answer");
+    assert_eq!(ids(&rows), vec!["urn:ngsi-ld:BikeCounter:hron"]);
+    let refused = counters_for(&[("q", "name~=\"Most\"")]).expect_err("a text q");
+    assert!(refused.contains("numbers only"), "{refused}");
+}
+
+#[test]
+fn the_counters_mock_answers_near_by_distance() {
+    let near = [
+        ("georel", "near;maxDistance==500"),
+        ("geometry", "Point"),
+        ("coordinates", "[19.146,48.736]"),
+    ];
+    let (_, rows) = counters_for(&near).expect("answer");
+    assert_eq!(ids(&rows), vec!["urn:ngsi-ld:BikeCounter:snp"]);
+    let refused = counters_for(&[("georel", "within"), ("coordinates", "[19.146,48.736]")])
+        .expect_err("within");
+    assert!(refused.contains("near"), "{refused}");
+}
+
+#[test]
+fn the_counters_mock_keeps_the_attrs_asked() {
+    let (_, rows) = counters_for(&[("attrs", "count"), ("limit", "1")]).expect("answer");
+    let mut members: Vec<&String> = rows
+        .first()
+        .and_then(Value::as_object)
+        .expect("an entity")
+        .keys()
+        .collect();
+    members.sort();
+    assert_eq!(members, ["count", "id", "type"]);
 }

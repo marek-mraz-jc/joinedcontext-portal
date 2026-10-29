@@ -30,6 +30,9 @@ use crate::tools::model_tools::MAX_REQUEST_BYTES;
 
 /// How long a plan may wait for its apply (AG-149).
 pub const TTL_MINUTES: i64 = 30;
+/// What apply does, said in the plan's `next` so a model that planned what the person asked for
+/// applies it instead of asking again (T-6041): the change request changes nothing live.
+pub const APPLY_OPENS: &str = "apply opens a change request and changes nothing live; a person reviews and approves it in the Portal, so when the person asked for this change, apply it without asking them again";
 /// Changes one plan carries (API/14 §4.3).
 const MAX_CHANGES: u64 = 50;
 /// Plans one Portal keeps at once; the oldest goes first when a new one would pass it.
@@ -866,7 +869,7 @@ async fn plan(
         "next": if !needs_secret.is_empty() {
             "a person enters each secret of needsSecret at its form link in the Portal (never in this chat); then apply".to_owned()
         } else if writes {
-            format!("call {APPLY} with this planId within {TTL_MINUTES} minutes; a person approves the change in the Portal")
+            format!("call {APPLY} with this planId within {TTL_MINUTES} minutes: {APPLY_OPENS}")
         } else {
             "this connector has writes off: a person applies this change in the Portal".to_owned()
         },
@@ -1401,7 +1404,7 @@ fn plan_input_schema() -> Value {
         "properties": {
             "changes": {
                 "type": "array",
-                "description": "The changes to plan together, e.g. [{\"op\": \"patch\", \"kind\": \"Pipeline\", \"name\": \"counters\", \"patch\": {\"spec\": {\"schedule\": {\"period\": \"PT15M\"}}}}]",
+                "description": "The changes to plan together, e.g. [{\"op\": \"patch\", \"kind\": \"Pipeline\", \"name\": \"counters\", \"patch\": {\"spec\": {\"schedule\": {\"period\": \"PT15M\"}}}}]. A Pipeline is planned only after jc_pipeline_test passed on the same spec: test it first",
                 "minItems": 1,
                 "maxItems": MAX_CHANGES,
                 "items": {
@@ -1410,12 +1413,12 @@ fn plan_input_schema() -> Value {
                         "op": {
                             "type": "string",
                             "enum": ["create", "replace", "patch", "delete"],
-                            "description": "create a new object, replace it whole, merge a JSON merge patch into it, or remove it"
+                            "description": "create: a new object; a name that exists is refused, so patch it. patch: change some fields of an existing object, the usual edit, e.g. off the catalogue {\"spec\": {\"publish\": null, \"catalog\": {\"harvest\": false}}} (a public Endpoint is listed unless catalog.harvest is false). replace: the whole manifest. delete: remove the object itself, never to unpublish it"
                         },
                         "kind": text("The manifest kind, e.g. DataModel", TERM),
                         "name": text("The object's metadata.name, e.g. bike-counter", NAME),
-                        "manifest": manifest("With create or replace: the whole manifest"),
-                        "patch": { "type": "object", "description": "With patch: a JSON merge patch (RFC 7386) onto the current manifest" },
+                        "manifest": manifest("With create or replace, and alone (no patch beside it): the whole manifest"),
+                        "patch": { "type": "object", "description": "With patch, and alone (no manifest beside it): a JSON merge patch (RFC 7386) onto the current manifest; null removes a member" },
                         "source": { "type": "string", "maxLength": MAX_REQUEST_BYTES, "description": "With a DataModel: its whole LinkML file (the one spec.linkml names), e.g. \"classes:\\n  BikeCounter:\\n    attributes:\\n      count: { range: integer }\\n\"; the plan shows each change, the version it takes and the stored entities a breaking one affects" }
                     },
                     "required": ["op", "kind", "name"],
@@ -1529,7 +1532,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: APPLY,
             title: "Apply Change",
-            description: "Opens the change requests (or workspace commits) of an unchanged plan from jc_change_plan; 409 when an object moved since. Never approves: a person approves in the Portal",
+            description: "Opens the change requests (or workspace commits) of an unchanged plan from jc_change_plan; 409 when an object moved since. Changes nothing live and never approves: a person reviews and approves each change request in the Portal, so when the person asked for the change, apply the plan without asking them again",
             input: apply_input_schema,
             output: apply_output_schema,
             annotations: Annotations {
