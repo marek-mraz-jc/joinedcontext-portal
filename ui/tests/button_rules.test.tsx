@@ -58,6 +58,7 @@ const PAGES = [
   "/playground",
   `/projects/${PROJECT}/models`,
   `/projects/${PROJECT}/models/ovzdusie`,
+  `/projects/${PROJECT}/models/ovzdusie/diagram`,
   `/projects/${PROJECT}/explore`,
   `/projects/${PROJECT}/ckan`,
   `/projects/${PROJECT}/mcp`,

@@ -143,6 +143,8 @@ export interface LinkmlSlot {
   on_delete?: string;
   /** The formula that computes the slot from its entity's other slots, as LinkML writes it (DM-80). */
   equals_expression?: string;
+  /** `annotations.personalData: true`: the slot holds data about a person (DM-120). */
+  personal?: boolean;
 }
 
 export interface LinkmlClass {
@@ -171,6 +173,10 @@ export interface LinkmlClass {
    * `startDate;desc`) and `view_upcoming` (a date slot: rows from today on, the undated last) annotations.
    */
   view?: ClassView;
+  /** LinkML `in_subset`: the areas the class belongs to, which the diagram groups by (T-6094). */
+  in_subset?: string[];
+  /** `annotations.personalData: true` on the class: every slot of it is about a person (DM-120). */
+  personal?: boolean;
 }
 
 /**
@@ -299,6 +305,11 @@ function languageMap(value: unknown): Record<string, string> | undefined {
   return Object.keys(map).length > 0 ? map : undefined;
 }
 
+/** A boolean annotation, as a plain value or LinkML's `{ tag, value }`. */
+function flagged(value: unknown): boolean {
+  return value === true || record(value).value === true;
+}
+
 function slotOf(name: string, raw: Record<string, unknown>): LinkmlSlot {
   const annotated = record(raw.annotations);
   // An annotation is a plain value or LinkML's `{ tag, value }`, as a published model writes it (T-5192).
@@ -342,6 +353,7 @@ function slotOf(name: string, raw: Record<string, unknown>): LinkmlSlot {
     ...(labelOf(annotated.label) ? { label: labelOf(annotated.label) } : {}),
     ...presentationOf(annotated),
     ...(text(raw.equals_expression) ? { equals_expression: text(raw.equals_expression) } : {}),
+    ...(flagged(annotated.personalData) ? { personal: true } : {}),
   };
 }
 
@@ -460,6 +472,8 @@ function parseSource(source: string): LinkmlModel {
       description: text(raw.description),
       title: languageMap(raw.title),
       ...(labelOf(notes.label) ? { label: labelOf(notes.label) } : {}),
+      ...(names(raw.in_subset) ? { in_subset: names(raw.in_subset) } : {}),
+      ...(flagged(notes.personalData) ? { personal: true } : {}),
       slots,
       // The hierarchy the model declares (DM-13): read so the editor, the preview and the
       // breaking-change detector see what the YAML says instead of only the flat class list.
@@ -1056,6 +1070,9 @@ export interface GraphRow {
   implied?: boolean;
   /** A value object written inside the entity (T-4829): its own fields, drawn in this box. */
   inline?: string[];
+  required?: boolean;
+  /** The slot, or its whole class, is marked `personalData` (DM-120). */
+  personal?: boolean;
 }
 
 /**
@@ -1170,6 +1187,8 @@ export function graphData(model: LinkmlModel): { nodes: GraphNode[]; edges: Grap
         ...(held ? { inline: classSlots(model, held).map((one) => one.name) } : {}),
         ...(reference ? { key: "fk" as const, multiplicity: multiplicity({ class: klass.name, slot: slot.name, multivalued: slot.multivalued === true, required: slot.required === true }) } : {}),
         ...(slot.multivalued === true ? { multivalued: true } : {}),
+        ...(slot.required === true ? { required: true } : {}),
+        ...(slot.personal === true || klass.personal === true ? { personal: true } : {}),
       });
     }
     // A listed slot the model does not declare is still a field of the class; `diagnose` says why.

@@ -37,6 +37,7 @@ const ApprovalDetailPage = lazy(() => import("./routes/ApprovalDetailPage").then
 const ModelsPage = lazy(() => import("./pages/models/ModelsPage").then((module) => ({ default: module.ModelsPage })));
 const ModelsList = lazy(() => import("./pages/models/ModelsList").then((module) => ({ default: module.ModelsList })));
 const ModelPage = lazy(() => import("./pages/models/ModelPage").then((module) => ({ default: module.ModelPage })));
+const ModelCanvas = lazy(() => import("./pages/models/ModelCanvas").then((module) => ({ default: module.ModelCanvas })));
 const ExplorePage = lazy(() => import("./pages/explore/ExplorePage").then((module) => ({ default: module.ExplorePage })));
 const CkanPage = lazy(() => import("./pages/ckan/CkanPage").then((module) => ({ default: module.CkanPage })));
 const AccessibilityPage = lazy(() =>
@@ -905,6 +906,19 @@ const modelRoute = createRoute({
   },
 });
 
+/**
+ * One model as a full-screen canvas (T-6094): no Shell, so the diagram takes the whole screen;
+ * its own header leads back to the model page.
+ */
+const modelCanvasRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/models/$name/diagram",
+  component: function ModelCanvasRoute() {
+    const { project, name } = modelCanvasRoute.useParams();
+    return <ModelCanvas key={name} project={project} name={name} />;
+  },
+});
+
 const exploreRoute = createRoute({
   getParentRoute: () => protectedRoute,
   path: "/projects/$project/explore",
@@ -1406,6 +1420,7 @@ export const routeTree = rootRoute.addChildren([
     projectSettingsFormRoute,
     modelsRoute,
     modelRoute,
+    modelCanvasRoute,
     exploreRoute,
     ckanRoute,
     knowledgeRoute,
