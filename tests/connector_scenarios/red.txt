@@ -1,7 +1,6 @@
 # Connector scenarios the scripted lane cannot pass yet (T-5947 ratchet): `S-nn T-xxxx reason`.
 # The task named turns the scenario green and removes its line in the same branch; a line never comes
 # back. tests/connector_scenarios.rs fails when a listed scenario passes or an unlisted one fails.
-S-07 T-5948 anonymous gets 401 at the Portal door; no public data tool
 S-11 T-5962 jc_model_infer needs Model Tools, which the scripted lane does not run
 S-23 T-6001 the plan cannot name stored attributes: Antares answers the Portal admin token only on /q and has no route listing a type's held attribute names
 S-25 T-5948 jc_syncsource_pause needs a running sync source the scripted lane does not have

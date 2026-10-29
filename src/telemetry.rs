@@ -121,25 +121,34 @@ const ANSWER_BUCKETS: &[f64] = &[
     0.25, 0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 10.0, 15.0, 20.0, 30.0, 60.0, 120.0,
 ];
 
+/// The Portal's recorder, its buckets set per series.
+fn builder() -> PrometheusBuilder {
+    PrometheusBuilder::new()
+        .set_buckets(SECONDS)
+        .expect("the bucket list is not empty")
+        .set_buckets_for_metric(Matcher::Prefix("jc_agent_run_".to_owned()), RUN_SECONDS)
+        .expect("the bucket list is not empty")
+        .set_buckets_for_metric(Matcher::Full(ANSWER_SECONDS.to_owned()), ANSWER_BUCKETS)
+        .expect("the bucket list is not empty")
+        .set_buckets_for_metric(Matcher::Full(MODEL_CALL_SECONDS.to_owned()), ANSWER_BUCKETS)
+        .expect("the bucket list is not empty")
+        .set_buckets_for_metric(
+            Matcher::Full(PIPELINE_RUN_SECONDS.to_owned()),
+            PIPELINE_RUN_BUCKETS,
+        )
+        .expect("the bucket list is not empty")
+}
+
 fn handle() -> &'static PrometheusHandle {
     static HANDLE: OnceLock<PrometheusHandle> = OnceLock::new();
     HANDLE.get_or_init(|| {
-        let handle = PrometheusBuilder::new()
-            .set_buckets(SECONDS)
-            .expect("the bucket list is not empty")
-            .set_buckets_for_metric(Matcher::Prefix("jc_agent_run_".to_owned()), RUN_SECONDS)
-            .expect("the bucket list is not empty")
-            .set_buckets_for_metric(Matcher::Full(ANSWER_SECONDS.to_owned()), ANSWER_BUCKETS)
-            .expect("the bucket list is not empty")
-            .set_buckets_for_metric(Matcher::Full(MODEL_CALL_SECONDS.to_owned()), ANSWER_BUCKETS)
-            .expect("the bucket list is not empty")
-            .set_buckets_for_metric(
-                Matcher::Full(PIPELINE_RUN_SECONDS.to_owned()),
-                PIPELINE_RUN_BUCKETS,
-            )
-            .expect("the bucket list is not empty")
-            .install_recorder()
-            .expect("this process installs the one recorder");
+        // A process holds one recorder. The Portal is alone in its own; a test binary that also
+        // serves a context-gateway router (the public connector of S-07) holds the gateway's,
+        // and the Portal's series go there, its own /metrics then empty.
+        let handle = builder().install_recorder().unwrap_or_else(|refused| {
+            tracing::warn!(%refused, "a metrics recorder is installed already: the Portal's /metrics stays empty");
+            builder().build_recorder().handle()
+        });
         metrics::describe_counter!(REQUESTS, "requests answered by the Portal");
         metrics::describe_histogram!(REQUEST_SECONDS, "seconds to answer one request");
         metrics::describe_counter!(CHANGES, "changes proposed, by lane and kind");
