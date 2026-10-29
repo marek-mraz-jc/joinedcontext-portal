@@ -1481,6 +1481,7 @@
     "title": "Endpoints",
     "empty": "This project publishes no endpoint yet.",
     "searchNoMatch": "No endpoint name or title holds “{text}”.",
+    "searchNoMatchHint": "Check the spelling or clear the search to see every endpoint.",
     "add": "New endpoint",
     "edit": "Edit",
     "addHint": "Saving proposes a change; the endpoint answers once the change is approved.",

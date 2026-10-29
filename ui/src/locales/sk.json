@@ -1481,6 +1481,7 @@
     "title": "Endpointy",
     "empty": "Projekt zatiaľ nezverejnil žiadny endpoint.",
     "searchNoMatch": "Žiadny endpoint nemá v názve „{text}“.",
+    "searchNoMatchHint": "Skontrolujte pravopis alebo vymažte hľadanie a uvidíte všetky endpointy.",
     "add": "Nový endpoint",
     "edit": "Upraviť",
     "addHint": "Uložením vznikne návrh zmeny; endpoint začne odpovedať po jeho schválení.",

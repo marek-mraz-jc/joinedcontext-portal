@@ -1481,6 +1481,7 @@
     "title": "Endpunkte",
     "empty": "Dieses Projekt veröffentlicht noch keinen Endpunkt.",
     "searchNoMatch": "Kein Endpunkt hat „{text}“ im Namen.",
+    "searchNoMatchHint": "Prüfen Sie die Schreibweise oder leeren Sie die Suche, um alle Endpunkte zu sehen.",
     "add": "Neuer Endpunkt",
     "edit": "Bearbeiten",
     "addHint": "Das Speichern schlägt eine Änderung vor; der Endpunkt antwortet nach der Freigabe.",

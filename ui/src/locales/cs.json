@@ -1481,6 +1481,7 @@
     "title": "Rozhraní",
     "empty": "Projekt zatím nezveřejnil žádné rozhraní.",
     "searchNoMatch": "Žádné rozhraní nemá v názvu „{text}“.",
+    "searchNoMatchHint": "Zkontrolujte pravopis nebo vymažte hledání a uvidíte všechna rozhraní.",
     "add": "Nové rozhraní",
     "edit": "Upravit",
     "addHint": "Uložením vznikne návrh změny; rozhraní začne odpovídat po jeho schválení.",

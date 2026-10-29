@@ -1284,6 +1284,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
               bare
               icon="search"
               title={t("endpoints.searchNoMatch", { text: needle.trim() })}
+              description={t("endpoints.searchNoMatchHint")}
               action={
                 <Button variant="secondary" size="sm" onClick={() => setNeedle("")}>
                   {t("spaces.inside.clearSearch")}
