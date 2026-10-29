@@ -37,23 +37,59 @@ pub struct Comment {
     pub created_at: String,
 }
 
-/// One notification of a mention.
+/// One notification: a mention, or an event of a person's connectors (T-5979).
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Notification {
     pub id: i64,
+    /// `mention`, `change.opened` (a change opened through a connector waits for approval),
+    /// `connector.pending` (a connector request waits above the ceiling) or `connector.expiring`
+    /// (a connector of the reader's ends within seven days).
+    pub kind: String,
     pub project: String,
+    /// The mention's space; empty for a connector event.
     pub space: String,
+    /// The mentioned entity, or for a connector event the change or connector it is about.
     pub urn: String,
-    pub comment_id: i64,
+    /// The comment of a mention.
+    pub comment_id: Option<i64>,
     pub author: String,
     pub author_name: String,
-    /// The first [`EXCERPT`] characters of the comment.
+    /// The first [`EXCERPT`] characters of the comment; for a connector event the connector's name.
     pub excerpt: String,
+    /// The Portal page a connector event opens, e.g. `/projects/helsinki/approvals/cr-12`.
+    pub link: Option<String>,
     /// RFC 3339.
     pub created_at: String,
     pub read: bool,
 }
+
+/// A connector event (T-5979). It carries names and a link only, never manifest content.
+pub struct Notice<'a> {
+    pub kind: &'a str,
+    pub project: &'a str,
+    /// The change or connector id the event is about.
+    pub about: &'a str,
+    /// Who caused it, by identifier and as the Portal shows them.
+    pub author: &'a str,
+    pub author_name: &'a str,
+    /// The connector's name.
+    pub connector: &'a str,
+    pub link: &'a str,
+    /// One event, one notification per recipient: a second notice under the same key is dropped.
+    pub key: &'a str,
+}
+
+/// The recipient a notice for everyone who may approve a change in `project` is stored under.
+pub fn approvers_of(project: &str) -> String {
+    format!("@approve:{project}")
+}
+
+/// The recipient a notice for everyone who decides connector requests is stored under.
+pub const CONNECTOR_ADMINS: &str = "@connector-admin";
+
+/// How long an audience notice waits for a person to read their notifications.
+const AUDIENCE_DAYS: i64 = 30;
 
 /// Who writes a comment.
 pub struct Author<'a> {
@@ -79,6 +115,8 @@ struct Memory {
     comments: Vec<(String, String, Comment)>,
     /// recipient, notification.
     notifications: Vec<(String, Notification)>,
+    /// recipient, event key and notification id of each connector event held.
+    keys: Vec<(String, String, i64)>,
 }
 
 pub struct CommentStore {
@@ -115,10 +153,12 @@ type NotificationRow = (
     String,
     String,
     String,
-    i64,
+    String,
+    Option<i64>,
     String,
     String,
     String,
+    Option<String>,
     time::OffsetDateTime,
     Option<time::OffsetDateTime>,
 );
@@ -139,10 +179,11 @@ fn comment_of(
 }
 
 fn notification_of(
-    (id, project, space, urn, comment_id, author, author_name, excerpt, at, read_at): NotificationRow,
+    (id, kind, project, space, urn, comment_id, author, author_name, excerpt, link, at, read_at): NotificationRow,
 ) -> Notification {
     Notification {
         id,
+        kind,
         project,
         space,
         urn,
@@ -150,6 +191,7 @@ fn notification_of(
         author,
         author_name,
         excerpt,
+        link,
         created_at: rfc3339(at),
         read: read_at.is_some(),
     }
@@ -254,11 +296,13 @@ impl CommentStore {
                         id: memory.next,
                         project: new.project.to_owned(),
                         space: new.space.to_owned(),
+                        kind: "mention".into(),
                         urn: new.urn.to_owned(),
-                        comment_id: comment.id,
+                        comment_id: Some(comment.id),
                         author: author.id.to_owned(),
                         author_name: author.name.to_owned(),
                         excerpt: short.clone(),
+                        link: None,
                         created_at: at.clone(),
                         read: false,
                     };
@@ -337,7 +381,7 @@ impl CommentStore {
                     });
                 let removed = memory.comments.len() < before;
                 if removed {
-                    memory.notifications.retain(|(_, n)| n.comment_id != id);
+                    memory.notifications.retain(|(_, n)| n.comment_id != Some(id));
                 }
                 Ok(removed)
             }
@@ -346,6 +390,122 @@ impl CommentStore {
 
     /// The notifications of a person known by any of `recipients`, newest first, at most
     /// [`LISTED`], and how many of all theirs are unread.
+    /// Leaves a connector event for `recipient`, a person's identifier or an audience
+    /// ([`approvers_of`], [`CONNECTOR_ADMINS`]); `false` when its key was there already.
+    pub async fn notify(&self, recipient: &str, notice: Notice<'_>) -> Result<bool, sqlx::Error> {
+        match &self.inner {
+            Inner::Postgres(pool) => Ok(sqlx::query(
+                "INSERT INTO notifications (recipient, kind, project, space, urn, author, author_name, excerpt, link, event_key) \
+                 VALUES ($1, $2, $3, '', $4, $5, $6, $7, $8, $9) ON CONFLICT (recipient, event_key) DO NOTHING",
+            )
+            .bind(recipient)
+            .bind(notice.kind)
+            .bind(notice.project)
+            .bind(notice.about)
+            .bind(notice.author)
+            .bind(notice.author_name)
+            .bind(notice.connector)
+            .bind(notice.link)
+            .bind(notice.key)
+            .execute(pool)
+            .await?
+            .rows_affected()
+                > 0),
+            Inner::Memory(lock) => {
+                let mut memory = lock.write().unwrap_or_else(|e| e.into_inner());
+                if memory
+                    .keys
+                    .iter()
+                    .any(|(r, k, _)| r == recipient && k == notice.key)
+                {
+                    return Ok(false);
+                }
+                memory.next += 1;
+                let id = memory.next;
+                memory
+                    .keys
+                    .push((recipient.to_owned(), notice.key.to_owned(), id));
+                let notification = Notification {
+                    id,
+                    kind: notice.kind.to_owned(),
+                    project: notice.project.to_owned(),
+                    space: String::new(),
+                    urn: notice.about.to_owned(),
+                    comment_id: None,
+                    author: notice.author.to_owned(),
+                    author_name: notice.author_name.to_owned(),
+                    excerpt: notice.connector.to_owned(),
+                    link: Some(notice.link.to_owned()),
+                    created_at: rfc3339(time::OffsetDateTime::now_utc()),
+                    read: false,
+                };
+                memory
+                    .notifications
+                    .push((recipient.to_owned(), notification));
+                Ok(true)
+            }
+        }
+    }
+
+    /// Copies to `me` each notice of the last `AUDIENCE_DAYS` days addressed to one of
+    /// `audiences`, the ones the caller holds the right of today, except the events the caller
+    /// caused (`ids`); a notice already copied stays one.
+    pub async fn deliver(
+        &self,
+        me: &str,
+        ids: &[String],
+        audiences: &[String],
+    ) -> Result<(), sqlx::Error> {
+        if audiences.is_empty() {
+            return Ok(());
+        }
+        match &self.inner {
+            Inner::Postgres(pool) => {
+                sqlx::query(
+                    "INSERT INTO notifications (recipient, kind, project, space, urn, author, author_name, excerpt, link, event_key, created_at) \
+                     SELECT $1, kind, project, space, urn, author, author_name, excerpt, link, event_key, created_at \
+                     FROM notifications WHERE recipient = ANY($2) AND event_key IS NOT NULL AND author <> ALL($3) \
+                     AND created_at > now() - make_interval(days => $4) ORDER BY id \
+                     ON CONFLICT (recipient, event_key) DO NOTHING",
+                )
+                .bind(me)
+                .bind(audiences)
+                .bind(ids)
+                .bind(AUDIENCE_DAYS as i32)
+                .execute(pool)
+                .await?;
+                Ok(())
+            }
+            Inner::Memory(lock) => {
+                let mut memory = lock.write().unwrap_or_else(|e| e.into_inner());
+                let due: Vec<(String, Notification)> = memory
+                    .keys
+                    .iter()
+                    .filter(|(r, _, _)| audiences.contains(r))
+                    .filter_map(|(_, key, id)| {
+                        let (_, n) = memory.notifications.iter().find(|(_, n)| n.id == *id)?;
+                        (!ids.contains(&n.author)).then(|| (key.clone(), n.clone()))
+                    })
+                    .collect();
+                for (key, notification) in due {
+                    if memory.keys.iter().any(|(r, k, _)| r == me && *k == key) {
+                        continue;
+                    }
+                    memory.next += 1;
+                    let id = memory.next;
+                    memory.keys.push((me.to_owned(), key, id));
+                    let copy = Notification {
+                        id,
+                        read: false,
+                        ..notification
+                    };
+                    memory.notifications.push((me.to_owned(), copy));
+                }
+                Ok(())
+            }
+        }
+    }
+
     pub async fn notifications(
         &self,
         recipients: &[String],
@@ -353,7 +513,7 @@ impl CommentStore {
         match &self.inner {
             Inner::Postgres(pool) => {
                 let rows: Vec<NotificationRow> = sqlx::query_as(
-                    "SELECT id, project, space, urn, comment_id, author, author_name, excerpt, created_at, read_at \
+                    "SELECT id, kind, project, space, urn, comment_id, author, author_name, excerpt, link, created_at, read_at \
                      FROM notifications WHERE recipient = ANY($1) ORDER BY id DESC LIMIT $2",
                 )
                 .bind(recipients)

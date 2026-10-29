@@ -14,7 +14,7 @@ use jc_core::reach::EndpointFacts;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
-use crate::connectors::{ItemAccess, NewConnector, ScopeItem, DEFAULT_CEILING};
+use crate::connectors::{Ceiling, ItemAccess, NewConnector, ScopeItem};
 use crate::error::ApiError;
 use crate::state::AppState;
 use crate::store::Mirror;
@@ -216,7 +216,7 @@ pub fn adopted(old: &Old, endpoints: &[EndpointFacts]) -> Option<NewConnector> {
         segments: vec!["data-read".to_owned()],
         scope,
         writes: false,
-        expires_at: Utc::now() + Duration::days(DEFAULT_CEILING.max_days),
+        expires_at: Utc::now() + Duration::days(Ceiling::of_policies(Vec::new()).max_days()),
         allowed_clients: Vec::new(),
     })
 }
@@ -267,7 +267,11 @@ pub async fn move_one(state: &AppState, subject: &str) -> Result<Moved, ApiError
             kept.push(aside(one, "takes no Endpoint today"));
             continue;
         };
-        match state.connectors.create(subject, new, &base).await {
+        match state
+            .connectors
+            .create(subject, new, Vec::new(), &base)
+            .await
+        {
             Ok(_) => moved.moved += 1,
             // Its name is live already (another Portal moved it), or the person holds the most
             // live connectors: kept aside with the store's reason.
@@ -502,8 +506,10 @@ mod tests {
         assert_eq!(new.segments, ["data-read"]);
         assert!(!new.writes);
         assert!(new.scope.iter().all(|i| i.access == ItemAccess::Read));
-        crate::connectors::validate(&new, &DEFAULT_CEILING, Utc::now())
-            .expect("within the default ceiling");
+        let within =
+            crate::connectors::validate(&new, &Ceiling::of_policies(Vec::new()), Utc::now())
+                .expect("a valid request");
+        assert!(within.is_empty(), "within the default ceiling: {within:?}");
         let none: Old = serde_json::from_value(
             serde_json::json!({"name": "x", "select": {"themes": ["AGRI"]}}),
         )

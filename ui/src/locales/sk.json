@@ -9151,7 +9151,10 @@
     "label": "{count, plural, =0 {Upozornenia} one {Upozornenia, # neprečítané} few {Upozornenia, # neprečítané} other {Upozornenia, # neprečítaných}}",
     "title": "Upozornenia",
     "none": "Nič nové.",
-    "mentioned": "{name} vás spomenul(a) v {space}"
+    "mentioned": "{name} vás spomenul(a) v {space}",
+    "changeOpened": "{name} otvoril(a) zmenu {change} v {project} cez konektor {connector}: schváľte ju alebo zamietnite",
+    "connectorPending": "{name} žiada o konektor {connector} nad stropom organizácie: schváľte ho alebo odmietnite",
+    "connectorExpiring": "Váš konektor {connector} skončí do 7 dní: predĺžte ho alebo vytvorte nový"
   },
   "problem": {
     "bad-request": "Opravte požiadavku podľa popisu a pošlite ju znova.",
@@ -9649,6 +9652,8 @@
     },
     "mentions": "Zmienky o vás",
     "noMentions": "Žiadny komentár vás nespomína.",
+    "connectorEvents": "Konektory",
+    "noConnectorEvents": "Z vašich konektorov ani zo žiadostí o konektor, o ktorých rozhodujete, nič nečaká.",
     "open": "Otvoriť doručené ({count} čaká)"
   },
   "appServices": {

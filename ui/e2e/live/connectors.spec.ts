@@ -155,3 +155,39 @@ test("the old /connectors address opens My AI connectors", async ({ browser }) =
     await context.close();
   }
 });
+
+/**
+ * T-5953 — requests above the DelegationPolicy ceiling wait for an administrator, and nobody else
+ * decides them: a viewer reads no queue and approves nothing, not even a connector of their own.
+ * Under the organization default (no policy queues on dev) a request above it is refused, naming
+ * the field; S-31 of tests/connector_scenarios.rs plays a queued request and its approval.
+ */
+test("a request above the ceiling waits for an administrator and nobody else decides it", async ({ browser }) => {
+  const { context, page } = await signIn(browser, VIEWER, "/?lang=en");
+  const headers = { "x-csrf-token": await csrf(context), "content-type": "application/json" };
+  let id = "";
+  try {
+    const expiresAt = new Date(Date.now() + 24 * 3600_000).toISOString();
+    const above = await page.request.post("/api/v1/connectors?dryRun=All", {
+      headers,
+      data: { name: "t5953-pipelines", segments: ["pipeline"], scope: [{ project: "helsinki", access: "read" }], expiresAt },
+    });
+    expect(above.status()).toBe(403);
+    expect(await above.text()).toContain("segments[0]");
+
+    const created = await page.request.post("/api/v1/connectors", {
+      headers,
+      data: { name: `t5953-${Date.now()}`, segments: ["data-read"], scope: [{ project: "helsinki", access: "read" }], expiresAt },
+    });
+    expect(created.status(), await created.text()).toBe(201);
+    id = ((await created.json()) as { id: string }).id;
+
+    expect((await page.request.get("/api/v1/connectors/pending")).status()).toBe(403);
+    const approve = await page.request.post(`/api/v1/connectors/${id}/approve`, { headers });
+    expect(approve.status()).toBe(403);
+    expect(await approve.text()).toContain("AG-150");
+  } finally {
+    if (id) await page.request.delete(`/api/v1/connectors/${id}`, { headers });
+    await context.close();
+  }
+});

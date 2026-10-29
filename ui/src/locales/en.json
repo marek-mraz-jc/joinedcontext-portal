@@ -9151,7 +9151,10 @@
     "label": "{count, plural, =0 {Notifications} one {Notifications, # unread} other {Notifications, # unread}}",
     "title": "Notifications",
     "none": "Nothing new.",
-    "mentioned": "{name} mentioned you in {space}"
+    "mentioned": "{name} mentioned you in {space}",
+    "changeOpened": "{name} opened change {change} in {project} through connector {connector}: approve or reject it",
+    "connectorPending": "{name} asks for connector {connector} above the organization ceiling: approve or refuse it",
+    "connectorExpiring": "Your connector {connector} ends within 7 days: extend it or create a new one"
   },
   "problem": {
     "bad-request": "Correct the request as the detail says and send it again.",
@@ -9649,6 +9652,8 @@
     },
     "mentions": "Mentions of you",
     "noMentions": "No comment mentions you.",
+    "connectorEvents": "Connectors",
+    "noConnectorEvents": "Nothing waits from your connectors or the connector requests you decide.",
     "open": "Open your inbox ({count} waiting)"
   },
   "appServices": {

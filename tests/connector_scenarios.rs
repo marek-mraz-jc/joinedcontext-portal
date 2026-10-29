@@ -171,6 +171,18 @@ struct Step {
     /// again naming it (T-5997).
     #[serde(default)]
     accepted: bool,
+    /// A fixture change instead of a request: an organization manifest the reconciler loaded
+    /// from Git (a merged DelegationPolicy, a Group), gone again when the scenario ends.
+    #[serde(default)]
+    manifest: Option<Manifest>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Manifest {
+    kind: String,
+    name: String,
+    spec: Value,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -811,6 +823,8 @@ struct Harness {
     connector: std::sync::Mutex<Option<String>>,
     /// What `keep` steps remembered, by member name.
     kept: std::sync::Mutex<BTreeMap<String, String>>,
+    /// The manifests the running scenario added, removed when it ends.
+    added: std::sync::Mutex<Vec<ResourceKey>>,
     /// The forge, CSV source and identity provider; the model lane counts the forge writes.
     server: &'static MockServer,
     /// The CSV source's address, `{csvUrl}` in a script.
@@ -895,6 +909,8 @@ impl Harness {
         std::fs::write(&token_file, "token-scenarios-broker").expect("broker token file");
         config.broker_admin_token_file = Some(token_file);
         config.gateway_url = Some(server.uri());
+        // People reach the REST routes through the edge, as in the deployment.
+        config.trust_edge_token = true;
 
         let mirror = std::sync::Arc::new(Mirror::new());
         let names: Vec<String> = (1..=projects).map(project_of).collect();
@@ -932,6 +948,7 @@ impl Harness {
             state,
             connector: std::sync::Mutex::default(),
             kept: std::sync::Mutex::default(),
+            added: std::sync::Mutex::default(),
             server,
             csv_url,
         }
@@ -1152,6 +1169,25 @@ impl Harness {
                 None => Err(format!("unbind: {who} holds no binding in {project}")),
             };
         }
+        if let Some(manifest) = &step.manifest {
+            let spec = serde_json::from_str::<Value>(&fill(&manifest.spec.to_string()))
+                .map_err(|e| format!("manifest spec: {e}"))?;
+            self.mirror.upsert(envelope(
+                &manifest.kind,
+                &manifest.name,
+                ORG_NAMESPACE,
+                spec,
+            ));
+            self.added
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .push(ResourceKey {
+                    namespace: ORG_NAMESPACE.to_owned(),
+                    kind: manifest.kind.clone(),
+                    name: manifest.name.clone(),
+                });
+            return Ok(());
+        }
         if let Some(rest) = &step.rest {
             let body = serde_json::from_str::<Value>(&fill(&rest.body.to_string()))
                 .map_err(|e| format!("rest body: {e}"))?;
@@ -1272,10 +1308,18 @@ impl Harness {
         if scenario.deny != "none" && !has(Proves::Deny) {
             return Err("no deny step scripted".into());
         }
+        let mut outcome = Ok(());
         for step in &scenario.script {
-            self.step(scenario, own, step).await?;
+            outcome = self.step(scenario, own, step).await;
+            if outcome.is_err() {
+                break;
+            }
         }
-        Ok(())
+        let added = std::mem::take(&mut *self.added.lock().unwrap_or_else(|p| p.into_inner()));
+        for key in added {
+            self.mirror.remove(&key);
+        }
+        outcome
     }
 }
 
@@ -1472,7 +1516,13 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
             Some(ask("c")),
         )
         .await;
-    assert_eq!((status, &body), (StatusCode::OK, &json!({ "valid": true })));
+    assert_eq!(
+        (status, &body),
+        (
+            StatusCode::OK,
+            &json!({ "valid": true, "pending": false, "aboveCeiling": [] })
+        )
+    );
 
     // No bearer: 401 naming the connector's own metadata.
     let response = harness
@@ -1992,7 +2042,7 @@ async fn the_connector_door_holds_its_budget_under_load() {
             let connector = harness
                 .state
                 .connectors
-                .create(&owner, new, BASE)
+                .create(&owner, new, Vec::new(), BASE)
                 .await
                 .expect("a connector");
             let token = harness.sign(&owner, &user(i), (&[], &[]), (&connector.url, CLIENT), 3600);
@@ -2174,6 +2224,121 @@ async fn a_flood_hits_429_at_the_connector_and_then_the_person_limit() {
         .await;
     assert_eq!(status, StatusCode::OK);
     assert!(calls.to_string().contains("refused: rate limit"), "{calls}");
+}
+
+/// T-5979: the three connector events each reach, once, the people who may act on them, and
+/// carry names and a link, never the manifest the change holds.
+#[tokio::test]
+async fn connector_events_notify_who_may_act_once() {
+    let harness = Harness::start(1).await;
+    let own = project_of(1);
+    let scenario: Scenario = serde_json::from_value(json!({
+        "id": "S-00", "segment": "context", "as": "steward", "says": "selftest",
+        "expect": "selftest", "deny": "selftest", "script": [
+            { "proves": "expect", "manifest": { "kind": "Group", "name": "notice-writers",
+              "spec": { "members": [{ "user": user_of("steward") }] } } },
+            { "proves": "expect", "manifest": { "kind": "DelegationPolicy", "name": "notice-writers",
+              "spec": { "subjects": [{ "kind": "Group", "name": "notice-writers" }],
+                        "projects": ["{project}"], "segments": ["context"], "writes": true,
+                        "maxExpiry": "P90D", "aboveCeiling": "queue" } } },
+            // Above the ceiling (segment admin): queued for an administrator, not granted.
+            { "proves": "deny", "rest": { "method": "POST", "path": "/connectors",
+              "body": { "name": "notice-wide", "segments": ["admin"],
+                        "scope": [{ "project": "{project}", "access": "read" }],
+                        "expiresAt": "{in7days}" } },
+              "contains": ["\"state\":\"pending\""] },
+            { "proves": "expect", "rest": { "method": "POST", "path": "/connectors",
+              "body": { "name": "notice-writer", "segments": ["context"], "writes": true,
+                        "scope": [{ "project": "{project}", "access": "write" }],
+                        "expiresAt": "{in7days}" } },
+              "contains": ["\"state\":\"active\""] },
+            { "proves": "expect", "via": "connector", "call": "jc_change_plan", "keep": "planId",
+              "args": { "changes": [{ "op": "patch", "kind": "ContextSpace", "name": "doprava",
+                                      "patch": { "spec": { "isSandbox": false } } }] },
+              "contains": ["\"planId\""] },
+            { "proves": "expect", "via": "connector", "call": "jc_change_apply",
+              "args": { "planId": "{planId}" }, "contains": ["changeRequests"] },
+            // An edit above the ceiling waits again, as a new request.
+            { "proves": "expect", "rest": { "method": "POST", "path": "/connectors",
+              "body": { "name": "notice-edit", "segments": ["context"],
+                        "scope": [{ "project": "{project}", "access": "read" }],
+                        "expiresAt": "{in7days}" } },
+              "contains": ["\"state\":\"active\""] },
+            { "proves": "deny", "rest": { "method": "PATCH", "path": "/connectors/{connector}",
+              "body": { "segments": ["admin"] } },
+              "contains": ["\"state\":\"pending\""] }
+        ]
+    }))
+    .expect("scenario");
+    assert_eq!(harness.run(&scenario, &own).await, Ok(()));
+
+    let notices = |persona: &'static str| {
+        let token = harness.token_for(persona, AUDIENCE, AUDIENCE);
+        let harness = &harness;
+        async move {
+            // A person reads the bell signed in through the edge, as the Portal does.
+            let (status, body) = harness
+                .send_edge("GET", "/api/v1/notifications", token, None)
+                .await;
+            assert_eq!(status, StatusCode::OK, "{body}");
+            body["items"].as_array().cloned().unwrap_or_default()
+        }
+    };
+    let of_kind = |items: &[Value], kind: &str| -> Vec<Value> {
+        items
+            .iter()
+            .filter(|i| i["kind"] == kind)
+            .cloned()
+            .collect()
+    };
+
+    // The approver of the project learns of the change, once, with its approval page.
+    let first = notices("approver").await;
+    let again = notices("approver").await;
+    let opened = of_kind(&again, "change.opened");
+    assert_eq!(opened.len(), 1, "{again:?}");
+    assert_eq!(of_kind(&first, "change.opened").len(), 1);
+    let change = opened[0]["urn"].as_str().expect("change id");
+    assert_eq!(
+        opened[0]["link"],
+        json!(format!("/projects/{own}/approvals/{change}"))
+    );
+    assert_eq!(opened[0]["excerpt"], json!("notice-writer"));
+    assert_eq!(opened[0]["author"], json!(user_of("steward")));
+    assert!(
+        !opened[0].to_string().contains("isSandbox"),
+        "names and links only: {}",
+        opened[0]
+    );
+    // A viewer holds no approve: nothing. The steward caused it: not their own change.
+    assert!(of_kind(&notices("viewer").await, "change.opened").is_empty());
+    let steward = notices("steward").await;
+    assert!(of_kind(&steward, "change.opened").is_empty(), "{steward:?}");
+
+    // Only a decider of connector requests learns of each queued one, once, without its scope:
+    // the queued create and the edit that waits again.
+    assert!(of_kind(&notices("approver").await, "connector.pending").is_empty());
+    let _ = notices("org-admin").await;
+    let pending = of_kind(&notices("org-admin").await, "connector.pending");
+    let mut asked: Vec<&Value> = pending.iter().map(|p| &p["excerpt"]).collect();
+    asked.sort_by_key(|e| e.to_string());
+    assert_eq!(
+        asked,
+        [&json!("notice-edit"), &json!("notice-wide")],
+        "{pending:?}"
+    );
+    for notice in &pending {
+        assert_eq!(notice["link"], json!("/ai-connectors"));
+        assert!(!notice.to_string().contains("admin\""), "{notice}");
+    }
+    assert!(of_kind(&steward, "connector.pending").is_empty());
+
+    // The owner learns their active connector ends within 7 days, once; the pending one waits
+    // for a decision and is no active connector to extend. Nobody else hears of it.
+    let expiring = of_kind(&notices("steward").await, "connector.expiring");
+    assert_eq!(expiring.len(), 1, "{expiring:?}");
+    assert_eq!(expiring[0]["excerpt"], json!("notice-writer"));
+    assert!(of_kind(&notices("approver").await, "connector.expiring").is_empty());
 }
 
 /// T-5975: the organization's overview counts a connector's refused calls of the day and flags it

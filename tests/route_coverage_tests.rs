@@ -130,6 +130,8 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("PATCH", "/connectors/{id}", "a person manages their own connectors in the Portal; a connector never creates, widens or revokes one (AG-151, API/14 §2)"),
 ("DELETE", "/connectors/{id}", "a person manages their own connectors in the Portal; a connector never creates, widens or revokes one (AG-151, API/14 §2)"),
 ("GET", "/connectors/{id}/activity", "a person manages their own connectors in the Portal; a connector never creates, widens or revokes one (AG-151, API/14 §2)"),
+("GET", "/connectors/pending", "an administrator decides connector requests above the ceiling in the Portal; no AI client decides one (AG-150, AG-151)"),
+("POST", "/connectors/{id}/approve", "an administrator decides connector requests above the ceiling in the Portal; no AI client decides one (AG-150, AG-151)"),
 ("POST", "/connectors/{id}/tab", "the person signed in in a tab pairs it with their own connector, whose client steers it with UI actions that never save (T-5967, API/14 §2.1)"),
 ("DELETE", "/connectors/{id}/tab", "the person signed in in a tab pairs it with their own connector, whose client steers it with UI actions that never save (T-5967, API/14 §2.1)"),
 ("GET", "/connectors/{id}/tab/{tab}/events", "the person signed in in a tab pairs it with their own connector, whose client steers it with UI actions that never save (T-5967, API/14 §2.1)"),
