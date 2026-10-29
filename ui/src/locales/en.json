@@ -551,6 +551,8 @@
       "size": "Size"
     },
     "inside": {
+      "more": "More",
+      "less": "Less",
       "total": "The space holds {count, plural, one {# entity} other {# entities}}.",
       "history": "Its history holds {count, plural, one {# record} other {# records}}.",
       "open": "Look inside",
@@ -5387,6 +5389,7 @@
     "remove": "Remove",
     "advanced": "This q uses | or brackets, which the rows cannot show; edit it as text.",
     "q": "Query as text (q)",
+    "columns": "Columns",
     "attrs": "Attributes to read",
     "qProblem": {
       "shape": "Write each condition as an attribute, a comparison and a value with no spaces, e.g. name==\"Hospital\"; join conditions with ; (and) or | (or).",

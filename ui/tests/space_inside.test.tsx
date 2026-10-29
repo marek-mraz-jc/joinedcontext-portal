@@ -666,6 +666,48 @@ describe("the space's own data", () => {
     expect(reads.some((url) => url.searchParams.get("limit") === "500")).toBe(true);
   });
 
+  it("keeps the header on one line: the name as a copy chip, the description on one line until More (T-6092)", async () => {
+    const description = "Air quality stations of the city and what they measured every hour, kept for five years.";
+    renderInside({ status: 200, count: 1 }, { status: 200 }, {
+      space: { ...SPACE, metadata: { ...SPACE.metadata, description: { en: description } } },
+    });
+    expect(await screen.findByRole("button", { name: "ovzdusie" })).toHaveAttribute("title", "ovzdusie");
+    const text = screen.getByText(description);
+    expect(text).toHaveClass("line-clamp-1");
+    const more = screen.getByRole("button", { name: en.spaces.inside.more });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(more);
+    expect(text).not.toHaveClass("line-clamp-1");
+    expect(screen.getByRole("button", { name: en.spaces.inside.less })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  // T-6092: ticking a column in a view beside the grid was dropped, so the read never changed.
+  it("reads only the columns chosen in a view's Columns menu, and every one again when none is", async () => {
+    const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200 }, {
+      source:
+        "name: bb-air-quality\nclasses:\n  AirQualityObserved:\n    attributes:\n      no2: { range: float, title: Nitrogen dioxide }\n      pm10: { range: float }\n",
+    });
+    await userEvent.click(await screen.findByRole("tab", { name: en.spaces.views.kind.gallery }));
+    await screen.findByTestId("view-gallery");
+    const asked = () =>
+      fetchMock.mock.calls
+        .map((call) => urlOf(call[0]))
+        .filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities") && url.searchParams.get("limit") === "500")
+        .map((url) => url.searchParams.get("attrs"));
+    expect(asked().every((attrs) => attrs === null)).toBe(true);
+
+    await userEvent.click(screen.getByText(en.entities.columns));
+    // The model's label alone; the name the data carries is the tooltip.
+    const no2 = screen.getByRole("checkbox", { name: "Nitrogen dioxide" });
+    expect(no2.closest("[title]")).toHaveAttribute("title", "no2");
+    await userEvent.click(no2);
+    await waitFor(() => expect(asked().at(-1)).toBe("no2"));
+    expect(screen.getByRole("checkbox", { name: "Nitrogen dioxide" })).toBeChecked();
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Nitrogen dioxide" }));
+    await waitFor(() => expect(asked().at(-1)).toBeNull());
+  });
+
   // T-5093: every view keeps one toolbar row; the type's actions sit in its More, not stacked above the view.
   it("keeps a non-grid view's actions in the one toolbar row", async () => {
     renderInside({ status: 200, count: 1 }, { status: 200 }, {
