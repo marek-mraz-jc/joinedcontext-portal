@@ -368,6 +368,25 @@ fn findings_of(at: &str, diff: &Value) -> Vec<String> {
     out
 }
 
+/// What the proposal's verdict gate (PF-57) refuses for a planned manifest whose dry run was
+/// green: a Pipeline's records are tested on a sample, not dry-run (T-4840). Asked at plan time,
+/// so a plan never promises a change its apply cannot open, and again before an apply commits
+/// anything, so an apply never opens half a plan.
+async fn gate_refusal(state: &AppState, item: &Planned) -> Result<Option<String>, OpError> {
+    let Some(manifest) = &item.manifest else {
+        return Ok(None);
+    };
+    match super::verdict_for_manifest(state, &item.home, manifest).await {
+        Ok(_) => Ok(None),
+        Err(OpError::Conflict(body)) => Ok(Some(format!(
+            "{} Run `{}` on it, then call {PLAN} again",
+            body["detail"].as_str().unwrap_or("its check is not fresh."),
+            body["check"].as_str().unwrap_or("jc_manifest_dry_run")
+        ))),
+        Err(other) => Err(other),
+    }
+}
+
 async fn plan(
     caller: &Caller,
     state: &AppState,
@@ -397,6 +416,8 @@ async fn plan(
         .await?;
         if diff.pointer("/verdict/ok") != Some(&json!(true)) {
             errors.extend(findings_of(&at, &diff));
+        } else if let Some(refusal) = gate_refusal(state, &planned).await? {
+            errors.push(format!("{at}/manifest: {refusal}"));
         }
         diffs.push(diff);
         items.push(planned);
@@ -518,6 +539,18 @@ async fn apply(
             "{} changed since the plan was made; nothing was applied. Read it again and call {PLAN} \
              anew",
             moved.join(", ")
+        ))));
+    }
+    let mut refused = Vec::new();
+    for item in &plan.items {
+        if let Some(refusal) = gate_refusal(state, item).await? {
+            refused.push(format!("{} {}: {refusal}", item.kind, item.name));
+        }
+    }
+    if !refused.is_empty() {
+        return Err(OpError::Api(ApiError::Conflict(format!(
+            "nothing was applied: {}",
+            refused.join("; ")
         ))));
     }
     let workspace = plan.workspace.as_deref();
