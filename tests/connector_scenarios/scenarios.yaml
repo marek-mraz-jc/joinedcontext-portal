@@ -156,6 +156,57 @@
   says: "Add an optional slot direction (enum in, out) to BikeCounter."
   expect: 'diff touches one model file; version bumped; existing entities still valid'
   deny: 'removing a required slot used by stored entities -> plan shows the breaking change and the affected count'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args:
+        changes:
+          - op: patch
+            kind: DataModel
+            name: bike-counter
+            source: |
+              id: https://example.org/doprava
+              name: doprava
+              default_range: string
+              enums:
+                Direction:
+                  permissible_values: { in: {}, out: {} }
+              slots:
+                name: { required: true }
+                count: { range: integer }
+                startDate: { range: datetime, required: true }
+                direction: { range: Direction }
+              classes:
+                BikeCounter: { slots: [name, count, direction] }
+                Event: { slots: [name, startDate] }
+                Station: { slots: [name] }
+      keep: planId
+      contains: ['"planId"', '"severity":"additive"', '"version":"1.1.0"', '"lane":"yellow"', 'direction']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests', 'https://gitea.example.sk/pulls/77']
+      absent: ['"merged"']
+    - proves: deny
+      call: jc_change_plan
+      args:
+        changes:
+          - op: patch
+            kind: DataModel
+            name: bike-counter
+            source: |
+              id: https://example.org/doprava
+              name: doprava
+              default_range: string
+              slots:
+                name: { required: true }
+                count: { range: integer }
+                startDate: { range: datetime, required: true }
+              classes:
+                BikeCounter: { slots: [count] }
+                Event: { slots: [name, startDate] }
+                Station: { slots: [name] }
+      contains: ['"severity":"breaking"', '"version":"2.0.0"', '"lane":"red"', 'BikeCounter.name', '"affectedEntities":12']
 - id: S-11
   segment: context
   as: steward
@@ -235,6 +286,59 @@
   says: "Add a relationship refStation from BikeCounter to Station, with the inverse slot."
   expect: 'both slots in the model; the model compiles in Model Tools'
   deny: 'relationship to a missing class -> plan refused naming the class'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args:
+        changes:
+          - op: patch
+            kind: DataModel
+            name: bike-counter
+            source: |
+              id: https://example.org/doprava
+              name: doprava
+              default_range: string
+              slots:
+                name: { required: true }
+                count: { range: integer }
+                startDate: { range: datetime, required: true }
+                refStation: { range: Station }
+                refBikeCounter: { range: BikeCounter, multivalued: true, inverse: refStation }
+              classes:
+                BikeCounter: { slots: [name, count, refStation] }
+                Event: { slots: [name, startDate] }
+                Station: { slots: [name, refBikeCounter] }
+      keep: planId
+      contains: ['"planId"', 'refStation', 'refBikeCounter', '"ok":true']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
+    - proves: deny
+      call: jc_change_plan
+      args:
+        changes:
+          - op: patch
+            kind: DataModel
+            name: bike-counter
+            source: |
+              id: https://hel.fi/models/bike-counter
+              name: bike-counter
+              prefixes:
+                linkml: https://w3id.org/linkml/
+              imports: [linkml:types]
+              classes:
+                BikeCounter:
+                  attributes:
+                    name: { range: string }
+                    count: { range: integer, required: true }
+                    refStation: { range: Depot }
+                Station:
+                  attributes:
+                    name: { range: string }
+                    refBikeCounter: { range: BikeCounter, multivalued: true, inverse: refStation }
+      refused: true
+      contains: ['/changes/0/source/classes/BikeCounter/attributes/refStation/range', "class 'Depot'"]
 - id: S-16
   segment: context
   as: steward
@@ -586,6 +690,75 @@
   says: "Open a workspace, change the model and the pipeline together, preview, propose."
   expect: 'workspace open, two file edits, preview runs, one change request with both files'
   deny: 'none'
+  script:
+    # The connector does the work in a workspace; the person brings it back (AG-82), so the
+    # bring-back is the Portal's REST route with the person's own sign-in.
+    # Decided (worker-t5997, owner may override): the second file is the Endpoint that serves the
+    # model's data, because a Pipeline is proposed only after its records ran on the project's
+    # runner (jc_pipeline_test, T-4840), which this lane does not run; the plan says so (step 2).
+    - proves: expect
+      call: jc_workspace_open
+      args: { name: s43-both, title: counters model and its view }
+      contains: ['s43-both']
+    - proves: expect
+      call: jc_change_plan
+      args:
+        workspace: s43-both
+        changes:
+          - op: create
+            kind: Pipeline
+            name: counters-load
+            manifest:
+              apiVersion: joinedcontext.com/v1alpha1
+              kind: Pipeline
+              metadata: { name: counters-load, namespace: '{project}' }
+              spec:
+                class: auto
+                period: 1h
+                source: { dataSourceRef: { kind: DataSource, name: counters-csv } }
+                compute: { kind: bloblang, bloblang: 'root = this' }
+                targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:doprava:{project}-counters'
+      refused: true
+      contains: ['/changes/0/manifest', 'jc_pipeline_test']
+    - proves: expect
+      call: jc_change_plan
+      args:
+        workspace: s43-both
+        changes:
+          - { op: patch, kind: DataModel, name: bike-counter, patch: { spec: { version: 1.1.0, lifecycle: draft, classes: [BikeCounter] } } }
+          - op: create
+            kind: Endpoint
+            name: '{project}-preview'
+            manifest:
+              apiVersion: joinedcontext.com/v1alpha1
+              kind: Endpoint
+              metadata: { name: '{project}-preview', namespace: '{project}' }
+              spec: { slug: bikecountersworkspacezzzzzz, contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld] }
+      keep: planId
+      contains: ['"planId"', 'bike-counter', '{project}-preview']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['workspaceChanges', 'workspace/s43-both', 'datamodels/bike-counter.yaml', 'endpoints/{project}-preview.yaml']
+      absent: ['changeRequests']
+    - proves: expect
+      call: jc_workspace_compare
+      args: { name: s43-both }
+      contains: ['datamodels/bike-counter.yaml', 'endpoints/{project}-preview.yaml']
+    - proves: expect
+      call: jc_workspace_preview_start
+      args: { name: s43-both }
+      contains: ['s43-both']
+    - proves: expect
+      call: jc_workspace_propose
+      args: { name: s43-both }
+      refused: true
+      contains: ['AG-82']
+    - proves: expect
+      rest:
+        method: POST
+        path: /projects/{project}/workspaces/s43-both/propose
+      contains: ['pulls/77', 'PendingApproval', '"plan":{"create":2,"delete":0,"update":0}']
 - id: S-44
   segment: operate
   as: approver
@@ -613,6 +786,34 @@
   says: "Export project Doprava and import it as Doprava-test."
   expect: 'export bundle; import dry run lists the objects; import opens one change request'
   deny: 'import into a project the person does not admin -> refused'
+  script:
+    # Decided (worker-t5997, owner may override): the steward exports the resources by name, a
+    # project reader's right; the whole project stays the organization administrator's (UI-87).
+    - proves: expect
+      call: jc_project_export
+      args: { names: doprava }
+      keep: document
+      contains: ['kind: ContextSpace', 'name: doprava']
+    - proves: expect
+      call: jc_project_import
+      args: { bundle: '{document}', conflictPolicy: rename, dryRun: true }
+      accepted: true
+      contains: ['"renamed":{"doprava":"doprava-{project}"}']
+    - proves: expect
+      call: jc_project_import
+      args: { bundle: '{document}', conflictPolicy: rename }
+      accepted: true
+      contains: ['pulls/77', 'PendingApproval']
+    - proves: deny
+      call: jc_project_export
+      args: {}
+      refused: true
+      contains: ['organization administrator']
+    - proves: deny
+      project: other
+      call: jc_project_import
+      args: { bundle: '{document}', conflictPolicy: rename }
+      refused: true
 
 - id: S-46
   segment: connector
@@ -637,7 +838,7 @@
       client: 'https://claude.ai/oauth/mcp-client-metadata'
       call: jc_resource_get
       args: { kind: Endpoint, name: '{project}-counters' }
-      contains: ['BikeCounter']
+      contains: ['"contextSpaceRef":"doprava"']
     - proves: deny
       via: connector
       client: 'https://claude.ai/oauth/mcp-client-metadata'

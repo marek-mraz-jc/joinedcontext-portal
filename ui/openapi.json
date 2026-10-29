@@ -15983,6 +15983,11 @@
                         "patch": {
                           "description": "With patch: a JSON merge patch (RFC 7386) onto the current manifest",
                           "type": "object"
+                        },
+                        "source": {
+                          "description": "With a DataModel: its whole LinkML file (the one spec.linkml names), e.g. \"classes:\\n  BikeCounter:\\n    attributes:\\n      count: { range: integer }\\n\"; the plan shows each change, the version it takes and the stored entities a breaking one affects",
+                          "maxLength": 524288,
+                          "type": "string"
                         }
                       },
                       "required": [
