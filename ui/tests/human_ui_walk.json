@@ -2247,6 +2247,20 @@
         "evidence/T-5532/mqtt-device-pending-sign-in-400.png"
       ]
     },
+    "src/pages/mqttbrokers/MqttBrokerPage.tsx": {
+      "walkedBy": "worker-t6103",
+      "date": "2026-10-29",
+      "screenshots": [
+        "evidence/T-6103/broker-receiving-1440.png",
+        "evidence/T-6103/broker-receiving-400.png",
+        "evidence/T-6103/broker-idle-1440.png",
+        "evidence/T-6103/broker-idle-400.png",
+        "evidence/T-6103/broker-no-traffic-1440.png",
+        "evidence/T-6103/broker-no-traffic-400.png",
+        "evidence/T-6103/broker-no-permission-1440.png",
+        "evidence/T-6103/broker-no-permission-400.png"
+      ]
+    },
     "src/pages/mqttbrokers/MqttBrokersPage.tsx": {
       "walkedBy": "worker-t5534",
       "date": "2026-10-24",
