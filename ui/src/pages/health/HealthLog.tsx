@@ -1,3 +1,4 @@
+import { ProjectUsageSection } from "../../components/endpoints/UsageSection";
 import type { JSX } from "react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -268,6 +269,9 @@ export function HealthPage({ project }: { project: string }): JSX.Element {
     <div className="flex flex-col gap-section">
       <PageHeader title={t("health.title")} description={t("health.lead")} />
       <HealthLog project={project} />
+      {/* The project's calls per Endpoint and day, moved here from the Endpoints list (T-6095);
+          each Endpoint's own page keeps its own. */}
+      <ProjectUsageSection project={project} />
     </div>
   );
 }

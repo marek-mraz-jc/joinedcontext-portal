@@ -77,7 +77,9 @@ export function pageFindings(options: PageCheckOptions): string[] {
   const h1 = headings[0];
   if (h1) {
     const next = h1.nextElementSibling;
-    if (!next || next.tagName !== "P" || text(next).length < 10) say("purpose-line", `no line under "${text(h1)}"`);
+    // A list page's compact header (T-6095) says it behind an info mark beside the title instead.
+    const line = next?.tagName === "P" ? next : next?.querySelector('[role="tooltip"]');
+    if (!line || text(line).length < 10) say("purpose-line", `no line under "${text(h1)}"`);
   }
 
   // An empty list says what to do next: a hint or the action that creates the first item.

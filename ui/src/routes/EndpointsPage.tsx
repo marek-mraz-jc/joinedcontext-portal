@@ -1,11 +1,11 @@
 import { FormHeading, useFormRoute } from "../components/forms/FormRoute";
 import { CopyUrlButton } from "../components/endpoints/links";
 import { ConnectAssistant } from "../components/endpoints/ConnectAssistant";
-import { ProjectUsageSection } from "../components/endpoints/UsageSection";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
+import { clsx } from "clsx";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { importManifests, proposeChecked } from "../api/proposal";
@@ -67,7 +67,6 @@ import { CodeBlock,
   Alert,
   Badge,
   Button,
-  buttonClass,
   Dialog,
   EmptyState,
   Icon,
@@ -76,11 +75,10 @@ import { CodeBlock,
   Table,
   TableBody,
   TableCell,
-  TableEmpty,
   TableHead,
   TableHeaderCell,
   TableRow,
-  SourceLink,
+  safeHref,
 } from "../components/ui";
 
 interface EndpointForm {
@@ -357,7 +355,6 @@ function isLive(endpoint: Manifest | null): boolean {
 }
 
 const COLUMNS = 5;
-const SHARED_COLUMNS = 4;
 
 /** `schema` without `allowedProjects`: the manifest refuses the list outside `project-list`. */
 function withoutBurst(schema: JsonSchema): JsonSchema {
@@ -390,17 +387,15 @@ function EndpointRowActions({
   endpoint,
   label,
   onEdit,
-  onExplore,
 }: {
   project: string;
   endpoint: Manifest;
   label: string;
   onEdit: () => void;
-  /** Absent while the endpoint has no slug: there is nothing to read yet. */
-  onExplore?: () => void;
 }): JSX.Element {
   const { t } = useTranslation();
   const permissions = usePermissions(project);
+  const navigate = useNavigate();
   const [openAction, setOpenAction] = useState<"export" | "saveAs" | "copy" | "delete" | null>(null);
   const name = endpoint.metadata.name;
   const slug = (endpoint.spec as { slug?: string }).slug ?? "";
@@ -408,8 +403,17 @@ function EndpointRowActions({
   const denied = (verb: "propose" | "delete") =>
     permissions.can("Endpoint", verb) ? undefined : t("permissions.denied", { verb, kind: "Endpoint" });
 
+  // One menu per row (T-6095): the row itself opens the endpoint, its data is on that page, and the
+  // Git file is an item here instead of an icon column.
+  const sourceUrl = endpoint.status?.sourceUrl ? safeHref(endpoint.status.sourceUrl) : undefined;
   const actions: RowAction[] = [
+    {
+      key: "open",
+      label: t("resourceList.open"),
+      onSelect: () => void navigate({ to: "/projects/$project/$plural/$name", params: { project, plural: "endpoints", name } }),
+    },
     { key: "edit", label: t("endpoints.edit"), onSelect: onEdit, disabledReason: denied("propose") },
+    ...(sourceUrl ? [{ key: "source", label: t("resourceList.viewSource"), href: sourceUrl }] : []),
     ...(slug
       ? [
           {
@@ -442,23 +446,7 @@ function EndpointRowActions({
   // dialogs with their hooks (T-3538).
   return (
     <>
-      <RowActions
-        label={label}
-        actions={actions}
-        primary={
-          onExplore ? (
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={!isLive(endpoint)}
-              title={isLive(endpoint) ? undefined : t("endpoints.data.notLive")}
-              onClick={onExplore}
-            >
-              {t("endpoints.data.action")}
-            </Button>
-          ) : undefined
-        }
-      />
+      <RowActions label={label} actions={actions} />
       {openAction === "export" ? (
         <ExportButton
           project={project}
@@ -493,9 +481,6 @@ function EndpointRowActions({
           open
           onOpenChange={(next) => setOpenAction(next ? "delete" : null)}
         />
-      ) : null}
-      {endpoint.status?.sourceUrl ? (
-        <SourceLink href={endpoint.status.sourceUrl} label={t("spaces.field.source")} />
       ) : null}
     </>
   );
@@ -639,13 +624,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       ? prefill.hiddenAttributes.filter((a): a is string => typeof a === "string")
       : [],
   );
-  /** The endpoint whose data a person opened from its row (T-1433). */
-  const [dataView, setDataView] = useState<{
-    slug: string;
-    name: string;
-    hidden: string[];
-    space?: string;
-  } | null>(null);
+  const [connectOpen, setConnectOpen] = useState(false);
 
   const list = useQuery({
     queryKey: queryKeys.list(project, "endpoints"),
@@ -1164,6 +1143,8 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         ),
       ),
   );
+  const sharedPending = projects.isPending || otherLists.some((other) => other.isPending);
+  const sharedNone = !sharedPending && shared.length === 0 && orphaned.length === 0;
   const pickable =
     others.length > 0
       ? [
@@ -1249,9 +1230,34 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   return (
     <div className="flex flex-col gap-section">
       <PageHeader
+        compact
         title={t("endpoints.title")}
         description={t("endpoints.lead")}
-        actions={addButton}
+        search={
+          endpoints.length > 0 ? (
+            <Input
+              type="search"
+              aria-label={t("endpoints.find")}
+              placeholder={t("endpoints.find")}
+              value={needle}
+              onChange={(event) => {
+                setNeedle(event.target.value);
+                setShown(ROWS_PER_PAGE);
+              }}
+            />
+          ) : undefined
+        }
+        actions={
+          <>
+            {/* Nothing to connect to while the project publishes nothing (as before T-6095). */}
+            {endpoints.length > 0 ? (
+              <Button variant="secondary" icon={<Icon name="chat" className="size-4" />} onClick={() => setConnectOpen(true)}>
+                {t("endpoints.hub.button")}
+              </Button>
+            ) : null}
+            {addButton}
+          </>
+        }
       />
 
       {publicFull ? (
@@ -1265,27 +1271,26 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
 
       {change ? <ChangeNotice change={change} project={project} /> : null}
 
-      {endpoints.length > ROWS_PER_PAGE ? (
-        <Input
-          type="search"
-          aria-label={t("endpoints.find")}
-          placeholder={t("endpoints.find")}
-          value={needle}
-          onChange={(event) => {
-            setNeedle(event.target.value);
-            setShown(ROWS_PER_PAGE);
-          }}
-          className="max-w-sm"
-        />
-      ) : null}
-
       <ResourceList
         query={list}
         caption={t("endpoints.title")}
         head={head}
         columns={COLUMNS}
-        count={endpoints.length}
+        count={matching.length}
         empty={
+          endpoints.length > 0 ? (
+            // A search that matches nothing names the text and offers the way back (T-6095).
+            <EmptyState
+              bare
+              icon="search"
+              title={t("endpoints.searchNoMatch", { text: needle.trim() })}
+              action={
+                <Button variant="secondary" size="sm" onClick={() => setNeedle("")}>
+                  {t("spaces.inside.clearSearch")}
+                </Button>
+              }
+            />
+          ) : (
           <EmptyState
             bare
             icon="endpoints"
@@ -1293,6 +1298,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
             description={t("endpoints.addHint")}
             action={addButton}
           />
+          )
         }
       >
         {visible.map((endpoint) => {
@@ -1347,24 +1353,13 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                   onEdit={() =>
                     formRoute ? formRoute.openEdit(endpoint.metadata.name) : openEditor(endpoint)
                   }
-                  onExplore={
-                    spec.slug
-                      ? () =>
-                          setDataView({
-                            slug: spec.slug as string,
-                            name: endpoint.metadata.name,
-                            hidden: hiddenOf(endpoint),
-                            space: spaceOf(endpoint),
-                          })
-                      : undefined
-                  }
                 />
               </TableCell>
             </TableRow>
           );
         })}
       </ResourceList>
-      {matching.length > visible.length || (needle.trim() && endpoints.length > 0) ? (
+      {matching.length > visible.length || (needle.trim() && matching.length > 0) ? (
         <div className="flex flex-wrap items-center gap-3">
           <p role="status" className="text-caption text-fg-muted">
             {t("endpoints.shownOf", { shown: visible.length, count: matching.length })}
@@ -1377,24 +1372,28 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         </div>
       ) : null}
 
-      {endpoints.length > 0 ? <ConnectAssistant domain={domain} /> : null}
-
-      {endpoints.length > 0 ? <ProjectUsageSection project={project} /> : null}
 
       <section aria-labelledby="shared-with-project" className="flex flex-col gap-3">
-        <div>
+        {/* Nothing shared is one line, not a table with an empty state (T-6095 review). */}
+        <div className={clsx(sharedNone && "flex flex-wrap items-baseline gap-x-3 gap-y-1")}>
           <h2 id="shared-with-project" className="text-title font-semibold text-fg">
             {t("endpoints.shared.title")}
           </h2>
-          <p className="mt-1 text-body text-fg-muted">{t("endpoints.shared.lead")}</p>
+          {sharedNone ? (
+            <p className="text-body text-fg-muted">
+              {t("endpoints.shared.empty")}{" "}
+              {/* What other projects publish is where a person finds one to ask for (T-3246). */}
+              <Link to="/endpoints" className="focus-ring rounded-sm text-primary-soft-fg underline underline-offset-2">
+                {t("endpoints.shared.browse")}
+              </Link>
+            </p>
+          ) : (
+            <p className="mt-1 text-body text-fg-muted">{t("endpoints.shared.lead")}</p>
+          )}
         </div>
-        <Table
+        {sharedNone ? null : <Table
           caption={t("endpoints.shared.title")}
-          status={
-            projects.isPending || otherLists.some((other) => other.isPending)
-              ? t("app.loading")
-              : undefined
-          }
+          status={sharedPending ? t("app.loading") : undefined}
         >
           <TableHead>
             <TableHeaderCell secondary>{t("endpoints.shared.source")}</TableHeaderCell>
@@ -1403,21 +1402,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
             <TableHeaderCell align="right">{t("endpoints.shared.reference")}</TableHeaderCell>
           </TableHead>
           <TableBody>
-            {shared.length === 0 && orphaned.length === 0 ? (
-              <TableEmpty columns={SHARED_COLUMNS}>
-                <EmptyState bare
-                  icon="globe"
-                  title={t("endpoints.shared.empty")}
-                  description={t("endpoints.shared.emptyHint")}
-                  action={
-                    // What other projects publish is where a person finds one to ask for (T-3246).
-                    <Link to="/endpoints" className={buttonClass("secondary", "md")}>
-                      {t("endpoints.shared.browse")}
-                    </Link>
-                  } />
-              </TableEmpty>
-            ) : (
-              shared.map(({ source, endpoint }) => {
+            {shared.map(({ source, endpoint }) => {
                 const spec = endpoint.spec as { slug?: string; enabledRepresentations?: string[] };
                 const slug = spec.slug ?? "";
                 const space = spaceOf(endpoint);
@@ -1514,8 +1499,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                     </TableCell>
                   </TableRow>
                 );
-              })
-            )}
+              })}
             {orphaned.map((reference) => {
               const alias = String((reference.spec as { alias?: string }).alias ?? "");
               return (
@@ -1561,7 +1545,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
               );
             })}
           </TableBody>
-        </Table>
+        </Table>}
         {reference.isError ? (
           <Alert role="alert" tone="danger">
             {reference.error instanceof ApiError
@@ -1792,28 +1776,16 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       </ResourceFormDialog>
       )}
 
-      {/* The endpoint's own answer, read with this person's session: the Endpoint's Policy decides
-          what is in it, and the Portal adds no right of its own (EP-07). */}
+      {/* The one MCP address of the platform, behind the header's button (T-6095): it is how a
+          person learns the address, and it no longer pushes the list down. */}
       <Dialog
-        open={dataView !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDataView(null);
-          }
-        }}
+        open={connectOpen}
+        onOpenChange={setConnectOpen}
         size="lg"
-        title={t("endpoints.data.title")}
-        description={dataView?.name ?? ""}
+        title={t("endpoints.hub.title")}
         closeLabel={t("form.cancel")}
       >
-        {dataView ? (
-          <EndpointDataView
-            project={project}
-            slug={dataView.slug}
-            hidden={dataView.hidden}
-            space={dataView.space}
-          />
-        ) : null}
+        <ConnectAssistant domain={domain} heading={false} />
       </Dialog>
     </div>
   );

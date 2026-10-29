@@ -339,7 +339,7 @@ export function KindList({
           {newButton}
         </div>
       ) : (
-        <PageHeader title={title} description={t(`resourceList.lead${holder}`, { kind: title })} actions={newButton} />
+        <PageHeader compact title={title} description={t(`resourceList.lead${holder}`, { kind: title })} actions={newButton} />
       )}
       {change ? <ChangeNotice change={change} project={project} /> : null}
       <ResourceList

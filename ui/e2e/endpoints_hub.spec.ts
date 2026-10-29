@@ -36,7 +36,9 @@ for (const width of [1440, 400]) {
 
     await page.goto("/projects/bbsk/shared?lang=en");
     await expect(page).toHaveURL(/\/projects\/bbsk\/endpoints/);
-    const panel = page.getByRole("region", { name: "Connect an AI assistant" });
+    // Behind the header's button since T-6095, so the list starts right under the title.
+    await page.getByRole("button", { name: "Connect AI" }).click();
+    const panel = page.getByRole("dialog", { name: "Connect an AI assistant" });
     await expect(panel).toBeVisible();
     const command = panel.getByLabel("Claude Code command");
     await command.focus();

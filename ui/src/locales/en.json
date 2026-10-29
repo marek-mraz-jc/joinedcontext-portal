@@ -523,7 +523,9 @@
     "askAssistant": "Ask the assistant for one",
     "leadOrganization": "Everything of this kind the organization holds. Each row opens what it names.",
     "emptyHintOrganization": "Nothing of this kind is in the organization yet. This page lists and reads it; ask the assistant for one and decide what it proposes.",
-    "emptyHintCreateOrganization": "Nothing of this kind is in the organization yet. {new} opens the form."
+    "emptyHintCreateOrganization": "Nothing of this kind is in the organization yet. {new} opens the form.",
+    "viewSource": "View source (Git)",
+    "open": "Open"
   },
   "spaces": {
     "entitiesUnknown": "The count is not available: {reason}",
@@ -1478,6 +1480,7 @@
     "lead": "Where a space is published: who may call it, in which representations, under which URL.",
     "title": "Endpoints",
     "empty": "This project publishes no endpoint yet.",
+    "searchNoMatch": "No endpoint name or title holds “{text}”.",
     "add": "New endpoint",
     "edit": "Edit",
     "addHint": "Saving proposes a change; the endpoint answers once the change is approved.",
@@ -1575,10 +1578,8 @@
     },
     "publicNotice": "An endpoint with a public audience answers anonymous callers, and an anonymous caller may only read. Writes and subscriptions still need a login, whichever representations are enabled.",
     "data": {
-      "action": "View data",
       "title": "What this endpoint answers",
       "type": "Entity type",
-      "notLive": "This endpoint answers nothing yet; it is served once the change is Live.",
       "noSchema": "This endpoint publishes no schema yet, so there is no type to read.",
       "compare": "Compare with the space",
       "compareClose": "Back to this endpoint alone",
@@ -1654,7 +1655,6 @@
       "alias": "alias",
       "gone": "Endpoint no longer shared",
       "goneSource": "Source unavailable",
-      "emptyHint": "Another project can let this one read its endpoint without copying the data. Nothing is shared with this project yet.",
       "edit": {
         "alias": "Alias",
         "aliasHelp": "The name this project reads the shared space by; queries and pipelines here use it.",
@@ -1955,7 +1955,8 @@
       "claudeLine": "Claude Code command",
       "jsonLine": "Configuration for another MCP client",
       "vscode": "Add to VS Code",
-      "cursor": "Add to Cursor"
+      "cursor": "Add to Cursor",
+      "button": "Connect AI"
     },
     "playground": {
       "title": "Try it",
@@ -10786,5 +10787,8 @@
       "jc_ui_show_diff": "Opened a planned change",
       "jc_ui_filter_table": "Filtered the table"
     }
+  },
+  "pageHeader": {
+    "about": "About this page"
   }
 }

@@ -11,6 +11,7 @@ import { WorkOnCopyAction } from "./WorkOnCopyDialog";
 import type { WorkOnCopyScope } from "./WorkOnCopyDialog";
 import { RowActions } from "./ui/RowActions";
 import { deniedReason } from "./ui/PermissionGuard";
+import { safeHref } from "./ui/safeHref";
 import { useEditForm } from "./forms/FormRoute";
 import type { RowAction } from "./ui/RowActions";
 
@@ -33,6 +34,7 @@ export function ResourceRowActions({
   onEdit,
   primary,
   extra,
+  sourceUrl,
 }: {
   project: string;
   target: ResourceTarget;
@@ -48,6 +50,11 @@ export function ResourceRowActions({
    * menu per row, never a second one beside it (T-2618).
    */
   extra?: RowAction[];
+  /**
+   * `status.sourceUrl`: the manifest in the forge, an item of the menu instead of an icon column
+   * (T-6095). Written by the manifest's author, so only an address that navigates is listed.
+   */
+  sourceUrl?: string | null;
 }): JSX.Element {
   const { t } = useTranslation();
   const permissions = usePermissions(target.home ?? project);
@@ -60,6 +67,7 @@ export function ResourceRowActions({
   const denied = (verb: "propose" | "delete") =>
     permissions.can(target.kind, verb) ? undefined : deniedReason(t, target.home ?? project, verb, target.kind);
 
+  const source = safeHref(sourceUrl);
   const actions: RowAction[] = [
     {
       key: "edit",
@@ -67,6 +75,7 @@ export function ResourceRowActions({
       onSelect: onEdit ?? (() => (routedEdit ? routedEdit[1](true) : setOpenAction("edit"))),
       disabledReason: denied("propose"),
     },
+    ...(source ? [{ key: "source", label: t("resourceList.viewSource"), href: source }] : []),
     {
       key: "saveAs",
       label: t("saveAs.button"),
