@@ -8,8 +8,8 @@ use serde_json::{json, Value};
 
 use super::bounds::{text, ID, NAME, TERM, TEXT};
 use super::{
-    change_schema, manifest_input_schema, parse_input, propose_with_optional_draft, Annotations,
-    Caller, ManifestInput, OpError, Operation, Via,
+    change_schema, check_for_kind, manifest_input_schema, parse_input, propose_with_optional_draft,
+    Annotations, Caller, ManifestInput, OpError, Operation, Via,
 };
 use crate::api::assistant::ref_name;
 use crate::api::changes;
@@ -459,7 +459,7 @@ async fn propose(
         state,
         project,
         info.plural,
-        "jc_manifest_dry_run",
+        check_for_kind(&kind),
         input,
     )
     .await

@@ -1350,10 +1350,6 @@ mod tests {
             opening,
             vec![
                 "jc_endpoint_propose",
-                "jc_datasource_propose",
-                "jc_pipeline_propose",
-                "jc_space_propose",
-                "jc_model_propose",
                 "jc_resource_propose",
                 "jc_resource_delete",
                 "jc_project_delete",
@@ -1381,7 +1377,7 @@ mod tests {
             );
         }
         // And the way out is named, so the refusal tells the model what to do instead.
-        assert!(opens_a_change("jc_space_propose")
+        assert!(opens_a_change("jc_resource_propose")
             .expect("named")
             .contains("change_resource"));
     }

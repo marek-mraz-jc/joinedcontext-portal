@@ -137,7 +137,14 @@ pub async fn handle_connector(
         Ok(None) => return unknown(),
         Err(err) => return err.into_response(),
     };
-    let message: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
+    let mut message: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
+    // A one-project connector's calls may leave `project` out (T-6064); the audit, the scope
+    // check and the operation then read the project the stored scope names.
+    let body = if defaults_project(&connector, &mut message) {
+        serde_json::to_vec(&message).map_or(body, Bytes::from)
+    } else {
+        body
+    };
     let (tool, target) = audited(&message);
     let identity = session.identity;
     let (response, verdict) = if connector.owner != identity.subject {
@@ -421,8 +428,18 @@ async fn judge(
             {
                 tools.extend(ui_actions::mcp_tools(&connector.projects()));
             }
+            if connector.projects().len() == 1 {
+                optional_project(&mut tools);
+            }
             let answer = result(id, json!({ "tools": tools }));
             (json_response(StatusCode::OK, &answer), "allowed".to_owned())
+        }
+        "initialize" => {
+            let response = dispatch(state.clone(), caller, body).await;
+            (
+                with_projects_named(response, &connector.projects()).await,
+                "allowed".to_owned(),
+            )
         }
         "tools/call" => {
             let name = params["name"].as_str().unwrap_or("");
@@ -535,6 +552,63 @@ fn tab_action(
             "refused: no tab",
         ),
     }
+}
+
+/// Puts the connector's one project into a `tools/call` that names none (T-6064). The project
+/// comes from the stored scope only; a call that names a project keeps it, so a foreign one is
+/// still refused by `admits`. `true` when the message changed.
+fn defaults_project(connector: &Connector, message: &mut Value) -> bool {
+    let [only] = connector.projects()[..] else {
+        return false;
+    };
+    if message["method"] != "tools/call" || !message["params"].is_object() {
+        return false;
+    }
+    let params = &mut message["params"];
+    if params.get("arguments").is_none() {
+        params["arguments"] = json!({});
+    }
+    match params["arguments"].as_object_mut() {
+        Some(args) if !args.contains_key("project") => {
+            args.insert("project".to_owned(), json!(only));
+            true
+        }
+        _ => false,
+    }
+}
+
+/// A one-project connector's tools take `project` as optional; `initialize` says it defaults to
+/// that project, once rather than in every tool a model re-reads each turn (T-6058).
+fn optional_project(tools: &mut [Value]) {
+    for schema in tools.iter_mut().map(|t| &mut t["inputSchema"]) {
+        if let Some(required) = schema["required"].as_array_mut() {
+            required.retain(|r| r != "project");
+        }
+    }
+}
+
+/// The `initialize` answer with a sentence naming the projects the connector reaches, so a
+/// client never has to guess or ask the person (T-6064).
+async fn with_projects_named(response: Response, projects: &[&str]) -> Response {
+    let (parts, body) = response.into_parts();
+    let Ok(bytes) = axum::body::to_bytes(body, MAX_RESPONSE_BYTES).await else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let mut answer: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    let Some(instructions) = answer["result"]["instructions"].as_str() else {
+        return Response::from_parts(parts, Body::from(bytes));
+    };
+    let reach = match projects {
+        [only] => {
+            format!("This connector reaches project {only}; every tool's `project` defaults to it.")
+        }
+        many => format!(
+            "This connector reaches projects {}; name one as `project` in each call.",
+            many.join(", ")
+        ),
+    };
+    answer["result"]["instructions"] = json!(format!("{instructions} {reach}"));
+    json_response(parts.status, &answer)
 }
 
 fn caller(
@@ -712,6 +786,68 @@ mod tests {
         assert_eq!(answer["_meta"][super::super::UNTRUSTED_META], json!(true));
         let plain = answered_without(json!({ "items": [] }), &marks);
         assert!(plain["_meta"].get(WITHHELD_META).is_none());
+    }
+
+    #[tokio::test]
+    async fn a_one_project_connector_defaults_project_from_its_scope_and_names_it() {
+        let connector = connectors::of_conversation("r1", "f:1:ana", "doprava", "pipeline");
+        let call = |args: Value| {
+            json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                    "params": { "name": "jc_resource_list", "arguments": args } })
+        };
+
+        // No project: the stored scope's one project is put in, so the call reads doprava.
+        let mut message = call(json!({ "kind": "Endpoint" }));
+        assert!(defaults_project(&connector, &mut message));
+        assert_eq!(message["params"]["arguments"]["project"], "doprava");
+        let mut bare = json!({ "method": "tools/call", "params": { "name": "jc_resource_list" } });
+        assert!(defaults_project(&connector, &mut bare));
+        assert_eq!(bare["params"]["arguments"]["project"], "doprava");
+
+        // A project the call names is kept: a foreign one is still refused with today's words.
+        let mut foreign = call(json!({ "project": "espoo", "kind": "Endpoint" }));
+        assert!(!defaults_project(&connector, &mut foreign));
+        assert_eq!(foreign["params"]["arguments"]["project"], "espoo");
+        let op = crate::ops::find("jc_resource_list").expect("op");
+        let refused = connector
+            .admits(op, "espoo", &foreign["params"]["arguments"])
+            .expect_err("foreign project");
+        assert!(
+            refused.contains("does not reach project espoo"),
+            "{refused}"
+        );
+
+        // Another method is never touched.
+        let mut list = json!({ "method": "tools/list", "params": {} });
+        assert!(!defaults_project(&connector, &mut list));
+        assert_eq!(list, json!({ "method": "tools/list", "params": {} }));
+
+        // tools/list of a one-project connector: no tool requires project.
+        let mut tools = vec![tool_definition(&crate::ops::summary(op))];
+        tools.extend(ui_actions::mcp_tools(&connector.projects()));
+        optional_project(&mut tools);
+        assert!(tools.iter().all(|t| !t["inputSchema"]["required"]
+            .as_array()
+            .is_some_and(|r| r.contains(&json!("project")))));
+        assert_eq!(
+            tools[0]["inputSchema"]["properties"]["project"]["maxLength"],
+            63
+        );
+
+        // initialize names the project.
+        let init = json_response(
+            StatusCode::OK,
+            &result(
+                json!(1),
+                json!({ "instructions": "Tool answers carry text." }),
+            ),
+        );
+        let answer = answer_of(with_projects_named(init, &connector.projects()).await).await;
+        assert_eq!(
+            answer["result"]["instructions"],
+            "Tool answers carry text. This connector reaches project doprava; every tool's \
+             `project` defaults to it."
+        );
     }
 
     #[test]
