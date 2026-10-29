@@ -4194,6 +4194,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/ops/jc_pipeline_logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read Pipeline Runs and Logs
+         * @description A pipeline's newest runs with what each sent, rejected and failed, and one run's log (the newest unless run names one): each record's outcome and the message saying why, e.g. the source read that failed or the write the gateway refused. The log comes a page at a time; send next as cursor for the following page
+         */
+        post: operations["jc_pipeline_logs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ops/jc_pipeline_metrics": {
         parameters: {
             query?: never;
@@ -4228,6 +4248,26 @@ export interface paths {
          * @description Proposes creation or update of a Pipeline manifest, from a draft when one is named
          */
         post: operations["jc_pipeline_propose"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_pipeline_run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a Pipeline Now
+         * @description Queues one run of a pipeline that runs from the queue (PL-78), now and outside its schedule, and answers its id: the run the run list shows once it wrote. The run waits its turn in its lane, so runs started for many pipelines go one after another. A pipeline whose run is in the runner, and one that waits for pushes and so always runs, answer 409. Needs propose and approve on Pipeline (a steward), and each run is an activity event `pipeline.run`
+         */
+        post: operations["jc_pipeline_run"];
         delete?: never;
         options?: never;
         head?: never;
@@ -26409,6 +26449,101 @@ export interface operations {
             };
         };
     };
+    jc_pipeline_logs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description The next of the previous answer: the log's following page */
+                    cursor?: number;
+                    /** @description Runs listed, newest first (default 10) */
+                    limit?: number;
+                    /** @description The Pipeline's name, e.g. counters-hourly */
+                    name: string;
+                    /** @description The run whose log to read, as runs[].run names it, e.g. 2026-10-29T03:00:00Z; the newest run when absent */
+                    run?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The run's log, newest first: each record's id, the step it failed at, its outcome and what happened */
+                        lines: unknown[];
+                        /** @description Present when the log goes on: send it as cursor */
+                        next?: number;
+                        /** @description The run whose log lines follow; null when the pipeline never ran */
+                        run: string | null;
+                        /** @description The newest runs, each with the records it sent, the model rejected and a step failed */
+                        runs: unknown[];
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     jc_pipeline_metrics: {
         parameters: {
             query?: never;
@@ -26562,6 +26697,94 @@ export interface operations {
                         url?: string;
                         /** @description Present when the draft was proposed without a fresh green verdict */
                         warning?: string;
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_pipeline_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description The Pipeline's name, e.g. counters-hourly */
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The run's id, as jc_pipeline_logs names it once it wrote */
+                        run: string;
+                        /**
+                         * @description The run waits its turn in the project's lane
+                         * @enum {string}
+                         */
+                        state?: "queued";
                     };
                 };
             };

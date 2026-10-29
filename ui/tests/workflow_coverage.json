@@ -702,7 +702,7 @@
           "spec": "pipeline-run-now.spec.ts",
           "test": "a steward runs a queued pipeline now and the run appears in its runs"
         },
-        "personOnly": "a steward fills a new dataset without waiting for its night; an agent proposes the pipeline and its first run comes from the queue (PL-78)",
+        "personOnly": "a steward fills a new dataset without waiting for its night; the Portal assistant proposes the pipeline and its first run comes from the queue, an MCP connector with writes starts it with `jc_pipeline_run` (PL-78, T-6028)",
         "routes": [
           "POST /api/v1/projects/{project}/pipelines/{name}/runs"
         ]
