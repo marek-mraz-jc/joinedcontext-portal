@@ -4,7 +4,6 @@
 S-01 T-6027 jc_resource_list answers name and space only: no entity types, no access URL
 S-06 T-6027 no tool lists an Endpoint's representation URLs
 S-08 T-6027 jc_catalog_search finds one project's resources, not open data catalogue datasets with links
-S-23 T-6001 the plan cannot name stored attributes: Antares answers the Portal admin token only on /q and has no route listing a type's held attribute names
 S-30 T-6027 no tool answers who may write to an Endpoint
 S-39 T-5962 an App run is built by the builder model on a Gitea runner and answers at its preview URL; the scripted lane runs neither, so only the live walk on dev proves it
 S-40 T-6027 no tool returns a widget embed snippet

@@ -389,6 +389,16 @@ async fn checked(
         }
         None => removal_dry_run(caller, state, &home, info.plural, &change.name, workspace).await?,
     };
+    let mut answer = answer;
+    if let (Some(m), "Pipeline") = (&manifest, info.kind) {
+        let warnings = super::replace_check::warnings(state, project, &home, m).await;
+        if let Some(findings) = answer
+            .pointer_mut("/verdict/findings")
+            .and_then(Value::as_array_mut)
+        {
+            findings.extend(warnings);
+        }
+    }
     let model = match change.source {
         None => None,
         Some(_) => Some(model_checked(caller, state, at, &home, change, manifest.as_ref()).await?),
