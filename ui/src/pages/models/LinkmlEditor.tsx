@@ -40,7 +40,9 @@ export interface LinkmlEditorProps {
   readOnlyDrawing?: boolean;
 }
 
-const EDIT_VIEWS: EditorView[] = ["structure", "source", "graph", "preview"];
+// The order the owner reads a model in (T-6101): what it holds, how it connects, what an entity
+// looks like, and the LinkML last.
+const EDIT_VIEWS: EditorView[] = ["structure", "graph", "preview", "source"];
 const SUBSET_VIEWS: EditorView[] = ["subset", "preview"];
 
 export function LinkmlEditor({

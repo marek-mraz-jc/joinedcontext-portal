@@ -32,6 +32,9 @@ import {
 import type { Diagnostic, LinkmlSlot, NgsiLdKind } from "./linkml";
 import { applyOperations } from "./operations";
 import { UnitPicker } from "../../components/pickers/UnitPicker";
+import { unitSymbol } from "../../units";
+import { dropsUnit, rangeForUnit, unitNotice } from "./unitRule";
+import type { UnitNotice } from "./unitRule";
 import type { Operation, SlotField } from "./operations";
 import { RelationshipEditor } from "./RelationshipEditor";
 import { fieldWord, FIELD_RANGE, useFieldWords } from "../../components/entities/fieldTypes";
@@ -101,6 +104,43 @@ export function LinkmlVisualEditor({
     const reason = runQuietly(operation);
     setRefusal(reason);
     return reason === null;
+  };
+
+  /**
+   * A unit and the type of value move together (T-6101): the second change is made with the
+   * first, said in words, and one Undo puts the document back as it was before both.
+   */
+  const [unitUndo, setUnitUndo] = useState<{ before: string; notice: UnitNotice; slot: string } | null>(null);
+  const runPaired = (slot: string, operations: Operation[], notice: UnitNotice | undefined) => {
+    const before = source;
+    const applied = applyOperations(source, operations);
+    setRefusal(applied.refused[0]?.reason ?? null);
+    if (applied.refused.length > 0) return;
+    onChange(applied.source);
+    setUnitUndo(notice ? { before, notice, slot } : null);
+  };
+  const pickUnit = (slot: LinkmlSlot, code: string) => {
+    const range = rangeForUnit(slot.range, code);
+    runPaired(
+      slot.name,
+      [
+        ...(range ? [{ op: "setSlot", name: slot.name, field: "range", value: range } as Operation] : []),
+        { op: "setSlot", name: slot.name, field: "unit", value: code },
+      ],
+      unitNotice(slot.range, code),
+    );
+  };
+  const pickRange = (slot: LinkmlSlot, range: string) => {
+    const unit = unitCode(slot.unit);
+    const drop = dropsUnit(range, unit);
+    runPaired(
+      slot.name,
+      [
+        { op: "setSlot", name: slot.name, field: "range", value: range },
+        ...(drop ? [{ op: "setSlot", name: slot.name, field: "unit", value: "" } as Operation] : []),
+      ],
+      drop ? "droppedUnit" : undefined,
+    );
   };
 
   /** The same, answering the refusal to the section that shows it beside its own fields. */
@@ -524,7 +564,7 @@ export function LinkmlVisualEditor({
                     </TableCell>
                     <TableCell>{slot ? word(fieldWord(slot, model)) : "—"}</TableCell>
                     <TableCell>{slot?.kind ?? DEFAULT_KIND}</TableCell>
-                    <TableCell>{slot?.unit?.ucum_code ?? "—"}</TableCell>
+                    <TableCell>{unitSymbol(unitCode(slot?.unit)) || slot?.unit?.ucum_code || "—"}</TableCell>
                     <TableCell>{slot ? t(`models.affordance.${slotAffordance(slot, model.enums.map((one) => one.name))}`) : "—"}</TableCell>
                   </TableRow>
                 );
@@ -566,7 +606,7 @@ export function LinkmlVisualEditor({
                       setPrefill((last) => ({ target: range, key: (last?.key ?? 0) + 1 }));
                       return;
                     }
-                    setSlotField(activeSlot.name, "range", range);
+                    pickRange(activeSlot, range);
                   }}
                 >
                   <option value="">—</option>
@@ -622,10 +662,27 @@ export function LinkmlVisualEditor({
                   labelled
                   clearable
                   value={unitCode(activeSlot.unit) ?? ""}
-                  onChange={(code) => setSlotField(activeSlot.name, "unit", code)}
+                  onChange={(code) => pickUnit(activeSlot, code)}
                 />
               </Field>
             </div>
+            {unitUndo && unitUndo.slot === activeSlot.name ? (
+              <Alert tone="info" role="status">
+                <span className="flex flex-wrap items-center justify-between gap-2">
+                  <span>{t(`models.unitRule.${unitUndo.notice}`)}</span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      onChange(unitUndo.before);
+                      setUnitUndo(null);
+                    }}
+                  >
+                    {t("models.unitRule.undo")}
+                  </Button>
+                </span>
+              </Alert>
+            ) : null}
             <details className="rounded border border-border p-2" open={iriError !== null}>
               <summary className="cursor-pointer text-body font-medium">{t("models.advanced")}</summary>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
