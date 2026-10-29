@@ -2485,3 +2485,97 @@ async fn every_tools_call_is_one_activity_row_of_the_person_through_mcp() {
         "a refused stranger wrote into the project: {elsewhere}"
     );
 }
+
+/// T-6059: `tools/list` names the kinds a caller may read as the `kind` enum of
+/// `jc_resource_list` and `jc_resource_get`, the kinds its bindings grant and nothing else; a
+/// kind outside the enum is still refused on call.
+#[tokio::test]
+async fn the_kind_enum_holds_the_kinds_the_caller_may_read() {
+    let (app, issuer, signer, kid) = setup_app_and_keys().await;
+    let list = json!({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": { "project": "ovzdusie" }
+    });
+    let enums = |answer: &Value| -> Vec<Vec<String>> {
+        ["jc_resource_list", "jc_resource_get"]
+            .iter()
+            .map(|name| {
+                let tool = answer["result"]["tools"]
+                    .as_array()
+                    .and_then(|tools| tools.iter().find(|t| t["name"] == *name))
+                    .unwrap_or_else(|| panic!("{name} listed: {answer}"));
+                let mut kinds: Vec<String> = serde_json::from_value(
+                    tool["inputSchema"]["properties"]["kind"]["enum"].clone(),
+                )
+                .unwrap_or_else(|e| panic!("{name} kind enum: {e}: {tool}"));
+                kinds.sort();
+                kinds
+            })
+            .collect()
+    };
+
+    // pipeline.editor's one binding reads Pipeline, organization-wide.
+    let editor = sign_token(
+        &signer,
+        &kid,
+        &issuer,
+        PORTAL_AUDIENCE,
+        "pipeline.editor",
+        &[],
+        &[],
+    );
+    let answer = rpc(app.clone(), &editor, list.clone()).await;
+    let granted = vec!["Pipeline".to_owned()];
+    assert_eq!(enums(&answer), vec![granted.clone(), granted]);
+
+    // The schema narrows what a model is offered; the call still checks the kind.
+    let call = json!({
+        "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+        "params": { "name": "jc_resource_list", "arguments": { "project": "ovzdusie", "kind": "Endpoint" } }
+    });
+    let refused = rpc(app.clone(), &editor, call.clone()).await;
+    assert_eq!(refused["result"]["isError"], json!(true), "{refused}");
+    let said = refused["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        said.contains("you may read there are Pipeline"),
+        "{refused}"
+    );
+
+    // The viewer's binding grants no verb: no kind to name, so neither tool is offered, and a
+    // call naming one is refused as before.
+    let viewer = sign_token(
+        &signer,
+        &kid,
+        &issuer,
+        PORTAL_AUDIENCE,
+        "viewer.user",
+        &[],
+        &["city-viewers"],
+    );
+    let answer = rpc(app.clone(), &viewer, list.clone()).await;
+    let offered = answer["result"]["tools"].to_string();
+    assert!(
+        !offered.contains("jc_resource_list") && !offered.contains("jc_resource_get"),
+        "{answer}"
+    );
+    let refused = rpc(app.clone(), &viewer, call).await;
+    assert_eq!(refused["result"]["isError"], json!(true), "{refused}");
+
+    // The bootstrap administrator reads every kind of the Portal.
+    let steward = sign_token(
+        &signer,
+        &kid,
+        &issuer,
+        PORTAL_AUDIENCE,
+        "steward.user",
+        &["portal-approver"],
+        &["platform-admins"],
+    );
+    let answer = rpc(app, &steward, list).await;
+    let mut every: Vec<String> = joinedcontext_portal::resource::kinds()
+        .map(|info| info.kind.to_owned())
+        .collect();
+    every.sort();
+    assert_eq!(enums(&answer), vec![every.clone(), every]);
+}
