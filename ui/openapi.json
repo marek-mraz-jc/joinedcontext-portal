@@ -16747,6 +16747,171 @@
         }
       }
     },
+    "/api/v1/projects/{project}/ops/jc_change_revert_plan": {
+      "post": {
+        "description": "Plans the undo of a merged Change, every file back to before it, for jc_change_apply; 409 names files changed since",
+        "operationId": "jc_change_revert_plan",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "id": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "description": "The merged Change to undo, e.g. chg-0000002a",
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "workspace": {
+                    "description": "Commit the revert into this workspace (a copy of the project) instead of opening change requests",
+                    "maxLength": 253,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "baseEtag": {
+                      "type": "string"
+                    },
+                    "diff": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "expiresAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "lane": {
+                      "enum": [
+                        "green",
+                        "yellow",
+                        "red"
+                      ],
+                      "type": "string"
+                    },
+                    "needsSecret": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "next": {
+                      "type": "string"
+                    },
+                    "planId": {
+                      "type": "string"
+                    },
+                    "reverts": {
+                      "type": "string"
+                    },
+                    "verdict": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "planId",
+                    "baseEtag",
+                    "expiresAt",
+                    "diff",
+                    "verdict"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Plan Revert",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "*",
+          "verb": "propose"
+        }
+      }
+    },
     "/api/v1/projects/{project}/ops/jc_ckan_status": {
       "post": {
         "description": "The catalogues this project publishes to, and what each endpoint's publication is doing",
