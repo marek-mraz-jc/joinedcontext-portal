@@ -549,7 +549,7 @@ function ChipInput({
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               id={`${id}-input`}
-              className="min-w-0 flex-1 font-mono"
+              className="min-w-0 font-mono sm:flex-1"
               value={text}
               placeholder={placeholder ?? t("mqttbrokers.edit.hint.topicExample")}
               aria-invalid={wrong ? true : undefined}

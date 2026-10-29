@@ -168,7 +168,7 @@
 }
 
 /* A table opted in with `stack` reads as one card per row below 640 px: each cell on its own line
-   after its column's name (`data-label`), so no column waits past a phone's edge (T-6103). The
+   beside its column's name (`data-label`), so no column waits past a phone's edge (T-6103). The
    header stays for a screen reader, which reads the cells as a table at every width. */
 @utility table-stack {
   @media (width < 40rem) {
@@ -191,9 +191,16 @@
     & td {
       padding-block: 0.125rem;
     }
+    & td[data-label] {
+      display: grid;
+      grid-template-columns: 6.5rem minmax(0, 1fr);
+      gap: 0.5rem;
+      align-items: baseline;
+      justify-items: start;
+      overflow-wrap: anywhere;
+    }
     & td[data-label]::before {
       content: attr(data-label);
-      display: block;
       color: var(--color-fg-muted);
       font-size: 0.75rem;
     }
