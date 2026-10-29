@@ -1355,6 +1355,24 @@
         "evidence/worker-t4871/T-4871/star-viewer-400.png"
       ]
     },
+    "src/pages/mcp/AiConnectorsPage.tsx": {
+      "walkedBy": "worker-t5951 (e2e stub walk)",
+      "date": "2026-10-28",
+      "screenshots": [
+        "evidence/worker-t5951/T-5951/ai-connectors-empty-1440.png",
+        "evidence/worker-t5951/T-5951/ai-connectors-empty-400.png",
+        "evidence/worker-t5951/T-5951/ai-connectors-form-1440.png",
+        "evidence/worker-t5951/T-5951/ai-connectors-form-400.png",
+        "evidence/worker-t5951/T-5951/ai-connectors-filled-1440.png",
+        "evidence/worker-t5951/T-5951/ai-connectors-filled-400.png",
+        "evidence/worker-t5951/T-5951/ai-connectors-revoked-1440.png",
+        "evidence/worker-t5951/T-5951/ai-connectors-revoked-400.png",
+        "evidence/worker-t5951/T-5951/ai-connectors-error-1440.png",
+        "evidence/worker-t5951/T-5951/ai-connectors-error-400.png",
+        "evidence/worker-t5951/T-5951/ai-connectors-refusal-1440.png",
+        "evidence/worker-t5951/T-5951/ai-connectors-refusal-400.png"
+      ]
+    },
     "src/pages/mcp/ConnectorsPage.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",

@@ -525,6 +525,7 @@ async fn record_check_as(
     verdict: &crate::ops::verdict::Verdict,
 ) {
     let caller = crate::ops::Caller {
+        bearer: None,
         identity: user.0.identity.clone(),
         via: match front {
             Front::Portal | Front::Edge => crate::ops::Via::Session,
@@ -2495,6 +2496,7 @@ async fn propose_draft(
     let op = crate::ops::find(name)
         .ok_or_else(|| ApiError::Internal(format!("operation '{name}' is not registered")))?;
     let caller = crate::ops::Caller {
+        bearer: None,
         identity: user.0.identity,
         via: match front {
             Front::Portal | Front::Edge => crate::ops::Via::Session,
@@ -2635,7 +2637,7 @@ pub async fn replace(
     body: Bytes,
 ) -> Result<Response, ApiError> {
     let is_dry = dry_run::is_dry_run(&dry_run_q)?;
-    crate::api::resources::check_if_match(
+    crate::api::if_match::check_if_match(
         &state,
         &user.0.identity,
         &project,
@@ -2714,7 +2716,7 @@ pub async fn patch(
     body: Bytes,
 ) -> Result<Response, ApiError> {
     let is_dry = dry_run::is_dry_run(&dry_run_q)?;
-    crate::api::resources::check_if_match(
+    crate::api::if_match::check_if_match(
         &state,
         &user.0.identity,
         &project,

@@ -374,10 +374,17 @@ routes:
     rule: "signed-in, own connectors only; scope within the caller's rights and the ceiling"
     expect: [403, 400, 400, 400, 400, 400, 400, 403]
     note: "the fixture sends no body, so every person's 400 is the missing connector; tests/connector_scenarios.rs creates real ones"
+  - route: GET /connectors/options
+    rule: "signed-in; lists only the projects, spaces, Endpoints and pipelines the caller reads"
+    expect: [401, allow, allow, allow, allow, allow, allow, 403]
   - route: GET /connectors/{id}
     rule: "signed-in, own connectors only"
     expect: [401, 404, 404, 404, 404, 404, 404, 404]
     note: "the fixture holds no connector: every person's 404 is the unknown id, the same answer as another person's connector"
+  - route: PATCH /connectors/{id}
+    rule: "signed-in, own connectors only; the edited grant within the caller's rights and the ceiling"
+    expect: [403, 404, 404, 404, 404, 404, 404, 403]
+    note: "the fixture holds no connector: every person's 404 is the unknown id; a workload holds none (403)"
   - route: DELETE /connectors/{id}
     rule: "signed-in, own connectors only"
     expect: [403, 404, 404, 404, 404, 404, 404, 404]

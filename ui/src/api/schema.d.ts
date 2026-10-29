@@ -495,6 +495,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connectors/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What My Connector May Reach
+         * @description The presets, the caller's ceiling and, per project the caller reads, the spaces, Endpoints and pipelines they read: what a new connector may name. Create checks every item again (T-5951, AG-150).
+         */
+        get: operations["connector_options"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connectors/{id}": {
         parameters: {
             query?: never;
@@ -513,7 +533,11 @@ export interface paths {
         delete: operations["revoke_connector"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Edit My Connector
+         * @description Changes the presets, scope, writes, expiry or allowed clients of the caller's connector that is not revoked; the result is checked as a new one is, against the ceiling and the caller's rights today (API/14 §2, T-5951).
+         */
+        patch: operations["edit_connector"];
         trace?: never;
     };
     "/api/v1/connectors/{id}/activity": {
@@ -3540,6 +3564,26 @@ export interface paths {
          * @description The catalogues this project publishes to, and what each endpoint's publication is doing
          */
         post: operations["jc_ckan_status"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_data_query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Query Data
+         * @description Reads one Endpoint's entities as you, current or history (temporal), with type, id, q, attrs, a geo-query, count and paging
+         */
+        post: operations["jc_data_query"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7371,6 +7415,17 @@ export interface components {
             /** Format: int32 */
             limit: number;
         };
+        CeilingView: {
+            /**
+             * Format: int64
+             * @description The longest life a connector may get, in days.
+             */
+            maxDays: number;
+            /** @description The presets a connector of the caller may carry, e.g. `["data-read"]`. */
+            segments: string[];
+            /** @description Whether a connector of the caller may hold a write item. */
+            writes: boolean;
+        };
         /** @description The `Change` resource describing a proposed configuration update. */
         Change: {
             apiVersion: string;
@@ -7542,6 +7597,14 @@ export interface components {
             type: string;
             /** @description The version the space pins. */
             version: string;
+        };
+        ClientChoice: {
+            id: string;
+            /**
+             * @description Whether naming it binds the connector (a published client id) or only says whom it is
+             *     meant for (a loopback client anyone can name, AG-153).
+             */
+            isBoundary: boolean;
         };
         ColourRule: {
             /** @description One of `neutral`, `info`, `success`, `warning`, `danger`. */
@@ -7739,6 +7802,18 @@ export interface components {
         ConnectorList: {
             items: components["schemas"]["ConnectorGrant"][];
         };
+        /**
+         * @description What the caller may put in a connector today: the ceiling, and per project they read the
+         *     spaces, Endpoints and pipelines they read there (the "My connectors" tree, T-5951).
+         */
+        ConnectorOptions: {
+            ceiling: components["schemas"]["CeilingView"];
+            /** @description The realm's MCP clients a connector may be bound to, e.g. `mcp-local` (Claude Code). */
+            clients: components["schemas"]["ClientChoice"][];
+            projects: components["schemas"]["ProjectReach"][];
+            /** @description Every preset a connector may name; those outside `ceiling.segments` need approval. */
+            segments: string[];
+        };
         ConnectorOverview: {
             /**
              * Format: int64
@@ -7747,6 +7822,18 @@ export interface components {
             denialsFlag: number;
             items: components["schemas"]["ConnectorUsage"][];
         };
+        /** @description The fields of a connector its owner may change (JSON merge patch, API/14 §2); the name stays. */
+        ConnectorPatch: {
+            allowedClients?: string[] | null;
+            /**
+             * Format: date-time
+             * @description RFC 3339, e.g. `2026-11-27T00:00:00Z`.
+             */
+            expiresAt?: string | null;
+            scope?: components["schemas"]["ConnectorScopeItem"][] | null;
+            segments?: string[] | null;
+            writes?: boolean | null;
+        };
         /**
          * @description One item of a connector's scope: a project, and at most one of a space, an Endpoint or a
          *     pipeline in it (`*` for every one the owner reaches). Without one it is the whole project.
@@ -7754,6 +7841,11 @@ export interface components {
         ConnectorScopeItem: {
             access: components["schemas"]["ConnectorAccess"];
             endpoint?: string | null;
+            /**
+             * @description Whether answers through this item keep the attributes the model marks `personalData`
+             *     (DM-122): off by default, and only where the organization's ceiling allows it (AG-158).
+             */
+            personalData?: boolean;
             pipeline?: string | null;
             /** @description A project slug, e.g. `doprava`. */
             project: string;
@@ -10014,6 +10106,13 @@ export interface components {
             quota: {
                 [key: string]: components["schemas"]["QuotaUse"];
             };
+        };
+        /** @description One project the caller reads, with the objects of it they read, in name order. */
+        ProjectReach: {
+            endpoints: string[];
+            pipelines: string[];
+            project: string;
+            spaces: string[];
         };
         ProjectStatus: {
             /**
@@ -12394,6 +12493,44 @@ export interface operations {
             };
         };
     };
+    connector_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What a connector of the caller may name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorOptions"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A service account holds no connector */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     get_connector: {
         parameters: {
             query?: never;
@@ -12474,6 +12611,89 @@ export interface operations {
             };
             /** @description No live connector of the caller's with this id */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    edit_connector: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The connector id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "expiresAt": "2026-11-27T00:00:00Z",
+                 *       "scope": [
+                 *         {
+                 *           "access": "read",
+                 *           "project": "doprava"
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/merge-patch+json": components["schemas"]["ConnectorPatch"];
+            };
+        };
+        responses: {
+            /** @description The connector as it is now */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorGrant"];
+                };
+            };
+            /** @description A field out of shape; errors names it */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Above the ceiling, or a project the caller holds no right in; the detail names the field */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No live connector of the caller's with this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A scope item names an object the caller does not read */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -22952,6 +23172,127 @@ export interface operations {
                     "application/json": {
                         instances: Record<string, never>[];
                         publications: Record<string, never>[];
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_data_query: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "endpoint": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description The attributes answered, e.g. ["count"] */
+                    attrs?: string[];
+                    /** @description GeoJSON coordinates, longitude first, e.g. [19.146, 48.736] */
+                    coordinates?: unknown[];
+                    /** @description Answer the total of matching entities too */
+                    count?: boolean;
+                    /** @description The nextCursor of the previous page */
+                    cursor?: string;
+                    /** @description The Endpoint's metadata.name in the project, e.g. doprava-counters */
+                    endpoint: string;
+                    /** @enum {string} */
+                    format?: "normalized" | "concise" | "keyValues";
+                    /** @enum {string} */
+                    geometry?: "Point" | "LineString" | "Polygon" | "MultiPoint" | "MultiLineString" | "MultiPolygon";
+                    /** @description near;maxDistance==500, within, intersects, contains, disjoint, equals or overlaps */
+                    georel?: string;
+                    /** @description One entity's id, e.g. urn:ngsi-ld:BikeCounter:c1 */
+                    id?: string;
+                    /** @description Entities per page; 0 with count answers the total alone */
+                    limit?: number;
+                    /** @description attr or attr;desc, e.g. modifiedAt;desc */
+                    orderBy?: string;
+                    /** @description An NGSI-LD q, e.g. count>40;name~="Most" */
+                    q?: string;
+                    /** @description Read the history instead of the current values */
+                    temporal?: {
+                        aggrMethods?: ("avg" | "min" | "max" | "sum" | "totalCount" | "distinctCount" | "stddev" | "sumsq")[];
+                        /** @description ISO 8601 duration, e.g. PT1H */
+                        aggrPeriodDuration?: string;
+                        /** @description ISO 8601, the end of a between */
+                        endTimeAt?: string;
+                        lastN?: number;
+                        /** @description ISO 8601, e.g. 2026-10-27T00:00:00Z */
+                        timeAt: string;
+                        /** @enum {string} */
+                        timerel: "before" | "after" | "between";
+                    };
+                    /** @description The entity type, e.g. BikeCounter */
+                    type?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        entities: Record<string, never>[];
+                        nextCursor?: string;
+                        total?: number;
                     };
                 };
             };

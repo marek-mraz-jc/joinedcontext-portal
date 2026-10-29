@@ -48,6 +48,7 @@ pub(super) fn offered(
     project: &str,
 ) -> Vec<OperationSummary> {
     let caller = crate::ops::Caller {
+        bearer: None,
         identity: identity.clone(),
         via: crate::ops::Via::Agent,
         access: None,
@@ -59,6 +60,9 @@ pub(super) fn offered(
         // T-5948: kind schemas reach MCP clients (tools/list, jc_schema_get), not this prompt,
         // which keeps its 4k-token turn (AG-72) until T-5958 replaces it.
         .filter(|op| op.name != crate::ops::schemas::GET)
+        // A run reads data through the agent proxy's query_endpoint; jc_data_query exchanges the
+        // caller's own token, which a run does not hold (T-5986).
+        .filter(|op| op.name != crate::ops::data_query::NAME)
         .collect()
 }
 
@@ -289,6 +293,7 @@ impl Driver {
             }
         };
         let caller = crate::ops::Caller {
+            bearer: None,
             identity: self.identity.clone(),
             via: crate::ops::Via::Agent,
             access: None,
@@ -1036,6 +1041,7 @@ impl Driver {
         let op = crate::ops::find("jc_resource_list")
             .ok_or_else(|| "the resource listing is not registered".to_owned())?;
         let caller = crate::ops::Caller {
+            bearer: None,
             identity: self.identity.clone(),
             via: crate::ops::Via::Agent,
             access: None,

@@ -7868,7 +7868,7 @@
       "filter": "Filter",
       "filterHelp": "A connector's name, its owner or a client, e.g. jana or claude.ai",
       "state": "State",
-      "stateHelp": "Active connectors answer calls; e.g. pick Revoked to see what offboarding ended",
+      "stateHelp": "Active connectors answer calls; Revoked shows what an administrator or offboarding ended",
       "stateAny": "Every state",
       "states": {
         "active": "Active",
@@ -7876,7 +7876,7 @@
         "revoked": "Revoked"
       },
       "flaggedOnly": "Flagged only",
-      "flaggedHelp": "Connectors refused many times in the last day, e.g. a client probing past its scope",
+      "flaggedHelp": "Connectors refused 10 or more times in the last day, the trace a client probing past its scope leaves",
       "flaggedSummary": "{count, plural, one {# active connector is flagged} other {# active connectors are flagged}}: {denials} or more refused calls in the last day. Review its owner's scope or revoke it.",
       "connector": "Connector",
       "owner": "Owner",
@@ -10582,5 +10582,128 @@
     "view": "View",
     "tool": "Tool",
     "home": "Back to the Portal"
+  },
+  "aiConnectors": {
+    "title": "My AI connectors",
+    "lead": "Addresses for Claude, ChatGPT or VS Code that reach only what you tick here, and never more than you may do yourself. Each AI client signs you in itself; this page shows no token.",
+    "new": "New AI connector",
+    "full": "You hold 20 live AI connectors; revoke one first.",
+    "loading": "Loading your AI connectors",
+    "empty": "No AI connectors yet",
+    "emptyHint": "Create one, pick what it may reach, then paste its address into Claude Code, claude.ai, ChatGPT or VS Code.",
+    "never": "never",
+    "setup": "Set up",
+    "activity": "Activity",
+    "revoke": "Revoke",
+    "revokeOf": "Revoke AI connector {name}",
+    "revokeConfirm": "Revoke {name}? The next call through it is refused, and it cannot be turned on again.",
+    "revokeNow": "Revoke now",
+    "keep": "Keep it",
+    "scopeOf": "What {name} reaches",
+    "every": "every one you may read",
+    "anyClient": "any AI client",
+    "lastCall": "Last call",
+    "setupTitle": "Add it to your AI client",
+    "activityLoading": "Loading the calls",
+    "noCalls": "No calls through this connector in the last 30 days.",
+    "activityOf": "Calls through {name}",
+    "noProjects": "You read no project yet, so there is nothing a connector could reach. Ask a project owner for access first.",
+    "accessOf": "Access for {what}",
+    "inWholeProject": "Already in: the whole project is ticked.",
+    "wholeProject": "{project}: the whole project",
+    "newTitle": "New AI connector",
+    "formLead": "Tick what the connector may reach. The list holds only what you may read, and the Portal checks every item again when you create it.",
+    "create": "Create",
+    "loadingOptions": "Loading what you may give",
+    "needsApproval": "needs your organization's approval",
+    "aboveCeiling": "Your organization does not let a connector carry this preset yet.",
+    "binds": "only this client can use it",
+    "intendedFor": "says whom it is for; other local programs can name it too",
+    "state": {
+      "active": "Active",
+      "expired": "Expired",
+      "revoked": "Revoked"
+    },
+    "kind": {
+      "project": "whole project",
+      "space": "space",
+      "endpoint": "Endpoint",
+      "pipeline": "pipeline"
+    },
+    "kinds": {
+      "space": "Context spaces",
+      "endpoint": "Endpoints",
+      "pipeline": "Pipelines"
+    },
+    "access": {
+      "read": "read",
+      "write": "write",
+      "writeNeedsApproval": "write (needs approval)"
+    },
+    "field": {
+      "name": "Name",
+      "segments": "Presets",
+      "scope": "What it reaches",
+      "expires": "Expires",
+      "clients": "Allowed clients"
+    },
+    "segment": {
+      "data-read": "Data read",
+      "context": "Context (models, spaces, Endpoints)",
+      "pipeline": "Pipelines",
+      "access": "Access",
+      "publish": "Publishing",
+      "apps": "Apps",
+      "operate": "Operations",
+      "admin": "Everything (admin)"
+    },
+    "segmentHint": {
+      "data-read": "reads Endpoints, spaces and models, e.g. to answer questions about data",
+      "context": "reads models, spaces, Endpoints and Policies",
+      "pipeline": "reads pipelines, sources and their metrics",
+      "access": "reads roles, bindings, groups and service accounts",
+      "publish": "reads the catalogue and CKAN status",
+      "apps": "reads Apps and their runs",
+      "operate": "reads activity, changes and sync status",
+      "admin": "every preset above"
+    },
+    "client": {
+      "claudeCode": "Claude Code",
+      "claudeAi": "claude.ai",
+      "chatgpt": "ChatGPT",
+      "vscode": "VS Code (.vscode/mcp.json)",
+      "mcp-local": "Claude Code, VS Code and other local clients",
+      "mcp-hub": "The organization's MCP hub",
+      "mcp-mobile": "The mobile assistant"
+    },
+    "steps": {
+      "claudeAi": "Settings → Connectors → Add custom connector. Paste the address, choose Add, then Connect and sign in with your Portal account.",
+      "chatgpt": "Settings → Apps & Connectors → Advanced settings: turn on Developer mode. Then Create, paste the address, choose OAuth and sign in with your Portal account."
+    },
+    "call": {
+      "at": "When",
+      "tool": "Tool",
+      "target": "Target",
+      "client": "Client",
+      "verdict": "Verdict"
+    },
+    "help": {
+      "name": "Lowercase letters, digits and dashes, e.g. doprava-in-claude.",
+      "segments": "What kind of work the connector does, e.g. Data read for questions about data. Greyed presets need your organization's approval.",
+      "scope": "Tick a whole project or single spaces, Endpoints or pipelines, e.g. helsinki / Endpoint bike-counters.",
+      "expires": "The last day it works, at most {days} days from today, e.g. the end of this month.",
+      "clients": "Leave empty for any client, or tick e.g. Claude Code to say whom it is for.",
+      "nameStays": "The name stays; it is how your AI client lists the connector."
+    },
+    "problem": {
+      "name": "Give a name of lowercase letters, digits and dashes, e.g. doprava-in-claude.",
+      "segments": "Pick at least one preset.",
+      "scope": "Pick at least one project, space, Endpoint or pipeline.",
+      "expires": "Pick a day from today up to the last day offered."
+    },
+    "edit": "Edit",
+    "editOf": "Edit AI connector {name}",
+    "editTitle": "Edit {name}",
+    "save": "Save"
   }
 }

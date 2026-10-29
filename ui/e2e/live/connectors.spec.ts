@@ -1,5 +1,5 @@
 /**
- * T-5950 — a person creates a connector of their own, reads it, revokes it, and the next call
+ * T-5950, T-5951 — a person creates a connector of their own, reads it, revokes it, and the next call
  * through it is refused; the audit lists the call. The connector is the viewer's, read only, one
  * project, one day; it is revoked in `finally`, so a failed run leaves no live grant on dev.
  */
@@ -24,7 +24,7 @@ test("a person creates a read-only connector, revokes it and finds it refused", 
       },
     });
     expect(created.status(), await created.text()).toBe(201);
-    const connector = (await created.json()) as { id: string; url: string; state: string; writes: boolean };
+    const connector = (await created.json()) as { id: string; name: string; url: string; state: string; writes: boolean };
     id = connector.id;
     expect(connector.url).toMatch(/\/c\/[a-z2-7]{26}$/);
     expect([connector.state, connector.writes]).toEqual(["active", false]);
@@ -42,7 +42,24 @@ test("a person creates a read-only connector, revokes it and finds it refused", 
     expect(door.status()).toBe(401);
     expect(door.headers()["www-authenticate"]).toContain(`/c/${id}/.well-known/oauth-protected-resource`);
 
-    expect((await page.request.delete(`/api/v1/connectors/${id}`, { headers })).status()).toBe(204);
+    // An edit is checked as a create is: a project the viewer holds no right in is refused.
+    const widened = await page.request.patch(`/api/v1/connectors/${id}`, {
+      headers: { ...headers, "content-type": "application/merge-patch+json" },
+      data: { scope: [{ project: "t5951-nobody-reads-this", access: "read" }] },
+    });
+    expect(widened.status()).toBe(403);
+    expect(await widened.text()).toContain("scope[0].project");
+
+    // My AI connectors lists it with its setup line and no token, and revokes it after an inline confirm (T-5951).
+    await page.goto("/ai-connectors?lang=en");
+    const card = page.getByRole("region", { name: connector.name });
+    await expect(card).toBeVisible();
+    await card.getByRole("button", { name: "Set up" }).click();
+    await expect(card.getByText(`claude mcp add --transport http ${connector.name} ${connector.url}`)).toBeVisible();
+    await expect(page.locator("body")).not.toContainText(/eyJ|Bearer /);
+    await card.getByRole("button", { name: `Revoke AI connector ${connector.name}` }).click();
+    await card.getByRole("button", { name: "Revoke now" }).click();
+    await expect(card.getByText("Revoked", { exact: true })).toBeVisible();
     const read = (await (await page.request.get(`/api/v1/connectors/${id}`)).json()) as { state: string };
     expect(read.state).toBe("revoked");
     id = "";
