@@ -1848,7 +1848,16 @@ async fn connector_events_notify_who_may_act_once() {
                                       "patch": { "spec": { "isSandbox": false } } }] },
               "contains": ["\"planId\""] },
             { "proves": "expect", "via": "connector", "call": "jc_change_apply",
-              "args": { "planId": "{planId}" }, "contains": ["changeRequests"] }
+              "args": { "planId": "{planId}" }, "contains": ["changeRequests"] },
+            // An edit above the ceiling waits again, as a new request.
+            { "proves": "expect", "rest": { "method": "POST", "path": "/connectors",
+              "body": { "name": "notice-edit", "segments": ["context"],
+                        "scope": [{ "project": "{project}", "access": "read" }],
+                        "expiresAt": "{in7days}" } },
+              "contains": ["\"state\":\"active\""] },
+            { "proves": "deny", "rest": { "method": "PATCH", "path": "/connectors/{connector}",
+              "body": { "segments": ["admin"] } },
+              "contains": ["\"state\":\"pending\""] }
         ]
     }))
     .expect("scenario");
@@ -1858,8 +1867,15 @@ async fn connector_events_notify_who_may_act_once() {
         let token = harness.token_for(persona, AUDIENCE, AUDIENCE);
         let harness = &harness;
         async move {
+            // A person reads the bell signed in through the edge, as the Portal does.
             let (status, body) = harness
-                .send("GET", "/api/v1/notifications", token, None)
+                .send_as(
+                    "GET",
+                    "/api/v1/notifications",
+                    token,
+                    None,
+                    EDGE_TOKEN_HEADER,
+                )
                 .await;
             assert_eq!(status, StatusCode::OK, "{body}");
             body["items"].as_array().cloned().unwrap_or_default()
@@ -1896,18 +1912,22 @@ async fn connector_events_notify_who_may_act_once() {
     let steward = notices("steward").await;
     assert!(of_kind(&steward, "change.opened").is_empty(), "{steward:?}");
 
-    // Only a decider of connector requests learns of the queued one, once, without its scope.
+    // Only a decider of connector requests learns of each queued one, once, without its scope:
+    // the queued create and the edit that waits again.
     assert!(of_kind(&notices("approver").await, "connector.pending").is_empty());
     let _ = notices("org-admin").await;
     let pending = of_kind(&notices("org-admin").await, "connector.pending");
-    assert_eq!(pending.len(), 1, "{pending:?}");
-    assert_eq!(pending[0]["excerpt"], json!("notice-wide"));
-    assert_eq!(pending[0]["link"], json!("/ai-connectors"));
-    assert!(
-        !pending[0].to_string().contains("admin\""),
-        "{}",
-        pending[0]
+    let mut asked: Vec<&Value> = pending.iter().map(|p| &p["excerpt"]).collect();
+    asked.sort_by_key(|e| e.to_string());
+    assert_eq!(
+        asked,
+        [&json!("notice-edit"), &json!("notice-wide")],
+        "{pending:?}"
     );
+    for notice in &pending {
+        assert_eq!(notice["link"], json!("/ai-connectors"));
+        assert!(!notice.to_string().contains("admin\""), "{notice}");
+    }
     assert!(of_kind(&steward, "connector.pending").is_empty());
 
     // The owner learns their active connector ends within 7 days, once; the pending one waits
