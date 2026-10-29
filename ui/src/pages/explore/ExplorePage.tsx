@@ -298,12 +298,13 @@ export function ExplorePage({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* The pickers sit on the line under the title, small selects with their captions (T-6107):
+      {/* The pickers sit on the description's line, small selects with their captions (T-6107):
           the grid below takes the width and the height. */}
       <PageHeader
         title={t("explore.title")}
-        note={
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+        description={t("explore.description")}
+        aside={
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <span className="flex items-center gap-2">
               <label className="text-caption text-fg-muted" htmlFor="explore-space">
                 {t("explore.space")}

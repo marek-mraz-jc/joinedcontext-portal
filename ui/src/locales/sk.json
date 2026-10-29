@@ -5647,6 +5647,7 @@
   },
   "explore": {
     "title": "Prehliadať dáta",
+    "description": "Riadky kontextového priestoru, čítané cez jeden z jeho endpointov.",
     "space": "Kontextový priestor",
     "endpoint": "Endpoint",
     "export": "Exportovať",
@@ -5669,7 +5670,7 @@
     "noSpace": "Vyberte kontextový priestor na čítanie",
     "noSpaceHint": "Jeho entity sa otvoria tu, čítané cez jeden z jeho endpointov. Začnite jedným z priestorov tohto projektu:",
     "noSpaces": "Tento projekt zatiaľ nemá kontextový priestor",
-    "noSpacesHint": "Vytvorte ho v časti Kontextové priestory, napríklad Kvalita ovzdušia; jeho údaje sa otvoria tu.",
+    "noSpacesHint": "Vytvorte ho v časti Kontextové priestory; jeho údaje sa otvoria tu.",
     "typeInModel": "Tento typ v jeho dátovom modeli:",
     "readThrough": "Číta sa cez",
     "endpointUnshown": "Odkaz uvádza Endpoint {name}, ktorý vám tento priestor neukazuje",

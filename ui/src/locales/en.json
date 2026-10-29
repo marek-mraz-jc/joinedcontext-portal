@@ -5647,6 +5647,7 @@
   },
   "explore": {
     "title": "Explore data",
+    "description": "Rows of a context space, read through one of its Endpoints.",
     "space": "Context space",
     "endpoint": "Endpoint",
     "export": "Export",
@@ -5669,7 +5670,7 @@
     "noSpace": "Choose a context space to read",
     "noSpaceHint": "Its entities open here, read through one of its endpoints. Start with one of this project's spaces:",
     "noSpaces": "This project has no context space yet",
-    "noSpacesHint": "Create one under Context Spaces, for example Air quality; its data opens here.",
+    "noSpacesHint": "Create one under Context Spaces; its data opens here.",
     "typeInModel": "This type in its data model:",
     "readThrough": "Read through",
     "endpointUnshown": "The link names the Endpoint {name}, which this space does not show you",

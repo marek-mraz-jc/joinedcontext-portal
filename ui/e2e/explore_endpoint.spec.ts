@@ -132,11 +132,13 @@ for (const width of [1440, 400]) {
     await expect(page.locator("#explore-space")).toHaveValue("helsinki");
     await expect(page.locator("#explore-endpoint")).toHaveValue(OWN.name);
     expect(reads.every((path) => path.includes(OWN.slug))).toBe(true);
-    // The pickers sit under the title, above the filters, with no hint sentence.
-    const title = await page.getByRole("heading", { level: 1 }).boundingBox();
+    // The pickers sit in the header, beside the description at 1440, above the filters, with no
+    // hint sentence.
+    const description = await page.getByText("Rows of a context space, read through one of its Endpoints.").boundingBox();
     const picker = await page.locator("#explore-space").boundingBox();
-    expect(picker!.y).toBeGreaterThan(title!.y);
-    expect(picker!.y - (title!.y + title!.height)).toBeLessThan(40);
+    const filters = await page.getByLabel("Entity type").boundingBox();
+    expect(picker!.y + picker!.height).toBeLessThan(filters!.y);
+    if (width === 1440) expect(Math.abs(picker!.y + picker!.height - (description!.y + description!.height))).toBeLessThan(24);
     await expect(page.getByText("whose Policy decides what you see")).toHaveCount(0);
     expect(await axeViolations(page)).toEqual([]);
     await page.screenshot({ path: `${AFTER}/loaded-${width}.png`, fullPage: true });

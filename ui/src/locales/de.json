@@ -5647,6 +5647,7 @@
   },
   "explore": {
     "title": "Daten erkunden",
+    "description": "Zeilen eines Kontextraums, gelesen über einen seiner Endpunkte.",
     "space": "Kontextraum",
     "endpoint": "Endpunkt",
     "export": "Exportieren",
@@ -5669,7 +5670,7 @@
     "noSpace": "Wählen Sie einen Kontextraum zum Lesen",
     "noSpaceHint": "Seine Entitäten öffnen sich hier, gelesen über einen seiner Endpunkte. Beginnen Sie mit einem der Räume dieses Projekts:",
     "noSpaces": "Dieses Projekt hat noch keinen Kontextraum",
-    "noSpacesHint": "Legen Sie einen unter Kontexträume an, zum Beispiel Luftqualität; seine Daten öffnen sich hier.",
+    "noSpacesHint": "Legen Sie einen unter Kontexträume an; seine Daten öffnen sich hier.",
     "typeInModel": "Dieser Typ in seinem Datenmodell:",
     "readThrough": "Gelesen über",
     "endpointUnshown": "Der Link nennt den Endpoint {name}, den dieser Raum Ihnen nicht zeigt",
