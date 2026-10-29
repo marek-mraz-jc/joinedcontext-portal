@@ -113,6 +113,19 @@ pub struct Answer {
     pub text: String,
 }
 
+impl Answer {
+    /// Whether the problem document's `errors[]` holds an entry at `path` whose message
+    /// contains `message` (T-5949: errors are `{path, message}` objects).
+    pub fn names_field(&self, path: &str, message: &str) -> bool {
+        let body: serde_json::Value = serde_json::from_str(&self.text).unwrap_or_default();
+        body["errors"].as_array().is_some_and(|errors| {
+            errors.iter().any(|e| {
+                e["path"] == path && e["message"].as_str().is_some_and(|m| m.contains(message))
+            })
+        })
+    }
+}
+
 /// One request as `identity`, through the whole router: session cookie, CSRF and all.
 pub async fn send(
     state: &AppState,
