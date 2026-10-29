@@ -381,11 +381,11 @@ impl std::fmt::Debug for KcToken {
     }
 }
 
-/// A role, or a group, as the admin API lists one.
+/// A role, a group or a client scope, as the admin API lists one.
 #[derive(Debug, Deserialize)]
-struct KcNamed {
-    id: String,
-    name: String,
+pub(crate) struct KcNamed {
+    pub(crate) id: String,
+    pub(crate) name: String,
 }
 
 #[derive(Debug, Deserialize)]

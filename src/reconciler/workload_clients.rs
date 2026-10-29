@@ -36,7 +36,7 @@ use jc_core::kinds::service_account::{keycloak_client_id, KubernetesBinding};
 use jc_core::kinds::ServiceAccountSpec;
 use serde_json::{json, Value};
 
-use super::app_clients::{audience_mapper, drift, managed, Admin, ClientOutcome};
+use super::app_clients::{audience_mapper, drift, managed, Admin, ClientOutcome, KcNamed};
 use super::groups::{MANAGED_BY, MANAGED_VALUE};
 use super::streams::Bentos;
 use crate::store::{ListOptions, Mirror};
@@ -44,6 +44,44 @@ use crate::store::{ListOptions, Mirror};
 /// The client attribute naming the account a managed workload client belongs to,
 /// `{project}/{name}`.
 pub const ACCOUNT_ATTRIBUTE: &str = "joinedcontext.serviceaccount";
+
+/// The one client scope an account's token carries (T-6051): `basic`, which writes `sub`. The
+/// realm's defaults would add `acr`, `email`, `profile`, `roles` (the `account` audience and the
+/// realm's default roles), `web-origins`, and `service_account` (`client_id`, `clientHost`,
+/// `clientAddress`), none of which the gateway, the MQTT door or the internal listener reads:
+/// they decide by `azp`, `aud`, `sub` and `exp`. Measured on Keycloak 26.8.1, a `client-secret`
+/// client's token falls from 1266 to 781 bytes. Not part of [`desired`], because a PUT of the
+/// client ignores its scopes and Keycloak puts `service_account` back on every create and PUT;
+/// [`WorkloadClientSync`] converges them through the client's scope endpoints after each write.
+pub const TOKEN_SCOPES: [&str; 1] = ["basic"];
+
+/// `want` as the body that creates the client: [`TOKEN_SCOPES`] its only default scopes and no
+/// optional one, so a fresh client never issues a token with the realm's defaults (T-6051).
+pub fn creation(want: &Value) -> Value {
+    let mut body = want.clone();
+    body["defaultClientScopes"] = json!(TOKEN_SCOPES);
+    body["optionalClientScopes"] = json!([]);
+    body
+}
+
+/// The default scopes in `default` and every scope in `optional` that are not [`TOKEN_SCOPES`],
+/// as (`default` or `optional`, scope) to remove, and the [`TOKEN_SCOPES`] `default` lacks.
+fn scope_plan<'a>(
+    default: &'a [KcNamed],
+    optional: &'a [KcNamed],
+) -> (Vec<(&'static str, &'a KcNamed)>, Vec<&'static str>) {
+    let remove = default
+        .iter()
+        .filter(|scope| !TOKEN_SCOPES.contains(&scope.name.as_str()))
+        .map(|scope| ("default", scope))
+        .chain(optional.iter().map(|scope| ("optional", scope)))
+        .collect();
+    let missing = TOKEN_SCOPES
+        .into_iter()
+        .filter(|name| !default.iter().any(|scope| scope.name == *name))
+        .collect();
+    (remove, missing)
+}
 
 /// The alias of the realm's Kubernetes identity provider the clients trust (PF-47).
 pub const IDENTITY_PROVIDER: &str = "kubernetes";
@@ -816,6 +854,65 @@ impl WorkloadClientSync {
         }
     }
 
+    /// The client's scopes brought to [`TOKEN_SCOPES`] (T-6051): every other default or optional
+    /// scope removed, a missing one added from the realm's. Each removal is reported once, when it
+    /// happens.
+    async fn converge_scopes(
+        &self,
+        token: &str,
+        uuid: &str,
+        outcome: &mut ClientOutcome,
+    ) -> Result<(), String> {
+        use reqwest::Method;
+        let client = format!("/clients/{uuid}");
+        let default: Vec<KcNamed> = self
+            .admin
+            .get(token, &format!("{client}/default-client-scopes"))
+            .await?;
+        let optional: Vec<KcNamed> = self
+            .admin
+            .get(token, &format!("{client}/optional-client-scopes"))
+            .await?;
+        let (remove, missing) = scope_plan(&default, &optional);
+        for (kind, scope) in &remove {
+            self.admin
+                .send(
+                    token,
+                    Method::DELETE,
+                    &format!("{client}/{kind}-client-scopes/{}", scope.id),
+                    None,
+                )
+                .await?;
+        }
+        if !remove.is_empty() {
+            let names: Vec<&str> = remove.iter().map(|(_, s)| s.name.as_str()).collect();
+            outcome.drift.push(format!(
+                "the client's tokens carried the scopes {}, which the account does not read; they were removed",
+                names.join(", ")
+            ));
+        }
+        if missing.is_empty() {
+            return Ok(());
+        }
+        let realm: Vec<KcNamed> = self.admin.get(token, "/client-scopes").await?;
+        for name in missing {
+            let Some(scope) = realm.iter().find(|scope| scope.name == name) else {
+                return Err(format!(
+                    "the realm has no client scope {name}, so the account's tokens carry no sub"
+                ));
+            };
+            self.admin
+                .send(
+                    token,
+                    Method::PUT,
+                    &format!("{client}/default-client-scopes/{}", scope.id),
+                    None,
+                )
+                .await?;
+        }
+        Ok(())
+    }
+
     async fn converge_one(
         &self,
         token: &str,
@@ -882,7 +979,12 @@ impl WorkloadClientSync {
             None => {
                 if let Err(err) = self
                     .admin
-                    .send(token, reqwest::Method::POST, "/clients", Some(&want))
+                    .send(
+                        token,
+                        reqwest::Method::POST,
+                        "/clients",
+                        Some(&creation(&want)),
+                    )
                     .await
                 {
                     outcome.error = Some(err);
@@ -907,6 +1009,10 @@ impl WorkloadClientSync {
                 }
             }
         };
+        if let Err(err) = self.converge_scopes(token, &uuid, &mut outcome).await {
+            outcome.error = Some(format!("client scopes of {id}: {err}"));
+            return outcome;
+        }
         if let Err(err) = self
             .admin
             .converge_mappers(
@@ -924,5 +1030,94 @@ impl WorkloadClientSync {
             outcome.error = Some(format!("audiences of {id}: {err}"));
         }
         outcome
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn scopes(names: &[&str]) -> Vec<KcNamed> {
+        names
+            .iter()
+            .map(|name| KcNamed {
+                id: format!("id-{name}"),
+                name: (*name).to_owned(),
+            })
+            .collect()
+    }
+
+    /// T-6051: the realm's defaults on a Keycloak 26.8.1 service-account client, as measured.
+    #[test]
+    fn every_scope_but_basic_goes_and_basic_stays() {
+        let default = scopes(&[
+            "web-origins",
+            "service_account",
+            "acr",
+            "roles",
+            "profile",
+            "basic",
+            "email",
+        ]);
+        let optional = scopes(&["address", "phone", "offline_access"]);
+        let (remove, missing) = scope_plan(&default, &optional);
+        let removed: Vec<(&str, &str)> = remove
+            .iter()
+            .map(|(kind, scope)| (*kind, scope.id.as_str()))
+            .collect();
+        assert_eq!(
+            removed,
+            vec![
+                ("default", "id-web-origins"),
+                ("default", "id-service_account"),
+                ("default", "id-acr"),
+                ("default", "id-roles"),
+                ("default", "id-profile"),
+                ("default", "id-email"),
+                ("optional", "id-address"),
+                ("optional", "id-phone"),
+                ("optional", "id-offline_access"),
+            ]
+        );
+        assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn a_trimmed_client_needs_nothing_and_one_without_basic_gets_it() {
+        let trimmed = scopes(&["basic"]);
+        let (remove, missing) = scope_plan(&trimmed, &[]);
+        assert!(remove.is_empty());
+        assert!(missing.is_empty());
+        let bare = scopes(&["service_account"]);
+        let (remove, missing) = scope_plan(&bare, &[]);
+        assert_eq!(remove.len(), 1);
+        assert_eq!(missing, vec!["basic"]);
+    }
+
+    /// Every kind of account client is created with `basic` alone (T-6051): a workload's, an
+    /// external one's with a secret, and a device's with keys.
+    #[test]
+    fn every_client_kind_is_created_with_basic_alone() {
+        let binding = KubernetesBinding {
+            namespace: "env-dept".to_owned(),
+            service_account: "adapter".to_owned(),
+        };
+        for want in [
+            desired("helsinki", "adapter", &binding),
+            desired_external("helsinki", "vendor", &ClientCredential::Secret),
+            desired_external(
+                "helsinki",
+                "sensor",
+                &ClientCredential::Keys(r#"{"keys":[]}"#.to_owned()),
+            ),
+        ] {
+            let body = creation(&want);
+            assert_eq!(body["defaultClientScopes"], json!(["basic"]), "{want}");
+            assert_eq!(body["optionalClientScopes"], json!([]), "{want}");
+            assert_eq!(body["clientId"], want["clientId"]);
+            // The drift check compares `desired` alone, which names no scope: Keycloak puts
+            // `service_account` back on every PUT, so a scope there would rewrite every run.
+            assert!(want.get("defaultClientScopes").is_none());
+        }
     }
 }
