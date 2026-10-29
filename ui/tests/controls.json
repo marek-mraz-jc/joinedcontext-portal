@@ -2299,9 +2299,9 @@
         "mqtt_devices.test.tsx"
       ]
     },
-    "src/pages/mqttbrokers/MqttBrokersPage.tsx": {
+    "src/pages/mqttbrokers/MqttBrokerPage.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "mqtt_allowance_ui.test.tsx",

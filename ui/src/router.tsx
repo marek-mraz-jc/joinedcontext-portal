@@ -78,6 +78,9 @@ const RegistrationPage = lazy(() => import("./routes/RegistrationPage").then((mo
 const PipelineOverview = lazy(() =>
   import("./pages/pipelines/PipelineOverview").then((module) => ({ default: module.PipelineOverview })),
 );
+const MqttBrokerPage = lazy(() =>
+  import("./pages/mqttbrokers/MqttBrokerPage").then((module) => ({ default: module.MqttBrokerPage })),
+);
 const AssistantPage = lazy(() => import("./pages/assistant/AssistantPage").then((module) => ({ default: module.AssistantPage })));
 import { HandOff } from "./assistant/HandOff";
 import { hasPrefill } from "./assistant/state";
@@ -1168,7 +1171,7 @@ const sharedRedirectRoute = createRoute({
 });
 
 /** A resource's own page, for the kinds that have one (UI-01, T-2281, AP-68). */
-const DETAIL_PAGES = new Set(["spaces", "endpoints", "apps", "csrs", "pipelines"]);
+const DETAIL_PAGES = new Set(["spaces", "endpoints", "apps", "csrs", "pipelines", "mqttbrokers"]);
 
 /**
  * One section of a project: its list, one of its forms as a page of its own (T-2474, UI-27), or
@@ -1295,6 +1298,8 @@ function DetailPage({
         <RegistrationPage project={project} name={name} />
       ) : plural === "pipelines" ? (
         <PipelineOverview project={project} name={name} />
+      ) : plural === "mqttbrokers" ? (
+        <MqttBrokerPage project={project} name={name} />
       ) : (
         <AppPage project={project} name={name} />
       )}

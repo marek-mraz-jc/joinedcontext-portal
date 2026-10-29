@@ -1,20 +1,15 @@
-import { useState } from "react";
 import type { JSX } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { api, forPeople, unwrap } from "../../api/client";
+import { forPeople } from "../../api/client";
 import { asManifests } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useReadableList } from "../../api/permissions";
 import type { components } from "../../api/schema";
 import { RecordLink, RECORD_LINK_STYLE } from "../../components/RecordLink";
-import { CopyUrlButton } from "../../components/endpoints/links";
-import { LifecycleBadge } from "../../components/status/LifecycleBadge";
-import { CodeBlock,
+import {
   Alert,
   Badge,
-  Button,
   Card,
   Skeleton,
   Table,
@@ -25,13 +20,8 @@ import { CodeBlock,
   TableRow,
 } from "../../components/ui";
 import { KindList } from "../../routes/ResourceListPage";
-import { durationWords } from "../../schemas/mqttbroker";
-import { AddDevice } from "./AddDevice";
 import { useMqttAllowance } from "./allowance";
-import { BrokerAccess } from "./BrokerAccess";
-import { BrokerTopics } from "./BrokerTopics";
 import { connectionsOf } from "./connections";
-import { TestPublishDialog } from "./TestPublish";
 import type { Edge } from "./connections";
 
 /**
@@ -47,9 +37,6 @@ export function MqttBrokersPage({ project }: { project: string }): JSX.Element {
     <div className="flex flex-col gap-section">
       <AllowancePanel project={project} />
       <KindList project={project} plural="mqttbrokers" createRefused={refused} />
-      {items.map((broker) => (
-        <BrokerCard key={broker.metadata.name} project={project} broker={broker} />
-      ))}
       {items.length > 0 ? <Connections project={project} brokers={items} /> : null}
     </div>
   );
@@ -95,166 +82,6 @@ export function brokerAddress(
   if (!hostname.startsWith("portal.")) return undefined;
   const domain = hostname.slice("portal.".length);
   return `${name}.${project}.mqtt.${domain}:${port ?? 8883}`;
-}
-
-function BrokerCard({ project, broker }: { project: string; broker: Manifest }): JSX.Element {
-  const { t, i18n } = useTranslation();
-  const name = broker.metadata.name;
-  const spec = (broker.spec ?? {}) as {
-    roles?: Role[];
-    port?: number;
-    hostname?: string;
-    allowedSources?: string[];
-    mode?: string;
-    capture?: { messagesPerTopic?: number; window?: string };
-  };
-  const mode = spec.mode ?? "ingest";
-  const sources = spec.allowedSources ?? [];
-  const roles = spec.roles ?? [];
-  const address = brokerAddress(name, project, window.location.hostname, spec.port, spec.hostname);
-  // The CNAME target of a custom hostname: the broker's platform name, which the edge's DNS answers.
-  const platformHost = brokerAddress(name, project, window.location.hostname)?.split(":")[0];
-  const waitingForDns = (broker.status?.conditions ?? []).some((c) => c.reason === "WaitingForDns");
-  const devices = [...new Set(roles.flatMap((role) => role.serviceAccounts ?? []))];
-  const caption = t("mqttbrokers.acl.caption", { broker: name });
-  const [testing, setTesting] = useState(false);
-  const measured = useQuery({
-    queryKey: ["mqttBrokerMeasured", project, name],
-    refetchInterval: 15_000,
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/mqttbrokers/{name}/measured", {
-          params: { path: { project, name } },
-        }),
-      ),
-  });
-  return (
-    <Card>
-      <section aria-labelledby={`broker-${name}`} className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 id={`broker-${name}`} className="text-title font-semibold text-fg">
-            <RecordLink project={project} plural="mqttbrokers" name={name} />
-          </h2>
-          <LifecycleBadge kind="phase" value={broker.status?.phase} />
-          <Badge tone="info" data-mode={mode}>
-            {t(`mqttAllowance.mode.${mode}`, { defaultValue: mode })}
-          </Badge>
-        </div>
-        {waitingForDns && spec.hostname ? (
-          <Alert tone="info" title={t("mqttbrokers.connect.waitingForDnsTitle")} data-dns="waiting">
-            {platformHost
-              ? t("mqttbrokers.connect.waitingForDns", { host: spec.hostname, target: platformHost })
-              : t("mqttbrokers.connect.waitingForDnsNoTarget", { host: spec.hostname })}
-          </Alert>
-        ) : null}
-        {mode === "capture" ? (
-          <p className="text-body text-fg-muted">
-            {t("mqttbrokers.capture.kept", {
-              count: spec.capture?.messagesPerTopic ?? 20,
-              window: durationWords(spec.capture?.window ?? "PT1H", i18n.resolvedLanguage ?? i18n.language ?? "en"),
-            })}
-          </p>
-        ) : null}
-        <Table caption={caption}>
-          <TableHead>
-            <TableHeaderCell>{t("mqttbrokers.acl.role")}</TableHeaderCell>
-            <TableHeaderCell>{t("mqttbrokers.acl.accounts")}</TableHeaderCell>
-            <TableHeaderCell>{t("mqttbrokers.acl.publish")}</TableHeaderCell>
-            <TableHeaderCell>{t("mqttbrokers.acl.subscribe")}</TableHeaderCell>
-            <TableHeaderCell>{t("mqttbrokers.measured.connected")}</TableHeaderCell>
-          </TableHead>
-          <TableBody>
-            {roles.map((role) => (
-              <TableRow key={role.name}>
-                <TableCell primary>{role.name}</TableCell>
-                <TableCell>{(role.serviceAccounts ?? []).join(", ")}</TableCell>
-                <TableCell>
-                  <Filters filters={role.publish} />
-                </TableCell>
-                <TableCell>
-                  <Filters filters={role.subscribe} />
-                </TableCell>
-                <TableCell>
-                  <Connected accounts={role.serviceAccounts ?? []} measured={measured.data} />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        <dl className="grid grid-cols-[minmax(0,1fr)] gap-x-4 gap-y-1 text-body sm:grid-cols-[max-content_minmax(0,1fr)]">
-          <dt className="text-fg-muted">{t("mqttbrokers.measured.title")}</dt>
-          <dd>
-            <Measurement measured={measured.data} failed={measured.isError} />
-          </dd>
-          <dt className="text-fg-muted">{t("mqttbrokers.connect.address")}</dt>
-          <dd className="flex flex-wrap items-center gap-2">
-            {address ? (
-              <>
-                <code className="min-w-0 break-all font-mono">{address}</code>
-                <Badge tone="neutral">TLS</Badge>
-                <CopyUrlButton url={address} label={t("mqttbrokers.connect.copy")} />
-              </>
-            ) : (
-              t("mqttbrokers.connect.noAddress")
-            )}
-          </dd>
-          <dt className="text-fg-muted">{t("mqttbrokers.field.allowedSources")}</dt>
-          <dd className="break-words" data-testid="broker-sources">
-            {sources.length > 0 ? (
-              <span className="font-mono">{sources.join(", ")}</span>
-            ) : (
-              t("mqttbrokers.connect.anySource")
-            )}
-          </dd>
-          <dt className="text-fg-muted">{t("mqttbrokers.connect.certificate")}</dt>
-          <dd className="break-words">{address ? t("mqttbrokers.connect.certificateIssued", { host: address.split(":")[0] }) : "—"}</dd>
-          <dt className="text-fg-muted">{t("mqttbrokers.connect.client")}</dt>
-          <dd>
-            {devices.length > 0
-              ? devices.map((account) => (
-                  <code key={account} className="mr-2 font-mono">
-                    {`${project}-${account}`}
-                  </code>
-                ))
-              : "—"}
-          </dd>
-          <dt className="text-fg-muted">{t("mqttbrokers.connect.password")}</dt>
-          <dd>{t("mqttbrokers.connect.token")}</dd>
-          {address && devices.length > 0 ? (
-            <>
-              <dt className="text-fg-muted">{t("mqttbrokers.connect.example")}</dt>
-              <dd className="flex min-w-0 flex-col items-start gap-2">
-                <CodeBlock label={t("mqttbrokers.connect.example")} className="max-w-full overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
-                  {publishExample(address, `${project}-${devices[0]}`, publishTopic(roles))}
-                </CodeBlock>
-                <CopyUrlButton
-                  url={publishExample(address, `${project}-${devices[0]}`, publishTopic(roles))}
-                  label={t("mqttbrokers.connect.copyExample")}
-                />
-                <span className="text-caption text-fg-muted">{t("mqttbrokers.connect.exampleHint")}</span>
-              </dd>
-            </>
-          ) : null}
-          <dt className="text-fg-muted">{t("mqttbrokers.connect.pipeline")}</dt>
-          <dd>{t("mqttbrokers.connect.brokerRef", { broker: name })}</dd>
-        </dl>
-        <AddDevice
-          project={project}
-          broker={name}
-          example={(client, topic) => (address ? publishExample(address, client, topic) : undefined)}
-        />
-        <BrokerTopics project={project} broker={name} mode={mode} />
-        <BrokerAccess project={project} broker={name} />
-        <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={() => setTesting(true)}>{t("mqttbrokers.test.open")}</Button>
-          <span className="text-caption text-fg-muted">{t("mqttbrokers.test.openHint")}</span>
-        </div>
-        {testing ? (
-          <TestPublishDialog project={project} broker={name} roles={roles} open={testing} onOpenChange={setTesting} />
-        ) : null}
-      </section>
-    </Card>
-  );
 }
 
 /** The first topic a device may publish to, with `${clientid}` left for the shell to keep as typed. */
@@ -352,35 +179,8 @@ function AllowancePanel({ project }: { project: string }): JSX.Element {
   );
 }
 
-/**
- * What the broker measures (T-4043, API/01 §44): publishers connected and messages per second,
- * read by the Portal from the broker itself. A broker that did not answer is "not measured" with
- * the reason, never a zero.
- */
-function Measurement({ measured, failed }: { measured?: Measured; failed: boolean }): JSX.Element {
-  const { t, i18n } = useTranslation();
-  const number = new Intl.NumberFormat(i18n.resolvedLanguage ?? i18n.language ?? "en", { maximumFractionDigits: 1 });
-  if (!measured) return <>{failed ? t("mqttbrokers.measured.not") : t("app.loading")}</>;
-  if (!measured.measured) {
-    return (
-      <span className="flex flex-wrap items-center gap-2" data-measured="no">
-        <Badge tone="neutral">{t("mqttbrokers.measured.not")}</Badge>
-        {measured.reason ? <span className="text-caption text-fg-muted">{measured.reason}</span> : null}
-      </span>
-    );
-  }
-  return (
-    <span data-measured="yes">
-      {t("mqttbrokers.measured.summary", {
-        publishers: measured.publishers ?? 0,
-        rate: measured.messagesPerSecond == null ? "—" : number.format(measured.messagesPerSecond),
-      })}
-    </span>
-  );
-}
-
 /** The connected clients of a role's accounts, each with the time the newest one connected. */
-function Connected({ accounts, measured }: { accounts: string[]; measured?: Measured }): JSX.Element {
+export function Connected({ accounts, measured }: { accounts: string[]; measured?: Measured }): JSX.Element {
   const { t, i18n } = useTranslation();
   if (!measured?.measured) return <>—</>;
   const time = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? i18n.language ?? "en", {
@@ -404,7 +204,7 @@ function Connected({ accounts, measured }: { accounts: string[]; measured?: Meas
   );
 }
 
-function Filters({ filters }: { filters?: string[] }): JSX.Element {
+export function Filters({ filters }: { filters?: string[] }): JSX.Element {
   return filters && filters.length > 0 ? (
     <ul className="flex flex-col gap-0.5">
       {filters.map((filter) => (
@@ -419,7 +219,7 @@ function Filters({ filters }: { filters?: string[] }): JSX.Element {
 }
 
 /** Device → broker → data source → pipeline → Endpoint → Policy, one row per edge. */
-function Connections({ project, brokers }: { project: string; brokers: Manifest[] }): JSX.Element {
+export function Connections({ project, brokers, bare }: { project: string; brokers: Manifest[]; bare?: boolean }): JSX.Element {
   const { t } = useTranslation();
   const dataSources = useReadableList(project, "datasources", "DataSource");
   const pipelines = useReadableList(project, "pipelines", "Pipeline");
@@ -440,6 +240,24 @@ function Connections({ project, brokers }: { project: string; brokers: Manifest[
         accounts: of(accounts),
       });
   const hidden = lists.some((query) => query.hidden);
+  const table = (
+    <Table caption={t("mqttbrokers.connections.title")}>
+      <TableHead>
+        <TableHeaderCell>{t("mqttbrokers.connections.edge")}</TableHeaderCell>
+        <TableHeaderCell>{t("mqttbrokers.connections.from")}</TableHeaderCell>
+        <TableHeaderCell>{t("mqttbrokers.connections.to")}</TableHeaderCell>
+        <TableHeaderCell>{t("mqttbrokers.connections.allowedBy")}</TableHeaderCell>
+        <TableHeaderCell>{t("mqttbrokers.connections.state")}</TableHeaderCell>
+      </TableHead>
+      <TableBody>
+        {edges.map((edge, index) => (
+          <EdgeRow key={`${edge.kind}-${edge.from}-${edge.to}-${index}`} project={project} edge={edge} />
+        ))}
+      </TableBody>
+    </Table>
+  );
+  // On a broker's own page the section around it carries the title and the lead.
+  if (bare) return table;
   return (
     <section aria-labelledby="mqtt-connections" className="flex flex-col gap-3">
       <h2 id="mqtt-connections" className="text-title font-semibold text-fg">
@@ -449,20 +267,7 @@ function Connections({ project, brokers }: { project: string; brokers: Manifest[
         {t("mqttbrokers.connections.lead")}
         {hidden ? ` ${t("mqttbrokers.connections.partial")}` : ""}
       </p>
-      <Table caption={t("mqttbrokers.connections.title")}>
-        <TableHead>
-          <TableHeaderCell>{t("mqttbrokers.connections.edge")}</TableHeaderCell>
-          <TableHeaderCell>{t("mqttbrokers.connections.from")}</TableHeaderCell>
-          <TableHeaderCell>{t("mqttbrokers.connections.to")}</TableHeaderCell>
-          <TableHeaderCell>{t("mqttbrokers.connections.allowedBy")}</TableHeaderCell>
-          <TableHeaderCell>{t("mqttbrokers.connections.state")}</TableHeaderCell>
-        </TableHead>
-        <TableBody>
-          {edges.map((edge, index) => (
-            <EdgeRow key={`${edge.kind}-${edge.from}-${edge.to}-${index}`} project={project} edge={edge} />
-          ))}
-        </TableBody>
-      </Table>
+      {table}
     </section>
   );
 }

@@ -7,6 +7,7 @@ import { cleanup, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
+import { MqttBrokerPage } from "../src/pages/mqttbrokers/MqttBrokerPage";
 import { MqttBrokersPage, brokerAddress } from "../src/pages/mqttbrokers/MqttBrokersPage";
 import { connectionsOf, urnName } from "../src/pages/mqttbrokers/connections";
 import type { Resources } from "../src/pages/mqttbrokers/connections";
@@ -208,9 +209,9 @@ describe("the MQTT brokers page", () => {
     vi.restoreAllMocks();
   });
 
-  it("shows each role's topics and accounts, how a device connects, and a red edge with its fix", async () => {
+  const lists = (): Record<string, unknown[]> => {
     const resources = world();
-    const lists: Record<string, unknown[]> = {
+    return {
       mqttbrokers: resources.brokers,
       datasources: resources.dataSources,
       pipelines: resources.pipelines,
@@ -218,23 +219,17 @@ describe("the MQTT brokers page", () => {
       policies: resources.policies,
       serviceaccounts: resources.accounts,
     };
+  };
+
+  it("lists the brokers, each opening its own page, and turns a broken edge red with its fix", async () => {
+    const all = lists();
     renderPage(<MqttBrokersPage project={PROJECT} />, {
       path: `/projects/${PROJECT}/mqttbrokers`,
       answer: (url) => {
         const plural = url.pathname.split("/").pop() ?? "";
-        return lists[plural] ? json(list(lists[plural])) : undefined;
+        return all[plural] ? json(list(all[plural])) : undefined;
       },
     });
-
-    const accounts = await screen.findByText("cam-1, cam-2");
-    const acl = accounts.closest("table") as HTMLElement;
-    expect(acl.querySelector("caption")?.textContent).toBe("Topic access of cameras by role");
-    const cams = accounts.closest("tr") as HTMLElement;
-    expect(within(cams).getByText("cams")).toBeInTheDocument();
-    expect(within(cams).getByText("cameras/${clientid}/frames")).toBeInTheDocument();
-    expect(screen.getByText("espoo-cam-1")).toBeInTheDocument();
-    expect(screen.getByText(en.mqttbrokers.connect.token)).toBeInTheDocument();
-
     const orphan = await screen.findByText("No broker gone in this project");
     const row = orphan.closest("tr") as HTMLElement;
     expect(row.closest("table")?.querySelector("caption")?.textContent).toBe(en.mqttbrokers.connections.title);
@@ -243,14 +238,72 @@ describe("the MQTT brokers page", () => {
       "href",
       `/projects/${PROJECT}/datasources/orphan/edit`,
     );
+    // T-6103: a broker has a page of its own; the list no longer repeats its settings.
+    expect(screen.queryByText("cam-1, cam-2")).toBeNull();
     expect(document.body.textContent).not.toMatch(/password\s*[:=]|secret\s*[:=]/i);
   });
 });
 
-describe("what a broker measures (T-4043)", () => {
+/** One broker's page (T-6103) over stubbed reads: the broker, its lists, measured and watch. */
+function showBroker(
+  options: { broker?: unknown; measured?: () => Response; watch?: () => Response; brokerAnswer?: () => Response } = {},
+) {
+  const resources = world();
+  const all: Record<string, unknown[]> = {
+    datasources: resources.dataSources,
+    pipelines: resources.pipelines,
+    endpoints: resources.endpoints,
+    policies: resources.policies,
+    serviceaccounts: resources.accounts,
+  };
+  return renderPage(<MqttBrokerPage project={PROJECT} name="cameras" />, {
+    path: `/projects/${PROJECT}/mqttbrokers/cameras`,
+    answer: (url) => {
+      if (url.pathname.endsWith("/mqttbrokers/cameras/measured")) return options.measured?.();
+      if (url.pathname.endsWith("/mqttbrokers/cameras/watch")) return options.watch?.();
+      if (url.pathname.endsWith("/mqttbrokers/cameras/access")) return json({ roles: [], outOfWindow: [] });
+      if (url.pathname.endsWith("/mqttbrokers/cameras")) return options.brokerAnswer?.() ?? json(options.broker ?? CAMERAS);
+      const plural = url.pathname.split("/").pop() ?? "";
+      return all[plural] ? json(list(all[plural])) : undefined;
+    },
+  });
+}
+
+const MEASURED = {
+  measured: true,
+  observedAt: "2026-10-12T08:47:00Z",
+  messagesPerSecond: 2.5,
+  publishers: 2,
+  reason: null,
+  accounts: [
+    { serviceAccount: "cam-1", connected: 2, since: "2026-10-12T08:46:51Z" },
+    { serviceAccount: "cam-2", connected: 0, since: null },
+  ],
+  rates: [
+    { at: "2026-10-12T08:46:50Z", perSecond: 2 },
+    { at: "2026-10-12T08:46:55Z", perSecond: 4 },
+    { at: "2026-10-12T08:47:00Z", perSecond: 2.5 },
+  ],
+  refusedPublishes: 812,
+};
+
+const WATCHED = {
+  observedAt: "2026-10-12T08:47:00Z",
+  refusals: [
+    { at: "2026-10-12T08:40:00Z", reason: "expired", account: "cam-1" },
+    { at: "2026-10-12T08:41:00Z", reason: "expired", account: "cam-1" },
+    { at: "2026-10-12T08:42:00Z", reason: "no_role", account: "cam-2" },
+  ],
+  refusalsRead: true,
+  connected: null,
+  messagesPerSecond: null,
+  reason: null,
+};
+
+describe("one MQTT broker's page (T-6103)", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
-    window.history.replaceState({}, "", `/projects/${PROJECT}/mqttbrokers`);
+    window.history.replaceState({}, "", `/projects/${PROJECT}/mqttbrokers/cameras`);
   });
 
   afterEach(() => {
@@ -258,14 +311,97 @@ describe("what a broker measures (T-4043)", () => {
     vi.restoreAllMocks();
   });
 
-  const show = (measured: () => Response) =>
-    renderPage(<MqttBrokersPage project={PROJECT} />, {
-      path: `/projects/${PROJECT}/mqttbrokers`,
-      answer: (url) => {
-        if (url.pathname.endsWith("/mqttbrokers/cameras/measured")) return measured();
-        return url.pathname.endsWith("/mqttbrokers") ? json(list([CAMERAS])) : undefined;
-      },
+  it("shows each role's topics and accounts, how a device connects, and the data path", async () => {
+    showBroker();
+    const accounts = await screen.findByText("cam-1, cam-2");
+    const acl = accounts.closest("table") as HTMLElement;
+    expect(acl.querySelector("caption")?.textContent).toBe("Topic access of cameras by role");
+    const cams = accounts.closest("tr") as HTMLElement;
+    expect(within(cams).getByText("cams")).toBeInTheDocument();
+    expect(within(cams).getByText("cameras/${clientid}/frames")).toBeInTheDocument();
+    expect(screen.getByText("espoo-cam-1")).toBeInTheDocument();
+    expect(screen.getByText(en.mqttbrokers.connect.token)).toBeInTheDocument();
+    for (const section of Object.values(en.mqttbrokers.page.section)) {
+      expect(screen.getByRole("link", { name: section })).toHaveAttribute("href", expect.stringMatching(/^#broker-/));
+    }
+    expect((await screen.findAllByText("camera-frames")).length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toMatch(/password\s*[:=]|secret\s*[:=]/i);
+  });
+
+  it("reads the live tiles, the chart and each account's connections from the broker and the gateway", async () => {
+    showBroker({ measured: () => json(MEASURED), watch: () => json(WATCHED) });
+    const figures = await screen.findByText(en.mqttbrokers.page.figure.rate);
+    const tiles = figures.closest("dl") as HTMLElement;
+    expect(within(tiles).getByText("2.5")).toBeInTheDocument();
+    expect(within(tiles).getByText("2 / 1,000")).toBeInTheDocument();
+    expect(within(tiles).getByText("812")).toBeInTheDocument();
+    expect(await within(tiles).findByText("3")).toBeInTheDocument();
+    expect(within(tiles).getByText("Mostly: expired")).toBeInTheDocument();
+    expect(screen.getByText(en.mqttbrokers.page.state.receiving)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /last 1 min: highest 4, now 2.5/ })).toBeInTheDocument();
+    const devices = screen.getByRole("table", { name: en.mqttbrokers.page.devices });
+    expect(within(devices).getByText("2 connected")).toBeInTheDocument();
+    expect(within(devices).getByText(en.mqttbrokers.page.offlineNow)).toBeInTheDocument();
+    expect(screen.getByTestId("live-strip").textContent).toBe("2.5 messages/s · 2 connected · 3 refused sign-ins today");
+  });
+
+  it("says idle with no traffic yet: no chart until two samples, and what to do without a device", async () => {
+    const idle = { ...MEASURED, messagesPerSecond: 0, accounts: [], rates: [], refusedPublishes: 0 };
+    showBroker({ measured: () => json(idle), watch: () => json({ ...WATCHED, refusals: [] }) });
+    expect(await screen.findByText(en.mqttbrokers.page.state.idle)).toBeInTheDocument();
+    expect(screen.getByText(en.mqttbrokers.page.chartEmpty)).toBeInTheDocument();
+    expect(screen.getByText(en.mqttbrokers.page.noDevices)).toBeInTheDocument();
+    expect(screen.getByText(en.mqttbrokers.page.figure.refusedSignInsNote)).toBeInTheDocument();
+  });
+
+  it("states the broker's highest QoS and what happens to an offline device, as checked on RMQTT 0.24", async () => {
+    showBroker();
+    const qos = await screen.findByText(en.mqttbrokers.page.qosValue);
+    expect(qos.closest("[data-qos]")).toHaveAttribute("data-qos", "1");
+    expect(screen.getByText(en.mqttbrokers.page.qosWords)).toBeInTheDocument();
+    expect(screen.getByText(en.mqttbrokers.page.offlineWords)).toBeInTheDocument();
+    // No networks named: the page warns that any address may connect.
+    expect(screen.getByTestId("broker-sources").textContent).toContain(en.mqttbrokers.connect.anySource);
+  });
+
+  it("names a broker's own limits with their units, and its networks as chips", async () => {
+    const limited = {
+      ...CAMERAS,
+      spec: { ...(CAMERAS as { spec: object }).spec, limits: { messagesPerSecond: 5, maxConnections: 20 }, allowedSources: ["192.0.2.0/24"] },
+    };
+    showBroker({ broker: limited, measured: () => json(MEASURED) });
+    expect(await screen.findByText("5 per second per device")).toBeInTheDocument();
+    expect(screen.getByText("20 connections")).toBeInTheDocument();
+    expect(screen.getByText("65,536 bytes")).toBeInTheDocument();
+    expect(screen.getByText("20 per address")).toBeInTheDocument();
+    expect(screen.getByRole("meter", { name: "2 of 20 in use" })).toBeInTheDocument();
+    expect(screen.getByTestId("broker-sources").textContent).toBe("192.0.2.0/24");
+  });
+
+  it("shows the refusal and no settings to a caller who may not read the broker", async () => {
+    showBroker({
+      brokerAnswer: () =>
+        new Response(JSON.stringify({ type: "about:blank", title: "Not Found", status: 404, detail: "MQTT broker 'cameras' not found in project 'espoo'" }), {
+          status: 404,
+          headers: { "content-type": "application/problem+json" },
+        }),
     });
+    expect(await screen.findByRole("link", { name: en.mqttbrokers.page.back })).toBeInTheDocument();
+    expect(screen.queryByText("cam-1, cam-2")).toBeNull();
+    expect(screen.queryByText(en.mqttbrokers.page.section.live)).toBeNull();
+  });
+});
+
+describe("what a broker measures (T-4043)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+    window.history.replaceState({}, "", `/projects/${PROJECT}/mqttbrokers/cameras`);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
 
   it("says what the city does next while its custom hostname waits for DNS, and the city's address (T-5874)", async () => {
     const waiting = {
@@ -273,10 +409,7 @@ describe("what a broker measures (T-4043)", () => {
       spec: { ...(CAMERAS as { spec: object }).spec, address: "customHostname", hostname: "mqtt.espoo.example" },
       status: { phase: "Pending", conditions: [{ type: "Ready", status: "False", reason: "WaitingForDns", message: "waiting for DNS" }] },
     };
-    renderPage(<MqttBrokersPage project={PROJECT} />, {
-      path: `/projects/${PROJECT}/mqttbrokers`,
-      answer: (url) => (url.pathname.endsWith("/mqttbrokers") ? json(list([waiting])) : undefined),
-    });
+    showBroker({ broker: waiting });
     expect(await screen.findByText(en.mqttbrokers.connect.waitingForDnsTitle)).toBeInTheDocument();
     const alert = document.querySelector("[data-dns='waiting']") as HTMLElement;
     expect(alert.textContent).toContain("Point a CNAME record from mqtt.espoo.example");
@@ -285,55 +418,42 @@ describe("what a broker measures (T-4043)", () => {
 
   it("shows no DNS notice once the hostname's certificate is issued", async () => {
     const served = { ...CAMERAS, spec: { ...(CAMERAS as { spec: object }).spec, address: "customHostname", hostname: "mqtt.espoo.example" } };
-    renderPage(<MqttBrokersPage project={PROJECT} />, {
-      path: `/projects/${PROJECT}/mqttbrokers`,
-      answer: (url) => (url.pathname.endsWith("/mqttbrokers") ? json(list([served])) : undefined),
-    });
+    showBroker({ broker: served });
     expect((await screen.findAllByText("mqtt.espoo.example:8883")).length).toBeGreaterThan(0);
     expect(document.querySelector("[data-dns='waiting']")).toBeNull();
   });
 
-  it("shows the publishers, the rate and each account's connected clients", async () => {
-    show(() =>
-      json({
-        measured: true,
-        observedAt: "2026-10-12T08:47:00Z",
-        messagesPerSecond: 2.5,
-        publishers: 2,
-        reason: null,
-        accounts: [
-          { serviceAccount: "cam-1", connected: 2, since: "2026-10-12T08:46:51Z" },
-          { serviceAccount: "cam-2", connected: 0, since: null },
-        ],
-      }),
-    );
-    expect(await screen.findByText("2 publishers connected, 2.5 messages per second")).toBeInTheDocument();
-    const cams = screen.getByText("cam-1, cam-2").closest("tr") as HTMLElement;
-    expect(within(cams).getByText(/^cam-1: 2, newest since /)).toBeInTheDocument();
+  it("shows each account's connected clients in its role", async () => {
+    showBroker({ measured: () => json(MEASURED) });
+    const cams = (await screen.findByText("cam-1, cam-2")).closest("tr") as HTMLElement;
+    expect(await within(cams).findByText(/^cam-1: 2, newest since /)).toBeInTheDocument();
     expect(within(cams).getByText("cam-2: 0")).toBeInTheDocument();
   });
 
   it("says not measured, and why, when the broker did not answer the Portal", async () => {
-    show(() =>
-      json({
-        measured: false,
-        observedAt: "2026-10-12T08:47:00Z",
-        messagesPerSecond: null,
-        publishers: null,
-        reason: "the broker did not answer; try again in a minute",
-        accounts: [],
-      }),
-    );
+    showBroker({
+      measured: () =>
+        json({
+          measured: false,
+          observedAt: "2026-10-12T08:47:00Z",
+          messagesPerSecond: null,
+          publishers: null,
+          reason: "the broker did not answer; try again in a minute",
+          accounts: [],
+          rates: [],
+          refusedPublishes: null,
+        }),
+    });
     expect(await screen.findByText("the broker did not answer; try again in a minute")).toBeInTheDocument();
-    expect(screen.getByText(en.mqttbrokers.measured.not)).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/publishers? connected/);
+    expect(document.querySelector("[data-state='unmeasured']")?.textContent).toBe(en.mqttbrokers.page.state.unmeasured);
+    expect(screen.queryByText(en.mqttbrokers.page.figure.rate)).toBeNull();
     const cams = screen.getByText("cam-1, cam-2").closest("tr") as HTMLElement;
     expect(within(cams).queryByText(/^cam-1:/)).toBeNull();
   });
 
   it("says not measured, never a zero, when the Portal itself cannot be read", async () => {
-    show(() => new Response("", { status: 502 }));
-    expect(await screen.findByText(en.mqttbrokers.measured.not, {}, { timeout: 5000 })).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/0 publishers/);
+    showBroker({ measured: () => new Response("", { status: 502 }) });
+    expect(await screen.findByText(en.mqttbrokers.page.notRead, {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.queryByText(en.mqttbrokers.page.figure.rate)).toBeNull();
   });
 });

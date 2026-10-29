@@ -9967,6 +9967,73 @@
       "startsAt": "starts {at}",
       "refusedTitle": "You may not read this project's MQTT brokers",
       "failedTitle": "The broker's roles could not be read"
+    },
+    "page": {
+      "lead": "An MQTT broker devices send data to.",
+      "back": "← MQTT brokers",
+      "edit": "Edit settings",
+      "source": "View source",
+      "sections": "Sections of this broker",
+      "section": {
+        "live": "Live now",
+        "general": "General",
+        "access": "Who may connect",
+        "limits": "Limits",
+        "networks": "Networks",
+        "path": "Where the data goes",
+        "connect": "Connect a device"
+      },
+      "state": {
+        "receiving": "Receiving",
+        "idle": "Idle",
+        "unmeasured": "Not measured"
+      },
+      "strip": "{rate} messages/s · {connected} connected · {refused} refused sign-ins today",
+      "notRead": "The Portal could not read what the broker measures. Try again in a minute.",
+      "figure": {
+        "rate": "Messages per second now",
+        "rateNote": "Each device may send up to {limit}/s.",
+        "connected": "Devices connected",
+        "connectedNote": "Of the connections the broker holds at once.",
+        "refusedSignIns": "Refused sign-ins today",
+        "refusedSignInsNote": "Since midnight, from the gateway's check.",
+        "mostly": "Mostly: {reason}",
+        "refusedPublishes": "Refused messages",
+        "refusedPublishesNote": "Since the broker last started: no publish right, or over the rate."
+      },
+      "chartEmpty": "The chart starts once the broker has kept two samples (one every few seconds).",
+      "chartSummary": "Messages per second, last {minutes} min: highest {top}, now {now}",
+      "devices": "Device accounts and their connections now",
+      "account": "Account",
+      "since": "Newest connection since",
+      "connectedCount": "{count} connected",
+      "offlineNow": "Offline",
+      "noDevices": "No device account yet. Add one under Connect a device.",
+      "title": "Title",
+      "does": "What it does",
+      "kept": "Kept messages",
+      "qos": "Highest QoS",
+      "qosValue": "QoS 1 (at least once)",
+      "qosWords": "Devices may send with QoS 0 or 1. An MQTT 5 device learns this at sign-in; a QoS 2 message from an MQTT 3.1.1 device is accepted and delivered at QoS 1, so it can arrive twice.",
+      "offline": "When a device is offline",
+      "offlineWords": "Its session ends when it disconnects: messages for it are not kept until it returns, and the broker keeps no retained messages.",
+      "accessLead": "One role per group of devices that do the same. Removing an account from its role revokes that device.",
+      "unit": {
+        "messagesPerSecond": "{value} per second per device",
+        "maxConnections": "{value} connections",
+        "maxMessageBytes": "{value} bytes",
+        "connectionsPerAddress": "{value} per address"
+      },
+      "limitWords": {
+        "messagesPerSecond": "A device that sends faster is refused and disconnected; it may reconnect at once.",
+        "maxConnections": "Each connected device holds one; above it new devices are turned away.",
+        "maxMessageBytes": "A larger message is refused.",
+        "connectionsPerAddress": "Connections one network address may hold at once at the edge."
+      },
+      "use": "{use} of {limit} in use",
+      "anySourceHint": "Any address with a valid token can connect now. Add the networks your devices use under Edit settings to turn others away before TLS, e.g. 192.0.2.0/24.",
+      "cname": "CNAME target",
+      "unreadable": "This broker does not exist, or your role may not read this project's MQTT brokers. Ask a project steward to grant you read access, or go back to the list."
     }
   },
   "connect": {

@@ -9967,6 +9967,73 @@
       "startsAt": "začíná {at}",
       "refusedTitle": "Nesmíte číst MQTT brokery tohoto projektu",
       "failedTitle": "Role brokeru se nepodařilo načíst"
+    },
+    "page": {
+      "lead": "MQTT broker, do kterého zařízení posílají data.",
+      "back": "← MQTT brokery",
+      "edit": "Upravit nastavení",
+      "source": "Zobrazit zdroj",
+      "sections": "Části tohoto brokeru",
+      "section": {
+        "live": "Právě teď",
+        "general": "Obecné",
+        "access": "Kdo se může připojit",
+        "limits": "Limity",
+        "networks": "Sítě",
+        "path": "Kam jdou data",
+        "connect": "Připojit zařízení"
+      },
+      "state": {
+        "receiving": "Přijímá",
+        "idle": "Nečinný",
+        "unmeasured": "Neměřeno"
+      },
+      "strip": "{rate} zpráv/s · připojeno: {connected} · odmítnutá přihlášení dnes: {refused}",
+      "notRead": "Portál nedokázal přečíst, co broker měří. Zkuste to za minutu znovu.",
+      "figure": {
+        "rate": "Zprávy za sekundu teď",
+        "rateNote": "Každé zařízení smí poslat nejvýše {limit}/s.",
+        "connected": "Připojená zařízení",
+        "connectedNote": "Z připojení, která broker najednou udrží.",
+        "refusedSignIns": "Odmítnutá přihlášení dnes",
+        "refusedSignInsNote": "Od půlnoci, z kontroly brány.",
+        "mostly": "Nejčastěji: {reason}",
+        "refusedPublishes": "Odmítnuté zprávy",
+        "refusedPublishesNote": "Od posledního spuštění brokeru: bez práva publikovat nebo nad limitem."
+      },
+      "chartEmpty": "Graf začne, jakmile broker uchová dva vzorky (jeden každých pár sekund).",
+      "chartSummary": "Zprávy za sekundu, posledních {minutes} min: nejvíce {top}, teď {now}",
+      "devices": "Účty zařízení a jejich připojení teď",
+      "account": "Účet",
+      "since": "Nejnovější připojení od",
+      "connectedCount": "připojeno: {count}",
+      "offlineNow": "Odpojeno",
+      "noDevices": "Zatím žádný účet zařízení. Přidejte ho v části Připojit zařízení.",
+      "title": "Název",
+      "does": "Co dělá",
+      "kept": "Uchované zprávy",
+      "qos": "Nejvyšší QoS",
+      "qosValue": "QoS 1 (alespoň jednou)",
+      "qosWords": "Zařízení smějí posílat s QoS 0 nebo 1. Zařízení s MQTT 5 se to dozví při přihlášení; zprávu s QoS 2 ze zařízení s MQTT 3.1.1 broker přijme a doručí s QoS 1, takže může přijít dvakrát.",
+      "offline": "Když je zařízení odpojené",
+      "offlineWords": "Jeho relace při odpojení končí: zprávy pro něj se do návratu neuchovávají a broker neuchovává ani retained zprávy.",
+      "accessLead": "Jedna role pro skupinu zařízení, která dělají totéž. Odebráním účtu z role odvoláte to zařízení.",
+      "unit": {
+        "messagesPerSecond": "{value} za sekundu na zařízení",
+        "maxConnections": "{value} připojení",
+        "maxMessageBytes": "{value} bajtů",
+        "connectionsPerAddress": "{value} na adresu"
+      },
+      "limitWords": {
+        "messagesPerSecond": "Zařízení, které posílá rychleji, broker odmítne a odpojí; může se hned znovu připojit.",
+        "maxConnections": "Každé připojené zařízení drží jedno; nad limitem broker nová zařízení odmítne.",
+        "maxMessageBytes": "Větší zprávu broker odmítne.",
+        "connectionsPerAddress": "Připojení, která jedna síťová adresa smí na okraji držet najednou."
+      },
+      "use": "Využito {use} z {limit}",
+      "anySourceHint": "Teď se může připojit jakákoli adresa s platným tokenem. V Upravit nastavení přidejte sítě vašich zařízení, aby ostatní odmítl ještě před TLS, např. 192.0.2.0/24.",
+      "cname": "Cíl CNAME",
+      "unreadable": "Tento broker neexistuje, nebo vaše role nesmí číst MQTT brokery tohoto projektu. Požádejte správce projektu o přístup ke čtení, nebo se vraťte na seznam."
     }
   },
   "connect": {

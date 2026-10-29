@@ -50,6 +50,16 @@ async function stubApi(page: Page): Promise<void> {
       return json({ subject: "b7c1e0f4", username: "aino.virtanen", name: "Aino Virtanen", roles: ["portal-editor"] });
     }
     if (url.pathname === "/api/v1/projects") return json({ apiVersion: API, kind: "ProjectList", items: [{ name: PROJECT }] });
+    // One broker's own page (T-6103) reads it by name, with its panels' own reads.
+    if (url.pathname.endsWith("/access")) return json({ roles: [], outOfWindow: [] });
+    if (/\/mqttbrokers\/([^/]+)\/bindings$/.test(url.pathname)) return json({ broker: "cameras", bindings: [] });
+    if (url.pathname.endsWith("/measured")) {
+      return json({ measured: false, observedAt: "2026-10-29T20:15:00Z", reason: "not measured in this journey", accounts: [], rates: [] });
+    }
+    if (url.pathname.endsWith("/watch")) return json({ observedAt: "2026-10-29T20:15:00Z", refusals: [], refusalsRead: false });
+    const one = /\/mqttbrokers\/([^/]+)$/.exec(url.pathname);
+    const broker = one ? LISTS.mqttbrokers?.find((b) => (b as { metadata: { name: string } }).metadata.name === one[1]) : undefined;
+    if (broker) return json(broker);
     const plural = url.pathname.split("/").pop() ?? "";
     return json({ apiVersion: API, kind: "List", items: LISTS[plural] ?? [] });
   });
@@ -62,16 +72,20 @@ test.describe("MQTT brokers", () => {
     await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "MQTT brokers" }).click();
 
     await expect(page.getByRole("heading", { level: 1, name: "MQTT brokers" })).toBeVisible();
+    // T-6103: the broker's settings live on its own page; the list keeps the data path.
+    await page.getByRole("link", { name: "cameras", exact: true }).first().click();
+    await expect(page.getByRole("heading", { level: 1, name: "cameras" })).toBeVisible();
     const acl = page.getByRole("table", { name: "Topic access of cameras by role" });
     await expect(acl.getByRole("row", { name: /cams/ })).toContainText("cam-1, cam-2");
     await expect(page.getByText("helsinki-cam-2", { exact: true })).toBeVisible();
 
     // cam-2 is named by the role but not declared in the project: that edge is red, with its fix.
+    await page.getByRole("link", { name: "MQTT brokers", exact: true }).first().click();
     const connections = page.getByRole("table", { name: "Connections" });
     const red = connections.locator('tr[data-edge="red"]');
     await expect(red).toHaveCount(1);
     await expect(red).toContainText("No service account cam-2 in this project");
-    await expect(red.getByRole("link", { name: "Fix it" })).toHaveAttribute("href", `/projects/${PROJECT}/mqttbrokers/cameras/edit`);
+    await expect(red.getByRole("link", { name: "Fix it" })).toHaveAttribute("href", `/projects/${PROJECT}/mqttbrokers/cameras`);
     await expect(connections.locator('tr[data-edge="green"]')).toHaveCount(4);
     expect(await axeViolations(page)).toEqual([]);
 
@@ -147,8 +161,25 @@ test.describe("MQTT brokers", () => {
         }),
       }),
     );
+    await page.route("**/api/v1/projects/helsinki/mqttbrokers/cameras", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify(
+          item(
+            "MqttBroker",
+            "cameras",
+            {
+              address: "customHostname",
+              hostname: "mqtt.helsinki.example",
+              roles: [{ name: "cams", serviceAccounts: ["cam-1"], publish: ["cameras/${clientid}/frames"] }],
+            },
+            { phase: "Pending", conditions: [{ type: "Ready", status: "False", reason: "WaitingForDns", message: "waiting for DNS" }] },
+          ),
+        ),
+      }),
+    );
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`/projects/${PROJECT}/mqttbrokers?lang=en`);
+    await page.goto(`/projects/${PROJECT}/mqttbrokers/cameras?lang=en`);
     const notice = page.locator("[data-dns='waiting']");
     await expect(notice).toContainText("Waiting for DNS");
     await expect(notice).toContainText("Point a CNAME record from mqtt.helsinki.example");
@@ -271,15 +302,18 @@ test.describe("MQTT brokers", () => {
     try {
       await stubApi(page);
       await page.setViewportSize({ width: 1440, height: 900 });
-      await page.goto(`/projects/${PROJECT}/mqttbrokers?lang=en`);
+      // T-6103: each broker's Networks section, on its own page.
+      await page.goto(`/projects/${PROJECT}/mqttbrokers/cameras?lang=en`);
+      await expect(page.getByTestId("broker-sources")).toContainText("Any address with a valid token");
+      await page.goto(`/projects/${PROJECT}/mqttbrokers/fenced?lang=en`);
       const sources = page.getByTestId("broker-sources");
-      await expect(sources.first()).toHaveText("Any address with a valid token");
-      await expect(sources.nth(1)).toHaveText("203.0.113.0/24, 2001:db8::/48");
+      await expect(sources.getByText("203.0.113.0/24")).toBeVisible();
+      await expect(sources.getByText("2001:db8::/48")).toBeVisible();
       const shots = process.env.T5870_SHOTS;
       if (shots) {
         for (const width of [1440, 400]) {
           await page.setViewportSize({ width, height: width === 400 ? 860 : 900 });
-          await sources.nth(1).scrollIntoViewIfNeeded();
+          await sources.scrollIntoViewIfNeeded();
           await page.screenshot({ path: `${shots}/mqtt-broker-sources-list-${width}.png` });
         }
       }
@@ -309,5 +343,106 @@ test.describe("MQTT brokers", () => {
         await page.screenshot({ path: `${shots}/mqtt-add-broker-no-accounts-${width}.png` });
       }
     }
+  });
+});
+
+// T-6103: one broker's own page over the reads the Portal makes, in each state the owner named:
+// receiving, idle, no traffic yet, and a caller who may not read the broker. Shots go to
+// T6103_SHOTS at 1440 and 400 px.
+test.describe("one MQTT broker's page (T-6103)", () => {
+  const MEASURED = {
+    measured: true,
+    observedAt: "2026-10-29T20:15:00Z",
+    messagesPerSecond: 58,
+    publishers: 1,
+    reason: null,
+    accounts: [
+      { serviceAccount: "cam-1", connected: 1, since: "2026-10-29T17:03:00Z" },
+      { serviceAccount: "cam-2", connected: 0, since: null },
+    ],
+    rates: Array.from({ length: 59 }, (_, i) => ({
+      at: new Date(Date.UTC(2026, 9, 29, 20, 10, 5 + i * 5)).toISOString(),
+      perSecond: 50 + Math.round(10 * Math.sin(i / 4)),
+    })),
+    refusedPublishes: 812,
+  };
+  const WATCHED = {
+    observedAt: "2026-10-29T20:15:00Z",
+    refusals: [
+      { at: "2026-10-29T19:00:00Z", reason: "expired", account: "cam-2" },
+      { at: "2026-10-29T19:05:00Z", reason: "expired", account: "cam-2" },
+    ],
+    refusalsRead: true,
+    connected: null,
+    messagesPerSecond: null,
+    reason: null,
+  };
+
+  async function openBroker(page: Page, measured: unknown, refused = false): Promise<void> {
+    await stubApi(page);
+    await page.route("**/api/v1/projects/helsinki/mqttbrokers/cameras**", async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const json = (body: unknown, status = 200) =>
+        route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+      if (refused && path.endsWith("/cameras")) {
+        return json({ type: "about:blank", title: "Not Found", status: 404, detail: "MQTT broker 'cameras' not found in project 'helsinki'" }, 404);
+      }
+      if (path.endsWith("/measured")) return json(measured);
+      if (path.endsWith("/watch")) return json(WATCHED);
+      if (path.endsWith("/access")) return json({ roles: [], outOfWindow: [] });
+      if (path.endsWith("/cameras")) return json(LISTS.mqttbrokers?.[0]);
+      return json({ apiVersion: API, kind: "List", items: [] });
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/projects/${PROJECT}/mqttbrokers/cameras?lang=en`);
+  }
+
+  async function shoot(page: Page, state: string): Promise<void> {
+    expect(await axeViolations(page), `axe on ${state}`).toEqual([]);
+    await page.setViewportSize({ width: 400, height: 900 });
+    // Only a table scrolls inside its own box; the page itself never scrolls sideways at 400 px.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), `width of ${state} at 400 px`).toBeLessThanOrEqual(400);
+    const shots = process.env.T6103_SHOTS;
+    if (!shots) return;
+    for (const width of [1440, 400]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({ path: `${shots}/broker-${state}-${width}.png`, fullPage: true });
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+  }
+
+  test("receiving: live figures, the chart and each account's connections", async ({ page }) => {
+    await openBroker(page, MEASURED);
+    await expect(page.getByRole("heading", { level: 1, name: "cameras" })).toBeVisible();
+    await expect(page.locator("[data-state='receiving']")).toHaveText("Receiving");
+    await expect(page.getByTestId("live-strip")).toHaveText("58 messages/s · 1 connected · 2 refused sign-ins today");
+    await expect(page.getByRole("img", { name: /Messages per second, last 5 min/ })).toBeVisible();
+    await expect(page.getByRole("table", { name: "Device accounts and their connections now" })).toContainText("1 connected");
+    await expect(page.getByText("QoS 1 (at least once)")).toBeVisible();
+    await page.getByRole("link", { name: "Limits" }).click();
+    await expect(page.locator("#broker-limits")).toBeInViewport();
+    await shoot(page, "receiving");
+  });
+
+  test("idle, and no traffic yet", async ({ page }) => {
+    const quiet = MEASURED.rates.map((point) => ({ ...point, perSecond: 0 }));
+    await openBroker(page, { ...MEASURED, messagesPerSecond: 0, rates: quiet });
+    await expect(page.locator("[data-state='idle']")).toHaveText("Idle");
+    await shoot(page, "idle");
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    const offline = MEASURED.accounts.map((account) => ({ ...account, connected: 0, since: null }));
+    await openBroker(page, { ...MEASURED, messagesPerSecond: 0, accounts: offline, rates: [], refusedPublishes: 0 });
+    await expect(page.getByText("The chart starts once the broker has kept two samples")).toBeVisible();
+    await expect(page.getByRole("table", { name: "Device accounts and their connections now" })).not.toContainText("connected");
+    await shoot(page, "no-traffic");
+  });
+
+  test("a caller who may not read the broker sees the refusal and no settings", async ({ page }) => {
+    await openBroker(page, MEASURED, true);
+    await expect(page.getByRole("link", { name: "← MQTT brokers" })).toBeVisible();
+    await expect(page.getByText("Topic access of cameras by role")).toHaveCount(0);
+    await expect(page.getByText(/your role may not read this project's MQTT brokers/)).toBeVisible();
+    await shoot(page, "no-permission");
   });
 });
