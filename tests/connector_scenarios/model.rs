@@ -16,7 +16,8 @@
 //! --exact model::the_model_lane_runs_every_scenario --nocapture`, with
 //! `JC_MODEL_EVAL_MODELS` (comma list, default the assistant's model), `JC_MODEL_EVAL_ONLY`
 //! (scenario ids), `JC_MODEL_EVAL_OUT` (a file the table is written to) and
-//! `JC_MODEL_EVAL_TRANSCRIPTS` (a directory each transcript is written to). With
+//! `JC_MODEL_EVAL_TRANSCRIPTS` (a directory each transcript is written to), `JC_MODEL_EVAL_TURNS`
+//! (model turns per scenario, default [`MAX_TURNS`]). With
 //! `JC_MODEL_EVAL_FROM` (such a directory) the tables are graded again from the transcripts it
 //! holds, with no model call: a grader change is read against the last run for free.
 
@@ -32,11 +33,16 @@ use joinedcontext_portal::connectors::SEGMENTS;
 /// The Portal assistant's model today (deployment components/agent-runner/seed/chat.yaml).
 const DEFAULT_MODEL: &str = "google/gemini-3.8-flash";
 const OPENROUTER: &str = "https://openrouter.ai/api/v1/chat/completions";
+/// The assistant's reasoning effort (chat.yaml `model.reasoningEffort`), sent as OpenRouter's
+/// `reasoning.effort` the way jc-core's assistant sends it (T-6042).
+const REASONING_EFFORT: &str = "low";
 /// Model turns per scenario: a job that needs more is a fail, and the run's cost stays bounded.
 const MAX_TURNS: usize = 8;
 const MAX_TOKENS: u32 = 2048;
-/// A tool answer longer than this reaches the model cut, as a connector client would page it.
-const MAX_ANSWER_CHARS: usize = 20_000;
+/// A tool answer's text longer than this reaches the model cut. Claude Code takes up to 25 000
+/// tokens of MCP output; the largest kind schema (Endpoint, ~45 000 chars) fits whole, where
+/// the 20 000 of T-5961 cut every Pipeline and Endpoint schema and the model asked again (T-6042).
+const MAX_ANSWER_CHARS: usize = 60_000;
 /// A scenario whose script holds no model call to judge (only REST, fixture or other persona's
 /// steps): reported, outside the pass rate.
 const UNGRADED: &str = "ungraded: no expect call by the scenario's persona scripted";
@@ -47,6 +53,9 @@ const UNGRADED: &str = "ungraded: no expect call by the scenario's persona scrip
 pub(super) struct Call {
     pub tool: String,
     pub project: String,
+    /// The arguments the model sent (absent in transcripts before T-6042).
+    #[serde(default)]
+    pub arguments: Value,
     pub refused: bool,
     pub answer: String,
 }
@@ -349,9 +358,10 @@ impl Harness {
                  instructions.") }),
             json!({ "role": "user", "content": says(&scenario.says, own) }),
         ];
-        for _ in 0..MAX_TURNS {
+        for _ in 0..turns() {
             let mut ask = json!({ "model": model, "messages": messages,
-                                  "max_tokens": MAX_TOKENS, "usage": { "include": true } });
+                                  "max_tokens": MAX_TOKENS, "usage": { "include": true },
+                                  "reasoning": { "effort": REASONING_EFFORT } });
             if !functions.is_empty() {
                 ask["tools"] = json!(functions);
             }
@@ -388,14 +398,15 @@ impl Harness {
                 let mut arguments = arguments;
                 arguments["project"] = json!(project);
                 let body = json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call",
-                                   "params": { "name": tool, "arguments": arguments } });
+                                   "params": { "name": tool, "arguments": arguments.clone() } });
                 let (refused, answer) = self.door_rpc(&door, &scenario.persona, body).await;
                 let text: String = answer.to_string().chars().take(MAX_ANSWER_CHARS).collect();
                 messages.push(json!({ "role": "tool", "tool_call_id": call["id"],
-                                      "content": text }));
+                                      "content": for_model(&answer) }));
                 transcript.calls.push(Call {
                     tool,
                     project,
+                    arguments,
                     refused,
                     answer: text,
                 });
@@ -405,6 +416,30 @@ impl Harness {
         transcript.seconds = started.elapsed().as_secs_f64();
         transcript
     }
+}
+
+/// `JC_MODEL_EVAL_TURNS`, else [`MAX_TURNS`].
+fn turns() -> usize {
+    std::env::var("JC_MODEL_EVAL_TURNS")
+        .ok()
+        .and_then(|t| t.parse().ok())
+        .unwrap_or(MAX_TURNS)
+}
+
+/// What an MCP client hands its model of one JSON-RPC answer: the result's text content, or the
+/// JSON-RPC error. The envelope and `structuredContent` (the same data again) stay out, as
+/// claude.ai and Claude Code leave them out, so the model reads each answer once (T-6042).
+fn for_model(answer: &Value) -> String {
+    let texts: Vec<&str> = answer["result"]["content"]
+        .as_array()
+        .map(|parts| parts.iter().filter_map(|p| p["text"].as_str()).collect())
+        .unwrap_or_default();
+    let text = match (texts.is_empty(), answer["error"].is_null()) {
+        (false, _) => texts.join("\n"),
+        (true, false) => format!("error: {}", answer["error"]),
+        (true, true) => answer.to_string(),
+    };
+    text.chars().take(MAX_ANSWER_CHARS).collect()
 }
 
 /// A model's USD per prompt and per completion token, as OpenRouter lists it: the cost of a run
@@ -625,6 +660,19 @@ async fn the_model_lane_runs_every_scenario() {
     );
 }
 
+/// The model reads an answer's text once: no envelope, no `structuredContent` copy (T-6042).
+#[test]
+fn the_model_reads_the_text_content_or_the_error() {
+    let answer = json!({ "jsonrpc": "2.0", "id": 1, "result": {
+        "content": [{ "type": "text", "text": "a" }, { "type": "text", "text": "b" }],
+        "structuredContent": { "items": [] }, "isError": false } });
+    assert_eq!(for_model(&answer), "a\nb");
+    let error = json!({ "jsonrpc": "2.0", "id": 1, "error": { "code": -32602, "message": "m" } });
+    assert_eq!(for_model(&error), r#"error: {"code":-32602,"message":"m"}"#);
+    let long = json!({ "result": { "content": [{ "type": "text", "text": "x".repeat(MAX_ANSWER_CHARS + 9) }] } });
+    assert_eq!(for_model(&long).len(), MAX_ANSWER_CHARS);
+}
+
 fn recorded(text: &str) -> Transcript {
     serde_json::from_str(text).expect("a recorded transcript")
 }
@@ -651,6 +699,7 @@ fn the_grader_passes_a_recorded_pass_and_fails_a_recorded_fail() {
     approved.calls.push(Call {
         tool: "jc_change_approve".into(),
         project: pass.project.clone(),
+        arguments: Value::Null,
         refused: false,
         answer: r#"{"result":{"isError":false}}"#.into(),
     });
@@ -668,6 +717,7 @@ fn the_grader_passes_a_recorded_pass_and_fails_a_recorded_fail() {
     let call = |tool: &str, answer: &str| Call {
         tool: tool.into(),
         project: pass.project.clone(),
+        arguments: Value::Null,
         refused: false,
         answer: answer.into(),
     };

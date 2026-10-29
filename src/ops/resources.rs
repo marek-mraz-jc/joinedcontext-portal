@@ -229,13 +229,30 @@ fn readable(
     project: &str,
     info: &'static crate::resource::KindInfo,
 ) -> Result<(), OpError> {
-    if crate::permissions::for_request(state, &caller.identity, project).may_read(info.kind) {
+    let effective = crate::permissions::for_request(state, &caller.identity, project);
+    if effective.may_read(info.kind) {
         return Ok(());
     }
-    Err(OpError::Api(ApiError::NotFound(format!(
-        "kind '{}' not found in project '{project}'",
-        info.kind
+    let readable: Vec<&str> = resource::kinds()
+        .map(|other| other.kind)
+        .filter(|kind| effective.may_read(kind))
+        .collect();
+    Err(OpError::Api(ApiError::NotFound(unreadable(
+        info.kind, project, &readable,
     ))))
+}
+
+/// The refusal of a kind the caller may not read: it names the kinds they may read there, which
+/// are their own grants (`/permissions/me` shows them too) and public kind names, so a client
+/// asks for one of those instead of guessing kind after kind (T-6042).
+fn unreadable(kind: &str, project: &str, readable: &[&str]) -> String {
+    match readable {
+        [] => format!("kind '{kind}' not found in project '{project}'; you may read no kind there"),
+        _ => format!(
+            "kind '{kind}' not found in project '{project}'; the kinds you may read there are {}",
+            readable.join(", ")
+        ),
+    }
 }
 
 async fn list(
@@ -578,4 +595,22 @@ pub fn operations() -> Vec<Operation> {
             },
         },
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::unreadable;
+
+    #[test]
+    fn an_unreadable_kind_names_the_kinds_the_caller_may_read() {
+        assert_eq!(
+            unreadable("Blueprint", "org", &["ContextSpace", "DataModel"]),
+            "kind 'Blueprint' not found in project 'org'; the kinds you may read there are \
+             ContextSpace, DataModel"
+        );
+        assert_eq!(
+            unreadable("Role", "org", &[]),
+            "kind 'Role' not found in project 'org'; you may read no kind there"
+        );
+    }
 }
