@@ -220,16 +220,7 @@ fn manifest_of(
 ) -> Result<Option<Value>, OpError> {
     let current = state.mirror.get(home, &change.kind, &change.name);
     let exists = current.is_some();
-    let named = |what: &str| -> Result<Value, OpError> {
-        match (what, &change.manifest, &change.patch) {
-            ("manifest", Some(m), None) => Ok(m.clone()),
-            ("patch", None, Some(p)) => Ok(p.clone()),
-            _ => Err(invalid(
-                format!("{at}/{what}"),
-                format!("op {:?} takes {what} alone", change.op).to_lowercase(),
-            )),
-        }
-    };
+    let named = |what: &str| given(at, change, what);
     let missing = || {
         invalid(
             format!("{at}/name"),
@@ -252,18 +243,11 @@ fn manifest_of(
         Op::Create => named("manifest")?,
         Op::Replace if !exists => return Err(missing()),
         Op::Replace => named("manifest")?,
-        Op::Patch => {
-            let patch = match (&change.patch, &change.source) {
-                (None, Some(_)) => json!({}),
-                _ => named("patch")?,
-            };
-            let mut whole = serde_json::to_value(current.ok_or_else(missing)?)?;
-            if let Some(map) = whole.as_object_mut() {
-                map.remove("status");
-            }
-            crate::plan::merge_patch(&mut whole, &patch);
-            whole
-        }
+        Op::Patch => patched(
+            at,
+            change,
+            serde_json::to_value(current.ok_or_else(missing)?)?,
+        )?,
         Op::Delete if !exists => return Err(missing()),
         Op::Delete if change.manifest.is_some() || change.patch.is_some() => {
             return Err(invalid(
@@ -273,6 +257,43 @@ fn manifest_of(
         }
         Op::Delete => return Ok(None),
     };
+    names_the_change(at, home, change, &manifest)?;
+    Ok(Some(manifest))
+}
+
+/// The object now, without its status, with the change's patch merged in; a patch that only
+/// carries a LinkML source leaves the manifest as it is.
+fn patched(at: &str, change: &ChangeInput, mut whole: Value) -> Result<Value, OpError> {
+    let patch = match (&change.patch, &change.source) {
+        (None, Some(_)) => json!({}),
+        _ => given(at, change, "patch")?,
+    };
+    if let Some(map) = whole.as_object_mut() {
+        map.remove("status");
+    }
+    crate::plan::merge_patch(&mut whole, &patch);
+    Ok(whole)
+}
+
+/// The manifest or the patch a change carries, refused when it carries the other one too.
+fn given(at: &str, change: &ChangeInput, what: &str) -> Result<Value, OpError> {
+    match (what, &change.manifest, &change.patch) {
+        ("manifest", Some(m), None) => Ok(m.clone()),
+        ("patch", None, Some(p)) => Ok(p.clone()),
+        _ => Err(invalid(
+            format!("{at}/{what}"),
+            format!("op {:?} takes {what} alone", change.op).to_lowercase(),
+        )),
+    }
+}
+
+/// The manifest names the change's kind and object, in the namespace the object lives in.
+fn names_the_change(
+    at: &str,
+    home: &str,
+    change: &ChangeInput,
+    manifest: &Value,
+) -> Result<(), OpError> {
     for (member, want) in [("kind", &change.kind), ("metadata/name", &change.name)] {
         if manifest
             .pointer(&format!("/{member}"))
@@ -301,7 +322,7 @@ fn manifest_of(
             ),
         ));
     }
-    Ok(Some(manifest))
+    Ok(())
 }
 
 /// One change checked: its diff, its verdict and what the plan keeps of it.
@@ -315,18 +336,7 @@ async fn checked(
 ) -> Result<(Value, Planned), OpError> {
     let info = super::resources::kind_named(&change.kind)?;
     if change.source.is_some() {
-        let refuse = |why: &str| Err(invalid(format!("{at}/source"), why.to_owned()));
-        if info.kind != "DataModel" {
-            return refuse("only a DataModel change carries a LinkML source");
-        }
-        if change.op == Op::Delete {
-            return refuse("op delete takes no source");
-        }
-        if workspace.is_some() {
-            return refuse(
-                "a model's source opens its own change request: plan it without workspace",
-            );
-        }
+        source_fits(at, info.kind, change, workspace)?;
     }
     through_connector(caller, project, info.kind, &change.name, false)?;
     let home = super::resources::home_holding(state, info, project, &change.name);
@@ -341,36 +351,7 @@ async fn checked(
             })?;
             (check.run)(caller, state, &home, json!({ "manifest": m })).await?
         }
-        None => match delete::delete_with_identity(
-            &caller.identity,
-            state,
-            &home,
-            info.plural,
-            &change.name,
-            true,
-            workspace,
-        )
-        .await?
-        {
-            DeleteOutcome::DryRun(result) => {
-                let mut out = serde_json::to_value(&result)?;
-                out["verdict"] = json!({ "ok": result.valid, "findings": [] });
-                out
-            }
-            DeleteOutcome::Referenced { here, elsewhere } => json!({
-                "valid": false,
-                "verdict": { "ok": false, "findings": [{
-                    "level": "error",
-                    "path": "",
-                    "message": DeleteOutcome::conflict_message(&here, elsewhere),
-                }] }
-            }),
-            DeleteOutcome::Proposed(_) | DeleteOutcome::Workspace(_) => {
-                return Err(OpError::Api(ApiError::Internal(
-                    "a dry run of a removal wrote something".into(),
-                )))
-            }
-        },
+        None => removal_dry_run(caller, state, &home, info.plural, &change.name, workspace).await?,
     };
     let model = match change.source {
         None => None,
@@ -414,6 +395,69 @@ async fn checked(
         model,
     };
     Ok((diff, planned))
+}
+
+/// A LinkML source rides only on a DataModel change that is no removal and no workspace commit.
+fn source_fits(
+    at: &str,
+    kind: &str,
+    change: &ChangeInput,
+    workspace: Option<&str>,
+) -> Result<(), OpError> {
+    let refuse = |why: &str| Err(invalid(format!("{at}/source"), why.to_owned()));
+    if kind != "DataModel" {
+        return refuse("only a DataModel change carries a LinkML source");
+    }
+    if change.op == Op::Delete {
+        return refuse("op delete takes no source");
+    }
+    if workspace.is_some() {
+        return refuse("a model's source opens its own change request: plan it without workspace");
+    }
+    Ok(())
+}
+
+/// The dry run of a removal, in the shape `jc_manifest_dry_run` answers.
+async fn removal_dry_run(
+    caller: &Caller,
+    state: &AppState,
+    home: &str,
+    plural: &'static str,
+    name: &str,
+    workspace: Option<&str>,
+) -> Result<Value, OpError> {
+    Ok(
+        match delete::delete_with_identity(
+            &caller.identity,
+            state,
+            home,
+            plural,
+            name,
+            true,
+            workspace,
+        )
+        .await?
+        {
+            DeleteOutcome::DryRun(result) => {
+                let mut out = serde_json::to_value(&result)?;
+                out["verdict"] = json!({ "ok": result.valid, "findings": [] });
+                out
+            }
+            DeleteOutcome::Referenced { here, elsewhere } => json!({
+                "valid": false,
+                "verdict": { "ok": false, "findings": [{
+                    "level": "error",
+                    "path": "",
+                    "message": DeleteOutcome::conflict_message(&here, elsewhere),
+                }] }
+            }),
+            DeleteOutcome::Proposed(_) | DeleteOutcome::Workspace(_) => {
+                return Err(OpError::Api(ApiError::Internal(
+                    "a dry run of a removal wrote something".into(),
+                )))
+            }
+        },
+    )
 }
 
 /// The LinkML half of a DataModel change (S-10, S-15): the check `PUT .../source` runs (no
@@ -806,88 +850,11 @@ async fn apply(
     for item in &plan.items {
         through_connector(caller, project, &item.kind, &item.name, true)?;
     }
-    let mut moved: Vec<String> = Vec::new();
-    for item in &plan.items {
-        let file_moved = match &item.model {
-            Some(model) => source_etag(state, &item.home, &item.name).await? != model.base,
-            None => false,
-        };
-        if file_moved || etag(state, &item.home, &item.kind, &item.name) != item.base {
-            moved.push(format!("{} {}", item.kind, item.name));
-        }
-    }
-    if !moved.is_empty() {
-        return Err(OpError::Api(ApiError::Conflict(format!(
-            "{} changed since the plan was made; nothing was applied. Read it again and call {PLAN} \
-             anew",
-            moved.join(", ")
-        ))));
-    }
-    let mut refused = Vec::new();
-    for item in &plan.items {
-        if let Some(refusal) = gate_refusal(state, item).await? {
-            refused.push(format!("{} {}: {refusal}", item.kind, item.name));
-        }
-    }
-    if !refused.is_empty() {
-        return Err(OpError::Api(ApiError::Conflict(format!(
-            "nothing was applied: {}",
-            refused.join("; ")
-        ))));
-    }
+    unchanged_and_gated(state, &plan.items).await?;
     let workspace = plan.workspace.as_deref();
     let mut opened = Vec::new();
     for item in &plan.items {
-        let outcome = match &item.manifest {
-            None => match delete::delete_with_identity(
-                &caller.identity,
-                state,
-                &item.home,
-                item.plural,
-                &item.name,
-                false,
-                workspace,
-            )
-            .await
-            {
-                Ok(DeleteOutcome::Proposed(change)) => Ok(ProposeOutcome::Change(change)),
-                Ok(DeleteOutcome::Workspace(commit)) => Ok(ProposeOutcome::Workspace(commit)),
-                Ok(other) => Err(ApiError::Conflict(match other {
-                    DeleteOutcome::Referenced { here, elsewhere } => {
-                        DeleteOutcome::conflict_message(&here, elsewhere)
-                    }
-                    _ => "the removal answered a dry run".into(),
-                })),
-                Err(err) => Err(err),
-            },
-            Some(manifest) if item.model.is_some() => {
-                let outcome = propose_source(caller, state, item, manifest).await;
-                super::forget_check(state, &item.home, manifest).await;
-                outcome.map(ProposeOutcome::Change)
-            }
-            Some(manifest) => {
-                let op = if item.base == "absent" {
-                    ChangeOp::Create
-                } else {
-                    ChangeOp::Update
-                };
-                // Gated: the proposal needs the green verdict the plan's check recorded (PF-57).
-                let outcome = mutate::propose_gated_in(
-                    &caller.identity,
-                    state,
-                    &item.home,
-                    item.plural,
-                    Some(&item.name),
-                    op,
-                    manifest.clone(),
-                    workspace,
-                )
-                .await;
-                super::forget_check(state, &item.home, manifest).await;
-                outcome
-            }
-        };
-        match outcome {
+        match open_one(caller, state, item, workspace).await {
             Ok(outcome) => opened.push(opened_row(outcome)),
             Err(err) if opened.is_empty() => return Err(OpError::Api(err)),
             Err(err) => {
@@ -909,6 +876,98 @@ async fn apply(
         key: opened,
         "approve": "a person with approve on these kinds decides each change at its url in the Portal",
     }))
+}
+
+/// Refuses the whole plan when an object moved since it was planned or its gate turned red.
+async fn unchanged_and_gated(state: &AppState, items: &[Planned]) -> Result<(), OpError> {
+    let mut moved: Vec<String> = Vec::new();
+    for item in items {
+        let file_moved = match &item.model {
+            Some(model) => source_etag(state, &item.home, &item.name).await? != model.base,
+            None => false,
+        };
+        if file_moved || etag(state, &item.home, &item.kind, &item.name) != item.base {
+            moved.push(format!("{} {}", item.kind, item.name));
+        }
+    }
+    if !moved.is_empty() {
+        return Err(OpError::Api(ApiError::Conflict(format!(
+            "{} changed since the plan was made; nothing was applied. Read it again and call {PLAN} \
+             anew",
+            moved.join(", ")
+        ))));
+    }
+    let mut refused = Vec::new();
+    for item in items {
+        if let Some(refusal) = gate_refusal(state, item).await? {
+            refused.push(format!("{} {}: {refusal}", item.kind, item.name));
+        }
+    }
+    if !refused.is_empty() {
+        return Err(OpError::Api(ApiError::Conflict(format!(
+            "nothing was applied: {}",
+            refused.join("; ")
+        ))));
+    }
+    Ok(())
+}
+
+/// Opens one planned change: its change request, or its commit on the workspace.
+async fn open_one(
+    caller: &Caller,
+    state: &AppState,
+    item: &Planned,
+    workspace: Option<&str>,
+) -> Result<ProposeOutcome, ApiError> {
+    match &item.manifest {
+        None => match delete::delete_with_identity(
+            &caller.identity,
+            state,
+            &item.home,
+            item.plural,
+            &item.name,
+            false,
+            workspace,
+        )
+        .await
+        {
+            Ok(DeleteOutcome::Proposed(change)) => Ok(ProposeOutcome::Change(change)),
+            Ok(DeleteOutcome::Workspace(commit)) => Ok(ProposeOutcome::Workspace(commit)),
+            Ok(other) => Err(ApiError::Conflict(match other {
+                DeleteOutcome::Referenced { here, elsewhere } => {
+                    DeleteOutcome::conflict_message(&here, elsewhere)
+                }
+                _ => "the removal answered a dry run".into(),
+            })),
+            Err(err) => Err(err),
+        },
+        Some(manifest) if item.model.is_some() => {
+            let outcome = propose_source(caller, state, item, manifest).await;
+            super::forget_check(state, &item.home, manifest).await;
+            outcome.map(ProposeOutcome::Change)
+        }
+        Some(manifest) => {
+            let op = if item.base == "absent" {
+                ChangeOp::Create
+            } else {
+                ChangeOp::Update
+            };
+            // Gated: the proposal needs the green verdict the plan's check recorded (PF-57).
+            let outcome = mutate::propose_gated_in(
+                &caller.identity,
+                state,
+                &item.home,
+                item.plural,
+                Some(&item.name),
+                op,
+                manifest.clone(),
+                workspace,
+            )
+            .await;
+            super::forget_check(state, &item.home, manifest).await;
+            outcome
+        }
+    }
 }
 
 /// Opens the change of a DataModel planned with its LinkML file: manifest, source and generated
