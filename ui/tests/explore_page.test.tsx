@@ -749,3 +749,37 @@ describe("the endpoint the explorer reads through (T-5604)", () => {
     expect(screen.queryByText(en.explore.endpointUnshown.replace("{name}", "app-air-quality"))).toBeNull();
   });
 });
+
+// T-6107: a read the Endpoint's policy refuses says so in the grid, with no "try again", and the
+// "Your access" menu, which would contradict it, is not offered.
+it("words a refused read as a refusal and hides Your access", async () => {
+  await i18n.changeLanguage("en");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: unknown) => {
+      const url = urlOf(input);
+      if (url.includes("/entities?")) {
+        const problem = { type: "https://uri.etsi.org/ngsi-ld/errors/Forbidden", title: "Forbidden", detail: "the policy of this endpoint does not let you read BikeHireDockingStation" };
+        return Promise.resolve(new Response(JSON.stringify(problem), { status: 403, headers: { "Content-Type": "application/problem+json" } }));
+      }
+      return Promise.resolve(new Response("", { status: 404 }));
+    }),
+  );
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(queryKeys.list("helsinki", "endpoints"), ENDPOINTS);
+  client.setQueryData(queryKeys.list("helsinki", "spaces"), SPACES);
+  client.setQueryData(queryKeys.list("helsinki", "datamodels"), MODELS);
+  render(
+    <QueryClientProvider client={client}>
+      <I18nextProvider i18n={i18n}>
+        <InRouter>
+          <ExplorePage project="helsinki" initialSpace="helsinki" initialEndpoint="helsinki-bikes" />
+        </InRouter>
+      </I18nextProvider>
+    </QueryClientProvider>,
+  );
+  await userEvent.selectOptions(await screen.findByLabelText(/Entity type/i), "BikeHireDockingStation");
+  expect(await screen.findByText(new RegExp(`^${en.entityGrid.refused}`))).toBeInTheDocument();
+  expect(screen.queryByText(new RegExp(en.entityGrid.error))).toBeNull();
+  expect(screen.queryByText(en.explore.yourAccess)).toBeNull();
+});

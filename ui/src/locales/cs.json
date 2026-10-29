@@ -5424,6 +5424,7 @@
     "page": "Strana",
     "showMetadata": "Zobrazit metadata pro",
     "error": "Nenačteno, zkuste znovu",
+    "refused": "Toto nemáte povoleno číst",
     "filter": "Filtr",
     "noFilter": "Vše",
     "ops": {
@@ -5654,6 +5655,9 @@
     }
   },
   "explore": {
+    "filtersOf": "Typ entity {type}, oblast a filtry",
+    "filtersPick": "Vyberte typ entity, oblast a filtry",
+    "yourAccess": "Váš přístup",
     "title": "Procházet data",
     "description": "Řádky kontextového prostoru, čtené přes jeden z jeho endpointů.",
     "space": "Kontextový prostor",

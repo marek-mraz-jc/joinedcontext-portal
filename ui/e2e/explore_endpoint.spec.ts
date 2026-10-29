@@ -136,16 +136,24 @@ for (const width of [1440, 400]) {
     // hint sentence.
     const description = await page.getByText("Rows of a context space, read through one of its Endpoints.").boundingBox();
     const picker = await page.locator("#explore-space").boundingBox();
-    const filters = await page.getByLabel("Entity type").boundingBox();
-    expect(picker!.y + picker!.height).toBeLessThan(filters!.y);
     if (width === 1440) expect(Math.abs(picker!.y + picker!.height - (description!.y + description!.height))).toBeLessThan(24);
+    // The filters fold under one line: rows in the first screen at 1440, the grid's header at 400.
+    await expect(page.getByLabel("Entity type")).toBeHidden();
+    const first = await page.locator(width === 1440 ? "tbody tr" : "thead").first().boundingBox();
+    expect(first!.y + first!.height).toBeLessThan(900);
     await expect(page.getByText("whose Policy decides what you see")).toHaveCount(0);
     expect(await axeViolations(page)).toEqual([]);
     await page.screenshot({ path: `${AFTER}/loaded-${width}.png`, fullPage: true });
 
-    await page.locator("summary", { hasText: "Export" }).click();
+    const exportButton = page.locator("summary", { hasText: "Export" });
+    await exportButton.click();
     const csv = page.getByRole("link", { name: "CSV", exact: true });
     await expect(csv).toBeVisible();
+    // The menu opens under its button, at 400 too (no bottom sheet over the toolbar).
+    const button = await exportButton.boundingBox();
+    const menu = await csv.boundingBox();
+    expect(menu!.y).toBeGreaterThan(button!.y + button!.height);
+    expect(menu!.y).toBeLessThan(button!.y + button!.height + 120);
     const href = new URL((await csv.getAttribute("href"))!, "http://x");
     expect(href.pathname).toBe(`/api/endpoint/${OWN.slug}/file.csv`);
     expect(href.searchParams.get("type")).toBe(TYPE);
@@ -169,7 +177,20 @@ for (const width of [1440, 400]) {
     await stub(page, false, { refuse: true });
     await page.goto("/projects/helsinki/explore?lang=en");
     await expect(page.getByText("does not let you read", { exact: false }).first()).toBeVisible();
+    await expect(page.getByText("You may not read this", { exact: false })).toBeVisible();
+    await expect(page.getByText("try again", { exact: false })).toHaveCount(0);
+    await expect(page.locator("summary", { hasText: "Your access" })).toHaveCount(0);
     await page.screenshot({ path: `${AFTER}/refused-${width}.png`, fullPage: true });
+  });
+
+  test(`an Endpoint that serves no file offers no download at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await stub(page, false);
+    await page.goto("/projects/helsinki/explore?lang=en");
+    await expect(page.locator("tbody tr").first()).toBeVisible();
+    await page.locator("summary", { hasText: "Export" }).click();
+    await expect(page.getByRole("link", { name: "CSV", exact: true })).toHaveCount(0);
+    await page.screenshot({ path: `${AFTER}/export-none-${width}.png`, fullPage: true });
   });
 
   test(`a project without a space says where to make one at ${width}px`, async ({ page }) => {

@@ -14,7 +14,7 @@ import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { enumsOfModel, fetchEntity, filterSlotsOf, qProblem, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import type { EntityQuery } from "../../components/entities/filters";
-import { Alert, Button, EmptyState, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
+import { Alert, Button, Card, EmptyState, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
 import { ToolbarPopover } from "../../components/entities/GridToolbar";
 import { ExportLinks } from "../spaces/ImportRows";
 import { MAX_EXPORT_IDS } from "../spaces/importRows";
@@ -98,6 +98,8 @@ export function ExplorePage({
   const [gridAsk, setGridAsk] = useState<{ q?: string; idPattern?: string }>({});
   /** The grid's checked rows: the export then holds only them, as on a space's page (T-6107). */
   const [checked, setChecked] = useState<string[]>([]);
+  // The grid's read was refused: "Your access" would contradict it, so it is not offered (T-6107).
+  const [refused, setRefused] = useState(false);
   /** Bumped when an entity is removed, so the grid reads the endpoint again. */
   const [generation, setGeneration] = useState(0);
 
@@ -315,6 +317,7 @@ export function ExplorePage({
                 value={space}
                 // A project without a space has nothing to pick; the empty state below says why.
                 disabled={spaces.data !== undefined && spaces.data.length === 0}
+                title={spaces.data !== undefined && spaces.data.length === 0 ? t("explore.noSpaces") : undefined}
                 onChange={(event) => {
                   setSpace(event.target.value);
                   setEndpointChoice("");
@@ -383,29 +386,39 @@ export function ExplorePage({
       ) : null}
 
       {space ? (
-        <EntityFilters
-          id="explore"
-          types={types}
-          space={space || undefined}
-          slots={slots}
-          value={query}
-          onChange={changeQuery}
-          denied={denied}
-          readable={readable}
-        />
+        // The type, the area and the filters fold under one line once a type is chosen, so the rows
+        // are the first thing on the page (T-6107).
+        <Card padding="sm">
+          <details open={!query.type}>
+            <summary className="cursor-pointer text-body font-medium">
+              {query.type ? t("explore.filtersOf", { type: query.type }) : t("explore.filtersPick")}
+            </summary>
+            <div className="mt-3 flex flex-col gap-3">
+              <EntityFilters
+                id="explore"
+                types={types}
+                space={space || undefined}
+                slots={slots}
+                value={query}
+                onChange={changeQuery}
+                denied={denied}
+                readable={readable}
+              />
+              {query.type && unknownType === undefined ? (
+                <p className="text-caption text-fg-muted">
+                  {t("explore.typeInModel")} <TypeLink project={project} type={query.type} space={space} className="font-mono" />
+                  {endpointName ? (
+                    <>
+                      {" · "}
+                      {t("explore.readThrough")} {endpoint ? endpointTitle(endpoint, locale) : endpointName}
+                    </>
+                  ) : null}
+                </p>
+              ) : null}
+            </div>
+          </details>
+        </Card>
       ) : null}
-      {space && query.type && unknownType === undefined ? (
-        <p className="text-caption text-fg-muted">
-          {t("explore.typeInModel")} <TypeLink project={project} type={query.type} space={space} className="font-mono" />
-          {endpointName ? (
-            <>
-              {" · "}
-              {t("explore.readThrough")} {endpoint ? endpointTitle(endpoint, locale) : endpointName}
-            </>
-          ) : null}
-        </p>
-      ) : null}
-      {space ? <AccessPanel slug={slug} type={unknownType === undefined ? query.type : undefined} access={access} /> : null}
 
       {config && space && query.type ? (
         <Tabs
@@ -470,13 +483,14 @@ export function ExplorePage({
             access={attributeAccess.isError ? null : attributeAccess.data}
             explainAccess={endpointName ? explainAccess : undefined}
             accessRequestHref={`/projects/${encodeURIComponent(project)}/access`}
+            onRefused={setRefused}
             toolbar={
               slug ? (
                 <div className="flex flex-wrap items-center gap-2">
                   {endpoint && query.type ? (
                     // The space page's own export (T-6107): the formats this Endpoint serves, the
                     // checked rows alone once some are checked.
-                    <ToolbarPopover label={t("explore.export")} count={checked.length || undefined} wide>
+                    <ToolbarPopover label={t("explore.export")} count={checked.length || undefined} wide anchored>
                       {checked.length > MAX_EXPORT_IDS ? (
                         <p className="text-caption text-fg-muted">{t("spaces.toolbar.exportTooMany", { n: MAX_EXPORT_IDS })}</p>
                       ) : (
@@ -491,6 +505,11 @@ export function ExplorePage({
                       )}
                     </ToolbarPopover>
                   ) : null}
+                  {refused ? null : (
+                    <ToolbarPopover label={t("explore.yourAccess")} wide>
+                      <AccessPanel slug={slug} type={unknownType === undefined ? query.type : undefined} access={access} />
+                    </ToolbarPopover>
+                  )}
                   <UseThisData
                     project={project}
                     slug={slug}

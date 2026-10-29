@@ -5424,6 +5424,7 @@
     "page": "Page",
     "showMetadata": "Show metadata for",
     "error": "Not loaded, try again",
+    "refused": "You may not read this",
     "filter": "Filter",
     "noFilter": "All",
     "ops": {
@@ -5654,6 +5655,9 @@
     }
   },
   "explore": {
+    "filtersOf": "Entity type {type}, area and filters",
+    "filtersPick": "Choose an entity type, an area and filters",
+    "yourAccess": "Your access",
     "title": "Explore data",
     "description": "Rows of a context space, read through one of its Endpoints.",
     "space": "Context space",

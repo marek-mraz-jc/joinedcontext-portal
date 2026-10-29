@@ -5424,6 +5424,7 @@
     "page": "Seite",
     "showMetadata": "Metadaten anzeigen für",
     "error": "Nicht geladen, versuchen Sie es erneut",
+    "refused": "Sie dürfen dies nicht lesen",
     "filter": "Filter",
     "noFilter": "Alle",
     "ops": {
@@ -5654,6 +5655,9 @@
     }
   },
   "explore": {
+    "filtersOf": "Entitätstyp {type}, Bereich und Filter",
+    "filtersPick": "Wählen Sie einen Entitätstyp, einen Bereich und Filter",
+    "yourAccess": "Ihr Zugriff",
     "title": "Daten erkunden",
     "description": "Zeilen eines Kontextraums, gelesen über einen seiner Endpunkte.",
     "space": "Kontextraum",

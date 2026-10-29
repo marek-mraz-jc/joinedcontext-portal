@@ -12,7 +12,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
-import { EntityGrid, DEFAULT_LABELS, originTransport, sourceFor } from "@joinedcontext/sdk";
+import { EntityGrid, DEFAULT_LABELS, originTransport, SourceError, sourceFor } from "@joinedcontext/sdk";
 import type { ColumnLayout, EntityGridProps, GeoLabels, GridLabels, GridMapLabels, GridSource, GridState, ResolvedGridConfig } from "@joinedcontext/sdk";
 
 /** Where the layout a person set is kept, per project and per type. */
@@ -360,17 +360,24 @@ export interface PortalEntityGridProps extends Omit<EntityGridProps, "labels" | 
   onGridState?: (next: GridState) => void;
   /** What an empty answer says instead of "No entities here", e.g. that a filter excluded all. */
   emptyText?: string;
+  /** Whether the last read was refused (401/403), for a host that shows the person's access beside it. */
+  onRefused?: (refused: boolean) => void;
 }
 
 /**
  * The grid as the Portal renders it. The source comes from the config — an endpoint's slug or a
  * space's name, never a URL (EP-55) — over the Portal's own origin transport.
  */
-export function PortalEntityGrid({ project, config, source, view, onGridState, emptyText, ...rest }: PortalEntityGridProps): JSX.Element {
+export function PortalEntityGrid({ project, config, source, view, onGridState, emptyText, onRefused, ...rest }: PortalEntityGridProps): JSX.Element {
   const { t, i18n } = useTranslation();
+  // A refused read is no failure to retry: it says so, not "try again" (T-6107).
+  const [refused, setRefused] = useState(false);
   // `t` changes identity on a language change, which is what rebuilds the labels; the language
   // itself is read below, for the source's own locale.
-  const labels = useMemo(() => ({ ...gridLabels(t), ...(emptyText ? { empty: emptyText } : {}) }), [t, emptyText]);
+  const labels = useMemo(
+    () => ({ ...gridLabels(t), ...(emptyText ? { empty: emptyText } : {}), ...(refused ? { error: t("entityGrid.refused") } : {}) }),
+    [t, emptyText, refused],
+  );
   const mapLabels = useMemo(() => gridMapLabels(t), [t]);
   const geoLabels = useMemo(() => geoEditorLabels(t), [t]);
 
@@ -388,6 +395,25 @@ export function PortalEntityGrid({ project, config, source, view, onGridState, e
     }
     return sourceFor(where, originTransport(), i18n.language);
   }, [source, sourceKey, i18n.language]);
+  const watched = useMemo(() => {
+    const seen = (now: boolean) => {
+      setRefused(now);
+      onRefused?.(now);
+    };
+    const wrapped: typeof built = Object.create(built);
+    wrapped.query = (query, options) =>
+      built.query(query, options).then(
+        (page) => {
+          seen(false);
+          return page;
+        },
+        (err: unknown) => {
+          seen(err instanceof SourceError && (err.status === 401 || err.status === 403));
+          throw err;
+        },
+      );
+    return wrapped;
+  }, [built, onRefused]);
 
   const [layout, setLayout] = useState<Layout>(
     () => readLayout(project, config.type) ?? { shown: {}, sort: null },
@@ -415,7 +441,7 @@ export function PortalEntityGrid({ project, config, source, view, onGridState, e
     <EntityGrid
       {...rest}
       config={config}
-      source={built}
+      source={watched}
       labels={labels}
       // Numbers and dates read in the person's language (T-4827).
       locale={i18n.language}
