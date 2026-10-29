@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
 import { useTranslation } from "react-i18next";
 import { parseGridConfig } from "@joinedcontext/sdk";
-import type { GridState, ResolvedGridConfig, RichRow } from "@joinedcontext/sdk";
+import type { ResolvedGridConfig, RichRow } from "@joinedcontext/sdk";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { asManifests, localized, refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
@@ -14,16 +14,18 @@ import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
 import { enumsOfModel, fetchEntity, filterSlotsOf, qProblem, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import type { EntityQuery } from "../../components/entities/filters";
-import { Alert, Button, EmptyState, Field, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
+import { Alert, Button, Card, EmptyState, PageHeader, Select, Tabs, tabPanelProps } from "../../components/ui";
+import { ToolbarPopover } from "../../components/entities/GridToolbar";
+import { servedRepresentations } from "../../components/endpoints/links";
+import { ExportLinks } from "../spaces/ImportRows";
+import { MAX_EXPORT_IDS } from "../spaces/importRows";
 import { TypeQuality } from "./TypeQuality";
 import { TypeLink } from "../models/ModelLinks";
-import { ExportView } from "./ExportView";
 import { ExploreRowActions } from "./ExploreRowActions";
 import { UseThisData } from "./UseThisData";
 import { ChartFromView } from "./ChartFromView";
 import { ExploreMap, isLocated } from "./ExploreMap";
 import { andQ } from "./exportView";
-import type { ViewSort } from "./exportView";
 import { entityTypesOf, isAppEndpoint, pickReadEndpoint, spaceOf } from "../spaces/spaceFacts";
 import { useIdentity } from "../../auth/AuthProvider";
 import { replaceOwnSearch } from "../../assistant/HandOff";
@@ -93,9 +95,12 @@ export function ExplorePage({
   const [selected, setSelected] = useState<string | null>(initialEntityId ?? null);
   // The type's entities, or its data-quality report (T-3252).
   const [view, setView] = useState<"entities" | "quality" | "map">("entities");
-  /** What the grid's filter row asks and its order, for the export of the whole view (T-3253). */
+  /** What the grid's filter row asks, for the map and the export of the view (T-3253). */
   const [gridAsk, setGridAsk] = useState<{ q?: string; idPattern?: string }>({});
-  const [gridSort, setGridSort] = useState<ViewSort | null>(null);
+  /** The grid's checked rows: the export then holds only them, as on a space's page (T-6107). */
+  const [checked, setChecked] = useState<string[]>([]);
+  // The grid's read was refused: "Your access" would contradict it, so it is not offered (T-6107).
+  const [refused, setRefused] = useState(false);
   /** Bumped when an entity is removed, so the grid reads the endpoint again. */
   const [generation, setGeneration] = useState(0);
 
@@ -107,7 +112,9 @@ export function ExplorePage({
   const handedSpace = (endpoints.data ?? []).find(
     (e) => e.metadata.name === initialEndpoint,
   );
-  const space = chosenSpace ?? (handedSpace ? spaceOf(handedSpace) : "");
+  // Nobody chose and nothing was handed: the page opens on the project's first space, so it shows
+  // data rather than a card asking for a pick (T-6107).
+  const space = chosenSpace ?? (handedSpace ? spaceOf(handedSpace) : initialEndpoint ? "" : (spaces.data?.[0]?.metadata.name ?? ""));
   const spaceEndpoints = (endpoints.data ?? []).filter((e) => spaceOf(e) === space);
   const chosenEndpoint = spaceEndpoints.find((e) => e.metadata.name === endpointChoice);
   // A link that names an Endpoint this person is not shown in the space reads through nothing
@@ -129,11 +136,41 @@ export function ExplorePage({
     enabled: Boolean(slug && selected && !askedQuery.type),
   });
   const typeOfLink = askedQuery.type ? undefined : linkedType.data?.type;
-  const query: EntityQuery = useMemo(
-    () => (typeof typeOfLink === "string" ? { ...askedQuery, type: typeOfLink } : askedQuery),
-    [askedQuery, typeOfLink],
-  );
 
+  const spaceManifest = (spaces.data ?? []).find((s) => s.metadata.name === space);
+  const model = (models.data ?? []).find(
+    (m) => m.metadata.name === refName(spaceManifest?.spec.dataModelRef),
+  );
+  const types = useMemo(() => (model ? entityTypesOf(model) : []), [model]);
+  // Only the model's own types make an address's type unknown: the broker's list is the person's
+  // readable types, so a type missing there may exist and be refused (T-5622).
+  const knownTypes = types.length > 0 ? types : undefined;
+  const access = useAccess(slug);
+  // The types this endpoint lets the person read (T-3218): a grant without a type covers every
+  // one, and an access document not read yet says nothing, so the list then stays as it is.
+  const readable = useMemo(() => {
+    const grants = (access.data?.permissions ?? []).filter((entry) =>
+      (entry.actions ?? []).some((action) => action.startsWith("query") || action.startsWith("retrieve")),
+    );
+    if (access.data === undefined || grants.some((entry) => !entry.resource?.type || entry.resource.type === "*")) {
+      return undefined;
+    }
+    return [...new Set(grants.map((entry) => entry.resource?.type).filter((type): type is string => Boolean(type)))];
+  }, [access.data]);
+  // Without a type asked or linked the grid opens on the first one the person may read (T-6107);
+  // a linked entity waits for its own type instead.
+  const firstType = selected || !slug || access.isPending ? undefined : (readable ? types.find((type) => readable.includes(type)) : types[0]);
+  const query: EntityQuery = useMemo(
+    () =>
+      askedQuery.type
+        ? askedQuery
+        : typeof typeOfLink === "string"
+          ? { ...askedQuery, type: typeOfLink }
+          : firstType
+            ? { ...askedQuery, type: firstType }
+            : askedQuery,
+    [askedQuery, typeOfLink, firstType],
+  );
   // What is chosen stands in the address as it changes (UI-89, T-3239): a reload or a link sent
   // to a colleague opens the same space, endpoint, type, search and entity. `space` and
   // `endpoint` are also the assistant's hand-off; written as the page's own, they mount nothing
@@ -153,14 +190,6 @@ export function ExplorePage({
     put("entityId", selected);
     replaceOwnSearch(address);
   }, [chosenSpace, endpointChoice, endpointName, query.type, query.q, selected]);
-  const spaceManifest = (spaces.data ?? []).find((s) => s.metadata.name === space);
-  const model = (models.data ?? []).find(
-    (m) => m.metadata.name === refName(spaceManifest?.spec.dataModelRef),
-  );
-  const types = model ? entityTypesOf(model) : [];
-  // Only the model's own types make an address's type unknown: the broker's list is the person's
-  // readable types, so a type missing there may exist and be refused (T-5622).
-  const knownTypes = types.length > 0 ? types : undefined;
   /** The space's model is not known yet: the space or the model list is still on its way. */
   const modelPending = spaces.isPending || models.isPending;
   const unknownType =
@@ -186,18 +215,6 @@ export function ExplorePage({
   const rules = useMemo(() => rulesOfModel(modelSource, query.type), [modelSource, query.type]);
   // A relationship end is picked from the target's entities the person can read (UI-84).
   const relations = useMemo(() => relationsOfModel(modelSource, query.type), [modelSource, query.type]);
-  const access = useAccess(slug);
-  // The types this endpoint lets the person read (T-3218): a grant without a type covers every
-  // one, and an access document not read yet says nothing, so the list then stays as it is.
-  const readable = useMemo(() => {
-    const grants = (access.data?.permissions ?? []).filter((entry) =>
-      (entry.actions ?? []).some((action) => action.startsWith("query") || action.startsWith("retrieve")),
-    );
-    if (access.data === undefined || grants.some((entry) => !entry.resource?.type || entry.resource.type === "*")) {
-      return undefined;
-    }
-    return [...new Set(grants.map((entry) => entry.resource?.type).filter((type): type is string => Boolean(type)))];
-  }, [access.data]);
   // What the person may do with each attribute, as the endpoint decides it (T-5528): the grid's
   // editors, the filters' hidden marks and the cell inspector all render this one answer.
   const attributeAccess = useAttributeAccess(slug, query.type);
@@ -258,11 +275,6 @@ export function ExplorePage({
   const onQuery = useCallback((asked: { q?: string; idPattern?: string }) => {
     setGridAsk((previous) => (previous.q === asked.q && previous.idPattern === asked.idPattern ? previous : asked));
   }, []);
-  const onGridState = useCallback((next: GridState) => {
-    setGridSort((previous) =>
-      previous?.attr === next.sort?.attr && previous?.dir === next.sort?.dir ? previous : next.sort,
-    );
-  }, []);
   // A row opens in the grid's own detail (T-5619): its fields as the grid draws them, its history,
   // and under them what the page adds, the removal of UI-60 and the entity as the endpoint holds it.
   const detailExtra = (row: RichRow) =>
@@ -284,80 +296,90 @@ export function ExplorePage({
   function changeQuery(next: EntityQuery) {
     setQuery(next);
     setSelected(null);
+    setChecked([]);
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title={t("explore.title")} description={t("explore.description")} />
-      {/* Two pickers, not a row of the whole screen: at 2560 px each select was 1100 px wide
-          (T-2755). The grid below takes the width. */}
-      <div className="grid max-w-5xl gap-3 sm:grid-cols-2">
-        <Field id="explore-space" label={t("explore.space")}>
-          <Select
-            id="explore-space"
-            value={space}
-            onChange={(event) => {
-              setSpace(event.target.value);
-              setEndpointChoice("");
-              changeQuery({});
-            }}
-          >
-            <option value="">—</option>
-            {(spaces.data ?? []).map((s) => (
-              <option key={s.metadata.name} value={s.metadata.name}>
-                {localized(s.metadata.title, locale, s.metadata.name)}
-              </option>
-            ))}
-          </Select>
-          {/* Without this a failed `/spaces` left the picker at "—" and the page read like a
-              project with no spaces at all (T-1768). */}
-          {spaces.isError ? (
-            <ListFailed
-              what={t("nav.spaces")}
-              reason={reasonOf(spaces.error, t("explore.loadFailed"))}
-              onRetry={() => void spaces.refetch()}
-            />
-          ) : null}
-        </Field>
-        <Field
-          id="explore-endpoint"
-          label={t("explore.endpoint")}
-          description={
-            space && spaceEndpoints.length === 0 && !endpoints.isError
-              ? t("explore.noEndpoint")
-              : t("explore.hint.endpoint")
-          }
-        >
-          <Select
-            id="explore-endpoint"
-            // Named by hand: the failure note beside it makes two children, which the Field does
-            // not wire (T-5622).
-            aria-describedby="explore-endpoint__description"
-            value={endpoint?.metadata.name ?? ""}
-            disabled={!space}
-            title={!space ? t("explore.pickSpaceFirst") : undefined}
-            onChange={(event) => {
-              setEndpointChoice(event.target.value);
-              setSelected(null);
-            }}
-          >
-            <option value="">—</option>
-            {/* The space's own Endpoints first, an App's under "Applications": the group tells a
-                space's Endpoint from an App's of one title, where a slug in brackets did (T-5622). */}
-            {endpointOptions(spaceEndpoints.filter((e) => !isAppEndpoint(e)), locale)}
-            {spaceEndpoints.some(isAppEndpoint) ? (
-              <optgroup label={t("explore.endpointApps")}>{endpointOptions(spaceEndpoints.filter(isAppEndpoint), locale)}</optgroup>
-            ) : null}
-          </Select>
-          {endpoints.isError ? (
-            <ListFailed
-              what={t("nav.endpoints")}
-              reason={reasonOf(endpoints.error, t("explore.loadFailed"))}
-              onRetry={() => void endpoints.refetch()}
-            />
-          ) : null}
-        </Field>
-      </div>
+      {/* The pickers sit on the description's line, small selects with their captions (T-6107):
+          the grid below takes the width and the height. */}
+      <PageHeader
+        title={t("explore.title")}
+        description={t("explore.description")}
+        aside={
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span className="flex items-center gap-2">
+              <label className="text-caption text-fg-muted" htmlFor="explore-space">
+                {t("explore.space")}
+              </label>
+              <Select
+                id="explore-space"
+                className="w-auto max-w-64"
+                value={space}
+                // A project without a space has nothing to pick; the empty state below says why.
+                disabled={spaces.data !== undefined && spaces.data.length === 0}
+                title={spaces.data !== undefined && spaces.data.length === 0 ? t("explore.noSpaces") : undefined}
+                onChange={(event) => {
+                  setSpace(event.target.value);
+                  setEndpointChoice("");
+                  changeQuery({});
+                }}
+              >
+                {space === "" ? <option value="">—</option> : null}
+                {(spaces.data ?? []).map((s) => (
+                  <option key={s.metadata.name} value={s.metadata.name}>
+                    {localized(s.metadata.title, locale, s.metadata.name)}
+                  </option>
+                ))}
+              </Select>
+            </span>
+            <span className="flex items-center gap-2">
+              <label className="text-caption text-fg-muted" htmlFor="explore-endpoint">
+                {t("explore.endpoint")}
+              </label>
+              <Select
+                id="explore-endpoint"
+                className="w-auto max-w-64"
+                value={endpoint?.metadata.name ?? ""}
+                disabled={!space}
+                title={!space ? t("explore.pickSpaceFirst") : undefined}
+                onChange={(event) => {
+                  setEndpointChoice(event.target.value);
+                  setSelected(null);
+                  setChecked([]);
+                }}
+              >
+                <option value="">—</option>
+                {/* The space's own Endpoints first, an App's under "Applications": the group tells a
+                    space's Endpoint from an App's of one title, where a slug in brackets did (T-5622). */}
+                {endpointOptions(spaceEndpoints.filter((e) => !isAppEndpoint(e)), locale)}
+                {spaceEndpoints.some(isAppEndpoint) ? (
+                  <optgroup label={t("explore.endpointApps")}>{endpointOptions(spaceEndpoints.filter(isAppEndpoint), locale)}</optgroup>
+                ) : null}
+              </Select>
+            </span>
+          </div>
+        }
+      />
+      {/* Without these a failed list left its picker at "—" and the page read like a project with
+          nothing in it (T-1768). */}
+      {spaces.isError ? (
+        <ListFailed
+          what={t("nav.spaces")}
+          reason={reasonOf(spaces.error, t("explore.loadFailed"))}
+          onRetry={() => void spaces.refetch()}
+        />
+      ) : null}
+      {endpoints.isError ? (
+        <ListFailed
+          what={t("nav.endpoints")}
+          reason={reasonOf(endpoints.error, t("explore.loadFailed"))}
+          onRetry={() => void endpoints.refetch()}
+        />
+      ) : null}
+      {space && spaceEndpoints.length === 0 && endpoints.isSuccess ? (
+        <Alert tone="info">{t("explore.noEndpoint")}</Alert>
+      ) : null}
       {unshownEndpoint !== undefined ? (
         <Alert tone="warning" title={t("explore.endpointUnshown", { name: unshownEndpoint })}>
           {t("explore.endpointUnshownPick", { name: unshownEndpoint })}
@@ -365,29 +387,39 @@ export function ExplorePage({
       ) : null}
 
       {space ? (
-        <EntityFilters
-          id="explore"
-          types={types}
-          space={space || undefined}
-          slots={slots}
-          value={query}
-          onChange={changeQuery}
-          denied={denied}
-          readable={readable}
-        />
+        // The type, the area and the filters fold under one line once a type is chosen, so the rows
+        // are the first thing on the page (T-6107).
+        <Card padding="sm">
+          <details open={!query.type}>
+            <summary className="cursor-pointer text-body font-medium">
+              {query.type ? t("explore.filtersOf", { type: query.type }) : t("explore.filtersPick")}
+            </summary>
+            <div className="mt-3 flex flex-col gap-3">
+              <EntityFilters
+                id="explore"
+                types={types}
+                space={space || undefined}
+                slots={slots}
+                value={query}
+                onChange={changeQuery}
+                denied={denied}
+                readable={readable}
+              />
+              {query.type && unknownType === undefined ? (
+                <p className="text-caption text-fg-muted">
+                  {t("explore.typeInModel")} <TypeLink project={project} type={query.type} space={space} className="font-mono" />
+                  {endpointName ? (
+                    <>
+                      {" · "}
+                      {t("explore.readThrough")} {endpoint ? endpointTitle(endpoint, locale) : endpointName}
+                    </>
+                  ) : null}
+                </p>
+              ) : null}
+            </div>
+          </details>
+        </Card>
       ) : null}
-      {space && query.type && unknownType === undefined ? (
-        <p className="text-caption text-fg-muted">
-          {t("explore.typeInModel")} <TypeLink project={project} type={query.type} space={space} className="font-mono" />
-          {endpointName ? (
-            <>
-              {" · "}
-              {t("explore.readThrough")} {endpoint ? endpointTitle(endpoint, locale) : endpointName}
-            </>
-          ) : null}
-        </p>
-      ) : null}
-      {space ? <AccessPanel slug={slug} type={unknownType === undefined ? query.type : undefined} access={access} /> : null}
 
       {config && space && query.type ? (
         <Tabs
@@ -440,7 +472,10 @@ export function ExplorePage({
             rules={rules}
             onOpenRelationship={setSelected}
             onQuery={onQuery}
-            onGridState={onGridState}
+            // Numbered rows with a check box each, as on a space's page (T-6107).
+            rowNumbers={{ selectRow: t("spaces.toolbar.selectRow"), selectAll: t("spaces.toolbar.selectAll") }}
+            selected={checked}
+            onSelectedChange={setChecked}
             // A filter that excludes everything says so, and how to get rows back (T-4160 #22).
             emptyText={query.q ? t("explore.noMatch") : undefined}
             openRow={selected}
@@ -449,26 +484,64 @@ export function ExplorePage({
             access={attributeAccess.isError ? null : attributeAccess.data}
             explainAccess={endpointName ? explainAccess : undefined}
             accessRequestHref={`/projects/${encodeURIComponent(project)}/access`}
+            onRefused={setRefused}
             toolbar={
               slug ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  <ExportView slug={slug} query={query} grid={gridAsk} sort={gridSort} />
-                  <UseThisData
-                    project={project}
-                    slug={slug}
-                    query={{ ...query, q: andQ(query.q, gridAsk.q), idPattern: gridAsk.idPattern }}
-                    open={endpoint?.spec.audience === "public"}
-                  />
-                  {endpoint && query.type ? (
-                    <ChartFromView
-                      project={project}
-                      endpoint={endpoint.metadata.name}
-                      slug={slug}
-                      type={query.type}
-                      q={andQ(query.q, gridAsk.q)}
-                      slots={slots}
-                    />
+                  {endpoint && query.type && !servedRepresentations(endpoint.spec ?? {}).includes("csv") ? (
+                    // Nothing to download: the button says why instead of opening an empty menu.
+                    <span className="flex items-center gap-2">
+                      <Button size="sm" variant="ghost" disabled disabledReason={t("explore.exportNone")}>
+                        {t("explore.export")}
+                      </Button>
+                      {/* The reason in sight too; the button already says it to a screen reader. */}
+                      <span aria-hidden="true" className="text-caption text-fg-muted">
+                        {t("explore.exportNone")}
+                      </span>
+                    </span>
+                  ) : endpoint && query.type ? (
+                    // The space page's own export (T-6107): the formats this Endpoint serves, the
+                    // checked rows alone once some are checked.
+                    <ToolbarPopover label={t("explore.export")} count={checked.length || undefined} wide anchored>
+                      {checked.length > MAX_EXPORT_IDS ? (
+                        <p className="text-caption text-fg-muted">{t("spaces.toolbar.exportTooMany", { n: MAX_EXPORT_IDS })}</p>
+                      ) : (
+                        <ExportLinks
+                          endpoints={[endpoint]}
+                          type={query.type}
+                          q={andQ(query.q, gridAsk.q)}
+                          idPattern={gridAsk.idPattern}
+                          attrs={query.attrs ?? []}
+                          ids={checked}
+                          label={checked.length > 0 ? t("spaces.toolbar.exportSelected") : undefined}
+                        />
+                      )}
+                    </ToolbarPopover>
                   ) : null}
+                  {/* A refused read offers nothing built on it: no access summary, no reuse, no chart. */}
+                  {refused ? null : (
+                    <>
+                      <ToolbarPopover label={t("explore.yourAccess")} wide>
+                        <AccessPanel slug={slug} type={unknownType === undefined ? query.type : undefined} access={access} />
+                      </ToolbarPopover>
+                      <UseThisData
+                        project={project}
+                        slug={slug}
+                        query={{ ...query, q: andQ(query.q, gridAsk.q), idPattern: gridAsk.idPattern }}
+                        open={endpoint?.spec.audience === "public"}
+                      />
+                      {endpoint && query.type ? (
+                        <ChartFromView
+                          project={project}
+                          endpoint={endpoint.metadata.name}
+                          slug={slug}
+                          type={query.type}
+                          q={andQ(query.q, gridAsk.q)}
+                          slots={slots}
+                        />
+                      ) : null}
+                    </>
+                  )}
                 </div>
               ) : null
             }
@@ -530,6 +603,9 @@ export function ExplorePage({
             </div>
           }
         />
+      ) : spaces.isSuccess ? (
+        // The page opens on the first space (T-6107): only a project with none ends up here.
+        <EmptyState title={t("explore.noSpaces")} description={t("explore.noSpacesHint")} icon="explore" />
       ) : null}
 
     </div>

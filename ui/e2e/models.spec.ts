@@ -271,6 +271,57 @@ test.describe("one plain model editor (T-4829)", () => {
     await expect(page.getByLabel("Class IRI")).toHaveValue(/^[a-z]+:School$/);
   });
 
+  // T-6101: a unit measures a number, so a unit on a text field makes it a Number, said with Undo.
+  for (const width of [1440, 400]) {
+    test(`a unit on a text field makes it a number and offers Undo at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read", "propose"]);
+      await page.goto("/projects/helsinki/models?new=blank&lang=en");
+      const types = page.getByRole("region", { name: "Types" });
+      await types.getByRole("textbox", { name: "New type" }).fill("WeatherObserved");
+      await types.getByRole("button", { name: "Add type" }).click();
+      await page.getByLabel("New field").fill("temperature");
+      await page.getByRole("button", { name: "Add field", exact: true }).click();
+      await page.getByRole("button", { name: "temperature", exact: true }).click();
+      await page.getByRole("combobox", { name: "Unit" }).fill("CEL");
+      await page.keyboard.press("Enter");
+      const notice = page.getByRole("status").filter({ hasText: "A unit measures a number" });
+      await expect(notice).toBeVisible();
+      await expect(page.locator("#slot-range")).toHaveValue("float");
+      await shot(page, `unit-made-number-${width}`);
+      await notice.getByRole("button", { name: "Undo" }).click();
+      await expect(page.locator("#slot-range")).toHaveValue("string");
+      await expect(notice).toHaveCount(0);
+    });
+  }
+
+  // T-6101: Model Tools answers a model it cannot convert with 200 and `errors`; the wizard
+  // showed "Fetching the upstream model..." for good. The answer below is dev's for Event before
+  // the Model Tools fix.
+  for (const width of [1440, 400]) {
+    test(`a catalogue model that cannot be imported says why at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read", "propose"]);
+      await page.route("**/api/v1/tools/**", async (route) => {
+        const path = new URL(route.request().url()).pathname;
+        const body = path.endsWith("/sdm-catalog")
+          ? { subjects: [{ name: "dataModel.TourismDestinations", title: "TourismDestinations", models: [{ id: "dataModel.TourismDestinations/Event", name: "Event", description: "An event of interest to visitors.", attributes: ["subCategory"] }] }] }
+          : { generatorVersion: "1.11.1", errors: ["garden: duplicate key"] };
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+      });
+      await page.goto("/projects/helsinki/models?new=blank&lang=en");
+      await page.getByRole("region", { name: "Types" }).getByRole("button", { name: "Import a Smart Data Model" }).click();
+      await page.getByRole("button", { name: /Event/ }).click();
+      const alert = page.getByRole("alert").filter({ hasText: "garden: duplicate key" });
+      await expect(alert).toContainText("The catalogue's Event schema cannot be turned into a model.");
+      await expect(alert.getByRole("button", { name: "Retry" })).toBeVisible();
+      await expect(page.getByText("Fetching the upstream model…")).toHaveCount(0);
+      const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(0);
+      await shot(page, `sdm-import-error-${width}`);
+    });
+  }
+
   for (const width of [1440, 400]) {
     test(`a viewer reads the same page with no Add field at ${width} px`, async ({ page }) => {
       await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
@@ -485,3 +536,179 @@ for (const width of [1440, 400]) {
   });
 }
 
+
+// T-6094: the model as a full-screen canvas, with the Endpoints overlay the owner asked for. One
+// model with the three Endpoints of the task's Done line, each bound to its own Policy.
+const CITY = [
+  "id: https://hel.fi/models/city",
+  "name: city",
+  "default_range: string",
+  "classes:",
+  "  Place:",
+  "    slots: [name, address]",
+  "  BikeHireDockingStation:",
+  "    is_a: Place",
+  "    slots: [capacity, freeBikes, contactPoint, operator]",
+  "  Event:",
+  "    slots: [name, startDate, location, organizer, category]",
+  "  Organization:",
+  "    slots: [name, homepage]",
+  "  Dataset:",
+  "    slots: [title, publisher, distribution, theme]",
+  "  DataService:",
+  "    slots: [title, publisher, servesDataset]",
+  "  Distribution:",
+  "    slots: [title, accessURL]",
+  "  Person:",
+  "    annotations: { personalData: true }",
+  "    slots: [name, email, memberOf]",
+  "slots:",
+  "  name: { range: string, required: true }",
+  "  address: { range: string }",
+  "  capacity: { range: integer }",
+  "  freeBikes: { range: integer }",
+  "  contactPoint: { range: string }",
+  "  operator: { range: Organization }",
+  "  startDate: { range: datetime, required: true }",
+  "  location: { range: Place }",
+  "  organizer: { range: Organization }",
+  "  category: { range: EventCategory, multivalued: true }",
+  "  homepage: { range: uri }",
+  "  title: { range: string, required: true }",
+  "  publisher: { range: Organization }",
+  "  distribution: { range: Distribution, multivalued: true }",
+  "  theme: { range: string }",
+  "  servesDataset: { range: Dataset, multivalued: true }",
+  "  accessURL: { range: uri }",
+  "  email: { range: string }",
+  "  memberOf: { range: Organization }",
+  "enums:",
+  "  EventCategory:",
+  "    permissible_values:",
+  "      concert: {}",
+  "      sport: {}",
+  "      theatre: {}",
+  "",
+].join("\n");
+
+const meta = (kind: string, name: string, spec: Record<string, unknown>) => ({
+  apiVersion: "joinedcontext.com/v1alpha1",
+  kind,
+  metadata: { name, namespace: "helsinki" },
+  spec,
+});
+const urn = (name: string) => `urn:ngsi-ld:Policy:hel.fi:helsinki-helsinki:${name}`;
+const policy = (name: string, information: unknown[]) =>
+  meta("Policy", name, { contextSpaceRef: "helsinki", assignee: { kind: "role", id: "public" }, operations: ["retrieveOps"], information });
+
+const CANVAS_LISTS: Record<string, unknown> = {
+  datamodels: list([meta("DataModel", "city", { contextSpaceRef: "helsinki", version: "1.0.0", linkml: CITY, classes: ["Event"] })]),
+  spaces: SPACES,
+  endpoints: list([
+    meta("Endpoint", "helsinki-bikes", { contextSpaceRef: "helsinki", slug: "bikes00000000000000000000000000a", policyRef: urn("public-bikes"), projection: { hiddenAttributes: ["contactPoint"] } }),
+    meta("Endpoint", "helsinki-events", { contextSpaceRef: "helsinki", slug: "events0000000000000000000000000a", policyRef: urn("public-events") }),
+    meta("Endpoint", "catalog", { contextSpaceRef: "helsinki", slug: "catalog000000000000000000000000a", policyRef: urn("catalog-read") }),
+  ]),
+  policies: list([
+    policy("public-bikes", [{ entities: [{ type: "BikeHireDockingStation" }] }]),
+    policy("public-events", [{ entities: [{ type: "Event" }], propertyNames: ["name", "startDate", "category"], relationshipNames: ["location"] }, { entities: [{ type: "Place" }] }]),
+    policy("catalog-read", [{ entities: [{ type: "Dataset" }, { type: "DataService" }, { type: "Distribution" }, { type: "Organization" }] }]),
+  ]),
+  pipelines: list([meta("Pipeline", "gbfs-stations", { output: { type: "BikeHireDockingStation" } })]),
+};
+
+async function stubCanvas(page: Page): Promise<void> {
+  await page.route("**/api/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const json = (body: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+    if (path.endsWith("/auth/me")) return json(IDENTITY);
+    if (path === "/api/v1/projects") return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "helsinki" }] });
+    const plural = /^\/api\/v1\/projects\/helsinki\/([a-z]+)$/.exec(path)?.[1];
+    return json(plural && CANVAS_LISTS[plural] ? CANVAS_LISTS[plural] : list([]));
+  });
+}
+
+const opened = (page: Page, name: string) => page.getByRole("button", { name: `Open ${name} in the structure view`, exact: true });
+
+test.describe("the model canvas (T-6094)", () => {
+  test("opens full screen from the model page and lights what each Endpoint serves", async ({ page }) => {
+    await stubCanvas(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/projects/helsinki/models/city?lang=en");
+    await page.getByRole("link", { name: "Open full screen" }).click();
+    await expect(page).toHaveURL(/\/projects\/helsinki\/models\/city\/diagram$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Diagram of city" })).toBeVisible();
+    await page.getByRole("button", { name: "Fit" }).click();
+    // Fit never shrinks the canvas below reading size (11 px slot text); a wider model pans.
+    const percent = Number((await page.getByText(/^Zoom \d+ %$/).textContent())?.match(/\d+/)?.[0]);
+    expect(percent).toBeGreaterThanOrEqual(110);
+    for (const name of ["Place", "BikeHireDockingStation", "Event", "Organization", "Dataset", "DataService", "Distribution"]) {
+      await expect(opened(page, name)).toBeVisible();
+    }
+    // Person is personal data (DM-120): its own tab, its header in the danger tint.
+    await expect(opened(page, "Person")).toHaveCount(0);
+    await shot(page, "canvas-1440");
+    await page.getByRole("tab", { name: "Personal data" }).click();
+    await expect(page.getByRole("tab", { name: "Personal data" })).toHaveAttribute("aria-selected", "true");
+    await expect(opened(page, "Person")).toBeVisible();
+    // The shot waits for the tab underline's colour transition and the pointer's hover to end.
+    await page.mouse.move(700, 450);
+    await expect(page.getByRole("tab", { name: "Main" })).toHaveCSS("border-bottom-color", "rgba(0, 0, 0, 0)");
+    await shot(page, "canvas-personal-1440");
+    await page.getByRole("tab", { name: "Main" }).click();
+
+    const overlay = page.getByLabel("Show what serves the classes");
+    const lit = async (expected: string[]) => {
+      for (const name of ["Place", "BikeHireDockingStation", "Event", "Organization", "Dataset", "DataService", "Distribution"]) {
+        if (expected.includes(name)) await expect(opened(page, name)).not.toHaveAttribute("opacity", "0.2");
+        else await expect(opened(page, name)).toHaveAttribute("opacity", "0.2");
+      }
+    };
+    await overlay.selectOption("endpoint:helsinki-bikes");
+    await expect(page.getByText("1 class of 8 is reached; the rest is faded.")).toBeVisible();
+    await lit(["BikeHireDockingStation"]);
+    await expect(opened(page, "BikeHireDockingStation").locator('[data-served="false"]')).toHaveCount(1);
+    await shot(page, "canvas-bikes-1440");
+
+    await overlay.selectOption("endpoint:helsinki-events");
+    await expect(page.getByText("2 classes of 8 are reached; the rest is faded.")).toBeVisible();
+    await lit(["Event", "Place"]);
+    await expect(opened(page, "Event").locator('[data-served="false"]')).toHaveCount(1);
+    await shot(page, "canvas-events-1440");
+
+    await overlay.selectOption("endpoint:catalog");
+    await expect(page.getByText("4 classes of 8 are reached; the rest is faded.")).toBeVisible();
+    await lit(["Dataset", "DataService", "Distribution", "Organization"]);
+
+    await opened(page, "Dataset").click();
+    const panel = page.getByRole("complementary");
+    await expect(panel.getByRole("table", { name: "Fields of Dataset" })).toContainText("distribution");
+    await expect(panel.getByRole("link", { name: "catalog" })).toHaveAttribute("href", "/projects/helsinki/endpoints/catalog");
+    await shot(page, "canvas-catalog-details-1440");
+
+    await opened(page, "BikeHireDockingStation").click();
+    await expect(panel.getByRole("link", { name: "gbfs-stations" })).toBeVisible();
+    await expect(panel.getByText("from Place").first()).toBeVisible();
+  });
+
+  test("a phone gets the classes as a list and the canvas one press away", async ({ page }) => {
+    await stubCanvas(page);
+    await page.setViewportSize({ width: 400, height: 860 });
+    await page.goto("/projects/helsinki/models/city/diagram?lang=en");
+    const classes = page.getByRole("region", { name: "Classes" });
+    await expect(classes.getByRole("button")).toHaveCount(8);
+    await expect(classes.getByRole("button", { name: /Person/ })).toContainText("Personal data");
+    await page.getByLabel("Show what serves the classes").selectOption("endpoint:catalog");
+    // A faded card says the pick does not reach it, not how many Endpoints serve it.
+    await expect(classes.getByRole("button", { name: /^Place/ })).toContainText("Not reached by catalog");
+    await classes.getByRole("button", { name: /Dataset/ }).first().click();
+    await expect(page.getByRole("table", { name: "Fields of Dataset" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(400);
+    await shot(page, "canvas-list-400");
+    await page.getByRole("button", { name: "Show diagram" }).click();
+    await expect(opened(page, "Dataset")).toBeVisible();
+    // The canvas opens on the first class the overlay lights, not on a faded one (T-6094 UI judge).
+    await shot(page, "canvas-diagram-400");
+    await expect(page.getByTestId("diagram-badge-Dataset")).toBeInViewport();
+  });
+});

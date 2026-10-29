@@ -207,7 +207,24 @@ WORKDIR /src
 # and the slim image has none (T-4987).
 RUN apt-get update && apt-get install -y --no-install-recommends make && \
     rm -rf /var/lib/apt/lists/*
+# Dependency layer first (T-6108), as the platform's Dockerfile: the manifests over stub sources, so
+# the gha layer cache keeps every compiled dependency while Cargo.toml and Cargo.lock stay the same
+# and a source change compiles only the Portal crate. No cache mount here: GitHub runners never keep
+# one, a layer they do. Cargo loads every `apps/*` member manifest and refuses one whose targets are
+# missing, so each member crate gets its Cargo.toml and stub targets
+# (scripts/ci/check-dockerfile-members.py).
 COPY Cargo.toml Cargo.lock build.rs ./
+COPY apps/air-quality/Cargo.toml apps/air-quality/Cargo.toml
+COPY apps/hsl-transport/Cargo.toml apps/hsl-transport/Cargo.toml
+RUN mkdir -p src apps/air-quality/src apps/hsl-transport/src \
+ && echo 'pub fn _dep_cache() {}' > src/lib.rs \
+ && echo 'fn main() {}' > src/main.rs \
+ && echo 'pub fn _dep_cache() {}' > apps/air-quality/src/lib.rs \
+ && echo 'fn main() {}' > apps/air-quality/src/main.rs \
+ && echo 'pub fn _dep_cache() {}' > apps/hsl-transport/src/lib.rs \
+ && echo 'fn main() {}' > apps/hsl-transport/src/main.rs \
+ && cargo build --release --locked -p joinedcontext-portal \
+ && rm -rf src apps
 COPY src ./src
 # The repository is a cargo workspace whose members are the reference apps (AP-34). Cargo
 # loads every member manifest before it builds anything, so `apps/` is a build input even
@@ -219,11 +236,6 @@ COPY apps ./apps
 COPY migrations ./migrations
 # The same for the apps database's own schema (src/apps/apps_db.rs, AP-149).
 COPY apps_db ./apps_db
-# Cargo.toml declares `[workspace] members = ["apps/*"]`, and cargo resolves every member's
-# manifest before it builds anything, so without these the build dies on
-# `failed to load manifest for workspace member /src/apps/*`. Their sources are needed too:
-# a member's manifest is only valid if the targets it names exist.
-COPY apps ./apps
 COPY --from=ui /work/ui/dist ./ui/dist
 COPY --from=sdk /sdk/dist ./sdk/dist
 # The template every code run starts from is compiled into the binary too (src/agents/preview.rs).
@@ -243,10 +255,12 @@ COPY public-docs ./public-docs
 ARG JC_PORTAL_COMMIT=
 # `-p joinedcontext-portal`: this image ships one binary and the reference apps have images of
 # their own, so building the whole workspace here would compile them for nothing.
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/src/target \
-    cargo build --release --locked -p joinedcontext-portal && \
-    install -m 0755 target/release/joinedcontext-portal /joinedcontext-portal
+# The touch makes cargo see the real sources as newer than the stub build's; the target dir goes
+# in the same step, so this layer holds only the binary.
+RUN touch src/lib.rs src/main.rs build.rs \
+ && cargo build --release --locked -p joinedcontext-portal \
+ && install -m 0755 target/release/joinedcontext-portal /joinedcontext-portal \
+ && rm -rf target
 
 FROM gcr.io/distroless/cc-debian13:nonroot@sha256:e792ab3d241a468a4fd7519ddbbebe66b49b5f365771716ea688ad40b6c6f1c2
 COPY --from=build /joinedcontext-portal /usr/local/bin/joinedcontext-portal

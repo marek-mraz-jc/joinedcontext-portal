@@ -26,6 +26,8 @@ import type { Direction } from "./diagramReading";
 import type { LayoutEdge, Point } from "./diagramLayout";
 import { graphData, parseModel, withImports } from "./linkml";
 import type { GraphEdge, GraphNode, GraphRow, Multiplicity } from "./linkml";
+import { MAIN_AREA, PERSONAL_AREA } from "./canvasOverlay";
+import type { Positions, Served } from "./canvasOverlay";
 
 /**
  * One box's size, the gaps around it and the three text sizes, all in the SVG's own units.
@@ -60,15 +62,38 @@ const CHARS = 17;
 // `readable` is the floor of a fit: below it a slot line is ~6 px and unreadable (T-6090 review:
 // helsinki fitted at 58 % on a laptop, 25 % on a phone); a wider drawing scrolls in its frame.
 const ZOOM = { natural: 1, step: 1.25, min: 0.25, max: 4, fitMax: 2, readable: 0.75 };
+/**
+ * The least zoom the full-screen canvas fits to (T-6094): the slot text, 10 units, is 11 px there.
+ * The canvas lays its groups out in as many columns as fit at `canvasColumns`, so a model is
+ * read at this size or larger and a wider drawing is panned, never shrunk past reading.
+ */
+const READABLE = 1.1;
+/** The most the canvas fits to: a one-class area at 200 % dwarfed its neighbours' tabs. */
+const CANVAS_FIT_MAX = 1.25;
+const canvasColumns = (frameWidth: number) => Math.max(1, Math.floor((frameWidth / 1.2 + BOX.gapX) / (BOX.width + BOX.gapX)));
 /** One object for "no imports", so the drawing is not recomputed on every render. */
 const NO_IMPORTS: Record<string, string> = {};
 /** How far focus reaches: the class and up to this many lines out. */
 const HOPS = [1, 2, 3] as const;
 /** The minimap's width in page pixels. */
 const MINIMAP = 160;
+/** The canvas minimap's height: it sits in the toolbar row, as high as two of its buttons. */
+const MINIMAP_ROW = 56;
 const ARROWS: readonly string[] = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
 /** The opacity of what lies outside a focus or a path: still there to place it, not in the way. */
 const FADED = 0.2;
+/** An attribute the picked Endpoint does not serve, on a class it does. */
+const UNSERVED = 0.35;
+/**
+ * Header colours by area (T-6094): the model's own classes in the primary tint, personal data in
+ * the danger tint, every other area (a LinkML `in_subset`, an import) in the next tint by name.
+ */
+const AREA_FILLS = ["fill-info-soft", "fill-success-soft", "fill-warning-soft"] as const;
+function areaFill(area: string | undefined, others: readonly string[]): string {
+  if (area === undefined || area === MAIN_AREA) return "fill-primary-soft";
+  if (area === PERSONAL_AREA) return "fill-danger-soft";
+  return AREA_FILLS[Math.max(0, others.indexOf(area)) % AREA_FILLS.length];
+}
 
 /**
  * The ends a line can have (T-3589), one standard notation: UML's hollow triangle at the parent
@@ -153,12 +178,12 @@ export function layoutEdge(edge: GraphEdge): LayoutEdge {
  * groups stand side by side, wrapped at three boxes so the drawing fits a laptop card at a
  * readable size (T-4991). `bends` holds, per edge, where its line turns as it passes a layer.
  */
-export function place(nodes: GraphNode[], edges: GraphEdge[]): { placed: Placed[]; bends: Point[][] } {
+export function place(nodes: GraphNode[], edges: GraphEdge[], columns = 3): { placed: Placed[]; bends: Point[][] } {
   const height = (node: GraphNode) => BOX.header + lines(node) * BOX.row + BOX.padding;
   const layout = layered(
     nodes.map((node) => ({ id: node.name, width: BOX.width, height: height(node) })),
     edges.map(layoutEdge),
-    { gapX: BOX.gapX, gapY: BOX.gapY, groupGap: BOX.gapX * 2, maxWidth: 3 * (BOX.width + BOX.gapX) },
+    { gapX: BOX.gapX, gapY: BOX.gapY, groupGap: BOX.gapX * 2, maxWidth: columns * (BOX.width + BOX.gapX) },
   );
   // In reading order, top to bottom and left to right: the order Tab walks the boxes in.
   const placed = nodes
@@ -215,9 +240,20 @@ function near(start: Point, end: Point): Point {
   return { x: start.x + ux * 16 - uy * 9, y: start.y + uy * 16 + ux * 9 + 3 };
 }
 
-/** `text` cut to `CHARS` characters, with "…" where it was cut. */
-function cut(text: string): string {
-  return text.length > CHARS ? `${text.slice(0, CHARS - 1)}…` : text;
+/** `text` cut to `chars` characters, with "…" where it was cut. */
+function cut(text: string, chars = CHARS): string {
+  return text.length > chars ? `${text.slice(0, chars - 1)}…` : text;
+}
+/**
+ * A row's name and type cut to one line: they share `2 * CHARS`, so a short name leaves its room
+ * to a long type ("→ Organization 0..1" whole beside "publisher"), and each keeps at least `CHARS`
+ * when both are long (T-6094 UI judge: relation types cut with "…").
+ */
+export function fitRow(name: string, type: string): [string, string] {
+  const both = 2 * CHARS;
+  const nameChars = Math.max(CHARS, both - type.length);
+  const typeChars = Math.max(CHARS, both - Math.min(name.length, nameChars));
+  return [cut(name, nameChars), cut(type, typeChars)];
 }
 
 /**
@@ -245,6 +281,14 @@ export function LinkmlGraphView({
   onOpenRelationship,
   onAddRelationship,
   onChange,
+  canvas = false,
+  positions,
+  onMove,
+  highlight,
+  badges,
+  areas,
+  only,
+  selected,
 }: {
   source: string;
   /** The sources of the models this one imports, by import name: their classes are drawn too. */
@@ -259,6 +303,24 @@ export function LinkmlGraphView({
    * the model, who sees no edit handle at all.
    */
   onChange?: (source: string) => void;
+  /**
+   * The full-screen canvas (T-6094): the frame fills its parent, the wheel zooms, a box can be
+   * dragged (or moved with Shift and an arrow key) and the relationship table is left to the page.
+   */
+  canvas?: boolean;
+  /** Where the person moved boxes: drawn there instead of where the layout put them. */
+  positions?: Positions;
+  onMove?: (name: string, at: Point) => void;
+  /** The classes and attributes the picked Endpoint or Pipeline reaches: everything else fades. */
+  highlight?: Served;
+  /** A count in each class's corner: how many Endpoints serve it. */
+  badges?: ReadonlyMap<string, number>;
+  /** Each box's area, which colours its header. */
+  areas?: ReadonlyMap<string, string>;
+  /** Only these boxes are drawn: one diagram tab. */
+  only?: ReadonlySet<string>;
+  /** The class the details panel shows, outlined. */
+  selected?: string;
 }): JSX.Element {
   const { t } = useTranslation();
   const [zoom, setZoom] = useState(ZOOM.natural);
@@ -285,9 +347,33 @@ export function LinkmlGraphView({
     return { name: model.name || "model", ...graphData(withImports(model, parsed)) };
   }, [source, imports]);
   // What is drawn: the model with the imports a reader folded each as one box.
-  const drawn = useMemo(() => foldImports(nodes, edges, folded), [nodes, edges, folded]);
-  const { placed, bends } = useMemo(() => place(drawn.nodes, drawn.edges), [drawn]);
+  const drawn = useMemo(() => {
+    const all = foldImports(nodes, edges, folded);
+    if (!only) return all;
+    const kept = all.nodes.filter((node) => only.has(node.name));
+    const names = new Set(kept.map((node) => node.name));
+    return { nodes: kept, edges: all.edges.filter((edge) => names.has(edge.from) && names.has(edge.to)) };
+  }, [nodes, edges, folded, only]);
+  // The canvas wraps its groups at what its frame holds readably; elsewhere at three boxes.
+  const [frameWidth, setFrameWidth] = useState(0);
+  const columns = canvas && frameWidth > 0 ? canvasColumns(frameWidth) : 3;
+  const laid = useMemo(() => place(drawn.nodes, drawn.edges, columns), [drawn, columns]);
+  // A box being dragged on the canvas: where it is now, before it is kept.
+  const [moving, setMoving] = useState<{ name: string; at: Point; grip: Point; moved: boolean }>();
+  // A moved box is drawn where the person put it; a line to it goes straight, its bends were the layout's.
+  const { placed, bends } = useMemo(() => {
+    const moved = { ...positions, ...(moving?.moved ? { [moving.name]: moving.at } : {}) };
+    if (Object.keys(moved).length === 0) return laid;
+    return {
+      placed: laid.placed.map((node) => (moved[node.name] ? { ...node, ...moved[node.name] } : node)),
+      bends: laid.bends.map((points, index) => {
+        const edge = drawn.edges[index];
+        return edge && (moved[edge.from] || moved[edge.to]) ? [] : points;
+      }),
+    };
+  }, [laid, positions, moving, drawn]);
   const at = useMemo(() => new Map(placed.map((node) => [node.name, node])), [placed]);
+  const areaNames = useMemo(() => [...new Set(areas?.values() ?? [])].filter((area) => area !== MAIN_AREA && area !== PERSONAL_AREA).sort(), [areas]);
   const importNames = useMemo(() => [...new Set(nodes.flatMap((node) => (node.from ? [node.from] : [])))], [nodes]);
   // The frame's visible part, in drawing units, for the minimap.
   const measure = () => {
@@ -300,7 +386,9 @@ export function LinkmlGraphView({
   // A frame drawn while hidden (a tab not yet open) has no width: fit once it gets one (T-6090).
   const fitted = useRef(false);
   const startAt = useRef<{ left: number; top: number } | null>(null);
-  const [frameWidth, setFrameWidth] = useState(0);
+  /** The zoom the last fit set, until it took; and the overlay the canvas last brought into view. */
+  const settling = useRef<number | undefined>(undefined);
+  const revealed = useRef<Served | undefined>(undefined);
   useEffect(() => {
     const frameAt = frame.current;
     if (!frameAt || typeof ResizeObserver === "undefined") return;
@@ -308,27 +396,85 @@ export function LinkmlGraphView({
     watch.observe(frameAt);
     return () => watch.disconnect();
   }, []);
+  // Another diagram tab is another drawing: it fits again.
+  useEffect(() => {
+    fitted.current = false;
+  }, [only, columns]);
   useEffect(() => {
     const available = (frame.current?.clientWidth ?? 0) - 16;
     if (fitted.current || available <= 0 || placed.length === 0) return;
     fitted.current = true;
     const wide = Math.max(...placed.map((node) => node.x + BOX.width)) + BOX.loop + 8;
-    const start = Math.max(ZOOM.readable, Math.min(ZOOM.natural, available / wide));
+    // A phone-narrow canvas opens at one box's width, readable, and is panned; the whole model at
+    // a phone's width was a quarter size nobody could read (T-6094 UI judge).
+    const narrow = canvas && available < 2 * BOX.width;
+    const fits = Math.min(canvas ? CANVAS_FIT_MAX : ZOOM.natural, available / (narrow ? BOX.width + 16 : wide));
+    const start = Math.max(canvas && !narrow ? READABLE : ZOOM.readable, fits);
     // A drawing wider than its frame at the readable floor opens on its first class, the top-left
-    // box, not on the empty corner beside it (T-6090 review: a phone showed one cut box).
+    // box, not on the empty corner beside it (T-6090 review: a phone showed one cut box). A canvas
+    // overlay brings its own first lit class into view instead (the reveal below).
     const classes = placed.filter((node) => node.kind === "class");
-    if (wide * start > available && classes.length > 0) {
+    if (wide * start > available && classes.length > 0 && !(canvas && highlight)) {
       const first = classes.reduce((best, node) => (node.y < best.y || (node.y === best.y && node.x < best.x) ? node : best));
       startAt.current = { left: Math.max(0, (first.x - 8) * start), top: Math.max(0, (first.y - 8) * start) };
     }
+    settling.current = start;
     setZoom(start);
-  }, [placed, frameWidth]);
+  }, [placed, frameWidth, canvas, highlight]);
   // The scroll waits for the render that draws the drawing at its new size.
   useEffect(() => {
     if (!startAt.current) return;
     frame.current?.scrollTo?.(startAt.current);
     startAt.current = null;
   }, [zoom]);
+  // The canvas brings the first class an overlay lights into view, once per overlay and after the
+  // fit's zoom took: on a phone the frame showed a faded class and none of the lit ones (T-6094 UI judge).
+  useEffect(() => {
+    const frameAt = frame.current;
+    if (!canvas || !frameAt || !highlight || revealed.current === highlight) return;
+    if (!fitted.current || settling.current !== zoom) return;
+    // The picked class when the overlay lights it (a phone picks in the list, then opens the canvas).
+    const lit = placed.filter((node) => node.kind === "class" && highlight.has(node.name));
+    const first = lit.find((node) => node.name === selected) ?? lit[0];
+    if (!first) return;
+    revealed.current = highlight;
+    const left = first.x * zoom;
+    const top = first.y * zoom;
+    const inView =
+      left >= frameAt.scrollLeft &&
+      top >= frameAt.scrollTop &&
+      left + BOX.width * zoom <= frameAt.scrollLeft + frameAt.clientWidth &&
+      top + first.height * zoom <= frameAt.scrollTop + frameAt.clientHeight;
+    if (!inView) frameAt.scrollTo?.({ left: Math.max(0, left - 8), top: Math.max(0, top - 8) });
+  }, [canvas, highlight, placed, zoom, selected]);
+  // The wheel zooms on the canvas, and with Ctrl or Cmd anywhere; the point under the pointer stays put.
+  const zoomNow = useRef(zoom);
+  useEffect(() => {
+    zoomNow.current = zoom;
+  }, [zoom]);
+  const drawsAnything = placed.length > 0;
+  useEffect(() => {
+    const frameAt = frame.current;
+    if (!frameAt || !drawsAnything) return;
+    const wheel = (event: WheelEvent) => {
+      if (!canvas && !event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      const current = zoomNow.current;
+      const next = Math.min(ZOOM.max, Math.max(ZOOM.min, event.deltaY < 0 ? current * ZOOM.step : current / ZOOM.step));
+      if (next === current) return;
+      const rect = frameAt.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const left = (frameAt.scrollLeft + x) * (next / current) - x;
+      const top = (frameAt.scrollTop + y) * (next / current) - y;
+      setZoom(next);
+      requestAnimationFrame(() => frameAt.scrollTo?.({ left, top }));
+    };
+    frameAt.addEventListener("wheel", wheel, { passive: false });
+    return () => frameAt.removeEventListener("wheel", wheel);
+  }, [canvas, drawsAnything]);
+  // A drag that moved a box is not also a press that opens it.
+  const dragged = useRef(false);
 
   if (!placed.some((node) => node.kind === "class")) {
     return (
@@ -352,7 +498,7 @@ export function LinkmlGraphView({
   const around = focused ? neighbourhood(names, drawn.edges, focused, hops) : undefined;
   const lit = found ? new Set(found.nodes) : around;
   const litLines = found ? new Set(found.edges) : undefined;
-  const faded = (node: string) => lit !== undefined && !lit.has(node);
+  const faded = (node: string) => (lit !== undefined && !lit.has(node)) || (highlight !== undefined && !highlight.has(node));
   const fadedLine = (edge: GraphEdge, index: number) =>
     litLines ? !litLines.has(index) : faded(edge.from) || faded(edge.to);
   const status = !focused
@@ -414,6 +560,37 @@ export function LinkmlGraphView({
     const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
     return { x: point.x, y: point.y };
   };
+  // Shift and an arrow key move a box on the canvas, 20 units a press.
+  const movable = (node: Placed) => canvas && onMove !== undefined && node.kind === "class";
+  const nudge = (node: Placed, event: KeyboardEvent<SVGGElement>): boolean => {
+    if (!movable(node) || !event.shiftKey || !ARROWS.includes(event.key)) return false;
+    event.preventDefault();
+    const step = { ArrowUp: [0, -20], ArrowDown: [0, 20], ArrowLeft: [-20, 0], ArrowRight: [20, 0] }[event.key as Direction];
+    onMove?.(node.name, { x: Math.max(0, node.x + step[0]), y: Math.max(0, node.y + step[1]) });
+    return true;
+  };
+  // A press on a box drags the box, not the frame.
+  const grabBox = (node: Placed, event: PointerEvent<SVGGElement>) => {
+    if (!movable(node)) return;
+    event.stopPropagation();
+    dragged.current = false;
+    const pointer = toDrawing(event as unknown as PointerEvent<SVGSVGElement>);
+    if (pointer) setMoving({ name: node.name, at: { x: node.x, y: node.y }, grip: { x: pointer.x - node.x, y: pointer.y - node.y }, moved: false });
+  };
+  const decor = (node: Placed) => ({
+    fill: areas && node.kind !== "import" ? areaFill(areas.get(node.name), areaNames) : undefined,
+    badge: node.kind === "class" ? badges?.get(node.name) : undefined,
+    badgeLabel: t("models.canvas.badge", { count: badges?.get(node.name) ?? 0 }),
+  });
+  const servedRow = (node: Placed, row: GraphRow) => highlight?.get(node.name)?.has(row.name);
+  const rowTip = (row: GraphRow) =>
+    [
+      t(`models.graph.row.${row.key ?? "plain"}`, { name: row.name, type: typeText(row) }),
+      row.required ? t("models.canvas.required") : "",
+      row.personal ? t("models.canvas.personal") : "",
+    ]
+      .filter(Boolean)
+      .join("; ");
   const addFrom = editing ? (from: string) => editing.addRelationship(from) : onAddRelationship;
   const stroke = (edge: GraphEdge) =>
     edge.kind === "mixin" ? "6 4" : edge.kind === "range" ? "2 3" : edge.kind === "enum" ? "1 4" : undefined;
@@ -425,7 +602,9 @@ export function LinkmlGraphView({
   // below readable; Zoom out still goes further for an overview.
   const fit = () => {
     const available = (frame.current?.clientWidth ?? 0) - 16;
-    setZoom(available > 0 ? Math.max(ZOOM.readable, Math.min(ZOOM.fitMax, available / (width + 8))) : ZOOM.natural);
+    const narrow = canvas && available < 2 * BOX.width;
+    const fits = Math.min(canvas ? CANVAS_FIT_MAX : ZOOM.fitMax, available / (narrow ? BOX.width + 16 : width + 8));
+    setZoom(available > 0 ? Math.max(canvas && !narrow ? READABLE : ZOOM.readable, fits) : ZOOM.natural);
     frame.current?.scrollTo?.({ left: 0, top: 0 });
   };
   // Pan by dragging the background; a press on a box or a line is still a click.
@@ -442,7 +621,7 @@ export function LinkmlGraphView({
   };
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className={canvas ? "flex h-full min-h-0 flex-col gap-2" : "flex flex-col gap-2"}>
       {/* One row of tools above the drawing (T-6090): the notation and the downloads sit in a
           popover and a menu, so the drawing starts right under the row, not below a page of prose. */}
       <div role="toolbar" aria-label={t("models.graph.tools")} className="flex flex-wrap items-center gap-2">
@@ -518,6 +697,12 @@ export function LinkmlGraphView({
             </Button>
           </>
         ) : null}
+        {canvas ? (
+          // On the canvas the map ends the toolbar row: in the drawing's corner it hid lines (T-6094 UI judge).
+          <div className="ml-auto max-sm:hidden">
+            <Minimap placed={placed} width={width + 8} height={height + 8} view={view} zoom={zoom} faded={faded} onJump={jump} tall={MINIMAP_ROW} />
+          </div>
+        ) : null}
       </div>
       {editing ? <p className="text-caption text-fg-muted">{t("models.graph.edit.hint")}</p> : null}
       <div className="flex flex-wrap items-end gap-2 empty:hidden">
@@ -568,15 +753,17 @@ export function LinkmlGraphView({
       <p role="status" aria-live="polite" className="text-caption text-fg-muted">
         {status}
       </p>
-      <div className="grid gap-3 2xl:grid-cols-[minmax(0,1fr)_28rem]">
-        <div className="relative min-w-0">
+      <div className={canvas ? "flex min-h-0 flex-1 flex-col" : "grid gap-3 2xl:grid-cols-[minmax(0,1fr)_28rem]"}>
+        <div className={canvas ? "relative min-h-0 min-w-0 flex-1" : "relative min-w-0"}>
         {/* The map rides the drawing's corner, where it costs no row of its own (T-6090). */}
-        <div className="absolute right-2 top-2 z-10 max-sm:hidden">
-          <Minimap placed={placed} width={width + 8} height={height + 8} view={view} zoom={zoom} faded={faded} onJump={jump} />
-        </div>
+        {canvas ? null : (
+          <div className="absolute right-2 top-2 z-10 max-sm:hidden">
+            <Minimap placed={placed} width={width + 8} height={height + 8} view={view} zoom={zoom} faded={faded} onJump={jump} />
+          </div>
+        )}
         <div
           ref={frame}
-          className="max-h-180 cursor-grab overflow-auto rounded border border-border bg-surface p-2 active:cursor-grabbing"
+          className={`${canvas ? "h-full" : "max-h-180"} cursor-grab overflow-auto rounded border border-border bg-surface p-2 active:cursor-grabbing`}
           onPointerDown={grab}
           onPointerMove={pan}
           onPointerUp={() => (drag.current = null)}
@@ -596,8 +783,21 @@ export function LinkmlGraphView({
             className="min-h-48"
             onPointerMove={(event) => {
               if (connecting) setConnecting({ from: connecting.from, to: toDrawing(event) });
+              const pointer = moving ? toDrawing(event) : undefined;
+              if (moving && pointer) {
+                const at = { x: Math.max(0, pointer.x - moving.grip.x), y: Math.max(0, pointer.y - moving.grip.y) };
+                const moved = moving.moved || Math.hypot(at.x - moving.at.x, at.y - moving.at.y) > 3;
+                setMoving({ ...moving, at: moved ? at : moving.at, moved });
+              }
             }}
-            onPointerUp={() => setConnecting(undefined)}
+            onPointerUp={() => {
+              setConnecting(undefined);
+              if (moving?.moved) {
+                dragged.current = true;
+                onMove?.(moving.name, moving.at);
+              }
+              setMoving(undefined);
+            }}
           >
             <Markers id={markerId} />
             {connecting?.to && at.get(connecting.from) ? (
@@ -696,10 +896,9 @@ export function LinkmlGraphView({
                     width={BOX.width}
                     height={node.height}
                     rx={node.kind === "enum" ? 2 : 6}
-                    className={node.kind === "enum" ? "fill-surface stroke-border" : "fill-surface-subtle stroke-border"}
-                    strokeWidth={1}
-                    strokeDasharray={node.from || node.kind !== "class" ? "4 3" : undefined}
+                    {...outline(node, node.name === selected)}
                   />
+                  <BoxDecor node={node} {...decor(node)} />
                   <text
                     x={node.x + BOX.padding}
                     y={node.y + 17}
@@ -724,12 +923,10 @@ export function LinkmlGraphView({
                         <SlotRow
                           key={row.name}
                           row={row}
+                          served={servedRow(node, row)}
                           x={node.x}
                           y={node.y + BOX.header + index * BOX.row + 4}
-                          tip={t(`models.graph.row.${row.key ?? "plain"}`, {
-                            name: row.name,
-                            type: typeText(row),
-                          })}
+                          tip={rowTip(row)}
                         />
                       ))
                     : node.slots.map((slot, index) => (
@@ -867,7 +1064,11 @@ export function LinkmlGraphView({
                     // `focus-ring`, never a bare `outline-none`: the box is in the tab order, so
                     // taking its outline away left a keyboard with nothing to follow (UI-15).
                     className="focus-ring cursor-pointer"
-                    onClick={open}
+                    onClick={() => {
+                      if (dragged.current) dragged.current = false;
+                      else open();
+                    }}
+                    onPointerDown={(event) => grabBox(node, event)}
                     onPointerUp={() => {
                       // A drag that ends on a class of this model opens the form on that pair.
                       if (editing && connecting && node.kind === "class" && local.has(node.name)) {
@@ -880,7 +1081,7 @@ export function LinkmlGraphView({
                         event.preventDefault();
                         open();
                       }
-                      walk(node.name, event);
+                      if (!nudge(node, event)) walk(node.name, event);
                     }}
                   >
                     {box}
@@ -894,7 +1095,7 @@ export function LinkmlGraphView({
         </div>
         </div>
         {editing?.dialogs}
-        {pairs.length > 0 ? (
+        {pairs.length > 0 && !canvas ? (
           <Table caption={t("models.graph.table")}>
             <TableHead>
               <TableHeaderCell>{t("models.graph.tableRelationship")}</TableHeaderCell>
@@ -921,6 +1122,42 @@ export function LinkmlGraphView({
   );
 }
 
+/** A box's border: the picked class outlined in the primary colour, an import or enum dashed. */
+function outline(node: Placed, picked: boolean): { className: string; strokeWidth: number; strokeDasharray?: string } {
+  if (picked) return { className: "fill-surface-subtle stroke-primary-soft-fg", strokeWidth: 2.5 };
+  return {
+    className: node.kind === "enum" ? "fill-surface stroke-border" : "fill-surface-subtle stroke-border",
+    strokeWidth: 1,
+    strokeDasharray: node.from || node.kind !== "class" ? "4 3" : undefined,
+  };
+}
+
+/** The header band in its area's tint (square below, so it meets the rows) and the Endpoint count. */
+function BoxDecor({ node, fill, badge, badgeLabel }: { node: Placed; fill?: string; badge?: number; badgeLabel: string }): JSX.Element {
+  const { x, y } = node;
+  const right = x + BOX.width;
+  return (
+    <>
+      {fill ? (
+        <path
+          data-testid={`diagram-area-${node.name}`}
+          d={`M${x} ${y + BOX.header} V${y + 6} Q${x} ${y} ${x + 6} ${y} H${right - 6} Q${right} ${y} ${right} ${y + 6} V${y + BOX.header} Z`}
+          className={fill}
+        />
+      ) : null}
+      {badge ? (
+        <g data-testid={`diagram-badge-${node.name}`}>
+          <title>{badgeLabel}</title>
+          <circle cx={right - 4} cy={y + 4} r={9} className="fill-primary-soft-fg" />
+          <text x={right - 4} y={y + 7.5} textAnchor="middle" fontSize={BOX.edge} className="fill-surface font-semibold">
+            {badge}
+          </text>
+        </g>
+      ) : null}
+    </>
+  );
+}
+
 /** How many, at one end of a line: bold, so it is read before the name in the middle. */
 function Multiplicity({ at, value }: { at: Point; value?: string }): JSX.Element | null {
   return value ? (
@@ -935,10 +1172,16 @@ function Multiplicity({ at, value }: { at: Point; value?: string }): JSX.Element
  * solid one for the key, a dashed one for a reference) and never by colour, the slot's name, and
  * its type at the right edge. The tooltip says the whole row when either half was cut.
  */
-function SlotRow({ row, x, y, tip }: { row: GraphRow; x: number; y: number; tip: string }): JSX.Element {
+function SlotRow({ row, x, y, tip, served }: { row: GraphRow; x: number; y: number; tip: string; served?: boolean }): JSX.Element {
   const nameAt = x + BOX.padding + BOX.tagWidth + 4;
+  const [nameText, typeShown] = fitRow(row.name, typeText(row));
+  // Under the Endpoints overlay a served attribute is in the primary colour, the others fade.
   return (
-    <g className={row.key ? "text-fg" : "text-fg-muted"}>
+    <g
+      data-served={served === undefined ? undefined : String(served)}
+      className={served ? "text-primary-soft-fg" : row.key ? "text-fg" : "text-fg-muted"}
+      opacity={served === false ? UNSERVED : undefined}
+    >
       <title>{tip}</title>
       {row.key ? (
         <>
@@ -971,10 +1214,17 @@ function SlotRow({ row, x, y, tip }: { row: GraphRow; x: number; y: number; tip:
         className={row.key === "pk" ? "fill-current font-semibold" : "fill-current"}
         fontStyle={row.implied ? "italic" : undefined}
       >
-        {cut(row.name)}
+        {nameText}
+        {row.required ? " *" : ""}
       </text>
+      {row.personal && !row.key ? (
+        // Personal data (DM-120): a PD tag in the danger colour, where a key's PK/FK would stand.
+        <text x={x + BOX.padding + BOX.tagWidth / 2} y={y} textAnchor="middle" fontSize={BOX.tag} className="fill-danger font-semibold">
+          PD
+        </text>
+      ) : null}
       <text x={x + BOX.width - BOX.padding} y={y + 1} textAnchor="end" fontSize={BOX.slot} className="fill-current">
-        {cut(typeText(row))}
+        {typeShown}
       </text>
     </g>
   );
@@ -1108,6 +1358,7 @@ function Minimap({
   zoom,
   faded,
   onJump,
+  tall = MINIMAP,
 }: {
   placed: Placed[];
   width: number;
@@ -1116,15 +1367,17 @@ function Minimap({
   zoom: number;
   faded: (name: string) => boolean;
   onJump: (point: Point) => void;
+  /** The most it may be high: the canvas sets it in its toolbar row, out of the drawing's way. */
+  tall?: number;
 }): JSX.Element {
   // At most MINIMAP square: a tall drawing would otherwise draw a tall map over the toolbar.
-  const scale = Math.min(MINIMAP / width, MINIMAP / height);
+  const scale = Math.min(MINIMAP / width, tall / height);
   return (
     <svg
       aria-hidden="true"
       data-testid="diagram-minimap"
       width={width * scale}
-      height={Math.max(24, height * scale)}
+      height={Math.max(Math.min(24, tall), height * scale)}
       viewBox={`-4 -4 ${width} ${height}`}
       className="cursor-pointer rounded border border-border bg-surface text-fg-subtle shadow-1"
       onClick={(event) => {

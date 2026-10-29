@@ -139,6 +139,61 @@ describe("LinkML visual editor", () => {
     expect(source()).toContain("ngsi_ld_kind: GeoProperty");
   });
 
+  /// T-6101: a unit measures a number. Picking one on a text field makes it a Number (an
+  /// Integer for C62) and says so; leaving numbers drops the unit; Undo takes back both changes.
+  it("turns a text field into a number when it gets a unit, and Undo takes both back", async () => {
+    const { source, user } = renderEditor(SOURCE.replace("range: float", "range: string"));
+    const pm10 = () => parseModel(source()).slots.find((candidate) => candidate.name === "pm10");
+
+    await user.click(screen.getByRole("button", { name: "pm10" }));
+    await user.type(screen.getByRole("combobox", { name: "Unit" }), "CEL");
+    await user.keyboard("{Enter}");
+    expect(pm10()?.range).toBe("float");
+    expect(pm10()?.unit?.exact_mappings).toContain("ucefact:CEL");
+    expect(screen.getByRole("status")).toHaveTextContent(en.models.unitRule.madeNumber);
+    expect(screen.getByRole("row", { name: /pm10/ })).toHaveTextContent("°C");
+
+    await user.click(screen.getByRole("button", { name: en.models.unitRule.undo }));
+    expect(pm10()?.range).toBe("string");
+    expect(pm10()?.unit).toBeUndefined();
+    expect(screen.queryByText(en.models.unitRule.madeNumber)).not.toBeInTheDocument();
+  });
+
+  /// Undo puts back the text from before the pick, so it goes away once anything else changed.
+  it("drops the unit Undo after a later edit, keeping that edit", async () => {
+    const { source, user } = renderEditor(SOURCE.replace("range: float", "range: string"));
+
+    await user.click(screen.getByRole("button", { name: "pm10" }));
+    await user.type(screen.getByRole("combobox", { name: "Unit" }), "CEL");
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("button", { name: en.models.unitRule.undo })).toBeInTheDocument();
+
+    await user.type(document.getElementById("class-description") as HTMLElement, "Air");
+    expect(screen.queryByRole("button", { name: en.models.unitRule.undo })).not.toBeInTheDocument();
+    expect(source()).toContain("Air");
+    expect(parseModel(source()).slots.find((candidate) => candidate.name === "pm10")?.range).toBe("float");
+  });
+
+  it("makes a count an Integer, and drops the unit of a field that stops being a number", async () => {
+    const { source, user } = renderEditor(SOURCE.replace("range: float", "range: string"));
+    const pm10 = () => parseModel(source()).slots.find((candidate) => candidate.name === "pm10");
+
+    await user.click(screen.getByRole("button", { name: "pm10" }));
+    await user.type(screen.getByRole("combobox", { name: "Unit" }), "C62");
+    await user.keyboard("{Enter}");
+    expect(pm10()?.range).toBe("integer");
+    expect(screen.getByRole("status")).toHaveTextContent(en.models.unitRule.madeInteger);
+
+    await user.selectOptions(screen.getByLabelText("Type of value"), "string");
+    expect(pm10()?.range).toBe("string");
+    expect(pm10()?.unit).toBeUndefined();
+    expect(screen.getByRole("status")).toHaveTextContent(en.models.unitRule.droppedUnit);
+
+    await user.click(screen.getByRole("button", { name: en.models.unitRule.undo }));
+    expect(pm10()?.range).toBe("integer");
+    expect(pm10()?.unit?.exact_mappings).toContain("ucefact:C62");
+  });
+
   /**
    * T-1088, DM-13: the hierarchy the model declares is edited where it is read. The parent is a
    * choice among the model's own classes, so a typo cannot leave a dangling reference behind.

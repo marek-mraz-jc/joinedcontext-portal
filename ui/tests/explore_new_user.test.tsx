@@ -1,6 +1,7 @@
 // T-3218: the explorer as a new user meets it. The type list says which types the chosen
 // endpoint lets them read, so nobody picks one only to meet an empty grid, and two endpoints of
 // one title are told apart by their names.
+import en from "../src/locales/en.json";
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -89,7 +90,7 @@ describe("the explorer for a new user (T-3218)", () => {
 
   it("tells two endpoints of one title apart by their names, and leaves a unique title alone", async () => {
     open({ permissions: [] });
-    const endpoints = await screen.findByLabelText(/Read through endpoint/i);
+    const endpoints = await screen.findByLabelText(en.explore.endpoint);
     const labels = [...endpoints.querySelectorAll("option")].map((o) => o.textContent);
     expect(labels).toEqual([
       "—",

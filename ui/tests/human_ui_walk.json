@@ -1235,11 +1235,6 @@
       "date": "2026-10-25",
       "screenshots": []
     },
-    "src/pages/explore/ExportView.tsx": {
-      "walkedBy": "deployer",
-      "date": "2026-10-20",
-      "screenshots": []
-    },
     "src/pages/explore/UseThisData.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
@@ -1454,6 +1449,19 @@
         "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-syncsources-dialog-detach-steward-en-1440.png",
         "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-publish-a-dataset-steward-en-1440.png",
         "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
+      ]
+    },
+    "src/pages/models/ModelCanvas.tsx": {
+      "walkedBy": "worker-t6094",
+      "date": "2026-10-29",
+      "screenshots": [
+        "evidence/T-6094/canvas-1440.png",
+        "evidence/T-6094/canvas-personal-1440.png",
+        "evidence/T-6094/canvas-bikes-1440.png",
+        "evidence/T-6094/canvas-events-1440.png",
+        "evidence/T-6094/canvas-catalog-details-1440.png",
+        "evidence/T-6094/canvas-list-400.png",
+        "evidence/T-6094/canvas-diagram-400.png"
       ]
     },
     "src/pages/models/ModelFileDrop.tsx": {
