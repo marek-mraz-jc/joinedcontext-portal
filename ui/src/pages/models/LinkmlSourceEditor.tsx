@@ -237,16 +237,18 @@ export function LinkmlSourceEditor({
         {diagnostics.length === 0 ? (
           <p className="text-body text-fg-muted">{t("models.noDiagnostics")}</p>
         ) : (
-          <ul className="mt-1 flex flex-col gap-1 text-body">
+          <ul className="mt-1 flex flex-col gap-2 text-body">
             {diagnostics.map((diagnostic, index) => (
               // The badge carries the severity in words and colour; the message stays readable text.
-              <li key={`${diagnostic.line}-${index}`} className="flex flex-wrap items-baseline gap-x-2 text-fg">
-                <Badge tone={diagnostic.severity === "error" ? "danger" : "warning"}>
-                  {t(`models.diagnosticSeverity.${diagnostic.severity}`)}
-                </Badge>
-                <span className="font-mono text-caption text-fg-muted">
-                  {t("models.atLine", { line: diagnostic.line, column: diagnostic.column })}
-                </span>{" "}
+              <li key={`${diagnostic.line}-${index}`} className="flex flex-col gap-0.5 text-fg">
+                <span className="flex items-center gap-2">
+                  <Badge tone={diagnostic.severity === "error" ? "danger" : "warning"}>
+                    {t(`models.diagnosticSeverity.${diagnostic.severity}`)}
+                  </Badge>
+                  <span className="font-mono text-caption text-fg-muted">
+                    {t("models.atLine", { line: diagnostic.line, column: diagnostic.column })}
+                  </span>
+                </span>
                 {diagnostic.message}
               </li>
             ))}

@@ -72,12 +72,12 @@ describe("LinkML visual editor", () => {
     await user.click(screen.getByRole("button", { name: "AirQualityObserved" }));
     const fields = screen.getByRole("table", { name: en.models.slots });
     const inherited = within(fields).getByRole("button", { name: "dateObserved" }).closest("tr")!;
-    expect(inherited).toHaveClass("bg-surface-subtle");
+    expect(inherited).toHaveClass("[&>td]:bg-surface-muted");
     expect(inherited).not.toHaveAttribute("aria-current");
     // Once as the From column's button, once under the name for a phone, which hides that column.
     expect(within(inherited).getAllByText(i18n.t("models.inheritedFrom", { type: "Observed" }))).toHaveLength(2);
     const own = within(fields).getByRole("button", { name: "pm10" }).closest("tr")!;
-    expect(own).not.toHaveClass("bg-surface-subtle");
+    expect(own).not.toHaveClass("[&>td]:bg-surface-muted");
     expect(within(own).getByText(en.models.ownField)).toBeInTheDocument();
     await user.click(within(inherited).getByRole("button", { name: i18n.t("models.inheritedFrom", { type: "Observed" }) }));
     expect(screen.getByRole("button", { name: "Observed" })).toHaveAttribute("aria-current", "true");

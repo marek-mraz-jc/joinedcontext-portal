@@ -292,7 +292,7 @@ export function LinkmlVisualEditor({
                   aria-current={klass.name === activeClass?.name ? "true" : undefined}
                   className={
                     klass.name === activeClass?.name
-                      ? "w-full justify-start bg-surface-subtle font-medium"
+                      ? "w-full justify-start bg-primary-soft font-semibold text-primary-soft-fg border-l-4 border-primary"
                       : "w-full justify-start"
                   }
                 >
@@ -567,10 +567,12 @@ export function LinkmlVisualEditor({
                 const inherited = from !== activeClass?.name;
                 return (
                   <TableRow key={name} className={
+                      // The open row: a tint plus an accent bar on its first cell. An inherited row:
+                      // a tint on every cell; the text keeps full contrast and "From <type>" says why.
                       name === selectedSlot
-                        ? "bg-primary-soft"
+                        ? "[&>td]:bg-primary-soft [&>td:first-child]:border-l-4 [&>td:first-child]:border-primary"
                         : inherited
-                          ? "bg-surface-subtle [&>td]:text-fg-muted [&_button]:text-fg-muted"
+                          ? "[&>td]:bg-surface-muted"
                           : undefined
                     }
                     aria-current={name === selectedSlot ? "true" : undefined}>
