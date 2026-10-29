@@ -54,6 +54,11 @@ pub const SELECTOR: &str =
     "app.kubernetes.io/part-of=mqtt-brokers,app.kubernetes.io/managed-by=joinedcontext-portal";
 /// The label naming the release an object belongs to.
 const INSTANCE: &str = "app.kubernetes.io/instance";
+/// The smallest packet a broker takes (T-6043): RMQTT's one `max_packet_size` caps CONNECT as well
+/// as PUBLISH, and a device's CONNECT carries a Keycloak token as its password (about 1.2 KB), so a
+/// broker of `maxMessageBytes` 1024 refused every device. RMQTT cannot cap PUBLISH apart, so such a
+/// broker takes a publish up to this size; the gateway still decides every publish.
+pub const CONNECT_ALLOWANCE: u32 = 4096;
 /// The client attribute naming the broker a managed client belongs to, `{project}/{name}`.
 pub const BROKER_ATTRIBUTE: &str = "joinedcontext.mqttbroker";
 
@@ -327,6 +332,11 @@ pub fn audiences_of(mirror: &Mirror, project: &str, account: &str) -> Vec<String
         .collect()
 }
 
+/// The broker's `max_packet_size`: its `maxMessageBytes`, and never under [`CONNECT_ALLOWANCE`].
+fn packet_bytes(spec: &MqttBrokerSpec) -> u32 {
+    spec.limits.max_message_bytes.max(CONNECT_ALLOWANCE)
+}
+
 /// The template's objects for one broker: the sentinels filled, and `checksum/config` the hash of
 /// everything else, so a change of any value restarts the broker and nothing else does.
 pub fn render(
@@ -338,7 +348,7 @@ pub fn render(
         .replace("__RELEASE__", &broker.release)
         .replace("__PROJECT__", &broker.project)
         .replace("__NAME__", &broker.name)
-        .replace("__MAX_BYTES__", &spec.limits.max_message_bytes.to_string())
+        .replace("__MAX_BYTES__", &packet_bytes(spec).to_string())
         .replace(
             "__PER_SECOND__",
             &spec.limits.messages_per_second.to_string(),
@@ -1698,8 +1708,8 @@ spec:
         assert_eq!(objects[0]["metadata"]["name"], "mqtt-helsinki-cameras");
         let toml = objects[0]["data"]["rmqtt.toml"].as_str().expect("toml");
         assert!(
-            toml.contains("\"2048B\"") && toml.contains("= 1000"),
-            "{toml}"
+            toml.contains("\"4096B\"") && toml.contains("= 1000"),
+            "a 2048-byte message cap still takes a token CONNECT: {toml}"
         );
         assert_eq!(
             objects[1]["spec"]["template"]["metadata"]["labels"]["joinedcontext.com/project"],
@@ -1713,6 +1723,10 @@ spec:
             objects[1],
             "same input, same hash"
         );
+        spec.limits.max_message_bytes = 65536;
+        let large = render(TEMPLATE_TEXT, broker, &spec).expect("renders");
+        let toml = large[0]["data"]["rmqtt.toml"].as_str().expect("toml");
+        assert!(toml.contains("\"65536B\""), "{toml}");
         spec.limits.max_connections = 5;
         let changed = render(TEMPLATE_TEXT, broker, &spec).expect("renders");
         assert_ne!(
