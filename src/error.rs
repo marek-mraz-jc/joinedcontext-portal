@@ -335,12 +335,17 @@ impl ApiError {
                 "Too Many Requests",
                 Some(msg),
             ),
-            Self::Unavailable(msg) => (
-                StatusCode::SERVICE_UNAVAILABLE,
-                "service-unavailable",
-                "Service Unavailable",
-                Some(msg),
-            ),
+            Self::Unavailable(msg) => {
+                // A dependency failed (the realm, the forge, the broker): the person sees the
+                // detail once, and the operator needs it in the log to find out why (T-6086).
+                tracing::warn!(detail = %msg, "answered 503: a dependency is unavailable");
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "service-unavailable",
+                    "Service Unavailable",
+                    Some(msg),
+                )
+            }
             Self::NotImplemented(msg) => (
                 StatusCode::NOT_IMPLEMENTED,
                 "not-implemented",
@@ -602,5 +607,40 @@ mod tests {
                 portal.slug
             );
         }
+    }
+
+    #[derive(Clone, Default)]
+    struct Buffer(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+    impl std::io::Write for Buffer {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().expect("buffer").extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// T-6086: a 503 names its cause in the log, not only in the answer: the walker met three
+    /// realm 503s on dev and the Portal had logged nothing an operator could read.
+    #[test]
+    fn a_503_logs_its_detail() {
+        let buffer = Buffer::default();
+        let writer = buffer.clone();
+        tracing::subscriber::with_default(
+            crate::telemetry::log_subscriber(
+                move || writer.clone(),
+                tracing_subscriber::EnvFilter::new("warn"),
+            ),
+            || {
+                ApiError::Unavailable("the realm could not be reached: timed out".into())
+                    .into_document()
+            },
+        );
+        let written = String::from_utf8(buffer.0.lock().expect("buffer").clone()).expect("utf-8");
+        let line: serde_json::Value = serde_json::from_str(written.trim()).expect(&written);
+        assert_eq!(line["level"], "WARN");
+        assert_eq!(line["detail"], "the realm could not be reached: timed out");
     }
 }

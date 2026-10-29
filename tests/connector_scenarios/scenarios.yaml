@@ -1685,3 +1685,47 @@
       args: { endpoint: '{project}-reports', type: PotholeReport }
       contains: ['joinedcontext.com/withheld', 'PotholeReport.contactEmail']
       absent: ['@example.org']
+- id: S-86
+  segment: pipeline
+  as: steward
+  says: "The mapping of counters-steps writes no count. Find the step that loses it and fix it."
+  expect: 'try_mapping with steps answers each step''s records, so the broken step is found and fixed before a change request; nothing is written before approval (T-6082)'
+  deny: 'a project outside the connector scope -> refused, no step records'
+  script:
+    # The administrator's ceiling, as the reconciler loads it from Git once merged: the pipeline
+    # segment, with writes, for the project's pipeline people.
+    - proves: expect
+      manifest: { kind: Group, name: pipeliners, spec: { members: [{ user: scn.steward@hel.fi }, { user: scn.project-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: pipeliners-doprava, spec: { subjects: [{ kind: Group, name: pipeliners }], projects: ['{project}'], segments: [pipeline], writes: true, maxExpiry: P90D } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s56-pipeline, segments: [pipeline], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    # Step 1 (the second) reads `cnt`, a field the source never had: its records show the
+    # parsed row going in and the failure it made, so the agent reads where the count went.
+    - proves: expect
+      via: connector
+      call: jc_pipeline_try_mapping
+      args: { steps: true, pipeline: { apiVersion: joinedcontext.com/v1alpha2, kind: Pipeline, metadata: { name: counters-steps, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', sources: [{ dataSourceRef: { kind: DataSource, name: counters-csv } }], steps: [{ processor: { mapping: 'root = this' } }, { kind: bloblang, bloblang: 'root = this\nroot.count = this.cnt.number()' }, { kind: bloblang, bloblang: 'root.id = "urn:ngsi-ld:BikeCounter:" + this.id\nroot.type = "BikeCounter"\nroot.count = { "type": "Property", "value": this.count, "observedAt": this.observedAt }' }], outputs: [{ targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake' }] } }, sample: { text: "id,name,count,observedAt\nc1,Most SNP,42,2026-10-27T10:00:00Z\n", format: csv } }
+      runner: [{ input: '{"id":"c1","count":"42","observedAt":"2026-10-27T10:00:00Z"}', output: null, error: 'failed assignment (line 2): expected number value, got null', step: '1', steps: ['{"id":"c1","count":"42","observedAt":"2026-10-27T10:00:00Z"}', null, null] }]
+      contains: ['"steps":[', '"name":"mapping"', '"name":"bloblang"', '"count":"42"', '"dropped":1', '"line":2']
+    # The fixed step: every step shows its records and the last one the entity it writes.
+    - proves: expect
+      via: connector
+      call: jc_pipeline_try_mapping
+      args: { steps: true, pipeline: { apiVersion: joinedcontext.com/v1alpha2, kind: Pipeline, metadata: { name: counters-steps, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', sources: [{ dataSourceRef: { kind: DataSource, name: counters-csv } }], steps: [{ processor: { mapping: 'root = this' } }, { kind: bloblang, bloblang: 'root = this\nroot.count = this.count.number()' }, { kind: bloblang, bloblang: 'root.id = "urn:ngsi-ld:BikeCounter:" + this.id\nroot.type = "BikeCounter"\nroot.count = { "type": "Property", "value": this.count, "observedAt": this.observedAt }' }], outputs: [{ targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake' }] } }, sample: { text: "id,name,count,observedAt\nc1,Most SNP,42,2026-10-27T10:00:00Z\n", format: csv } }
+      runner: [{ input: '{"id":"c1","count":"42","observedAt":"2026-10-27T10:00:00Z"}', output: { id: 'urn:ngsi-ld:BikeCounter:c1', type: BikeCounter, count: { type: Property, value: 42, observedAt: '2026-10-27T10:00:00Z' } }, error: null, steps: ['{"id":"c1","count":"42","observedAt":"2026-10-27T10:00:00Z"}', '{"id":"c1","count":42,"observedAt":"2026-10-27T10:00:00Z"}', '{"id":"urn:ngsi-ld:BikeCounter:c1","type":"BikeCounter"}'] }]
+      contains: ['"count":42', '"dropped":0', 'urn:ngsi-ld:BikeCounter:c1']
+      absent: ['"truncated"']
+    # The step records come only where the connector reaches.
+    - proves: deny
+      via: connector
+      call: jc_pipeline_try_mapping
+      project: other
+      args: { steps: true, pipeline: { apiVersion: joinedcontext.com/v1alpha2, kind: Pipeline, metadata: { name: counters-steps, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', sources: [{ dataSourceRef: { kind: DataSource, name: counters-csv } }], steps: [{ processor: { mapping: 'root = this' } }, { kind: bloblang, bloblang: 'root = this\nroot.count = this.count.number()' }, { kind: bloblang, bloblang: 'root.id = "urn:ngsi-ld:BikeCounter:" + this.id\nroot.type = "BikeCounter"\nroot.count = { "type": "Property", "value": this.count, "observedAt": this.observedAt }' }], outputs: [{ targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake' }] } }, sample: { text: "id,name,count,observedAt\nc1,Most SNP,42,2026-10-27T10:00:00Z\n", format: csv } }
+      refused: true
+      contains: ['does not reach project']
+      absent: ['"steps"']

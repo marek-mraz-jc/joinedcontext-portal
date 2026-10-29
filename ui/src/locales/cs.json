@@ -1145,8 +1145,10 @@
       "type": "Typ",
       "current": "Aktuální hodnoty",
       "history": "Historie",
-      "deleted": "Dosud smazáno",
+      "deleted": "Smazáno od startu brokera",
       "deletedUnknown": "Neznámé: broker neodpověděl",
+      "deletedSince": "Broker počítá od svého posledního startu a při každém restartu začíná od nuly. Historii, kterou zahazuje po celých dnech, zatím nepočítá, takže typ s historií na minuty či hodiny může stále ukazovat 0.",
+      "sameRule": "{count, plural, few {# typy} other {# typů}}, stejné pravidlo",
       "forever": "Uchovávat navždy",
       "amount": {
         "minutes": "{count, plural, one {# minuta} few {# minuty} other {# minut}}",
@@ -1196,6 +1198,7 @@
         "of": "Řádky historie typu {type}",
         "heartbeatOf": "Řádek alespoň každých, pro {type}",
         "noRows": "Žádné řádky: historie se neuchovává",
+        "atLeastEvery": "řádek alespoň každých {every}",
         "asDefault": "{mode} (výchozí)",
         "hint": "Řádky historie: Novější pozorování zapíší řádek jen tehdy, když je observedAt novější než poslední řádek, takže senzor, který pošle stejné měření znovu, nepřidá nic; Každé pozorování zapíše řádek pro každý nový observedAt, například počet za 15 minut; Jen změny zapíší řádek při změně hodnoty a alespoň jednou za zvolený interval, například volná kola stanice.",
         "mode": {
@@ -1367,7 +1370,7 @@
         "loses-history": "Ztrácí historii",
         "unbounded-growth": "Roste bez omezení",
         "duplicates-rows": "Duplikuje řádky",
-        "stamped-on-receive": "Čas přijetí"
+        "stamped-on-receive": "Měření s časem přijetí"
       },
       "fix": {
         "loses-history": "Každý zápis má stejný čas, takže nahradí předchozí: mapujte observedAt ze záznamu.",
@@ -1379,6 +1382,7 @@
       "expiry": "neaktuální po {after}",
       "rows": "Řádky",
       "timeOf": "Čas: {source}",
+      "receivedOk": "Čas přijetí: vhodné pro hodnotu bez jednotky, jako datum nebo název.",
       "unitOf": "Jednotka: {unit}",
       "noMatchHint": "Vyberte Všechny pipeline a Všechny verdikty, abyste viděli každý řádek."
     },

@@ -1999,13 +1999,16 @@ fn judged(
 fn the_catalogue_holds_the_connector_scenarios_well_formed() {
     let scenarios = catalogue();
     // S-01..S-50 of the owner's order and S-51..S-55 added with T-5971..T-5976; the UI
-    // scenarios S-56.. are browser journeys of the user agent (T-5981), not MCP calls.
-    assert_eq!(scenarios.len(), 55);
+    // scenarios S-56..S-85 are browser journeys of the user agent (T-5981), not MCP calls, and
+    // S-86 (T-6082) follows them.
+    assert_eq!(scenarios.len(), 56);
     for (n, s) in scenarios.iter().enumerate() {
+        // The MCP ids skip S-56..S-85, the UI journeys' ids (T-6082).
+        let number = if n < 55 { n + 1 } else { n + 31 };
         assert_eq!(
             s.id,
-            format!("S-{:02}", n + 1),
-            "ids run S-01..S-50 in order"
+            format!("S-{number:02}"),
+            "ids run S-01..S-55, then S-86.., in order"
         );
         assert!(PERSONAS.contains(&s.persona.as_str()), "{}: persona", s.id);
         assert!(

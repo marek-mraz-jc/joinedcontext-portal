@@ -1145,8 +1145,10 @@
       "type": "Type",
       "current": "Current values",
       "history": "History",
-      "deleted": "Deleted so far",
+      "deleted": "Deleted since the broker started",
       "deletedUnknown": "Not known: the broker did not answer",
+      "deletedSince": "Counted by the broker since it last started, back to zero on each restart. History it drops a whole day at a time is not counted yet, so a type that keeps history for minutes or hours can still show 0.",
+      "sameRule": "{count} types, same rule",
       "forever": "Keep forever",
       "amount": {
         "minutes": "{count, plural, one {# minute} other {# minutes}}",
@@ -1196,6 +1198,7 @@
         "of": "Rows of history of {type}",
         "heartbeatOf": "Row at least every, for {type}",
         "noRows": "No rows: no history kept",
+        "atLeastEvery": "a row at least every {every}",
         "asDefault": "{mode} (default)",
         "hint": "Rows of history: Newer observations writes a row only when observedAt is newer than the last row, so a sensor sending the same reading again adds none; Every observation writes a row for each new observedAt, as a count per 15 minutes; Only changes writes a row when a value changes and at least once per chosen interval, as the free bikes of a station.",
         "mode": {
@@ -1367,7 +1370,7 @@
         "loses-history": "Loses history",
         "unbounded-growth": "Grows without bound",
         "duplicates-rows": "Duplicates rows",
-        "stamped-on-receive": "Stamped on receipt"
+        "stamped-on-receive": "Measurement stamped on receipt"
       },
       "fix": {
         "loses-history": "Every write has the same time, so each replaces the last: map observedAt from the record.",
@@ -1379,6 +1382,7 @@
       "expiry": "stale after {after}",
       "rows": "Rows",
       "timeOf": "Time: {source}",
+      "receivedOk": "Time of arrival: fine for a value without a unit, as a date or a name.",
       "unitOf": "Unit: {unit}",
       "noMatchHint": "Choose All pipelines and All verdicts to see every row."
     },

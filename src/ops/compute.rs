@@ -60,6 +60,9 @@ pub struct PipelineTestInput {
     pub sample: Sample,
     #[serde(default)]
     pub draft: Option<DraftRef>,
+    /// Also what each step made of the sample (T-6082).
+    #[serde(default)]
+    pub steps: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -167,7 +170,8 @@ fn pipeline_test_input_schema() -> Value {
                 },
                 "additionalProperties": false
             },
-            "draft": draft_ref()
+            "draft": draft_ref(),
+            "steps": super::pipeline_steps::steps_flag()
         },
         "required": ["sample"],
         "additionalProperties": false
@@ -516,6 +520,9 @@ async fn pipeline_test_run(
     let mut out = serde_json::to_value(&trace)?;
     out["check"] = serde_json::to_value(&checked)?;
     out["verdict"] = serde_json::to_value(&verdict)?;
+    if input.steps {
+        out["steps"] = json!(super::pipeline_steps::step_trace(&pipeline, &trace));
+    }
     Ok(out)
 }
 
