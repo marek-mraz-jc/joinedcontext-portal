@@ -237,8 +237,10 @@ pub struct Config {
     /// default `platform-admins`; T-0526, PF-50).
     pub bootstrap_admins: String,
     /// Every decision door asks for a second factor proven in the session (T-5567, AUT-2).
-    /// Always on outside tests: no environment key turns it off; `Config::for_tests` leaves it
-    /// off so a test session that decides does not need a step-up of its own.
+    /// On unless `JC_PORTAL_DECISIONS_NEED_SECOND_FACTOR` is the literal `false` (T-6083: a dev
+    /// deployment whose people sign in with a password alone); any other value keeps it on, and
+    /// the Portal logs a warning at boot when it is off. `Config::for_tests` leaves it off so a
+    /// test session that decides does not need a step-up of its own.
     pub decisions_need_second_factor: bool,
     /// The usernames the Portal's own live journeys sign in as, the only people whose runs may
     /// carry `X-JC-Run-Origin: journey` (`JC_PORTAL_JOURNEY_USERS`, comma-separated; default
@@ -709,6 +711,19 @@ fn cookie_keys(
         None => Vec::new(),
     };
     Ok((cookie_key, cookie_keys_previous))
+}
+
+/// `JC_PORTAL_DECISIONS_NEED_SECOND_FACTOR` (T-6083): only the literal `false` turns the
+/// decision doors' second-factor gate off, so a typo keeps AUT-2 in force.
+fn decisions_need_second_factor(lookup: &impl Fn(&str) -> Option<String>) -> bool {
+    let on = lookup("JC_PORTAL_DECISIONS_NEED_SECOND_FACTOR").as_deref() != Some("false");
+    if !on {
+        tracing::warn!(
+            "JC_PORTAL_DECISIONS_NEED_SECOND_FACTOR is false: approve, reject, revoke and people \
+             administration accept a password-only session (AUT-2 off, dev only)"
+        );
+    }
+    on
 }
 
 /// The group reconciler's Keycloak client: an id and exactly one proof, or neither.
@@ -1789,6 +1804,7 @@ impl Config {
             })
             .unwrap_or_default();
 
+        let decisions_need_second_factor = decisions_need_second_factor(&lookup);
         let keycloak_admin = keycloak_admin(&lookup, oidc.as_ref())?;
 
         let artifact_store = artifact_store_settings(&lookup);
@@ -1847,7 +1863,7 @@ impl Config {
             health_dir,
             database_url,
             bootstrap_admins,
-            decisions_need_second_factor: true,
+            decisions_need_second_factor,
             journey_users,
             keycloak_admin,
             organization_bounds: organization_bounds(&lookup)?,
@@ -2090,6 +2106,26 @@ mod tests {
                 Err(ConfigError::Invalid { var: named, .. }) => assert_eq!(named, var, "{bad}"),
                 other => panic!("{bad}: {other:?}"),
             }
+        }
+    }
+
+    /// T-6083: the decision doors' second-factor gate stays on unless the key is exactly `false`.
+    #[test]
+    fn only_the_literal_false_turns_the_decision_second_factor_off() {
+        let with = |value: Option<&'static str>| {
+            Config::from_vars(move |name| {
+                (name == "JC_PORTAL_DECISIONS_NEED_SECOND_FACTOR")
+                    .then_some(value)
+                    .flatten()
+                    .map(str::to_owned)
+            })
+            .expect("valid")
+            .decisions_need_second_factor
+        };
+        assert!(with(None), "unset keeps it on");
+        assert!(!with(Some("false")));
+        for kept_on in ["true", "0", "no", "False", " false", "off", ""] {
+            assert!(with(Some(kept_on)), "{kept_on:?} keeps it on");
         }
     }
 

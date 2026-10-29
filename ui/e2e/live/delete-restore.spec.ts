@@ -5,7 +5,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
-import { STEWARD, approve, checkManifest, csrf, proposeDelete, removeCompletely, signIn } from "./portal";
+import { STEWARD, approve, checkManifest, cleanUp, csrf, proposeDelete, signIn } from "./portal";
 
 test.setTimeout(420_000);
 test.describe.configure({ mode: "serial" });
@@ -33,8 +33,12 @@ async function live(page: Page): Promise<void> {
 
 test.afterAll(async () => {
   if (steward) {
-    await removeCompletely(steward, PROJECT, "spaces", NAME).catch(() => undefined);
-    await steward.context.close();
+    try {
+      // Loud on purpose: a cleanup that fails leaves a Change in Approvals (T-6081).
+      await cleanUp(steward, PROJECT, "spaces", NAME, "delete-restore");
+    } finally {
+      await steward.context.close();
+    }
   }
 });
 
