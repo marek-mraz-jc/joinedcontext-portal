@@ -21248,7 +21248,7 @@
     },
     "/api/v1/projects/{project}/ops/jc_pipeline_logs": {
       "post": {
-        "description": "A pipeline's newest runs with what each sent, rejected and failed, and one run's log a page at a time: each record's outcome and why, e.g. the source read that failed or the write the gateway refused",
+        "description": "A pipeline's newest runs with what each sent, rejected and failed, and one run's log a page at a time: each record's outcome and why, by step if asked",
         "operationId": "jc_pipeline_logs",
         "parameters": [
           {
@@ -21275,7 +21275,7 @@
                     "type": "integer"
                   },
                   "limit": {
-                    "description": "Runs listed, newest first (default 10)",
+                    "description": "Runs listed (default 10)",
                     "maximum": 50,
                     "minimum": 1,
                     "type": "integer"
@@ -21289,6 +21289,10 @@
                     "description": "The run, as runs[].run names it; the newest when absent",
                     "maxLength": 64,
                     "type": "string"
+                  },
+                  "step": {
+                    "description": "This step only",
+                    "type": "integer"
                   }
                 },
                 "required": [
@@ -21695,7 +21699,7 @@
                   },
                   "sample": {
                     "additionalProperties": false,
-                    "description": "The sample inline or by URL, and how it is split",
+                    "description": "The sample",
                     "properties": {
                       "format": {
                         "description": "How the sample is split into records",
@@ -21906,6 +21910,10 @@
                       }
                     },
                     "type": "object"
+                  },
+                  "steps": {
+                    "description": "Per-step records",
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -22009,7 +22017,7 @@
     },
     "/api/v1/projects/{project}/ops/jc_pipeline_try_mapping": {
       "post": {
-        "description": "Runs a candidate pipeline's steps over a sample on the project's runner without writing: each record as it would be written and every failure at its step and line",
+        "description": "Runs a candidate pipeline's steps over a sample on the runner, writing nothing: each record it would write, each failure at its step and line",
         "operationId": "jc_pipeline_try_mapping",
         "parameters": [
           {
@@ -22051,7 +22059,7 @@
                     "type": "object"
                   },
                   "messages": {
-                    "description": "Instead of sample: a streamed jc_pipeline_sample_source's records, each tried as one message",
+                    "description": "Instead of sample: a streamed sample's records, one message each",
                     "maxItems": 20,
                     "type": "array"
                   },
@@ -22062,7 +22070,7 @@
                   },
                   "sample": {
                     "additionalProperties": false,
-                    "description": "The sample inline or by URL, and how it is split",
+                    "description": "The sample",
                     "properties": {
                       "format": {
                         "description": "How the sample is split into records",
@@ -22085,6 +22093,10 @@
                       }
                     },
                     "type": "object"
+                  },
+                  "steps": {
+                    "description": "Per-step records",
+                    "type": "boolean"
                   }
                 },
                 "type": "object"
