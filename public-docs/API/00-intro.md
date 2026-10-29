@@ -106,7 +106,7 @@ Errors are returned strictly as `application/problem+json` documents:
 }
 ```
 
-`type` is always `https://joinedcontext.com/errors/{slug}` (`crates/jc-core/src/error.rs`). `detail` and `instance` are present when there is something safe to say, and never carry an upstream URL, a tenant, a broker error body or a policy name. A `400` from the Portal may carry `errors`, one entry per violation, so a form can mark every bad field in one pass.
+`type` is always `https://joinedcontext.com/errors/{slug}` (`crates/jc-core/src/error.rs`). `detail` and `instance` are present when there is something safe to say, and never carry an upstream URL, a tenant, a broker error body or a policy name. A `400` or `422` from the Portal may carry `errors`, one `{path, message}` entry per violation: `path` is the member's dotted path as the request wrote it (`spec.history[1]`, `metadata.name`), empty when the finding is about the whole request, so a form marks every bad field in one pass and a client corrects each named member before it sends again (AG-146, T-5949). An MCP tool of the Portal answers a refusal with `isError: true` and the same document as its `structuredContent`.
 
 The extension members (T-3243):
 

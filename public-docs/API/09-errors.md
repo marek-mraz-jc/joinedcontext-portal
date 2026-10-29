@@ -434,6 +434,17 @@ range (EP-152..EP-160). `errors` lists one entry per refused member.
 
 What to do: Correct each member errors names; the dry run lists the same findings before you send.
 
+### `secret-in-argument` {#secret-in-argument}
+
+**Secret In Argument**, status 422.
+
+An operation's input holds a value that reads like a credential: one under a credential's name
+(`password`, `apiKey`, `X-Api-Key`), one shaped like a token, a key or an authorization header, or
+a URL carrying one in its query. `errors` names each path and never the value; nothing was kept
+or sent on (MF-24, T-5971).
+
+What to do: Enter the credential in the Portal's secret form, never in a chat or a manifest, and name it by secretRef.
+
 ### `quota` {#quota}
 
 **Quota Used**, status 429.

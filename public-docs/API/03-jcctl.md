@@ -48,6 +48,9 @@ jcctl [COMMAND] [OPTIONS]
 | **`apply -f`** | `<file>`, `[--project <slug>]` | Proposes every manifest of the file as a `Change`: `POST` when the Portal holds no such resource, `PUT` when it holds a different one, nothing when it already matches; exit `1` when any was refused (MF-12, MF-14) |
 | **`diff -f`** | `<file>`, `[--project <slug>]` | Compares every manifest of the file with the live one, member by member as `plan` does; exit `2` on any difference; writes nothing (MF-14, CC-17) |
 | **`delete -f`** | `<file>`, `[--project <slug>]` | Proposes the deletion of every resource the file names as a `Change` on the deletion lane (MF-12, MF-14) |
+| **`plan -f`** | `<file>`, `[--project <slug>]` | Sends every manifest of the file as its write with `dryRun=All`: the Portal validates and diffs it and writes nothing; prints the lane and each changed field, or every finding of a manifest it would refuse; exit `1` when any would be refused, `2` when any would change (MF-13, MF-14) |
+| **`ops`** | `--project <slug>` | Lists the registry operations the caller may run in the project, one `name<TAB>description` per line: the same list MCP clients and the Portal assistant read ([01](01-portal-api.md)) |
+| **`op`** | `<operation>`, `--project <slug>`, `[-f <input.yaml\|json>]` | Runs one registry operation with the object the file holds (`{}` without one) and prints its answer as JSON; a write answers the `Change` it proposed; exit `1` on a refusal, which prints the problem's `detail` and each of its `errors` |
 | **`changelog`** | `--repo-dir <project checkout>`, `[--days <1..366>]`, `[--format md\|json]` | Lists the merged changes of every public Endpoint on the first-parent history of `main` in the window, per surface, from the manifests alone: no commit message or author ([API/10 §4](10-api-change-policy.md#4-the-public-changelog), EP-148, EP-149) |
 | **`checkouts`** | `--org-dir <organization checkout>`, `--projects-dir <dir>`, `--forge <base>/<org>`, `[--token-file <path>]`, `[--secrets-dir <dir>]`, `[--once]`, `[--interval <seconds>]` | Keeps every registered project checked out at its `spec.ref` under `<dir>/{slug}`, a link swapped in one rename; a failed fetch keeps the last checkout, and `--once` fails only when the registry does not read (CC-86, CC-89) |
 
@@ -127,6 +130,12 @@ caller never approves on propose (API/01 §5), so the `Change` waits for a perso
 page; `delete -f` proposes on the deletion lane and never removes anything by itself (MF-12). A
 refusal prints the API's own `detail` and the command goes on with the next manifest, exiting `1`
 at the end.
+
+The routes these verbs call are one table in jcctl (`jcctl::portal::ROUTES`), and jcctl carries
+the part of the Portal OpenAPI they depend on, extracted at a pinned Portal commit by
+`scripts/vendor-portal-api.py` into `crates/jcctl/portal-api.json`. A test fails when a route,
+method or query parameter of the table is not in that document, or when the Portal serves a kind
+jcctl cannot name, so the CLI, REST and the MCP tools cannot drift apart unnoticed.
 
 `get -o yaml` and `-o json` print the manifest as the API serves it. The Portal serves what the
 repository holds, which carries a `secretRef` naming a secret and never its value (CC-06), so

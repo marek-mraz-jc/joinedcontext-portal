@@ -427,7 +427,13 @@ forge, with the gate's own document (`reason` is `verdict_absent`, `verdict_fail
 ```
 
 The check is the same request with `?dryRun=All`, so a client sends the manifest twice: first to
-check it, then, unchanged, to propose it. A proposal that became a Change forgets the draft its
+check it, then, unchanged, to propose it. The `409` is a problem document of type
+`verdict-required` (`application/problem+json`) that keeps `error`, `check` and `reason` beside
+`type`, `title` and `status`. `?validate_only=true` (AIP-163) is the same check under
+the name other API styles use: every write the resource API takes (create, replace, patch, delete,
+a draft, a workspace write, a model's source, an import) answers it as `?dryRun=All`, saves nothing
+and returns the plan; a caller who may not write the resource gets the answer `?dryRun=All` gives
+them (T-5949). A proposal that became a Change forgets the draft its
 check created; a person's draft of the same resource with other content stays.
 
 A DataSource with an `authorization` answers `"probe": { "skipped": "the source declares a credential; a dry run resolves none (MF-38)" }`.
@@ -984,17 +990,22 @@ PUT /api/v1/preferences      replaces them whole; answers 200 with what is now s
   space, connect a data source, run a pipeline, see the data, share it); the help menu shows it
   again by clearing it. Absent means shown. Each step ticks itself from the project's own state,
   never from this record (T-3233).
-- `connectors` holds up to ten personal MCP connectors (UI-98, ADR-N-043 §7): a DNS-label `name`,
-  unique in the list, and a `select` of the McpServer selector fields (MF-55) plus `endpoints`, up to
-  50 Endpoint slugs; a slug the caller may not read when saved, an eleventh connector or a fifty-first
-  slug is a `400`. The gateway reads them for `/api/mcp/me/{name}` by the caller's `sub` alone (EP-123):
-  `GET /internal/connectors/{sub}` on the Portal's internal listener answers
-  `{ "connectors": [ { "name": "my-air", "select": { … } } ] }`, an empty list for a `sub` with
-  none, with the same Keycloak ServiceAccount check as `/internal/previews` (the gateway's own
-  token, audience `portal-internal`; any other token or none is a `401`, and the NetworkPolicy
-  opens the listener to the gateway alone). The gateway keeps an answer at most 60 seconds per
-  `sub` and answers `503` while the Portal cannot be read, never an older list. `me` is
-  therefore no project a named server can be declared in.
+- Personal MCP connectors are no preference since T-5970: they are connector records (API/14,
+  ADR-N-064 §9); a body naming `connectors` is a `400`, and a list an older Portal stored moves
+  into the connector store once (`data-read`, every item `read`, the default ceiling's expiry). An
+  old connector that does not move (its selector takes no Endpoint, its name is live already, the
+  person holds the most live connectors) stays in the stored row under `connectorsNotMoved` as
+  `{name, select, reason}`, and a list the Portal cannot read stays under `connectors`; no read
+  answers either key and a `PUT` carries both over, so the move loses nothing a person made. The
+  gateway reads a person's live `data-read` connectors for `/api/mcp/me/{name}` by the caller's
+  `sub` alone (EP-123): `GET /internal/connectors/{sub}` on the Portal's internal listener answers
+  `{ "connectors": [ { "id": "…", "name": "my-air", "scope": [ … ], "expiresAt": "…",
+  "allowedClients": [ … ] } ] }`, an empty list for a `sub` with none, with the same Keycloak
+  ServiceAccount check as `/internal/previews` (the gateway's own token, audience
+  `portal-internal`; any other token or none is a `401`, and the NetworkPolicy opens the listener
+  to the gateway alone). The gateway keeps an answer at most 60 seconds per `sub` and answers
+  `503` while the Portal cannot be read, never an older list. `me` is therefore no project a named
+  server can be declared in.
 - `recent` holds the last ten item pages the person opened, newest first, and `favourites` up to
   fifty pages they starred (UI-90). Each place is a `path` inside the Portal, with its query and
   without `lang`, and the `title` the page had: a path that is not one of this Portal's (`//host`,
@@ -3613,6 +3624,21 @@ POST   /api/v1/notifications/{id}/read                                mark one o
 - A notification names the space, the URN, the comment, its author and the first 200 characters;
   `GET /notifications` answers the caller's own (matched by their username and their e-mail, lower
   case), at most 100, newest first, with `unread` counted. The Portal sends no e-mail of its own.
+- Each notification has a `kind`: `mention` (above), or one of three connector events (AG-150,
+  T-5979), which carry `link`, a Portal path to act on it, and no `commentId`:
+  - `change.opened`: a change a connector opened with `jc_change_apply` waits for approval. Every
+    person who holds `approve` in the project (PF-50) learns of it, except the person who opened
+    it; `urn` is the change id, `link` its approval page `/projects/{project}/approvals/{id}`.
+  - `connector.pending`: a connector request above the ceiling waits in the queue. Every person who
+    decides such requests (an organization administrator, or `approve` on DelegationPolicy) learns
+    of it, except the owner; `link` is `/ai-connectors`.
+  - `connector.expiring`: a live connector of the caller's ends within 7 days; a new `expiresAt`
+    is a new notification. `link` is `/ai-connectors`.
+
+  The text a connector event carries is the person's name, the connector's name, the project and
+  the change or connector id: never a manifest, a scope or a secret. One event is one notification
+  per recipient. The approvers and deciders are judged when they read `GET /notifications`, by
+  their rights at that moment, so a person who lost the right gets no new notification of it.
 - A project or a space the caller may not read is `404`, as in §27. Listing or adding the
   comments of an entity first reads that entity on the space surface
   (`/cs/{space}/ngsi-ld/v1/entities/{urn}`) with the caller's own token: an entity their Policy
@@ -4778,6 +4804,32 @@ GET /api/v1/projects/{project}/endpoints/{name}/access/attributes?type=T&attribu
 - `decision` and `reason` are the gateway's answer, `null` when it was not asked.
 - The gateway unreachable is `503`; the panel keeps the gateway's chips and says the Policy
   could not be named.
+
+## 59. The secret form (T-5971, MF-24, CC-06)
+
+A credential a source or a plan needs is typed into the Portal's secret form, never into a chat,
+a tool argument or a manifest. The form writes it encrypted into the project's repository.
+
+```text
+GET  /api/v1/projects/{project}/secrets   → 200 {"items": [{"name", "keys", "path"}]}
+POST /api/v1/projects/{project}/secrets   → 202 Change
+```
+
+```json
+{"name": "counters-api", "values": {"apiKey": "…"}}
+```
+
+- `GET` lists the names and keys every `*.enc.yaml` of the repository declares, never a value.
+- `POST` encrypts the values with SOPS + age for the Portal's own recipient, and for every
+  recipient the replaced file had, into `projects/{project}/secrets/{name}.enc.yaml`, and opens a
+  change request a person approves. A secret that exists is replaced whole: send every key.
+  `name` and each key are letters, digits, `-` and `_` (1 to 63); a value is 1 to 16 KiB; at most
+  10 keys. A bad field is `422` naming it; a name another file declares is `409`.
+- Both doors take a person's Portal session with `propose` on `DataSource`; a token of a
+  connector, an agent or a service account is `403`. A Portal without an age identity answers
+  `503`.
+- The page `/projects/{project}/secrets/new?name=…&key=…` is the form; `jc_change_plan` answers
+  its link in `needsSecret` for each `secretRef` the repository does not hold (API/14 §4.3).
 
 ## Related
 
