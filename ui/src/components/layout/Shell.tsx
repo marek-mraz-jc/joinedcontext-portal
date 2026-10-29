@@ -243,12 +243,6 @@ function UserMenu() {
           </MenuItem>
         ) : null}
         <MenuItem asChild>
-          <Link to="/connectors">
-            <Icon name="endpoints" className="size-4" />
-            {t("connectors.title")}
-          </Link>
-        </MenuItem>
-        <MenuItem asChild>
           <Link to="/ai-connectors">
             <Icon name="access" className="size-4" />
             {t("aiConnectors.title")}

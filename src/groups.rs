@@ -114,8 +114,16 @@ pub fn for_proposal(
     manifest: &Value,
 ) -> Effective {
     let mut effective = crate::permissions::for_request(state, identity, project);
-    if !update || project != ORG_NAMESPACE || kind != "Group" || effective.may(kind, Verb::Propose)
-    {
+    if project != ORG_NAMESPACE || effective.may(kind, Verb::Propose) {
+        return effective;
+    }
+    if kind == "RoleBinding" {
+        effective
+            .grants
+            .extend(project_binding(state, identity, manifest));
+        return effective;
+    }
+    if !update || kind != "Group" {
         return effective;
     }
     let Some(name) = manifest.pointer("/metadata/name").and_then(Value::as_str) else {
@@ -164,6 +172,37 @@ pub fn for_proposal(
         },
     });
     effective
+}
+
+/// A binding scoped to one project, or to a context space of it, is proposed by whoever may propose
+/// `RoleBinding` in that project (S-27, PF-52): a project's administrator grants inside it. The
+/// binding it replaces must lie in the same project, so nobody moves another project's or the
+/// organization's binding into theirs. What the binding grants is still held to the proposer's
+/// own rights there (`within_own_rights`), and approval stays the organization's.
+fn project_binding(state: &AppState, identity: &Identity, manifest: &Value) -> Option<Grant> {
+    let project = crate::permissions::binding_project(&state.mirror, manifest.get("spec")?)?;
+    let name = manifest.pointer("/metadata/name").and_then(Value::as_str)?;
+    if let Some(held) = state.mirror.get(ORG_NAMESPACE, "RoleBinding", name) {
+        if crate::permissions::binding_project(&state.mirror, &held.spec).as_ref() != Some(&project)
+        {
+            return None;
+        }
+    }
+    crate::permissions::for_request(state, identity, &project)
+        .check("RoleBinding", Verb::Propose, Some(manifest))
+        .ok()?;
+    Some(Grant {
+        role: "propose on RoleBinding".to_owned(),
+        binding: format!("propose on RoleBinding in project {project} (PF-52)"),
+        scope: format!("project:{project}"),
+        space: None,
+        organization: None,
+        rule: Rule {
+            kinds: vec!["RoleBinding".to_owned()],
+            verbs: vec![Verb::Propose],
+            constraints: Vec::new(),
+        },
+    })
 }
 
 /// Whether `manifest` equals the stored Group except in `spec.members` (and `status`).
@@ -512,6 +551,89 @@ mod tests {
             ORG_NAMESPACE,
             "Group",
             "board-viewer"
+        ));
+    }
+
+    fn binding_write(name: &str, scope: serde_json::Value) -> serde_json::Value {
+        json!({
+            "apiVersion": API_VERSION,
+            "kind": "RoleBinding",
+            "metadata": { "name": name, "namespace": ORG_NAMESPACE },
+            "spec": { "subjects": [{ "user": "eva@hel.fi" }], "role": "app-role", "scope": scope },
+        })
+    }
+
+    fn may_bind(state: &AppState, manifest: &serde_json::Value) -> bool {
+        for_proposal(
+            state,
+            &who("jana@hel.fi"),
+            ORG_NAMESPACE,
+            "RoleBinding",
+            false,
+            manifest,
+        )
+        .check("RoleBinding", Verb::Propose, Some(manifest))
+        .is_ok()
+    }
+
+    /// S-27, PF-52: whoever may propose RoleBinding in a project proposes a binding scoped to it or
+    /// to one of its spaces; another project, the organization, or rescoping a binding held
+    /// elsewhere into the project is refused.
+    #[test]
+    fn a_project_admin_binds_inside_their_project_and_nowhere_else() {
+        let admin = with_role(
+            "doprava",
+            json!({ "kinds": ["RoleBinding"], "verbs": ["propose"] }),
+        );
+        admin.mirror.upsert(manifest(
+            "ContextSpace",
+            ObjectMeta::new("parking", "doprava"),
+            json!({}),
+        ));
+        admin.mirror.upsert(manifest(
+            "ContextSpace",
+            ObjectMeta::new("air", "ovzdusie"),
+            json!({}),
+        ));
+        admin.mirror.upsert(manifest(
+            "RoleBinding",
+            ObjectMeta::new("ovzdusie-readers", ORG_NAMESPACE),
+            json!({ "subjects": [{ "user": "eva@hel.fi" }], "role": "app-role",
+                    "scope": { "project": "ovzdusie" } }),
+        ));
+        assert!(may_bind(
+            &admin,
+            &binding_write("eva-doprava", json!({ "project": "doprava" }))
+        ));
+        assert!(may_bind(
+            &admin,
+            &binding_write("eva-parking", json!({ "contextSpace": "parking" }))
+        ));
+        // Its own binding, kept in the project, is updated too.
+        assert!(may_bind(
+            &admin,
+            &binding_write("jana-app-role", json!({ "contextSpace": "parking" }))
+        ));
+        for refused in [
+            binding_write("eva-ovzdusie", json!({ "project": "ovzdusie" })),
+            binding_write("eva-air", json!({ "contextSpace": "air" })),
+            binding_write("eva-org", json!({ "organization": "hel" })),
+            binding_write(
+                "eva-both",
+                json!({ "organization": "hel", "project": "doprava" }),
+            ),
+            binding_write("ovzdusie-readers", json!({ "project": "doprava" })),
+        ] {
+            assert!(!may_bind(&admin, &refused), "{refused}");
+        }
+        // A reader of the project proposes no binding in it.
+        let reader = with_role(
+            "doprava",
+            json!({ "kinds": ["RoleBinding"], "verbs": ["read"] }),
+        );
+        assert!(!may_bind(
+            &reader,
+            &binding_write("eva-doprava", json!({ "project": "doprava" }))
         ));
     }
 }
