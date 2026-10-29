@@ -453,7 +453,7 @@ pub fn credential_shaped(text: &str) -> bool {
     if let Some((_, rest)) = trimmed.split_once("://") {
         let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
         if authority
-            .split_once('@')
+            .rsplit_once('@')
             .and_then(|(userinfo, _)| userinfo.split_once(':'))
             .is_some_and(|(_, password)| !crate::api::mutate::is_variable_reference(password))
         {
@@ -561,6 +561,9 @@ mod tests {
         assert!(!credential_shaped("nats://demo:${FEED_PASSWORD}@nats:4222"));
         assert!(credential_shaped("nats://demo:s3cret@nats:4222"));
         assert!(credential_shaped("nats://demo:${FEED_PASSWORD}x@nats:4222"));
+        assert!(credential_shaped(
+            "nats://demo:${FEED_PASSWORD}@u:s3cret@nats:4222"
+        ));
     }
 
     /// T-3272: the platform's own API key is a credential; an operation name is not.
