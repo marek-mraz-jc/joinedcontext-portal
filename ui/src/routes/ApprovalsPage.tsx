@@ -52,6 +52,7 @@ export function ApprovalsPage({ project }: { project: string }): JSX.Element {
 
   const header = (
     <PageHeader
+        compact
       title={t("approvals.title")}
       description={t("approvals.lead")}
     />

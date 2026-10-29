@@ -792,11 +792,16 @@ export function exportUrl(
   q: string | undefined,
   attrs: string[],
   ids: readonly string[] = [],
+  idPattern?: string,
 ): string {
   const params = new URLSearchParams({ type });
   // Checked rows go as their ids (T-5186): the gateway reads them through the view like a filter.
   if (ids.length > 0) params.set("id", ids.join(","));
-  else if (q) params.set("q", q);
+  else {
+    if (q) params.set("q", q);
+    // The grid's ID-column filter, so the file holds the rows the grid shows (T-6107).
+    if (idPattern) params.set("idPattern", idPattern);
+  }
   if (attrs.length > 0) params.set("attrs", attrs.join(","));
   return `/api/endpoint/${encodeURIComponent(slug)}/file.${format}?${params.toString()}`;
 }

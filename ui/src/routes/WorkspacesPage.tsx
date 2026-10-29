@@ -101,6 +101,7 @@ export function WorkspacesPage({
   return (
     <section aria-label={t("workspaces.title")} className="space-y-6">
       <PageHeader
+        compact
         title={t("workspaces.title")}
         description={t("workspaces.lead")}
         actions={

@@ -428,9 +428,11 @@ async function walk(page: Page, who: Who, lang: Lang): Promise<void> {
     { ...at("explore"), route: explore, state: "export" },
     async () => {
       await open(page, typed, lang);
-      const format = page.getByLabel(words(lang, "explore.exportView.format"));
-      await format.scrollIntoViewIfNeeded();
-      await expect(format).toBeVisible();
+      // The grid toolbar's Export menu, open on the Endpoint's formats (T-6107).
+      const menu = page.locator("summary", { hasText: words(lang, "explore.export") }).first();
+      await menu.scrollIntoViewIfNeeded();
+      await menu.click();
+      await expect(page.getByText(words(lang, "spaces.export.label")).first()).toBeVisible();
     },
   );
   await state(

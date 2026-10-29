@@ -1064,6 +1064,7 @@ function SpaceData({
                     endpoints={endpoints}
                     type={type}
                     q={view === "grid" ? andQ(asked.q, gridQuery?.q) : q}
+                    idPattern={view === "grid" ? asked.idPattern : undefined}
                     attrs={slots.map((slot) => slot.name)}
                   />
                 </div>

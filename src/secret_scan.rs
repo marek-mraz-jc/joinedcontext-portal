@@ -164,6 +164,7 @@ mod tests {
         let input = json!({
             "q": "count>10", "limit": 100, "maxTokens": 4000, "name": "token",
             "url": "https://api.example.com/v1?key=${API_KEY}&page=2",
+            "urls": ["nats://demo:${DEMO_FEED_PASSWORD}@demo-nats.dev.svc.cluster.local:4222"],
             "patch": { "spec": { "description": "rotate the token weekly" } }
         });
         assert_eq!(find(&input), Vec::<String>::new());

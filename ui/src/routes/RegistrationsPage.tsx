@@ -264,6 +264,7 @@ export function RegistrationsPage({ project, edit }: { project: string; edit?: s
   return (
     <div className="flex flex-col gap-section">
       <PageHeader
+        compact
         title={t("registrations.title")}
         description={t("registrations.lead")}
         actions={addButton}

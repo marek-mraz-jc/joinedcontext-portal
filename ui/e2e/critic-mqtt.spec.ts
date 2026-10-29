@@ -78,6 +78,8 @@ function measured(world: World, name: string) {
       measured: false,
       reason: "the broker did not answer within 2 s",
       accounts: [],
+      rates: [],
+      refusedPublishes: null,
     };
   return {
     broker: name,
@@ -91,6 +93,11 @@ function measured(world: World, name: string) {
         since: "2026-10-24T19:40:00Z",
       },
     ],
+    rates: [
+      { at: "2026-10-24T19:44:50Z", perSecond: 0.2 },
+      { at: "2026-10-24T19:44:55Z", perSecond: 0.2 },
+    ],
+    refusedPublishes: 0,
   };
 }
 
@@ -190,6 +197,12 @@ async function stubApi(page: Page, world: World): Promise<void> {
       }
       return json({ valid: true });
     }
+    if (path.endsWith("/access")) return json({ roles: [], outOfWindow: [] });
+    if (/\/mqttbrokers\/[^/]+\/bindings$/.test(path)) return json({ broker: "sensors", bindings: [] });
+    if (path.endsWith("/watch")) return json({ observedAt: "2026-10-29T20:15:00Z", refusals: [], refusalsRead: false });
+    const one = /\/mqttbrokers\/([^/]+)$/.exec(path);
+    const named = one ? world.brokers.find((b) => (b as { metadata: { name: string } }).metadata.name === one[1]) : undefined;
+    if (named) return json(named);
     const plural = path.split("/").pop() ?? "";
     const items: Record<string, unknown[]> = {
       mqttbrokers: world.brokers,
@@ -274,13 +287,13 @@ test.describe("UI critic: MQTT publishing", () => {
     world.brokers = [broker("sensors", "Ready")];
     for (const persona of ["steward", "editor", "viewer"] as const) {
       world.persona = persona;
-      await record(page, "live", persona, await open(page, PAGE));
+      await record(page, "live", persona, await open(page, `${PAGE}/sensors`));
       await expect(page.locator('[data-measured="yes"]')).toBeVisible();
     }
 
     world.measured = false;
     world.persona = "steward";
-    await record(page, "not-measured", "steward", await open(page, PAGE));
+    await record(page, "not-measured", "steward", await open(page, `${PAGE}/sensors`));
     await expect(page.locator('[data-measured="no"]')).toBeVisible();
   });
 

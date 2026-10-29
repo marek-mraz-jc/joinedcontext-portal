@@ -428,6 +428,7 @@ use crate::tools::model_tools::{
         crate::api::mqtt_devices::AddDevice,
         crate::api::mqtt_measured::Measured,
         crate::api::mqtt_measured::AccountSeen,
+        crate::api::mqtt_measured::RatePoint,
         crate::api::mqtt_access::Access,
         crate::api::mqtt_access::HeldRole,
         crate::api::mqtt_access::OutOfWindow,

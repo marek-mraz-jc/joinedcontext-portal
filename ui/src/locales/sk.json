@@ -523,7 +523,9 @@
     "askAssistant": "Požiadať asistenta o návrh",
     "leadOrganization": "Všetko tohto druhu, čo organizácia drží. Každý riadok otvorí, čo pomenúva.",
     "emptyHintOrganization": "V organizácii zatiaľ nič z tohto druhu nie je. Táto stránka to zobrazuje a číta; požiadajte asistenta a rozhodnite o jeho návrhu.",
-    "emptyHintCreateOrganization": "V organizácii zatiaľ nič z tohto druhu nie je. {new} otvorí formulár."
+    "emptyHintCreateOrganization": "V organizácii zatiaľ nič z tohto druhu nie je. {new} otvorí formulár.",
+    "viewSource": "Zobraziť zdroj (Git)",
+    "open": "Otvoriť"
   },
   "spaces": {
     "entitiesUnknown": "Počet nie je k dispozícii: {reason}",
@@ -1127,7 +1129,7 @@
     "export": {
       "label": "Exportovať:",
       "endpoint": "Exportovať cez",
-      "none": "Žiadny endpoint tohto priestoru neposkytuje CSV, Excel ani JSON, takže nie je cez čo exportovať.",
+      "none": "Žiadny endpoint tohto priestoru neposkytuje súbor CSV, takže nie je čo exportovať.",
       "format": {
         "csv": "CSV",
         "xlsx": "Excel",
@@ -1478,6 +1480,8 @@
     "lead": "Kde je priestor publikovaný: kto ho smie volať, v akých reprezentáciách a pod akou URL.",
     "title": "Endpointy",
     "empty": "Projekt zatiaľ nezverejnil žiadny endpoint.",
+    "searchNoMatch": "Žiadny endpoint nemá v názve „{text}“.",
+    "searchNoMatchHint": "Skontrolujte pravopis alebo vymažte hľadanie a uvidíte všetky endpointy.",
     "add": "Nový endpoint",
     "edit": "Upraviť",
     "addHint": "Uložením vznikne návrh zmeny; endpoint začne odpovedať po jeho schválení.",
@@ -1575,10 +1579,8 @@
     },
     "publicNotice": "Endpoint s verejným publikom odpovedá anonymnému volajúcemu a ten smie iba čítať. Zápisy a odbery aj naďalej vyžadujú prihlásenie, nech sú zapnuté ktorékoľvek reprezentácie.",
     "data": {
-      "action": "Zobraziť dáta",
       "title": "Čo tento endpoint odpovedá",
       "type": "Typ entity",
-      "notLive": "Tento endpoint ešte nič neodpovedá; slúži až keď je zmena Live.",
       "noSchema": "Tento endpoint ešte nepublikuje schému, takže nie je čo čítať.",
       "compare": "Porovnať s priestorom",
       "compareClose": "Späť na samotný endpoint",
@@ -1654,7 +1656,6 @@
       "alias": "alias",
       "gone": "Endpoint už nie je zdieľaný",
       "goneSource": "Zdroj nedostupný",
-      "emptyHint": "Iný projekt môže tomuto dovoliť čítať svoj endpoint bez kopírovania údajov. S tímto projektom zatiaľ nikto nič nezdieľa.",
       "edit": {
         "alias": "Alias",
         "aliasHelp": "Názov, pod ktorým tento projekt číta zdieľaný priestor; používajú ho tunajšie dopyty a pipeliny.",
@@ -1955,7 +1956,8 @@
       "claudeLine": "Príkaz pre Claude Code",
       "jsonLine": "Konfigurácia pre iného klienta MCP",
       "vscode": "Pridať do VS Code",
-      "cursor": "Pridať do Cursor"
+      "cursor": "Pridať do Cursor",
+      "button": "Pripojiť AI"
     },
     "playground": {
       "title": "Vyskúšať",
@@ -5499,6 +5501,7 @@
     "page": "Strana",
     "showMetadata": "Zobraziť metadáta pre",
     "error": "Nenačítané, skúste znova",
+    "refused": "Toto nemáte povolené čítať",
     "filter": "Filter",
     "noFilter": "Všetko",
     "ops": {
@@ -5729,10 +5732,15 @@
     }
   },
   "explore": {
+    "filtersOf": "Typ entity {type}, oblasť a filtre",
+    "filtersPick": "Vyberte typ entity, oblasť a filtre",
+    "yourAccess": "Váš prístup",
     "title": "Prehliadať dáta",
-    "description": "Čítajte entity kontextového priestoru cez jeden z jeho endpointov, s vašou reláciou; čo vidíte, určuje Policy endpointu.",
+    "description": "Riadky kontextového priestoru, čítané cez jeden z jeho endpointov.",
     "space": "Kontextový priestor",
-    "endpoint": "Čítať cez endpoint",
+    "endpoint": "Endpoint",
+    "export": "Exportovať",
+    "exportNone": "Tento endpoint neposkytuje súbor CSV, takže nie je čo exportovať.",
     "noEndpoint": "Tento priestor nemá endpoint, cez ktorý sa dá čítať.",
     "noType": "Vyberte typ entity, aby sa načítali entity.",
     "loadFailed": "Entity sa nepodarilo načítať. Skúste to znova alebo čítajte cez iný endpoint.",
@@ -5751,6 +5759,8 @@
     "noTypeHint": "Vyberte typ, aby sa vypísalo, čo tento endpoint poskytuje, alebo spresnite filtre vyššie.",
     "noSpace": "Vyberte kontextový priestor na čítanie",
     "noSpaceHint": "Jeho entity sa otvoria tu, čítané cez jeden z jeho endpointov. Začnite jedným z priestorov tohto projektu:",
+    "noSpaces": "Tento projekt zatiaľ nemá kontextový priestor",
+    "noSpacesHint": "Vytvorte ho v časti Kontextové priestory; jeho údaje sa otvoria tu.",
     "typeInModel": "Tento typ v jeho dátovom modeli:",
     "readThrough": "Číta sa cez",
     "endpointUnshown": "Odkaz uvádza Endpoint {name}, ktorý vám tento priestor neukazuje",
@@ -5772,23 +5782,6 @@
       "outlierCount": "{count, plural, one {# hodnota} few {# hodnoty} other {# hodnôt}}",
       "pipelines": "Pipeline, ktoré zapisujú tento typ",
       "rejected": "Otvoriť {pipeline} a jej odmietnuté záznamy"
-    },
-    "exportView": {
-      "format": "Formát exportu",
-      "formats": {
-        "csv-excel": "CSV pre Excel (slovenské čísla a dátumy)",
-        "csv": "CSV",
-        "json": "JSON",
-        "geojson": "GeoJSON (entity s polohou)"
-      },
-      "start": "Exportovať pohľad",
-      "cancel": "Zrušiť export",
-      "progress": "Načítaných {done} riadkov…",
-      "progressOf": "Načítaných {done} z {total} riadkov…",
-      "download": "Stiahnuť {name} ({rows, plural, one {# riadok} few {# riadky} other {# riadkov}})",
-      "truncated": "Iba prvých {max} riadkov: pre ostatné zúžte filter.",
-      "empty": "Pohľad nemá žiadne riadky na export.",
-      "noGeometry": "Žiadna entita pohľadu nemá polohu, preto niet čo exportovať do GeoJSON."
     },
     "useData": {
       "open": "Použiť tieto dáta",
@@ -5860,10 +5853,7 @@
     "copyJson": "Kopírovať JSON-LD",
     "endpointApps": "Aplikácie",
     "unknownType": "Typ {type} v tomto priestore neexistuje",
-    "unknownTypeHint": "Adresa uvádza typ, ktorý tento priestor nemá. Vyberte jeden z jeho typov:",
-    "hint": {
-      "endpoint": "Endpoint, ktorého politika rozhoduje, čo uvidíte, napr. verejný endpoint priestoru. Odkaz, ktorý zdieľate, ho uvádza, takže kolega číta cez ten istý."
-    }
+    "unknownTypeHint": "Adresa uvádza typ, ktorý tento priestor nemá. Vyberte jeden z jeho typov:"
   },
   "agentRun": {
     "title": "Beh aplikácie",
@@ -9837,7 +9827,7 @@
     "connect": {
       "address": "Adresa",
       "copy": "Kopírovať adresu",
-      "noAddress": "Zobrazí sa, keď je Portál otvorený na vlastnej adrese (portal.<doména>).",
+      "noAddress": "Adresa sa zobrazí, keď Portál otvoríte na jeho bežnej webovej adrese.",
       "anySource": "Akákoľvek adresa s platným tokenom",
       "client": "ID klienta a používateľské meno",
       "password": "Heslo",
@@ -9879,8 +9869,8 @@
         "endpoint": "Pipeline zapisuje do Endpointu",
         "policy": "Policy chráni Endpoint"
       },
-      "byRole": "rola {role}, klient {client}",
-      "byListener": "interný listener, identita runnera",
+      "byRole": "rola {role}; zariadenie sa prihlasuje ako {client}",
+      "byListener": "vlastné pripojenie brokera k platforme",
       "byRunner": "runner pipeline",
       "byPipelineAccount": "servisný účet pipeline {pipeline}",
       "byPolicy": "Policy Endpointu",
@@ -10044,15 +10034,198 @@
       "until": "Do",
       "noEnd": "Bez konca",
       "bound": "Priradenie roly",
-      "legacy": "zoznam serviceAccounts",
-      "legacyHint": "Rola, ktorá uvádza účet v serviceAccounts, je zastaraná: spustite jcctl migrate mqtt-roles, ktorý ju presunie na priradenie mqtt/{broker}/<rola> na účte.",
+      "legacy": "Uvedený na role",
+      "legacyHint": "Rola uvádza tento účet vo vlastnom zozname, starším spôsobom. Stále funguje; správca projektu ho môže presunúť na priradenie na servisnom účte.",
       "noneTitle": "{account} nemá žiadnu rolu tohto brokera",
-      "noneHint": "Jeho zariadenia budú pri pripojení odmietnuté. Udeľte servisnému účtu rolu mqtt/{broker}/<rola> s rozsahom tohto projektu.",
+      "noneHint": "Jeho zariadenia budú pri pripojení odmietnuté. Pridajte účet k role v časti Kto sa môže pripojiť.",
       "expiredTitle": "Udelenia tohto brokera, ktoré neplatia",
       "endedAt": "skončilo {at}",
       "startsAt": "začína {at}",
       "refusedTitle": "Nesmiete čítať MQTT brokery tohto projektu",
       "failedTitle": "Roly brokera sa nepodarilo načítať"
+    },
+    "page": {
+      "lead": "MQTT broker, do ktorého zariadenia posielajú údaje.",
+      "back": "← MQTT brokery",
+      "edit": "Upraviť nastavenia",
+      "source": "Zobraziť zdroj",
+      "sections": "Časti tohto brokera",
+      "section": {
+        "live": "Práve teraz",
+        "general": "Všeobecné",
+        "access": "Kto sa môže pripojiť",
+        "limits": "Limity",
+        "networks": "Siete",
+        "path": "Kam idú údaje",
+        "connect": "Pripojiť zariadenie"
+      },
+      "state": {
+        "receiving": "Prijíma",
+        "idle": "Nečinný",
+        "unmeasured": "Nemerané"
+      },
+      "strip": "{rate} správ/s · pripojené: {connected} · odmietnuté prihlásenia dnes: {refused}",
+      "notRead": "Portál nevedel prečítať, čo broker meria. Skúste to o minútu znova.",
+      "figure": {
+        "rate": "Správy za sekundu teraz",
+        "rateNote": "Každé zariadenie môže poslať najviac {limit}/s.",
+        "connected": "Pripojené zariadenia",
+        "connectedNote": "Z pripojení, ktoré broker naraz udrží.",
+        "refusedSignIns": "Odmietnuté prihlásenia dnes",
+        "refusedSignInsNote": "Od polnoci, z kontroly brány.",
+        "mostly": "Najčastejšie: {reason}",
+        "refusedPublishes": "Odmietnuté správy",
+        "refusedPublishesNote": "Od posledného spustenia brokera: bez práva publikovať alebo nad limitom."
+      },
+      "chartEmpty": "Graf začne, keď broker uchová dve vzorky (jednu každých pár sekúnd).",
+      "chartSummary": "Správy za sekundu, posledných {minutes} min: najviac {top}, teraz {now}",
+      "devices": "Účty zariadení a ich pripojenia teraz",
+      "account": "Účet",
+      "since": "Najnovšie pripojenie od",
+      "connectedCount": "pripojené: {count}",
+      "offlineNow": "Odpojené",
+      "noDevices": "Zatiaľ žiadny účet zariadenia. Pridajte ho v časti Pripojiť zariadenie.",
+      "title": "Názov",
+      "does": "Čo robí",
+      "kept": "Uchované správy",
+      "qos": "Najvyššie QoS",
+      "qosValue": "QoS 1 (aspoň raz)",
+      "qosWords": "Zariadenia môžu posielať s QoS 0 alebo 1. Zariadenie s MQTT 5 sa to dozvie pri prihlásení; správu s QoS 2 zo zariadenia s MQTT 3.1.1 broker prijme a doručí s QoS 1, takže môže prísť dvakrát.",
+      "offline": "Keď je zariadenie odpojené",
+      "offlineWords": "Jeho relácia sa pri odpojení končí: správy preň sa do návratu neuchovávajú a broker neuchováva ani podržané (retained) správy.",
+      "accessLead": "Jedna rola pre skupinu zariadení, ktoré robia to isté. Odobratím účtu z roly odvoláte to zariadenie.",
+      "unit": {
+        "messagesPerSecond": "{value} za sekundu na zariadenie",
+        "maxConnections": "{value} pripojení",
+        "maxMessageBytes": "{value} bajtov",
+        "connectionsPerAddress": "{value} na adresu"
+      },
+      "limitWords": {
+        "messagesPerSecond": "Zariadenie, ktoré posiela rýchlejšie, broker odmietne a odpojí; môže sa hneď znova pripojiť.",
+        "maxConnections": "Každé pripojené zariadenie drží jedno; nad limitom broker nové zariadenia odmietne.",
+        "maxMessageBytes": "Väčšiu správu broker odmietne.",
+        "connectionsPerAddress": "Pripojenia, ktoré jedna sieťová adresa môže na okraji držať naraz."
+      },
+      "use": "Využité {use} z {limit}",
+      "anySourceHint": "Teraz sa môže pripojiť každá adresa s platným tokenom. Nižšie pridajte siete, ktoré vaše zariadenia používajú, a ostatné budú odmietnuté ešte pred TLS, napr. 192.0.2.0/24.",
+      "cname": "Cieľ CNAME",
+      "chartQuiet": "Za posledných {minutes} min neprišla žiadna správa. Graf vykreslí tok, keď zariadenia znova začnú posielať.",
+      "refused": {
+        "purpose": "MQTT broker tohto projektu.",
+        "noRight": "Vaša rola tu nesmie čítať MQTT brokery",
+        "noRightHint": "Požiadajte správcu projektu {project} o prístup na čítanie jeho MQTT brokerov a potom otvorte túto stránku znova.",
+        "missing": "Žiadny MQTT broker sa nevolá {name}",
+        "missingHint": "Mohol byť odstránený alebo premenovaný. Vyberte broker zo zoznamu."
+      }
+    },
+    "edit": {
+      "accessLead": "Zariadenie sa prihlási tokenom svojho servisného účtu a smie používať témy každej roly, ktorú jeho účet drží. Pridaním účtu sem mu udelíte rolu; zmena sa navrhne spolu s brokerom.",
+      "add": "Pridať",
+      "addAccount": "Pridať účet do roly {role}",
+      "addAccountOption": "Pridať účet…",
+      "addRole": "Pridať rolu",
+      "advanced": "Pokročilé",
+      "bar": "Nenavrhnuté zmeny",
+      "default": "predvolená hodnota",
+      "block": {
+        "noRole": "Najprv pridajte aspoň jednu rolu.",
+        "roleName": "Rola {role} potrebuje názov: malé písmená, číslice a pomlčky, napr. cams.",
+        "roleTwice": "Dve roly sa volajú {role}: dajte každej vlastný názov.",
+        "noAccount": "Rola {role} potrebuje aspoň jeden účet.",
+        "noTopic": "Rola {role} potrebuje aspoň jednu tému na publikovanie alebo odber.",
+        "noReason": "Rola {role} zdieľa témy: napíšte prečo.",
+        "badTopic": "Rola {role} má tému, ktorú broker odmietne: opravte označený čip."
+      },
+      "change": {
+        "capture": "Mení sa uchovávanie správ",
+        "grant": "{account} dostane rolu {role}",
+        "revoke": "{account} stratí rolu {role}",
+        "limit": "{limit}: {from} → {value}",
+        "mode": "Broker bude: {mode}",
+        "port": "Vyhradený port: {port}",
+        "roleAdded": "Nová rola {role}",
+        "roleChanged": "Mení sa rola {role}",
+        "roleRemoved": "Rola {role} sa odstráni",
+        "sourceAdded": "Sieť {source} sa smie pripojiť",
+        "sourceRemoved": "Sieť {source} sa už nesmie pripojiť"
+      },
+      "discard": "Zahodiť",
+      "keep": "Uchovávať posledné správy",
+      "keepRelay": "Broker, ktorého zariadenia odoberajú, správy preposiela a žiadne neuchováva.",
+      "limit": {
+        "messagesPerSecond": "Správ za sekundu na zariadenie",
+        "maxConnections": "Najviac pripojení",
+        "maxMessageBytes": "Najväčšia správa",
+        "connectionsPerAddress": "Pripojení na zdrojovú adresu"
+      },
+      "newRole": "Nová rola",
+      "noAccounts": "Projekt nemá servisný účet, ktorý vidíte. Vytvorte ho v Servisných účtoch a potom ho pridajte sem.",
+      "noHolder": "Túto rolu zatiaľ nedrží žiadny účet.",
+      "outside": "Napíšte celé číslo od 1 do {max}.",
+      "portOutside": "Vyhradený port je {min} až {max}.",
+      "propose": "Navrhnúť zmenu",
+      "qos": "Najvyššie QoS",
+      "qosFixed": "Každý broker tejto platformy ponúka QoS 0 a 1; QoS 2 sa neponúka.",
+      "qosLevel": "QoS {level}",
+      "readOnly": "Tento broker smiete čítať. Na jeho zmenu potrebujete právo navrhovať MQTT brokery v tomto projekte: požiadajte správcu projektu.",
+      "readOnlyTitle": "Len na čítanie",
+      "reason": "Prečo zariadenia zdieľajú témy",
+      "reasonMissing": "Napíšte, prečo zariadenia zdieľajú témy.",
+      "remove": "Odstrániť {value}",
+      "removeRole": "Odstrániť rolu {role}",
+      "shared": "Zariadenia zdieľajú témy",
+      "sharedHint": "Každé zariadenie roly potom smie publikovať ako ktorékoľvek iné a téma na publikovanie nepotrebuje úroveň ${clientid}.",
+      "sources": "Siete, ktoré sa smú pripojiť",
+      "through": {
+        "legacy": "uvedený na role",
+        "wildcard": "udelené pre všetky brokery"
+      },
+      "topic": {
+        "length": "Téma má 1 až 128 bajtov.",
+        "system": "Téma začínajúca $ patrí brokeru.",
+        "levels": "Téma má najviac 8 úrovní.",
+        "everything": "Samotné zástupné znaky siahajú na všetky témy.",
+        "emptyLevel": "Téma nemá prázdnu úroveň: žiadne / na začiatku, na konci ani dvojité.",
+        "hash": "# stojí len ako celá posledná úroveň.",
+        "plus": "+ stojí len ako celá úroveň.",
+        "placeholder": "Ako zástupný symbol smie stáť len ${clientid}, ako celá úroveň.",
+        "publishOwn": "Pred zástupný znak dajte úroveň ${clientid}, alebo nechajte zariadenia roly zdieľať témy.",
+        "subscribeOwn": "Zariadenie odoberá len pod vlastným ${clientid}, bez zástupného znaku pred ním.",
+        "twice": "Už je v zozname.",
+        "source": {
+          "format": "Napíšte sieť s prefixom, napr. 203.0.113.0/24.",
+          "twice": "Už je v zozname.",
+          "tooMany": "Najviac 32 sietí."
+        }
+      },
+      "typeFirst": "Najprv napíšte hodnotu.",
+      "unit": {
+        "messagesPerSecond": "správ/s",
+        "maxConnections": "pripojení",
+        "maxMessageBytes": "bajtov",
+        "connectionsPerAddress": "pripojení"
+      },
+      "unsaved": "Nenavrhnuté",
+      "pending": "Nenavrhnuté zmeny: {count}",
+      "qosHighest": "najvyššie",
+      "qosOffered": "ponúkané",
+      "qosNotOffered": "neponúkané",
+      "anySourceReadOnly": "Teraz sa môže pripojiť každá adresa s platným tokenom. Správca projektu ho môže obmedziť na siete, ktoré vaše zariadenia používajú.",
+      "hint": {
+        "accountsHint": "Vyberte jeden zo servisných účtov projektu, ktoré vidíte, napr. cam-3. Nový najprv vytvorte v Servisných účtoch.",
+        "countHint": "Koľko najnovších správ uchová každá téma, 1 až 1 000, napr. 20.",
+        "keepHint": "Správcovia projektu môžu chvíľu čítať najnovšie správy každej témy, napr. na kontrolu, čo posiela nové zariadenie.",
+        "portHint": "Nechajte prázdne pre spoločný port 8883. Vyhradený port {min} až {max}, napr. 18831, slúži len tomuto brokeru.",
+        "publishHint": "Jeden filter témy na čip, s vlastnou úrovňou zariadenia, napr. cameras/${clientid}/frames. + je celá jedna úroveň, # len posledná.",
+        "reasonHint": "Jedna veta pre schvaľovateľa, napr. sčítače publikujú do jednej spoločnej témy výrobcu.",
+        "roleNameHint": "Malé písmená, číslice a pomlčky, napr. cams.",
+        "sourcesHint": "Jedna sieť IPv4 alebo IPv6 na čip, najviac 32, napr. 203.0.113.0/24 alebo 2001:db8::/48.",
+        "subscribeHint": "Filter témy pod vlastným id zariadenia, napr. commands/${clientid}/#.",
+        "subscribeMakesRelay": "Nepovinné. Téma na odber robí z brokera relé: zariadenia aj prijímajú, každé pod vlastným id, napr. commands/${clientid}/#.",
+        "topicExample": "cameras/${clientid}/frames",
+        "windowHint": "Ako dlho uchovaná správa zostane, najviac deň, napr. 1 hodina.",
+        "sourceExample": "napr. 203.0.113.0/24"
+      }
     }
   },
   "connect": {
@@ -10822,5 +10995,8 @@
       "jc_ui_show_diff": "Otvoril plánovanú zmenu",
       "jc_ui_filter_table": "Filtroval tabuľku"
     }
+  },
+  "pageHeader": {
+    "about": "O tejto stránke"
   }
 }

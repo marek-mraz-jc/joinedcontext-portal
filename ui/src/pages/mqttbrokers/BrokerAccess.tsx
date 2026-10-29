@@ -35,7 +35,7 @@ export function BrokerAccess({ project, broker }: { project: string; broker: str
   const names = asManifests(accounts.data?.items ?? []).map((account) => account.metadata.name);
   const [picked, setPicked] = useState("");
   const account = picked !== "" && names.includes(picked) ? picked : (names[0] ?? "");
-  const heading = <h3 className="text-body font-semibold text-fg">{t("mqttbrokers.access.title")}</h3>;
+  const heading = <h3 className="border-t border-border pt-3 text-body font-semibold text-fg">{t("mqttbrokers.access.title")}</h3>;
   if (accounts.hidden) return <></>;
   if (accounts.isPending) {
     return (
@@ -106,7 +106,7 @@ function Held({ project, broker, account }: { project: string; broker: string; a
           {t("mqttbrokers.access.noneHint", { broker })}
         </Alert>
       ) : (
-        <Table caption={t("mqttbrokers.access.caption", { account, broker })}>
+        <Table stack caption={t("mqttbrokers.access.caption", { account, broker })}>
           <TableHead>
             <TableHeaderCell>{t("mqttbrokers.acl.role")}</TableHeaderCell>
             <TableHeaderCell>{t("mqttbrokers.acl.publish")}</TableHeaderCell>
@@ -118,19 +118,19 @@ function Held({ project, broker, account }: { project: string; broker: string; a
             {answer.roles.map((role) => (
               <TableRow key={role.role}>
                 <TableCell primary>{role.role}</TableCell>
-                <TableCell>
+                <TableCell data-label={t("mqttbrokers.acl.publish")}>
                   <span className="font-mono">{role.publish.join(", ") || "—"}</span>
                 </TableCell>
-                <TableCell>
+                <TableCell data-label={t("mqttbrokers.acl.subscribe")}>
                   <span className="font-mono">{role.subscribe.join(", ") || "—"}</span>
                 </TableCell>
-                <TableCell>
+                <TableCell data-label={t("mqttbrokers.access.through")}>
                   <span className="flex flex-wrap gap-1">
                     {role.bound ? <Badge tone="success">{t("mqttbrokers.access.bound")}</Badge> : null}
                     {role.legacy ? <Badge tone="warning">{t("mqttbrokers.access.legacy")}</Badge> : null}
                   </span>
                 </TableCell>
-                <TableCell>{role.until ? time.format(new Date(role.until)) : t("mqttbrokers.access.noEnd")}</TableCell>
+                <TableCell data-label={t("mqttbrokers.access.until")}>{role.until ? time.format(new Date(role.until)) : t("mqttbrokers.access.noEnd")}</TableCell>
               </TableRow>
             ))}
           </TableBody>
