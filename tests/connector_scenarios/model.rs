@@ -60,6 +60,15 @@ pub(super) struct Call {
     pub answer: String,
 }
 
+/// One model turn: what OpenRouter counted and how many tool calls the model made in it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Turn {
+    pub prompt_tokens: u64,
+    pub completion_tokens: u64,
+    pub calls: usize,
+}
+
 /// One scenario's run: the calls, the forge writes, what the run cost.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -71,6 +80,12 @@ pub(super) struct Transcript {
     pub project: String,
     /// The tools the door listed that are not read-only.
     pub writers: Vec<String>,
+    /// Bytes of the tool definitions sent with every turn (absent before T-6030).
+    #[serde(default)]
+    pub tool_definition_bytes: usize,
+    /// Each model turn's usage, so a report splits definitions, answers and model text (T-6030).
+    #[serde(default)]
+    pub turns: Vec<Turn>,
     pub calls: Vec<Call>,
     /// `METHOD path` of each request the forge took that is not a read.
     pub writes: Vec<String>,
@@ -370,16 +385,9 @@ impl Harness {
     }
 
     /// Runs one scenario with a model: the conversation, every call through the door.
-    async fn converse(
-        &self,
-        http: &reqwest::Client,
-        key: &str,
-        model: &str,
-        price: (f64, f64),
-        scenario: &Scenario,
-        own: &str,
-    ) -> Transcript {
-        let started = Instant::now();
+    /// The door a scenario's persona gets and the tools it lists to the model: the names of the
+    /// writing ones and each as the function definition the model is sent.
+    async fn listed_for(&self, scenario: &Scenario, own: &str) -> (Door, Vec<String>, Vec<Value>) {
         let door = self.door_for(scenario, own).await;
         let list = json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list",
                            "params": { "project": own } });
@@ -409,7 +417,7 @@ impl Harness {
                     .collect()
             })
             .unwrap_or_default();
-        let writers = tools
+        let writers: Vec<String> = tools
             .iter()
             .filter(|t| t.pointer("/annotations/readOnlyHint") != Some(&json!(true)))
             .filter_map(|t| t["name"].as_str().map(str::to_owned))
@@ -422,6 +430,21 @@ impl Harness {
                     "parameters": t["inputSchema"] } })
             })
             .collect();
+        (door, writers, functions)
+    }
+
+    async fn converse(
+        &self,
+        http: &reqwest::Client,
+        key: &str,
+        model: &str,
+        price: (f64, f64),
+        scenario: &Scenario,
+        own: &str,
+    ) -> Transcript {
+        let started = Instant::now();
+        let (door, writers, functions) = self.listed_for(scenario, own).await;
+        let tool_definition_bytes = serde_json::to_string(&functions).map_or(0, |f| f.len());
         let before = self.forge_writes().await.len();
         let mut transcript = Transcript {
             scenario: scenario.id.clone(),
@@ -429,6 +452,8 @@ impl Harness {
             door: door.kind.to_owned(),
             project: own.to_owned(),
             writers,
+            tool_definition_bytes,
+            turns: Vec::new(),
             calls: Vec::new(),
             writes: Vec::new(),
             text: String::new(),
@@ -460,12 +485,18 @@ impl Harness {
                 }
             };
             transcript.tokens += answer["usage"]["total_tokens"].as_u64().unwrap_or(0);
+            let used = |k: &str| answer["usage"][k].as_u64().unwrap_or(0);
             transcript.cost_usd += cost_of(&answer["usage"], price);
             let message = answer["choices"][0]["message"].clone();
             let calls = message["tool_calls"]
                 .as_array()
                 .cloned()
                 .unwrap_or_default();
+            transcript.turns.push(Turn {
+                prompt_tokens: used("prompt_tokens"),
+                completion_tokens: used("completion_tokens"),
+                calls: calls.len(),
+            });
             transcript.text = message["content"].as_str().unwrap_or_default().to_owned();
             messages.push(message);
             if calls.is_empty() {
@@ -746,6 +777,43 @@ async fn the_model_lane_runs_every_scenario() {
         "the model API refused:\n{}",
         errors.join("\n")
     );
+}
+
+/// Writes, per scenario, the tool definitions the model lane sends with every turn (bytes per
+/// tool, as the OpenAI-style function list) to `JC_MODEL_EVAL_TOOLS`: the efficiency report
+/// splits a run's tokens with them (T-6030, docs Testing/09). No model call.
+#[tokio::test]
+#[ignore = "writes a measurement file for the efficiency report: by hand"]
+async fn the_tool_definitions_a_model_reads_are_measured() {
+    let out = std::env::var("JC_MODEL_EVAL_TOOLS")
+        .expect("JC_MODEL_EVAL_TOOLS: the JSON file the measurement is written to");
+    let scenarios = catalogue();
+    let harness = Harness::start(scenarios.len()).await;
+    let mut rows = Vec::new();
+    for (n, scenario) in scenarios.iter().enumerate() {
+        let (door, _, functions) = harness.listed_for(scenario, &project_of(n + 1)).await;
+        let tools: serde_json::Map<String, Value> = functions
+            .iter()
+            .map(|f| {
+                let name = f["function"]["name"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_owned();
+                (name, json!(f.to_string().len()))
+            })
+            .collect();
+        assert!(
+            !tools.is_empty() || scenario.persona == "anonymous",
+            "{} listed no tool",
+            scenario.id
+        );
+        rows.push(
+            json!({ "scenario": scenario.id, "segment": scenario.segment,
+                          "door": door.kind, "bytes": json!(functions).to_string().len(),
+                          "tools": tools }),
+        );
+    }
+    std::fs::write(&out, serde_json::to_string_pretty(&rows).expect("json")).expect("written");
 }
 
 /// The model reads an answer's text once: no envelope, no `structuredContent` copy (T-6042).

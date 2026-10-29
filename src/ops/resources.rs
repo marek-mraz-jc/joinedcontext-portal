@@ -255,6 +255,62 @@ fn unreadable(kind: &str, project: &str, readable: &[&str]) -> String {
     }
 }
 
+/// The kinds the caller may read in `project`, each judged in its own home as [`readable`]
+/// judges a call: the set a refusal names and `/permissions/me` shows (T-6059).
+pub(crate) fn readable_kinds(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+) -> Vec<&'static str> {
+    let in_project = crate::permissions::for_request(state, &caller.identity, project);
+    let in_org =
+        crate::permissions::for_request(state, &caller.identity, crate::permissions::ORG_NAMESPACE);
+    resource::kinds()
+        .filter(|info| {
+            let effective = if resource::home(info, project) == project {
+                &in_project
+            } else {
+                &in_org
+            };
+            effective.may_read(info.kind)
+        })
+        .map(|info| info.kind)
+        .collect()
+}
+
+/// `tools/list` of an MCP door with the `kind` of `jc_resource_list` and `jc_resource_get` an
+/// enum of the kinds this caller may read there, `within` the connector's segments when the door
+/// is one: a model picks a kind it can read instead of guessing kinds that do not exist (T-6059).
+/// A tool with no kind left to name is not offered. The call still checks the kind.
+pub fn with_readable_kinds(
+    tools: Vec<Value>,
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    within: Option<&[&str]>,
+) -> Vec<Value> {
+    let kinds: Vec<&str> = readable_kinds(caller, state, project)
+        .into_iter()
+        .filter(|kind| within.is_none_or(|within| within.contains(kind)))
+        .collect();
+    tools
+        .into_iter()
+        .filter_map(|mut tool| {
+            if !matches!(
+                tool["name"].as_str(),
+                Some("jc_resource_list" | "jc_resource_get")
+            ) {
+                return Some(tool);
+            }
+            if kinds.is_empty() {
+                return None;
+            }
+            tool["inputSchema"]["properties"]["kind"]["enum"] = json!(kinds);
+            Some(tool)
+        })
+        .collect()
+}
+
 async fn list(
     caller: &Caller,
     state: &AppState,
