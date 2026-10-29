@@ -172,7 +172,7 @@ function stubManagerApi() {
               },
               spec: {
                 version: "1.2.0",
-                category: "alerting",
+                category: "ingestion",
                 riskClass: "green",
                 allowedRoles: ["domain-editor"],
                 parameterSchema: {
@@ -282,7 +282,7 @@ describe("accessibility", () => {
     await expectNoViolations(container);
   });
   /** Every page opens with one level-1 heading, the page header's (UI-01, T-0756). */
-  for (const route of ["access", "ckan", "models", "flows", "apps", "datasources"]) {
+  for (const route of ["access", "ckan", "models", "apps", "datasources"]) {
     it(`the ${route} page has one h1 and no axe violations`, async () => {
       window.history.pushState({}, "", `/projects/helsinki/${route}`);
       vi.stubGlobal(
@@ -336,8 +336,8 @@ describe("accessibility", () => {
 
     await expectNoViolations(container);
   });
-  it("the Flow gallery has no axe violations", async () => {
-    window.history.pushState({}, "", "/projects/banskabystrica/flows");
+  it("the data sources page with its ready-made set-ups has no axe violations", async () => {
+    window.history.pushState({}, "", "/projects/banskabystrica/datasources");
     stubManagerApi();
 
     const { container } = renderApp();

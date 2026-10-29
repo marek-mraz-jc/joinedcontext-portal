@@ -119,17 +119,40 @@ test.describe("the data models", () => {
     await expect(page).toHaveURL(/\/projects\/helsinki\/models$/);
   });
 
-  test("the space shows its model, and the model's name opens the model's page", async ({ page }) => {
+  test("the space summarises its model, and Open data model opens the model's page", async ({ page }) => {
     await stubApi(page);
-    // The model is the space's Data model tab since T-4825; the data rows are its first tab.
+    // The model is the space's Data model tab since T-4825; since T-6090 the tab summarises the
+    // model and links its one page instead of embedding a second modeler.
     await page.goto("/projects/helsinki/spaces/helsinki?tab=model&lang=en");
     const model = page.locator("section").filter({ has: page.getByRole("heading", { level: 2, name: "Data model" }) });
-    await expect(model.getByRole("group", { name: "The model's classes and what joins them" })).toBeVisible();
-    await model.getByRole("tab", { name: "YAML" }).click();
-    await expect(model.getByLabel("The model's source (LinkML YAML)")).toContainText("permissible_values:");
-    await model.getByRole("link", { name: "Helsinki city context" }).click();
+    await expect(model.getByText("2 classes")).toBeVisible();
+    await expect(model.getByRole("group", { name: "The model's classes and what joins them" })).toHaveCount(0);
+    await model.getByRole("link", { name: "Open data model" }).click();
     await expect(page).toHaveURL(/\/projects\/helsinki\/models\/helsinki$/);
+    await expect(page.getByRole("group", { name: "The model's classes and what joins them" })).toBeVisible();
   });
+
+  // T-6090 (owner walk): the catalog model's drawing sat below two paragraphs of notation, a strip
+  // of marks and a minimap row, so the first screen showed no class. It is right under one toolbar now.
+  for (const width of [1440, 400]) {
+    test(`a model's drawing shows its classes on the first screen at ${width} px`, async ({ page }) => {
+      await stubApi(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/projects/helsinki/models/helsinki?lang=en");
+      const box = page.getByRole("button", { name: /^Open Alert/ });
+      await expect(box).toBeVisible();
+      expect((await box.boundingBox())?.y ?? Infinity).toBeLessThan(900);
+      const notation = page.locator("summary", { hasText: "Notation" });
+      await expect(notation).toBeVisible();
+      await expect(page.getByRole("figure", { name: "Notation" })).toBeHidden();
+      await notation.click();
+      await expect(page.getByRole("figure", { name: "Notation" })).toBeVisible();
+      if (process.env.SHOTS_DIR) {
+        mkdirSync(process.env.SHOTS_DIR, { recursive: true });
+        await page.screenshot({ path: join(process.env.SHOTS_DIR, `notation-${width}.png`) });
+      }
+    });
+  }
 
   test("a model's address opens its page, and an unknown one says so", async ({ page }) => {
     await stubApi(page);

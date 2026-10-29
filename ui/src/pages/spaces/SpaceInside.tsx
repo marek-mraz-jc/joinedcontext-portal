@@ -49,11 +49,10 @@ import type { ViewExtras } from "../../components/entities/ViewOptions";
 import type { DataView as SavedView, ViewConfig } from "../../api/dataViews";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
-import { classSlots, parseModel } from "../models/linkml";
+import { classSlots, isAnyClass, parseModel } from "../models/linkml";
 import { localId, textOf } from "../apps/QueryResultCard";
 import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
-import { ModelViews } from "../models/ModelViews";
 import { ProposeLink } from "../models/ModelsList";
 import {
   CalendarView,
@@ -110,7 +109,7 @@ import {
   tabPanelProps,
   Term,
 } from "../../components/ui";
-import { ConfirmDialog, Field, Input, RadioGroup, Select } from "../../components/ui";
+import { Card, ConfirmDialog, Field, Input, RadioGroup, Select } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { SourceRemovalsPanel } from "../pipelines/PipelineSourceReport";
 import { useUrlParam, useUrlText, useUrlUrn } from "../../navigation/urlState";
@@ -1817,9 +1816,10 @@ function Section({ title, children }: { title: ReactNode; children: ReactNode })
 }
 
 /**
- * The space's data model, one click from the space (T-2762; DM-61, DM-62): its title and
- * version, a link to its own page, Edit for a person who may propose it, and the diagram, form
- * and YAML views read-only. A space without one offers Create and Import, prefilled for it.
+ * The space's data model, one click from the space (T-2762; DM-61, DM-62): its title, version and
+ * classes, and one link to the model's own page, where it is read and edited (T-6090: the tab
+ * embedded the whole modeler, a second home for one model). A space without one offers Create
+ * and Import, prefilled for it.
  */
 function SpaceModel({
   project,
@@ -1860,23 +1860,18 @@ function SpaceModel({
   const title = localized(model.metadata.title, i18n.language, name);
   const version = typeof model.spec.version === "string" ? model.spec.version : undefined;
   return (
-    <div className="flex flex-col gap-3">
+    <Card className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex flex-wrap items-center gap-2 text-body">
-          <Link
-            to="/projects/$project/models/$name"
-            params={{ project, name }}
-            className="focus-ring font-medium text-primary-soft-fg underline-offset-2 hover:underline"
-          >
-            {title}
-          </Link>
+          <span className="font-medium text-fg">{title}</span>
           {title !== name ? <span className="font-mono text-caption text-fg-muted">{name}</span> : null}
           {version ? <span className="font-mono text-caption text-fg-muted">v{version}</span> : null}
         </p>
-        <ProposeLink project={project} search={{ edit: name }}>
-          {t("models.page.edit")}
-        </ProposeLink>
+        <Link to="/projects/$project/models/$name" params={{ project, name }} className={buttonClass("primary", "sm")}>
+          {t("spaces.inside.modelOpen")}
+        </Link>
       </div>
+      <p className="text-caption text-fg-muted">{t("spaces.inside.modelOpenLead")}</p>
       {source.isError ? (
         <Alert tone="danger" role="alert">
           <p>{t("models.page.sourceFailed", { reason: source.error instanceof Error ? source.error.message : "" })}</p>
@@ -1889,8 +1884,53 @@ function SpaceModel({
           {t("models.source.loading")}
         </p>
       ) : (
-        <ModelViews project={project} source={source.data} name={name} id="space-model-views" />
+        <ModelClassSummary project={project} name={name} source={source.data} />
       )}
+    </Card>
+  );
+}
+
+/** How many classes the model has, and the first few as links into the model's own page. */
+const SUMMARY_CLASSES = 8;
+
+function ModelClassSummary({ project, name, source }: { project: string; name: string; source: string }): JSX.Element {
+  const { t } = useTranslation();
+  const classes = useMemo(() => {
+    try {
+      // `linkml:Any` is a value helper, not a class a space holds; the diagram leaves it out too.
+      return parseModel(source).classes.filter((klass) => !isAnyClass(klass)).map((klass) => klass.name);
+    } catch {
+      return null;
+    }
+  }, [source]);
+  if (classes === null) {
+    return <p className="text-body text-fg-muted">{t("spaces.inside.modelUnreadable")}</p>;
+  }
+  const shown = classes.slice(0, SUMMARY_CLASSES);
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-body text-fg">{t("spaces.inside.modelClasses", { count: classes.length })}</p>
+      {shown.length > 0 ? (
+        <ul aria-label={t("spaces.inside.modelClassList")} className="flex flex-wrap gap-1.5">
+          {shown.map((klass) => (
+            <li key={klass}>
+              <Link
+                to="/projects/$project/models/$name"
+                params={{ project, name }}
+                search={{ class: klass }}
+                className="focus-ring inline-flex rounded-sm border border-border bg-bg px-2 py-0.5 font-mono text-caption text-primary-soft-fg hover:underline"
+              >
+                {klass}
+              </Link>
+            </li>
+          ))}
+          {classes.length > shown.length ? (
+            <li className="px-1 text-caption text-fg-muted">
+              {t("spaces.inside.modelMore", { count: classes.length - shown.length })}
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
     </div>
   );
 }

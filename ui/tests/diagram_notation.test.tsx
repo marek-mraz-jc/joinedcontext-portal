@@ -110,6 +110,29 @@ describe("the notation", () => {
     expect(new Set(ids).size).toBe(12);
   });
 
+  // T-6090 (owner walk): two paragraphs of notation and a strip of marks sat above the drawing and
+  // pushed it below the fold. They live in one Notation popover in the diagram's toolbar now.
+  it("keeps the notation in a closed popover of the toolbar, so the drawing comes first", async () => {
+    const user = userEvent.setup();
+    renderPart(<LinkmlGraphView source={MODEL} />);
+    const tools = screen.getByRole("toolbar", { name: en.models.graph.tools });
+    expect(within(tools).getByRole("combobox", { name: en.models.graph.find })).toHaveAttribute(
+      "placeholder",
+      en.models.graph.findHint,
+    );
+    expect(within(tools).getByRole("button", { name: en.models.graph.fit })).toBeInTheDocument();
+    const summary = within(tools).getByText(en.models.graph.notation.button, { selector: "summary" });
+    const popover = summary.closest("details") as HTMLDetailsElement;
+    expect(popover.open).toBe(false);
+    expect(popover).toContainElement(screen.getByText(en.models.graph.legend));
+    await user.click(summary);
+    expect(popover.open).toBe(true);
+    expect(within(popover).getByRole("figure", { name: en.models.graph.notation.title })).toBeVisible();
+    // Nothing of the notation precedes the drawing outside the toolbar.
+    const drawing = screen.getByRole("group", { name: en.models.graph.title });
+    expect(tools.compareDocumentPosition(drawing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("explains every mark in a legend drawn with the same marks, in every locale", async () => {
     await inEveryLocale(async () => {
       const { container, unmount } = renderPart(<LinkmlGraphView source={MODEL} />);
@@ -192,8 +215,11 @@ slots:
     });
     renderPart(<LinkmlGraphView source={MODEL} />);
 
-    await user.click(screen.getByRole("button", { name: en.models.graph.exportMermaid }));
-    await user.click(screen.getByRole("button", { name: en.models.graph.exportSvg }));
+    // One Download menu holds both files (T-6090).
+    await user.click(screen.getByRole("button", { name: en.models.graph.download }));
+    await user.click(await screen.findByRole("menuitem", { name: en.models.graph.exportMermaid }));
+    await user.click(screen.getByRole("button", { name: en.models.graph.download }));
+    await user.click(await screen.findByRole("menuitem", { name: en.models.graph.exportSvg }));
 
     expect(names).toEqual(["city.mmd", "city.svg"]);
     expect(await files[0].text()).toMatch(/^erDiagram\n/);

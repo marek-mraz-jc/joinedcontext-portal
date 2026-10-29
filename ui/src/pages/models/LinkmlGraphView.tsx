@@ -1,7 +1,23 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { JSX, KeyboardEvent, PointerEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Input, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import { ToolbarPopover } from "../../components/entities/GridToolbar";
+import {
+  Button,
+  Icon,
+  Input,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuTrigger,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+} from "../../components/ui";
 import { useDiagramEditing } from "./DiagramEditing";
 import { download, mermaidErDiagram, svgFile } from "./diagramExport";
 import { layered } from "./diagramLayout";
@@ -279,14 +295,23 @@ export function LinkmlGraphView({
   useEffect(measure, [zoom, placed]);
   // On load the drawing fits its card's width, never enlarged: a big model ran off the card's
   // right edge at its natural size (T-4991). The Fit button may still enlarge a small one.
+  // A frame drawn while hidden (a tab not yet open) has no width: fit once it gets one (T-6090).
   const fitted = useRef(false);
+  const [frameWidth, setFrameWidth] = useState(0);
+  useEffect(() => {
+    const frameAt = frame.current;
+    if (!frameAt || typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(() => setFrameWidth(frameAt.clientWidth));
+    watch.observe(frameAt);
+    return () => watch.disconnect();
+  }, []);
   useEffect(() => {
     const available = (frame.current?.clientWidth ?? 0) - 16;
     if (fitted.current || available <= 0 || placed.length === 0) return;
     fitted.current = true;
     const wide = Math.max(...placed.map((node) => node.x + BOX.width)) + BOX.loop + 8;
     setZoom(Math.max(ZOOM.min, Math.min(ZOOM.natural, available / wide)));
-  }, [placed]);
+  }, [placed, frameWidth]);
 
   if (!placed.some((node) => node.kind === "class")) {
     return (
@@ -400,10 +425,33 @@ export function LinkmlGraphView({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-caption text-fg-muted">{t("models.graph.legend")}</p>
-      {pairs.length > 0 ? <p className="text-caption text-fg-muted">{t("models.graph.legendRelationship")}</p> : null}
-      <Legend id={markerId} />
-      <div className="flex flex-wrap items-center gap-2">
+      {/* One row of tools above the drawing (T-6090): the notation and the downloads sit in a
+          popover and a menu, so the drawing starts right under the row, not below a page of prose. */}
+      <div role="toolbar" aria-label={t("models.graph.tools")} className="flex flex-wrap items-center gap-2">
+        <Input
+          type="search"
+          list={searchList}
+          value={query}
+          aria-label={t("models.graph.find")}
+          placeholder={t("models.graph.findHint")}
+          className="w-full sm:w-56"
+          onChange={(event) => {
+            setQuery(event.target.value);
+            // A name picked from the list is a choice, not a keystroke: focus it at once.
+            if (names.includes(event.target.value)) find(event.target.value);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              find(query);
+            }
+          }}
+        />
+        <datalist id={searchList}>
+          {names.map((option) => (
+            <option key={option} value={option} />
+          ))}
+        </datalist>
         <Button size="sm" variant="secondary" onClick={() => zoomTo(zoom / ZOOM.step)} disabled={zoom <= ZOOM.min} disabledReason={t("models.graph.zoomMin")}>
           {t("models.graph.zoomOut")}
         </Button>
@@ -416,12 +464,25 @@ export function LinkmlGraphView({
         <span className="text-caption text-fg-muted" aria-live="polite">
           {t("models.graph.zoomLevel", { percent: Math.round(zoom * 100) })}
         </span>
-        <Button size="sm" variant="secondary" onClick={exportSvg}>
-          {t("models.graph.exportSvg")}
-        </Button>
-        <Button size="sm" variant="secondary" onClick={exportMermaid}>
-          {t("models.graph.exportMermaid")}
-        </Button>
+        <ToolbarPopover label={t("models.graph.notation.button")} end>
+          <div className="flex flex-col gap-2">
+            <Legend id={markerId} />
+            <p className="text-caption text-fg-muted">{t("models.graph.legend")}</p>
+            {pairs.length > 0 ? <p className="text-caption text-fg-muted">{t("models.graph.legendRelationship")}</p> : null}
+          </div>
+        </ToolbarPopover>
+        <Menu>
+          <MenuTrigger asChild>
+            <Button size="sm" variant="ghost">
+              {t("models.graph.download")}
+              <Icon name="chevronDown" className="size-3.5 text-fg-subtle" />
+            </Button>
+          </MenuTrigger>
+          <MenuContent align="end">
+            <MenuItem onSelect={exportSvg}>{t("models.graph.exportSvg")}</MenuItem>
+            <MenuItem onSelect={exportMermaid}>{t("models.graph.exportMermaid")}</MenuItem>
+          </MenuContent>
+        </Menu>
         {editing ? (
           <>
             <Button size="sm" onClick={editing.addClass}>
@@ -434,32 +495,7 @@ export function LinkmlGraphView({
         ) : null}
       </div>
       {editing ? <p className="text-caption text-fg-muted">{t("models.graph.edit.hint")}</p> : null}
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="flex flex-col gap-1 text-caption text-fg-muted">
-          {t("models.graph.find")}
-          <Input
-            type="search"
-            list={searchList}
-            value={query}
-            className="w-56"
-            onChange={(event) => {
-              setQuery(event.target.value);
-              // A name picked from the list is a choice, not a keystroke: focus it at once.
-              if (names.includes(event.target.value)) find(event.target.value);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                find(query);
-              }
-            }}
-          />
-          <datalist id={searchList}>
-            {names.map((option) => (
-              <option key={option} value={option} />
-            ))}
-          </datalist>
-        </label>
+      <div className="flex flex-wrap items-end gap-2 empty:hidden">
         {focused ? (
           <>
             <label className="flex flex-col gap-1 text-caption text-fg-muted">
@@ -503,12 +539,16 @@ export function LinkmlGraphView({
             {t("models.graph.foldImport", { name: from })}
           </Button>
         ))}
-        <Minimap placed={placed} width={width + 8} height={height + 8} view={view} zoom={zoom} faded={faded} onJump={jump} />
       </div>
-      <p role="status" aria-live="polite" className="min-h-5 text-caption text-fg-muted">
+      <p role="status" aria-live="polite" className="text-caption text-fg-muted">
         {status}
       </p>
       <div className="grid gap-3 2xl:grid-cols-[minmax(0,1fr)_28rem]">
+        <div className="relative min-w-0">
+        {/* The map rides the drawing's corner, where it costs no row of its own (T-6090). */}
+        <div className="absolute right-2 top-2 z-10 max-sm:hidden">
+          <Minimap placed={placed} width={width + 8} height={height + 8} view={view} zoom={zoom} faded={faded} onJump={jump} />
+        </div>
         <div
           ref={frame}
           className="max-h-180 cursor-grab overflow-auto rounded border border-border bg-surface p-2 active:cursor-grabbing"
@@ -827,6 +867,7 @@ export function LinkmlGraphView({
             })}
           </svg>
         </div>
+        </div>
         {editing?.dialogs}
         {pairs.length > 0 ? (
           <Table caption={t("models.graph.table")}>
@@ -1060,7 +1101,7 @@ function Minimap({
       width={width * scale}
       height={Math.max(24, height * scale)}
       viewBox={`-4 -4 ${width} ${height}`}
-      className="ml-auto cursor-pointer rounded border border-border bg-surface text-fg-subtle"
+      className="cursor-pointer rounded border border-border bg-surface text-fg-subtle shadow-1"
       onClick={(event) => {
         const area = event.currentTarget.getBoundingClientRect();
         onJump({ x: (event.clientX - area.left) / scale - 4, y: (event.clientY - area.top) / scale - 4 });

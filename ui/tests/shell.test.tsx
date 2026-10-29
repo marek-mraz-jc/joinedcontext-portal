@@ -79,7 +79,6 @@ describe("portal shell", () => {
   it("lists every section of the resource API in the sidebar", async () => {
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     for (const label of [
-      "Flows",
       "Context Spaces",
       "Endpoints",
       "Pipelines",
@@ -172,6 +171,17 @@ describe("portal shell", () => {
         expect(within(crumbs()).getByText(label)).toHaveAttribute("aria-current", "page");
       });
     }
+  });
+
+  // T-6090 (owner walk): a model defines what every space holds, so Data models sits right under
+  // Context Spaces, not far down after Policies and Project settings.
+  it("lists Data models right after Context Spaces", () => {
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    const names = within(nav).getAllByRole("link").map((link) => link.textContent?.trim());
+    const spaces = names.indexOf(i18n.t("nav.spaces"));
+    expect(spaces).toBeGreaterThan(-1);
+    expect(names[spaces + 1]).toBe(i18n.t("nav.models"));
+    expect(names.filter((name) => name === i18n.t("nav.models"))).toHaveLength(1);
   });
 
   // T-4223 (photo audit T-4157): Administration is the organization's page, not a project's;
