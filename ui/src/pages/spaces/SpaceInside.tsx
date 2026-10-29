@@ -17,6 +17,7 @@ import { ActivityFeed } from "../../components/ActivityFeed";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import {
   ENDPOINT_LINKS,
+  CopyUrlButton,
   EndpointLink,
   endpointUrl,
   REPRESENTATION_PATHS,
@@ -49,11 +50,10 @@ import type { ViewExtras } from "../../components/entities/ViewOptions";
 import type { DataView as SavedView, ViewConfig } from "../../api/dataViews";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
-import { classSlots, parseModel } from "../models/linkml";
+import { classSlots, isAnyClass, parseModel } from "../models/linkml";
 import { localId, textOf } from "../apps/QueryResultCard";
 import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
-import { ModelViews } from "../models/ModelViews";
 import { ProposeLink } from "../models/ModelsList";
 import {
   CalendarView,
@@ -110,7 +110,7 @@ import {
   tabPanelProps,
   Term,
 } from "../../components/ui";
-import { ConfirmDialog, Field, Input, RadioGroup, Select } from "../../components/ui";
+import { Card, ConfirmDialog, Field, Input, RadioGroup, Select } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { SourceRemovalsPanel } from "../pipelines/PipelineSourceReport";
 import { useUrlParam, useUrlText, useUrlUrn } from "../../navigation/urlState";
@@ -482,6 +482,10 @@ function SpaceData({
   // The view is in the address, so back, reload and a sent link open it (T-3239).
   const [view, setView] = useUrlParam<DataView>("view", "grid", DATA_VIEWS);
   const [q, setQ] = useState<string | undefined>(undefined);
+  // The columns the views beside the grid read (`attrs`), kept with the type they were chosen for,
+  // so another type starts with all of its attributes again (T-6092).
+  const [chosen, setChosen] = useState<{ type: string; attrs?: string[] }>({ type: "" });
+  const attrs = chosen.type === type ? chosen.attrs : undefined;
   // A field is a slot of the type's class: offered only when the space's model declares the type.
   const ownClass = useMemo(
     () => modelSource !== undefined && parseModel(modelSource).classes.some((c) => c.name === type),
@@ -1144,8 +1148,11 @@ function SpaceData({
             id="space-view-filter"
             types={[type]}
             slots={slots}
-            value={{ type, q }}
-            onChange={(next) => setQ(next.q)}
+            value={{ type, q, attrs }}
+            onChange={(next) => {
+              setQ(next.q);
+              setChosen({ type, attrs: next.attrs });
+            }}
           />
           <OtherView
             project={project}
@@ -1154,6 +1161,7 @@ function SpaceData({
             space={space}
             type={type}
             q={q}
+            attrs={attrs}
             view={view}
             enums={enums}
             endpoints={endpoints.map((endpoint) => endpoint.metadata.name)}
@@ -1654,6 +1662,7 @@ function OtherView({
   space,
   type,
   q,
+  attrs,
   view,
   enums,
   endpoints,
@@ -1666,6 +1675,8 @@ function OtherView({
   space: string;
   type: string;
   q: string | undefined;
+  /** The attributes the person chose in Columns; none: every attribute. */
+  attrs: string[] | undefined;
   view: Exclude<DataView, "grid" | "api" | "form">;
   /** The enum slots of the type, by attribute, titled in the page's language (UI-86). */
   enums: Record<string, EnumChoice[]>;
@@ -1674,7 +1685,7 @@ function OtherView({
 }): JSX.Element {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const rows = useViewRows(source, space, type, q);
+  const rows = useViewRows(source, space, type, q, attrs);
   // Someone changed rows of this type, anywhere: the page is read again with this session (T-3105).
   const [live, setLive] = useState<LiveChange | null>(null);
   useLive(project, space, type, (change) => {
@@ -1817,9 +1828,10 @@ function Section({ title, children }: { title: ReactNode; children: ReactNode })
 }
 
 /**
- * The space's data model, one click from the space (T-2762; DM-61, DM-62): its title and
- * version, a link to its own page, Edit for a person who may propose it, and the diagram, form
- * and YAML views read-only. A space without one offers Create and Import, prefilled for it.
+ * The space's data model, one click from the space (T-2762; DM-61, DM-62): its title, version and
+ * classes, and one link to the model's own page, where it is read and edited (T-6090: the tab
+ * embedded the whole modeler, a second home for one model). A space without one offers Create
+ * and Import, prefilled for it.
  */
 function SpaceModel({
   project,
@@ -1860,23 +1872,18 @@ function SpaceModel({
   const title = localized(model.metadata.title, i18n.language, name);
   const version = typeof model.spec.version === "string" ? model.spec.version : undefined;
   return (
-    <div className="flex flex-col gap-3">
+    <Card className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex flex-wrap items-center gap-2 text-body">
-          <Link
-            to="/projects/$project/models/$name"
-            params={{ project, name }}
-            className="focus-ring font-medium text-primary-soft-fg underline-offset-2 hover:underline"
-          >
-            {title}
-          </Link>
+          <span className="font-medium text-fg">{title}</span>
           {title !== name ? <span className="font-mono text-caption text-fg-muted">{name}</span> : null}
           {version ? <span className="font-mono text-caption text-fg-muted">v{version}</span> : null}
         </p>
-        <ProposeLink project={project} search={{ edit: name }}>
-          {t("models.page.edit")}
-        </ProposeLink>
+        <Link to="/projects/$project/models/$name" params={{ project, name }} className={buttonClass("primary", "sm")}>
+          {t("spaces.inside.modelOpen")}
+        </Link>
       </div>
+      <p className="text-caption text-fg-muted">{t("spaces.inside.modelOpenLead")}</p>
       {source.isError ? (
         <Alert tone="danger" role="alert">
           <p>{t("models.page.sourceFailed", { reason: source.error instanceof Error ? source.error.message : "" })}</p>
@@ -1889,8 +1896,59 @@ function SpaceModel({
           {t("models.source.loading")}
         </p>
       ) : (
-        <ModelViews project={project} source={source.data} name={name} id="space-model-views" />
+        <ModelClassSummary project={project} name={name} source={source.data} />
       )}
+    </Card>
+  );
+}
+
+/** How many classes the model has, and the first few as links into the model's own page. */
+const SUMMARY_CLASSES = 8;
+
+/**
+ * The class names of a LinkML source, `null` when it does not parse. `linkml:Any` is a value
+ * helper, not a class a space holds; the diagram leaves it out too.
+ */
+export function classNamesOf(source: string | undefined): string[] | null {
+  if (source === undefined) return null;
+  try {
+    return parseModel(source).classes.filter((klass) => !isAnyClass(klass)).map((klass) => klass.name);
+  } catch {
+    return null;
+  }
+}
+
+function ModelClassSummary({ project, name, source }: { project: string; name: string; source: string }): JSX.Element {
+  const { t } = useTranslation();
+  const classes = useMemo(() => classNamesOf(source), [source]);
+  if (classes === null) {
+    return <p className="text-body text-fg-muted">{t("spaces.inside.modelUnreadable")}</p>;
+  }
+  const shown = classes.slice(0, SUMMARY_CLASSES);
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-body text-fg">{t("spaces.inside.modelClasses", { count: classes.length })}</p>
+      {shown.length > 0 ? (
+        <ul aria-label={t("spaces.inside.modelClassList")} className="flex flex-wrap gap-1.5">
+          {shown.map((klass) => (
+            <li key={klass}>
+              <Link
+                to="/projects/$project/models/$name"
+                params={{ project, name }}
+                search={{ class: klass }}
+                className="focus-ring inline-flex rounded-sm border border-border bg-bg px-2 py-0.5 font-mono text-caption text-primary-soft-fg hover:underline"
+              >
+                {klass}
+              </Link>
+            </li>
+          ))}
+          {classes.length > shown.length ? (
+            <li className="px-1 text-caption text-fg-muted">
+              {t("spaces.inside.modelMore", { count: classes.length - shown.length })}
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -1916,6 +1974,21 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   const endpoints = useProjectList(project, "endpoints");
   const policies = useProjectList(project, "policies");
   const catalogueLink = useCatalogueLinks([project]);
+
+  // Every DataModel that names this space, not only the one the space names back. A model's
+  // `contextSpaceRef` is required and a space's `dataModelRef` is an optional pointer at the
+  // primary one (kinds: `DataModelSpec`, `SpaceSpec`), and no seeded space sets it — so reading
+  // the pointer alone left this table empty for every space on dev, Helsinki's included, while
+  // the space held hundreds of entities (T-2450). The pointer still decides which model is
+  // first, and so which type the grid below opens on.
+  const named = space.data ? modelsOfSpace(space.data as Manifest, asManifests(models.data?.items ?? [])) : [];
+  const model = named[0];
+  // `spec.classes` is optional: a model whose manifest lists none still defines types, its source's
+  // classes, the ones the Data model tab counts (T-6090 review: "3 classes" above "no entity type").
+  const listed = [...new Set(named.flatMap(entityTypesOf))];
+  const modelSource = useSourceOf(project, listed.length === 0 ? model : undefined);
+  const sourced = useMemo(() => classNamesOf(modelSource.data) ?? [], [modelSource.data]);
+  const types = listed.length > 0 ? listed : sourced;
 
   if (space.isPending) {
     return <PageLoading label={t("app.loading")} />;
@@ -1943,15 +2016,6 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   }
 
   const manifest = space.data as Manifest;
-  // Every DataModel that names this space, not only the one the space names back. A model's
-  // `contextSpaceRef` is required and a space's `dataModelRef` is an optional pointer at the
-  // primary one (kinds: `DataModelSpec`, `SpaceSpec`), and no seeded space sets it — so reading
-  // the pointer alone left this table empty for every space on dev, Helsinki's included, while
-  // the space held hundreds of entities (T-2450). The pointer still decides which model is
-  // first, and so which type the grid below opens on.
-  const named = modelsOfSpace(manifest, asManifests(models.data?.items ?? []));
-  const model = named[0];
-  const types = [...new Set(named.flatMap(entityTypesOf))];
   const spaceEndpoints = asManifests(endpoints.data?.items ?? []).filter(
     (endpoint) => spaceOf(endpoint) === name,
   );
@@ -1963,9 +2027,11 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
+    <div className="space-y-4">
+      {/* One line: the way back, the name with its identifier as a copy chip and the state, the
+          actions at the right; what the space is for on one line below (T-6092). */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           <Link
             to="/projects/$project/$plural"
             params={{ project, plural: "spaces" }}
@@ -1973,16 +2039,9 @@ export function SpaceInside({ project, name }: { project: string; name: string }
           >
             {t("spaces.inside.back")}
           </Link>
-          <PageHeader
-            title={localized(manifest.metadata.title, locale, manifest.metadata.name)}
-            description={
-              <>
-                {/* What the space is for comes first; its name is the identifier beside it (T-3851). */}
-                {localized(manifest.metadata.description, locale, "") || t("spaces.inside.lead")}{" "}
-                <span className="font-mono">{manifest.metadata.name}</span>
-              </>
-            }
-          />
+          <PageHeader title={localized(manifest.metadata.title, locale, manifest.metadata.name)} />
+          <CopyUrlButton url={manifest.metadata.name} label={manifest.metadata.name} />
+          <LifecycleBadge kind="phase" value={manifest.status?.phase} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Completing works on one space, so it lives here and not on the list (T-6084). */}
@@ -1999,9 +2058,9 @@ export function SpaceInside({ project, name }: { project: string; name: string }
           <Button variant="secondary" size="sm" onClick={() => setAlerting(true)}>
             {t("alerts.forSpace")}
           </Button>
-          <LifecycleBadge kind="phase" value={manifest.status?.phase} />
         </div>
       </div>
+      <OneLine text={localized(manifest.metadata.description, locale, "") || t("spaces.inside.lead")} />
       {alerting ? (
         <AlertDialog
           project={project}
@@ -2254,6 +2313,23 @@ export function SpaceInside({ project, name }: { project: string; name: string }
         <div {...tabPanelProps("space-inside", tab)}>
           <ActivityFeed project={project} compact fixed={{ space: name }} limit={10} />
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** A description on one line, opened whole by "More" (T-6092): the data stays near the top. */
+function OneLine({ text }: { text: string }): JSX.Element {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex max-w-prose items-start gap-2 text-body text-fg-muted">
+      <p className={clsx("min-w-0", !open && "line-clamp-1")}>{text}</p>
+      {/* About what a phone line holds: a shorter text never needs opening. */}
+      {text.length > 40 ? (
+        <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? t("spaces.inside.less") : t("spaces.inside.more")}
+        </Button>
       ) : null}
     </div>
   );

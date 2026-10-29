@@ -125,10 +125,11 @@ describe("the explorer's controls in plain words (T-5622)", () => {
     await waitFor(() => expect(screen.getByTestId("explore-technical")).toHaveAttribute("open"));
   });
 
-  it("names attributes by the model's label, the attribute name beside it", async () => {
+  it("names attributes by the model's label, the attribute name as its tooltip (T-6092)", async () => {
     open("WeatherObserved");
     const box = await screen.findByRole("checkbox", { name: /Date observed/ });
-    expect(box).toHaveAccessibleName("Date observed dateObserved");
+    expect(box).toHaveAccessibleName("Date observed");
+    expect(box).toHaveAttribute("title", "dateObserved");
     // An attribute the model gives no label keeps its name.
     expect(screen.getByRole("checkbox", { name: "stewardNote" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Add filter" }));

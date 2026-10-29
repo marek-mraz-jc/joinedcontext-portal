@@ -17,7 +17,6 @@ import { describe, expect, it } from "vitest";
 /** An empty state that says nothing beyond its title, and why that is right. */
 const WITHOUT_A_SENTENCE: Record<string, string> = {
   "approvals.noneMatch": "a filtered list, not an empty project: the step is to widen the filter",
-  "flows.emptyFiltered": "a filtered gallery: the step is to clear the filter",
   "workspaces.compare.empty":
     "a comparison of one copy against main, which is empty because nothing was changed in it",
   "assistantPage.empty": "its own title says the first step: ask the assistant or start below",

@@ -4,9 +4,6 @@ import type { IconName } from "../ui";
 export const NAV_SECTIONS = [
   // The project's home: the first-run checklist and what the person's role does next (T-3233).
   { plural: "home", labelKey: "nav.home", icon: "globe" },
-  // The gallery is the primary model of the application, so it is the first thing in the
-  // sidebar; everything below it is the expert view of what a flow produced (CC-30).
-  { plural: "flows", labelKey: "nav.flows", icon: "flows" },
   { plural: "spaces", labelKey: "nav.spaces", icon: "spaces" },
   // What this project references from other projects' endpoints lives in the Endpoints page's
   // "Shared with this project" section, not in a page of its own (T-0706, EP-15).
