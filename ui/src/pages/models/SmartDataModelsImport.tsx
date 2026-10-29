@@ -405,6 +405,25 @@ export function SmartDataModelsImport({
           >
             {t("models.sdm.previewFailed")}
           </Alert>
+        ) : !imported && preview.data?.errors && preview.data.errors.length > 0 ? (
+          // Model Tools answers a model it cannot convert with 200 and `errors` (T-6101): the
+          // person has to read why, not watch a loading line that never ends.
+          <Alert
+            tone="danger"
+            role="alert"
+            actions={
+              <Button size="sm" onClick={() => void preview.refetch()}>
+                {t("app.error.retry")}
+              </Button>
+            }
+          >
+            <p>{t("models.sdm.importRefused", { name: selected.name })}</p>
+            <ul className="mt-1 list-disc pl-5">
+              {preview.data.errors.map((message, index) => (
+                <li key={index}>{message}</li>
+              ))}
+            </ul>
+          </Alert>
         ) : imported ? (
           <>
             {origin && safeHref(origin.href) ? (
