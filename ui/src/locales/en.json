@@ -10045,7 +10045,6 @@
     },
     "edit": {
       "accessLead": "A device signs in with its service account's token and may use the topics of each role its account holds. Adding an account here grants it the role; the change is proposed with the broker.",
-      "accountsHint": "Pick one of the project's service accounts you can see, e.g. cam-3. Create a new one under Service accounts first.",
       "add": "Add",
       "addAccount": "Add an account to role {role}",
       "addAccountOption": "Add an account…",
@@ -10075,10 +10074,8 @@
         "sourceAdded": "Network {source} may connect",
         "sourceRemoved": "Network {source} may no longer connect"
       },
-      "countHint": "How many of the newest messages each topic keeps, 1 to 1,000, e.g. 20.",
       "discard": "Discard",
       "keep": "Keep the last messages",
-      "keepHint": "Stewards of the project can read the newest messages of each topic for a while, e.g. to check what a new device sends.",
       "keepRelay": "A broker whose devices subscribe relays messages and keeps none.",
       "limit": {
         "messagesPerSecond": "Messages per second, per device",
@@ -10090,27 +10087,20 @@
       "noAccounts": "The project has no service account you can see. Create one under Service accounts, then add it here.",
       "noHolder": "No account holds this role yet.",
       "outside": "Write a whole number from 1 to {max}.",
-      "portHint": "Leave empty for the shared port 8883. A dedicated port, {min} to {max}, e.g. 18831, serves only this broker.",
       "portOutside": "A dedicated port is {min} to {max}.",
       "propose": "Propose change",
-      "publishHint": "A topic filter per chip, with the device's own level, e.g. cameras/${clientid}/frames. + is one whole level, # only the last.",
       "qos": "Highest QoS",
       "qosFixed": "Every broker of this platform offers QoS 0 and 1; QoS 2 is not offered.",
       "qosLevel": "QoS {level}",
       "readOnly": "You may read this broker. Changing it needs the right to propose MQTT brokers in this project: ask a project steward.",
       "readOnlyTitle": "Read only",
       "reason": "Why the devices share their topics",
-      "reasonHint": "One sentence an approver reads, e.g. the counters publish to one shared topic of the vendor.",
       "reasonMissing": "Write why the devices share their topics.",
       "remove": "Remove {value}",
       "removeRole": "Remove role {role}",
-      "roleNameHint": "Lowercase letters, digits and dashes, e.g. cams.",
       "shared": "Devices share their topics",
       "sharedHint": "Each device of the role may then publish as any other, and a publish topic needs no ${clientid} level.",
       "sources": "Networks that may connect",
-      "sourcesHint": "An IPv4 or IPv6 network per chip, at most 32, e.g. 203.0.113.0/24 or 2001:db8::/48.",
-      "subscribeHint": "A topic filter under the device's own id, e.g. commands/${clientid}/#.",
-      "subscribeMakesRelay": "Optional. A subscribe topic makes the broker a relay: devices also receive, each under its own id, e.g. commands/${clientid}/#.",
       "through": {
         "legacy": "listed on the role",
         "wildcard": "granted for every broker"
@@ -10133,7 +10123,6 @@
           "tooMany": "At most 32 networks."
         }
       },
-      "topicExample": "e.g. cameras/${clientid}/frames",
       "typeFirst": "Type a value first.",
       "unit": {
         "messagesPerSecond": "messages/s",
@@ -10142,13 +10131,26 @@
         "connectionsPerAddress": "connections"
       },
       "unsaved": "Not proposed",
-      "windowHint": "How long a kept message stays, at most a day, e.g. 1 hour.",
       "pending": "Changes not proposed yet: {count}",
       "qosHighest": "highest",
       "qosOffered": "offered",
       "qosNotOffered": "not offered",
-      "sourceExample": "e.g. 203.0.113.0/24",
-      "anySourceReadOnly": "Any address with a valid token can connect now. A project steward can limit it to the networks your devices use."
+      "anySourceReadOnly": "Any address with a valid token can connect now. A project steward can limit it to the networks your devices use.",
+      "hint": {
+        "accountsHint": "Pick one of the project's service accounts you can see, e.g. cam-3. Create a new one under Service accounts first.",
+        "countHint": "How many of the newest messages each topic keeps, 1 to 1,000, e.g. 20.",
+        "keepHint": "Stewards of the project can read the newest messages of each topic for a while, e.g. to check what a new device sends.",
+        "portHint": "Leave empty for the shared port 8883. A dedicated port, {min} to {max}, e.g. 18831, serves only this broker.",
+        "publishHint": "A topic filter per chip, with the device's own level, e.g. cameras/${clientid}/frames. + is one whole level, # only the last.",
+        "reasonHint": "One sentence an approver reads, e.g. the counters publish to one shared topic of the vendor.",
+        "roleNameHint": "Lowercase letters, digits and dashes, e.g. cams.",
+        "sourcesHint": "An IPv4 or IPv6 network per chip, at most 32, e.g. 203.0.113.0/24 or 2001:db8::/48.",
+        "subscribeHint": "A topic filter under the device's own id, e.g. commands/${clientid}/#.",
+        "subscribeMakesRelay": "Optional. A subscribe topic makes the broker a relay: devices also receive, each under its own id, e.g. commands/${clientid}/#.",
+        "topicExample": "e.g. cameras/${clientid}/frames",
+        "windowHint": "How long a kept message stays, at most a day, e.g. 1 hour.",
+        "sourceExample": "e.g. 203.0.113.0/24"
+      }
     }
   },
   "connect": {

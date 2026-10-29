@@ -10045,7 +10045,6 @@
     },
     "edit": {
       "accessLead": "Zariadenie sa prihlási tokenom svojho servisného účtu a smie používať témy každej roly, ktorú jeho účet drží. Pridaním účtu sem mu udelíte rolu; zmena sa navrhne spolu s brokerom.",
-      "accountsHint": "Vyberte jeden zo servisných účtov projektu, ktoré vidíte, napr. cam-3. Nový najprv vytvorte v Servisných účtoch.",
       "add": "Pridať",
       "addAccount": "Pridať účet do roly {role}",
       "addAccountOption": "Pridať účet…",
@@ -10075,10 +10074,8 @@
         "sourceAdded": "Sieť {source} sa smie pripojiť",
         "sourceRemoved": "Sieť {source} sa už nesmie pripojiť"
       },
-      "countHint": "Koľko najnovších správ uchová každá téma, 1 až 1 000, napr. 20.",
       "discard": "Zahodiť",
       "keep": "Uchovávať posledné správy",
-      "keepHint": "Správcovia projektu môžu chvíľu čítať najnovšie správy každej témy, napr. na kontrolu, čo posiela nové zariadenie.",
       "keepRelay": "Broker, ktorého zariadenia odoberajú, správy preposiela a žiadne neuchováva.",
       "limit": {
         "messagesPerSecond": "Správ za sekundu na zariadenie",
@@ -10090,27 +10087,20 @@
       "noAccounts": "Projekt nemá servisný účet, ktorý vidíte. Vytvorte ho v Servisných účtoch a potom ho pridajte sem.",
       "noHolder": "Túto rolu zatiaľ nedrží žiadny účet.",
       "outside": "Napíšte celé číslo od 1 do {max}.",
-      "portHint": "Nechajte prázdne pre spoločný port 8883. Vyhradený port {min} až {max}, napr. 18831, slúži len tomuto brokeru.",
       "portOutside": "Vyhradený port je {min} až {max}.",
       "propose": "Navrhnúť zmenu",
-      "publishHint": "Jeden filter témy na čip, s vlastnou úrovňou zariadenia, napr. cameras/${clientid}/frames. + je celá jedna úroveň, # len posledná.",
       "qos": "Najvyššie QoS",
       "qosFixed": "Každý broker tejto platformy ponúka QoS 0 a 1; QoS 2 sa neponúka.",
       "qosLevel": "QoS {level}",
       "readOnly": "Tento broker smiete čítať. Na jeho zmenu potrebujete právo navrhovať MQTT brokery v tomto projekte: požiadajte správcu projektu.",
       "readOnlyTitle": "Len na čítanie",
       "reason": "Prečo zariadenia zdieľajú témy",
-      "reasonHint": "Jedna veta pre schvaľovateľa, napr. sčítače publikujú do jednej spoločnej témy výrobcu.",
       "reasonMissing": "Napíšte, prečo zariadenia zdieľajú témy.",
       "remove": "Odstrániť {value}",
       "removeRole": "Odstrániť rolu {role}",
-      "roleNameHint": "Malé písmená, číslice a pomlčky, napr. cams.",
       "shared": "Zariadenia zdieľajú témy",
       "sharedHint": "Každé zariadenie roly potom smie publikovať ako ktorékoľvek iné a téma na publikovanie nepotrebuje úroveň ${clientid}.",
       "sources": "Siete, ktoré sa smú pripojiť",
-      "sourcesHint": "Jedna sieť IPv4 alebo IPv6 na čip, najviac 32, napr. 203.0.113.0/24 alebo 2001:db8::/48.",
-      "subscribeHint": "Filter témy pod vlastným id zariadenia, napr. commands/${clientid}/#.",
-      "subscribeMakesRelay": "Nepovinné. Téma na odber robí z brokera relé: zariadenia aj prijímajú, každé pod vlastným id, napr. commands/${clientid}/#.",
       "through": {
         "legacy": "uvedený na role",
         "wildcard": "udelené pre všetky brokery"
@@ -10133,7 +10123,6 @@
           "tooMany": "Najviac 32 sietí."
         }
       },
-      "topicExample": "napr. cameras/${clientid}/frames",
       "typeFirst": "Najprv napíšte hodnotu.",
       "unit": {
         "messagesPerSecond": "správ/s",
@@ -10142,13 +10131,26 @@
         "connectionsPerAddress": "pripojení"
       },
       "unsaved": "Nenavrhnuté",
-      "windowHint": "Ako dlho uchovaná správa zostane, najviac deň, napr. 1 hodina.",
       "pending": "Nenavrhnuté zmeny: {count}",
       "qosHighest": "najvyššie",
       "qosOffered": "ponúkané",
       "qosNotOffered": "neponúkané",
-      "sourceExample": "napr. 203.0.113.0/24",
-      "anySourceReadOnly": "Teraz sa môže pripojiť každá adresa s platným tokenom. Správca projektu ho môže obmedziť na siete, ktoré vaše zariadenia používajú."
+      "anySourceReadOnly": "Teraz sa môže pripojiť každá adresa s platným tokenom. Správca projektu ho môže obmedziť na siete, ktoré vaše zariadenia používajú.",
+      "hint": {
+        "accountsHint": "Vyberte jeden zo servisných účtov projektu, ktoré vidíte, napr. cam-3. Nový najprv vytvorte v Servisných účtoch.",
+        "countHint": "Koľko najnovších správ uchová každá téma, 1 až 1 000, napr. 20.",
+        "keepHint": "Správcovia projektu môžu chvíľu čítať najnovšie správy každej témy, napr. na kontrolu, čo posiela nové zariadenie.",
+        "portHint": "Nechajte prázdne pre spoločný port 8883. Vyhradený port {min} až {max}, napr. 18831, slúži len tomuto brokeru.",
+        "publishHint": "Jeden filter témy na čip, s vlastnou úrovňou zariadenia, napr. cameras/${clientid}/frames. + je celá jedna úroveň, # len posledná.",
+        "reasonHint": "Jedna veta pre schvaľovateľa, napr. sčítače publikujú do jednej spoločnej témy výrobcu.",
+        "roleNameHint": "Malé písmená, číslice a pomlčky, napr. cams.",
+        "sourcesHint": "Jedna sieť IPv4 alebo IPv6 na čip, najviac 32, napr. 203.0.113.0/24 alebo 2001:db8::/48.",
+        "subscribeHint": "Filter témy pod vlastným id zariadenia, napr. commands/${clientid}/#.",
+        "subscribeMakesRelay": "Nepovinné. Téma na odber robí z brokera relé: zariadenia aj prijímajú, každé pod vlastným id, napr. commands/${clientid}/#.",
+        "topicExample": "napr. cameras/${clientid}/frames",
+        "windowHint": "Ako dlho uchovaná správa zostane, najviac deň, napr. 1 hodina.",
+        "sourceExample": "napr. 203.0.113.0/24"
+      }
     }
   },
   "connect": {

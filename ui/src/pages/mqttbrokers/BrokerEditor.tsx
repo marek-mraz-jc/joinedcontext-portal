@@ -301,10 +301,10 @@ function General({ draft, disabled, onChange }: { draft: Draft; disabled: boolea
         disabledReason={relay ? t("mqttbrokers.edit.keepRelay") : disabled ? t("mqttbrokers.edit.readOnly") : undefined}
         onChange={(event) => onChange({ ...draft, keep: event.target.checked })}
       />
-      <p className="-mt-3 text-caption text-fg-muted">{t("mqttbrokers.edit.keepHint")}</p>
+      <p className="-mt-3 text-caption text-fg-muted">{t("mqttbrokers.edit.hint.keepHint")}</p>
       {draft.keep && !relay ? (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2">
-          <Field id={`${id}-count`} label={t("mqttbrokers.field.messagesPerTopic")} help={t("mqttbrokers.edit.countHint")}>
+          <Field id={`${id}-count`} label={t("mqttbrokers.field.messagesPerTopic")} help={t("mqttbrokers.edit.hint.countHint")}>
             <Input
               id={`${id}-count`}
               type="number"
@@ -316,7 +316,7 @@ function General({ draft, disabled, onChange }: { draft: Draft; disabled: boolea
               onChange={(event) => setCapture({ messagesPerTopic: wholeNumber(event.target.value) })}
             />
           </Field>
-          <Field id={`${id}-window`} label={t("mqttbrokers.field.window")} help={t("mqttbrokers.edit.windowHint")}>
+          <Field id={`${id}-window`} label={t("mqttbrokers.field.window")} help={t("mqttbrokers.edit.hint.windowHint")}>
             <Select id={`${id}-window`} disabled={disabled} title={disabled ? t("mqttbrokers.edit.readOnly") : undefined} value={capture.window ?? "PT1H"} onChange={(event) => setCapture({ window: event.target.value })}>
               {CAPTURE_WINDOWS.map((window) => (
                 <option key={window} value={window}>
@@ -392,7 +392,7 @@ function RoleCard({
     <Card padding="sm">
     <fieldset className="flex flex-col gap-3" data-role={role.name || index}>
       <legend className="px-1 font-semibold text-fg">{role.name || t("mqttbrokers.edit.newRole")}</legend>
-      <Field id={`${id}-name`} label={t("mqttbrokers.field.roleName")} help={t("mqttbrokers.edit.roleNameHint")}>
+      <Field id={`${id}-name`} label={t("mqttbrokers.field.roleName")} help={t("mqttbrokers.edit.hint.roleNameHint")}>
         <Input id={`${id}-name`} value={role.name ?? ""} disabled={disabled} title={disabled ? t("mqttbrokers.edit.readOnly") : undefined} onChange={(event) => onChange({ ...role, name: event.target.value.trim() })} />
       </Field>
       <div className="flex flex-col gap-1">
@@ -428,12 +428,12 @@ function RoleCard({
           </Select>
         ) : null}
         <span className="text-caption text-fg-muted">
-          {accounts.length === 0 ? t("mqttbrokers.edit.noAccounts") : t("mqttbrokers.edit.accountsHint")}
+          {accounts.length === 0 ? t("mqttbrokers.edit.noAccounts") : t("mqttbrokers.edit.hint.accountsHint")}
         </span>
       </div>
       <ChipInput
         label={t("mqttbrokers.acl.publish")}
-        help={t("mqttbrokers.edit.publishHint")}
+        help={t("mqttbrokers.edit.hint.publishHint")}
         values={role.publish ?? []}
         disabled={disabled}
         problem={(value) => topicProblem(value, "publish", shared)}
@@ -441,7 +441,7 @@ function RoleCard({
       />
       <ChipInput
         label={t("mqttbrokers.acl.subscribe")}
-        help={mode === "relay" ? t("mqttbrokers.edit.subscribeHint") : t("mqttbrokers.edit.subscribeMakesRelay")}
+        help={mode === "relay" ? t("mqttbrokers.edit.hint.subscribeHint") : t("mqttbrokers.edit.hint.subscribeMakesRelay")}
         values={role.subscribe ?? []}
         disabled={disabled}
         problem={(value) => topicProblem(value, "subscribe")}
@@ -460,7 +460,7 @@ function RoleCard({
           id={`${id}-reason`}
           label={t("mqttbrokers.edit.reason")}
           required
-          help={t("mqttbrokers.edit.reasonHint")}
+          help={t("mqttbrokers.edit.hint.reasonHint")}
           errors={(role.reason ?? "").trim() ? undefined : [t("mqttbrokers.edit.reasonMissing")]}
         >
           <Textarea id={`${id}-reason`} rows={2} disabled={disabled} title={disabled ? t("mqttbrokers.edit.readOnly") : undefined} value={role.reason ?? ""} onChange={(event) => onChange({ ...role, reason: event.target.value })} />
@@ -544,7 +544,7 @@ function ChipInput({
               id={`${id}-input`}
               className="min-w-0 flex-1 font-mono"
               value={text}
-              placeholder={placeholder ?? t("mqttbrokers.edit.topicExample")}
+              placeholder={placeholder ?? t("mqttbrokers.edit.hint.topicExample")}
               aria-invalid={wrong ? true : undefined}
               aria-describedby={described(`${id}-input`, wrong !== undefined)}
               onChange={(event) => setText(event.target.value)}
@@ -646,7 +646,7 @@ function Limits({
           <Field
             id={`${id}-port`}
             label={t("mqttbrokers.field.port")}
-            help={t("mqttbrokers.edit.portHint", { min: DEDICATED_PORTS.min, max: DEDICATED_PORTS.max })}
+            help={t("mqttbrokers.edit.hint.portHint", { min: DEDICATED_PORTS.min, max: DEDICATED_PORTS.max })}
             errors={
               draft.form.port !== undefined && (draft.form.port < DEDICATED_PORTS.min || draft.form.port > DEDICATED_PORTS.max)
                 ? [t("mqttbrokers.edit.portOutside", { min: DEDICATED_PORTS.min, max: DEDICATED_PORTS.max })]
@@ -684,8 +684,8 @@ function Networks({ sources, disabled, onChange }: { sources: string[]; disabled
       ) : null}
       <ChipInput
         label={t("mqttbrokers.edit.sources")}
-        placeholder={t("mqttbrokers.edit.sourceExample")}
-        help={t("mqttbrokers.edit.sourcesHint")}
+        placeholder={t("mqttbrokers.edit.hint.sourceExample")}
+        help={t("mqttbrokers.edit.hint.sourcesHint")}
         values={sources}
         disabled={disabled}
         problem={(value) => {

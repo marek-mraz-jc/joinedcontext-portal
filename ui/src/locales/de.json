@@ -10045,7 +10045,6 @@
     },
     "edit": {
       "accessLead": "Ein Gerät meldet sich mit dem Token seines Dienstkontos an und darf die Themen jeder Rolle nutzen, die sein Konto hält. Ein hier hinzugefügtes Konto erhält die Rolle; die Änderung wird mit dem Broker vorgeschlagen.",
-      "accountsHint": "Wählen Sie eines der Dienstkonten des Projekts, die Sie sehen, z. B. cam-3. Ein neues legen Sie zuerst unter Dienstkonten an.",
       "add": "Hinzufügen",
       "addAccount": "Konto zur Rolle {role} hinzufügen",
       "addAccountOption": "Konto hinzufügen…",
@@ -10075,10 +10074,8 @@
         "sourceAdded": "Netz {source} darf sich verbinden",
         "sourceRemoved": "Netz {source} darf sich nicht mehr verbinden"
       },
-      "countHint": "Wie viele der neuesten Nachrichten jedes Thema aufbewahrt, 1 bis 1.000, z. B. 20.",
       "discard": "Verwerfen",
       "keep": "Letzte Nachrichten aufbewahren",
-      "keepHint": "Verwalter des Projekts können die neuesten Nachrichten jedes Themas eine Weile lesen, z. B. um zu prüfen, was ein neues Gerät sendet.",
       "keepRelay": "Ein Broker, dessen Geräte abonnieren, leitet Nachrichten weiter und bewahrt keine auf.",
       "limit": {
         "messagesPerSecond": "Nachrichten pro Sekunde je Gerät",
@@ -10090,27 +10087,20 @@
       "noAccounts": "Das Projekt hat kein Dienstkonto, das Sie sehen. Legen Sie eines unter Dienstkonten an und fügen Sie es dann hier hinzu.",
       "noHolder": "Noch kein Konto hält diese Rolle.",
       "outside": "Schreiben Sie eine ganze Zahl von 1 bis {max}.",
-      "portHint": "Leer lassen für den gemeinsamen Port 8883. Ein eigener Port, {min} bis {max}, z. B. 18831, bedient nur diesen Broker.",
       "portOutside": "Ein eigener Port liegt zwischen {min} und {max}.",
       "propose": "Änderung vorschlagen",
-      "publishHint": "Ein Themenfilter je Chip, mit der eigenen Ebene des Geräts, z. B. cameras/${clientid}/frames. + ist eine ganze Ebene, # nur die letzte.",
       "qos": "Höchstes QoS",
       "qosFixed": "Jeder Broker dieser Plattform bietet QoS 0 und 1 an; QoS 2 wird nicht angeboten.",
       "qosLevel": "QoS {level}",
       "readOnly": "Sie dürfen diesen Broker lesen. Zum Ändern brauchen Sie das Recht, MQTT-Broker in diesem Projekt vorzuschlagen: fragen Sie einen Projektverwalter.",
       "readOnlyTitle": "Nur lesen",
       "reason": "Warum die Geräte ihre Themen teilen",
-      "reasonHint": "Ein Satz für die genehmigende Person, z. B. die Zähler senden an ein gemeinsames Thema des Herstellers.",
       "reasonMissing": "Schreiben Sie, warum die Geräte ihre Themen teilen.",
       "remove": "{value} entfernen",
       "removeRole": "Rolle {role} entfernen",
-      "roleNameHint": "Kleinbuchstaben, Ziffern und Bindestriche, z. B. cams.",
       "shared": "Geräte teilen ihre Themen",
       "sharedHint": "Jedes Gerät der Rolle darf dann wie jedes andere senden, und ein Sendethema braucht keine ${clientid}-Ebene.",
       "sources": "Netze, die sich verbinden dürfen",
-      "sourcesHint": "Ein IPv4- oder IPv6-Netz je Chip, höchstens 32, z. B. 203.0.113.0/24 oder 2001:db8::/48.",
-      "subscribeHint": "Ein Themenfilter unter der eigenen ID des Geräts, z. B. commands/${clientid}/#.",
-      "subscribeMakesRelay": "Optional. Ein Abo-Thema macht den Broker zum Relay: Geräte empfangen auch, jedes unter seiner eigenen ID, z. B. commands/${clientid}/#.",
       "through": {
         "legacy": "an der Rolle eingetragen",
         "wildcard": "für alle Broker gewährt"
@@ -10133,7 +10123,6 @@
           "tooMany": "Höchstens 32 Netze."
         }
       },
-      "topicExample": "z. B. cameras/${clientid}/frames",
       "typeFirst": "Geben Sie zuerst einen Wert ein.",
       "unit": {
         "messagesPerSecond": "Nachrichten/s",
@@ -10142,13 +10131,26 @@
         "connectionsPerAddress": "Verbindungen"
       },
       "unsaved": "Nicht vorgeschlagen",
-      "windowHint": "Wie lange eine aufbewahrte Nachricht bleibt, höchstens ein Tag, z. B. 1 Stunde.",
       "pending": "Noch nicht vorgeschlagene Änderungen: {count}",
       "qosHighest": "höchstes",
       "qosOffered": "angeboten",
       "qosNotOffered": "nicht angeboten",
-      "sourceExample": "z. B. 203.0.113.0/24",
-      "anySourceReadOnly": "Jede Adresse mit gültigem Token kann sich jetzt verbinden. Ein Projektverwalter kann es auf die Netze Ihrer Geräte beschränken."
+      "anySourceReadOnly": "Jede Adresse mit gültigem Token kann sich jetzt verbinden. Ein Projektverwalter kann es auf die Netze Ihrer Geräte beschränken.",
+      "hint": {
+        "accountsHint": "Wählen Sie eines der Dienstkonten des Projekts, die Sie sehen, z. B. cam-3. Ein neues legen Sie zuerst unter Dienstkonten an.",
+        "countHint": "Wie viele der neuesten Nachrichten jedes Thema aufbewahrt, 1 bis 1.000, z. B. 20.",
+        "keepHint": "Verwalter des Projekts können die neuesten Nachrichten jedes Themas eine Weile lesen, z. B. um zu prüfen, was ein neues Gerät sendet.",
+        "portHint": "Leer lassen für den gemeinsamen Port 8883. Ein eigener Port, {min} bis {max}, z. B. 18831, bedient nur diesen Broker.",
+        "publishHint": "Ein Themenfilter je Chip, mit der eigenen Ebene des Geräts, z. B. cameras/${clientid}/frames. + ist eine ganze Ebene, # nur die letzte.",
+        "reasonHint": "Ein Satz für die genehmigende Person, z. B. die Zähler senden an ein gemeinsames Thema des Herstellers.",
+        "roleNameHint": "Kleinbuchstaben, Ziffern und Bindestriche, z. B. cams.",
+        "sourcesHint": "Ein IPv4- oder IPv6-Netz je Chip, höchstens 32, z. B. 203.0.113.0/24 oder 2001:db8::/48.",
+        "subscribeHint": "Ein Themenfilter unter der eigenen ID des Geräts, z. B. commands/${clientid}/#.",
+        "subscribeMakesRelay": "Optional. Ein Abo-Thema macht den Broker zum Relay: Geräte empfangen auch, jedes unter seiner eigenen ID, z. B. commands/${clientid}/#.",
+        "topicExample": "z. B. cameras/${clientid}/frames",
+        "windowHint": "Wie lange eine aufbewahrte Nachricht bleibt, höchstens ein Tag, z. B. 1 Stunde.",
+        "sourceExample": "z. B. 203.0.113.0/24"
+      }
     }
   },
   "connect": {
