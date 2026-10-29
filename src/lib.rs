@@ -51,6 +51,7 @@ pub mod costs;
 pub mod csp;
 pub mod mqtt_allowance;
 pub mod mqtt_capture;
+pub mod paired_tabs;
 pub mod people;
 pub mod permissions;
 pub mod personal_data;

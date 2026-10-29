@@ -42,7 +42,7 @@ mod tools_change;
 mod tools_data;
 mod tools_registry;
 mod tools_space;
-mod ui_actions;
+pub(crate) mod ui_actions;
 
 /// Entities read per type as the model's sample of the data (AP-57).
 const SAMPLES_PER_TYPE: u32 = 5;

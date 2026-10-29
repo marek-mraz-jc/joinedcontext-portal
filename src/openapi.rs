@@ -336,6 +336,9 @@ use crate::tools::model_tools::{
         crate::api::connectors::edit_connector,
         crate::api::connectors::revoke_connector,
         crate::api::connectors::connector_activity,
+        crate::api::connectors::pair_tab,
+        crate::api::connectors::unpair_tab,
+        crate::api::connectors::tab_events,
     ),
     components(schemas(
         crate::api::access_attributes::AttributeExplained,

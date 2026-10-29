@@ -30,10 +30,7 @@ impl Driver {
     /// project for everything else, and this project for a `Role` the run writes, which is a
     /// role of the project it works in (PF-68).
     pub(super) fn home(&self, kind: &str) -> String {
-        match crate::resource::by_kind(kind) {
-            Some(info) => crate::resource::home(info, &self.project),
-            None => self.project.clone(),
-        }
+        self.asker().home(kind)
     }
 
     /// The project's resources this run may change, by kind, so the model names one that exists.
@@ -52,22 +49,7 @@ impl Driver {
     /// that is the project's own roles and the organization's, because both are in force here
     /// (PF-68, T-0872).
     pub(super) fn names_of(&self, kind: &str) -> Vec<String> {
-        let homes = match crate::resource::by_kind(kind) {
-            Some(info) => crate::resource::homes(info, &self.project),
-            None => vec![self.project.clone()],
-        };
-        let mut names: Vec<String> = homes
-            .iter()
-            .flat_map(|home| {
-                self.state
-                    .mirror
-                    .list(home, kind, &crate::store::ListOptions::default())
-                    .items
-            })
-            .map(|envelope| envelope.metadata.name)
-            .collect();
-        names.sort();
-        names
+        self.asker().names_of(kind)
     }
 
     /// The copy the person is working in: their newest live workspace of this project (CC-76).

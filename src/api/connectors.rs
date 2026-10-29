@@ -31,6 +31,11 @@ pub fn router() -> Router<AppState> {
                 .delete(revoke_connector),
         )
         .route("/connectors/{id}/activity", get(connector_activity))
+        .route(
+            "/connectors/{id}/tab",
+            axum::routing::post(pair_tab).delete(unpair_tab),
+        )
+        .route("/connectors/{id}/tab/{tab}/events", get(tab_events))
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -434,6 +439,7 @@ pub async fn revoke_connector(
 ) -> Result<StatusCode, ApiError> {
     let identity = &user.0.identity;
     own(&state, identity, &id).await?;
+    state.paired_tabs.unpair(&id, &identity.subject);
     if state.connectors.revoke(&id, &identity.subject).await? {
         Ok(StatusCode::NO_CONTENT)
     } else {
@@ -462,6 +468,199 @@ pub async fn connector_activity(
     let connector = own(&state, &user.0.identity, &id).await?;
     let items = state.connectors.calls(&connector.id).await?;
     Ok(Json(ConnectorCalls { items }))
+}
+
+/// A Portal tab paired with a connector (T-5967).
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PairedTab {
+    /// The tab's id: the address of its event stream, valid only for this person's session.
+    pub tab: String,
+    pub connector: String,
+    pub name: String,
+    /// When the pairing ends with the session, unless the person disconnects before.
+    #[schema(value_type = String, format = DateTime)]
+    pub until: chrono::DateTime<chrono::Utc>,
+}
+
+/// The person signed in in a browser: a tab is paired by its person, never by a workload or by a
+/// token a connector client holds (T-5967).
+fn in_a_browser(state: &AppState, identity: &Identity) -> Result<(), ApiError> {
+    person(state, identity)?;
+    match identity.client.as_deref() {
+        Some(client) if state.config.connector_clients.iter().any(|c| c == client) => {
+            Err(ApiError::Denied(
+                "a tab is connected by the person signed in in it, not by an MCP client".into(),
+            ))
+        }
+        _ => Ok(()),
+    }
+}
+
+/// One row of the connector's audit for its tab: who paired or let it go.
+async fn audit_tab(state: &AppState, identity: &Identity, id: &str, tool: &str) {
+    let call = Call {
+        at: chrono::Utc::now(),
+        subject: identity.subject.clone(),
+        client: identity.client.clone(),
+        tool: tool.to_owned(),
+        target: None,
+        verdict: "allowed".to_owned(),
+        duration_ms: 0,
+    };
+    if let Err(err) = state.connectors.record(id, call).await {
+        tracing::warn!(connector = %id, error = %err, "a tab pairing is not in its connector's audit");
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/connectors/{id}/tab",
+    summary = "Connect This Tab",
+    description = "Pairs the caller's open Portal tab with one of their live connectors: until the session ends or the person disconnects, the connector's MCP client may send this tab UI actions (navigate, open_form, highlight, show_diff, filter_table), which never save. A newer tab replaces the one paired before. The answer's `tab` addresses the tab's event stream for this session only (T-5967).",
+    tag = "connectors",
+    params(("id" = String, Path, description = "The connector id")),
+    responses(
+        (status = 201, description = "Paired", body = PairedTab),
+        (status = 401, description = "Not signed in", body = ProblemDetails),
+        (status = 403, description = "A workload, an MCP client's token, or a connector that is not active", body = ProblemDetails),
+        (status = 404, description = "No connector of the caller's with this id", body = ProblemDetails),
+    )
+)]
+pub async fn pair_tab(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<(StatusCode, Json<PairedTab>), ApiError> {
+    let session = &user.0;
+    in_a_browser(&state, &session.identity)?;
+    let connector = own(&state, &session.identity, &id).await?;
+    if !connector.is_active() {
+        return Err(ApiError::Denied(format!(
+            "connector {} is {}; create a new one to connect this tab",
+            connector.name, connector.state
+        )));
+    }
+    let tab = state.paired_tabs.pair(
+        &connector.id,
+        &session.identity.subject,
+        session.issued_at,
+        session.expires_at,
+    );
+    audit_tab(&state, &session.identity, &connector.id, "tab/connect").await;
+    let until = chrono::DateTime::from_timestamp(session.expires_at, 0).unwrap_or_default();
+    Ok((
+        StatusCode::CREATED,
+        Json(PairedTab {
+            tab,
+            connector: connector.id,
+            name: connector.name,
+            until,
+        }),
+    ))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/v1/connectors/{id}/tab",
+    summary = "Disconnect The Tab",
+    description = "Ends the pairing of the caller's tab with the connector: its event stream closes and the connector's UI tools refuse until a tab is connected again (T-5967).",
+    tag = "connectors",
+    params(("id" = String, Path, description = "The connector id")),
+    responses(
+        (status = 204, description = "No tab is paired any more"),
+        (status = 401, description = "Not signed in", body = ProblemDetails),
+        (status = 403, description = "A workload or an MCP client's token", body = ProblemDetails),
+        (status = 404, description = "No connector of the caller's with this id", body = ProblemDetails),
+    )
+)]
+pub async fn unpair_tab(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    let identity = &user.0.identity;
+    in_a_browser(&state, identity)?;
+    let connector = own(&state, identity, &id).await?;
+    if state.paired_tabs.unpair(&connector.id, &identity.subject) {
+        audit_tab(&state, identity, &connector.id, "tab/disconnect").await;
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/connectors/{id}/tab/{tab}/events",
+    summary = "The Paired Tab's Actions",
+    description = "Server-sent `action` events, one per UI action the connector sent: `frame` (`navigate` or `ui`), its checked `payload`, the `tool`, and `from` (connector name and MCP client). Only the paired tab of the session that paired it reads them; the stream ends when the pairing does (T-5967).",
+    tag = "connectors",
+    params(
+        ("id" = String, Path, description = "The connector id"),
+        ("tab" = String, Path, description = "The tab id `Connect This Tab` answered"),
+    ),
+    responses(
+        (status = 200, description = "The event stream", content_type = "text/event-stream"),
+        (status = 401, description = "Not signed in", body = ProblemDetails),
+        (status = 403, description = "A workload or an MCP client's token", body = ProblemDetails),
+        (status = 404, description = "No tab of this session is paired with the caller's connector", body = ProblemDetails),
+    )
+)]
+pub async fn tab_events(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((id, tab)): Path<(String, String)>,
+) -> Result<Response, ApiError> {
+    use axum::response::sse::{Event, KeepAlive, Sse};
+    use tokio_stream::StreamExt;
+
+    let session = &user.0;
+    in_a_browser(&state, &session.identity)?;
+    let connector = own(&state, &session.identity, &id).await?;
+    let now = crate::auth::session::now_unix();
+    let (receiver, until) = state
+        .paired_tabs
+        .listen(
+            &connector.id,
+            &tab,
+            &session.identity.subject,
+            session.issued_at,
+            now,
+        )
+        .ok_or_else(|| {
+            ApiError::NotFound(
+                "this tab is not connected to the connector; connect it again".into(),
+            )
+        })?;
+    let ends = tokio::time::Instant::now()
+        + std::time::Duration::from_secs(u64::try_from(until.saturating_sub(now)).unwrap_or(0));
+    // A tab that fell behind misses actions rather than the stream.
+    let actions = tokio_stream::wrappers::BroadcastStream::new(receiver).filter_map(|item| {
+        let action = item.ok()?;
+        Some(Ok::<_, std::convert::Infallible>(
+            Event::default()
+                .event("action")
+                .json_data(action.as_ref())
+                .unwrap_or_else(|_| Event::default().comment("unserializable")),
+        ))
+    });
+    // The stream ends with the session that paired the tab.
+    let stream = futures_util::StreamExt::take_until(actions, tokio::time::sleep_until(ends));
+    let mut response = Sse::new(stream)
+        .keep_alive(
+            KeepAlive::new()
+                .interval(std::time::Duration::from_secs(20))
+                .text("keep-alive"),
+        )
+        .into_response();
+    response.headers_mut().insert(
+        axum::http::header::HeaderName::from_static("x-accel-buffering"),
+        axum::http::HeaderValue::from_static("no"),
+    );
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("no-cache"),
+    );
+    Ok(response)
 }
 
 #[cfg(test)]
@@ -550,6 +749,127 @@ mod tests {
         Query(CreateParams {
             dry_run: run.map(str::to_owned),
         })
+    }
+
+    /// `who`'s browser session issued at `issued_at`, ending in an hour; `client` as a bearer
+    /// token's `azp`.
+    fn signed_in(who: &str, issued_at: i64, client: Option<&str>) -> CurrentUser {
+        let mut user = user(who);
+        user.0.issued_at = issued_at;
+        user.0.expires_at = crate::auth::session::now_unix() + 3600;
+        user.0.identity.client = client.map(str::to_owned);
+        user
+    }
+
+    #[tokio::test]
+    async fn only_the_owner_signed_in_in_the_tab_pairs_it_and_only_that_session_listens() {
+        let mirror = Arc::new(Mirror::new());
+        mirror.upsert(envelope(
+            "Role",
+            "reader",
+            ORG_NAMESPACE,
+            json!({ "rules": [{ "kinds": ["*"], "verbs": ["read"] }] }),
+        ));
+        mirror.upsert(envelope(
+            "RoleBinding",
+            "reader",
+            ORG_NAMESPACE,
+            json!({ "subjects": [{ "user": "ana" }, { "user": "bob" }], "role": "reader", "scope": { "project": "doprava" } }),
+        ));
+        let state = AppState::new(Config::for_tests(), None).with_mirror(mirror);
+        create_connector(user("ana"), State(state.clone()), dry(None), body("tab"))
+            .await
+            .expect("created");
+        let id = state
+            .connectors
+            .of_owner("f:1:ana", "")
+            .await
+            .expect("list")[0]
+            .id
+            .clone();
+        let pair = |who: CurrentUser| pair_tab(who, State(state.clone()), Path(id.clone()));
+
+        // Another person's connector answers as one that does not exist.
+        assert!(matches!(
+            pair(signed_in("bob", 5, None)).await,
+            Err(ApiError::NotFound(_))
+        ));
+        // The connector's own client (Claude Code's token) cannot pair a tab for itself.
+        assert!(matches!(
+            pair(signed_in("ana", 5, Some("mcp-local"))).await,
+            Err(ApiError::Denied(why)) if why.contains("signed in")
+        ));
+        let (status, Json(paired)) = pair(signed_in("ana", 5, None)).await.expect("paired");
+        assert_eq!(status, StatusCode::CREATED);
+        assert_eq!(
+            (paired.connector.as_str(), paired.name.as_str()),
+            (id.as_str(), "tab")
+        );
+
+        let listen = |who: CurrentUser, tab: &str| {
+            tab_events(
+                who,
+                State(state.clone()),
+                Path((id.clone(), tab.to_owned())),
+            )
+        };
+        // A later sign-in of the same person, another person, a guessed tab: no stream.
+        assert!(matches!(
+            listen(signed_in("ana", 6, None), &paired.tab).await,
+            Err(ApiError::NotFound(_))
+        ));
+        assert!(matches!(
+            listen(signed_in("bob", 5, None), &paired.tab).await,
+            Err(ApiError::NotFound(_))
+        ));
+        assert!(matches!(
+            listen(signed_in("ana", 5, None), &"0".repeat(32)).await,
+            Err(ApiError::NotFound(_))
+        ));
+        let stream = listen(signed_in("ana", 5, None), &paired.tab)
+            .await
+            .expect("the paired tab listens");
+        assert_eq!(stream.status(), StatusCode::OK);
+
+        // Disconnect ends it; a revoke ends a pairing made after.
+        let unpaired = unpair_tab(
+            signed_in("ana", 5, None),
+            State(state.clone()),
+            Path(id.clone()),
+        )
+        .await;
+        assert_eq!(unpaired.expect("disconnected"), StatusCode::NO_CONTENT);
+        assert!(matches!(
+            listen(signed_in("ana", 5, None), &paired.tab).await,
+            Err(ApiError::NotFound(_))
+        ));
+        let _again = pair(signed_in("ana", 5, None)).await.expect("paired again");
+        assert!(state
+            .paired_tabs
+            .is_paired(&id, "f:1:ana", crate::auth::session::now_unix()));
+        revoke_connector(user("ana"), State(state.clone()), Path(id.clone()))
+            .await
+            .expect("revoked");
+        assert!(!state
+            .paired_tabs
+            .is_paired(&id, "f:1:ana", crate::auth::session::now_unix()));
+        assert!(matches!(
+            pair(signed_in("ana", 5, None)).await,
+            Err(ApiError::Denied(why)) if why.contains("revoked")
+        ));
+        let audit: Vec<String> = state
+            .connectors
+            .calls(&id)
+            .await
+            .expect("audit")
+            .into_iter()
+            .map(|c| c.tool)
+            .collect();
+        assert!(
+            audit.contains(&"tab/connect".to_owned())
+                && audit.contains(&"tab/disconnect".to_owned()),
+            "{audit:?}"
+        );
     }
 
     #[tokio::test]

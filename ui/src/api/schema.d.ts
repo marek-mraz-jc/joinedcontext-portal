@@ -560,6 +560,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connectors/{id}/tab": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Connect This Tab
+         * @description Pairs the caller's open Portal tab with one of their live connectors: until the session ends or the person disconnects, the connector's MCP client may send this tab UI actions (navigate, open_form, highlight, show_diff, filter_table), which never save. A newer tab replaces the one paired before. The answer's `tab` addresses the tab's event stream for this session only (T-5967).
+         */
+        post: operations["pair_tab"];
+        /**
+         * Disconnect The Tab
+         * @description Ends the pairing of the caller's tab with the connector: its event stream closes and the connector's UI tools refuse until a tab is connected again (T-5967).
+         */
+        delete: operations["unpair_tab"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connectors/{id}/tab/{tab}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Paired Tab's Actions
+         * @description Server-sent `action` events, one per UI action the connector sent: `frame` (`navigate` or `ui`), its checked `payload`, the `tool`, and `from` (connector name and MCP client). Only the paired tab of the session that paired it reads them; the stream ends when the pairing does (T-5967).
+         */
+        get: operations["tab_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/endpoints": {
         parameters: {
             query?: never;
@@ -9373,6 +9417,18 @@ export interface components {
         PageContextRequest: {
             route: string;
         };
+        /** @description A Portal tab paired with a connector (T-5967). */
+        PairedTab: {
+            connector: string;
+            name: string;
+            /** @description The tab's id: the address of its event stream, valid only for this person's session. */
+            tab: string;
+            /**
+             * Format: date-time
+             * @description When the pairing ends with the session, unless the person disconnects before.
+             */
+            until: string;
+        };
         /** @enum {string} */
         Part: "freshness" | "completeness" | "validity" | "links";
         /** @description What the collector reads: how many records the Portal refused, and why the first one was. */
@@ -12686,6 +12742,156 @@ export interface operations {
                 };
             };
             /** @description No connector of the caller's with this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    pair_tab: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The connector id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paired */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairedTab"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A workload, an MCP client's token, or a connector that is not active */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No connector of the caller's with this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    unpair_tab: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The connector id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No tab is paired any more */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A workload or an MCP client's token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No connector of the caller's with this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    tab_events: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The connector id */
+                id: string;
+                /** @description The tab id `Connect This Tab` answered */
+                tab: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": unknown;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A workload or an MCP client's token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No tab of this session is paired with the caller's connector */
             404: {
                 headers: {
                     [name: string]: unknown;
