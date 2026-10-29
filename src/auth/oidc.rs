@@ -1314,6 +1314,59 @@ mod tests {
         server.verify().await;
     }
 
+    #[tokio::test]
+    async fn an_endpoint_exchange_asks_for_the_hub_and_one_endpoint_and_a_refusal_is_denied() {
+        let server = mock_realm().await;
+        Mock::given(wm_method("POST"))
+            .and(wm_path(format!("{REALM}/protocol/openid-connect/token")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "endpoint-token",
+                "token_type": "Bearer",
+                "expires_in": 300
+            })))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("POST"))
+            .and(wm_path(format!("{REALM}/protocol/openid-connect/token")))
+            .respond_with(
+                ResponseTemplate::new(400)
+                    .set_body_json(serde_json::json!({ "error": "invalid_token" })),
+            )
+            .mount(&server)
+            .await;
+        let client = OidcClient::discover(&config_for(&server), "https://portal.test/cb")
+            .await
+            .expect("discovery");
+
+        let token = client
+            .exchange_for_endpoint("person-token", "counters-abc")
+            .await
+            .expect("exchanged");
+        assert_eq!(token, "endpoint-token");
+        let forms = token_forms(&server).await;
+        let field = |key: &str| {
+            forms[0]
+                .iter()
+                .find(|(k, _)| k == key)
+                .map(|(_, v)| v.as_str())
+        };
+        assert_eq!(
+            field("grant_type"),
+            Some("urn:ietf:params:oauth:grant-type:token-exchange")
+        );
+        assert_eq!(field("subject_token"), Some("person-token"));
+        assert_eq!(field("audience"), Some(GATEWAY_HUB_AUDIENCE));
+        assert_eq!(field("scope"), Some("endpoint:counters-abc"));
+
+        // A disabled person or a revoked session: the realm refuses, the caller reads nothing.
+        let err = client
+            .exchange_for_endpoint("revoked-token", "counters-abc")
+            .await
+            .expect_err("refused");
+        assert!(matches!(err, ApiError::Denied(_)), "{err:?}");
+    }
+
     /// The fields of every request the realm's token endpoint received, in order.
     async fn token_forms(server: &MockServer) -> Vec<Vec<(String, String)>> {
         server

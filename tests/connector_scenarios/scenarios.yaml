@@ -312,9 +312,9 @@
   script:
     - proves: expect
       call: jc_change_plan
-      args: { changes: [{ op: create, kind: RoleBinding, name: jana-reads, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: RoleBinding, metadata: { name: jana-reads, namespace: '{project}' }, spec: { subjects: [{ user: jana@hel.fi }], role: scn-viewer, scope: { project: '{project}' } } } }] }
+      args: { changes: [{ op: create, kind: RoleBinding, name: jana-reads, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: RoleBinding, metadata: { name: jana-reads }, spec: { subjects: [{ user: 7c1e4b2a-9d3f-4a6e-8b5c-2f0a1d9e3b47 }], role: scn-viewer, scope: { project: '{project}' } } } }] }
       keep: planId
-      contains: ['"planId"', 'jana@hel.fi']
+      contains: ['"planId"', '7c1e4b2a-9d3f-4a6e-8b5c-2f0a1d9e3b47']
     - proves: expect
       call: jc_change_apply
       args: { planId: '{planId}' }
@@ -322,8 +322,14 @@
     - proves: deny
       as: steward
       call: jc_change_plan
-      args: { changes: [{ op: create, kind: RoleBinding, name: jana-admin, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: RoleBinding, metadata: { name: jana-admin, namespace: '{project}' }, spec: { subjects: [{ user: jana@hel.fi }], role: scn-project-admin, scope: { project: '{project}' } } } }] }
+      args: { changes: [{ op: create, kind: RoleBinding, name: jana-admin, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: RoleBinding, metadata: { name: jana-admin, namespace: org }, spec: { subjects: [{ user: 7c1e4b2a-9d3f-4a6e-8b5c-2f0a1d9e3b47 }], role: scn-project-admin, scope: { project: '{project}' } } } }] }
       refused: true
+      contains: ['PF-52']
+    - proves: deny
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: RoleBinding, name: jana-other, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: RoleBinding, metadata: { name: jana-other, namespace: org }, spec: { subjects: [{ user: 7c1e4b2a-9d3f-4a6e-8b5c-2f0a1d9e3b47 }], role: scn-viewer, scope: { project: t-scn-other } } } }] }
+      refused: true
+      contains: ['no role grants propose on RoleBinding']
 - id: S-28
   segment: access
   as: project-admin

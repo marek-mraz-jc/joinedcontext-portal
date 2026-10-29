@@ -1240,63 +1240,6 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
     );
 }
 
-/// T-5956, AG-149: an apply takes only its own plan, once, with the base it was planned on; and it
-/// opens a change request a person approves, never an approval.
-#[tokio::test]
-async fn an_apply_takes_only_its_own_unchanged_plan_and_never_approves() {
-    let harness = Harness::start(1).await;
-    let own = project_of(1);
-    let scenario = |script: Value| -> Scenario {
-        serde_json::from_value(json!({
-            "id": "S-00", "segment": "context", "as": "steward", "says": "selftest",
-            "expect": "selftest", "deny": "selftest", "script": script
-        }))
-        .expect("scenario")
-    };
-    let plan = json!({ "proves": "expect", "call": "jc_change_plan", "keep": "planId",
-        "args": { "changes": [{ "op": "patch", "kind": "ContextSpace", "name": "doprava",
-                                "patch": { "spec": { "isSandbox": false } } }] },
-        "contains": ["\"planId\"", "spec.isSandbox"] });
-    let apply = |extra: Value| {
-        let mut step = json!({ "proves": "deny", "call": "jc_change_apply",
-                               "args": { "planId": "{planId}" } });
-        for (k, v) in extra.as_object().expect("object") {
-            step[k] = v.clone();
-        }
-        step
-    };
-    // The base moved between plan and apply: 409, nothing opened.
-    let moved = json!([
-        plan,
-        { "proves": "deny", "touch": "ContextSpace/doprava" },
-        apply(json!({ "refused": true, "contains": ["\"status\":409", "ContextSpace doprava changed"] }))
-    ]);
-    assert_eq!(harness.run(&scenario(moved), &own).await, Ok(()));
-    // Planned by the steward, applied by another person: not there for them, and still there
-    // for the steward, who applies it once.
-    let other = json!([
-        plan,
-        apply(json!({ "as": "project-admin", "refused": true, "contains": ["is not there"] })),
-        apply(
-            json!({ "proves": "expect", "contains": ["changeRequests", "pulls/77"],
-                      "absent": ["\"merged\"", "\"phase\":\"approved\""] })
-        ),
-        apply(json!({ "refused": true, "contains": ["is not there"] }))
-    ]);
-    assert_eq!(harness.run(&scenario(other), &own).await, Ok(()));
-    // A plan for another project's object is refused before any check runs.
-    let elsewhere = json!([
-        { "proves": "expect", "call": "jc_change_plan", "project": "other", "refused": true,
-          "args": { "changes": [{ "op": "patch", "kind": "ContextSpace", "name": "doprava",
-                                  "patch": { "spec": { "isSandbox": false } } }] } },
-        { "proves": "deny", "call": "jc_change_plan", "refused": true,
-          "args": { "changes": [{ "op": "create", "kind": "ContextSpace", "name": "doprava",
-                                  "manifest": { "kind": "ContextSpace" } }] },
-          "contains": ["/changes/0/op"] }
-    ]);
-    assert_eq!(harness.run(&scenario(elsewhere), &own).await, Ok(()));
-}
-
 /// The "My connectors" tree lists only what the person reads, and create asks again per item
 /// (T-5951): a reader bound to one space sees that space's objects, and naming another space's
 /// Endpoint is refused with the field named, the same answer as an Endpoint that is not there.
@@ -1466,6 +1409,63 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
         .send("GET", "/api/v1/connectors/options", None, None)
         .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+/// T-5956, AG-149: an apply takes only its own plan, once, with the base it was planned on; and it
+/// opens a change request a person approves, never an approval.
+#[tokio::test]
+async fn an_apply_takes_only_its_own_unchanged_plan_and_never_approves() {
+    let harness = Harness::start(1).await;
+    let own = project_of(1);
+    let scenario = |script: Value| -> Scenario {
+        serde_json::from_value(json!({
+            "id": "S-00", "segment": "context", "as": "steward", "says": "selftest",
+            "expect": "selftest", "deny": "selftest", "script": script
+        }))
+        .expect("scenario")
+    };
+    let plan = json!({ "proves": "expect", "call": "jc_change_plan", "keep": "planId",
+        "args": { "changes": [{ "op": "patch", "kind": "ContextSpace", "name": "doprava",
+                                "patch": { "spec": { "isSandbox": false } } }] },
+        "contains": ["\"planId\"", "spec.isSandbox"] });
+    let apply = |extra: Value| {
+        let mut step = json!({ "proves": "deny", "call": "jc_change_apply",
+                               "args": { "planId": "{planId}" } });
+        for (k, v) in extra.as_object().expect("object") {
+            step[k] = v.clone();
+        }
+        step
+    };
+    // The base moved between plan and apply: 409, nothing opened.
+    let moved = json!([
+        plan,
+        { "proves": "deny", "touch": "ContextSpace/doprava" },
+        apply(json!({ "refused": true, "contains": ["\"status\":409", "ContextSpace doprava changed"] }))
+    ]);
+    assert_eq!(harness.run(&scenario(moved), &own).await, Ok(()));
+    // Planned by the steward, applied by another person: not there for them, and still there
+    // for the steward, who applies it once.
+    let other = json!([
+        plan,
+        apply(json!({ "as": "project-admin", "refused": true, "contains": ["is not there"] })),
+        apply(
+            json!({ "proves": "expect", "contains": ["changeRequests", "pulls/77"],
+                      "absent": ["\"merged\"", "\"phase\":\"approved\""] })
+        ),
+        apply(json!({ "refused": true, "contains": ["is not there"] }))
+    ]);
+    assert_eq!(harness.run(&scenario(other), &own).await, Ok(()));
+    // A plan for another project's object is refused before any check runs.
+    let elsewhere = json!([
+        { "proves": "expect", "call": "jc_change_plan", "project": "other", "refused": true,
+          "args": { "changes": [{ "op": "patch", "kind": "ContextSpace", "name": "doprava",
+                                  "patch": { "spec": { "isSandbox": false } } }] } },
+        { "proves": "deny", "call": "jc_change_plan", "refused": true,
+          "args": { "changes": [{ "op": "create", "kind": "ContextSpace", "name": "doprava",
+                                  "manifest": { "kind": "ContextSpace" } }] },
+          "contains": ["/changes/0/op"] }
+    ]);
+    assert_eq!(harness.run(&scenario(elsewhere), &own).await, Ok(()));
 }
 
 /// Seconds of CPU this process has used, user and system (`/proc/self/stat`, 100 ticks a second).

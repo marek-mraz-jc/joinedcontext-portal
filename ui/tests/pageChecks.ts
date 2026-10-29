@@ -204,6 +204,14 @@ export function blankDocument(): boolean {
 }
 
 /**
+ * Pages of the person's own things, outside any project, where a viewer writes: the connectors
+ * they added (UI-98) and their AI connectors (AG-142, T-5951). The server keeps each one inside
+ * the person's own rights: a connector reaches only a project the person reads, and its calls
+ * read those rights again (connectors.rs `reachable`). The walker skips `viewerWriteFindings` there.
+ */
+export const OWN_ROUTES: ReadonlySet<string> = new Set(["/connectors", "/ai-connectors"]);
+
+/**
  * A write control the viewer can press, or one refused without a reason (UI-44). A tab is a place
  * to go, and a control that only edits the draft in hand writes nothing: a term added to the filter
  * being tried, a condition of the grid's filter panel (FilterPanel, T-5005), a colour rule of one's

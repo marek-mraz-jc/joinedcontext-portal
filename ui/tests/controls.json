@@ -1485,23 +1485,6 @@
         "ai_connectors.test.tsx"
       ]
     },
-    "src/pages/mcp/ConnectorStar.tsx": {
-      "controls": {
-        "Button": 1
-      },
-      "tests": [
-        "connectors.test.tsx"
-      ]
-    },
-    "src/pages/mcp/ConnectorsPage.tsx": {
-      "controls": {
-        "Button": 5,
-        "Checkbox": 2
-      },
-      "tests": [
-        "connectors.test.tsx"
-      ]
-    },
     "src/pages/mcp/McpServerDialog.tsx": {
       "controls": {
         "Button": 3,
