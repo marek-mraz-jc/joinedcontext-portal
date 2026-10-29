@@ -307,6 +307,16 @@ async fn checked(
             }
         },
     };
+    let mut answer = answer;
+    if let (Some(m), "Pipeline") = (&manifest, info.kind) {
+        let warnings = super::replace_check::warnings(state, project, &home, m).await;
+        if let Some(findings) = answer
+            .pointer_mut("/verdict/findings")
+            .and_then(Value::as_array_mut)
+        {
+            findings.extend(warnings);
+        }
+    }
     let diff = json!({
         "op": change.op_word(),
         "kind": info.kind,

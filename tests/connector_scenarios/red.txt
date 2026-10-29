@@ -13,7 +13,6 @@ S-17 T-5996 jc_change_plan exists; no DataSource plan script with the source pro
 S-18 T-5948 no generic sample_source tool on the connector door
 S-19 T-5948 no generic try_mapping tool on the connector door
 S-21 T-5948 no pipeline run state and logs tool on the connector door
-S-23 T-6001 the plan cannot name stored attributes: Antares answers the Portal admin token only on /q and has no route listing a type's held attribute names
 S-24 T-5948 no pipeline run tool on the connector door
 S-25 T-5948 jc_syncsource_pause needs a running sync source the scripted lane does not have
 S-26 T-5948 the end-to-end integration needs sample_source, try_mapping and plan_change
