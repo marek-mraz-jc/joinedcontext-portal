@@ -4685,7 +4685,7 @@ export interface paths {
         put?: never;
         /**
          * Get Kind Schema
-         * @description One kind's required fields, field lines and minimal manifest; path: a field's JSON Schema
+         * @description A kind's fields and minimal manifest; path: one field's JSON Schema
          */
         post: operations["jc_schema_get"];
         delete?: never;
@@ -28801,13 +28801,16 @@ export interface operations {
             content: {
                 /**
                  * @example {
-                 *       "kind": "Pipeline"
+                 *       "kind": "Organization"
                  *     }
                  */
                 "application/json": {
-                    /** @enum {string} */
+                    /**
+                     * @description e.g. Pipeline
+                     * @enum {string}
+                     */
                     kind: "Organization" | "Project" | "ContextSpace" | "DataModel" | "Mapping" | "Policy" | "ScopeDefinition" | "Endpoint" | "ModelProjection" | "SharedSpaceReference" | "ContextSourceRegistration" | "Subscription" | "ServiceAccount" | "Pipeline" | "DataSource" | "App" | "CkanInstance" | "KnowledgeSource" | "AssistantDeployment" | "McpServer" | "MqttBroker" | "Blueprint" | "AgentProfile" | "DataSpaceParticipant" | "DataOffer" | "DataAgreement" | "SyncSource" | "Bundle" | "UiSchema" | "Role" | "RoleBinding" | "Group" | "DelegationPolicy" | "ContextBroker" | "Environment" | "Dashboard" | "Layer";
-                    /** @description e.g. /spec/sources/0 */
+                    /** @description JSON pointer */
                     path?: string;
                 };
             };

@@ -40,16 +40,11 @@ fn input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "kind": { "type": "string", "enum": kinds() },
-            "path": {
-                "type": "string",
-                "description": "e.g. /spec/sources/0",
-                "maxLength": MAX_PATH
-            }
+            "kind": { "type": "string", "description": "e.g. Pipeline", "enum": kinds() },
+            "path": { "type": "string", "description": "JSON pointer", "maxLength": MAX_PATH }
         },
         "required": ["kind"],
-        "additionalProperties": false,
-        "examples": [{ "kind": "Pipeline" }]
+        "additionalProperties": false
     })
 }
 
@@ -756,7 +751,7 @@ pub fn operations() -> Vec<Operation> {
     vec![Operation {
         name: GET,
         title: "Get Kind Schema",
-        description: "One kind's required fields, field lines and minimal manifest; path: a field's JSON Schema",
+        description: "A kind's fields and minimal manifest; path: one field's JSON Schema",
         input: input_schema,
         output: output_schema,
         annotations: annotations(true, false, true),

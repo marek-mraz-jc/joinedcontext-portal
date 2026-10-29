@@ -25392,7 +25392,7 @@
     },
     "/api/v1/projects/{project}/ops/jc_schema_get": {
       "post": {
-        "description": "One kind's required fields, field lines and minimal manifest; path: a field's JSON Schema",
+        "description": "A kind's fields and minimal manifest; path: one field's JSON Schema",
         "operationId": "jc_schema_get",
         "parameters": [
           {
@@ -25409,17 +25409,13 @@
           "content": {
             "application/json": {
               "example": {
-                "kind": "Pipeline"
+                "kind": "Organization"
               },
               "schema": {
                 "additionalProperties": false,
-                "examples": [
-                  {
-                    "kind": "Pipeline"
-                  }
-                ],
                 "properties": {
                   "kind": {
+                    "description": "e.g. Pipeline",
                     "enum": [
                       "Organization",
                       "Project",
@@ -25462,7 +25458,7 @@
                     "type": "string"
                   },
                   "path": {
-                    "description": "e.g. /spec/sources/0",
+                    "description": "JSON pointer",
                     "maxLength": 256,
                     "type": "string"
                   }
