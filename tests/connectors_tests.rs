@@ -288,17 +288,17 @@ async fn only_live_data_reading_connectors_reach_the_gateway() {
     let base = "https://portal.test";
     state
         .connectors
-        .create(&sub, new("reads", "data-read"), base)
+        .create(&sub, new("reads", "data-read"), Vec::new(), base)
         .await
         .expect("created");
     state
         .connectors
-        .create(&sub, new("models", "context"), base)
+        .create(&sub, new("models", "context"), Vec::new(), base)
         .await
         .expect("created");
     let gone = state
         .connectors
-        .create(&sub, new("gone", "data-read"), base)
+        .create(&sub, new("gone", "data-read"), Vec::new(), base)
         .await
         .expect("created");
     assert!(state
