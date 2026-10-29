@@ -22,7 +22,6 @@ S-30 T-5948 no tool answers who may write to an Endpoint
 S-31 T-5953 no DelegationPolicy ceiling or approval queue
 S-39 T-5958 an App run needs the assistant's builder behind the connector tools
 S-40 T-5948 no tool returns a widget embed snippet
-S-41 T-5959 no browser UI action tools (navigate, open_form)
 S-43 T-5997 jc_change_plan takes a workspace, but the scripted lane has no workspace open and no preview runner
 S-44 T-5960 approve is refused, but the answer carries no link to the change's Portal approval page
 S-45 T-5997 jc_project_export is org-admin only (UI-87); the import as one change request is not a plan yet

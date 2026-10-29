@@ -129,6 +129,42 @@ impl PlanStore {
         });
         mine.then(|| plans.remove(id)).flatten()
     }
+
+    /// What a kept plan changes, read without taking it, for its own person in its own project
+    /// (T-5959): the Portal assistant opens the editor on it. A plan made through any of the
+    /// person's connectors is theirs to look at; only its apply stays bound to that connector.
+    pub fn peek(
+        &self,
+        id: &str,
+        owner: &str,
+        project: &str,
+        now: DateTime<Utc>,
+    ) -> Option<Vec<PlanItem>> {
+        let plans = self.plans.lock().unwrap_or_else(|p| p.into_inner());
+        let plan = plans
+            .get(id)
+            .filter(|p| p.owner == owner && p.project == project && p.expires_at > now)?;
+        Some(
+            plan.items
+                .iter()
+                .map(|item| PlanItem {
+                    kind: item.kind.clone(),
+                    home: item.home.clone(),
+                    name: item.name.clone(),
+                    manifest: item.manifest.clone(),
+                })
+                .collect(),
+        )
+    }
+}
+
+/// One change of a kept plan as [`PlanStore::peek`] shows it: `manifest` is `None` for a delete.
+#[derive(Debug, Clone)]
+pub struct PlanItem {
+    pub kind: String,
+    pub home: String,
+    pub name: String,
+    pub manifest: Option<Value>,
 }
 
 /// What an object is now, as a plan compares it: its metadata and spec (a status the reconciler
@@ -323,8 +359,21 @@ async fn checked(
             }
         },
     };
+    // Where a person opens this change in the Portal (S-41): the kind's editor on the object, or
+    // its create form; the change itself is applied with the plan, never by following the link.
+    let portal = match change.op {
+        Op::Create => crate::agents::change::create_route(project, info.kind, info.plural),
+        op => crate::agents::change::route(
+            project,
+            info.kind,
+            info.plural,
+            &change.name,
+            op == Op::Delete,
+        ),
+    };
     let diff = json!({
         "op": change.op_word(),
+        "portal": portal,
         "kind": info.kind,
         "name": change.name,
         "lane": answer.get("lane"),

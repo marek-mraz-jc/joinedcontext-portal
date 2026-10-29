@@ -15,7 +15,7 @@ import { ChangeNotice } from "../components/ChangeNotice";
 import { TypeLink } from "../pages/models/ModelLinks";
 import { ResourceList } from "../components/ResourceList";
 import { ResourceRowActions } from "../components/ResourceRowActions";
-import { PipelineEditorDialog, expiryWindow } from "../pages/pipelines/PipelineEditor";
+import { PipelineEditorDialog, expiryWindow, fromManifest } from "../pages/pipelines/PipelineEditor";
 import { KpiEditorDialog } from "../pages/pipelines/KpiEditor";
 import { PipelineRejectedDialog } from "../pages/pipelines/PipelineRejected";
 import { PipelineRunsDialog } from "../pages/pipelines/PipelineRuns";
@@ -127,6 +127,24 @@ const COLUMNS = 5;
 /** Ingestion pipelines of one project: what runs where, how it is doing, and its credentials. */
 type PipelineView = "list" | "map" | "health";
 
+/**
+ * The create form's values a hand-off carries: the form itself, or a Pipeline manifest the
+ * assistant's open_form built (T-5959), read back into the form.
+ */
+export function prefilledForm(taken: Record<string, unknown> | null): PipelineForm | undefined {
+  if (!taken) {
+    return undefined;
+  }
+  if (taken.kind === "Pipeline" && typeof taken.metadata === "object" && taken.metadata !== null) {
+    try {
+      return fromManifest(taken);
+    } catch {
+      return undefined;
+    }
+  }
+  return taken as PipelineForm;
+}
+
 function viewFromAddress(): PipelineView {
   const view = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("view");
   return view === "map" || view === "health" ? view : "list";
@@ -161,9 +179,7 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
       : (new URLSearchParams(window.location.search).get("draft") ?? undefined),
   );
   const [editing, setEditing] = useState<Manifest | null>(() => (request?.manifest as Manifest | null) ?? null);
-  const [initial, setInitial] = useState(() =>
-    request ? undefined : ((takePrefill(window.location.pathname) as PipelineForm | null) ?? undefined),
-  );
+  const [initial, setInitial] = useState(() => (request ? undefined : prefilledForm(takePrefill(window.location.pathname))));
   // The list or the data flow map (T-4862), kept in the address so a link opens the map.
   const [view, setView] = useState<PipelineView>(viewFromAddress);
   const [dialogOpen, setDialogOpen] = useState(
