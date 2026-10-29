@@ -69,4 +69,40 @@ describe("walker Tab", () => {
     ).rejects.toThrow("Timeout");
     expect(pages).toHaveLength(1);
   });
+
+  // T-6009: the host's OOM killer took a renderer on /endpoints and the walker filed the page.
+  it("runs the work again on a fresh tab after one crash", async () => {
+    const { tab, pages } = tabOver();
+    const seen: boolean[] = [];
+    const outcome = await tab.twice(async (page, again) => {
+      seen.push(again);
+      if (!again) {
+        pages[0].crash();
+        throw new Error("page.goto: Page crashed");
+      }
+      return page;
+    });
+    expect(outcome).toEqual({ crashed: false, value: pages[1] });
+    expect(seen).toEqual([false, true]);
+  });
+
+  it("reports a crash only when the fresh tab crashes too", async () => {
+    const { tab, pages } = tabOver();
+    const outcome = await tab.twice(async () => {
+      pages[pages.length - 1].crash();
+      throw new Error("page.goto: Target crashed");
+    });
+    expect(outcome).toEqual({ crashed: true });
+    expect(pages).toHaveLength(3);
+  });
+
+  it("runs the work once on a live tab", async () => {
+    const { tab } = tabOver();
+    let runs = 0;
+    expect(await tab.twice(async () => ++runs)).toEqual({
+      crashed: false,
+      value: 1,
+    });
+    expect(runs).toBe(1);
+  });
 });
