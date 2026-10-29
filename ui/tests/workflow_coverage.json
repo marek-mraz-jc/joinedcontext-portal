@@ -357,7 +357,7 @@
           "spec": "assistant-creates.spec.ts",
           "test": "the assistant opens the form for a context space, filled from one sentence"
         },
-        "assistant": "jc_space_propose",
+        "assistant": "jc_resource_propose",
         "routes": [
           "POST /api/v1/projects/{project}/{plural}"
         ]
@@ -437,14 +437,14 @@
           "spec": "viewer-refused.spec.ts",
           "test": "a viewer is refused with a reason on every page, and at the door"
         },
-        "assistant": "jc_space_propose"
+        "assistant": "jc_resource_propose"
       },
       "refused-red-verdict": {
         "live": {
           "spec": "verdict-gate.spec.ts",
           "test": "the verdict gate: unchecked refuses, a check opens it, an edit closes it again"
         },
-        "assistant": "jc_space_propose"
+        "assistant": "jc_resource_propose"
       },
       "comments": {
         "live": {
@@ -465,7 +465,7 @@
           "spec": "parity.spec.ts",
           "test": "DataModel helsinki: the form, the REST route, the registry and the assistant plan the same change"
         },
-        "assistant": "jc_model_propose"
+        "assistant": "jc_resource_propose"
       },
       "infer-from-sample": {
         "live": {
@@ -546,14 +546,14 @@
           "spec": "viewer-refused.spec.ts",
           "test": "a viewer is refused with a reason on every page, and at the door"
         },
-        "assistant": "jc_model_propose"
+        "assistant": "jc_resource_propose"
       },
       "refused-red-verdict": {
         "live": {
           "spec": "verdict-gate.spec.ts",
           "test": "a check refuses a model that does not exist, names the field, and a fix clears it"
         },
-        "assistant": "jc_model_propose"
+        "assistant": "jc_resource_propose"
       }
     },
     "datasource": {
@@ -562,7 +562,7 @@
           "spec": "load.spec.ts",
           "test": "a data source and a pipeline, checked, tested, proposed and approved through the UI; entities in Explore"
         },
-        "assistant": "jc_datasource_propose",
+        "assistant": "jc_resource_propose",
         "routes": [
           "POST /api/v1/projects/{project}/{plural}"
         ]
@@ -589,7 +589,7 @@
           "spec": "form-pages.spec.ts",
           "test": "an edit form opened from its address survives a reload, and saving lands on the list"
         },
-        "assistant": "jc_datasource_propose",
+        "assistant": "jc_resource_propose",
         "routes": [
           "PUT /api/v1/projects/{project}/{plural}/{name}"
         ]
@@ -609,7 +609,7 @@
           "spec": "viewer-refused.spec.ts",
           "test": "a viewer is refused with a reason on every page, and at the door"
         },
-        "assistant": "jc_datasource_propose"
+        "assistant": "jc_resource_propose"
       },
       "refused-red-verdict": {
         "live": {
@@ -623,7 +623,7 @@
           "spec": "secrets.spec.ts",
           "test": "a secret written into the YAML view is refused by its field, and the value is never echoed"
         },
-        "assistant": "jc_datasource_propose"
+        "assistant": "jc_resource_propose"
       }
     },
     "pipeline": {
@@ -632,7 +632,7 @@
           "spec": "load.spec.ts",
           "test": "a data source and a pipeline, checked, tested, proposed and approved through the UI; entities in Explore"
         },
-        "assistant": "jc_pipeline_propose",
+        "assistant": "jc_resource_propose",
         "routes": [
           "POST /api/v1/projects/{project}/{plural}"
         ]
@@ -681,7 +681,7 @@
           "spec": "pipeline-templates.spec.ts",
           "test": "a pipeline saved as a template starts the next one and keeps no credential"
         },
-        "personOnly": "a person keeps a pipeline's shape in the project's gallery to start the next one from; an agent writes each pipeline with `jc_pipeline_propose` and keeps no gallery (T-3976)",
+        "personOnly": "a person keeps a pipeline's shape in the project's gallery to start the next one from; an agent writes each pipeline with `jc_resource_propose` and keeps no gallery (T-3976)",
         "routes": [
           "POST /api/v1/projects/{project}/pipelinetemplates",
           "DELETE /api/v1/projects/{project}/pipelinetemplates/{id}"
@@ -692,7 +692,7 @@
           "spec": "pipeline-workbench.spec.ts",
           "test": "a pipeline built in the workbench writes only what the model takes"
         },
-        "personOnly": "a person replays the records they picked on the pipeline page once the fix merged; the assistant changes the mapping with `jc_pipeline_propose` (PL-61)",
+        "personOnly": "a person replays the records they picked on the pipeline page once the fix merged; the assistant changes the mapping with `jc_resource_propose` (PL-61)",
         "routes": [
           "POST /api/v1/projects/{project}/pipelines/{name}/rejected/retry"
         ]
@@ -712,7 +712,7 @@
           "spec": "pipeline-source-deletes.spec.ts",
           "test": "an approver reads a snapshot pipeline's source deletes and keeps the entities"
         },
-        "personOnly": "an approver decides whether entities a source stopped listing are deleted; the agent proposes the pipeline's sourceDeletes rule with `jc_pipeline_propose` and never releases a held delete (PL-97)",
+        "personOnly": "an approver decides whether entities a source stopped listing are deleted; the agent proposes the pipeline's sourceDeletes rule with `jc_resource_propose` and never releases a held delete (PL-97)",
         "routes": [
           "POST /api/v1/projects/{project}/pipelines/{name}/source-deletes"
         ]
@@ -735,7 +735,7 @@
           "spec": "parity.spec.ts",
           "test": "Pipeline hel-news: the form, the REST route, the registry and the assistant plan the same change"
         },
-        "assistant": "jc_pipeline_propose",
+        "assistant": "jc_resource_propose",
         "routes": [
           "PUT /api/v1/projects/{project}/{plural}/{name}"
         ]
@@ -755,7 +755,7 @@
           "spec": "viewer-refused.spec.ts",
           "test": "a viewer is refused with a reason on every page, and at the door"
         },
-        "assistant": "jc_pipeline_propose"
+        "assistant": "jc_resource_propose"
       },
       "refused-red-verdict": {
         "live": {
@@ -769,7 +769,7 @@
           "spec": "secrets.spec.ts",
           "test": "no form offers a field for a secret's value, on any data source type"
         },
-        "assistant": "jc_pipeline_propose"
+        "assistant": "jc_resource_propose"
       }
     },
     "endpoint": {

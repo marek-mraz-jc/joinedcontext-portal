@@ -42,8 +42,8 @@ pub use drafts::*;
 pub(crate) use proposals::datasource_verdict;
 pub(crate) use proposals::dry_run_output_schema;
 pub(crate) use proposals::manifest_input_schema;
-pub(crate) use proposals::propose_with_optional_draft;
 pub(crate) use proposals::ManifestInput;
+pub(crate) use proposals::{check_for_kind, propose_with_optional_draft};
 pub use proposals::{
     forget_check, forget_import_check, record_check, record_import_check, record_refused_check,
     verdict_for_import, verdict_for_manifest, verdict_refusal,
@@ -854,10 +854,10 @@ mod tests {
     fn each_operation_publishes_the_rule_its_gate_applies() {
         let rule = |name: &str| requires(find(name).expect(name));
         assert_eq!(
-            rule("jc_pipeline_propose"),
+            rule("jc_endpoint_propose"),
             Requires {
                 verb: "propose".into(),
-                kind: "Pipeline".into(),
+                kind: "Endpoint".into(),
                 checked_by: "registry".into()
             }
         );
@@ -983,10 +983,6 @@ mod tests {
             "jc_change_list",
             "jc_change_approve",
             "jc_datasource_check",
-            "jc_datasource_propose",
-            "jc_pipeline_propose",
-            "jc_space_propose",
-            "jc_model_propose",
             "jc_model_infer",
             "jc_space_complete",
             "jc_draft_put",
@@ -1172,12 +1168,11 @@ mod tests {
         let dev_list = listing(&dev_caller, &state, "ovzdusie");
         let names: Vec<_> = dev_list.iter().map(|o| o.name.as_str()).collect();
 
-        // Should include read-only ops and propose ops for Pipeline/DataSource
+        // Should include read-only ops and the one propose, which names Pipeline or DataSource
         assert!(names.contains(&"jc_catalog_search"));
-        assert!(names.contains(&"jc_datasource_propose"));
-        assert!(names.contains(&"jc_pipeline_propose"));
+        assert!(names.contains(&"jc_resource_propose"));
         // Should NOT include propose ops for kinds not granted
-        assert!(!names.contains(&"jc_space_propose"));
+        assert!(!names.contains(&"jc_endpoint_propose"));
         assert!(!names.contains(&"jc_change_approve"));
     }
 

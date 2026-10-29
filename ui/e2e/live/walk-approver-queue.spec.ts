@@ -211,7 +211,7 @@ test("a department head decides a queue of ten changes from colleagues and an MC
   const group = queue.at(-1);
   if (group) group.what = `org:${group.what}`;
   groupChange = group?.id ?? "";
-  const viaMcp = await mcp("jc_datasource_propose", { manifest: source(name("mcp")) });
+  const viaMcp = await mcp("jc_resource_propose", { manifest: source(name("mcp")) });
   expect(viaMcp.isError, `MCP proposal refused: ${said(viaMcp)}`).not.toBe(true);
   queue.push({ id: String(viaMcp.structuredContent?.changeId ?? ""), source: "mcp:pipeline-proposer", what: `create ${name("mcp")}` });
   const mcpDelete = await mcp("jc_resource_delete", { kind: "DataSource", name: BASE_GONE_MCP, confirm: BASE_GONE_MCP });
@@ -224,7 +224,7 @@ test("a department head decides a queue of ten changes from colleagues and an MC
     await propose("demo.janitor", `delete ${BASE_GONE_MCP}`, send(janitor, "delete", `${PROJECT}/datasources/${BASE_GONE_MCP}`));
   }
   // (6) The colliding proposal: the MCP account changes the source the editor's open Change holds.
-  const clash = await mcp("jc_datasource_propose", { manifest: source(BASE_CLASH, "30s") });
+  const clash = await mcp("jc_resource_propose", { manifest: source(BASE_CLASH, "30s") });
   const clashChange = queue.find((one) => one.what === `update ${BASE_CLASH}`)?.id ?? "";
   expect(clash.isError, "a second proposal on a resource with an open Change is refused (CC-34)").toBe(true);
   expect(said(clash), "the refusal names the Change to decide first").toContain(clashChange);
@@ -323,7 +323,7 @@ test("a department head decides a queue of ten changes from colleagues and an MC
   lap("5. reject with a reason", "the author reads it on the change page and in the API");
 
   // 6. After the editor's Change merged, the MCP account may propose on the same source again.
-  const afterClash = await mcp("jc_datasource_propose", { manifest: source(BASE_CLASH, "30s") });
+  const afterClash = await mcp("jc_resource_propose", { manifest: source(BASE_CLASH, "30s") });
   expect(afterClash.isError, `the second author retries after the merge: ${said(afterClash)}`).not.toBe(true);
   const retry = String(afterClash.structuredContent?.changeId ?? "");
   queue.push({ id: retry, source: "mcp:pipeline-proposer", what: `update ${BASE_CLASH} (retry)` });

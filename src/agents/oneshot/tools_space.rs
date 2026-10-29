@@ -319,7 +319,7 @@ impl Driver {
             }
         };
         let input = serde_json::to_value(&params).unwrap_or(Value::Null);
-        if let Err(reason) = self.granted("jc_pipeline_propose") {
+        if let Err(reason) = self.may_change("Pipeline", Verb::Propose) {
             return self
                 .refused(TOOL, started, input, reason)
                 .await

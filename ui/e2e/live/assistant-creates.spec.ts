@@ -18,7 +18,7 @@
  * person is supposed to decide (PF-58).
  *
  * What the first run measured on dev (2026-09-19, portal 4f03b8c): only the dashboard case was
- * green. The other three had no create path in the dock at all — it reached for `jc_space_propose`
+ * green. The other three had no create path in the dock at all — it reached for a space propose tool
  * and filed a Change nobody had read, against AG-77 — which is T-2246; with that fix on dev
  * (portal c602705) all four are played here with nothing softened.
  */

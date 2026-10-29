@@ -496,7 +496,7 @@ async fn mcp_tools_list_filtered_by_caller() {
     let names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
 
     assert!(names.contains(&"jc_catalog_search"));
-    assert!(names.contains(&"jc_datasource_propose"));
+    assert!(names.contains(&"jc_resource_propose"));
     // AG-11 and T-1005: deciding a change is a person's, in the Portal or over REST, so an MCP
     // caller is never offered the tool it would always be refused.
     assert!(
@@ -561,7 +561,7 @@ async fn mcp_tools_list_filtered_by_caller() {
 
     assert!(v_names.contains(&"jc_catalog_search"));
     assert!(
-        !v_names.contains(&"jc_datasource_propose"),
+        !v_names.contains(&"jc_resource_propose"),
         "viewer must not see propose tools"
     );
     assert!(
@@ -1709,7 +1709,7 @@ async fn a_proposal_without_a_verdict_names_verdict_required_on_the_mcp_door() {
         &token,
         json!({
             "jsonrpc": "2.0", "id": 2, "method": "tools/call",
-            "params": { "name": "jc_datasource_propose", "arguments": {
+            "params": { "name": "jc_resource_propose", "arguments": {
                 "project": "ovzdusie", "draft": { "kind": "DataSource", "name": "unchecked" }
             } }
         }),
@@ -2345,10 +2345,10 @@ async fn a_service_account_token_audienced_to_the_portal_reaches_the_mcp_door_an
         .filter_map(|tool| tool["name"].as_str())
         .collect();
     assert!(
-        names.contains(&"jc_pipeline_propose"),
+        names.contains(&"jc_resource_propose"),
         "the account's declared role is in force: {names:?}"
     );
-    assert!(!names.contains(&"jc_datasource_propose"), "{names:?}");
+    assert!(!names.contains(&"jc_endpoint_propose"), "{names:?}");
     assert!(!names.contains(&"jc_change_approve"), "{names:?}");
 
     // The same account's token for an endpoint of the gateway is not a Portal token.
