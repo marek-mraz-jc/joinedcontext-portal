@@ -57,7 +57,8 @@ const CONNECTOR_TASKS: &[&str] = &[
     "T-5956", "T-5957", "T-5958", "T-5959", "T-5960", "T-5961", "T-5962", "T-5964", "T-5965",
     "T-5966", "T-5967", "T-5968", "T-5969", "T-5970", "T-5971", "T-5972", "T-5973", "T-5974",
     "T-5975", "T-5976", "T-5977", "T-5978", "T-5979", "T-5980", "T-5986", "T-5994", "T-5995",
-    "T-5996", "T-5997", "T-5998", "T-6001",
+    "T-5996", "T-5997", "T-5998", "T-6001", "T-6024", "T-6025", "T-6026", "T-6027", "T-6028",
+    "T-6029", "T-6030",
 ];
 /// The kinds a persona's role names; `kinds: ["*"]` would match only the `*` kind.
 const KINDS: &[&str] = &[
@@ -273,7 +274,42 @@ fn slug_named(project: &str, what: &str) -> String {
 }
 
 /// One project's fixture: a space, a model, a public Endpoint, a CSV DataSource, a CKAN instance.
+/// A sync origin the lane never reaches: pausing a source does not fetch it (S-25).
+struct Unreached;
+
+impl jcctl::sync::SyncRemote for Unreached {
+    fn revision(&self, _: &jc_core::kinds::SyncOrigin) -> Result<String, jcctl::sync::RemoteError> {
+        Err(jcctl::sync::RemoteError::Unavailable(
+            "the scripted lane has no origin".into(),
+        ))
+    }
+
+    fn checkout(
+        &self,
+        _: &jc_core::kinds::SyncOrigin,
+        _: &str,
+        _: &std::path::Path,
+    ) -> Result<(), jcctl::sync::RemoteError> {
+        Err(jcctl::sync::RemoteError::Unavailable(
+            "the scripted lane has no origin".into(),
+        ))
+    }
+}
+
 fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
+    // A region's model repository the project follows (S-25); pausing and resuming it never
+    // reaches the origin.
+    mirror.upsert(envelope(
+        "SyncSource",
+        "regional",
+        project,
+        json!({
+            "source": { "git": { "url": "https://git.region.sk/udp/models.git", "ref": "main" } },
+            "schedule": { "interval": "1h" },
+            "mode": "mirror",
+            "conflictPolicy": "replace"
+        }),
+    ));
     mirror.upsert(envelope(
         "ContextSpace",
         "doprava",
@@ -540,6 +576,22 @@ async fn forge(server: &MockServer) {
 /// Model Tools compiles every source it is handed, and the broker counts each scenario space:
 /// 12 BikeCounter entities and 3 Station entities.
 async fn model_tools_and_broker(server: &MockServer) {
+    use base64::Engine;
+    // What Model Tools inferred from COUNTERS_CSV (tools/model-tools `infer_schema`, recorded at
+    // platform 6d4572f5), answered only for those exact bytes: a sample the door dropped or
+    // changed on its way gets no answer (S-11).
+    Mock::given(method("POST"))
+        .and(path("/infer-schema"))
+        .and(wiremock::matchers::body_json(json!({
+            "name": "counters.csv",
+            "content": base64::engine::general_purpose::STANDARD.encode(COUNTERS_CSV),
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_raw(
+            include_str!("connector_scenarios/inferred-counters.json"),
+            "application/json",
+        ))
+        .mount(server)
+        .await;
     Mock::given(method("POST"))
         .and(path("/generate"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
@@ -938,6 +990,15 @@ impl Harness {
                 )
                 .expect("gitea client"),
             ));
+        // The sync loop's memory, in memory: S-25 pauses and resumes a source, and nothing
+        // here runs the loop, so its origin is never fetched.
+        state.sync = Some(std::sync::Arc::new(
+            joinedcontext_portal::sync::driver::Driver::new(
+                state.gitea.clone().expect("gitea client"),
+                std::sync::Arc::new(joinedcontext_portal::sync::state::States::new(None)),
+                std::sync::Arc::new(Unreached),
+            ),
+        ));
         // The realm's admin API on the same server, so an administrator disables a persona (S-54).
         state.people = joinedcontext_portal::people::People::new(
             &issuer,
@@ -1031,6 +1092,29 @@ impl Harness {
         let mut header = Header::new(Algorithm::ES256);
         header.kid = Some(KID.to_owned());
         encode(&header, &claims, &self.signer).expect("sign")
+    }
+
+    /// A long call answers a task at once (AG-60): poll `tasks/result` as a client does, for
+    /// up to ten seconds, and judge what the task left. Any other answer is judged as it came.
+    async fn finished(
+        &self,
+        persona: &str,
+        status: StatusCode,
+        answer: Value,
+    ) -> Result<(StatusCode, Value), String> {
+        let Some(task) = answer["result"]["task"]["taskId"].as_str() else {
+            return Ok((status, answer));
+        };
+        let poll = json!({ "jsonrpc": "2.0", "id": 1, "method": "tasks/result",
+                           "params": { "taskId": task } });
+        for _ in 0..100 {
+            let (status, polled) = self.rpc(persona, poll.clone()).await;
+            if polled["error"]["code"] != json!(-32002) {
+                return Ok((status, polled));
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        Err(format!("task {task} still working after 10 s"))
     }
 
     /// One JSON-RPC request through the MCP door: the HTTP status and the body.
@@ -1283,6 +1367,7 @@ impl Harness {
             }
             Some(other) => return Err(format!("via `{other}` is not connector")),
         };
+        let (status, answer) = self.finished(persona, status, answer).await?;
         let refused = match status {
             StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => true,
             StatusCode::NOT_FOUND if step.via.is_some() => true,
@@ -1423,7 +1508,7 @@ async fn every_scenario_is_green_or_listed_red_with_its_task() {
         let outcome = harness.run(scenario, &own).await;
         match (outcome, red.get(&scenario.id)) {
             (Ok(()), None) => green.push(scenario.id.as_str()),
-            (Err(_), Some(_)) => {}
+            (Err(why), Some((task, _))) => println!("red {} ({task}): {why}", scenario.id),
             (Ok(()), Some((task, _))) => wrong.push(format!(
                 "{} passes: remove its red.txt line ({task})",
                 scenario.id
