@@ -401,6 +401,31 @@
   says: "Create the pipeline, hourly, upsert into Endpoint X."
   expect: 'Pipeline manifest valid; validate passes; change request opened; after merge the first run writes > 0 entities'
   deny: 'pipeline aimed at a policyRef or app-* Endpoint -> refused (writes as pl-{pipeline})'
+  script:
+    # A Pipeline's records are tested on a sample before a plan holds it (T-4840).
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Pipeline, name: counters-new, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Pipeline, metadata: { name: counters-new, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', source: { dataSourceRef: { kind: DataSource, name: counters-csv } }, targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake', output: { type: BikeCounter, mode: upsert }, quotas: { maxMemoryMb: 128, cpuMillicores: 100 } } } }] }
+      refused: true
+      contains: ['/changes/0/manifest', 'jc_pipeline_test']
+    # The runner's test of the planned spec comes back green (T-4840).
+    - proves: expect
+      runner_tested: counters-new
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Pipeline, name: counters-new, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Pipeline, metadata: { name: counters-new, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', source: { dataSourceRef: { kind: DataSource, name: counters-csv } }, targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake', output: { type: BikeCounter, mode: upsert }, quotas: { maxMemoryMb: 128, cpuMillicores: 100 } } } }] }
+      keep: planId
+      contains: ['"planId"', '"ok":true']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
+    # The read Endpoint names its own Policy, so it binds no write of the Pipeline (PL-111).
+    - proves: deny
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Pipeline, name: counters-misaimed, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Pipeline, metadata: { name: counters-misaimed, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', source: { dataSourceRef: { kind: DataSource, name: counters-csv } }, targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-readers', output: { type: BikeCounter, mode: upsert }, quotas: { maxMemoryMb: 128, cpuMillicores: 100 } } } }] }
+      refused: true
+      contains: ['targetEndpoint']
 - id: S-21
   segment: pipeline
   as: steward
@@ -413,6 +438,31 @@
   says: "Change the schedule to every 15 minutes."
   expect: 'one-field diff; plan valid'
   deny: 'below the project''s minimum period -> refused naming the limit'
+  script:
+    # A Pipeline's records are tested on a sample before a plan holds it (T-4840).
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: patch, kind: Pipeline, name: counters-hourly, patch: { spec: { schedule: '*/15 * * * *' } } }] }
+      refused: true
+      contains: ['/changes/0/manifest', 'jc_pipeline_test']
+    # The runner's test of the planned spec comes back green (T-4840).
+    - proves: expect
+      runner_tested: counters-hourly
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: patch, kind: Pipeline, name: counters-hourly, patch: { spec: { schedule: '*/15 * * * *' } } }] }
+      keep: planId
+      contains: ['"planId"', '*/15 * * * *']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
+    # The organization's floor is 15 minutes (PL-116): every five is refused at the field.
+    - proves: deny
+      call: jc_change_plan
+      args: { changes: [{ op: patch, kind: Pipeline, name: counters-hourly, patch: { spec: { schedule: '*/5 * * * *' } } }] }
+      refused: true
+      contains: ['/changes/0/manifest/spec/schedule', 'minimum period of 900 s', 'minPipelinePeriodSeconds']
 - id: S-23
   segment: pipeline
   as: steward
@@ -488,6 +538,18 @@
   says: "Create a service account for the city's import script with write to Endpoint X."
   expect: 'ServiceAccount manifest; secret delivered through secretRef only, never in the answer'
   deny: 'any secret value in the chat -> test fails'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: ServiceAccount, name: import-script, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: ServiceAccount, metadata: { name: import-script, namespace: '{project}' }, spec: { owner: { user: scn.project-admin@hel.fi }, purpose: "the city's import script", roles: [{ role: scn-viewer, scope: { project: '{project}' } }], credentials: [{ kind: oauth-client, name: main }] } } }] }
+      contains: ['"planId"', 'import-script', 'oauth-client']
+      absent: ['clientSecret', 'client_secret']
+    - proves: deny
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: ServiceAccount, name: import-script, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: ServiceAccount, metadata: { name: import-script, namespace: '{project}' }, spec: { owner: { user: scn.project-admin@hel.fi }, purpose: "the city's import script", roles: [{ role: scn-viewer, scope: { project: '{project}' } }], credentials: [{ kind: oauth-client, name: main, clientSecret: pasted-client-secret-value }] } } }] }
+      refused: true
+      contains: ['secret-in-argument', 'credentials/0/clientSecret']
+      absent: ['pasted-client-secret-value']
 - id: S-30
   segment: access
   as: project-admin
@@ -1019,6 +1081,22 @@
   says: 'Integrate this API that needs my key abc... (the key pasted in chat).'
   expect: 'key refused in chat, never stored or echoed; the plan returns a Portal form link; after the person enters it there the pipeline uses a secretRef (T-5971)'
   deny: 'this scenario IS the deny case for the pasted key'
+  script:
+    - proves: deny
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: DataSource, name: counters-api, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: DataSource, metadata: { name: counters-api, namespace: '{project}' }, spec: { type: http, http: { url: 'https://api.example.com/counters.csv?api_key=abc123pastedkey456', headers: { X-Api-Key: abc123pastedkey456 } } } } }] }
+      refused: true
+      contains: ['secret-in-argument', 'http/headers/X-Api-Key', 'http/url']
+      absent: ['abc123pastedkey456']
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: DataSource, name: counters-api, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: DataSource, metadata: { name: counters-api, namespace: '{project}' }, spec: { type: http, http: { url: 'https://api.example.com/counters.csv', authorization: { header: X-Api-Key, headerRef: { name: counters-api, key: apiKey } } } } } }] }
+      contains: ['"needsSecret"', 'https://portal.test/projects/{project}/secrets/new?name=counters-api&key=apiKey']
+    - proves: deny
+      rest: { method: POST, path: '/projects/{project}/secrets', body: { name: counters-api, values: { apiKey: abc123pastedkey456 } } }
+      client: mcp-local
+      refused: true
+      absent: ['abc123pastedkey456']
 - id: S-52
   segment: pipeline
   as: steward

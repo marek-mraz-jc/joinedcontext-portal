@@ -76,6 +76,7 @@ pub const PORTAL_PROBLEM_TYPES: &[ProblemType] = &[
     ProblemType { slug: "verdict-required", status: 409, title: "Verdict Required", hint: "Run the check the answer names and send the change again with its verdict." },
     ProblemType { slug: "file-too-large", status: 413, title: "File Too Large", hint: "Store a smaller object; the answer names the limit in bytes." },
     ProblemType { slug: "unprocessable", status: 422, title: "Unprocessable Content", hint: "Correct each member errors names; the dry run lists the same findings before you send." },
+    ProblemType { slug: "secret-in-argument", status: 422, title: "Secret In Argument", hint: "Enter the credential in the Portal's secret form, never in a chat or a manifest, and name it by secretRef." },
     ProblemType { slug: "quota", status: 429, title: "Quota Used", hint: "Wait until resetAt, delete what the App no longer needs, or ask an administrator to raise the quota." },
     ProblemType { slug: "not-implemented", status: 501, title: "Not Implemented", hint: "This Portal does not do this yet; the detail names what it does instead." },
     ProblemType { slug: "no-json", status: 502, title: "No JSON", hint: "The model answered with something other than JSON of the schema; ask again." },
@@ -154,6 +155,10 @@ pub enum ApiError {
     /// refuses, one entry per member with its path (API/11 EP-159, the UI DONE rule).
     #[error("unprocessable: {detail}")]
     Unprocessable { detail: String, errors: Vec<String> },
+    /// 422: the input holds a value that reads like a credential, at the JSON pointers given and
+    /// never echoed; a credential goes in the Portal's secret form (MF-24, T-5971).
+    #[error("secret in argument")]
+    SecretInArgument(Vec<String>),
     #[error("unauthorized")]
     Unauthorized,
     #[error("forbidden")]
@@ -262,6 +267,20 @@ impl ApiError {
                     "unprocessable",
                     "Unprocessable Content",
                     Some(detail),
+                )
+            }
+            Self::SecretInArgument(paths) => {
+                errors = Some(
+                    paths
+                        .iter()
+                        .map(|path| format!("{path}: reads like a credential"))
+                        .collect(),
+                );
+                (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    "secret-in-argument",
+                    "Secret In Argument",
+                    Some("a value of this input reads like a credential, so nothing was kept or sent on; enter it in the Portal's secret form (needsSecret of jc_change_plan names the link) and name it by secretRef".into()),
                 )
             }
             Self::Unauthorized => (

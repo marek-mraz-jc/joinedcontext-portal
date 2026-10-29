@@ -9192,7 +9192,8 @@
     "recipient-refused": "Posielajte len ľuďom z organizácie s overenou e-mailovou adresou.",
     "no-model-key": "Požiadajte správcu organizácie, aby pridal alebo obnovil kľúč k modelu, a skúste to znova.",
     "no-json": "Opýtajte sa znova; odpoveď modelu nezodpovedala požadovanej schéme.",
-    "second-factor-required": "Prihláste sa znova jednorazovým kódom a rozhodnutie zopakujte."
+    "second-factor-required": "Prihláste sa znova jednorazovým kódom a rozhodnutie zopakujte.",
+    "secret-in-argument": "Zadajte prístupový údaj vo formulári tajomstiev v Portáli, nikdy nie v chate ani v manifeste, a odkážte naň cez secretRef."
   },
   "jobs": {
     "title": "Čo ste spustili",
@@ -10654,5 +10655,24 @@
     "editOf": "Upraviť AI konektor {name}",
     "editTitle": "Upraviť {name}",
     "save": "Uložiť"
+  },
+  "secrets": {
+    "title": "Zadať tajomstvo",
+    "description": "Prístupový údaj, ktorý potrebuje zdroj alebo plán: API kľúč, heslo, token. Uloží sa zašifrovaný do repozitára projektu a otvorí zmenu na schválenie.",
+    "neverInChat": "Prístupový údaj píšte len sem, nikdy do chatu s asistentom ani s AI konektorom: chat by ho poslal cez model. Manifest naň odkazuje cez secretRef.",
+    "name": "Názov tajomstva",
+    "hint": {
+      "name": "Písmená, číslice, - a _, napr. counters-api. Manifest ho uvádza ako meno v secretRef.",
+      "key": "Čo je táto hodnota v rámci tajomstva, napr. apiKey alebo password.",
+      "value": "Samotný prístupový údaj, napr. API kľúč od poskytovateľa. Tu ho už nikto neprečíta."
+    },
+    "key": "Kľúč",
+    "value": "Hodnota",
+    "empty": "Projekt zatiaľ nemá žiadne tajomstvo: zadajte prvé nižšie.",
+    "replaces": "Toto tajomstvo existuje s kľúčmi {keys}. Uloženie ho nahradí celé: zadajte každý kľúč, ktorý má zostať.",
+    "addKey": "Pridať kľúč",
+    "addKept": "Pridať kľúče, ktoré zostávajú",
+    "submit": "Zašifrovať a navrhnúť",
+    "sending": "Tajomstvo sa odosiela…"
   }
 }

@@ -360,8 +360,7 @@ mod tests {
                 // Arrived with jc-core-v0.7.21 (T-0865): a named set of people a RoleBinding
                 // may name instead of one user (PF-62).
                 "Group",
-                // Arrived with platform 1e6ab7d (T-5952): what a person may hand an AI connector
-                // (AG-150).
+                // Arrived with T-5952: who may set up AI connectors above the ceiling (AG-150).
                 "DelegationPolicy",
                 // One broker instance a space lives on (PF-110, ADR-N-047).
                 "ContextBroker",

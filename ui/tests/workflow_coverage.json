@@ -900,6 +900,16 @@
           "POST /api/v1/projects/{project}/serviceaccounts/{name}/revoke",
           "POST /api/v1/projects/{project}/serviceaccounts/{name}/secret"
         ]
+      },
+      "secret-form": {
+        "live": {
+          "spec": "secret-form.spec.ts",
+          "test": "the secret form a plan links to opens prefilled with its hints"
+        },
+        "personOnly": "a credential is typed by a person into the Portal's secret form; no tool or assistant may carry one (MF-24, T-5971)",
+        "routes": [
+          "POST /api/v1/projects/{project}/secrets"
+        ]
       }
     },
     "subscription": {

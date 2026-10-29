@@ -1647,7 +1647,8 @@ async fn names_behind_ids_are_read_by_a_people_admin_or_a_group_approver_alone()
     )
     .await;
     assert_eq!(bad.status, StatusCode::UNPROCESSABLE_ENTITY, "{}", bad.text);
-    assert!(bad.text.contains("ids:"), "{}", bad.text);
+    let bad_body: Value = serde_json::from_str(&bad.text).expect("json");
+    assert_eq!(bad_body["errors"][0]["path"], "ids", "{}", bad.text);
 }
 
 /// ADR-N-061 (T-5711): the dry run over the organization's repository rewrites every address a
