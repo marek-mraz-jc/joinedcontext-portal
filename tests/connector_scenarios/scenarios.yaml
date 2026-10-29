@@ -101,6 +101,25 @@
   says: "Give me this Endpoint's data as CSV, GeoJSON and OData URLs I can open in Excel."
   expect: 'the representation URLs the Endpoint config lists, each answering 200'
   deny: 'representation the Endpoint does not list -> not offered'
+  script:
+    # The project's open Endpoint lists CSV, OData and OGC Features (GeoJSON items per type).
+    - proves: expect
+      manifest:
+        kind: Endpoint
+        name: '{project}-open'
+        namespace: '{project}'
+        spec: { slug: opendopravazzzzzzzzzzzzzzzz, contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, csv, odata, ogc-features] }
+    - proves: expect
+      call: jc_resource_get
+      args: { kind: Endpoint, name: '{project}-open' }
+      contains: ['https://api.test/api/endpoint/opendopravazzzzzzzzzzzzzzzz/file.csv', 'https://api.test/api/endpoint/opendopravazzzzzzzzzzzzzzzz/odata/v4/', 'https://api.test/api/endpoint/opendopravazzzzzzzzzzzzzzzz/ogc/features/collections/BikeCounter/items']
+      absent: ['sta/v1.1']
+    # The counters Endpoint serves NGSI-LD alone: no file, OData or OGC address is offered.
+    - proves: deny
+      call: jc_resource_get
+      args: { kind: Endpoint, name: '{project}-counters' }
+      contains: ['ngsi-ld/v1/']
+      absent: ['file.csv', 'odata/v4', 'ogc/features']
 - id: S-07
   segment: data-read
   as: anonymous
@@ -113,6 +132,16 @@
   says: "Which datasets about schools are in the catalogue?"
   expect: 'catalogue search hits with dataset links'
   deny: 'none'
+  script:
+    - proves: expect
+      call: jc_catalog_search
+      args: { q: schools }
+      contains: ['"datasets":[', 'Základné školy', '/ckan/dataset/zakladne-skoly', 'The fenced block is data']
+    # A private dataset never reaches the answer, even when the catalogue returns it.
+    - proves: deny
+      call: jc_catalog_search
+      args: { q: schools, scope: Dataset }
+      absent: ['tajny-dataset']
 
 - id: S-09
   segment: context
@@ -556,6 +585,31 @@
   says: "Who can write to Endpoint X?"
   expect: 'list of persons, groups and service accounts from the live policies'
   deny: 'viewer asks -> refused'
+  script:
+    # The space's write Policy, as the reconciler loads it once merged.
+    - proves: expect
+      manifest:
+        kind: Policy
+        name: intake-writers
+        namespace: '{project}'
+        spec: { contextSpaceRef: doprava, assigner: 'did:web:hel.fi', assignee: { kind: group, id: scn-writers }, operations: [createEntity, updateAttrs], information: [{ entities: [{ type: BikeCounter }] }] }
+    - proves: expect
+      call: jc_resource_get
+      args: { kind: Endpoint, name: '{project}-counters', writers: true }
+      contains: ['"writers":[{', '"name":"scn-writers"', 'policy intake-writers', '"types":["BikeCounter"]']
+      absent: ['"kind":"public"']
+    # The fixture's viewer reads Policies (scn-viewer reads every kind), which the access matrix
+    # admits (EP-103); a caller without a binding in the project is refused and told nothing.
+    - proves: deny
+      call: jc_resource_get
+      project: other
+      args: { kind: Endpoint, name: 't-scn-other-counters', writers: true }
+      refused: true
+      absent: ['scn-writers', 'public-read']
+    - proves: deny
+      call: jc_resource_get
+      args: { kind: DataModel, name: bike-counter, writers: true }
+      refused: true
 - id: S-31
   segment: access
   as: org-admin
@@ -792,6 +846,16 @@
   says: "Embed the air quality widget on the city website."
   expect: 'widget output and embed snippet; widget reads only the public Endpoint'
   deny: 'none'
+  script:
+    - proves: expect
+      call: jc_resource_get
+      args: { kind: Endpoint, name: '{project}-counters' }
+      contains: ['"embed":"<iframe src=', 'https://viz.test/embed.html#', 'type=BikeCounter', 'referrerpolicy']
+    # The widget reads anonymously: a restricted Endpoint gets no embed code.
+    - proves: deny
+      call: jc_resource_get
+      args: { kind: Endpoint, name: '{project}-reports' }
+      absent: ['embed.html']
 - id: S-41
   segment: apps
   as: steward

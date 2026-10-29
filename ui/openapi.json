@@ -15558,7 +15558,7 @@
     },
     "/api/v1/projects/{project}/ops/jc_catalog_search": {
       "post": {
-        "description": "Find spaces, endpoints, and data models matching search keywords",
+        "description": "Find spaces, endpoints, models and open datasets by keywords",
         "operationId": "jc_catalog_search",
         "parameters": [
           {
@@ -15589,7 +15589,7 @@
                     "type": "string"
                   },
                   "scope": {
-                    "description": "Narrow to one kind: ContextSpace, Endpoint or DataModel",
+                    "description": "Narrow to one kind: ContextSpace, Endpoint, DataModel or Dataset (the open-data catalogue)",
                     "maxLength": 128,
                     "type": "string"
                   }
@@ -15606,6 +15606,13 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "datasets": {
+                      "description": "Open-data catalogue datasets: title, url of the dataset page, publisher, formats",
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "items": {
                       "items": {
                         "type": "object"
@@ -15614,6 +15621,12 @@
                     },
                     "q": {
                       "type": "string"
+                    },
+                    "unavailable": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
                     }
                   },
                   "type": "object"
@@ -23931,6 +23944,10 @@
                     "description": "The resource's metadata.name",
                     "maxLength": 253,
                     "type": "string"
+                  },
+                  "writers": {
+                    "description": "Endpoint only: also list who may write to it (persons, groups, service accounts), for whoever reads the space's Policies",
+                    "type": "boolean"
                   }
                 },
                 "required": [

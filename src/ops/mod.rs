@@ -18,6 +18,7 @@ pub mod compute;
 pub mod data_query;
 pub mod data_views;
 pub mod drafts;
+pub mod endpoint_reach;
 pub mod feed_shape;
 pub mod people;
 pub mod pipeline_steps;

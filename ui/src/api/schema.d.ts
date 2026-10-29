@@ -3545,7 +3545,7 @@ export interface paths {
         put?: never;
         /**
          * Search Catalog
-         * @description Find spaces, endpoints, and data models matching search keywords
+         * @description Find spaces, endpoints, models and open datasets by keywords
          */
         post: operations["jc_catalog_search"];
         delete?: never;
@@ -23152,7 +23152,7 @@ export interface operations {
                     q?: string;
                     /** @description The same as q, for clients that name it query; q wins when both are set */
                     query?: string;
-                    /** @description Narrow to one kind: ContextSpace, Endpoint or DataModel */
+                    /** @description Narrow to one kind: ContextSpace, Endpoint, DataModel or Dataset (the open-data catalogue) */
                     scope?: string;
                 };
             };
@@ -23165,8 +23165,11 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Open-data catalogue datasets: title, url of the dataset page, publisher, formats */
+                        datasets?: Record<string, never>[];
                         items?: Record<string, never>[];
                         q?: string;
+                        unavailable?: string[];
                     };
                 };
             };
@@ -27786,6 +27789,8 @@ export interface operations {
                     kind: string;
                     /** @description The resource's metadata.name */
                     name: string;
+                    /** @description Endpoint only: also list who may write to it (persons, groups, service accounts), for whoever reads the space's Policies */
+                    writers?: boolean;
                 };
             };
         };
