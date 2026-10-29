@@ -1186,6 +1186,24 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
         .await;
     assert_eq!(status, StatusCode::OK, "{answer}");
     assert!(answer.to_string().contains("jc_resource_list"), "{answer}");
+    // The plan view is the one resource it reads: a static MCP App page (T-5960), which the
+    // plan and mapping tools name.
+    let view = json!({ "jsonrpc": "2.0", "id": 3, "method": "resources/read",
+                       "params": { "uri": "ui://joinedcontext/plan-view.html" } });
+    let (status, answer) = harness
+        .send("POST", &door(a), token_a.clone(), Some(view))
+        .await;
+    let page = &answer["result"]["contents"][0];
+    assert_eq!(status, StatusCode::OK, "{answer}");
+    assert_eq!(page["mimeType"], "text/html;profile=mcp-app", "{answer}");
+    assert_eq!(page["_meta"]["ui"]["csp"]["connectDomains"], json!([]));
+    assert!(
+        !page["text"]
+            .as_str()
+            .unwrap_or("")
+            .contains(token_a.as_deref().expect("a token")),
+        "{answer}"
+    );
 
     // The audit names who, which client, what and the verdict; never the token.
     let (status, calls) = harness
@@ -1729,4 +1747,48 @@ async fn a_flood_hits_429_at_the_connector_and_then_the_person_limit() {
         .await;
     assert_eq!(status, StatusCode::OK);
     assert!(calls.to_string().contains("refused: rate limit"), "{calls}");
+}
+
+/// The plan view (T-5960): an MCP Apps page whose only link is the Portal's origin and which
+/// connects nowhere; the plan and mapping tools name it, the apply does not.
+#[test]
+fn the_plan_view_links_only_to_the_portal_and_connects_nowhere() {
+    use joinedcontext_portal::mcp::{app_view, tool_definition};
+    use joinedcontext_portal::ops;
+
+    let base = url::Url::parse("https://portal.example.org/some/path").expect("url");
+    let contents = app_view::contents(&base);
+    let item = &contents[0];
+    assert_eq!(item["uri"], app_view::URI);
+    assert_eq!(item["mimeType"], "text/html;profile=mcp-app");
+    assert_eq!(item["_meta"]["ui"]["csp"]["connectDomains"], json!([]));
+    assert_eq!(item["_meta"]["ui"]["csp"]["resourceDomains"], json!([]));
+    let text = item["text"].as_str().expect("text");
+    assert!(text.contains(r#"var PORTAL = "https://portal.example.org";"#));
+    assert!(!text.contains("__PORTAL_ORIGIN__"));
+    // It reads only what the host posts: no request of its own, no token, no markup from a value.
+    for absent in [
+        "fetch(",
+        "XMLHttpRequest",
+        "WebSocket",
+        "EventSource",
+        "innerHTML",
+        "Bearer",
+        "localStorage",
+        "<script src",
+    ] {
+        assert!(!text.contains(absent), "the view holds {absent}");
+    }
+
+    for (tool, renders) in [
+        ("jc_change_plan", true),
+        ("jc_pipeline_try_mapping", true),
+        ("jc_change_apply", false),
+    ] {
+        let op = ops::find(tool).expect("a registry op");
+        let listed = tool_definition(&ops::summary(op));
+        let uri = renders.then_some(app_view::URI);
+        assert_eq!(listed["_meta"]["ui"]["resourceUri"].as_str(), uri, "{tool}");
+        assert_eq!(listed["_meta"]["ui/resourceUri"].as_str(), uri, "{tool}");
+    }
 }
