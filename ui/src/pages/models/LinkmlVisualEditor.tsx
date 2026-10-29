@@ -667,10 +667,9 @@ export function LinkmlVisualEditor({
               </Field>
             </div>
             {unitUndo && unitUndo.slot === activeSlot.name ? (
-              <Alert
-                tone="info"
-                role="status"
-                actions={
+              <Alert tone="info" role="status">
+                <span className="flex flex-wrap items-center justify-between gap-2">
+                  <span>{t(`models.unitRule.${unitUndo.notice}`)}</span>
                   <Button
                     size="sm"
                     variant="secondary"
@@ -681,9 +680,7 @@ export function LinkmlVisualEditor({
                   >
                     {t("models.unitRule.undo")}
                   </Button>
-                }
-              >
-                {t(`models.unitRule.${unitUndo.notice}`)}
+                </span>
               </Alert>
             ) : null}
             <details className="rounded border border-border p-2" open={iriError !== null}>
