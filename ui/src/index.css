@@ -82,6 +82,10 @@
   --text-display--line-height: var(--portal-text-display--line-height);
 
   /* Spacing, radius, elevation. */
+  --spacing: var(--portal-spacing);
+  --spacing-control-xs: var(--portal-control-xs);
+  --spacing-control: var(--portal-control);
+  --spacing-control-lg: var(--portal-control-lg);
   --spacing-gutter: var(--portal-space-gutter);
   --spacing-section: var(--portal-space-section);
   --spacing-stack: var(--portal-space-stack);

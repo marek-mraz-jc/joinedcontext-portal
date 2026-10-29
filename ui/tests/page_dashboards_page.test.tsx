@@ -164,7 +164,7 @@ describe("the dashboards page", () => {
   it("the_legend_ticks_a_layer_with_the_shared_checkbox_from_the_keyboard", async () => {
     await renderRoute({ path: PATH, answer: answering([dashboard()]) });
     const tick = await screen.findByRole("checkbox", { name: `${en.dashboards.show}: stations` });
-    expect(tick).toHaveClass("size-4");
+    expect(tick).toHaveClass("size-[1rem]");
     expect(tick).toBeChecked();
 
     tick.focus();
