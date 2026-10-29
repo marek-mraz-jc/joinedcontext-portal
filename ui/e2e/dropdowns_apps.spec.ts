@@ -6,7 +6,6 @@
  */
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
-import { axeViolations } from "./axe";
 
 const SHOTS = process.env.T4948_SHOTS ?? "test-results/dropdowns-apps";
 const API = "joinedcontext.com/v1alpha1";
