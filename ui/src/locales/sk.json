@@ -553,6 +553,7 @@
     },
     "inside": {
       "total": "Priestor obsahuje {count, plural, one {# entitu} few {# entity} other {# entít}}.",
+      "history": "Jeho história obsahuje {count, plural, one {# záznam} few {# záznamy} other {# záznamov}}.",
       "open": "Pozrieť obsah",
       "data": "Dáta",
       "dataEmpty": "Zatiaľ nič: do tohto priestoru ešte nezapísala žiadna pipeline.",
@@ -600,7 +601,8 @@
       "lead": "Jeho dátový model, entity, kto ich číta a čo sa s ním stalo.",
       "broker": "Beží na kontextovom brokeri {broker}.",
       "size": "Veľkosť",
-      "totalSize": "V úložisku brokera zaberá {size}, z toho história {history}.",
+      "totalSize": "V úložisku brokera zaberá {size}: aktuálny stav {entities}, história {history}.",
+      "estimated": "Históriu odhadujeme zo štatistík databázy: je príliš dlhá na okamžité spočítanie.",
       "sections": "Časti priestoru",
       "counting": "Počítam entity priestoru…",
       "allRows": "Všetky riadky",

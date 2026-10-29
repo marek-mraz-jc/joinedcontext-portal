@@ -81,7 +81,14 @@ async function stubApi(page: Page, counted = true): Promise<void> {
     }
     if (path === "/api/v1/projects") return json({ kind: "ProjectList", items: [{ name: PROJECT }] });
     if (path.endsWith(`/spaces/${SPACE}/usage`)) {
-      return json({ entities: 14232, broker: "main", observedAt: "2026-10-20T16:00:00Z" });
+      return json({
+        entities: 14232,
+        attrInstances: 3250000,
+        estimated: true,
+        bytes: { entities: 48 * 1024 * 1024, attrInstances: 1536 * 1024 * 1024, byType: {} },
+        broker: "main",
+        observedAt: "2026-10-20T16:00:00Z",
+      });
     }
     if (path.endsWith(`/spaces/${SPACE}/views`)) return json({ items: [VIEW] });
     if (path.endsWith(`/spaces/${SPACE}`)) {
@@ -135,6 +142,12 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await expect(page).toHaveURL(/[?&]tab=model/);
     await expect(page.getByRole("table", { name: "Entity types" })).toBeVisible();
     await expect(page.getByTestId("space-total")).toHaveText("The space holds 14,232 entities.");
+    // T-6085: the history count and both sizes, and the broker's word that it estimated them.
+    await expect(page.getByTestId("space-history")).toHaveText("Its history holds 3,250,000 records.");
+    await expect(page.getByTestId("space-size")).toHaveText(
+      "It takes 1.5 GiB in the broker's store: 48 MiB current state, 1.5 GiB history.",
+    );
+    await expect(page.getByTestId("space-estimated")).toBeVisible();
     await shot(page, `model-tab-${label}`);
     await page.getByTestId("space-total").scrollIntoViewIfNeeded();
     await shot(page, `model-tab-total-${label}`);
