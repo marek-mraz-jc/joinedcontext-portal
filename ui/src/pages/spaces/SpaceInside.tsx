@@ -109,7 +109,7 @@ import {
   tabPanelProps,
   Term,
 } from "../../components/ui";
-import { buttonClass, Card, ConfirmDialog, Field, Input, RadioGroup, Select } from "../../components/ui";
+import { Card, ConfirmDialog, Field, Input, RadioGroup, Select } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { SourceRemovalsPanel } from "../pipelines/PipelineSourceReport";
 import { useUrlParam, useUrlText, useUrlUrn } from "../../navigation/urlState";
