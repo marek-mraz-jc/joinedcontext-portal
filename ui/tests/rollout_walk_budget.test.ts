@@ -38,7 +38,7 @@ describe("rollout-walk memory gate", () => {
   // No users file: a walk that gets past the gate stops at "no steward or viewer password" (exit 2).
   const walk = (root: string, env: Record<string, string> = {}) =>
     spawnSync("bash", ["e2e/live/rollout-walk.sh"], {
-      env: { ...process.env, PORTAL_URL: `file://${root}/portal`, WALK_EVIDENCE: join(root, "evidence"), WALK_MEMINFO: join(root, "meminfo"), DEMO_USERS: join(root, "none"), ...env },
+      env: { ...process.env, PORTAL_URL: `file://${root}/portal`, WALK_EVIDENCE: join(root, "evidence"), WALK_MEMINFO: join(root, "meminfo"), DEMO_USERS: join(root, "none"), WALK_SETTLE_S: "0", ...env },
       encoding: "utf8",
     });
 
@@ -61,5 +61,46 @@ describe("rollout-walk memory gate", () => {
     const ample = walk(setup(12_000_000));
     expect(ample.status).toBe(2);
     expect(ample.stderr).toContain("no steward or viewer password");
+  });
+});
+
+// T-6076: the walk that started a minute after a rollout met the edge's 502 on its first loads
+// (13:17Z /api/v1/branding, 16:31Z /ai-connectors) while the dev sync still ran. A commit is walked
+// only after it has been served for WALK_SETTLE_S (300 s), so the walk judges the settled Portal.
+describe("rollout-walk settle gate", () => {
+  const sha = "9be7dc6e721463d317c2c862c5b7dbea1a928e5d";
+  const setup = () => {
+    const root = mkdtempSync(join(tmpdir(), "rollout-walk-"));
+    mkdirSync(join(root, "portal/api/v1"), { recursive: true });
+    mkdirSync(join(root, "evidence"));
+    writeFileSync(join(root, "portal/api/v1/version"), JSON.stringify({ portal: { commit: sha } }));
+    writeFileSync(join(root, "meminfo"), "MemAvailable: 12000000 kB\n");
+    return root;
+  };
+  const walk = (root: string) =>
+    spawnSync("bash", ["e2e/live/rollout-walk.sh"], {
+      env: { ...process.env, PORTAL_URL: `file://${root}/portal`, WALK_EVIDENCE: join(root, "evidence"), WALK_MEMINFO: join(root, "meminfo"), DEMO_USERS: join(root, "none") },
+      encoding: "utf8",
+    });
+
+  it("defers a commit dev has served for less than the settle time", () => {
+    const root = setup();
+    const first = walk(root);
+    expect(first.status).toBe(1);
+    expect(first.stderr).toContain(`walk of ${sha} deferred until the rollout settles`);
+    expect(readFileSync(join(root, "evidence/first-seen"), "utf8")).toMatch(new RegExp(`^${sha} [0-9]+\n$`));
+    expect(walk(root).status).toBe(1);
+    expect(existsSync(join(root, "evidence", sha))).toBe(false);
+  });
+
+  it("walks a commit served for longer, and restarts the clock for a new commit", () => {
+    const root = setup();
+    const old = Math.floor(Date.now() / 1000) - 301;
+    writeFileSync(join(root, "evidence/first-seen"), `${sha} ${old}\n`);
+    const settled = walk(root);
+    expect(settled.status).toBe(2);
+    expect(settled.stderr).toContain("no steward or viewer password");
+    writeFileSync(join(root, "evidence/first-seen"), `943ebc79cdc0eb95db7793f4a5c4535d5fba0864 ${old}\n`);
+    expect(walk(root).status).toBe(1);
   });
 });
