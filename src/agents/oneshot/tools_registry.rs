@@ -73,6 +73,9 @@ pub(super) fn offered(
         .filter(|op| {
             ![crate::connectors::RUN, crate::ops::pipeline_runs::LOGS].contains(&op.name.as_str())
         })
+        // T-6039: the project's members reach access connectors; this prompt keeps its 4k-token
+        // turn (AG-72), and a person picks a subject from the RoleBinding form.
+        .filter(|op| op.name != crate::ops::people::MEMBERS)
         .collect()
 }
 
