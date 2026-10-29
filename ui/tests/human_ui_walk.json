@@ -6,6 +6,18 @@
   ],
   "enforce": false,
   "modules": {
+    "src/connectors/PairedTabBar.tsx": {
+      "walkedBy": "worker-t5967 (stub walk, e2e/paired_tab.spec.ts)",
+      "date": "2026-10-29",
+      "screenshots": [
+        "evidence/worker-t5967/T-5967/paired-tab-offer-1440.png",
+        "evidence/worker-t5967/T-5967/paired-tab-offer-400.png",
+        "evidence/worker-t5967/T-5967/paired-tab-editor-1440.png",
+        "evidence/worker-t5967/T-5967/paired-tab-editor-400.png",
+        "evidence/worker-t5967/T-5967/paired-tab-actions-1440.png",
+        "evidence/worker-t5967/T-5967/paired-tab-actions-400.png"
+      ]
+    },
     "src/components/forms/ResourceFormFooter.tsx": {
       "walkedBy": "worker-t5515 (stub walk, read by integrator-2)",
       "date": "2026-10-25",

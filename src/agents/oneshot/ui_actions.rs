@@ -20,6 +20,7 @@ use chrono::Utc;
 use crate::error::ApiError;
 
 use super::connector_turn::refused;
+use crate::error::ApiError;
 
 /// The names of the browser actions, in the order the model reads them.
 pub(crate) const UI_TOOLS: [&str; 5] = [
@@ -41,14 +42,6 @@ const QUERY_CHARS: usize = 200;
 const FIELD_CHARS: usize = 200;
 /// How deep a field path's `$ref`s and `allOf`s are followed.
 const SCHEMA_DEPTH: usize = 16;
-
-/// A browser action the checks refuse: 422 naming what to correct.
-fn invalid_action(reason: &str) -> ApiError {
-    ApiError::Unprocessable {
-        detail: reason.to_owned(),
-        errors: Vec::new(),
-    }
-}
 
 /// The browser actions as native tool definitions.
 pub(super) fn ui_specs() -> Vec<ToolSpec> {
@@ -132,6 +125,14 @@ pub(super) fn ui_specs() -> Vec<ToolSpec> {
             }),
         ),
     ]
+}
+
+/// A browser action the Portal will not run, as the 422 every door answers (API/09).
+fn unprocessable(reason: &str) -> ApiError {
+    ApiError::Unprocessable {
+        detail: reason.to_string(),
+        errors: vec![reason.to_string()],
+    }
 }
 
 /// One line of plain text from the model: control characters refused, length bounded.
@@ -271,7 +272,7 @@ impl Driver {
                 };
                 // `open_page` reports its own tool event, a refusal included.
                 return Ok(match opened.strip_prefix("error: ") {
-                    Some(reason) => refused(invalid_action(reason)),
+                    Some(reason) => refused(unprocessable(reason)),
                     None => json!({ "opened": opened.trim_start_matches("opened ") }).to_string(),
                 });
             }
@@ -301,7 +302,7 @@ impl Driver {
                     failed_step(&call.name, started, &arguments, &reason),
                 )
                 .await?;
-                Ok(refused(invalid_action(&reason)))
+                Ok(refused(unprocessable(&reason)))
             }
         }
     }
