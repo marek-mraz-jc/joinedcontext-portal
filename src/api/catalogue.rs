@@ -65,7 +65,7 @@ static HTTP: LazyLock<reqwest::Client> = LazyLock::new(|| {
 /// URL is an outside one: a name resolving into the cluster is refused by the resolver, a redirect
 /// is followed only to a public `https` address and only a few hops, and no proxy from the
 /// environment resolves past the guard. [`HTTP`] keeps the reads of the installation's own gateway.
-static CKAN_HTTP: LazyLock<reqwest::Client> =
+pub(crate) static CKAN_HTTP: LazyLock<reqwest::Client> =
     LazyLock::new(|| ckan_client(Duration::from_secs(10)));
 
 /// A client for reads of a `CkanInstance`'s URL that take at most `total` (T-4776, T-5335): the
@@ -859,14 +859,19 @@ enum Failure {
 }
 
 /// A CKAN action as an anonymous caller: no token is ever sent (EP-67).
-async fn action(base: &str, action: &str, params: &[(&str, &str)]) -> Result<Value, Failure> {
+async fn action(
+    http: &reqwest::Client,
+    base: &str,
+    action: &str,
+    params: &[(&str, &str)],
+) -> Result<Value, Failure> {
     // An address written into the URL is never resolved, so the resolver never judges it.
     if let Some(ip) = crate::sync::guard::internal_host(base) {
         return Err(Failure::Unreachable(format!(
             "{base} names the internal address {ip}; a catalogue is read on the public internet only"
         )));
     }
-    action_with(&CKAN_HTTP, base, action, params).await
+    action_with(http, base, action, params).await
 }
 
 /// One CKAN action through `http`, its answer read up to [`MAX_CKAN_ANSWER`].
@@ -906,13 +911,14 @@ async fn action_with(
     }
 }
 
-async fn search(base: &str, q: &str) -> Result<Arc<Vec<Value>>, String> {
+async fn search(http: &reqwest::Client, base: &str, q: &str) -> Result<Arc<Vec<Value>>, String> {
     let key = (base.to_owned(), q.to_owned());
     if let Some(datasets) = SEARCHES.lock().unwrap_or_else(|e| e.into_inner()).get(&key) {
         return Ok(datasets);
     }
     let rows = ROWS.to_string();
     let result = action(
+        http,
         base,
         "package_search",
         &[("q", q), ("rows", &rows), ("include_private", "false")],
@@ -1090,7 +1096,7 @@ pub async fn get_catalogue(
     let mut datasets = Vec::new();
     let mut unavailable = Vec::new();
     for url in &urls {
-        match search(url, &filters.q).await {
+        match search(&state.catalogue_http, url, &filters.q).await {
             Ok(found) => datasets.extend(found.iter().cloned()),
             Err(reason) => {
                 tracing::warn!(catalogue = %url, %reason, "catalogue search failed");
@@ -1109,6 +1115,42 @@ pub async fn get_catalogue(
     Ok(cached(&headers, page))
 }
 
+/// The open-data datasets `q` finds in every catalogue of the installation, at most `limit`, each
+/// with its page in the catalogue (`url`), as the public catalogue page lists them (EP-82), and
+/// the catalogues that did not answer. A connector's catalogue search reads this (T-6027).
+pub(crate) async fn datasets_matching(
+    state: &AppState,
+    q: &str,
+    limit: usize,
+) -> (Vec<Value>, Vec<String>) {
+    let mut hits = Vec::new();
+    let mut unavailable = Vec::new();
+    for base in catalogues(state) {
+        match search(&state.catalogue_http, &base, q).await {
+            Ok(found) => hits.extend(
+                found
+                    .iter()
+                    .filter(|dataset| dataset["private"] != Value::Bool(true))
+                    .map(|dataset| {
+                        let summary = summary(dataset);
+                        serde_json::json!({
+                            "title": summary.title,
+                            "url": format!("{base}/dataset/{}", summary.name),
+                            "publisher": summary.publisher.map(|p| p.title),
+                            "formats": summary.formats,
+                        })
+                    }),
+            ),
+            Err(reason) => {
+                tracing::warn!(catalogue = %base, %reason, "catalogue search failed");
+                unavailable.push(base);
+            }
+        }
+    }
+    hits.truncate(limit);
+    (hits, unavailable)
+}
+
 /// The public dataset `name` and the catalogue that holds it.
 async fn dataset(state: &AppState, name: &str) -> Result<(String, Value), ApiError> {
     let not_found = || ApiError::NotFound(format!("dataset '{name}' is not in the catalogue"));
@@ -1118,7 +1160,7 @@ async fn dataset(state: &AppState, name: &str) -> Result<(String, Value), ApiErr
     let urls = catalogues(state);
     let mut answered = false;
     for url in &urls {
-        match action(url, "package_show", &[("id", name)]).await {
+        match action(&state.catalogue_http, url, "package_show", &[("id", name)]).await {
             Ok(found) => {
                 answered = true;
                 if found.get("private").and_then(Value::as_bool) != Some(true)
@@ -1835,7 +1877,7 @@ mod tests {
         )
         .await;
         assert!(matches!(
-            action(&inside, "package_search", &[]).await,
+            action(&CKAN_HTTP, &inside, "package_search", &[]).await,
             Err(Failure::Unreachable(reason)) if reason.contains("internal address")
         ));
     }
