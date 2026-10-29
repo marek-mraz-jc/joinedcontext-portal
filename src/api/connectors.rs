@@ -484,6 +484,15 @@ pub async fn connector_activity(
 
 /// Only an administrator of the organization reads or revokes every person's connectors.
 fn administrator(state: &AppState, identity: &Identity) -> Result<(), ApiError> {
+    // Every person's grants are read, and one revoked, by a person in a Portal session; an
+    // administrator's agent or a service account bound to the role never does it (AG-133).
+    if identity.client.is_some() {
+        return Err(ApiError::Denied(
+            "every person's connectors are listed and revoked only by an administrator in the \
+             Portal, never with a service account's or an agent's token (AG-133)"
+                .into(),
+        ));
+    }
     if crate::permissions::for_request(state, identity, ORG_NAMESPACE).administers_organization() {
         return Ok(());
     }
@@ -763,7 +772,8 @@ mod tests {
 
     fn administrator_user() -> CurrentUser {
         let mut admin = user("ada");
-        admin.0.identity.groups = vec!["platform-admins".into()];
+        // Config::for_tests names `portal-approver` its bootstrap administrators' group.
+        admin.0.identity.groups = vec!["portal-approver".into()];
         admin
     }
 
@@ -801,6 +811,14 @@ mod tests {
             revoke_organization_connector(user("bob"), State(state.clone()), Path(made.id.clone()))
                 .await;
         assert!(matches!(refused, Err(ApiError::Denied(_))));
+
+        let mut agent = administrator_user();
+        agent.0.identity.client = Some("helsinki-jc-agent-proxy".into());
+        let listing = organization_connectors(agent.clone(), State(state.clone())).await;
+        assert!(matches!(listing, Err(ApiError::Denied(why)) if why.contains("AG-133")));
+        let revoking =
+            revoke_organization_connector(agent, State(state.clone()), Path(made.id.clone())).await;
+        assert!(matches!(revoking, Err(ApiError::Denied(why)) if why.contains("AG-133")));
 
         let Json(listed) = organization_connectors(administrator_user(), State(state.clone()))
             .await

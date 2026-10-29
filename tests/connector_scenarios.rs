@@ -27,6 +27,8 @@ use tower::ServiceExt;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+use joinedcontext_portal::auth::csrf::{CSRF_COOKIE, CSRF_HEADER};
+use joinedcontext_portal::auth::session::EDGE_TOKEN_HEADER;
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, ResourceKey, API_VERSION};
@@ -596,6 +598,7 @@ impl Harness {
         })
         .expect("config");
         config.public_base_url = "https://portal.test".parse().expect("url");
+        config.trust_edge_token = true;
         config.gateway_url = Some(server.uri());
 
         let mirror = std::sync::Arc::new(Mirror::new());
@@ -709,12 +712,45 @@ impl Harness {
         token: Option<String>,
         body: Option<Value>,
     ) -> (StatusCode, Value) {
+        let token = token.map(|t| (header::AUTHORIZATION, format!("Bearer {t}")));
+        self.request(method, uri, token.into_iter().collect(), body)
+            .await
+    }
+
+    /// One HTTP request as a person in the browser: the edge's `X-Access-Token`, which the
+    /// Portal reads as the person's own session, never as a workload's token (PF-46), and the
+    /// double-submitted CSRF token a browser echoes on a mutation (AP-28).
+    async fn send_edge(
+        &self,
+        method: &str,
+        uri: &str,
+        token: Option<String>,
+        body: Option<Value>,
+    ) -> (StatusCode, Value) {
+        let mut headers = vec![
+            (header::COOKIE, format!("{CSRF_COOKIE}=scn-csrf")),
+            (
+                header::HeaderName::from_static(CSRF_HEADER),
+                "scn-csrf".to_owned(),
+            ),
+        ];
+        headers.extend(token.map(|t| (EDGE_TOKEN_HEADER, t)));
+        self.request(method, uri, headers, body).await
+    }
+
+    async fn request(
+        &self,
+        method: &str,
+        uri: &str,
+        headers: Vec<(header::HeaderName, String)>,
+        body: Option<Value>,
+    ) -> (StatusCode, Value) {
         let mut request = Request::builder()
             .method(method)
             .uri(uri)
             .header(header::CONTENT_TYPE, "application/json");
-        if let Some(token) = token {
-            request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
+        for (name, value) in headers {
+            request = request.header(name, value);
         }
         let response = self
             .app
@@ -775,16 +811,19 @@ impl Harness {
             let body = serde_json::from_str::<Value>(&fill(&rest.body.to_string()))
                 .map_err(|e| format!("rest body: {e}"))?;
             let uri = format!("/api/v1{}", fill(&rest.path));
-            // A person manages connectors in the Portal, whose own client obtains the token; an
-            // MCP client's token is refused on these routes (AG-151).
-            let token = self.token_for(
-                persona,
-                AUDIENCE,
-                step.client.as_deref().unwrap_or(AUDIENCE),
-            );
-            let (status, answer) = self
-                .send(&rest.method, &uri, token, (!body.is_null()).then_some(body))
-                .await;
+            // A person manages connectors in the Portal, through the edge's login; an MCP
+            // client's bearer token is refused on these routes (AG-151).
+            let body = (!body.is_null()).then_some(body);
+            let (status, answer) = match step.client.as_deref() {
+                Some(client) => {
+                    let token = self.token_for(persona, AUDIENCE, client);
+                    self.send(&rest.method, &uri, token, body).await
+                }
+                None => {
+                    let token = self.token_for(persona, AUDIENCE, AUDIENCE);
+                    self.send_edge(&rest.method, &uri, token, body).await
+                }
+            };
             if status == StatusCode::CREATED {
                 if let Some(id) = answer["id"].as_str() {
                     *self.connector.lock().unwrap_or_else(|p| p.into_inner()) = Some(id.to_owned());
@@ -1677,8 +1716,23 @@ async fn the_overview_flags_a_refused_connector_and_an_administrator_alone_revok
             .await;
         assert_eq!(status, StatusCode::FORBIDDEN, "{persona}");
     }
-    let (status, listed) = harness
+    // An administrator's bearer token (an agent's, a script's) neither lists nor revokes: the
+    // overview and the revoke are a person's decision in a Portal session (AG-133).
+    let (status, _) = harness
         .send("GET", overview, portal("org-admin"), None)
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, _) = harness
+        .send(
+            "DELETE",
+            &format!("{overview}/{id}"),
+            portal("org-admin"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, listed) = harness
+        .send_edge("GET", overview, portal("org-admin"), None)
         .await;
     assert_eq!(status, StatusCode::OK, "{listed}");
     let row = listed["items"]
@@ -1699,7 +1753,7 @@ async fn the_overview_flags_a_refused_connector_and_an_administrator_alone_revok
     assert!(!text.contains("Bearer") && !text.contains("eyJ"), "{text}");
 
     let (status, _) = harness
-        .send(
+        .send_edge(
             "DELETE",
             &format!("{overview}/{id}"),
             portal("org-admin"),
@@ -1708,7 +1762,7 @@ async fn the_overview_flags_a_refused_connector_and_an_administrator_alone_revok
         .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     let (status, _) = harness
-        .send(
+        .send_edge(
             "DELETE",
             &format!("{overview}/{id}"),
             portal("org-admin"),
