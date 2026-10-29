@@ -144,6 +144,11 @@ base64 = "0.23"
 oxc = { version = "0.149", default-features = false, features = ["transformer", "codegen", "semantic", "ast_visit"] }
 hmac = "0.12"
 sha2 = "0.10"
+# The secret form writes the repository's SOPS files (T-5971); jcctl reads them back. Both
+# already in the graph through jcctl.
+age = { version = "0.12", default-features = false, features = ["armor"] }
+aes-gcm = "0.10"
+zeroize = "1"
 # The static host unpacks a published build (AP-102).
 flate2 = "1"
 tar = { version = "0.4", default-features = false }

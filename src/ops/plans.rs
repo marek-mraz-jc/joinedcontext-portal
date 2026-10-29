@@ -773,6 +773,7 @@ async fn plan(
         }
         format!("{:x}", hash.finalize())
     };
+    let needs_secret = needs_secret(state, project, &items).await;
     let id = new_id();
     let lane = diffs
         .iter()
@@ -812,12 +813,47 @@ async fn plan(
         "lane": lane,
         "diff": diffs,
         "verdict": { "ok": true, "findings": [] },
-        "next": if writes {
+        "needsSecret": needs_secret,
+        "next": if !needs_secret.is_empty() {
+            "a person enters each secret of needsSecret at its form link in the Portal (never in this chat); then apply".to_owned()
+        } else if writes {
             format!("call {APPLY} with this planId within {TTL_MINUTES} minutes; a person approves the change in the Portal")
         } else {
             "this connector has writes off: a person applies this change in the Portal".to_owned()
         },
     }))
+}
+
+/// Every `secretRef` the plan's manifests name that the repository's encrypted files do not hold,
+/// with the Portal form a person enters it in (MF-24, T-5971). A forge that cannot be read counts
+/// every reference as missing: the form replaces a secret whole, so entering it again is safe.
+async fn needs_secret(state: &AppState, project: &str, items: &[Planned]) -> Vec<Value> {
+    let wanted: std::collections::BTreeSet<(String, Option<String>)> = items
+        .iter()
+        .filter_map(|item| item.manifest.as_ref())
+        .flat_map(crate::api::secrets::references)
+        .collect();
+    if wanted.is_empty() {
+        return Vec::new();
+    }
+    let stored = crate::api::secrets::stored(state, project)
+        .await
+        .unwrap_or_default();
+    wanted
+        .into_iter()
+        .filter(|(name, key)| {
+            !stored
+                .get(name)
+                .is_some_and(|held| key.as_ref().is_none_or(|key| held.keys.contains(key)))
+        })
+        .map(|(name, key)| {
+            json!({
+                "name": name,
+                "key": key,
+                "form": crate::api::secrets::form_url(state, project, &name, key.as_deref()),
+            })
+        })
+        .collect()
 }
 
 async fn apply(
@@ -1091,6 +1127,7 @@ fn plan_output_schema() -> Value {
             "lane": { "type": "string", "enum": ["green", "yellow", "red"] },
             "diff": { "type": "array", "items": { "type": "object" } },
             "verdict": { "type": "object" },
+            "needsSecret": { "type": "array", "items": { "type": "object" } },
             "next": { "type": "string" }
         },
         "required": ["planId", "baseEtag", "expiresAt", "diff", "verdict"]

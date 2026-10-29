@@ -5310,6 +5310,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/secrets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List The Project's Secrets
+         * @description Names and keys of every secret the repository's encrypted files declare, never a value (CC-06, T-5971). Only a person in a Portal session with `propose` on DataSource; a token of a connector, an agent or a service account is refused.
+         */
+        get: operations["list_secrets"];
+        put?: never;
+        /**
+         * Propose A Secret
+         * @description Encrypts the values with SOPS + age for the Portal's own recipient (and every recipient the replaced file had) into `projects/{project}/secrets/{name}.enc.yaml` and opens a change request a person approves (CC-06, T-5971). The values are never stored in plain text, logged or answered. A secret that exists replaces whole: send every key. Only a person in a Portal session with `propose` on DataSource; a token of a connector, an agent or a service account is refused.
+         */
+        post: operations["propose_secret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/serviceaccounts/{name}/access": {
         parameters: {
             query?: never;
@@ -10656,6 +10680,30 @@ export interface components {
             kind: string;
             name: string;
         };
+        /** @description The project's secrets, by name. */
+        SecretList: {
+            items: components["schemas"]["StoredSecret"][];
+        };
+        /**
+         * @description What the form sends: the whole secret, every key of it.
+         * @example {
+         *       "name": "counters-api",
+         *       "values": {
+         *         "apiKey": "typed-in-the-form"
+         *       }
+         *     }
+         */
+        SecretWrite: {
+            /** @description The secret's name, letters, digits, `-` and `_`, e.g. `counters-api`. */
+            name: string;
+            /**
+             * @description Each key with its value, e.g. `{"apiKey": "…"}`. A secret that exists already is replaced
+             *     whole, so every key it keeps is sent again.
+             */
+            values: {
+                [key: string]: string;
+            };
+        };
         /** @description One step or operator item and whether it is done. */
         SetupItem: {
             done: boolean;
@@ -10894,6 +10942,15 @@ export interface components {
         };
         /** @enum {string} */
         StepVerdict: "ok" | "refused";
+        /** @description A secret the repository declares: its name and keys, never a value. */
+        StoredSecret: {
+            /** @description Its keys, e.g. `["apiKey"]`; empty for a secret holding one value. */
+            keys: string[];
+            /** @description The name a `secretRef` gives, e.g. `counters-api`. */
+            name: string;
+            /** @description The repository file that holds it. */
+            path: string;
+        };
         /** @description A request about one data subject. */
         SubjectRequest: {
             /** @description Why, for the audit record: the request's reference, the legal ground. */
@@ -23196,6 +23253,7 @@ export interface operations {
                         expiresAt: string;
                         /** @enum {string} */
                         lane?: "green" | "yellow" | "red";
+                        needsSecret?: Record<string, never>[];
                         next?: string;
                         planId: string;
                         verdict: Record<string, never>;
@@ -31410,6 +31468,128 @@ export interface operations {
                 };
             };
             /** @description No repository configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_secrets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The secrets, by name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecretList"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A bearer token, or no `propose` on DataSource here */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No forge */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    propose_secret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SecretWrite"];
+            };
+        };
+        responses: {
+            /** @description The change request that adds the secret */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Change"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A bearer token, or no `propose` on DataSource here */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Another file declares the name, or a change of it is open already */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A name, key or value the form refuses, each named in errors */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No forge, or this Portal holds no age identity */
             503: {
                 headers: {
                     [name: string]: unknown;

@@ -29,6 +29,7 @@ import { FormRouteHost } from "./components/forms/FormRoute";
 import type { FormTarget } from "./components/forms/FormRoute";
 import { ActivityPage } from "./routes/ActivityPage";
 import { HealthPage } from "./pages/health/HealthLog";
+const SecretFormPage = lazy(() => import("./pages/secrets/SecretFormPage").then((module) => ({ default: module.SecretFormPage })));
 const ApprovalsPage = lazy(() => import("./routes/ApprovalsPage").then((module) => ({ default: module.ApprovalsPage })));
 const McpElicitationPage = lazy(() => import("./pages/mcp/McpElicitationPage").then((module) => ({ default: module.McpElicitationPage })));
 const McpConfirmationPage = lazy(() => import("./pages/mcp/McpElicitationPage").then((module) => ({ default: module.McpConfirmationPage })));
@@ -431,6 +432,25 @@ const workspacesNewRoute = createRoute({
     return (
       <Shell project={project}>
         <WorkspacesPage project={project} creating />
+      </Shell>
+    );
+  },
+});
+
+/** The secret form a plan's needsSecret links to (T-5971): a credential is typed here, never in a chat. */
+const secretNewRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/secrets/new",
+  validateSearch: (search: Record<string, unknown>): { name?: string; key?: string } => ({
+    name: typeof search.name === "string" ? search.name : undefined,
+    key: typeof search.key === "string" ? search.key : undefined,
+  }),
+  component: function SecretNewRoute() {
+    const { project } = secretNewRoute.useParams();
+    const { name, key } = secretNewRoute.useSearch();
+    return (
+      <Shell project={project}>
+        <SecretFormPage project={project} name={name} secretKey={key} />
       </Shell>
     );
   },
@@ -1403,6 +1423,7 @@ export const routeTree = rootRoute.addChildren([
     sharedRedirectRoute,
     workspacesRoute,
     workspacesNewRoute,
+    secretNewRoute,
     workspaceTryItRoute,
     workspaceCompareRoute,
     workspaceBringBackRoute,
