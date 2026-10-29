@@ -32,6 +32,9 @@ export interface MqttRoleForm {
   serviceAccounts?: string[];
   publish?: string[];
   subscribe?: string[];
+  /** The role's devices share their publish topics (T-5561); needs a `reason`. */
+  sharedTopics?: boolean;
+  reason?: string;
 }
 
 export interface MqttBrokerForm {
@@ -165,19 +168,29 @@ export function toMqttBrokerManifest(project: string, form: MqttBrokerForm, stor
   const capture = Object.fromEntries(
     Object.entries(form.capture ?? {}).filter(([, value]) => value !== undefined && value !== ""),
   );
+  // The settings the form has no field for (address, hostname, deviceAuth) travel on unchanged
+  // (T-6103: an edit used to drop them).
+  const storedSpec = ((stored ?? {}) as { spec?: Record<string, unknown> }).spec ?? {};
+  const kept = Object.fromEntries(
+    Object.entries(storedSpec).filter(([key]) => ["address", "hostname", "deviceAuth"].includes(key)),
+  );
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "MqttBroker",
     metadata: { ...storedMetadata(stored), name: form.name, namespace: project },
     spec: {
+      ...kept,
       roles: (form.roles ?? []).map((role) => {
         const publish = list(role.publish);
         const subscribe = list(role.subscribe);
+        const reason = (role.reason ?? "").trim();
         return {
           name: role.name ?? "",
           serviceAccounts: list(role.serviceAccounts),
           ...(publish.length > 0 ? { publish } : {}),
           ...(subscribe.length > 0 ? { subscribe } : {}),
+          ...(role.sharedTopics ? { sharedTopics: true } : {}),
+          ...(role.sharedTopics && reason ? { reason } : {}),
         };
       }),
       ...(Object.keys(limits).length > 0 ? { limits } : {}),
@@ -200,6 +213,7 @@ export function fromMqttBrokerManifest(manifest: unknown): MqttBrokerForm {
       serviceAccounts: role.serviceAccounts ?? [],
       publish: role.publish ?? [],
       subscribe: role.subscribe ?? [],
+      ...(role.sharedTopics ? { sharedTopics: true, reason: role.reason ?? "" } : {}),
     })),
     ...(spec.limits ? { limits: spec.limits } : {}),
     ...(typeof spec.port === "number" ? { port: spec.port } : {}),

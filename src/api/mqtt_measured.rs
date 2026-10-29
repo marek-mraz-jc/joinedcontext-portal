@@ -46,6 +46,21 @@ pub struct Measured {
     pub reason: Option<String>,
     /// Every ServiceAccount the broker's roles name, in name order.
     pub accounts: Vec<AccountSeen>,
+    /// Messages per second between each two neighbouring samples the broker keeps (its
+    /// `history_retention`, five minutes in the chart), oldest first; empty when not measured.
+    pub rates: Vec<RatePoint>,
+    /// Publishes the broker refused since it started (`client.publish.auth.error` of the newest
+    /// sample): the gateway's publish check said no, or the client was over its rate.
+    pub refused_publishes: Option<u64>,
+}
+
+/// The rate between one sample and the one before it, at the newer sample's time.
+#[derive(Debug, PartialEq, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RatePoint {
+    #[schema(value_type = String, format = DateTime)]
+    pub at: DateTime<Utc>,
+    pub per_second: f64,
 }
 
 /// One ServiceAccount of the broker's roles and its connected clients.
@@ -69,6 +84,8 @@ struct Sample {
     ts: i64,
     #[serde(rename = "messages.publish")]
     published: f64,
+    #[serde(rename = "client.publish.auth.error", default)]
+    publish_refused: f64,
 }
 
 #[derive(Deserialize)]
@@ -89,6 +106,31 @@ fn rate(history: &History) -> Option<f64> {
     let (newest, before) = (samples.first()?, samples.get(1)?);
     let seconds = (newest.ts - before.ts) as f64 / 1000.0;
     (seconds > 0.0).then(|| ((newest.published - before.published) / seconds).max(0.0))
+}
+
+/// The rate between each two neighbouring samples, oldest first; a pair at one instant or out of
+/// any time order is skipped, and a counter that went back (a restart) reads as zero.
+fn rates(history: &History) -> Vec<RatePoint> {
+    let mut samples: Vec<&Sample> = history.data.iter().collect();
+    samples.sort_by_key(|sample| sample.ts);
+    samples
+        .windows(2)
+        .filter_map(|pair| {
+            let (before, newer) = (pair.first()?, pair.get(1)?);
+            let seconds = (newer.ts - before.ts) as f64 / 1000.0;
+            let at = DateTime::from_timestamp_millis(newer.ts)?;
+            (seconds > 0.0).then(|| RatePoint {
+                at,
+                per_second: ((newer.published - before.published) / seconds).max(0.0),
+            })
+        })
+        .collect()
+}
+
+/// `client.publish.auth.error` of the newest sample; `None` without a sample.
+fn refused_publishes(history: &History) -> Option<u64> {
+    let newest = history.data.iter().max_by_key(|sample| sample.ts)?;
+    Some(newest.publish_refused.max(0.0) as u64)
 }
 
 /// The broker's connected clients per account of its roles, and the publishers among them.
@@ -177,6 +219,8 @@ pub async fn measure(base: &str, project: &str, spec: &MqttBrokerSpec) -> Measur
                 publishers: Some(publishers),
                 reason: None,
                 accounts,
+                rates: rates(&history),
+                refused_publishes: refused_publishes(&history),
             }
         }
         (Err(reason), _) | (_, Err(reason)) => not_measured(observed_at, reason),
@@ -191,6 +235,8 @@ fn not_measured(observed_at: DateTime<Utc>, reason: String) -> Measured {
         publishers: None,
         reason: Some(reason),
         accounts: Vec::new(),
+        rates: Vec::new(),
+        refused_publishes: None,
     }
 }
 
@@ -273,7 +319,49 @@ mod tests {
     }
 
     fn sample(ts: i64, published: f64) -> Sample {
-        Sample { ts, published }
+        Sample {
+            ts,
+            published,
+            publish_refused: 0.0,
+        }
+    }
+
+    #[test]
+    fn the_rates_are_each_neighbouring_pair_oldest_first() {
+        let history = History {
+            data: vec![
+                sample(10_000, 40.0),
+                sample(0, 10.0),
+                sample(5_000, 20.0),
+                sample(5_000, 20.0),
+                // A restart: the counter starts again.
+                sample(15_000, 3.0),
+            ],
+        };
+        let seen: Vec<(i64, f64)> = rates(&history)
+            .iter()
+            .map(|point| (point.at.timestamp_millis(), point.per_second))
+            .collect();
+        assert_eq!(seen, [(5_000, 2.0), (10_000, 4.0), (15_000, 0.0)]);
+        assert!(rates(&History {
+            data: vec![sample(1, 5.0)]
+        })
+        .is_empty());
+    }
+
+    #[test]
+    fn the_refused_publishes_are_the_newest_samples_counter() {
+        let mut newest = sample(9_000, 1.0);
+        newest.publish_refused = 812.0;
+        let mut older = sample(4_000, 1.0);
+        older.publish_refused = 800.0;
+        assert_eq!(
+            refused_publishes(&History {
+                data: vec![newest, older]
+            }),
+            Some(812)
+        );
+        assert_eq!(refused_publishes(&History { data: Vec::new() }), None);
     }
 
     #[test]

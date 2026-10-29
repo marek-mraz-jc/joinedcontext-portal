@@ -101,6 +101,13 @@ async function stubApi(page: Page, world: World): Promise<void> {
       world.proposed.push(body);
       return json({ apiVersion: API, kind: "Change", metadata: { name: `chg-${world.proposed.length}`, namespace: PROJECT }, spec: {}, status: { phase: "Proposed" } }, 201);
     }
+    // One broker's own page (T-6103) reads it by name, with its panels' own reads.
+    if (path.endsWith("/access")) return json({ roles: [], outOfWindow: [] });
+    if (/\/mqttbrokers\/[^/]+\/bindings$/.test(path)) return json({ broker: "x", bindings: [] });
+    if (path.endsWith("/watch")) return json({ observedAt: "2026-10-29T20:15:00Z", refusals: [], refusalsRead: false });
+    const own = /\/mqttbrokers\/([^/]+)$/.exec(path);
+    const named = own ? world.brokers.find((b) => (b as { metadata: { name: string } }).metadata.name === own[1]) : undefined;
+    if (named) return json(named);
     const plural = path.split("/").pop() ?? "";
     if (plural === "projects") {
       return json({ apiVersion: API, kind: "List", items: [{ apiVersion: API, kind: "Project", metadata: { name: PROJECT, namespace: "org" }, spec: { title: "Helsinki" } }] });
@@ -177,12 +184,13 @@ test.describe("MQTT allowance", () => {
       if (new URL(url).pathname.startsWith("/api/")) return route.fallback();
       return route.fulfill({ response: await route.fetch({ url: url.replace(PORTAL_HOST, "127.0.0.1") }) });
     });
-    await page.goto(`http://${PORTAL_HOST}:4173/projects/${PROJECT}/mqttbrokers?lang=en`);
+    await page.goto(`http://${PORTAL_HOST}:4173/projects/${PROJECT}/mqttbrokers/doors?lang=en`);
     await expect(page.getByText(/mosquitto_pub -h doors\.helsinki\.mqtt\.dev\.joinedcontext\.com -p 8883/)).toBeVisible();
     await expect(page.getByText(/-P "\$TOKEN"/)).toBeVisible();
-    await expect(page.getByText("1 of 2 brokers in use, 900 of 1,000 connections left, 9,000 messages per second left.")).toBeVisible();
     await expect(page.getByText("Keeps the last 50 messages per topic for 2 hours, for building the mapping.")).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
+    await page.goto(`http://${PORTAL_HOST}:4173/projects/${PROJECT}/mqttbrokers?lang=en`);
+    await expect(page.getByText("1 of 2 brokers in use, 900 of 1,000 connections left, 9,000 messages per second left.")).toBeVisible();
     await shoot(page, "mqtt-capture");
 
     // The steward adds the second broker.

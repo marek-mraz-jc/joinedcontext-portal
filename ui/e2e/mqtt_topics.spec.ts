@@ -82,6 +82,7 @@ async function stubApi(page: Page, world: World): Promise<void> {
       if (!world.approver) return json({ status: 404, detail: "MQTT broker 'sensors' not found" }, 404);
       return json({ broker: "sensors", mode: "capture", window: "PT1H", messagesPerTopic: 20, messages: world.messages, truncated: false });
     }
+    if (path.endsWith("/mqttbrokers/sensors")) return json(BROKER);
     if (path.endsWith("/mqttbrokers")) return json({ apiVersion: API, kind: "List", items: [BROKER] });
     return json({ apiVersion: API, kind: "List", items: [] });
   });
@@ -102,8 +103,8 @@ async function open(page: Page, world: World): Promise<string[]> {
   const asked: string[] = [];
   page.on("request", (request) => asked.push(`${request.method()} ${new URL(request.url()).pathname}`));
   await stubApi(page, world);
-  await page.goto(`/projects/${PROJECT}/mqttbrokers?lang=en`);
-  await expect(page.getByRole("heading", { level: 2, name: "sensors" })).toBeVisible();
+  await page.goto(`/projects/${PROJECT}/mqttbrokers/sensors?lang=en`);
+  await expect(page.getByRole("heading", { level: 1, name: "sensors" })).toBeVisible();
   return asked;
 }
 

@@ -17,6 +17,12 @@ export interface TableProps extends HTMLAttributes<HTMLTableElement> {
    * the page. The frame is one focusable, named stop either way (WCAG 2.1.1).
    */
   maxHeight?: string;
+  /**
+   * Below 640 px each row becomes a card of label and value lines (`table-stack`), for a table
+   * whose columns all matter on a phone. Give every `TableCell` after the first a `data-label`
+   * naming its column.
+   */
+  stack?: boolean;
 }
 
 /**
@@ -28,6 +34,7 @@ export function Table({
   zebra = true,
   status,
   maxHeight,
+  stack,
   className,
   children,
   ...rest
@@ -86,6 +93,7 @@ export function Table({
             "max-lg:[&_tbody>tr>:first-child]:bg-surface max-lg:[&_thead>tr>:first-child]:bg-surface-subtle",
             zebra && "max-lg:[&_tbody>tr:nth-child(even)>:first-child]:bg-surface-subtle",
             "max-lg:[&_tbody>tr:hover>:first-child]:bg-primary-50",
+            stack && "table-stack",
             className,
           )}
           {...rest}

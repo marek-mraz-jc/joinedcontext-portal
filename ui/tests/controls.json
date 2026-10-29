@@ -2300,7 +2300,16 @@
         "mqtt_devices.test.tsx"
       ]
     },
-    "src/pages/mqttbrokers/MqttBrokersPage.tsx": {
+    "src/pages/mqttbrokers/BrokerEditor.tsx": {
+      "controls": {
+        "Button": 6,
+        "Checkbox": 2
+      },
+      "tests": [
+        "mqtt_broker_draft.test.ts"
+      ]
+    },
+    "src/pages/mqttbrokers/MqttBrokerPage.tsx": {
       "controls": {
         "Button": 1
       },
