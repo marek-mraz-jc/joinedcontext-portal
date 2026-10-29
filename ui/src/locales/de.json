@@ -6234,7 +6234,7 @@
       "segment": {
         "label": "Werkzeuge",
         "none": "Geführte Wege",
-        "help": "Der Assistent folgt den Wegen unten. Wählen Sie eine Vorgabe, z. B. Pipelines, dann nutzt er deren Werkzeuge, jeder Aufruf geprüft gegen Ihre Rechte."
+        "help": "Der Assistent folgt den geführten Wegen. Wählen Sie eine Vorgabe, z. B. Pipelines, dann nutzt er deren Werkzeuge, jeder Aufruf geprüft gegen Ihre Rechte."
       }
     },
     "full": {

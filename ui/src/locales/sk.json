@@ -6234,7 +6234,7 @@
       "segment": {
         "label": "Nástroje",
         "none": "Sprevádzané postupy",
-        "help": "Asistent ide podľa postupov nižšie. Vyberte predvoľbu, napr. Pipelines, a dostane jej nástroje; každé volanie sa overí podľa vašich práv."
+        "help": "Asistent ide podľa sprevádzaných postupov. Vyberte predvoľbu, napr. Pipelines, a dostane jej nástroje; každé volanie sa overí podľa vašich práv."
       }
     },
     "full": {

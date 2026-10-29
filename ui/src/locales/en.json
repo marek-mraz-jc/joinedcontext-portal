@@ -6234,7 +6234,7 @@
       "segment": {
         "label": "Tools",
         "none": "Guided paths",
-        "help": "The assistant follows the paths below. Pick a preset, e.g. Pipelines, to give it that preset's tools, each call checked against your own rights."
+        "help": "The assistant follows the guided paths. Pick a preset, e.g. Pipelines, to give it that preset's tools, each call checked against your own rights."
       }
     },
     "full": {
