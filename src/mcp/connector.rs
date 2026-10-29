@@ -389,7 +389,7 @@ async fn judge(
                     .map(|p| (*p).to_owned())
                     .unwrap_or_default()
             });
-            let mut tools: Vec<Value> = crate::ops::listing(&caller, state, &project)
+            let tools: Vec<Value> = crate::ops::listing(&caller, state, &project)
                 .iter()
                 .filter(|summary| {
                     crate::ops::find(&summary.name).is_some_and(|op| {
@@ -404,6 +404,14 @@ async fn judge(
                     tool
                 })
                 .collect();
+            let (_, kinds) = connector.reach();
+            let mut tools = crate::ops::resources::with_readable_kinds(
+                tools,
+                &caller,
+                state,
+                &project,
+                Some(&kinds),
+            );
             // The UI tools reach the person's paired tab only, so they are offered only while
             // one is paired (T-5967).
             let now = crate::auth::session::now_unix();
