@@ -107,6 +107,35 @@
   says: "What does the public Endpoint for air quality show now?"
   expect: 'public connector answers from the public Endpoint only'
   deny: 'anonymous asks for a non-public Endpoint -> refused, no count or name leaks'
+  # The public connector is the gateway hub /api/mcp (T-6026); the Portal door stays signed-in only.
+  script:
+    - proves: expect
+      via: public
+      contains: ['query_entities', 'list_endpoints', 'search']
+      absent: ['create_entity', 'batch_upsert', 'jc_change_plan']
+    - proves: expect
+      via: public
+      call: query_entities
+      args: { endpoint: scnpublicairqualityzzzzzzz, type: [AirQualityObserved] }
+      contains: ['urn:ngsi-ld:AirQualityObserved:scn-snp', '16.1']
+    - proves: deny
+      via: public
+      call: list_endpoints
+      contains: ['scnpublicairqualityzzzzzzz']
+      absent: ['scninternalrecordszzzzzzzz', 'Records of the region', 'PotholeReport']
+    - proves: deny
+      via: public
+      call: search
+      args: { query: 'Records of the region' }
+      absent: ['scninternalrecordszzzzzzzz', 'PotholeReport']
+    - proves: deny
+      via: public
+      call: query_entities
+      args: { endpoint: scninternalrecordszzzzzzzz, type: [PotholeReport], count: true }
+      refused: true
+      absent: ['Records of the region']
+    - proves: deny
+      refused: true
 - id: S-08
   segment: data-read
   as: viewer
