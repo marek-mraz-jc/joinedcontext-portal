@@ -41,6 +41,20 @@ sha=$(curl -fsS -m 20 "$PORTAL_URL/api/v1/version" | jq -r '.portal.commit // em
 dir=$evidence/$sha
 [ -e "$dir/summary.json" ] && { echo "rollout-walk: $sha walked already ($dir)"; exit 0; }
 
+# T-6076: /api/v1/version names the new commit as soon as its pod is ready, while the old pod still
+# drains and the dev sync goes on; the walks that started then met the edge's 502 on their first
+# loads (T-6065 13:17Z, T-6076 16:31Z, both fine on retry). A commit is walked once dev has served
+# it for WALK_SETTLE_S (300 s, one more cron tick), so the walk judges the Portal people get.
+settle=${WALK_SETTLE_S:-300}
+now=$(date +%s)
+seen_sha='' seen_at=''
+read -r seen_sha seen_at <"$evidence/first-seen" 2>/dev/null
+if [ "$seen_sha" != "$sha" ] || ! [[ $seen_at =~ ^[0-9]+$ ]]; then seen_at=$now; echo "$sha $now" >"$evidence/first-seen"; fi
+if [ $(( now - seen_at )) -lt "$settle" ]; then
+  echo "rollout-walk: dev has served $sha for $(( now - seen_at )) s, under $settle s: walk of $sha deferred until the rollout settles" >&2
+  exit 1
+fi
+
 # T-5993: Chromium makes its renderers the kernel OOM killer's first victims, so on a host short of
 # memory (workers linking ~6 GB test binaries beside the walk) every try of a commit met "Page
 # crashed" within the same 15 minutes and filed "wrote no report" for a Portal that was fine. Under
