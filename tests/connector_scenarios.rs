@@ -830,6 +830,10 @@ struct Harness {
     server: &'static MockServer,
     /// The CSV source's address, `{csvUrl}` in a script.
     csv_url: String,
+    /// The second every persona signed in: each token's `iat`. Keycloak issues a disabled
+    /// person no new token, so a token minted after S-54's disable would slip past the
+    /// Portal's revocation mark (`iat <= mark`) whenever the clock ticked in between.
+    signed_in: i64,
 }
 
 impl Harness {
@@ -952,6 +956,7 @@ impl Harness {
             added: std::sync::Mutex::default(),
             server,
             csv_url,
+            signed_in: joinedcontext_portal::auth::session::now_unix(),
         }
     }
 
@@ -1017,7 +1022,7 @@ impl Harness {
             // The administrator signed in with a one-time code, as a people decision asks (T-5567).
             "amr": if groups.contains(&"platform-admins") { json!(["pwd", "otp"]) } else { json!(["pwd"]) },
             "exp": now + ttl,
-            "iat": now,
+            "iat": self.signed_in,
         }))
     }
 
