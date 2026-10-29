@@ -150,6 +150,9 @@ pub struct Ceiling {
     /// Policies that name the person but fail their kind's validation: they grant nothing, and
     /// a person only they name gets nothing rather than the default, which could reach more.
     broken: Vec<String>,
+    /// Whether a scope item may tick `personalData` (AG-158). No DelegationPolicy field grants
+    /// it yet, so every ceiling keeps those attributes out of connector answers.
+    personal_data: bool,
 }
 
 /// The organization default as a policy: no `projects` list means every project the person reads.
@@ -247,6 +250,7 @@ impl Ceiling {
         Self {
             policies,
             broken: Vec::new(),
+            personal_data: false,
         }
     }
 
@@ -313,11 +317,6 @@ impl Ceiling {
 
     pub fn writes(&self) -> bool {
         self.each().iter().any(|p| p.writes)
-    }
-
-    /// Whether a scope item may tick `personalData` (AG-158).
-    pub fn personal_data(&self) -> bool {
-        self.each().iter().any(|p| p.personal_data)
     }
 
     pub fn max_days(&self) -> i64 {
@@ -966,6 +965,7 @@ pub fn validate(
     }
     validate_segments(&new.segments)?;
     validate_scope(new)?;
+    validate_personal(&new.scope, ceiling)?;
     if new.expires_at <= now {
         return Err(invalid(
             "expiresAt",
@@ -1017,12 +1017,6 @@ fn above(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Vec<(Stri
                 item.project
             );
             above.push((format!("scope[{i}].endpoint"), why));
-        }
-    }
-    for (i, item) in new.scope.iter().enumerate() {
-        if item.personal_data && !ceiling.personal_data() {
-            let why = format!("{named} keeps the attributes a model marks personalData out of AI connector answers; untick it, or ask an organization admin for a DelegationPolicy that allows it");
-            above.push((format!("scope[{i}].personalData"), why));
         }
     }
     if new.writes && !ceiling.writes() {
@@ -1109,6 +1103,16 @@ fn validate_scope(new: &NewConnector) -> Result<(), ApiError> {
 }
 
 /// A `personalData` tick needs a ceiling that allows it (AG-158).
+fn validate_personal(scope: &[ScopeItem], ceiling: &Ceiling) -> Result<(), ApiError> {
+    match scope.iter().position(|item| item.personal_data) {
+        Some(i) if !ceiling.personal_data => Err(above_ceiling(
+            &format!("scope[{i}].personalData"),
+            "your organization keeps the attributes a model marks personalData out of AI connector answers; untick it, or ask an organization admin for a DelegationPolicy that allows it".into(),
+        )),
+        _ => Ok(()),
+    }
+}
+
 fn validate_clients(clients: &[String]) -> Result<(), ApiError> {
     if clients.len() > MAX_CLIENTS {
         return Err(invalid(
@@ -1310,18 +1314,25 @@ impl ConnectorStore {
 
     /// Replaces the grant of the owner's connector `id` that is not revoked (an expired one
     /// lives again under a new `expiresAt`); `false` when there is none. The name stays.
-    pub async fn update(&self, id: &str, owner: &str, new: NewConnector) -> Result<bool, ApiError> {
-        // An edit fits the ceiling (`api::connectors` refuses one above it), so it waits for
-        // nobody and needs no approval.
+    /// Replaces a live connector's grant: `above` names what the edit asks above the ceiling
+    /// (pending unless `approval` already covers it, AG-150).
+    pub async fn update(
+        &self,
+        id: &str,
+        owner: &str,
+        new: NewConnector,
+        above: Vec<String>,
+        approval: Option<Approval>,
+    ) -> Result<bool, ApiError> {
         let grant = GrantDoc {
             segments: new.segments,
             scope: new.scope,
             writes: new.writes,
             expires_at: new.expires_at,
             allowed_clients: new.allowed_clients,
-            pending: false,
-            above: Vec::new(),
-            approval: None,
+            pending: !above.is_empty() && approval.is_none(),
+            above,
+            approval,
         };
         match &self.inner {
             Inner::Postgres(pool) => {
@@ -1852,19 +1863,16 @@ mod tests {
         let now = Utc::now();
         let mut ticked = new(&["data-read"], false, 1);
         ticked.scope[0].personal_data = true;
-        match validate(&ticked, &Ceiling::of_policies(vec![]), now) {
+        match validate(&ticked, &Ceiling::of_policies(Vec::new()), now) {
             Err(ApiError::Denied(why)) => {
                 assert!(why.starts_with("scope[0].personalData"), "{why}")
             }
             other => panic!("{other:?}"),
         }
-        let allows = Ceiling::of_policies(vec![(
-            "personal".into(),
-            DelegationPolicySpec {
-                personal_data: true,
-                ..default_policy()
-            },
-        )]);
+        let allows = Ceiling {
+            personal_data: true,
+            ..Ceiling::of_policies(Vec::new())
+        };
         assert!(validate(&ticked, &allows, now).is_ok());
     }
 

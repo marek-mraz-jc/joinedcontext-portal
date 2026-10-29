@@ -429,18 +429,31 @@ pub async fn edit_connector(
         expires_at: patch.expires_at.unwrap_or(current.expires_at),
         allowed_clients: patch.allowed_clients.unwrap_or(current.allowed_clients),
     };
-    // An edit never queues: above the ceiling it is refused, and a new connector asks instead.
-    let ceiling = Ceiling::of(&state.mirror, identity);
-    if let Some(above) = connectors::validate(&new, &ceiling, chrono::Utc::now())?.first() {
-        return Err(ApiError::Denied(format!(
-            "{above}; an edit cannot wait for an administrator: create a new connector to ask"
-        )));
-    }
+    // Decided (worker-t5953, owner may override): an edit is judged against today's ceiling like a
+    // create; above it under a queueing policy the connector waits again unless its approval
+    // already covers every line, because an approval covers what was asked then; options: keep
+    // any approval (an edit would widen past it), refuse every edit above the ceiling.
+    let above = connectors::validate(
+        &new,
+        &Ceiling::of(&state.mirror, identity),
+        chrono::Utc::now(),
+    )?;
     reachable(&state, identity, &new)?;
-    if !state.connectors.update(&id, &identity.subject, new).await? {
+    let approval = current
+        .approval
+        .filter(|_| !above.is_empty() && above.iter().all(|l| current.above_ceiling.contains(l)));
+    if !state
+        .connectors
+        .update(&id, &identity.subject, new, above, approval)
+        .await?
+    {
         return Err(not_found());
     }
-    Ok(Json(own(&state, identity, &id).await?))
+    let connector = own(&state, identity, &id).await?;
+    if connector.state == "pending" {
+        notify_admins(&state, identity, &connector).await;
+    }
+    Ok(Json(connector))
 }
 
 #[utoipa::path(
@@ -498,13 +511,11 @@ pub async fn connector_activity(
 /// it: whoever may approve a `DelegationPolicy` change (AG-150, AG-151).
 fn administrator(state: &AppState, identity: &Identity) -> Result<(), ApiError> {
     person(state, identity)?;
-    if identity
-        .client
-        .as_deref()
-        .is_some_and(|c| state.config.connector_clients.iter().any(|k| k == c))
-    {
+    // Any client's token, an AI client's or a token-exchanged agent's: only the person in the
+    // Portal decides (AG-151); a Portal session carries no client.
+    if identity.client.is_some() {
         return Err(ApiError::Denied(
-            "an AI client's token decides no connector request; approve it in the Portal (AG-151)"
+            "a client's token decides no connector request; approve it signed in to the Portal (AG-151)"
                 .into(),
         ));
     }
@@ -682,7 +693,10 @@ pub(crate) async fn notify_expiring(
 /// logged and the request stays queued.
 async fn notify_admins(state: &AppState, identity: &Identity, connector: &Connector) {
     let author = identity.username.to_ascii_lowercase();
-    let key = format!("connector.pending:{}", connector.id);
+    // One notice per request: the same lines asked again are the same event (T-5979).
+    use sha2::{Digest, Sha256};
+    let asked = Sha256::digest(connector.above_ceiling.join("\n").as_bytes());
+    let key = format!("connector.pending:{}:{:x}", connector.id, asked);
     let notice = crate::entity_comments::Notice {
         kind: "connector.pending",
         project: "",
@@ -844,6 +858,12 @@ mod tests {
         match administrator(&state, &admin) {
             Err(ApiError::Denied(why)) => assert!(why.contains("AG-151"), "{why}"),
             other => panic!("{other:?}"),
+        }
+        // Nor through an agent's token exchanged for the administrator (no connector client).
+        admin.client = Some("agent-runner".into());
+        match administrator(&state, &admin) {
+            Err(ApiError::Denied(why)) => assert!(why.contains("AG-151"), "{why}"),
+            other => panic!("an agent token decided a request: {other:?}"),
         }
         // A workload's account is no person.
         let mut workload = person("service-account-pipeline");
@@ -1007,5 +1027,78 @@ mod tests {
             .expect("edited");
         assert_eq!(edited.scope[0].endpoint.as_deref(), Some("helsinki-air"));
         assert_eq!(edited.name, "air");
+    }
+
+    #[tokio::test]
+    async fn an_edit_above_a_queueing_ceiling_waits_again_unless_its_approval_covers_it() {
+        let state = reader_world();
+        state.mirror.upsert(envelope(
+            "DelegationPolicy",
+            "readers-a-week",
+            ORG_NAMESPACE,
+            json!({ "subjects": [{ "kind": "Group", "name": "readers" }],
+                    "projects": ["helsinki"], "maxExpiry": "P7D", "aboveCeiling": "queue" }),
+        ));
+        state.mirror.upsert(envelope(
+            "Group",
+            "readers",
+            ORG_NAMESPACE,
+            json!({ "members": [{ "user": "reader@hel.fi" }] }),
+        ));
+        // The reader also reads espoo, which the policy leaves out.
+        state.mirror.upsert(envelope(
+            "RoleBinding",
+            "reader-espoo",
+            ORG_NAMESPACE,
+            json!({ "subjects": [{ "user": "reader@hel.fi" }], "role": "reader", "scope": { "project": "espoo" } }),
+        ));
+        let days = |n: i64| (chrono::Utc::now() + chrono::Duration::days(n)).to_rfc3339();
+        let new: NewConnector = serde_json::from_value(json!({
+            "name": "air", "segments": ["data-read"], "expiresAt": days(5),
+            "scope": [{ "project": "helsinki", "access": "read" }]
+        }))
+        .expect("new");
+        let created = state
+            .connectors
+            .create("f:1:reader@hel.fi", new, Vec::new(), "https://portal.test")
+            .await
+            .expect("created");
+        let edit = |body| {
+            edit_connector(
+                user("reader@hel.fi"),
+                State(state.clone()),
+                Path(created.id.clone()),
+                patch(body),
+            )
+        };
+        let Json(longer) = edit(json!({ "expiresAt": days(20) })).await.expect("kept");
+        assert_eq!(longer.state, "pending");
+        assert_eq!(longer.above_ceiling.len(), 1, "{:?}", longer.above_ceiling);
+        assert!(state
+            .connectors
+            .approve(&created.id, "sub-admin")
+            .await
+            .expect("approved"));
+        // The same ask again keeps the approval; a new line above the ceiling waits again.
+        let Json(again) = edit(json!({ "expiresAt": days(20) })).await.expect("kept");
+        assert!(
+            again.approval.is_some() && again.state != "pending",
+            "{again:?}"
+        );
+        let both = json!([{ "project": "helsinki", "access": "read" }, { "project": "espoo", "access": "read" }]);
+        let Json(wider) = edit(json!({ "scope": both, "expiresAt": days(20) }))
+            .await
+            .expect("kept");
+        assert_eq!(wider.state, "pending");
+        assert!(wider.approval.is_none());
+        // Back inside the ceiling the connector lives with nothing above it.
+        let one = json!([{ "project": "helsinki", "access": "read" }]);
+        let Json(inside) = edit(json!({ "scope": one, "expiresAt": days(5) }))
+            .await
+            .expect("edited");
+        assert!(
+            inside.state != "pending" && inside.above_ceiling.is_empty(),
+            "{inside:?}"
+        );
     }
 }
