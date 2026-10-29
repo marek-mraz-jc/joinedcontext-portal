@@ -1508,20 +1508,20 @@
     },
     "field": {
       "name": "Název",
-      "title": "Popis",
-      "space": "Kontextový prostor",
+      "title": "Název, který lidé vidí",
+      "space": "Data z prostoru",
       "slug": "Slug",
-      "audience": "Publikum",
-      "representations": "Reprezentace",
+      "audience": "Čtenáři",
+      "representations": "Formáty",
       "representationMappings": "Kalendáře a kanály novinek",
       "more": "+{count} dalších",
       "noRepresentations": "žádné reprezentace",
       "phase": "Stav",
       "allowedProjects": "Povolené projekty",
-      "rateLimits": "Omezení požadavků",
-      "requestsPerMinute": "Třída",
-      "burst": "Špička",
-      "caching": "Vyrovnávací paměť",
+      "rateLimits": "Limit požadavků",
+      "requestsPerMinute": "Požadavky za minutu na volajícího",
+      "burst": "Povolené krátké špičky",
+      "caching": "Vyrovnávací paměť odpovědí",
       "maxAge": "Životnost ve vyrovnávací paměti (sekundy)",
       "publicUrl": "Veřejná adresa",
       "types": "Typy entit",
@@ -1530,10 +1530,10 @@
       "policy": "Politika",
       "fileLimits": "Limity souborů",
       "ckanInstance": "Portál otevřených dat",
-      "ckanOrganization": "Vydavatel",
-      "catalogue": "Záznam v katalogu",
-      "publish": "Publikování",
-      "openData": "Otevřená data",
+      "ckanOrganization": "Vydavatel na portálu",
+      "catalogue": "Název datasetu na portálu",
+      "publish": "Zveřejnění otevřených dat",
+      "openData": "Uvést jako otevřená data",
       "catalog": {
         "title": "Popis v katalogu",
         "publisher": "Vydavatel",
@@ -1658,31 +1658,31 @@
       "noAddress": "Tento endpoint ještě nemá adresu; použít ho můžete, až bude zveřejněn."
     },
     "audienceOption": {
-      "project-list": "Vybrané projekty: pouze projekty, které označíte",
-      "organization": "Organizace: každý projekt organizace",
-      "public": "Veřejné: kdokoli s adresou"
+      "project-list": "Tento projekt a projekty, které označíte",
+      "organization": "Všichni v organizaci",
+      "public": "Všichni, bez přihlášení"
     },
     "representationOption": {
-      "ngsi-ld": "NGSI-LD rozhraní",
-      "geojson": "GeoJSON",
-      "csv": "CSV",
-      "json": "JSON",
-      "xlsx": "Excel (xlsx)",
-      "parquet": "Apache Parquet",
-      "zip": "ZIP ke stažení",
-      "ogc-features": "OGC API Features",
-      "odata": "OData v4",
-      "websocket": "Oznámení přes WebSocket",
-      "sta": "SensorThings API",
-      "ical": "Kalendář iCalendar",
-      "mcp": "MCP pro AI asistenty"
+      "ngsi-ld": "Propojená data (NGSI-LD)",
+      "geojson": "Mapový soubor (GeoJSON)",
+      "csv": "Tabulka (CSV)",
+      "json": "Prostý JSON",
+      "xlsx": "Sešit Excel (XLSX)",
+      "parquet": "Analytický soubor (Parquet)",
+      "zip": "Stažení ZIP",
+      "ogc-features": "Mapová vrstva (OGC)",
+      "odata": "Excel / Power BI (OData)",
+      "websocket": "Živé aktualizace (WebSocket)",
+      "sta": "Měření senzorů (SensorThings)",
+      "ical": "Kalendář (iCal)",
+      "mcp": "AI asistenti (MCP)"
     },
     "ical": {
       "subscribe": "Odběr kalendáře",
       "preview": "Otevřít kalendář (.ics)",
       "qr": "QR kód odběru kalendáře {address}",
       "qrHint": "Naskenujte ho fotoaparátem telefonu a kalendář se přidá.",
-      "off": "Zapněte kalendář iCalendar v části Reprezentace, abyste mohli mapovat jeho pole.",
+      "off": "Označte Kalendář (iCal) ve Formátech, abyste mohli mapovat jeho pole.",
       "help": "Ze kterého atributu modelu prostoru pochází každé pole kalendáře. Prázdný řádek použije atribut předvolby, zobrazený šedě. Zkontrolujte formulář a uvidíte verdikt serveru vůči datovému modelu.",
       "start": "Začít od",
       "presetDefault": "Výchozí (Smart Data Models Event)",
@@ -1705,7 +1705,7 @@
     "section": {
       "projection": "Které třídy a atributy zobrazuje",
       "hidden": "Skrýt atributy",
-      "manifests": "Zobrazit manifesty, které to navrhuje"
+      "manifests": "Zobrazit zdroj"
     },
     "filter": {
       "q": "Dotaz na atributy",
@@ -2098,7 +2098,7 @@
     "showMore": "Zobrazit dalších {count}",
     "outputs": {
       "help": "Pojmenované kalendáře a kanály novinek, které tento Endpoint nabízí. Každý výstup má vlastní adresu, název a mapování atributů a dotazem může zúžit data. Stránka datasetu je všechny uvádí v nabídce Odebírat.",
-      "icalOff": "Zapněte kanál iCalendar v části Reprezentace, abyste mohli přidat kalendáře.",
+      "icalOff": "Označte Kalendář (iCal) ve Formátech, abyste mohli přidat kalendáře.",
       "presetHint": "Předvolba vyplní pole; atribut níže vyberte jen tam, kde se váš liší.",
       "feedPresetHint": "event pro události, article pro novinky a oznámení, generic pro cokoli s názvem.",
       "fromPreset": "Z předvolby: {attribute}",
@@ -2322,6 +2322,25 @@
         "until": "Poslední den oprávnění, např. 2027-01-31. Prázdné znamená bez konce.",
         "reason": "K čemu data potřebujete, např. Týdenní zpráva o ovzduší pro okresní úřad."
       }
+    },
+    "source": {
+      "copy": "Kopírovat zdroj",
+      "hint": "Soubory, které tento návrh zapíše, jen pro čtení. Měňte formulář výše, ne zdroj."
+    },
+    "summary": {
+      "title": "Co tento návrh udělá",
+      "create": "Vytvoří rozhraní „{name}“ nad prostorem {space}.",
+      "edit": "Změní rozhraní „{name}“.",
+      "public": "Kdokoli jej může číst bez přihlášení.",
+      "organization": "Může jej číst celá organizace.",
+      "projects": "Mohou jej číst lidé tohoto projektu a projektů {projects}.",
+      "project": "Mohou jej číst jen lidé tohoto projektu.",
+      "formats": "Lidé jej čtou jako: {formats}.",
+      "added": "Přidané formáty: {formats}.",
+      "removed": "Odebrané formáty: {formats}.",
+      "published": "Zobrazí se jako dataset na portálu otevřených dat {portal}.",
+      "unpublished": "Nezobrazí se na žádném portálu otevřených dat.",
+      "approval": "Nic se nezmění, dokud návrh někdo neschválí."
     }
   },
   "datasources": {

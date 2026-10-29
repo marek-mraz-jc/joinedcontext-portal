@@ -1441,6 +1441,26 @@ async fn check_content(
     //     names the output and the member, which the form shows beside the field.
     if kind == "Endpoint" && operation != Operation::Delete {
         check_representation_shape(&envelope.spec)?;
+        // 4a''. A project the Endpoint newly lets read is one of the projects the form offered
+        //       this author: a project they read (PF-59). A name typed past the list, or one
+        //       for a project that does not exist yet, would grant whoever creates it later. The
+        //       Endpoint's own project is the author's, mirrored yet or not.
+        let stored = state
+            .mirror
+            .get(project, "Endpoint", &envelope.metadata.name);
+        if let Some(name) =
+            unoffered_project(stored.as_ref().map(|e| &e.spec), &envelope.spec, |name| {
+                name == project || crate::api::projects::readable(state, identity, name)
+            })
+        {
+            return Err(ApiError::Invalid {
+                detail: format!(
+                    "spec.allowedProjects names '{name}', which is not a project you can pick; \
+                     choose one from the list"
+                ),
+                errors: vec!["spec.allowedProjects".to_owned()],
+            });
+        }
     }
 
     // 4b. The kind's own parse and invariants (T-0412, CC-08, MF-24). `jcctl apply` would
@@ -2224,6 +2244,30 @@ async fn check_surfaces(
     }
 }
 
+/// The first project `spec.allowedProjects` adds to what `stored` already allowed that the author
+/// cannot `read`; a project already listed stays, so an edit never fails on what someone else
+/// granted (T-6099).
+fn unoffered_project(
+    stored: Option<&Value>,
+    spec: &Value,
+    read: impl Fn(&str) -> bool,
+) -> Option<String> {
+    let names = |spec: Option<&Value>| -> Vec<String> {
+        spec.and_then(|s| s.get("allowedProjects"))
+            .and_then(Value::as_array)
+            .map(|list| {
+                list.iter()
+                    .filter_map(|v| v.as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let before = names(stored);
+    names(Some(spec))
+        .into_iter()
+        .find(|name| !before.contains(name) && !read(name))
+}
+
 /// A 422 whose detail is every line and whose `errors` lists each, so the form's dry run shows
 /// one finding per member (API/11 EP-159).
 fn unprocessable(lines: Vec<String>) -> ApiError {
@@ -2852,6 +2896,34 @@ fn keep_languages(sent: &mut Option<jc_core::i18n::Text>, stored: Option<&jc_cor
 
 #[cfg(test)]
 mod tests {
+    /// T-6099: a newly allowed project must be one the author reads; a stored one stays.
+    #[test]
+    fn an_allowed_project_the_author_cannot_read_is_refused_only_when_added() {
+        use serde_json::json;
+        let read = |name: &str| name == "traffic";
+        let stored = json!({ "allowedProjects": ["secret-dept"] });
+        assert_eq!(
+            super::unoffered_project(
+                None,
+                &json!({ "allowedProjects": ["traffic", "squatted"] }),
+                read
+            ),
+            Some("squatted".to_owned())
+        );
+        assert_eq!(
+            super::unoffered_project(
+                Some(&stored),
+                &json!({ "allowedProjects": ["secret-dept", "traffic"] }),
+                read
+            ),
+            None
+        );
+        assert_eq!(
+            super::unoffered_project(None, &json!({ "audience": "public" }), read),
+            None
+        );
+    }
+
     use super::*;
     use crate::auth::session::{Identity, Session};
 

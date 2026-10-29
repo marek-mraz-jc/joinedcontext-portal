@@ -8,91 +8,68 @@ spec:
   for: Endpoint
   guide: User-Guide/05-endpoints-and-sharing
   about:
-    en: >-
-      An endpoint is the door through which other people read a context space: one address, the
-      formats you allow and the limits you set. Pick the space it serves and who may read it —
-      nothing is published until a person approves the change.
-    sk: >-
-      Endpoint sú dvere, ktorými iní ľudia čítajú kontextový priestor: jedna adresa, formáty,
-      ktoré povolíte, a limity, ktoré nastavíte. Vyberte priestor, ktorý obsluhuje, a kto ho smie
-      čítať — nič sa nezverejní, kým zmenu niekto neschváli.
-    cs: >-
-      Endpoint jsou dveře, kterými ostatní lidé čtou kontextový prostor: jedna adresa, formáty,
-      které povolíte, a limity, které nastavíte. Vyberte prostor, který obsluhuje, a kdo jej smí
-      číst — nic se nezveřejní, dokud změnu někdo neschválí.
-    de: >-
-      Ein Endpunkt ist die Tür, durch die andere einen Kontextraum lesen: eine Adresse, die
-      Formate, die Sie erlauben, und die Grenzen, die Sie setzen. Wählen Sie den Raum und wer
-      lesen darf — veröffentlicht wird erst, wenn eine Person die Änderung genehmigt.
+    en: Four questions publish your data; nothing changes until a person approves the proposal.
+    sk: Štyri otázky zverejnia vaše údaje; nič sa nezmení, kým návrh niekto neschváli.
+    cs: Čtyři otázky zveřejní vaše data; nic se nezmění, dokud návrh někdo neschválí.
+    de: Vier Fragen veröffentlichen Ihre Daten; nichts ändert sich, bevor jemand den Vorschlag genehmigt.
   # Absent from the schema by design while the person has not picked what they belong to: the
   # project list until the audience is `project-list`, a burst until a rate per minute is set.
   variants: [allowedProjects, rateLimits.burst]
   order:
     [
       contextSpaceRef,
-      name,
       title,
+      name,
       audience,
       allowedProjects,
+      publish,
+      catalog,
       enabledRepresentations,
       representations,
       rateLimits,
       caching,
-      publish,
-      catalog,
     ]
+  # Four questions a person can answer without knowing the manifest (T-6099); what only an
+  # operator tunes folds under Advanced.
   groups:
     - title:
-        en: What it publishes
-        sk: Čo zverejňuje
-        cs: Co zveřejňuje
-        de: Was es veröffentlicht
+        en: 1. What data?
+        sk: 1. Aké údaje?
+        cs: 1. Jaká data?
+        de: 1. Welche Daten?
       description:
-        en: The context space this endpoint serves and its identifiers.
-        sk: Kontextový priestor, ktorý toto rozhranie obsluhuje, a jeho identifikátory.
-        cs: Kontextový prostor, který toto rozhraní obsluhuje, a jeho identifikátory.
-        de: Der Kontextraum, den dieser Endpunkt bedient, und seine Kennungen.
-      fields: [contextSpaceRef, name, title]
+        en: The space the data lives in and the name people see, for example "Parking in Žilina".
+        sk: Priestor, v ktorom údaje sú, a názov, ktorý ľudia vidia, napríklad „Parkoviská v Žiline“.
+        cs: Prostor, ve kterém data jsou, a název, který lidé vidí, například „Parkoviště v Žilině“.
+        de: Der Raum, in dem die Daten liegen, und der Name, den Menschen sehen, zum Beispiel „Parken in Žilina“.
+      fields: [contextSpaceRef, title, name]
     - title:
-        en: Who can read it
-        sk: Kto ho môže čítať
-        cs: Kdo jej může číst
-        de: Wer zugreifen darf
+        en: 2. Who may read it?
+        sk: 2. Kto ich smie čítať?
+        cs: 2. Kdo je smí číst?
+        de: 2. Wer darf sie lesen?
       description:
-        en: Visibility, allowed projects and enabled representations.
-        sk: Viditeľnosť, povolené projekty a zapnuté reprezentácie.
-        cs: Viditelnost, povolené projekty a zapnuté reprezentace.
-        de: Sichtbarkeit, zugelassene Projekte und aktivierte Repräsentationen.
-      fields: [audience, allowedProjects, enabledRepresentations, representations]
+        en: Everyone, the whole organization, or only the projects you tick. Nothing is shared until the change is approved.
+        sk: Všetci, celá organizácia alebo len projekty, ktoré označíte. Nič sa nesprístupní, kým zmenu niekto neschváli.
+        cs: Všichni, celá organizace, nebo jen projekty, které označíte. Nic se nezpřístupní, dokud změnu někdo neschválí.
+        de: Alle, die ganze Organisation oder nur die Projekte, die Sie ankreuzen. Geteilt wird erst nach der Genehmigung.
+      fields: [audience, allowedProjects]
     - title:
-        en: Traffic and caching
-        sk: Prevádzka a vyrovnávacia pamäť
-        cs: Provoz a vyrovnávací paměť
-        de: Datenverkehr und Zwischenspeicher
+        en: 3. Where is it published?
+        sk: 3. Kde sa zverejní?
+        cs: 3. Kde se zveřejní?
+        de: 3. Wo wird es veröffentlicht?
       description:
-        en: Optional request rate limit (none unless you set one) and response cache duration.
-        sk: Voliteľný limit požiadaviek (bez limitu, kým ho nenastavíte) a trvanie vyrovnávacej pamäte pre odpovede.
-        cs: Volitelný limit požadavků (bez limitu, dokud jej nenastavíte) a trvání vyrovnávací paměti pro odpovědi.
-        de: Optionales Anfragelimit (keines, solange Sie keines setzen) und Cache-Dauer für Antworten.
-      folded: true
-      fields: [rateLimits, caching]
-    - title:
-        en: Open data
-        sk: Otvorené údaje
-        cs: Otevřená data
-        de: Offene Daten
-      description:
-        en: Publishing this endpoint as a dataset in the installation's open-data catalogue.
-        sk: Zverejnenie tohto rozhrania ako datasetu v katalógu otvorených údajov inštalácie.
-        cs: Zveřejnění tohoto rozhraní jako datasetu v katalogu otevřených dat instalace.
-        de: Diesen Endpunkt als Datensatz im Open-Data-Katalog der Installation veröffentlichen.
-      folded: true
+        en: Pick an open-data portal to list the data there as a dataset; leave it empty to keep it off every portal.
+        sk: Vyberte portál otvorených údajov, kde sa údaje zobrazia ako dataset; prázdne pole ich neuvedie nikde.
+        cs: Vyberte portál otevřených dat, kde se data zobrazí jako dataset; prázdné pole je neuvede nikde.
+        de: Wählen Sie ein Open-Data-Portal, um die Daten dort als Datensatz zu listen; leer bleibt es auf keinem Portal.
       fields: [publish]
     - title:
-        en: Catalogue description
-        sk: Popis v katalógu
-        cs: Popis v katalogu
-        de: Katalogbeschreibung
+        en: Catalogue texts
+        sk: Texty do katalógu
+        cs: Texty do katalogu
+        de: Katalogtexte
       description:
         en: Who publishes the data, under what licence, what it covers and where it comes from, as every catalogue reads it.
         sk: Kto údaje zverejňuje, pod akou licenciou, čo pokrývajú a odkiaľ pochádzajú, tak ako to číta každý katalóg.
@@ -100,51 +77,78 @@ spec:
         de: Wer die Daten veröffentlicht, unter welcher Lizenz, was sie abdecken und woher sie stammen, wie jeder Katalog es liest.
       folded: true
       fields: [catalog]
+    - title:
+        en: 4. Which formats?
+        sk: 4. V akých formátoch?
+        cs: 4. V jakých formátech?
+        de: 4. In welchen Formaten?
+      description:
+        en: The ways people and programs can read the data. The usual ones are ticked; untick what nobody needs.
+        sk: Spôsoby, ktorými ľudia a programy môžu údaje čítať. Bežné sú označené; odznačte, čo nikto nepotrebuje.
+        cs: Způsoby, kterými lidé a programy mohou data číst. Běžné jsou označené; odznačte, co nikdo nepotřebuje.
+        de: Die Wege, auf denen Menschen und Programme die Daten lesen. Die üblichen sind angekreuzt; entfernen Sie, was niemand braucht.
+      fields: [enabledRepresentations]
+    - title:
+        en: Advanced
+        sk: Pokročilé
+        cs: Pokročilé
+        de: Erweitert
+      description:
+        en: Request limits, answer cache and named calendar and feed outputs. The defaults suit most data.
+        sk: Limity požiadaviek, vyrovnávacia pamäť odpovedí a pomenované kalendáre a kanály. Predvolené hodnoty vyhovujú väčšine údajov.
+        cs: Limity požadavků, vyrovnávací paměť odpovědí a pojmenované kalendáře a kanály. Výchozí hodnoty vyhovují většině dat.
+        de: Anfragelimits, Antwort-Cache und benannte Kalender- und Feed-Ausgaben. Die Vorgaben passen für die meisten Daten.
+      folded: true
+      fields: [rateLimits, caching, representations]
   fields:
     name:
       placeholder: "parking-public"
       help:
-        en: Internal identifier for this endpoint; lowercase letters, digits and hyphens only.
-        sk: Interný identifikátor tohto rozhrania; iba malé písmená, číslice a spojovníky.
+        en: "A short identifier inside the project: lowercase letters, digits and hyphens, for example parking-public."
+        sk: "Krátky identifikátor v projekte: malé písmená, číslice a spojovníky, napríklad parkoviska-verejne."
         cs: Interní identifikátor tohoto rozhraní; pouze malá písmena, číslice a spojovníky.
         de: Interne Kennung dieses Endpunkts; nur Kleinbuchstaben, Ziffern und Bindestriche.
     title:
       help:
-        en: The name people read in the catalogue when they look for this data.
-        sk: Názov, ktorý ľudia čítajú v katalógu, keď hľadajú tieto údaje.
+        en: "The name people read in lists and catalogues, for example Parking in Žilina."
+        sk: "Názov, ktorý ľudia čítajú v zoznamoch a katalógoch, napríklad Parkoviská v Žiline."
         cs: Název, který lidé čtou v katalogu, když hledají tato data.
         de: Der Name, den Menschen im Katalog lesen, wenn sie diese Daten suchen.
     contextSpaceRef:
       help:
-        en: The context space whose entities this endpoint serves.
-        sk: Kontextový priestor, ktorého entity toto rozhranie poskytuje.
+        en: "The space whose data people will read, for example doprava; only spaces of this project are listed."
+        sk: "Priestor, ktorého údaje budú ľudia čítať, napríklad doprava; zoznam obsahuje len priestory tohto projektu."
         cs: Kontextový prostor, jehož entity toto rozhraní poskytuje.
         de: Der Kontextraum, dessen Entitäten dieser Endpunkt bereitstellt.
     audience:
       help:
-        en: Who is allowed to connect; public endpoints allow anonymous read access.
-        sk: Kto sa smie pripojiť; verejné rozhrania povoľujú anonymné čítanie.
+        en: "Public lets anyone read without logging in, for example a city's open parking data."
+        sk: "Verejné umožní čítať komukoľvek bez prihlásenia, napríklad otvorené údaje o parkovaní."
         cs: Kdo se smí připojit; veřejná rozhraní povolují anonymní čtení.
         de: Wer zugreifen darf; öffentliche Endpunkte erlauben anonymen Lesezugriff.
     enabledRepresentations:
       widget: checkboxes
       help:
         en: >-
-          The standards callers can read it through. Every one but SensorThings is on until you
-          uncheck it; NGSI-LD, GeoJSON and MCP are always on. SensorThings needs a number with its
-          unit in the space's data model, for example pm10 in µg/m³.
+          Each box is one way to read the data: a spreadsheet for people, a map layer for GIS, Excel
+          or Power BI over OData, a calendar for events, and AI assistants over MCP. The linked data
+          API and AI assistants are always on. Sensor readings need a number with its unit in the
+          space's data model, for example pm10 in µg/m³.
         sk: >-
-          Štandardy, cez ktoré ho volajúci môžu čítať. Všetky okrem SensorThings sú zapnuté, kým
-          ich neodškrtnete; NGSI-LD, GeoJSON a MCP sú zapnuté vždy. SensorThings potrebuje v dátovom
-          modeli priestoru číslo s jednotkou, napríklad pm10 v µg/m³.
+          Každé políčko je jeden spôsob, ako údaje čítať: tabuľka pre ľudí, mapová vrstva pre GIS,
+          Excel alebo Power BI cez OData, kalendár pre podujatia a AI asistenti cez MCP. Prepojené
+          údaje a AI asistenti sú zapnuté vždy. Merania senzorov potrebujú v dátovom modeli priestoru
+          číslo s jednotkou, napríklad pm10 v µg/m³.
         cs: >-
-          Standardy, přes které jej volající mohou číst. Všechny kromě SensorThings jsou zapnuté,
-          dokud je neodškrtnete; NGSI-LD, GeoJSON a MCP jsou zapnuté vždy. SensorThings potřebuje
-          v datovém modelu prostoru číslo s jednotkou, například pm10 v µg/m³.
+          Každé políčko je jeden způsob, jak data číst: tabulka pro lidi, mapová vrstva pro GIS,
+          Excel nebo Power BI přes OData, kalendář pro akce a AI asistenti přes MCP. Propojená data
+          a AI asistenti jsou zapnutí vždy. Měření senzorů potřebují v datovém modelu prostoru číslo
+          s jednotkou, například pm10 v µg/m³.
         de: >-
-          Die Standards, über die Aufrufer lesen können. Alle außer SensorThings sind an, bis Sie
-          sie abwählen; NGSI-LD, GeoJSON und MCP sind immer an. SensorThings braucht im Datenmodell
-          des Raums eine Zahl mit Einheit, zum Beispiel pm10 in µg/m³.
+          Jedes Kästchen ist ein Weg, die Daten zu lesen: eine Tabelle für Menschen, eine Kartenebene
+          für GIS, Excel oder Power BI über OData, ein Kalender für Veranstaltungen und KI-Assistenten
+          über MCP. Verknüpfte Daten und KI-Assistenten sind immer an. Sensormesswerte brauchen im
+          Datenmodell des Raums eine Zahl mit Einheit, zum Beispiel pm10 in µg/m³.
     representations:
       help:
         en: Which attribute of the space's model each field of the iCalendar feed comes from; the default reads a Smart Data Models Event.
@@ -153,8 +157,8 @@ spec:
         de: Aus welchem Attribut des Raummodells jedes Feld des iCalendar-Feeds stammt; der Standard liest ein Smart Data Models Event.
     allowedProjects:
       help:
-        en: Other projects in the organization permitted to read this endpoint when audience is restricted.
-        sk: Ostatné projekty v organizácii s povolením čítať toto rozhranie pri obmedzenom publiku.
+        en: "The other projects whose people may read it, for example doprava-mesta; only projects you can see are listed."
+        sk: "Ďalšie projekty, ktorých ľudia ho smú čítať, napríklad doprava-mesta; zoznam obsahuje len projekty, ktoré vidíte."
         cs: Ostatní projekty v organizaci s povolením číst toto rozhraní při omezeném publiku.
         de: Andere Projekte der Organisation, die diesen Endpunkt bei eingeschränkter Zielgruppe lesen dürfen.
     rateLimits.requestsPerMinute:

@@ -62,6 +62,8 @@ import { spaceSegment } from "../components/endpoints/policyBinding";
 import { catalogForm, catalogOf, prefillFromOrganization } from "../pages/endpoints/catalog";
 import type { CatalogForm, CatalogManifest } from "../pages/endpoints/catalog";
 import type { ModelPickerState } from "../pages/endpoints/ModelPicker";
+import { ProposalSummary } from "../pages/endpoints/ProposalSummary";
+import { stringify as yamlText } from "yaml";
 import { EndpointDataView } from "../components/entities/EndpointDataView";
 import { CodeBlock,
   Alert,
@@ -343,6 +345,12 @@ export function toForm(endpoint: Manifest): EndpointForm {
     ...(catalog ? { catalog } : {}),
     ...(spec.representations ? { representations: spec.representations } : {}),
   };
+}
+
+/** The manifests as the repository stores them: YAML documents (T-6099). */
+function sourceText(manifests: unknown): string {
+  const documents = Array.isArray(manifests) ? manifests : [manifests];
+  return documents.map((document) => yamlText(document)).join("---\n");
 }
 
 function hiddenOf(endpoint: Manifest): string[] {
@@ -1759,17 +1767,25 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
               </details>
             ) : null}
 
+            {editing?.name ? <ProposalSummary form={editing} before={isNew || !base ? null : toForm(base)} /> : null}
+
+            {/* The manifest only behind "View source", read-only with a copy button (T-6099): the
+                form above is where it changes. */}
             {previewManifests && editing?.name ? (
               <details className="rounded border border-border p-3">
                 <summary className="cursor-pointer text-body font-medium text-fg">
                   {t("endpoints.section.manifests")}
                 </summary>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-caption text-fg-muted">{t("endpoints.source.hint")}</p>
+                  <CopyUrlButton url={sourceText(previewManifests)} label={t("endpoints.source.copy")} title={t("endpoints.source.copy")} />
+                </div>
                 <CodeBlock
                   label={t("endpoints.section.manifests")}
                   data-testid="endpoint-preview"
                   className="mt-3 max-h-72 rounded border border-border bg-surface p-2.5 font-mono text-xs text-fg-muted"
                 >
-                  {JSON.stringify(previewManifests, null, 2)}
+                  {sourceText(previewManifests)}
                 </CodeBlock>
               </details>
             ) : null}

@@ -49,7 +49,7 @@ test("an endpoint proposed and approved through the UI: Live, the hidden attribu
   await dialog.locator("#root_name").fill(ENDPOINT);
   await dialog.locator("#root_title").fill("City bikes for the regional transport team");
   await dialog.locator("#root_contextSpaceRef").selectOption(PROJECT);
-  await dialog.locator("#root_audience").selectOption({ label: "Public: anyone with the address" });
+  await dialog.locator("#root_audience").selectOption("public");
   await expect(dialog.getByText(/public audience/)).toBeVisible();
   await dialog.getByRole("checkbox", { name: "ngsi-ld" }).check();
   // The model projection: the bike stations, with one slot left out.

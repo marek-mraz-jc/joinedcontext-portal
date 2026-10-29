@@ -52,7 +52,7 @@ for (const width of [1440, 400]) {
     test("a model that serves SensorThings leaves its box free", async ({ page }) => {
       const asked = await stubApi(page, "fit");
       await page.goto("/projects/city/endpoints/new?lang=en");
-      const sta = page.getByRole("checkbox", { name: "SensorThings API" });
+      const sta = page.getByRole("checkbox", { name: "Sensor readings (SensorThings)" });
       await expect(sta).toBeEnabled();
       await sta.check();
       await expect(page.getByTestId("surface-gaps")).toHaveCount(0);
@@ -63,8 +63,8 @@ for (const width of [1440, 400]) {
     test("a model without a unit greys SensorThings out, says why and links the model", async ({ page }) => {
       await stubApi(page, "refused");
       await page.goto("/projects/city/endpoints/new?lang=en");
-      await expect(page.getByRole("checkbox", { name: "SensorThings API" })).toBeDisabled();
-      await expect(page.getByRole("checkbox", { name: "iCalendar feed" })).toBeEnabled();
+      await expect(page.getByRole("checkbox", { name: "Sensor readings (SensorThings)" })).toBeDisabled();
+      await expect(page.getByRole("checkbox", { name: "Calendar (iCal)" })).toBeEnabled();
       await expect(page.getByTestId("surface-gaps")).toHaveText(STA_GAP);
       await expect(page.getByRole("link", { name: "Open the data model air" })).toHaveAttribute("href", "/projects/city/models/air");
       await shot(page, "2-refused");
@@ -73,8 +73,8 @@ for (const width of [1440, 400]) {
     test("a draft model backs no domain standard", async ({ page }) => {
       await stubApi(page, "draft");
       await page.goto("/projects/city/endpoints/new?lang=en");
-      await expect(page.getByRole("checkbox", { name: "SensorThings API" })).toBeDisabled();
-      await expect(page.getByRole("checkbox", { name: "iCalendar feed" })).toBeDisabled();
+      await expect(page.getByRole("checkbox", { name: "Sensor readings (SensorThings)" })).toBeDisabled();
+      await expect(page.getByRole("checkbox", { name: "Calendar (iCal)" })).toBeDisabled();
       await expect(page.getByTestId("surface-gaps").locator("li")).toHaveText([DRAFT("sta"), DRAFT("ical")]);
       await shot(page, "3-draft");
     });
@@ -82,7 +82,7 @@ for (const width of [1440, 400]) {
     test("a space without a model points at adding one", async ({ page }) => {
       await stubApi(page, "none");
       await page.goto("/projects/city/endpoints/new?lang=en");
-      await expect(page.getByRole("checkbox", { name: "SensorThings API" })).toBeDisabled();
+      await expect(page.getByRole("checkbox", { name: "Sensor readings (SensorThings)" })).toBeDisabled();
       await expect(page.getByRole("link", { name: "Add a data model for the space" })).toHaveAttribute("href", "/projects/city/models");
       await shot(page, "4-no-model");
     });

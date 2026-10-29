@@ -1508,21 +1508,21 @@
     },
     "field": {
       "name": "Name",
-      "title": "Title",
-      "space": "Context Space",
+      "title": "Title people see",
+      "space": "Data from space",
       "slug": "Slug",
       "publicUrl": "Public address",
-      "audience": "Audience",
-      "representations": "Representations",
+      "audience": "Readers",
+      "representations": "Formats",
       "representationMappings": "Calendars and news feeds",
       "more": "+{count} more",
       "noRepresentations": "no representations",
       "phase": "State",
       "allowedProjects": "Allowed projects",
-      "rateLimits": "Rate limit",
-      "requestsPerMinute": "Class",
-      "burst": "Burst",
-      "caching": "Caching",
+      "rateLimits": "Request limit",
+      "requestsPerMinute": "Requests per minute per caller",
+      "burst": "Short spikes allowed",
+      "caching": "Answer cache",
       "maxAge": "Cache lifetime (seconds)",
       "types": "Entity types",
       "hiddenAttributes": "Hidden attributes",
@@ -1530,10 +1530,10 @@
       "policy": "Policy",
       "fileLimits": "File limits",
       "ckanInstance": "Open-data portal",
-      "ckanOrganization": "Publisher",
-      "catalogue": "Catalogue entry",
-      "publish": "Publication",
-      "openData": "Open data",
+      "ckanOrganization": "Publisher in the portal",
+      "catalogue": "Dataset name in the portal",
+      "publish": "Open-data publication",
+      "openData": "List as open data",
       "catalog": {
         "title": "Catalogue description",
         "publisher": "Publisher",
@@ -1658,31 +1658,31 @@
       "noAddress": "This endpoint has no address yet; you can use it once it is published."
     },
     "audienceOption": {
-      "project-list": "Selected projects: only the projects you tick",
-      "organization": "Organization: every project of the organization",
-      "public": "Public: anyone with the address"
+      "project-list": "This project and the projects you tick",
+      "organization": "Everyone in the organization",
+      "public": "Everyone, without logging in"
     },
     "representationOption": {
-      "ngsi-ld": "NGSI-LD API",
-      "geojson": "GeoJSON",
-      "csv": "CSV",
-      "json": "JSON",
-      "xlsx": "Excel (xlsx)",
-      "parquet": "Apache Parquet",
+      "ngsi-ld": "Linked data API (NGSI-LD)",
+      "geojson": "Map file (GeoJSON)",
+      "csv": "Spreadsheet (CSV)",
+      "json": "Plain JSON",
+      "xlsx": "Excel workbook (XLSX)",
+      "parquet": "Analysis file (Parquet)",
       "zip": "ZIP download",
-      "ogc-features": "OGC API Features",
-      "odata": "OData v4",
-      "websocket": "WebSocket notifications",
-      "sta": "SensorThings API",
-      "ical": "iCalendar feed",
-      "mcp": "MCP for AI assistants"
+      "ogc-features": "Map layer (OGC)",
+      "odata": "Excel / Power BI (OData)",
+      "websocket": "Live updates (WebSocket)",
+      "sta": "Sensor readings (SensorThings)",
+      "ical": "Calendar (iCal)",
+      "mcp": "AI assistants (MCP)"
     },
     "ical": {
       "subscribe": "Calendar subscription",
       "preview": "Open the feed (.ics)",
       "qr": "QR code of the calendar subscription {address}",
       "qrHint": "Scan it with a phone camera to add the calendar.",
-      "off": "Turn on the iCalendar feed under Representations to map its fields.",
+      "off": "Tick Calendar (iCal) under Formats to map its fields.",
       "help": "Which attribute of the space's model each calendar field comes from. An empty row uses the preset's attribute, shown greyed. Check the form to see the server's verdict against the data model.",
       "start": "Start from",
       "presetDefault": "The default (Smart Data Models Event)",
@@ -1705,7 +1705,7 @@
     "section": {
       "projection": "Which classes and attributes it shows",
       "hidden": "Hide attributes",
-      "manifests": "Show the manifests this proposes"
+      "manifests": "View source"
     },
     "filter": {
       "q": "Attribute query",
@@ -2098,7 +2098,7 @@
     "showMore": "Show {count} more",
     "outputs": {
       "help": "Named calendars and news feeds this Endpoint offers. Each output has its own address, title and attribute mapping, and may narrow the data with a query. A dataset page lists every output under Subscribe.",
-      "icalOff": "Turn on the iCalendar feed under Representations to add calendars.",
+      "icalOff": "Tick Calendar (iCal) under Formats to add calendars.",
       "presetHint": "The preset fills the fields; pick an attribute below only where yours differs.",
       "feedPresetHint": "event for events, article for news and notices, generic for anything with a name.",
       "fromPreset": "From the preset: {attribute}",
@@ -2322,6 +2322,25 @@
         "until": "The last day of the grant, e.g. 2027-01-31. Leave empty for no end.",
         "reason": "What you need the data for, e.g. Weekly air report for the district office."
       }
+    },
+    "source": {
+      "copy": "Copy source",
+      "hint": "The files this proposal writes, read-only. Change the form above, not the source."
+    },
+    "summary": {
+      "title": "What this proposal does",
+      "create": "Creates the endpoint “{name}” over the space {space}.",
+      "edit": "Changes the endpoint “{name}”.",
+      "public": "Anyone can read it without logging in.",
+      "organization": "Everyone in the organization can read it.",
+      "projects": "People of this project and of {projects} can read it.",
+      "project": "Only people of this project can read it.",
+      "formats": "People read it as: {formats}.",
+      "added": "Formats added: {formats}.",
+      "removed": "Formats removed: {formats}.",
+      "published": "It is listed as a dataset in the open-data portal {portal}.",
+      "unpublished": "It is not listed in any open-data portal.",
+      "approval": "Nothing changes until someone approves the proposal."
     }
   },
   "datasources": {

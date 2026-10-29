@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { parseAllDocuments } from "yaml";
 import { join } from "node:path";
 
 // The Endpoint form's named calendar and feed outputs (T-5218, API/11 EP-159) and the Endpoint page's
@@ -95,6 +96,8 @@ async function openForm(page: Page): Promise<ReturnType<Page["locator"]>> {
   await page.goto("/projects/bbsk/endpoints/new?lang=en");
   await page.getByRole("textbox", { name: "Name", exact: true }).fill("podujatia");
   await page.getByRole("checkbox", { name: "Event" }).check();
+  // Named calendar, feed and map outputs fold under Advanced (T-6099).
+  await page.getByText("Advanced", { exact: true }).click();
   return page.getByTestId("representation-outputs");
 }
 
@@ -106,10 +109,10 @@ for (const width of [1440, 400]) {
       const posted = await stubApi(page, "refuse");
       const section = await openForm(page);
       await expect(section).toContainText("No news feed yet");
-      await expect(section).toContainText("Turn on the iCalendar feed");
+      await expect(section).toContainText("Tick Calendar (iCal) under Formats");
       await shot(page, "1-empty", section);
 
-      await page.getByLabel("iCalendar feed").check();
+      await page.getByLabel("Calendar (iCal)").check();
       await section.getByRole("button", { name: "Add a calendar" }).click();
       await section.getByLabel("Title in Slovak").first().fill("Kalendár podujatí");
       await section.getByRole("button", { name: "Add a news feed" }).click();
@@ -223,10 +226,10 @@ for (const width of [1440, 400]) {
       await page.getByRole("checkbox", { name: `${cls} Writable` }).check();
       await page.getByRole("textbox", { name: `${cls} Scope` }).fill(scope);
     }
-    await page.getByText("Show the manifests this proposes").click();
+    await page.getByText("View source", { exact: true }).click();
     const preview = page.getByTestId("endpoint-preview");
-    await expect(preview).toContainText('"rules"');
-    const manifests = JSON.parse((await preview.textContent()) ?? "[]") as { kind: string; metadata: { name: string }; spec: Record<string, unknown> }[];
+    await expect(preview).toContainText("rules:");
+    const manifests = parseAllDocuments((await preview.textContent()) ?? "").map((document) => document.toJS()) as { kind: string; metadata: { name: string }; spec: Record<string, unknown> }[];
     const write = manifests.find((m) => m.metadata.name === "podujatia-write")!;
     expect((write.spec.rules as { scopeQ: string }[]).map((rule) => rule.scopeQ)).toEqual(["/bbsk/events", "/bbsk/places"]);
     expect(write.spec).not.toHaveProperty("scopeQ");

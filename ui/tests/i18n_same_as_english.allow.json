@@ -11,7 +11,6 @@
     "Alias",
     "Anthropic",
     "API",
-    "Apache Parquet",
     "Bloblang",
     "Broker",
     "CPU",
@@ -30,7 +29,6 @@
     "Endpoint",
     "English",
     "Excel",
-    "Excel (xlsx)",
     "Export",
     "Filter",
     "GeoJSON",
@@ -51,7 +49,6 @@
     "Menu",
     "Model",
     "NGSI-LD",
-    "OData v4",
     "OGC API Features",
     "Open Data Commons Attribution",
     "Open Data Commons Open Database Licence",
@@ -110,7 +107,8 @@
     "Claude Code",
     "claude.ai",
     "ChatGPT",
-    "VS Code (.vscode/mcp.json)"
+    "VS Code (.vscode/mcp.json)",
+    "Excel / Power BI (OData)"
   ],
   "cs": [
     "@context",
@@ -118,7 +116,6 @@
     "Alias",
     "Anthropic",
     "API",
-    "Apache Parquet",
     "Bloblang",
     "Broker",
     "CPU",
@@ -139,7 +136,6 @@
     "Endpoint",
     "English",
     "Excel",
-    "Excel (xlsx)",
     "Export",
     "GeoJSON",
     "Git",
@@ -161,7 +157,6 @@
     "Metadata",
     "Model",
     "NGSI-LD",
-    "OData v4",
     "OGC API Features",
     "Open Data Commons Attribution",
     "Open Data Commons Open Database Licence",
@@ -221,7 +216,8 @@
     "Claude Code",
     "claude.ai",
     "ChatGPT",
-    "VS Code (.vscode/mcp.json)"
+    "VS Code (.vscode/mcp.json)",
+    "Excel / Power BI (OData)"
   ],
   "de": [
     "@context",
@@ -229,7 +225,6 @@
     "Analyse (KPI)",
     "Anthropic",
     "API",
-    "Apache Parquet",
     "Apps",
     "Backend",
     "Bloblang",
@@ -255,7 +250,6 @@
     "Endpoints",
     "English",
     "Excel",
-    "Excel (xlsx)",
     "Export",
     "Feed",
     "Filter",
@@ -290,7 +284,6 @@
     "Name",
     "Namespace",
     "Notation",
-    "OData v4",
     "OGC API Features",
     "Open Data Commons Attribution",
     "Open Data Commons Open Database Licence",
@@ -369,6 +362,7 @@
     "claude.ai",
     "ChatGPT",
     "VS Code (.vscode/mcp.json)",
-    "Client"
+    "Client",
+    "Excel / Power BI (OData)"
   ]
 }

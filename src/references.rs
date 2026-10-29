@@ -93,6 +93,8 @@ fn fields(kind: &str) -> &'static [(&'static str, &'static str)] {
             ("spec.contextSpaceRef", "ContextSpace"),
             ("spec.projectionRef", "ModelProjection"),
             ("spec.viewMappingRef", "Mapping"),
+            // The open-data portal the form offers from this project's own list (T-6099).
+            ("spec.publish.ckan.instanceRef", "CkanInstance"),
         ],
         "Mapping" => &[("spec.contextSpaceRef", "ContextSpace")],
         // Both shapes of a pipeline (PL-54): the door rewrites `source`/`compute` into
@@ -475,6 +477,29 @@ mod tests {
         };
         assert!(detail.contains("spec.projectionRef"), "{detail}");
         assert!(detail.contains("ModelProjection"), "{detail}");
+    }
+
+    /// The open-data portal is a pick from this project's CkanInstances; a name typed past the
+    /// list is refused by the field (T-6099).
+    #[test]
+    fn an_endpoint_publishing_to_a_portal_the_project_lacks_is_refused_by_the_field() {
+        let mirror = mirror_with("ContextSpace", "bikes");
+        let spec = |portal: &str| json!({ "contextSpaceRef": "bikes", "publish": { "ckan": { "instanceRef": { "kind": "CkanInstance", "name": portal } } } });
+        let (detail, errors) = refusal(&mirror, "Endpoint", spec("elsewhere"));
+        assert_eq!(errors, vec!["spec.publish.ckan.instanceRef".to_owned()]);
+        assert!(detail.contains("CkanInstance 'elsewhere'"), "{detail}");
+        mirror.upsert(ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: "CkanInstance".to_owned(),
+            metadata: ObjectMeta {
+                name: "hel-fi".to_owned(),
+                namespace: Some("helsinki".to_owned()),
+                ..ObjectMeta::default()
+            },
+            spec: json!({}),
+            status: None,
+        });
+        check(&mirror, "helsinki", "Endpoint", &spec("hel-fi")).expect("the project's own portal");
     }
 
     /// A kind that names nothing resolvable here is left alone, whatever its spec holds.

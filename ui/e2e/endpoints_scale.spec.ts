@@ -110,5 +110,5 @@ test("ten thousand endpoints: the first row is on screen within a second and the
   // An endpoint the address names opens though it is far beyond the first page.
   await page.goto("/projects/bbsk/endpoints?lang=en&edit=d09990");
   await expect(page.getByRole("heading", { name: "Edit", exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("endpoint-preview")).toContainText('"name": "d09990"');
+  await expect(page.getByTestId("endpoint-preview")).toContainText("name: d09990");
 });

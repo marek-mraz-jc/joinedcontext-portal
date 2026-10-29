@@ -1508,20 +1508,20 @@
     },
     "field": {
       "name": "Názov",
-      "title": "Popis",
-      "space": "Kontextový priestor",
+      "title": "Názov, ktorý ľudia vidia",
+      "space": "Údaje z priestoru",
       "slug": "Slug",
-      "audience": "Publikum",
-      "representations": "Reprezentácie",
+      "audience": "Čitatelia",
+      "representations": "Formáty",
       "representationMappings": "Kalendáre a odbery noviniek",
       "more": "+{count} ďalších",
       "noRepresentations": "žiadne reprezentácie",
       "phase": "Stav",
       "allowedProjects": "Povolené projekty",
-      "rateLimits": "Obmedzenie požiadaviek",
-      "requestsPerMinute": "Trieda",
-      "burst": "Špička",
-      "caching": "Vyrovnávacia pamäť",
+      "rateLimits": "Limit požiadaviek",
+      "requestsPerMinute": "Požiadavky za minútu na volajúceho",
+      "burst": "Povolené krátke špičky",
+      "caching": "Vyrovnávacia pamäť odpovedí",
       "maxAge": "Životnosť vo vyrovnávacej pamäti (sekundy)",
       "publicUrl": "Verejná adresa",
       "types": "Typy entít",
@@ -1530,10 +1530,10 @@
       "policy": "Politika",
       "fileLimits": "Limity súborov",
       "ckanInstance": "Portál otvorených dát",
-      "ckanOrganization": "Vydavateľ",
-      "catalogue": "Záznam v katalógu",
-      "publish": "Publikovanie",
-      "openData": "Otvorené údaje",
+      "ckanOrganization": "Vydavateľ na portáli",
+      "catalogue": "Názov datasetu na portáli",
+      "publish": "Zverejnenie otvorených údajov",
+      "openData": "Uviesť ako otvorené údaje",
       "catalog": {
         "title": "Popis v katalógu",
         "publisher": "Vydavateľ",
@@ -1658,31 +1658,31 @@
       "noAddress": "Tento endpoint ešte nemá adresu; použiť ho môžete, keď bude zverejnený."
     },
     "audienceOption": {
-      "project-list": "Vybrané projekty: iba projekty, ktoré označíte",
-      "organization": "Organizácia: každý projekt organizácie",
-      "public": "Verejné: ktokoľvek s adresou"
+      "project-list": "Tento projekt a projekty, ktoré označíte",
+      "organization": "Všetci v organizácii",
+      "public": "Všetci, bez prihlásenia"
     },
     "representationOption": {
-      "ngsi-ld": "NGSI-LD rozhranie",
-      "geojson": "GeoJSON",
-      "csv": "CSV",
-      "json": "JSON",
-      "xlsx": "Excel (xlsx)",
-      "parquet": "Apache Parquet",
-      "zip": "ZIP na stiahnutie",
-      "ogc-features": "OGC API Features",
-      "odata": "OData v4",
-      "websocket": "Notifikácie cez WebSocket",
-      "sta": "SensorThings API",
-      "ical": "Kalendár iCalendar",
-      "mcp": "MCP pre AI asistentov"
+      "ngsi-ld": "Prepojené údaje (NGSI-LD)",
+      "geojson": "Mapový súbor (GeoJSON)",
+      "csv": "Tabuľka (CSV)",
+      "json": "Jednoduchý JSON",
+      "xlsx": "Zošit Excel (XLSX)",
+      "parquet": "Analytický súbor (Parquet)",
+      "zip": "Stiahnutie ZIP",
+      "ogc-features": "Mapová vrstva (OGC)",
+      "odata": "Excel / Power BI (OData)",
+      "websocket": "Živé aktualizácie (WebSocket)",
+      "sta": "Merania senzorov (SensorThings)",
+      "ical": "Kalendár (iCal)",
+      "mcp": "AI asistenti (MCP)"
     },
     "ical": {
       "subscribe": "Odber kalendára",
       "preview": "Otvoriť kalendár (.ics)",
       "qr": "QR kód odberu kalendára {address}",
       "qrHint": "Naskenujte ho fotoaparátom telefónu a kalendár sa pridá.",
-      "off": "Zapnite kalendár iCalendar v časti Reprezentácie, aby ste mohli mapovať jeho polia.",
+      "off": "Označte Kalendár (iCal) vo Formátoch, aby ste mohli mapovať jeho polia.",
       "help": "Z ktorého atribútu modelu priestoru pochádza každé pole kalendára. Prázdny riadok použije atribút predvoľby, zobrazený sivo. Skontrolujte formulár a uvidíte verdikt servera voči dátovému modelu.",
       "start": "Začať od",
       "presetDefault": "Predvolené (Smart Data Models Event)",
@@ -1705,7 +1705,7 @@
     "section": {
       "projection": "Ktoré triedy a atribúty zobrazuje",
       "hidden": "Skryť atribúty",
-      "manifests": "Zobraziť manifesty, ktoré to navrhuje"
+      "manifests": "Zobraziť zdroj"
     },
     "filter": {
       "q": "Dotaz na atribúty",
@@ -2098,7 +2098,7 @@
     "showMore": "Zobraziť ďalších {count}",
     "outputs": {
       "help": "Pomenované kalendáre a odbery noviniek, ktoré tento Endpoint ponúka. Každý výstup má vlastnú adresu, názov a mapovanie atribútov a dotazom môže zúžiť údaje. Stránka datasetu ich všetky uvádza v ponuke Odoberať.",
-      "icalOff": "Zapnite kalendár iCalendar v časti Reprezentácie, aby ste mohli pridať kalendáre.",
+      "icalOff": "Označte Kalendár (iCal) vo Formátoch, aby ste mohli pridať kalendáre.",
       "presetHint": "Predvoľba vyplní polia; atribút nižšie vyberte len tam, kde sa váš líši.",
       "feedPresetHint": "event pre podujatia, article pre novinky a oznamy, generic pre čokoľvek s názvom.",
       "fromPreset": "Z predvoľby: {attribute}",
@@ -2322,6 +2322,25 @@
         "until": "Posledný deň oprávnenia, napr. 2027-01-31. Prázdne znamená bez konca.",
         "reason": "Na čo údaje potrebujete, napr. Týždenná správa o ovzduší pre okresný úrad."
       }
+    },
+    "source": {
+      "copy": "Kopírovať zdroj",
+      "hint": "Súbory, ktoré tento návrh zapíše, len na čítanie. Meňte formulár vyššie, nie zdroj."
+    },
+    "summary": {
+      "title": "Čo tento návrh urobí",
+      "create": "Vytvorí endpoint „{name}“ nad priestorom {space}.",
+      "edit": "Zmení endpoint „{name}“.",
+      "public": "Ktokoľvek ho môže čítať bez prihlásenia.",
+      "organization": "Môže ho čítať celá organizácia.",
+      "projects": "Môžu ho čítať ľudia tohto projektu a projektov {projects}.",
+      "project": "Môžu ho čítať len ľudia tohto projektu.",
+      "formats": "Ľudia ho čítajú ako: {formats}.",
+      "added": "Pridané formáty: {formats}.",
+      "removed": "Odobrané formáty: {formats}.",
+      "published": "Zobrazí sa ako dataset na portáli otvorených údajov {portal}.",
+      "unpublished": "Nezobrazí sa na žiadnom portáli otvorených údajov.",
+      "approval": "Nič sa nezmení, kým návrh niekto neschváli."
     }
   },
   "datasources": {

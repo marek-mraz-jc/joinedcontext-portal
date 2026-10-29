@@ -248,14 +248,14 @@ export function EndpointLink({
 }
 
 /** Copies a URL; its own module so a page that shows one does not load the Endpoints page (bundle budget). */
-export function CopyUrlButton({ url, label }: { url: string; label?: string }): JSX.Element {
+export function CopyUrlButton({ url, label, title }: { url: string; label?: string; title?: string }): JSX.Element {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   return (
     <Button
       size="sm"
-      title={url}
+      title={title ?? url}
       icon={<Icon name={copied ? "check" : "copy"} className="size-4" />}
       onClick={() => {
         void navigator.clipboard

@@ -1485,21 +1485,21 @@
     },
     "field": {
       "name": "Name",
-      "title": "Titel",
-      "space": "Kontextraum",
+      "title": "Name, den Menschen sehen",
+      "space": "Daten aus dem Raum",
       "slug": "Slug",
       "publicUrl": "Öffentliche Adresse",
-      "audience": "Zielgruppe",
-      "representations": "Repräsentationen",
+      "audience": "Leser",
+      "representations": "Formate",
       "representationMappings": "Kalender und Nachrichten-Feeds",
       "more": "+{count} weitere",
       "noRepresentations": "keine Repräsentationen",
       "phase": "Zustand",
       "allowedProjects": "Zugelassene Projekte",
-      "rateLimits": "Ratenbegrenzung",
-      "requestsPerMinute": "Klasse",
-      "burst": "Spitze",
-      "caching": "Zwischenspeicher",
+      "rateLimits": "Anfragelimit",
+      "requestsPerMinute": "Anfragen pro Minute je Aufrufer",
+      "burst": "Erlaubte kurze Spitzen",
+      "caching": "Antwort-Cache",
       "maxAge": "Lebensdauer im Zwischenspeicher (Sekunden)",
       "types": "Entitätstypen",
       "hiddenAttributes": "Verborgene Attribute",
@@ -1507,10 +1507,10 @@
       "policy": "Richtlinie",
       "fileLimits": "Dateigrenzen",
       "ckanInstance": "Open-Data-Portal",
-      "ckanOrganization": "Herausgeber",
-      "catalogue": "Katalogeintrag",
-      "publish": "Veröffentlichung",
-      "openData": "Offene Daten",
+      "ckanOrganization": "Herausgeber im Portal",
+      "catalogue": "Datensatzname im Portal",
+      "publish": "Open-Data-Veröffentlichung",
+      "openData": "Als offene Daten listen",
       "catalog": {
         "title": "Katalogbeschreibung",
         "publisher": "Herausgeber",
@@ -1658,31 +1658,31 @@
       "projectionNameHelp": "Der Name, unter dem die neue Projektion gespeichert wird; Kleinbuchstaben, Ziffern und Bindestriche."
     },
     "audienceOption": {
-      "project-list": "Ausgewählte Projekte: nur die Projekte, die Sie ankreuzen",
-      "organization": "Organisation: jedes Projekt der Organisation",
-      "public": "Öffentlich: jede Person mit der Adresse"
+      "project-list": "Dieses Projekt und die angekreuzten Projekte",
+      "organization": "Alle in der Organisation",
+      "public": "Alle, ohne Anmeldung"
     },
     "representationOption": {
-      "ngsi-ld": "NGSI-LD-Schnittstelle",
-      "geojson": "GeoJSON",
-      "csv": "CSV",
-      "json": "JSON",
-      "xlsx": "Excel (xlsx)",
-      "parquet": "Apache Parquet",
+      "ngsi-ld": "Verknüpfte Daten (NGSI-LD)",
+      "geojson": "Kartendatei (GeoJSON)",
+      "csv": "Tabelle (CSV)",
+      "json": "Einfaches JSON",
+      "xlsx": "Excel-Arbeitsmappe (XLSX)",
+      "parquet": "Analysedatei (Parquet)",
       "zip": "ZIP-Download",
-      "ogc-features": "OGC API Features",
-      "odata": "OData v4",
-      "websocket": "Benachrichtigungen über WebSocket",
-      "sta": "SensorThings API",
-      "ical": "iCalendar-Feed",
-      "mcp": "MCP für KI-Assistenten"
+      "ogc-features": "Kartenebene (OGC)",
+      "odata": "Excel / Power BI (OData)",
+      "websocket": "Live-Aktualisierungen (WebSocket)",
+      "sta": "Sensormesswerte (SensorThings)",
+      "ical": "Kalender (iCal)",
+      "mcp": "KI-Assistenten (MCP)"
     },
     "ical": {
       "subscribe": "Kalenderabo",
       "preview": "Feed öffnen (.ics)",
       "qr": "QR-Code des Kalenderabos {address}",
       "qrHint": "Scannen Sie ihn mit der Handykamera, um den Kalender hinzuzufügen.",
-      "off": "Schalten Sie den iCalendar-Feed unter Darstellungen ein, um seine Felder zuzuordnen.",
+      "off": "Kreuzen Sie Kalender (iCal) unter Formate an, um seine Felder zuzuordnen.",
       "help": "Aus welchem Attribut des Raummodells jedes Kalenderfeld stammt. Eine leere Zeile nutzt das grau gezeigte Attribut der Vorlage. Prüfen Sie das Formular, um das Urteil des Servers gegen das Datenmodell zu sehen.",
       "start": "Beginnen mit",
       "presetDefault": "Standard (Smart Data Models Event)",
@@ -1705,7 +1705,7 @@
     "section": {
       "projection": "Welche Klassen und Attribute er zeigt",
       "hidden": "Attribute ausblenden",
-      "manifests": "Die vorgeschlagenen Manifeste anzeigen"
+      "manifests": "Quelltext anzeigen"
     },
     "filter": {
       "q": "Attributabfrage",
@@ -2098,7 +2098,7 @@
     "showMore": "{count} weitere anzeigen",
     "outputs": {
       "help": "Benannte Kalender und Nachrichten-Feeds, die dieser Endpoint anbietet. Jede Ausgabe hat eine eigene Adresse, einen Titel und eine Attributzuordnung und kann die Daten mit einer Abfrage eingrenzen. Die Datensatzseite listet alle unter Abonnieren.",
-      "icalOff": "Schalten Sie den iCalendar-Feed unter Repräsentationen ein, um Kalender hinzuzufügen.",
+      "icalOff": "Kreuzen Sie Kalender (iCal) unter Formate an, um Kalender hinzuzufügen.",
       "presetHint": "Die Vorlage füllt die Felder; wählen Sie unten nur dort ein Attribut, wo Ihres abweicht.",
       "feedPresetHint": "event für Veranstaltungen, article für Nachrichten und Bekanntmachungen, generic für alles mit Namen.",
       "fromPreset": "Aus der Vorlage: {attribute}",
@@ -2322,6 +2322,25 @@
         "until": "Der letzte Tag der Berechtigung, z. B. 2027-01-31. Leer bedeutet ohne Ende.",
         "reason": "Wofür Sie die Daten brauchen, z. B. Wöchentlicher Luftbericht für das Bezirksamt."
       }
+    },
+    "source": {
+      "copy": "Quelltext kopieren",
+      "hint": "Die Dateien, die dieser Vorschlag schreibt, nur lesbar. Ändern Sie das Formular oben, nicht den Quelltext."
+    },
+    "summary": {
+      "title": "Was dieser Vorschlag bewirkt",
+      "create": "Legt den Endpunkt „{name}“ über dem Raum {space} an.",
+      "edit": "Ändert den Endpunkt „{name}“.",
+      "public": "Alle können ihn ohne Anmeldung lesen.",
+      "organization": "Die ganze Organisation kann ihn lesen.",
+      "projects": "Menschen dieses Projekts und der Projekte {projects} können ihn lesen.",
+      "project": "Nur Menschen dieses Projekts können ihn lesen.",
+      "formats": "Lesbar als: {formats}.",
+      "added": "Hinzugefügte Formate: {formats}.",
+      "removed": "Entfernte Formate: {formats}.",
+      "published": "Er erscheint als Datensatz im Open-Data-Portal {portal}.",
+      "unpublished": "Er erscheint in keinem Open-Data-Portal.",
+      "approval": "Nichts ändert sich, bevor jemand den Vorschlag genehmigt."
     }
   },
   "datasources": {
