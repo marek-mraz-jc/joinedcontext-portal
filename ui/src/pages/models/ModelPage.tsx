@@ -21,7 +21,9 @@ import {
   Alert,
   Badge,
   Button,
+  buttonClass,
   EmptyState,
+  Icon,
   PageHeader,
   Table,
   TableBody,
@@ -363,6 +365,14 @@ export function ModelPage({
           <>
             {view === "overview" && source.data !== undefined && parsed ? (
               <div className="flex flex-col gap-4">
+                <Link
+                  to="/projects/$project/models/$name/diagram"
+                  params={{ project, name }}
+                  className={buttonClass("secondary", "sm", "self-start")}
+                >
+                  <Icon name="expand" className="size-4" />
+                  {t("models.canvas.open")}
+                </Link>
                 <LinkmlGraphView
                   source={source.data}
                   imports={imports}

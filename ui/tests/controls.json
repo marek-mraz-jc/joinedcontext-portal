@@ -1532,6 +1532,7 @@
         "linkml_editor.test.tsx",
         "linkml_er_diagram.test.tsx",
         "linkml_imports_enums.test.tsx",
+        "model_canvas.test.tsx",
         "part_linkml_graph_view.test.tsx"
       ]
     },
@@ -1563,6 +1564,14 @@
       },
       "tests": [
         "mappings_editor.test.tsx"
+      ]
+    },
+    "src/pages/models/ModelCanvas.tsx": {
+      "controls": {
+        "Button": 4
+      },
+      "tests": [
+        "model_canvas.test.tsx"
       ]
     },
     "src/pages/models/ModelFileDrop.tsx": {

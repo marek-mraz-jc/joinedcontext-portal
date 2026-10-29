@@ -1275,9 +1275,17 @@ impl Driver {
         let effective = crate::permissions::for_request(&self.state, &self.identity, &self.project);
         let catalog =
             crate::api::assistant::search(&self.state, &self.project, &effective, q, None).await;
-        let output = serde_json::to_value(&catalog).unwrap_or(Value::Null);
         if catalog.items.is_empty() && !step_when_empty {
             return Ok(None);
+        }
+        let mut output = serde_json::to_value(&catalog).unwrap_or(Value::Null);
+        // The model's own search also reads the open-data catalogue, which is public (EP-67):
+        // a question about another city finds its published datasets (T-6104).
+        let mut datasets = Vec::new();
+        if step_when_empty {
+            (datasets, _) =
+                crate::api::catalogue::datasets_matching(&self.state, q, CATALOGUE_DATASETS).await;
+            output["datasets"] = json!(datasets);
         }
         self.event(
             "tool",
@@ -1290,7 +1298,7 @@ impl Driver {
             }),
         )
         .await?;
-        Ok((!catalog.items.is_empty()).then_some(output))
+        Ok((!catalog.items.is_empty() || !datasets.is_empty()).then_some(output))
     }
 
     /// The search the platform runs before the model: outside the run's access it is skipped,
@@ -1314,7 +1322,10 @@ impl Driver {
         }
         Ok(match self.catalog(q, true).await? {
             Some(output) => output.to_string(),
-            None => format!("nothing in the project matches the words '{q}'"),
+            None => format!(
+                "nothing in the project, the Endpoints shared with it or the open-data catalogue \
+                 matches the words '{q}'"
+            ),
         })
     }
 
@@ -1358,6 +1369,9 @@ impl Driver {
             })
     }
 }
+
+/// The open datasets one model search reads back: titles and links, a few hundred tokens.
+const CATALOGUE_DATASETS: usize = 5;
 
 /// The first type an endpoint's `/ngsi-ld/v1/types` answer lists, for a source that names none.
 ///

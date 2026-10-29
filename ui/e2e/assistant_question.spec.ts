@@ -142,3 +142,90 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
   });
 }
 
+
+// T-6104 (owner walk): "cancel this" typed under a question closed nothing, and the Banská
+// Bystrica air question from Helsinki found nothing although Helsinki references that city's
+// Endpoint and the open-data catalogue holds the data. The whole conversation, at both widths.
+for (const [label, width, height] of [["desktop-1440", 1440, 1100], ["phone-400", 400, 1400]] as const) {
+  test(`a typed message withdraws the open question, and the search shows shared endpoints and open datasets (${label})`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await stubApi(page, []);
+    const source = {
+      seq: 2,
+      questionId: "q-source",
+      schema: {
+        type: "object",
+        title: "Where does the data come from?",
+        properties: {
+          answer: {
+            type: "string",
+            title: "Where does the data come from?",
+            oneOf: [
+              { const: "datasource", title: "A data source" },
+              { const: "space", title: "A context space" },
+            ],
+          },
+        },
+        required: ["answer"],
+      },
+    };
+    const found = {
+      q: "airquality banska bystrica",
+      items: [
+        {
+          kind: "Endpoint",
+          name: "app-banskabystrica-ovzdusie",
+          space: "banskabystrica-verejne",
+          owner: "banskabystrica",
+          title: "Kvalita ovzdušia v Banskej Bystrici",
+          endpointSlug: "k7m2qz4tv6xh3n5jb2ryd3wcfa",
+          matchReason: ["name", "shared with this project by banskabystrica"],
+          access: { verdict: "allowed", reason: "audience organization: every signed-in member" },
+          freshness: null,
+        },
+      ],
+      datasets: [
+        { title: "Kvalita ovzdušia", url: "https://opendata.dev.joinedcontext.com/dataset/public-air", publisher: "Mesto Banská Bystrica", formats: ["CSV", "GeoJSON"] },
+      ],
+    };
+    const frames = [
+      ["message", { seq: 1, text: "set up a pipeline for parking", sentBy: "demo.steward" }],
+      ["question", source],
+      ["message", { seq: 3, text: "cancel this", sentBy: "demo.steward" }],
+      ["thought", { seq: 4, text: "Pipeline setup cancelled." }],
+      ["message", { seq: 5, text: "what is the airquality right now in banska bystrica??", sentBy: "demo.steward" }],
+      ["tool", { seq: 6, tool: "search_catalog", status: "ok", input: { q: "airquality banska bystrica" }, output: found }],
+      ["thought", { seq: 7, text: "PM10 at Štefánikovo nábrežie is 18 µg/m³ (observed 20:00), read from app-banskabystrica-ovzdusie, shared with Helsinki by Banská Bystrica." }],
+    ] as const;
+    await page.route(
+      (url) => url.pathname.endsWith(`/agent-runs/${RUN.id}/events`),
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          headers: { "cache-control": "no-cache" },
+          body: frames.map(([kind, data]) => `id: ${String(data.seq)}\nevent: ${kind}\ndata: ${JSON.stringify(data)}\n\n`).join(""),
+        }),
+    );
+    // A conversation, not a build: the dock draws what a search found only outside a build.
+    await page.route(
+      (url) => url.pathname.endsWith(`/agent-runs/${RUN.id}`),
+      (route) =>
+        route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({ ...RUN, kind: "conversation", appName: "", prompt: "set up a pipeline for parking" }),
+        }),
+    );
+    await page.goto(`/projects/${PROJECT}/apps/${RUN.appName}?lang=en`, { waitUntil: "networkidle" });
+    const bubble = page.getByRole("button", { name: "Open the assistant" });
+    if (await bubble.count()) await bubble.first().click();
+
+    await expect(page.getByText("Pipeline setup cancelled.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "The agent is asking" })).toHaveCount(0);
+    await expect(page.getByText(/Question withdrawn/)).toBeVisible();
+    await expect(page.getByText("shared by banskabystrica")).toBeVisible();
+    const datasets = page.getByRole("region", { name: "Open data catalogue" });
+    await expect(datasets.getByRole("link", { name: /Kvalita ovzdušia/ })).toBeVisible();
+    if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/t6104-conversation-${label}.png`, fullPage: true });
+  });
+}
