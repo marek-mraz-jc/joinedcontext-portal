@@ -90,7 +90,7 @@ pub const CHECKED_BY_THE_ROUTE: &[&str] = &[
 ];
 
 /// The catalogue row of a kind an input names; an unknown kind is answered with the kinds there are.
-fn kind_named(kind: &str) -> Result<&'static KindInfo, OpError> {
+pub(crate) fn kind_named(kind: &str) -> Result<&'static KindInfo, OpError> {
     resource::by_kind(kind).ok_or_else(|| OpError::InvalidInput {
         path: "/kind".into(),
         message: format!(
@@ -199,7 +199,7 @@ fn reject_input_schema() -> Value {
 /// An organization-scoped kind has one home, `org`; a project kind has the project of the call;
 /// a kind that lives in either — `Role` — is looked for in the project first and then in the
 /// organization, so `jc_resource_get {kind: "Role"}` finds both (PF-59, PF-68, T-0840, T-0872).
-fn home_holding(
+pub(crate) fn home_holding(
     state: &AppState,
     info: &'static crate::resource::KindInfo,
     project: &str,
