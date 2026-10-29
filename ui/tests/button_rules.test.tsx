@@ -474,14 +474,18 @@ describe("what a button is, in the source", () => {
   it("a_button_target_is_24_px", () => {
     // WCAG 2.5.8: every size the shared button offers states its own height, and the smallest
     // is 24 px. A page that needs something smaller does not get it by writing its own button.
+    // The heights are the control tokens (T-6093): the spacing unit shrank to 0.2rem, so a
+    // numbered `h-*` no longer says what it measures.
     const button = read("src/components/ui/Button.tsx");
+    const tokens = read("src/tokens.css");
     const sizes = [...button.matchAll(/^\s{2}(xs|sm|md|lg): "([^"]+)",/gm)];
     expect(sizes.map((size) => size[1])).toEqual(["xs", "sm", "md", "lg"]);
     for (const [, name, classes] of sizes) {
-      const height = /\bh-(\d+)\b/.exec(classes);
-      expect(height, `size ${name} states no height`).toBeTruthy();
-      // Tailwind's scale is quarters of a rem: h-6 is 24 px.
-      expect(Number(height![1]) * 4, `size ${name} is under the 24 px WCAG 2.5.8 asks for`).toBeGreaterThanOrEqual(24);
+      const height = /\bh-(control(?:-xs|-lg)?)\b/.exec(classes);
+      expect(height, `size ${name} states no control height`).toBeTruthy();
+      const rem = new RegExp(`--portal-${height![1]}: ([\\d.]+)rem;`).exec(tokens);
+      expect(rem, `--portal-${height![1]} is not in tokens.css`).toBeTruthy();
+      expect(Number(rem![1]) * 16, `size ${name} is under the 24 px WCAG 2.5.8 asks for`).toBeGreaterThanOrEqual(24);
     }
   });
 });
