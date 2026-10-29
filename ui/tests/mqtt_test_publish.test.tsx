@@ -6,9 +6,9 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../src/locales/en.json";
-import { MqttBrokersPage } from "../src/pages/mqttbrokers/MqttBrokersPage";
+import { MqttBrokerPage } from "../src/pages/mqttbrokers/MqttBrokerPage";
 import { publishers, sampleTopic, Watching } from "../src/pages/mqttbrokers/TestPublish";
-import { json, list, problem, renderPage } from "./page_contract";
+import { json, problem, renderPage } from "./page_contract";
 
 const PROJECT = "espoo";
 const ROLES = [
@@ -40,18 +40,19 @@ describe("the test message's defaults", () => {
 describe("the Test a message dialog", () => {
   function render(answers: { run: () => Response; watch: () => Response }) {
     const sent: { url: string; body: unknown }[] = [];
-    renderPage(<MqttBrokersPage project={PROJECT} />, {
-      path: `/projects/${PROJECT}/mqttbrokers`,
+    renderPage(<MqttBrokerPage project={PROJECT} name="cameras" />, {
+      path: `/projects/${PROJECT}/mqttbrokers/cameras`,
       answer: async (url, request) => {
         if (url.pathname.endsWith("/test-publish")) {
           sent.push({ url: url.pathname, body: await request.json() });
           return answers.run();
         }
-        if (url.pathname.endsWith("/watch")) {
+        // The page's own refusals-today read names no account; the dialog's watch does.
+        if (url.pathname.endsWith("/watch") && url.searchParams.has("account")) {
           sent.push({ url: `${url.pathname}${url.search}`, body: null });
           return answers.watch();
         }
-        if (url.pathname.endsWith("/mqttbrokers")) return json(list([BROKER]));
+        if (url.pathname.endsWith("/mqttbrokers/cameras")) return json(BROKER);
         return undefined;
       },
     });

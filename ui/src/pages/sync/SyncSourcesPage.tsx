@@ -141,6 +141,7 @@ export function SyncSourcesPage({ project }: { project: string }): JSX.Element {
   return (
     <section aria-label={t("syncSources.title")} className="space-y-6">
       <PageHeader
+        compact
         title={t("syncSources.title")}
         description={t("syncSources.intro")}
         actions={

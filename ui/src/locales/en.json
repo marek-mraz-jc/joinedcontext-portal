@@ -523,7 +523,9 @@
     "askAssistant": "Ask the assistant for one",
     "leadOrganization": "Everything of this kind the organization holds. Each row opens what it names.",
     "emptyHintOrganization": "Nothing of this kind is in the organization yet. This page lists and reads it; ask the assistant for one and decide what it proposes.",
-    "emptyHintCreateOrganization": "Nothing of this kind is in the organization yet. {new} opens the form."
+    "emptyHintCreateOrganization": "Nothing of this kind is in the organization yet. {new} opens the form.",
+    "viewSource": "View source (Git)",
+    "open": "Open"
   },
   "spaces": {
     "entitiesUnknown": "The count is not available: {reason}",
@@ -1478,6 +1480,8 @@
     "lead": "Where a space is published: who may call it, in which representations, under which URL.",
     "title": "Endpoints",
     "empty": "This project publishes no endpoint yet.",
+    "searchNoMatch": "No endpoint name or title holds “{text}”.",
+    "searchNoMatchHint": "Check the spelling or clear the search to see every endpoint.",
     "add": "New endpoint",
     "edit": "Edit",
     "addHint": "Saving proposes a change; the endpoint answers once the change is approved.",
@@ -1575,10 +1579,8 @@
     },
     "publicNotice": "An endpoint with a public audience answers anonymous callers, and an anonymous caller may only read. Writes and subscriptions still need a login, whichever representations are enabled.",
     "data": {
-      "action": "View data",
       "title": "What this endpoint answers",
       "type": "Entity type",
-      "notLive": "This endpoint answers nothing yet; it is served once the change is Live.",
       "noSchema": "This endpoint publishes no schema yet, so there is no type to read.",
       "compare": "Compare with the space",
       "compareClose": "Back to this endpoint alone",
@@ -1654,7 +1656,6 @@
       "alias": "alias",
       "gone": "Endpoint no longer shared",
       "goneSource": "Source unavailable",
-      "emptyHint": "Another project can let this one read its endpoint without copying the data. Nothing is shared with this project yet.",
       "edit": {
         "alias": "Alias",
         "aliasHelp": "The name this project reads the shared space by; queries and pipelines here use it.",
@@ -1955,7 +1956,8 @@
       "claudeLine": "Claude Code command",
       "jsonLine": "Configuration for another MCP client",
       "vscode": "Add to VS Code",
-      "cursor": "Add to Cursor"
+      "cursor": "Add to Cursor",
+      "button": "Connect AI"
     },
     "playground": {
       "title": "Try it",
@@ -9801,7 +9803,7 @@
     "connect": {
       "address": "Address",
       "copy": "Copy address",
-      "noAddress": "Shown when the Portal is opened at its own address (portal.<domain>).",
+      "noAddress": "The address shows when you open the Portal at its usual web address.",
       "anySource": "Any address with a valid token",
       "client": "Client id and user name",
       "password": "Password",
@@ -9843,8 +9845,8 @@
         "endpoint": "Pipeline writes to Endpoint",
         "policy": "Policy guards Endpoint"
       },
-      "byRole": "role {role}, client {client}",
-      "byListener": "the internal listener, runner identity",
+      "byRole": "role {role}; the device signs in as {client}",
+      "byListener": "the broker's own connection to the platform",
       "byRunner": "the pipeline runner",
       "byPipelineAccount": "the service account of {pipeline}",
       "byPolicy": "the Endpoint's Policy",
@@ -10008,15 +10010,198 @@
       "until": "Until",
       "noEnd": "No end",
       "bound": "Role binding",
-      "legacy": "serviceAccounts list",
-      "legacyHint": "A role that lists the account under serviceAccounts is deprecated: run jcctl migrate mqtt-roles to move it to an mqtt/{broker}/<role> binding on the account.",
+      "legacy": "Listed on the role",
+      "legacyHint": "The role names this account in its own list, the older way. It still works; a project steward can move it to a grant on the service account.",
       "noneTitle": "{account} holds no role of this broker",
-      "noneHint": "Its devices are refused when they connect. Grant it the role mqtt/{broker}/<role> on the service account, scoped to this project.",
+      "noneHint": "Its devices are refused when they connect. Add the account to a role under Who may connect.",
       "expiredTitle": "Grants of this broker that are not in force",
       "endedAt": "ended {at}",
       "startsAt": "starts {at}",
       "refusedTitle": "You may not read this project's MQTT brokers",
       "failedTitle": "The broker's roles could not be read"
+    },
+    "page": {
+      "lead": "An MQTT broker devices send data to.",
+      "back": "← MQTT brokers",
+      "edit": "Edit settings",
+      "source": "View source",
+      "sections": "Sections of this broker",
+      "section": {
+        "live": "Live now",
+        "general": "General",
+        "access": "Who may connect",
+        "limits": "Limits",
+        "networks": "Networks",
+        "path": "Where the data goes",
+        "connect": "Connect a device"
+      },
+      "state": {
+        "receiving": "Receiving",
+        "idle": "Idle",
+        "unmeasured": "Not measured"
+      },
+      "strip": "{rate} messages/s · {connected} connected · {refused} refused sign-ins today",
+      "notRead": "The Portal could not read what the broker measures. Try again in a minute.",
+      "figure": {
+        "rate": "Messages per second now",
+        "rateNote": "Each device may send up to {limit}/s.",
+        "connected": "Devices connected",
+        "connectedNote": "Of the connections the broker holds at once.",
+        "refusedSignIns": "Refused sign-ins today",
+        "refusedSignInsNote": "Since midnight, from the gateway's check.",
+        "mostly": "Mostly: {reason}",
+        "refusedPublishes": "Refused messages",
+        "refusedPublishesNote": "Since the broker last started: no publish right, or over the rate."
+      },
+      "chartEmpty": "The chart starts once the broker has kept two samples (one every few seconds).",
+      "chartSummary": "Messages per second, last {minutes} min: highest {top}, now {now}",
+      "devices": "Device accounts and their connections now",
+      "account": "Account",
+      "since": "Newest connection since",
+      "connectedCount": "{count} connected",
+      "offlineNow": "Offline",
+      "noDevices": "No device account yet. Add one under Connect a device.",
+      "title": "Title",
+      "does": "What it does",
+      "kept": "Kept messages",
+      "qos": "Highest QoS",
+      "qosValue": "QoS 1 (at least once)",
+      "qosWords": "Devices may send with QoS 0 or 1. An MQTT 5 device learns this at sign-in; a QoS 2 message from an MQTT 3.1.1 device is accepted and delivered at QoS 1, so it can arrive twice.",
+      "offline": "When a device is offline",
+      "offlineWords": "Its session ends when it disconnects: messages for it are not kept until it returns, and the broker keeps no retained messages.",
+      "accessLead": "One role per group of devices that do the same. Removing an account from its role revokes that device.",
+      "unit": {
+        "messagesPerSecond": "{value} per second per device",
+        "maxConnections": "{value} connections",
+        "maxMessageBytes": "{value} bytes",
+        "connectionsPerAddress": "{value} per address"
+      },
+      "limitWords": {
+        "messagesPerSecond": "A device that sends faster is refused and disconnected; it may reconnect at once.",
+        "maxConnections": "Each connected device holds one; above it new devices are turned away.",
+        "maxMessageBytes": "A larger message is refused.",
+        "connectionsPerAddress": "Connections one network address may hold at once at the edge."
+      },
+      "use": "{use} of {limit} in use",
+      "anySourceHint": "Any address with a valid token can connect now. Add the networks your devices use below to turn others away before TLS, e.g. 192.0.2.0/24.",
+      "cname": "CNAME target",
+      "chartQuiet": "No message arrived in the last {minutes} min. The chart draws the rate once devices send again.",
+      "refused": {
+        "purpose": "An MQTT broker of this project.",
+        "noRight": "Your role may not read MQTT brokers here",
+        "noRightHint": "Ask a steward of project {project} to give you read access to its MQTT brokers, then open this page again.",
+        "missing": "No MQTT broker is called {name}",
+        "missingHint": "It may have been removed or renamed. Pick a broker from the list."
+      }
+    },
+    "edit": {
+      "accessLead": "A device signs in with its service account's token and may use the topics of each role its account holds. Adding an account here grants it the role; the change is proposed with the broker.",
+      "add": "Add",
+      "addAccount": "Add an account to role {role}",
+      "addAccountOption": "Add an account…",
+      "addRole": "Add a role",
+      "advanced": "Advanced",
+      "bar": "Pending changes",
+      "default": "the default",
+      "block": {
+        "noRole": "Add at least one role first.",
+        "roleName": "Role {role} needs a name: lowercase letters, digits and dashes, e.g. cams.",
+        "roleTwice": "Two roles are named {role}: give each its own name.",
+        "noAccount": "Role {role} needs at least one account.",
+        "noTopic": "Role {role} needs at least one topic to publish or subscribe to.",
+        "noReason": "Role {role} shares its topics: write why.",
+        "badTopic": "Role {role} holds a topic the broker refuses: fix the marked chip."
+      },
+      "change": {
+        "capture": "Kept messages change",
+        "grant": "{account} gets role {role}",
+        "revoke": "{account} loses role {role}",
+        "limit": "{limit}: {from} → {value}",
+        "mode": "The broker becomes: {mode}",
+        "port": "Dedicated port: {port}",
+        "roleAdded": "New role {role}",
+        "roleChanged": "Role {role} changes",
+        "roleRemoved": "Role {role} is removed",
+        "sourceAdded": "Network {source} may connect",
+        "sourceRemoved": "Network {source} may no longer connect"
+      },
+      "discard": "Discard",
+      "keep": "Keep the last messages",
+      "keepRelay": "A broker whose devices subscribe relays messages and keeps none.",
+      "limit": {
+        "messagesPerSecond": "Messages per second, per device",
+        "maxConnections": "Connections at most",
+        "maxMessageBytes": "Largest message",
+        "connectionsPerAddress": "Connections per source address"
+      },
+      "newRole": "New role",
+      "noAccounts": "The project has no service account you can see. Create one under Service accounts, then add it here.",
+      "noHolder": "No account holds this role yet.",
+      "outside": "Write a whole number from 1 to {max}.",
+      "portOutside": "A dedicated port is {min} to {max}.",
+      "propose": "Propose change",
+      "qos": "Highest QoS",
+      "qosFixed": "Every broker of this platform offers QoS 0 and 1; QoS 2 is not offered.",
+      "qosLevel": "QoS {level}",
+      "readOnly": "You may read this broker. Changing it needs the right to propose MQTT brokers in this project: ask a project steward.",
+      "readOnlyTitle": "Read only",
+      "reason": "Why the devices share their topics",
+      "reasonMissing": "Write why the devices share their topics.",
+      "remove": "Remove {value}",
+      "removeRole": "Remove role {role}",
+      "shared": "Devices share their topics",
+      "sharedHint": "Each device of the role may then publish as any other, and a publish topic needs no ${clientid} level.",
+      "sources": "Networks that may connect",
+      "through": {
+        "legacy": "listed on the role",
+        "wildcard": "granted for every broker"
+      },
+      "topic": {
+        "length": "A topic is 1 to 128 bytes long.",
+        "system": "A topic starting with $ is the broker's own.",
+        "levels": "A topic has at most 8 levels.",
+        "everything": "Wildcards alone reach every topic.",
+        "emptyLevel": "A topic has no empty level: no leading, trailing or double /.",
+        "hash": "# stands only as the whole last level.",
+        "plus": "+ stands only as a whole level.",
+        "placeholder": "Only ${clientid} may stand as a placeholder, as a whole level.",
+        "publishOwn": "Put a ${clientid} level before any wildcard, or let the role's devices share their topics.",
+        "subscribeOwn": "A device subscribes only under its own ${clientid}, with no wildcard before it.",
+        "twice": "Already on the list.",
+        "source": {
+          "format": "Write a network with its prefix, e.g. 203.0.113.0/24.",
+          "twice": "Already on the list.",
+          "tooMany": "At most 32 networks."
+        }
+      },
+      "typeFirst": "Type a value first.",
+      "unit": {
+        "messagesPerSecond": "messages/s",
+        "maxConnections": "connections",
+        "maxMessageBytes": "bytes",
+        "connectionsPerAddress": "connections"
+      },
+      "unsaved": "Not proposed",
+      "pending": "Changes not proposed yet: {count}",
+      "qosHighest": "highest",
+      "qosOffered": "offered",
+      "qosNotOffered": "not offered",
+      "anySourceReadOnly": "Any address with a valid token can connect now. A project steward can limit it to the networks your devices use.",
+      "hint": {
+        "accountsHint": "Pick one of the project's service accounts you can see, e.g. cam-3. Create a new one under Service accounts first.",
+        "countHint": "How many of the newest messages each topic keeps, 1 to 1,000, e.g. 20.",
+        "keepHint": "Stewards of the project can read the newest messages of each topic for a while, e.g. to check what a new device sends.",
+        "portHint": "Leave empty for the shared port 8883. A dedicated port, {min} to {max}, e.g. 18831, serves only this broker.",
+        "publishHint": "A topic filter per chip, with the device's own level, e.g. cameras/${clientid}/frames. + is one whole level, # only the last.",
+        "reasonHint": "One sentence an approver reads, e.g. the counters publish to one shared topic of the vendor.",
+        "roleNameHint": "Lowercase letters, digits and dashes, e.g. cams.",
+        "sourcesHint": "An IPv4 or IPv6 network per chip, at most 32, e.g. 203.0.113.0/24 or 2001:db8::/48.",
+        "subscribeHint": "A topic filter under the device's own id, e.g. commands/${clientid}/#.",
+        "subscribeMakesRelay": "Optional. A subscribe topic makes the broker a relay: devices also receive, each under its own id, e.g. commands/${clientid}/#.",
+        "topicExample": "cameras/${clientid}/frames",
+        "windowHint": "How long a kept message stays, at most a day, e.g. 1 hour.",
+        "sourceExample": "e.g. 203.0.113.0/24"
+      }
     }
   },
   "connect": {
@@ -10786,5 +10971,8 @@
       "jc_ui_show_diff": "Opened a planned change",
       "jc_ui_filter_table": "Filtered the table"
     }
+  },
+  "pageHeader": {
+    "about": "About this page"
   }
 }

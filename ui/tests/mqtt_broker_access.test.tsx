@@ -6,7 +6,7 @@
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import i18n from "../src/i18n";
-import { MqttBrokersPage } from "../src/pages/mqttbrokers/MqttBrokersPage";
+import { MqttBrokerPage } from "../src/pages/mqttbrokers/MqttBrokerPage";
 import { BrokerAccess } from "../src/pages/mqttbrokers/BrokerAccess";
 import { mqttRoleChoices } from "../src/pages/access/ServiceAccounts";
 import type { Manifest } from "../src/api/manifest";
@@ -41,8 +41,8 @@ const HELD = {
 
 function show(options: { accounts?: string[]; access?: (account: string) => Response }) {
   const asked: string[] = [];
-  renderPage(<MqttBrokersPage project={PROJECT} />, {
-    path: `/projects/${PROJECT}/mqttbrokers`,
+  renderPage(<MqttBrokerPage project={PROJECT} name="air" />, {
+    path: `/projects/${PROJECT}/mqttbrokers/air`,
     answer: (url) => {
       if (url.pathname.endsWith("/permissions/me")) return json(reader);
       if (url.pathname.endsWith("/air/access")) {
@@ -52,7 +52,7 @@ function show(options: { accounts?: string[]; access?: (account: string) => Resp
       }
       if (url.pathname.endsWith("/serviceaccounts")) return json(list((options.accounts ?? ["fleet"]).map(account)));
       if (url.pathname.endsWith("/air/bindings")) return json({ broker: "air", bindings: [] });
-      return url.pathname.endsWith("/mqttbrokers") ? json(list([BROKER])) : undefined;
+      return url.pathname.endsWith("/mqttbrokers/air") ? json(BROKER) : undefined;
     },
   });
   return asked;
@@ -75,8 +75,8 @@ describe("who can do what on a broker", () => {
     expect(within(table).getByText("sensor")).toBeTruthy();
     expect(within(table).getByText("air/${clientid}/pm10")).toBeTruthy();
     expect(within(table).getByText("Role binding")).toBeTruthy();
-    expect(within(table).getByText("serviceAccounts list")).toBeTruthy();
-    expect(within(region).getByText(/jcctl migrate mqtt-roles/)).toBeTruthy();
+    expect(within(table).getByText("Listed on the role")).toBeTruthy();
+    expect(within(region).getByText(/the older way/)).toBeTruthy();
     expect(asked).toEqual(["fleet"]);
   });
 

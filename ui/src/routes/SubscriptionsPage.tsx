@@ -326,6 +326,7 @@ export function SubscriptionsPage({ project, edit }: { project: string; edit?: s
   return (
     <div className="flex flex-col gap-section">
       <PageHeader
+        compact
         title={t("subscriptions.title")}
         description={t("subscriptions.lead")}
         actions={addButton}

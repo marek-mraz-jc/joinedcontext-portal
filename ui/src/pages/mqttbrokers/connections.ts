@@ -1,4 +1,5 @@
 import type { Manifest } from "../../api/manifest";
+import { holdersOf } from "./brokerDraft";
 
 /**
  * Who talks to whom around a project's MQTT brokers (T-3839, ADR-N-048): device → broker → data
@@ -88,7 +89,9 @@ export function connectionsOf(resources: Resources): Edge[] {
   for (const broker of resources.brokers) {
     const spec = (broker.spec ?? {}) as { roles?: Array<{ name?: string; serviceAccounts?: unknown; publish?: unknown }> };
     for (const role of spec.roles ?? []) {
-      const members = Array.isArray(role.serviceAccounts) ? role.serviceAccounts.filter((a): a is string => typeof a === "string") : [];
+      const listed = Array.isArray(role.serviceAccounts) ? role.serviceAccounts.filter((a): a is string => typeof a === "string") : [];
+      // The role's own list (deprecated) and every account a RoleBinding grants it (T-5872, T-6103).
+      const members = [...new Set(holdersOf({ name: role.name, serviceAccounts: listed }, resources.accounts, broker.metadata.name, project).map((h) => h.account))];
       for (const account of members) {
         edges.push({
           kind: "device",
