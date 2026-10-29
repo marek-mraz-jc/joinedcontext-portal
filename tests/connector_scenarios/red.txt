@@ -9,9 +9,7 @@ S-05 T-5948 no geo query tool on the connector door
 S-06 T-5948 no tool lists an Endpoint's representation URLs
 S-07 T-5948 anonymous gets 401 at the Portal door; no public data tool
 S-08 T-5948 jc_catalog_search finds one project's resources, not open data catalogue datasets with links
-S-10 T-5995 jc_change_plan diffs the manifest, but slots live in the LinkML file: no slot edit or count of entities a breaking change affects
 S-11 T-5962 jc_model_infer needs Model Tools, which the scripted lane does not run
-S-15 T-5995 jc_change_plan has no LinkML file change, so no refusal of a relationship to a missing class
 S-16 T-5996 jc_change_plan exists; no EndpointDeprecation script and fixture yet
 S-17 T-5996 jc_change_plan exists; no DataSource plan script with the source probe yet
 S-18 T-5948 no generic sample_source tool on the connector door

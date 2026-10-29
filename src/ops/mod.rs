@@ -1124,6 +1124,8 @@ mod tests {
             "jc_workspace_update_from_main",
             "jc_workspace_preview_start",
             "jc_workspace_preview_stop",
+            "jc_change_plan",
+            "jc_change_apply",
         ];
         const DELETING: &[&str] = &["jc_resource_delete", "jc_project_delete"];
         const ORGANIZATION: &[&str] = &[

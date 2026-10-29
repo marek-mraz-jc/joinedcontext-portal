@@ -233,7 +233,8 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
         "DataModel",
         "bike-counter",
         project,
-        json!({ "contextSpaceRef": "doprava", "linkml": "./bike-counter.linkml.yaml" }),
+        json!({ "contextSpaceRef": "doprava", "linkml": "./bike-counter.linkml.yaml",
+               "version": "0.1.0", "lifecycle": "draft" }),
     ));
     mirror.upsert(envelope(
         "Endpoint",
@@ -392,12 +393,64 @@ async fn forge(server: &MockServer) {
             .mount(server)
             .await;
     }
+    // The published LinkML file of every project's model `bike-counter` (S-10, S-15).
+    Mock::given(method("GET"))
+        .and(wiremock::matchers::path_regex(format!(
+            "^{REPO}/contents/.*/bike-counter\\.linkml\\.yaml$"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "sha": "blob-model",
+            "content": base64::engine::general_purpose::STANDARD.encode(BIKE_COUNTER_LINKML)
+        })))
+        .with_priority(1)
+        .mount(server)
+        .await;
     Mock::given(method("GET"))
         .and(wiremock::matchers::path_regex(format!(
             "^{REPO}/contents/.*"
         )))
         .respond_with(ResponseTemplate::new(404).set_body_json(json!({ "message": "not found" })))
         .with_priority(9)
+        .mount(server)
+        .await;
+}
+
+/// The published model of every scenario project: `count` is required (S-10).
+const BIKE_COUNTER_LINKML: &str = concat!(
+    "id: https://hel.fi/models/bike-counter\n",
+    "name: bike-counter\n",
+    "prefixes:\n",
+    "  linkml: https://w3id.org/linkml/\n",
+    "imports: [linkml:types]\n",
+    "classes:\n",
+    "  BikeCounter:\n",
+    "    attributes:\n",
+    "      name: { range: string }\n",
+    "      count: { range: integer, required: true }\n",
+    "  Station:\n",
+    "    attributes:\n",
+    "      name: { range: string }\n",
+);
+
+/// Model Tools compiles every source it is handed, and the broker counts each scenario space:
+/// 12 BikeCounter entities and 3 Station entities.
+async fn model_tools_and_broker(server: &MockServer) {
+    Mock::given(method("POST"))
+        .and(path("/generate"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "jsonSchema": { "type": "object" }, "context": { "@context": {} }, "errors": []
+        })))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(wiremock::matchers::path_regex("^/q/tenants/.+"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "counts": { "entities": 15 },
+            "bytes": { "entities": 4096, "attrInstances": 0, "byType": {
+                "https://smartdatamodels.org/dataModel.Transportation/BikeCounter": 12,
+                "https://smartdatamodels.org/dataModel.Transportation/Station": 3
+            } }
+        })))
         .mount(server)
         .await;
 }
@@ -462,6 +515,7 @@ impl Harness {
             .mount(server)
             .await;
         forge(server).await;
+        model_tools_and_broker(server).await;
         let csv_url = format!("http://localhost:{}/counters.csv", server.address().port());
 
         let mut config = Config::from_vars(|k| match k {
@@ -473,6 +527,15 @@ impl Harness {
         })
         .expect("config");
         config.public_base_url = "https://portal.test".parse().expect("url");
+        config.model_tools_url = Some(server.uri());
+        config.broker_url = Some(server.uri());
+        let token_file = std::env::temp_dir().join(format!(
+            "scn-broker-token-{}-{}",
+            std::process::id(),
+            server.address().port()
+        ));
+        std::fs::write(&token_file, "token-scenarios-broker").expect("broker token file");
+        config.broker_admin_token_file = Some(token_file);
 
         let mirror = std::sync::Arc::new(Mirror::new());
         let names: Vec<String> = (1..=projects).map(project_of).collect();

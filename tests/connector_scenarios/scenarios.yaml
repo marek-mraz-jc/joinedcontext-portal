@@ -116,6 +116,60 @@
   says: "Add an optional slot direction (enum in, out) to BikeCounter."
   expect: 'diff touches one model file; version bumped; existing entities still valid'
   deny: 'removing a required slot used by stored entities -> plan shows the breaking change and the affected count'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args:
+        changes:
+          - op: patch
+            kind: DataModel
+            name: bike-counter
+            source: |
+              id: https://hel.fi/models/bike-counter
+              name: bike-counter
+              prefixes:
+                linkml: https://w3id.org/linkml/
+              imports: [linkml:types]
+              enums:
+                Direction:
+                  permissible_values: { in: {}, out: {} }
+              classes:
+                BikeCounter:
+                  attributes:
+                    name: { range: string }
+                    count: { range: integer, required: true }
+                    direction: { range: Direction }
+                Station:
+                  attributes:
+                    name: { range: string }
+      keep: planId
+      contains: ['"planId"', '"severity":"additive"', '"version":"0.2.0"', '"lane":"yellow"', 'direction']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests', 'https://gitea.example.sk/pulls/77']
+      absent: ['"merged"']
+    - proves: deny
+      call: jc_change_plan
+      args:
+        changes:
+          - op: patch
+            kind: DataModel
+            name: bike-counter
+            source: |
+              id: https://hel.fi/models/bike-counter
+              name: bike-counter
+              prefixes:
+                linkml: https://w3id.org/linkml/
+              imports: [linkml:types]
+              classes:
+                BikeCounter:
+                  attributes:
+                    name: { range: string }
+                Station:
+                  attributes:
+                    name: { range: string }
+      contains: ['"severity":"breaking"', '"version":"1.0.0"', '"lane":"red"', 'BikeCounter.count', '"affectedEntities":12']
 - id: S-11
   segment: context
   as: steward
@@ -195,6 +249,61 @@
   says: "Add a relationship refStation from BikeCounter to Station, with the inverse slot."
   expect: 'both slots in the model; the model compiles in Model Tools'
   deny: 'relationship to a missing class -> plan refused naming the class'
+  script:
+    - proves: expect
+      call: jc_change_plan
+      args:
+        changes:
+          - op: patch
+            kind: DataModel
+            name: bike-counter
+            source: |
+              id: https://hel.fi/models/bike-counter
+              name: bike-counter
+              prefixes:
+                linkml: https://w3id.org/linkml/
+              imports: [linkml:types]
+              classes:
+                BikeCounter:
+                  attributes:
+                    name: { range: string }
+                    count: { range: integer, required: true }
+                    refStation: { range: Station }
+                Station:
+                  attributes:
+                    name: { range: string }
+                    refBikeCounter: { range: BikeCounter, multivalued: true, inverse: refStation }
+      keep: planId
+      contains: ['"planId"', 'refStation', 'refBikeCounter', '"ok":true']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
+    - proves: deny
+      call: jc_change_plan
+      args:
+        changes:
+          - op: patch
+            kind: DataModel
+            name: bike-counter
+            source: |
+              id: https://hel.fi/models/bike-counter
+              name: bike-counter
+              prefixes:
+                linkml: https://w3id.org/linkml/
+              imports: [linkml:types]
+              classes:
+                BikeCounter:
+                  attributes:
+                    name: { range: string }
+                    count: { range: integer, required: true }
+                    refStation: { range: Depot }
+                Station:
+                  attributes:
+                    name: { range: string }
+                    refBikeCounter: { range: BikeCounter, multivalued: true, inverse: refStation }
+      refused: true
+      contains: ['/changes/0/source/classes/BikeCounter/attributes/refStation/range', "class 'Depot'"]
 - id: S-16
   segment: context
   as: steward
