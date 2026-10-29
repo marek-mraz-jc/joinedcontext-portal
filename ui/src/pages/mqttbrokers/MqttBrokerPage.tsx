@@ -763,10 +763,10 @@ function ConnectFacts({
           : "—"}
       </dd>
       <dt className="text-fg-muted">{t("mqttbrokers.connect.client")}</dt>
-      <dd>
+      <dd className="flex flex-col items-start">
         {devices.length > 0
           ? devices.map((account) => (
-              <code key={account} className="mr-2 font-mono">
+              <code key={account} className="whitespace-nowrap font-mono">
                 {`${project}-${account}`}
               </code>
             ))

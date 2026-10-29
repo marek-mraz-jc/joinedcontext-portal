@@ -10154,7 +10154,7 @@
         "sourcesHint": "Jedna síť IPv4 nebo IPv6 na čip, nejvýše 32, např. 203.0.113.0/24 nebo 2001:db8::/48.",
         "subscribeHint": "Filtr tématu pod vlastním id zařízení, např. commands/${clientid}/#.",
         "subscribeMakesRelay": "Nepovinné. Téma k odběru dělá z brokeru relé: zařízení také přijímají, každé pod vlastním id, např. commands/${clientid}/#.",
-        "topicExample": "např. cameras/${clientid}/frames",
+        "topicExample": "cameras/${clientid}/frames",
         "windowHint": "Jak dlouho uchovaná zpráva zůstane, nejvýše den, např. 1 hodina.",
         "sourceExample": "např. 203.0.113.0/24"
       }

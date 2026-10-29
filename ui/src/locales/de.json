@@ -10154,7 +10154,7 @@
         "sourcesHint": "Ein IPv4- oder IPv6-Netz je Chip, höchstens 32, z. B. 203.0.113.0/24 oder 2001:db8::/48.",
         "subscribeHint": "Ein Themenfilter unter der eigenen ID des Geräts, z. B. commands/${clientid}/#.",
         "subscribeMakesRelay": "Optional. Ein Abo-Thema macht den Broker zum Relay: Geräte empfangen auch, jedes unter seiner eigenen ID, z. B. commands/${clientid}/#.",
-        "topicExample": "z. B. cameras/${clientid}/frames",
+        "topicExample": "cameras/${clientid}/frames",
         "windowHint": "Wie lange eine aufbewahrte Nachricht bleibt, höchstens ein Tag, z. B. 1 Stunde.",
         "sourceExample": "z. B. 203.0.113.0/24"
       }

@@ -111,7 +111,8 @@
     "claude.ai",
     "ChatGPT",
     "VS Code (.vscode/mcp.json)",
-    "QoS {level}"
+    "QoS {level}",
+    "cameras/${clientid}/frames"
   ],
   "cs": [
     "@context",
@@ -223,7 +224,8 @@
     "claude.ai",
     "ChatGPT",
     "VS Code (.vscode/mcp.json)",
-    "QoS {level}"
+    "QoS {level}",
+    "cameras/${clientid}/frames"
   ],
   "de": [
     "@context",
@@ -372,6 +374,7 @@
     "ChatGPT",
     "VS Code (.vscode/mcp.json)",
     "Client",
-    "QoS {level}"
+    "QoS {level}",
+    "cameras/${clientid}/frames"
   ]
 }
