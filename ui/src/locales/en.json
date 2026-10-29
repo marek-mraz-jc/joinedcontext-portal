@@ -10054,67 +10054,6 @@
       "new": "New person"
     }
   },
-  "connectors": {
-    "title": "My MCP connectors",
-    "lead": "Your own MCP addresses, up to {max}. Only your sign-in opens them, and each reaches only Endpoints you may read.",
-    "new": "New connector",
-    "empty": "No connectors yet",
-    "emptyHint": "Create one, or star an Endpoint on its page to start a connector called favourites.",
-    "edit": "Edit",
-    "editOf": "Edit connector {name}",
-    "remove": "Delete",
-    "removeOf": "Delete connector {name}",
-    "reach": "Reaches now: {count}",
-    "reachOf": "What {name} reaches",
-    "narrowedAtGateway": "Domains and themes narrow this further when the gateway serves it.",
-    "organization": "Servers of the organization",
-    "organizationLead": "Anyone in the organization may connect to these; each still answers with only what you may read.",
-    "all": "Everything you may read (org/all)",
-    "newTitle": "New connector",
-    "editTitle": "Edit connector {name}",
-    "formLead": "An Endpoint is in the connector when it matches every field you fill in. Empty fields match everything you may read.",
-    "save": "Save",
-    "field": {
-      "name": "Name",
-      "projects": "Projects",
-      "spaces": "Context spaces",
-      "domains": "Domains",
-      "themes": "Themes",
-      "accessLevel": "Access",
-      "endpoints": "Favourite Endpoints: {count}"
-    },
-    "help": {
-      "name": "Lowercase letters, digits and dashes; the last part of the address.",
-      "projects": "Pick from the projects you may read, e.g. mesto.",
-      "spaces": "Pick from the context spaces you may read, narrowed to the projects picked above.",
-      "domains": "Smart Data Models domains of the Endpoints' classification.",
-      "themes": "EU data themes of the Endpoints' catalogue entries.",
-      "endpoints": "Star an Endpoint on its page to add it here."
-    },
-    "level": {
-      "public": "Public",
-      "organization": "Whole organization",
-      "project": "My projects",
-      "grant": "Shared with me"
-    },
-    "problem": {
-      "name": "Use lowercase letters, digits and dashes, up to 63 characters.",
-      "taken": "You already have a connector with this name. Pick another one.",
-      "projects": "This is not a project name. Use lowercase letters, digits and dashes.",
-      "spaces": "A space is missing its project. Enter each one as project/space.",
-      "tooMany": "A field holds 50 values at most. Remove some."
-    },
-    "star": {
-      "add": "Add to my connectors",
-      "in": "In connector: {names}"
-    },
-    "full": "You have 10 connectors, the most there can be. Delete one to add another.",
-    "noMatch": {
-      "projects": "No project you may read matches. An organization admin adds you to a project under Access → Groups.",
-      "spaces": "No context space you may read matches. A project creates one under Data → Context spaces.",
-      "none": "Nothing matches what you typed."
-    }
-  },
   "conversations": {
     "title": "Conversations",
     "intro": "What visitors asked the project's assistants and how each answer was made: the route, the searches, the tool calls and the model calls with their time, cost and the model's reasoning. Conversations are kept verbatim for 90 days, only passwords, tokens and card numbers are masked before a turn is stored; every read is recorded.",
