@@ -1030,6 +1030,104 @@ fn manifest_names(manifest: &Value) -> Option<(String, String)> {
     crate::resource::by_kind(kind).map(|info| (info.kind.to_owned(), name.to_owned()))
 }
 
+/// The merged pull request `number` of change `id` with the commit it merged as: `NotFound` for a change
+/// that is no Portal change of `project`, `Conflict` for one not merged (yet).
+async fn merged_change(
+    forge: &crate::git::GiteaClient,
+    number: u64,
+    project: &str,
+    id: &str,
+) -> Result<(crate::git::PullRequest, String), OpError> {
+    let missing = || {
+        OpError::Api(ApiError::NotFound(format!(
+            "change '{id}' not found in project '{project}'"
+        )))
+    };
+    let pr = match forge.pull_request(number).await {
+        Ok(pr) => pr,
+        Err(crate::git::GitError::NotFound | crate::git::GitError::Api { status: 404, .. }) => {
+            return Err(missing())
+        }
+        Err(err) => return Err(OpError::Api(err.into())),
+    };
+    // Only a change the Portal opened is the Portal's to revert, as `/undo` holds (T-3274).
+    let branch = pr
+        .head_branch
+        .strip_prefix("refs/heads/")
+        .unwrap_or(&pr.head_branch);
+    if !branch.starts_with("portal/") && !branch.starts_with("workspace/") {
+        return Err(missing());
+    }
+    if !pr.merged || pr.merge_base.is_empty() {
+        return Err(OpError::Api(ApiError::Conflict(format!(
+            "change '{id}' is not merged, so there is nothing to revert: reject it on its page instead"
+        ))));
+    }
+    let after = if pr.merge_commit_sha.is_empty() {
+        pr.head_ref().to_owned()
+    } else {
+        pr.merge_commit_sha.clone()
+    };
+    Ok((pr, after))
+}
+
+/// Refuses a revert of change `id` that would undo what main changed since (`moved`), that
+/// touched files no plan writes (`outside`), or that leaves nothing to do.
+fn revertible(
+    id: &str,
+    moved: &[String],
+    outside: Vec<String>,
+    changes: &[ChangeInput],
+) -> Result<(), OpError> {
+    if !moved.is_empty() {
+        return Err(OpError::Api(ApiError::Conflict(format!(
+            "main changed {} since change '{id}' was merged, so a revert would undo that too; \
+             nothing was planned. Plan the change you want with {PLAN} instead",
+            moved.join(", ")
+        ))));
+    }
+    if !outside.is_empty() {
+        return Err(OpError::Api(ApiError::Unprocessable {
+            detail: format!("change '{id}' touched files a plan cannot write; nothing was planned"),
+            errors: outside,
+        }));
+    }
+    if changes.is_empty() {
+        return Err(OpError::Api(ApiError::Conflict(format!(
+            "change '{id}' left nothing to revert"
+        ))));
+    }
+    Ok(())
+}
+
+/// A manifest put back is judged as its proposal is, its space and constraints included; an
+/// object the revert deletes needs `delete` on its kind.
+fn may_put_back(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    effective: &crate::permissions::Effective,
+    kind: &str,
+    path: &str,
+    manifest: Option<&Value>,
+) -> Result<(), OpError> {
+    match manifest {
+        Some(m) => {
+            let envelope = serde_json::from_value::<crate::resource::ResourceEnvelope>(m.clone())
+                .map_err(|err| invalid("/id".into(), format!("{path}: {err}")))?;
+            crate::api::import::authorize_manifest(
+                state,
+                &caller.identity,
+                project,
+                effective,
+                &envelope,
+            )?;
+        }
+        None => effective.check(kind, jc_core::kinds::Verb::Delete, None)?,
+    }
+    Ok(())
+}
+
 /// The plan that undoes merged change `id` (T-5974, S-53): every file it touched goes back to what
 /// it was at the commit the change was cut from. A file main changed since the merge is a
 /// conflict, and a file that is no manifest of the project cannot be planned: both are named and
@@ -1052,32 +1150,7 @@ async fn revert(
         return Err(missing());
     }
     let (forge, number) = crate::api::changes::resolve_change(state, project, &input.id)?;
-    let pr = match forge.pull_request(number).await {
-        Ok(pr) => pr,
-        Err(crate::git::GitError::NotFound | crate::git::GitError::Api { status: 404, .. }) => {
-            return Err(missing())
-        }
-        Err(err) => return Err(OpError::Api(err.into())),
-    };
-    // Only a change the Portal opened is the Portal's to revert, as `/undo` holds (T-3274).
-    let branch = pr
-        .head_branch
-        .strip_prefix("refs/heads/")
-        .unwrap_or(&pr.head_branch);
-    if !branch.starts_with("portal/") && !branch.starts_with("workspace/") {
-        return Err(missing());
-    }
-    if !pr.merged || pr.merge_base.is_empty() {
-        return Err(OpError::Api(ApiError::Conflict(format!(
-            "change '{}' is not merged, so there is nothing to revert: reject it on its page instead",
-            input.id
-        ))));
-    }
-    let after = if pr.merge_commit_sha.is_empty() {
-        pr.head_ref().to_owned()
-    } else {
-        pr.merge_commit_sha.clone()
-    };
+    let (pr, after) = merged_change(&forge, number, project, &input.id).await?;
     let home = format!("projects/{project}/");
     let files = forge
         .pull_request_files(number)
@@ -1119,23 +1192,16 @@ async fn revert(
             (None, true) => (Op::Delete, None),
             (None, false) => continue,
         };
-        // The revert writes what the original wrote, so it needs the same right on each item:
-        // a manifest put back is judged as its proposal is, its space and constraints included.
-        match &manifest {
-            Some(m) => {
-                let envelope =
-                    serde_json::from_value::<crate::resource::ResourceEnvelope>(m.clone())
-                        .map_err(|err| invalid("/id".into(), format!("{}: {err}", file.path)))?;
-                crate::api::import::authorize_manifest(
-                    state,
-                    &caller.identity,
-                    project,
-                    &effective,
-                    &envelope,
-                )?;
-            }
-            None => effective.check(&kind, jc_core::kinds::Verb::Delete, None)?,
-        }
+        // The revert writes what the original wrote, so it needs the same right on each item.
+        may_put_back(
+            caller,
+            state,
+            project,
+            &effective,
+            &kind,
+            &file.path,
+            manifest.as_ref(),
+        )?;
         changes.push(ChangeInput {
             op,
             kind,
@@ -1145,29 +1211,7 @@ async fn revert(
             source: None,
         });
     }
-    if !moved.is_empty() {
-        return Err(OpError::Api(ApiError::Conflict(format!(
-            "main changed {} since change '{}' was merged, so a revert would undo that too; \
-             nothing was planned. Plan the change you want with {PLAN} instead",
-            moved.join(", "),
-            input.id
-        ))));
-    }
-    if !outside.is_empty() {
-        return Err(OpError::Api(ApiError::Unprocessable {
-            detail: format!(
-                "change '{}' touched files a plan cannot write; nothing was planned",
-                input.id
-            ),
-            errors: outside,
-        }));
-    }
-    if changes.is_empty() {
-        return Err(OpError::Api(ApiError::Conflict(format!(
-            "change '{}' left nothing to revert",
-            input.id
-        ))));
-    }
+    revertible(&input.id, &moved, outside, &changes)?;
     let mut answer = plan(
         caller,
         state,

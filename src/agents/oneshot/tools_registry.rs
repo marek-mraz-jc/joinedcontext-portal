@@ -565,15 +565,7 @@ pub(super) fn route_of(project: &str, call: &NavigateCall) -> Result<String, Str
         }
         let value = value.unwrap_or_default().trim();
         if value.is_empty() && placeholder != "q" {
-            let what = match placeholder {
-                "name" => "the name of what to open",
-                "endpoint" => "the endpoint whose data to open",
-                "type" => "the entity type to show",
-                "section" if call.page == "draft" => "the kind of the draft",
-                "section" if call.page == "resource" => "the plural of the resource's kind",
-                "section" => "the plural of the kind to create",
-                other => other,
-            };
+            let what = needed(placeholder, &call.page);
             return Err(format!("the page '{}' needs {what}", call.page));
         }
         // A section may be a page inside another (`settings/service-accounts`, T-2606): it comes
@@ -590,6 +582,19 @@ pub(super) fn route_of(project: &str, call: &NavigateCall) -> Result<String, Str
         route = route.replace(&hole, &filled);
     }
     Ok(without_empty_pairs(&route))
+}
+
+/// What an empty `placeholder` of `page` asks the model for, in words it can act on.
+fn needed<'a>(placeholder: &'a str, page: &str) -> &'a str {
+    match placeholder {
+        "name" => "the name of what to open",
+        "endpoint" => "the endpoint whose data to open",
+        "type" => "the entity type to show",
+        "section" if page == "draft" => "the kind of the draft",
+        "section" if page == "resource" => "the plural of the resource's kind",
+        "section" => "the plural of the kind to create",
+        other => other,
+    }
 }
 
 /// Which draft named `name` a `draft` page opens, as its kind (T-2768). A plural or kind the
