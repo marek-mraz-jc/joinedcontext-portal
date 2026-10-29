@@ -48,6 +48,8 @@ import type { CatalogInput, DataSourceType, TypedDataSourceType } from "../../sc
 import { ConnectionTest } from "./ConnectionTest";
 import { useBentoInputs } from "./RunnerInputForm";
 import { TemplateGallery } from "./TemplateGallery";
+import { BlueprintCards } from "../flows/Gallery";
+import { Instantiate } from "../flows/Instantiate";
 import { SecretRefContext } from "../../components/forms/widgets/SecretRef";
 import type { SecretRefValue } from "../../components/forms/widgets/SecretRef";
 
@@ -321,6 +323,8 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
   const [type, setType] = useState<DataSourceType>(initial?.type ?? DATA_SOURCE_TYPES[0]);
   const catalog = useBentoInputs();
   const [editing, setEditing] = useState<Manifest | null>(null);
+  // A ready-made set-up the person chose: its wizard takes the page until they go back (T-6096).
+  const [settingUp, setSettingUp] = useState<Manifest | null>(null);
   const [dialogOpen, setDialogOpen] = useState(initial !== undefined || urlDraftName !== undefined);
   const [draft, setDraft] = useState<DataSourceForm | undefined>(initial?.form);
   const [change, setChange] = useState<Change | null>(null);
@@ -573,6 +577,19 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
     </PermissionGuard>
   );
 
+  if (settingUp) {
+    return (
+      <Instantiate
+        project={project}
+        blueprint={settingUp}
+        backLabel={t("datasources.setups.back")}
+        onBack={() => {
+          setSettingUp(null);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -666,6 +683,8 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
           );
         })}
       </ResourceList>
+
+      <BlueprintCards category="ingestion" onRun={setSettingUp} />
 
       {dialogOpen && editing && viewOnly ? (
         <EditResourceDialog

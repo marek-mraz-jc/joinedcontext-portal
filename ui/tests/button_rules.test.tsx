@@ -97,6 +97,7 @@ const PAGES = [
   `/projects/${PROJECT}/datasources`,
   `/projects/${PROJECT}/dashboards`,
   `/projects/${PROJECT}/dataproducts`,
+  // The old Flows address only redirects to the home (T-6096).
   `/projects/${PROJECT}/flows`,
   `/projects/${PROJECT}/apps`,
   `/projects/${PROJECT}/syncsources`,

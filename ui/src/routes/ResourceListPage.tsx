@@ -77,7 +77,6 @@ const PoliciesPage = lazy(() => import("./PoliciesPage").then((module) => ({ def
 const SubscriptionsPage = lazy(() => import("./SubscriptionsPage").then((module) => ({ default: module.SubscriptionsPage })));
 const RegistrationsPage = lazy(() => import("./RegistrationsPage").then((module) => ({ default: module.RegistrationsPage })));
 const DataSourcesPage = lazy(() => import("../pages/datasources/DataSourcesPage").then((module) => ({ default: module.DataSourcesPage })));
-const FlowGallery = lazy(() => import("../pages/flows/Gallery").then((module) => ({ default: module.FlowGallery })));
 const AppsCatalog = lazy(() => import("../pages/apps/AppsCatalog").then((module) => ({ default: module.AppsCatalog })));
 const MqttBrokersPage = lazy(() => import("../pages/mqttbrokers/MqttBrokersPage").then((module) => ({ default: module.MqttBrokersPage })));
 const SyncSourcesPage = lazy(() => import("../pages/sync/SyncSourcesPage").then((module) => ({ default: module.SyncSourcesPage })));
@@ -98,9 +97,6 @@ const VIEWS: Record<string, ComponentType<{ project: string; edit?: string }>> =
   // The list with the kind's form, then each broker's topic access and who talks to whom (T-3839).
   mqttbrokers: MqttBrokersPage,
   dashboards: DashboardsPage,
-  // "flows" is a section too: the gallery reads organization-level Blueprints, not a project
-  // collection, and the wizard writes through /flows rather than a resource route (CC-30).
-  flows: FlowGallery,
   // Apps are a kind, but a card catalogue with a preview frame and a publication action, not
   // a manifest table (AP-18, AP-19, AP-20).
   apps: AppsCatalog,

@@ -86,7 +86,6 @@
     "main": "Hlavná navigácia",
     "skipToContent": "Preskočiť na obsah",
     "breadcrumb": "Navigačná cesta",
-    "flows": "Toky",
     "models": "Dátové modely",
     "ckan": "Otvorené dáta",
     "explore": "Prehliadať dáta",
@@ -2464,6 +2463,11 @@
     "usedBy": {
       "title": "Používajú ho",
       "none": "Tento zdroj zatiaľ nečíta žiadna pipeline."
+    },
+    "setups": {
+      "title": "Pripravené nastavenia",
+      "lead": "Nastavenie zapíše zdroj, jeho pipeline aj plán v jednej zmene z niekoľkých odpovedí. Príklad: kanál GBFS mestských bicyklov načítaný každú minútu.",
+      "back": "Späť na zdroje údajov"
     }
   },
   "pipelines": {
@@ -4119,14 +4123,6 @@
     }
   },
   "flows": {
-    "title": "Toky",
-    "subtitle": "Vyberte, čo chcete nastaviť. Formulár sa pýta len na potrebné údaje, konfiguráciu zapíše platforma.",
-    "empty": "Zatiaľ pre vás nie je dostupná žiadna šablóna.",
-    "emptyFiltered": "Tomuto filtru nezodpovedá žiadna šablóna.",
-    "category": {
-      "all": "Všetko",
-      "uncategorised": "Ostatné"
-    },
     "risk": {
       "green": "Schvaľuje sa automaticky",
       "yellow": "Jeden schvaľovateľ",
@@ -4135,15 +4131,14 @@
     "riskLabel": "Schvaľovanie",
     "version": "Verzia {version}",
     "run": "Nastaviť",
-    "back": "Späť na prehľad",
     "instantiate": {
       "title": "Nastavenie: {name}",
       "submit": "Navrhnúť zmenu",
       "hint": "Uložením navrhnete zmenu; prejaví sa po jej schválení.",
       "noSchema": "Táto šablóna nemá žiadne parametre.",
-      "failed": "Parametre neboli prijaté. Opravte označené polia a navrhnite znova."
-    },
-    "emptyHint": "Blueprint pripraví celý prípad použitia jedným krokom: priestor, zdroj, pipeline a endpoint spolu. V tomto projekte vám zatiaľ žiadny nie je dostupný."
+      "failed": "Parametre neboli prijaté. Opravte označené polia a navrhnite znova.",
+      "proposed": "Navrhnuté: zmena vyššie čaká na schválenie."
+    }
   },
   "export": {
     "title": "Stiahnuť konfiguráciu",

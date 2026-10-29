@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -49,9 +49,9 @@ const GALLERY = {
   apiVersion: "joinedcontext.com/v1alpha1",
   kind: "List",
   items: [
-    blueprint("threshold-alert", "Threshold Alert", "alerting", "green"),
-    blueprint("onboard-source", "Onboard a data source", "onboarding", "yellow"),
-    blueprint("share-with-city", "Share with another city", null, "red"),
+    blueprint("gbfs-stations", "City-bike stations", "ingestion", "yellow"),
+    blueprint("mqtt-feed", "Subscribe to an MQTT feed", "ingestion", "red"),
+    blueprint("app-from-prompt", "An application from a prompt", "application", "yellow"),
   ],
 };
 
@@ -88,84 +88,91 @@ function renderGallery(gallery: unknown = GALLERY) {
   return fetchMock;
 }
 
-describe("flow gallery", () => {
+describe("ready-made set-ups on Data sources (T-6096)", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
-    window.history.pushState({}, "", "/projects/banskabystrica/flows");
+    window.history.pushState({}, "", "/projects/banskabystrica/datasources");
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("shows one card per blueprint with its review lane (CC-30, CC-59)", async () => {
+  it("shows a card per ingestion blueprint with its review lane, and none of another category", async () => {
     renderGallery();
 
-    const card = (await screen.findByText("Threshold Alert")).closest("li") as HTMLElement;
-    expect(within(card).getByText(en.flows.risk.green)).toBeInTheDocument();
-    expect(within(card).getByText("What threshold-alert does")).toBeInTheDocument();
+    const section = await screen.findByRole("region", { name: en.datasources.setups.title });
+    const card = (await within(section).findByText("City-bike stations")).closest("li") as HTMLElement;
+    expect(within(card).getByText(en.flows.risk.yellow)).toBeInTheDocument();
+    expect(within(card).getByText("What gbfs-stations does")).toBeInTheDocument();
     expect(within(card).getByText("Version 1.2.0")).toBeInTheDocument();
-    expect(card.closest("ul")?.className).toContain("grid-cols-[repeat(auto-fill,minmax(16rem,1fr))]");
-
-    const risky = (await screen.findByText("Share with another city")).closest("li") as HTMLElement;
-    expect(within(risky).getByText(en.flows.risk.red)).toBeInTheDocument();
-  });
-
-  it("filters the gallery by category and back again (CC-30)", async () => {
-    const user = userEvent.setup();
-    renderGallery();
-    await screen.findByText("Threshold Alert");
-
-    await user.click(screen.getByRole("button", { name: "onboarding" }));
-    expect(screen.getByText("Onboard a data source")).toBeInTheDocument();
-    expect(screen.queryByText("Threshold Alert")).not.toBeInTheDocument();
-
-    // A blueprint with no category is still reachable, under its own chip.
-    await user.click(screen.getByRole("button", { name: en.flows.category.uncategorised }));
-    expect(screen.getByText("Share with another city")).toBeInTheDocument();
-    expect(screen.queryByText("Onboard a data source")).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: en.flows.category.all }));
-    expect(screen.getByText("Threshold Alert")).toBeInTheDocument();
-    expect(screen.getByText("Onboard a data source")).toBeInTheDocument();
+    expect(within(section).getByText("Subscribe to an MQTT feed")).toBeInTheDocument();
+    // An application set-up starts from Applications → New app, not here.
+    expect(screen.queryByText("An application from a prompt")).not.toBeInTheDocument();
   });
 
   it("asks the organization-level route, not a project collection", async () => {
     const fetchMock = renderGallery();
-    await screen.findByText("Threshold Alert");
+    await screen.findByText("City-bike stations");
 
     const urls = fetchMock.mock.calls.map((call) => new URL((call[0] as Request).url).pathname);
     expect(urls).toContain("/api/v1/blueprints");
-    expect(urls.some((url) => url.includes("/blueprints") && url.includes("/projects/"))).toBe(
-      false,
-    );
+    expect(urls.some((url) => url.includes("/blueprints") && url.includes("/projects/"))).toBe(false);
   });
 
-  it("opens the wizard for the blueprint whose card was clicked (CC-30)", async () => {
+  it("opens the wizard for the card that was pressed, and goes back to Data sources", async () => {
     const user = userEvent.setup();
     renderGallery();
 
-    const card = (await screen.findByText("Threshold Alert")).closest("li") as HTMLElement;
+    const card = (await screen.findByText("City-bike stations")).closest("li") as HTMLElement;
     await user.click(within(card).getByRole("button", { name: en.flows.run }));
 
-    expect(
-      screen.getByRole("heading", { name: "Set up: Threshold Alert" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Set up: City-bike stations" })).toBeInTheDocument();
     // The form is generated from the blueprint's own parameter schema (CC-24, CC-31).
     expect(screen.getByLabelText(/Notification target URL/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: en.flows.back }));
-    expect(screen.getByText("Onboard a data source")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: en.datasources.setups.back }));
+    expect(await screen.findByRole("heading", { level: 1, name: en.datasources.title })).toBeInTheDocument();
+    expect(screen.getByText("Subscribe to an MQTT feed")).toBeInTheDocument();
   });
 
-  it("says the gallery is empty rather than showing an empty grid", async () => {
+  it("draws no set-up section when the person may run none", async () => {
     renderGallery({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
-    expect(await screen.findByText(en.flows.empty)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: en.datasources.title })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole("region", { name: en.datasources.setups.title })).not.toBeInTheDocument();
+    });
   });
 
   it("shows the blueprint titles in the active locale", async () => {
     await i18n.changeLanguage("sk");
     renderGallery();
-    expect(await screen.findByText("Threshold Alert (sk)")).toBeInTheDocument();
+    expect(await screen.findByText("City-bike stations (sk)")).toBeInTheDocument();
+  });
+});
+
+describe("the Flows page is gone (T-6096)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("sends the old /flows address to the project's home", async () => {
+    await i18n.changeLanguage("en");
+    window.history.pushState({}, "", "/projects/banskabystrica/flows");
+    renderGallery();
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/projects/banskabystrica/home");
+    });
+  });
+
+  it("has no Flows entry in the sidebar", async () => {
+    await i18n.changeLanguage("en");
+    window.history.pushState({}, "", "/projects/banskabystrica/datasources");
+    renderGallery();
+
+    const nav = await screen.findByRole("navigation", { name: en.nav.main });
+    expect(within(nav).queryByRole("link", { name: "Flows" })).not.toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: en.nav.datasources })).toBeInTheDocument();
   });
 });

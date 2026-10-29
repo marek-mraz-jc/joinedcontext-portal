@@ -26,7 +26,7 @@ const THRESHOLD_ALERT = {
   },
   spec: {
     version: "1.2.0",
-    category: "alerting",
+    category: "ingestion",
     riskClass: "green",
     allowedRoles: ["domain-editor"],
     parameterSchema: {
@@ -57,7 +57,7 @@ const NEW_DASHBOARD = {
   },
   spec: {
     version: "0.4.0",
-    category: "reporting",
+    category: "ingestion",
     riskClass: "green",
     allowedRoles: ["domain-editor"],
     parameterSchema: {
@@ -167,7 +167,7 @@ function writes(fetchMock: ReturnType<typeof vi.fn>): Request[] {
 describe("blueprint wizard", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
-    window.history.pushState({}, "", "/projects/banskabystrica/flows");
+    window.history.pushState({}, "", "/projects/banskabystrica/datasources");
   });
 
   afterEach(() => {
