@@ -581,6 +581,25 @@
   says: "Switch the output from upsert to replace."
   expect: 'plan warns which stored attributes an older mapping wrote (WriteGuard) before applying'
   deny: 'none'
+  script:
+    # The broker holds `legacyName` on stored BikeCounters, which the intake Endpoint's write does
+    # not admit: the plan stays valid and warns before anything is applied (WriteGuard::pre_whole).
+    # The proposal gate refuses an untested Pipeline at plan time (T-5997): the plan names
+    # jc_pipeline_test, the runner's test of the planned spec comes back green (T-4840), and
+    # the same plan passes.
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: patch, kind: Pipeline, name: counters-hourly, patch: { spec: { output: { type: BikeCounter, mode: replace } } } }] }
+      refused: true
+      contains: ['/changes/0/manifest', 'jc_pipeline_test']
+    - proves: expect
+      runner_tested: counters-hourly
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: patch, kind: Pipeline, name: counters-hourly, patch: { spec: { output: { type: BikeCounter, mode: replace } } } }] }
+      keep: planId
+      contains: ['"planId"', '"level":"warning"', 'spec.output.mode', 'legacyName', 'WriteGuard::pre_whole']
+      absent: ['could not be checked', 'count (', 'location (']
 - id: S-24
   segment: pipeline
   as: steward
