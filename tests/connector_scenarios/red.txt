@@ -19,4 +19,3 @@ S-39 T-5958 an App run needs the assistant's builder behind the connector tools
 S-40 T-5948 no tool returns a widget embed snippet
 S-44 T-5960 approve is refused, but the answer carries no link to the change's Portal approval page
 S-49 T-5955 no read-only connector token refused below the tools
-S-53 T-5974 no revert plan tool

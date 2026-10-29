@@ -60,9 +60,11 @@ pub(super) fn offered(
         // T-5948: kind schemas reach MCP clients (tools/list, jc_schema_get), not this prompt,
         // which keeps its 4k-token turn (AG-72) until T-5958 replaces it.
         .filter(|op| op.name != crate::ops::schemas::GET)
-        // T-5956: a plan is applied only through a connector (jc_change_apply); here the
-        // person proposes from the form change_resource opens, so the plan stays off the turn.
-        .filter(|op| op.name != crate::connectors::PLAN)
+        // T-5956, T-5974: a plan or revert plan is applied only through a connector
+        // (jc_change_apply); here the person proposes from the form change_resource opens.
+        .filter(|op| {
+            ![crate::connectors::PLAN, crate::connectors::REVERT].contains(&op.name.as_str())
+        })
         // A run reads data through the agent proxy's query_endpoint; jc_data_query exchanges the
         // caller's own token, which a run does not hold (T-5986).
         .filter(|op| op.name != crate::ops::data_query::NAME)

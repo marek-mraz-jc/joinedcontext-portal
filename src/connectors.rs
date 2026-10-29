@@ -55,6 +55,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
         "context",
         &[
             "jc_change_plan",
+            "jc_change_revert_plan",
             "jc_schema_get",
             "jc_resource_list",
             "jc_resource_get",
@@ -66,6 +67,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
         "pipeline",
         &[
             "jc_change_plan",
+            "jc_change_revert_plan",
             "jc_schema_get",
             "jc_resource_list",
             "jc_resource_get",
@@ -85,6 +87,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
         "access",
         &[
             "jc_change_plan",
+            "jc_change_revert_plan",
             "jc_schema_get",
             "jc_resource_list",
             "jc_resource_get",
@@ -95,6 +98,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
         "publish",
         &[
             "jc_change_plan",
+            "jc_change_revert_plan",
             "jc_schema_get",
             "jc_resource_list",
             "jc_resource_get",
@@ -106,6 +110,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
         "apps",
         &[
             "jc_change_plan",
+            "jc_change_revert_plan",
             "jc_schema_get",
             "jc_resource_list",
             "jc_resource_get",
@@ -118,6 +123,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
         "operate",
         &[
             "jc_change_plan",
+            "jc_change_revert_plan",
             "jc_activity_list",
             "jc_pipeline_metrics",
             "jc_syncsource_status",
@@ -131,6 +137,8 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
 /// The plan and apply tools (API/14 §4.3).
 pub const PLAN: &str = "jc_change_plan";
 pub const APPLY: &str = "jc_change_apply";
+/// Plans the undo of a merged change; a plan like any other (T-5974).
+pub const REVERT: &str = "jc_change_revert_plan";
 
 /// `admin` is every segment above.
 pub const ADMIN: &str = "admin";
@@ -481,7 +489,7 @@ impl Connector {
         }
         // A plan or an apply names its objects per change; the operation holds each one to
         // the scope with `may_change` (T-5956).
-        if self.whole(project) || matches!(op.name, "jc_schema_get" | PLAN | APPLY) {
+        if self.whole(project) || matches!(op.name, "jc_schema_get" | PLAN | APPLY | REVERT) {
             return Ok(());
         }
         let name = names_its_object(op)
@@ -539,7 +547,7 @@ impl Connector {
 /// A tool whose call names one object by `name`: what a narrowed scope can hold it to.
 fn names_its_object(op: &Operation) -> bool {
     let input = (op.input)();
-    matches!(op.name, "jc_resource_get" | PLAN | APPLY)
+    matches!(op.name, "jc_resource_get" | PLAN | APPLY | REVERT)
         || (matches!(op.kind, "Endpoint" | "ContextSpace" | "Pipeline")
             && input.pointer("/properties/name").is_some())
         || (op.kind == "Endpoint" && input.pointer("/properties/endpoint").is_some())
@@ -1356,9 +1364,10 @@ mod tests {
         for (segment, tools, _) in SEGMENTS {
             for tool in *tools {
                 let op = op(tool);
-                // The plan saves nothing but is offered only to who may propose (T-5956).
+                // A plan, a revert plan included, saves nothing but is offered only to who may
+                // propose (T-5956, T-5974).
                 assert!(
-                    op.annotations.read_only_hint || op.name == PLAN,
+                    op.annotations.read_only_hint || op.name == PLAN || op.name == REVERT,
                     "{segment}: {tool} is not read-only"
                 );
             }
