@@ -706,6 +706,9 @@ async fn answer_call(
     // rather than asked to confirm something that would be refused after they answered.
     if let Err(refused) = caller
         .may_run(op)
+        .map_err(|refused| {
+            decided_in_portal(&state.config.public_base_url, op, project, &input, refused)
+        })
         .and_then(|()| crate::ops::may_try(op, &caller.identity, state, project, Some(&input)))
     {
         return result(id, problem_result(refused));
@@ -1266,6 +1269,36 @@ fn problem_result(err: crate::ops::OpError) -> Value {
     })
 }
 
+/// A change decision refused at the connector (AG-11) names the Portal page where the person
+/// decides it, so the client hands the person a link instead of a dead end (S-44). The change
+/// id joins the link only as `chg-` and eight lowercase hex digits; anything else links the
+/// project's approvals list.
+fn decided_in_portal(
+    base: &url::Url,
+    op: &crate::ops::Operation,
+    project: &str,
+    input: &Value,
+    refused: crate::ops::OpError,
+) -> crate::ops::OpError {
+    let crate::ops::OpError::Api(ApiError::Denied(said)) = &refused else {
+        return refused;
+    };
+    if op.kind != "Change" || !crate::resource::is_dns1123(project) {
+        return refused;
+    }
+    let change = input["id"].as_str().filter(|id| {
+        id.strip_prefix("chg-").is_some_and(|hex| {
+            hex.len() == 8 && hex.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+        })
+    });
+    let base = base.as_str().trim_end_matches('/');
+    let page = match change {
+        Some(id) => format!("{base}/projects/{project}/approvals/{id}"),
+        None => format!("{base}/projects/{project}/approvals"),
+    };
+    crate::ops::OpError::Api(ApiError::Denied(format!("{said}: decide it at {page}")))
+}
+
 /// A refusal, in the agent's own channel for it.
 pub(crate) fn failure_result(said: &str) -> Value {
     json!({
@@ -1341,6 +1374,27 @@ mod tests {
         assert_eq!(tool["_meta"]["joinedcontext.com/requires"]["verb"], "read");
     }
     use crate::reconciler::SyncStatus;
+
+    /// S-44: an approve refused at the connector links the change's Portal page; an id that is
+    /// no change name links the list, and a refusal of another kind stays as it was.
+    #[test]
+    fn a_refused_decision_links_the_portal_page_where_a_person_decides_it() {
+        let base: url::Url = "https://portal.test/".parse().expect("url");
+        let approve = crate::ops::find("jc_change_approve").expect("registered");
+        let denied = || crate::ops::OpError::Api(ApiError::Denied("no".into()));
+        let said = |input: Value| {
+            decided_in_portal(&base, approve, "doprava", &input, denied()).to_string()
+        };
+        assert!(said(json!({ "id": "chg-0000002a" }))
+            .ends_with("decide it at https://portal.test/projects/doprava/approvals/chg-0000002a"));
+        assert!(said(json!({ "id": "../../evil" }))
+            .ends_with("decide it at https://portal.test/projects/doprava/approvals"));
+        let list = crate::ops::find("jc_resource_list").expect("registered");
+        assert_eq!(
+            decided_in_portal(&base, list, "doprava", &json!({}), denied()).to_string(),
+            denied().to_string()
+        );
+    }
 
     /// T-5972: what each tool family answers carries text an outsider wrote. Every answer comes
     /// fenced under the data preface, a backtick run in a value cannot close the fence, and
