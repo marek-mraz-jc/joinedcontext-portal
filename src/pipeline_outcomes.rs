@@ -346,7 +346,11 @@ pub fn mask(record: &Value) -> Value {
                     let secret_key = crate::api::mutate::SECRET_KEYS.contains(&key.as_str())
                         && !value.is_object()
                         && !value.is_array()
-                        && !value.is_null();
+                        && !value.is_null()
+                        // `${VAR}` names a secret the runner injects and holds none (PL-16).
+                        && !value
+                            .as_str()
+                            .is_some_and(crate::api::mutate::is_variable_reference);
                     let masked = if secret_key {
                         Value::String(MASK.to_owned())
                     } else {
@@ -548,6 +552,9 @@ mod tests {
         assert_eq!(masked["pm10"]["value"], 18.4);
         assert_eq!(masked["id"], record["id"]);
         assert!(!masked.to_string().contains("hunter2"));
+        // T-5971: a manifest's `${VAR}` names the secret and holds none.
+        let named = json!({ "password": "${FEED_PASSWORD}" });
+        assert_eq!(mask(&named), named);
     }
 
     /// T-3272: the platform's own API key is a credential; an operation name is not.

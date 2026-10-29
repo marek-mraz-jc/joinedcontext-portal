@@ -56,11 +56,12 @@ const CONNECTOR_TASKS: &[&str] = &[
     "T-5956", "T-5957", "T-5958", "T-5959", "T-5960", "T-5961", "T-5962", "T-5964", "T-5965",
     "T-5966", "T-5967", "T-5968", "T-5969", "T-5970", "T-5971", "T-5972", "T-5973", "T-5974",
     "T-5975", "T-5976", "T-5977", "T-5978", "T-5979", "T-5980", "T-5986", "T-5994", "T-5995",
-    "T-5996", "T-5997", "T-5998",
+    "T-5996", "T-5997", "T-5998", "T-6001",
 ];
 /// The kinds a persona's role names; `kinds: ["*"]` would match only the `*` kind.
 const KINDS: &[&str] = &[
     "ContextSpace",
+    "Entity",
     "Endpoint",
     "Pipeline",
     "Policy",
@@ -160,6 +161,11 @@ struct Step {
     /// behind the connector's back, as another person's merged change leaves it.
     #[serde(default)]
     touch: Option<String>,
+    /// A fixture change instead of a request: the Pipeline of this name came back green from a
+    /// runner's test of the spec its draft holds, as `jc_pipeline_test` records it (T-4840). The
+    /// scripted lane runs no Bento runner (T-5972), so this stands for that run.
+    #[serde(default)]
+    runner_tested: Option<String>,
     /// The call asks its Yellow-lane question first (AG-63): the person accepts it on the Portal
     /// page, recorded here in the question store the page writes, and the client sends the call
     /// again naming it (T-5997).
@@ -312,6 +318,18 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
             "enabledRepresentations": ["ngsi-ld"]
         }),
     ));
+    // The Pipelines' write target: a valid Endpoint manifest the write checks can read (PL-111).
+    mirror.upsert(envelope(
+        "Endpoint",
+        &format!("{project}-intake"),
+        project,
+        json!({
+            "slug": format!("i{}", slug_of(project)),
+            "contextSpaceRef": "doprava",
+            "audience": "organization",
+            "enabledRepresentations": ["ngsi-ld"]
+        }),
+    ));
     mirror.upsert(envelope(
         "CkanInstance",
         "opendata",
@@ -324,16 +342,61 @@ fn seed_project(mirror: &Mirror, project: &str, csv_url: &str) {
         project,
         json!({ "contextSpaceRef": "doprava", "http": { "url": csv_url } }),
     ));
+    mirror.upsert(envelope(
+        "Pipeline",
+        "counters-hourly",
+        project,
+        pipeline_spec(project),
+    ));
+    // A read Endpoint over its own Policy: a Pipeline aimed at it writes nowhere (S-20's deny).
+    mirror.upsert(envelope(
+        "Policy",
+        "public-read",
+        project,
+        json!({
+            "contextSpaceRef": "doprava",
+            "assigner": "did:web:hel.fi",
+            "assignee": { "kind": "role", "id": "public" },
+            "operations": ["queryEntity", "retrieveEntity"],
+            "information": [{ "entities": [{ "type": "BikeCounter" }] }]
+        }),
+    ));
+    mirror.upsert(envelope(
+        "Endpoint",
+        &format!("{project}-readers"),
+        project,
+        json!({
+            "slug": format!("r{}", slug_of(project)),
+            "contextSpaceRef": "doprava",
+            "audience": "public",
+            "policyRef": "public-read",
+            "enabledRepresentations": ["ngsi-ld"]
+        }),
+    ));
+}
+
+/// An hourly poll of the CSV DataSource upserting BikeCounter through the intake Endpoint, which
+/// serves the space and names no Policy, so it binds the Pipeline's derived write (PL-111).
+fn pipeline_spec(project: &str) -> Value {
+    json!({
+        "class": "scheduled",
+        "schedule": "0 * * * *",
+        "source": { "dataSourceRef": { "kind": "DataSource", "name": "counters-csv" } },
+        "targetEndpoint": format!("urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake"),
+        "output": { "type": "BikeCounter", "mode": "upsert" },
+        "quotas": { "maxMemoryMb": 128, "cpuMillicores": 100 }
+    })
 }
 
 /// Roles per persona, and a binding of each persona to every scenario project but `t-scn-other`.
+/// The organization lets no Pipeline run more often than every 15 minutes (PL-116, S-22).
 fn bind_personas(mirror: &Mirror, projects: &[String]) {
     // The organization, whose domain every minted URN carries (a KPI's id, ADR-N-041).
     mirror.upsert(envelope(
         "Organization",
         "hel",
         ORG_NAMESPACE,
-        json!({ "domain": "hel.fi" }),
+        json!({ "domain": "hel.fi", "projects": { "quota": { "minPipelinePeriodSeconds": 900 } } }),
     ));
     let kinds = json!(KINDS);
     for (role, verbs) in [
@@ -1050,6 +1113,32 @@ impl Harness {
                 .labels
                 .insert("edited-by".to_owned(), "another-person".to_owned());
             self.mirror.upsert(envelope);
+            return Ok(());
+        }
+        if let Some(name) = &step.runner_tested {
+            use joinedcontext_portal::ops::verdict::{digest_of, RecordsVerdict};
+            let draft = self
+                .state
+                .drafts
+                .get(project, "Pipeline", &fill(name))
+                .await
+                .map_err(|e| format!("runner_tested: {e}"))?
+                .ok_or_else(|| format!("runner_tested: no Pipeline draft {name} in {project}"))?;
+            let mut verdict = draft
+                .verdict
+                .ok_or_else(|| format!("runner_tested: the plan left {name} no verdict"))?;
+            verdict.records = Some(Box::new(RecordsVerdict {
+                ok: true,
+                checked: 1,
+                rejected: 0,
+                spec_digest: digest_of(&draft.manifest["spec"]),
+                sample_digest: digest_of(&json!([COUNTERS_CSV])),
+            }));
+            self.state
+                .drafts
+                .set_verdict(project, "Pipeline", &fill(name), verdict)
+                .await
+                .map_err(|e| format!("runner_tested: {e}"))?;
             return Ok(());
         }
         if let Some(who) = &step.unbind {

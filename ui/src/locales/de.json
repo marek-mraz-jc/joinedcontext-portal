@@ -9189,7 +9189,8 @@
     "recipient-refused": "Senden Sie nur an Personen der Organisation mit bestätigter E-Mail-Adresse.",
     "no-model-key": "Bitten Sie die Administration der Organisation, den Modellschlüssel hinzuzufügen oder zu erneuern, und versuchen Sie es erneut.",
     "no-json": "Fragen Sie erneut; die Antwort des Modells entsprach nicht dem angeforderten Schema.",
-    "second-factor-required": "Melden Sie sich erneut mit Ihrem Einmalcode an und wiederholen Sie die Entscheidung."
+    "second-factor-required": "Melden Sie sich erneut mit Ihrem Einmalcode an und wiederholen Sie die Entscheidung.",
+    "secret-in-argument": "Geben Sie den Zugangswert im Geheimnis-Formular des Portals ein, nie im Chat oder im Manifest, und verweisen Sie per secretRef darauf."
   },
   "jobs": {
     "title": "Was Sie gestartet haben",
@@ -10649,5 +10650,24 @@
     "editOf": "KI-Konnektor {name} bearbeiten",
     "editTitle": "{name} bearbeiten",
     "save": "Speichern"
+  },
+  "secrets": {
+    "title": "Geheimnis eingeben",
+    "description": "Ein Zugangswert, den eine Quelle oder ein Plan braucht: API-Schlüssel, Passwort, Token. Er wird verschlüsselt im Repository des Projekts abgelegt und öffnet eine Änderung zur Freigabe.",
+    "neverInChat": "Geben Sie einen Zugangswert nur hier ein, nie im Chat mit dem Assistenten oder einem KI-Konnektor: ein Chat trüge ihn durch das Modell. Ein Manifest verweist per secretRef darauf.",
+    "name": "Name des Geheimnisses",
+    "hint": {
+      "name": "Buchstaben, Ziffern, - und _, z. B. counters-api. Ein Manifest nennt ihn als Namen in secretRef.",
+      "key": "Was dieser Wert im Geheimnis ist, z. B. apiKey oder password.",
+      "value": "Der Zugangswert selbst, z. B. der API-Schlüssel des Anbieters. Hier liest ihn niemand mehr aus."
+    },
+    "key": "Schlüssel",
+    "value": "Wert",
+    "empty": "Dieses Projekt hat noch kein Geheimnis: geben Sie unten das erste ein.",
+    "replaces": "Dieses Geheimnis existiert mit den Schlüsseln {keys}. Speichern ersetzt es ganz: geben Sie jeden Schlüssel ein, der bleibt.",
+    "addKey": "Schlüssel hinzufügen",
+    "addKept": "Bleibende Schlüssel hinzufügen",
+    "submit": "Verschlüsseln und vorschlagen",
+    "sending": "Das Geheimnis wird gesendet…"
   }
 }

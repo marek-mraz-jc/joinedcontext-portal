@@ -73,16 +73,16 @@ path = "src/main.rs"
 # pulls one copy (T-3167).
 # `version` is the crate's own version at that tag (the tag counts differently); without it
 # cargo-deny reads the requirement as `*` and the supply-chain check goes red (T-0287).
-jc-core = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "5ac5c7c754899d7217ca83cf8ed1cdf0d9ae0b0a", version = "0.1.0", features = ["outbound"] }
+jc-core = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "ecd736792daa2d33e43f4fb2d9ddc2d7e6b643d1", version = "0.1.0", features = ["outbound"] }
 # Blueprint expansion (CC-25) and the loader the reconciler validates a repository with
 # (T-0191), from the same engine the CLI runs, so both sides agree on what a manifest is. Same
 # tag as jc-core on purpose: cargo keys a git source by its reference, so two tags of one
 # repository would pull two copies of `jc-core` and its types would stop matching.
-jcctl = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "5ac5c7c754899d7217ca83cf8ed1cdf0d9ae0b0a", version = "0.1.0", default-features = false, features = ["utoipa"] }
+jcctl = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "ecd736792daa2d33e43f4fb2d9ddc2d7e6b643d1", version = "0.1.0", default-features = false, features = ["utoipa"] }
 # The gateway's own write decision (evaluator, write guard), which the record check of a pipeline's
 # sample runs before a proposal (T-4840), and the app-variant matrix asserts (T-2705). Same rev as
 # jc-core.
-context-gateway = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "5ac5c7c754899d7217ca83cf8ed1cdf0d9ae0b0a", version = "0.1.0" }
+context-gateway = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "ecd736792daa2d33e43f4fb2d9ddc2d7e6b643d1", version = "0.1.0" }
 # The operations check an input against the schema they publish (T-1659); already in the tree.
 jsonschema = { version = "0.54", default-features = false }
 # Only to render jc-core's schemas into the OpenAPI document; the Portal's own types use utoipa.
@@ -144,6 +144,11 @@ base64 = "0.23"
 oxc = { version = "0.149", default-features = false, features = ["transformer", "codegen", "semantic", "ast_visit"] }
 hmac = "0.12"
 sha2 = "0.10"
+# The secret form writes the repository's SOPS files (T-5971); jcctl reads them back. Both
+# already in the graph through jcctl.
+age = { version = "0.12", default-features = false, features = ["armor"] }
+aes-gcm = "0.10"
+zeroize = "1"
 # The static host unpacks a published build (AP-102).
 flate2 = "1"
 tar = { version = "0.4", default-features = false }
