@@ -23,6 +23,8 @@ export interface DialogProps {
   size?: DialogSize;
   /** The label of the close control in the corner. */
   closeLabel: string;
+  /** A small control right beside the title, such as a form's User Guide link (T-6105). */
+  titleAction?: ReactNode;
   /** Rendered under the body, right-aligned: the primary and its cancel. */
   footer?: ReactNode;
   /**
@@ -55,6 +57,7 @@ export function Dialog({
   description,
   size = "md",
   closeLabel,
+  titleAction,
   footer,
   className,
   bodyClassName,
@@ -103,7 +106,10 @@ export function Dialog({
         >
           <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
             <div className="min-w-0">
-              <RadixDialog.Title className="text-title font-semibold">{title}</RadixDialog.Title>
+              <div className="flex items-center gap-1">
+                <RadixDialog.Title className="text-title font-semibold">{title}</RadixDialog.Title>
+                {titleAction}
+              </div>
               {description ? (
                 <RadixDialog.Description className="mt-1 text-body text-fg-muted">
                   {description}

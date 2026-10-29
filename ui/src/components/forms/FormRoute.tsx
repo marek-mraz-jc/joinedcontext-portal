@@ -189,6 +189,8 @@ export interface FormFrameProps {
   size?: DialogSize;
   /** The dialog's close control, when the form is drawn as one. */
   closeLabel: string;
+  /** Beside the title: the kind's User Guide link (T-6105). */
+  help?: ReactNode;
   footer?: ReactNode;
   children: ReactNode;
 }
@@ -204,6 +206,7 @@ export function FormFrame({
   description,
   size,
   closeLabel,
+  help,
   footer,
   children,
 }: FormFrameProps): JSX.Element | null {
@@ -250,6 +253,7 @@ export function FormFrame({
         description={description}
         size={size}
         closeLabel={closeLabel}
+        titleAction={help}
         footer={footer}
       >
         {children}
@@ -286,7 +290,7 @@ export function FormFrame({
           {t("form.backToList")}
         </Button>
       </div>
-      <PageHeader title={title} description={description} />
+      <PageHeader title={title} description={description} titleAction={help} />
       <Card>
         <FormPageContext.Provider value>{children}</FormPageContext.Provider>
       </Card>

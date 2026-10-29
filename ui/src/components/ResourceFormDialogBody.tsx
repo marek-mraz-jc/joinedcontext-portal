@@ -23,7 +23,7 @@ import { useYamlEditor } from "./forms/useYamlEditor";
 import { useYamlSubmitQueue } from "./forms/useYamlSubmitQueue";
 import { ResourceFormFooter, verdictStateOf } from "./forms/ResourceFormFooter";
 import type { ResourceFormFooterProps, VerdictState } from "./forms/ResourceFormFooter";
-import { ResourceFormNotes } from "./forms/ResourceFormNotes";
+import { FormGuideLink, ResourceFormNotes } from "./forms/ResourceFormNotes";
 import { ResourceYamlPanel } from "./forms/ResourceYamlPanel";
 
 export type { ManifestSource };
@@ -378,12 +378,11 @@ export function ResourceFormDialogBody<T>({
       // Not "Cancel": the footer has a Cancel of its own, and two buttons of one name are two
       // things a screen reader cannot tell apart (UI-15, T-1753).
       closeLabel={t("resourceDelete.close")}
+      help={<FormGuideLink kind={kind} href={guideHref} />}
     >
       <div className="flex flex-col gap-4">
         <ResourceFormNotes
           kind={kind}
-          about={arrangement.about}
-          guideHref={guideHref}
           conflict={draft.conflict}
           saveRefused={draft.saveRefused}
           project={project}

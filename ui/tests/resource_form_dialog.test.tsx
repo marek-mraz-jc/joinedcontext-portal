@@ -204,30 +204,28 @@ describe("a manifest form", () => {
   });
 
   /**
-   * UI-02, T-1608: the dialog opens with what the kind is for, taken from the kind's own
-   * arrangement, and the shipped arrangements carry it for every kind with a form.
+   * T-6105 (owner): the dialog opens on its first field. The kind's `about` stays in the
+   * arrangement for the assistant and the guide; the form no longer prints it above the fields.
    */
-  it("opens with what the kind is for, before any field", async () => {
+  it("opens on its fields, with no paragraph on the kind above them", async () => {
     stubFetch([ENDPOINT_FORM]);
     renderDialog("Endpoint");
 
-    const about = await screen.findByTestId("form-about");
-    expect(about.textContent ?? "").toContain("endpoint is the door");
-    // It stands above the fields, so it is read before anything is typed.
-    const name = screen.getByLabelText(/^Name/);
-    expect(about.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await screen.findByLabelText(/^Name/);
+    expect(screen.queryByTestId("form-about")).toBeNull();
+    expect(screen.queryByText(/endpoint is the door/)).toBeNull();
   });
 
   /**
    * UI-02, DP-11, T-2252: a form links to its kind's page in the User Guide — and only when the
-   * installation serves one. `dev` serves none today, so every form there shows `about` and no
-   * link, because a dead link is worse than none.
+   * installation serves one, because a dead link is worse than none. Since T-6105 it is a "?"
+   * beside the title, named for the page it opens.
    */
   it("links to its guide only when a guide is served", async () => {
     // No documentationBaseUrl: the arrangement names its page and the form still offers nothing.
     stubFetch([{ ...ENDPOINT_FORM, spec: { ...ENDPOINT_FORM.spec, guide: "User-Guide/05-endpoints-and-sharing" } }]);
     renderDialog("Endpoint");
-    await screen.findByTestId("form-about");
+    await screen.findByLabelText(/^Name/);
     expect(screen.queryByTestId("form-guide")).toBeNull();
 
     cleanup();
@@ -249,8 +247,11 @@ describe("a manifest form", () => {
     // `noopener` as well as `noreferrer`: the tab it opens must not keep a handle on the form.
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
     // It says where it goes, so a screen reader announces the destination and not "link".
-    expect(link.textContent ?? "").toContain(en.kinds.Endpoint.other);
-    expect(link.textContent ?? "").toContain("User Guide");
+    expect(link.getAttribute("aria-label") ?? "").toContain(en.kinds.Endpoint.other);
+    expect(link.getAttribute("aria-label") ?? "").toContain("User Guide");
+    // It sits in the title row, before the first field.
+    const name = screen.getByLabelText(/^Name/);
+    expect(link.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   /**
@@ -273,7 +274,7 @@ describe("a manifest form", () => {
         { documentationBaseUrl: "https://docs.example.test" },
       );
       renderDialog("Endpoint");
-      await screen.findByTestId("form-about");
+      await screen.findByLabelText(/^Name/);
       expect(screen.queryByTestId("form-guide"), guide).toBeNull();
       cleanup();
     }
@@ -281,8 +282,8 @@ describe("a manifest form", () => {
 
   /**
    * PF-50, T-2409: the other half of the address is the installation's `documentationBaseUrl`,
-   * which arrives from a manifest like everything else. A base that is not a place renders the
-   * words and no link, so nothing a manifest wrote becomes something to click.
+   * which arrives from a manifest like everything else. A base that is not a place renders no
+   * link at all, so nothing a manifest wrote becomes something to click.
    */
   it("refuses a documentation base url that is not a place", async () => {
     for (const base of ["javascript:alert(1)", "data:text/html,<script>alert(1)</script>"]) {
@@ -292,10 +293,8 @@ describe("a manifest form", () => {
         { documentationBaseUrl: base },
       );
       renderDialog("Endpoint");
-      const shown = await screen.findByTestId("form-guide");
-      // The words stay — a person still reads that a guide page exists — and the link does not.
-      expect(shown.tagName, base).toBe("SPAN");
-      expect(shown.textContent ?? "").toContain(en.kinds.Endpoint.other);
+      await screen.findByLabelText(/^Name/);
+      expect(screen.queryByTestId("form-guide"), base).toBeNull();
       cleanup();
     }
   });

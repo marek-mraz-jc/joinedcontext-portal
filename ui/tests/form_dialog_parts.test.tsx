@@ -8,7 +8,8 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { Verdict } from "../src/api/drafts";
 import { ResourceFormFooter, verdictStateOf } from "../src/components/forms/ResourceFormFooter";
-import { ResourceFormNotes } from "../src/components/forms/ResourceFormNotes";
+import { FormGuideLink, ResourceFormNotes } from "../src/components/forms/ResourceFormNotes";
+import { queryKeys } from "../src/api/client";
 import { ResourceYamlPanel } from "../src/components/forms/ResourceYamlPanel";
 import { useYamlEditor } from "../src/components/forms/useYamlEditor";
 import { useFormArrangement } from "../src/components/forms/useFormArrangement";
@@ -97,6 +98,61 @@ describe("ResourceFormNotes", () => {
     expect(findings).toHaveTextContent("the space keeps no history");
     expect(screen.getByRole("alert")).toHaveTextContent("the draft store is read-only");
     expect(screen.getByRole("button", { name: en.form.fillFromSentence })).toBeVisible();
+    // T-6105: no paragraph on the kind and no guide sentence above the fields.
+    expect(screen.queryByTestId("form-about")).toBeNull();
+    expect(screen.queryByTestId("form-guide")).toBeNull();
+  });
+
+  // T-6105: only a proposal that waits says so; approved on propose is the normal case.
+  function notesWith(kind: string, verbs: string[]) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const grants = [{ binding: "b", role: "r", scope: "organization", rule: { kinds: [kind], verbs } }];
+    client.setQueryData(queryKeys.permissions("p1"), { bootstrap: false, project: "p1", grants });
+    render(
+      <QueryClientProvider client={client}>
+        <I18nextProvider i18n={i18n}>
+          <ResourceFormNotes
+            kind={kind}
+            project="p1"
+            draftKind={kind}
+            conflict={null}
+            saveRefused={null}
+            draft={null}
+            strict
+            verdict={null}
+            restartsStream={false}
+          />
+        </I18nextProvider>
+      </QueryClientProvider>,
+    );
+  }
+
+  it("says_nothing_when_the_proposal_is_approved_at_once", () => {
+    notesWith("DataSource", ["propose", "approve", "delete"]);
+    expect(screen.queryByTestId("propose-standing")).toBeNull();
+  });
+
+  it("says_a_change_waits_for_a_second_approver", () => {
+    notesWith("DataModel", ["propose", "approve", "delete"]);
+    expect(screen.getByTestId("propose-standing")).toHaveTextContent(/^Waits for a second administrator/);
+  });
+});
+
+describe("FormGuideLink", () => {
+  it("opens_the_guide_page_in_a_new_tab_and_names_it", () => {
+    render(<FormGuideLink kind="DataSource" href="https://docs.example.test/User-Guide/04-data-sources" />, { wrapper });
+    const link = screen.getByRole("link", { name: /User Guide/ });
+    expect(link).toHaveAttribute("href", "https://docs.example.test/User-Guide/04-data-sources");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link.getAttribute("aria-label")).toContain(en.kinds.DataSource.other);
+  });
+
+  it("renders_nothing_without_a_guide_or_with_an_address_that_is_not_a_place", () => {
+    for (const href of [undefined, null, "javascript:alert(1)"]) {
+      const { container } = render(<FormGuideLink kind="DataSource" href={href} />, { wrapper });
+      expect(container).toBeEmptyDOMElement();
+    }
   });
 });
 
