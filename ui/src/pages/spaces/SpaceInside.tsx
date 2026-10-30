@@ -253,7 +253,9 @@ function TypeRow({
           </Button>
         </span>
       ) : (
-        <span className="text-fg-muted">
+        // in the page's text face and caption size: a monospace sentence in the count column ran
+        // three lines and pushed the size off a phone's screen (T-6145)
+        <span className="inline-block max-w-[9rem] font-sans text-caption text-fg-muted">
           {status === 403 || status === 404 || status === 401
             ? t("spaces.inside.notReadable")
             : t("app.error.generic")}
@@ -265,7 +267,8 @@ function TypeRow({
 
   return (
     <TableRow>
-      <TableCell className="font-mono">
+      {/* a long type name breaks where it must, so the size column stays on a phone's screen */}
+      <TableCell className="font-mono [overflow-wrap:anywhere]">
         <TypeLink project={project} type={type} space={space} />
       </TableCell>
       <TableCell align="right" className="font-mono">{count}</TableCell>

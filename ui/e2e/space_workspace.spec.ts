@@ -98,13 +98,13 @@ async function stubApi(page: Page, counted = true, mode: Mode = "filled"): Promi
     }
     if (path.endsWith(`/spaces/${SPACE}/usage`)) {
       return json({
-        entities: 14232,
+        entities: 24,
         attrInstances: 3250000,
         estimated: true,
-        bytes: { entities: 48 * 1024 * 1024, attrInstances: 1536 * 1024 * 1024, byType: {
+        bytes: { entities: 48 * 1024, attrInstances: 1536 * 1024 * 1024, byType: {
           // the broker keys a type by its expanded IRI; the page matches it to the model's name
-          "https://smartdatamodels.org/dataModel.KPI/KeyPerformanceIndicator": 30 * 1024 * 1024,
-          "https://smartdatamodels.org/dataModel.Transportation/BikeHireDockingStation": 18 * 1024 * 1024,
+          "https://smartdatamodels.org/dataModel.KPI/KeyPerformanceIndicator": 30 * 1024,
+          "https://smartdatamodels.org/dataModel.Transportation/BikeHireDockingStation": 18 * 1024,
         } },
         broker: "main",
         observedAt: "2026-10-20T16:00:00Z",
@@ -161,19 +161,19 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await tabs.getByRole("tab", { name: "Data model" }).click();
     await expect(page).toHaveURL(/[?&]tab=model/);
     await expect(page.getByRole("table", { name: "Entity types" })).toBeVisible();
-    await expect(page.getByTestId("space-total")).toHaveText("The space holds 14,232 entities.");
+    await expect(page.getByTestId("space-total")).toHaveText("The space holds 24 entities.");
     // T-6085: the history count and both sizes, and the broker's word that it estimated them.
     await expect(page.getByTestId("space-history")).toHaveText("Its history holds 3,250,000 records.");
     await expect(page.getByTestId("space-size")).toHaveText(
-      "It takes 1.5 GiB in the broker's store: 48 MiB current state, 1.5 GiB history.",
+      "It takes 1.5 GiB in the broker's store: 48 KiB current state, 1.5 GiB history.",
     );
     await expect(page.getByTestId("space-estimated")).toBeVisible();
     // T-6145: each type's share of the current state, and each sample entity's own size.
     const typeTable = page.getByRole("table", { name: "Entity types" });
     const kpiRow = typeTable.getByRole("row").filter({ hasText: TYPES[0] });
-    await expect(kpiRow.getByTitle("31,457,280 B")).toHaveText("30 MiB");
+    await expect(kpiRow.getByTitle("30,720 B")).toHaveText("30 KiB");
     const bikeRow = typeTable.getByRole("row").filter({ hasText: TYPES[1] });
-    await expect(bikeRow.getByTitle("18,874,368 B")).toHaveText("18 MiB");
+    await expect(bikeRow.getByTitle("18,432 B")).toHaveText("18 KiB");
     const sampleBytes = new TextEncoder().encode(JSON.stringify(kpi(1))).length;
     // districts 1 and 3 weigh the same
     await expect(kpiRow.getByTitle(`Size of this entity as JSON: ${sampleBytes} B`).first()).toHaveText(`Size: ${sampleBytes} B`);
