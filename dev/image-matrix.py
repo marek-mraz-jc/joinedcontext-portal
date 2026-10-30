@@ -46,7 +46,7 @@ EMBEDS_UI = True
 
 
 # What builder/Dockerfile copies besides the Cargo manifests and locks anywhere in the tree.
-BUILDER_INPUTS = ("builder/", "sdk/", "apps/")
+BUILDER_INPUTS = ("builder/", "sdk/", "apps/", "scripts/app-integrity.mjs")
 
 
 def wanted(paths: list[str], embeds_ui: bool = EMBEDS_UI) -> list[str]:
@@ -74,7 +74,7 @@ def selftest() -> None:
     assert wanted(["ui/src/App.tsx", "ui/package.json"]) == ["portal", "portal-ui"]
     assert wanted(["ui/src/App.tsx"], embeds_ui=False) == ["portal-ui"]
     assert wanted(["src/main.rs"]) == ["portal"]
-    for path in ("builder/lane.mjs", "apps/air-quality/src/main.rs", "Cargo.lock", "apps/hsl-transport/server/Cargo.toml"):
+    for path in ("builder/lane.mjs", "scripts/app-integrity.mjs", "apps/air-quality/src/main.rs", "Cargo.lock", "apps/hsl-transport/server/Cargo.toml"):
         assert wanted([path]) == ["portal", "app-builder", "app-builder-rust"], path
     assert wanted(["src/a.rs", "Cargo.lock"]) == ["portal", "app-builder", "app-builder-rust"]
     assert wanted(["sdk/src/sdk/index.ts"]) == ["portal", "portal-ui", "app-builder", "app-builder-rust"]
