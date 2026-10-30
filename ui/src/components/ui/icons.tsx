@@ -56,6 +56,8 @@ const PATHS = {
   sidebar: "M4 5h16v14H4zM14 5v14",
   float: "M4 5h16v14H4zM12 11h6v6h-6z",
   git: "M6 3v12M18 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM6 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM18 9a9 9 0 0 1-9 9",
+  pencil: "M16 3l5 5L8 21H3v-5zM13 6l5 5",
+  lock: "M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4",
 } as const satisfies Record<string, string>;
 
 /**

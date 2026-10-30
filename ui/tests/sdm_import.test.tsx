@@ -74,7 +74,7 @@ slots:
     slot_uri: sdm:dateObserved
 `;
 
-function renderWizard(options: { catalogue?: unknown; status?: number; spaces?: string[]; previewStatus?: number; linkml?: string; previewErrors?: string[] } = {}) {
+function renderWizard(options: { catalogue?: unknown; status?: number; previewStatus?: number; linkml?: string; previewErrors?: string[] } = {}) {
   const onImport = vi.fn();
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const request = input as Request;
@@ -108,7 +108,7 @@ function renderWizard(options: { catalogue?: unknown; status?: number; spaces?: 
   const view = render(
     <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
-        <SmartDataModelsImport onImport={onImport} spaces={options.spaces ?? []} />
+        <SmartDataModelsImport onImport={onImport} />
       </I18nextProvider>
     </QueryClientProvider>,
   );
@@ -121,6 +121,8 @@ describe("Smart Data Models import wizard", () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    // One test stubs scrollIntoView, which jsdom lacks; a failed assertion must not leave it.
+    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
   });
 
   it("lists the catalogue by subject, through the Portal and not the catalogue itself", async () => {
@@ -224,7 +226,7 @@ describe("Smart Data Models import wizard", () => {
     expect(alert).toHaveTextContent(en.models.sdm.importRefused.replace("{name}", "AirQualityObserved"));
     expect(alert).toHaveTextContent("garden: duplicate key");
     expect(screen.queryByText(en.models.sdm.loading)).not.toBeInTheDocument();
-    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
   });
 
   /// T-1107: a model of the catalogue can carry two hundred attributes.
@@ -283,26 +285,15 @@ describe("Smart Data Models import wizard", () => {
     expect(await screen.findByText(en.models.sdm.noAttribute)).toBeInTheDocument();
   });
 
-  /// T-1108, DM-57: the space a model belongs to, chosen where the model is chosen.
-  it("carries the space the person picked into the import", async () => {
-    const { user, onImport } = renderWizard({ spaces: ["mobility", "air-quality"] });
-
-    await user.click(await screen.findByRole("button", { name: /AirQualityObserved/ }));
-    await user.selectOptions(await screen.findByLabelText(en.models.sdm.space), "air-quality");
-    await user.click(screen.getByRole("button", { name: "Import AirQualityObserved" }));
-
-    expect(onImport).toHaveBeenCalledTimes(1);
-    expect(onImport.mock.calls[0][2]).toBe("air-quality");
-  });
-
-  it("leaves the space to the editor when the project has none to offer", async () => {
+  /// T-6162, DM-57: the editor names no space, so the import offers none either.
+  it("imports a model without asking for a space", async () => {
     const { user, onImport } = renderWizard();
 
     await user.click(await screen.findByRole("button", { name: /AirQualityObserved/ }));
-    expect(screen.queryByLabelText(en.models.sdm.space)).toBeNull();
+    expect(screen.queryByRole("combobox", { name: /space/i })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Import AirQualityObserved" }));
 
-    expect(onImport.mock.calls[0][2]).toBeUndefined();
+    expect(onImport.mock.calls[0]).toHaveLength(2);
   });
 
   /**

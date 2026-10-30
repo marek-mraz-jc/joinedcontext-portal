@@ -793,8 +793,9 @@ slots:
     range: integer
 "#;
 
-#[tokio::test]
-async fn put_for_a_name_the_project_does_not_hold_creates_the_model_in_its_space() {
+/// Creates `bikes` through `uri` against a forge that holds nothing of it, and answers the paths
+/// the one commit wrote.
+async fn create_bikes_through(uri: &str) -> Vec<String> {
     let forge = MockServer::start().await;
     let forge_url = forge.uri().parse().expect("valid forge url");
     let gitea = GiteaClient::new(forge_url, "owner", "repo", "token").expect("client");
@@ -867,7 +868,7 @@ async fn put_for_a_name_the_project_does_not_hold_creates_the_model_in_its_space
         .oneshot(
             Request::builder()
                 .method("PUT")
-                .uri("/api/v1/projects/ovzdusie/datamodels/bikes/source?space=mobility")
+                .uri(uri)
                 .header(header::COOKIE, &cookie)
                 .header(CSRF_HEADER, TEST_CSRF_TOKEN)
                 .header(header::CONTENT_TYPE, "text/yaml")
@@ -902,6 +903,14 @@ async fn put_for_a_name_the_project_does_not_hold_creates_the_model_in_its_space
         })
         .collect();
 
+    put_paths
+}
+
+#[tokio::test]
+async fn put_for_a_name_the_project_does_not_hold_creates_the_model_in_its_space() {
+    let put_paths =
+        create_bikes_through("/api/v1/projects/ovzdusie/datamodels/bikes/source?space=mobility")
+            .await;
     // The Change carries the manifest as well as the source, which is what makes the model exist.
     assert!(put_paths
         .iter()
@@ -913,6 +922,24 @@ async fn put_for_a_name_the_project_does_not_hold_creates_the_model_in_its_space
     assert!(put_paths
         .iter()
         .any(|p| p.ends_with("/datamodels/json-schema/bikes.v0.json")));
+}
+
+/// DM-57, DM-75 (T-6162): the editor names no space, so a create without one is a project
+/// model in its own folder, with no `contextSpaceRef`; a space takes it by its `dataModelRef`.
+#[tokio::test]
+async fn put_for_an_unknown_model_without_a_space_creates_a_project_model() {
+    let put_paths = create_bikes_through("/api/v1/projects/ovzdusie/datamodels/bikes/source").await;
+
+    assert!(
+        put_paths
+            .iter()
+            .any(|p| p.ends_with("/projects/ovzdusie/datamodels/bikes/bikes.yaml")),
+        "{put_paths:?}"
+    );
+    assert!(put_paths
+        .iter()
+        .any(|p| p.ends_with("/projects/ovzdusie/datamodels/bikes/bikes.linkml.yaml")));
+    assert!(!put_paths.iter().any(|p| p.contains("/spaces/")));
 }
 
 /// T-1139, DM-56: a source past the limit is refused by the route, before the body is read into
@@ -951,35 +978,6 @@ async fn put_of_a_source_past_the_limit_is_refused_and_the_forge_is_not_called()
         "a source past the limit is refused, not accepted: {}",
         response.status()
     );
-    assert!(forge.received_requests().await.unwrap().is_empty());
-}
-
-#[tokio::test]
-async fn put_for_an_unknown_model_without_a_space_is_400_and_the_forge_is_not_called() {
-    let forge = MockServer::start().await;
-    let forge_url = forge.uri().parse().expect("valid forge url");
-    let gitea = GiteaClient::new(forge_url, "owner", "repo", "token").expect("client");
-
-    let config = Config::for_tests();
-    let cookie = session_cookie(&config);
-    let state = AppState::new(config, None).with_gitea(Arc::new(gitea));
-    seed_space(&state, "ovzdusie", "mobility");
-
-    let response = server::app(state)
-        .oneshot(
-            Request::builder()
-                .method("PUT")
-                .uri("/api/v1/projects/ovzdusie/datamodels/bikes/source")
-                .header(header::COOKIE, &cookie)
-                .header(CSRF_HEADER, TEST_CSRF_TOKEN)
-                .header(header::CONTENT_TYPE, "text/yaml")
-                .body(Body::from(NEW_MODEL))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     assert!(forge.received_requests().await.unwrap().is_empty());
 }
 

@@ -4194,7 +4194,6 @@
       "copyFailed": "The organization's copy could not be read: {reason}. Reload the page to try again."
     },
     "title": "Model editor",
-    "version": "Version {version}",
     "add": "Add",
     "classes": "Types",
     "enums": "Enums",
@@ -4319,8 +4318,6 @@
       "requiredAttribute": "required",
       "showMore": "Show {count} more",
       "noAttribute": "No attribute of this model matches.",
-      "space": "Space for this model",
-      "spaceLater": "Choose later, in the editor",
       "catalogueLoading": "Loading the catalogue…",
       "count": "{count, plural, one {# model} other {# models}}",
       "allAttributes": "All",
@@ -4363,18 +4360,10 @@
     },
     "create": {
       "title": "New model",
-      "name": "Name",
-      "space": "Space",
-      "chooseSpace": "Choose a space",
-      "file": "Saved as {name}.linkml.yaml",
       "taken": "The project already has a model named {name}. Choose another name.",
       "held": "Kept as the shared draft {name}; it is here after a reload, until you save the model.",
       "heldConflict": "Somebody else saved this draft while you were editing. Reload the page to see theirs; nothing of yours is kept until you do.",
-      "spaceHas": "{space} (already has {model})",
-      "spaceTaken": "The space {space} already has the model {model}, and a space has one model. Choose another space, or open {model} and add your classes to it.",
-      "noSpace": "A model belongs to one context space, and the project has none yet.",
-      "noFreeSpace": "Every space of the project already has its model; a new model needs a new space, or add your classes to the space's model.",
-      "newSpace": "Create a context space"
+      "spaceTaken": "The space {space} already has the model {model}, and a space has one model. Choose another space, or open {model} and add your classes to it."
     },
     "infer": {
       "title": "Model from a file",
@@ -4746,6 +4735,27 @@
       "editing": "Editing the model's source. Every view shows what you type here.",
       "edit": "Edit source",
       "done": "Done editing"
+    },
+    "editor": {
+      "title": "Data model editor",
+      "lead": "Types, fields and enumerations of one model; saving proposes a new version."
+    },
+    "identity": {
+      "name": "Name",
+      "nameHint": "What people read, for example Air quality. The id and the file keep their names.",
+      "nameHintNew": "What people read, for example Air quality. The id is made from it and fixed when the model is first saved.",
+      "nameEmpty": "Type a name, for example Air quality.",
+      "rename": "Rename {name}",
+      "done": "Done",
+      "unnamed": "Unnamed model",
+      "id": "Id",
+      "noId": "no id until the model has a name",
+      "idNew": "The id follows the name until the model is first saved; then it is fixed.",
+      "idFixed": "The id is fixed: Endpoints, spaces and imports name the model by it.",
+      "file": "File",
+      "fileFixed": "The file name is fixed: a rename changes only the name people read.",
+      "version": "Version",
+      "renameShort": "Rename"
     }
   },
   "apps": {

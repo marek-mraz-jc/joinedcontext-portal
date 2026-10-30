@@ -202,6 +202,11 @@ async function stubKpi(page: Page, verbs: string[], linkml = KPI_LINKML): Promis
     if (path.endsWith("/permissions/me")) {
       return json({ project: "helsinki", grants: [{ rule: { kinds: ["DataModel", "ContextSpace", "Endpoint"], verbs } }] });
     }
+    // The editor reads the model's source here; a JSON list in its place parsed as a model with no
+    // id and no name, so every edit there showed two errors (T-6162).
+    if (path.endsWith("/datamodels/helsinki-kpi/source") && route.request().method() === "GET") {
+      return route.fulfill({ status: 200, contentType: "text/yaml", body: linkml });
+    }
     if (path.endsWith("/datamodels")) {
       return json(list([{
         apiVersion: "joinedcontext.com/v1alpha1",
@@ -416,6 +421,50 @@ test.describe("a model change is proposed, and read back (T-4830)", () => {
       const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
       expect(overflow).toBeLessThanOrEqual(0);
       await shot(page, `model-propose-unchanged-${width}`);
+    });
+  }
+});
+
+// T-6162: the editor's name line. A new model is named, never placed in a space; a rename of an
+// open model writes its title and leaves the id and the file name as they are.
+test.describe("the model editor's name line (T-6162)", () => {
+  for (const width of [1440, 400]) {
+    test(`a new model is named with no space, and an open one renamed behind the pencil at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read", "propose"]);
+      await page.goto("/projects/helsinki/models?new=blank&lang=en");
+      await expect(page.getByRole("heading", { level: 1, name: "Data model editor" })).toBeVisible();
+      await expect(page.getByText("no id until the model has a name")).toBeVisible();
+      await page.getByRole("textbox", { name: "Name", exact: true }).fill("Street trees");
+      await expect(page.getByText("street-trees.linkml.yaml")).toBeVisible();
+      await expect(page.getByRole("combobox", { name: /space/i })).toHaveCount(0);
+      await expect(page.getByRole("main").getByText(/context space/i)).toHaveCount(0);
+      await shot(page, `new-model-named-${width}`);
+
+      await page.goto("/projects/helsinki/models?edit=helsinki-kpi&lang=en");
+      await page.getByRole("button", { name: /^Rename / }).click();
+      const name = page.getByRole("textbox", { name: "Name", exact: true });
+      await name.fill("");
+      await page.getByRole("button", { name: "Done" }).click();
+      await expect(page.getByText("Type a name, for example Air quality.")).toBeVisible();
+      await shot(page, `rename-empty-${width}`);
+      await name.fill("City indicators");
+      await name.press("Enter");
+      await expect(page.getByText("City indicators", { exact: true })).toBeVisible();
+      await expect(page.getByText("helsinki-kpi.linkml.yaml")).toBeVisible();
+      await expect(page.getByRole("button", { name: /^Propose v/ })).not.toHaveAttribute("aria-disabled", "true");
+      const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(0);
+      await shot(page, `renamed-${width}`);
+    });
+
+    test(`a viewer reads the name line with no rename at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read"]);
+      await page.goto("/projects/helsinki/models?edit=helsinki-kpi&lang=en");
+      await expect(page.getByText("helsinki-kpi.linkml.yaml")).toBeVisible();
+      await expect(page.getByRole("button", { name: /^Rename / })).toHaveCount(0);
+      await shot(page, `name-line-viewer-${width}`);
     });
   }
 });

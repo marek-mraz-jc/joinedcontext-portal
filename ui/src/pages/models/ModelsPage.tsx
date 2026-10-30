@@ -15,11 +15,8 @@ import {
   Button,
   Checkbox,
   Dialog,
-  Field,
   InlineError,
-  Input,
   PageHeader,
-  Select,
 } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { usePermissions } from "../../api/permissions";
@@ -31,9 +28,10 @@ import { replaceOwnSearch } from "../../assistant/HandOff";
 import { ModelFileDrop } from "./ModelFileDrop";
 import { spaceOfModel } from "./modelUsage";
 import { mergeModels } from "./linkml";
+import { ModelIdentity, setModelTitle } from "./ModelIdentity";
 import { SmartDataModelsImport } from "./SmartDataModelsImport";
 import type { CatalogueModel } from "./SmartDataModelsImport";
-import { blankSource, diagnose, parseModel } from "./linkml";
+import { blankSource, diagnose, edit, parseModel } from "./linkml";
 import { applyOperations } from "./operations";
 import type { Operation } from "./operations";
 import {
@@ -135,7 +133,6 @@ export function ModelsPage({
   const [checkInfo, setCheckInfo] = useState<{ severity: string; version: string } | null>(null);
   const [changeNotice, setChangeNotice] = useState<Change | null>(null);
   const [nameChoice, setNewName] = useState<string | undefined>(undefined);
-  const [spaceChoice, setNewSpace] = useState<string | undefined>(handedOff.space);
   /** The shared draft this page last kept: its version for the next keep (AG-61), and what it held. */
   const [kept, setKept] = useState<{ name: string; version: number; source: string; space: string } | null>(null);
   const [heldConflict, setHeldConflict] = useState(false);
@@ -164,7 +161,9 @@ export function ModelsPage({
   }, [heldQuery.data]);
 
   const newName = nameChoice ?? held?.name ?? "";
-  const newSpace = spaceChoice ?? held?.space ?? "";
+  // The editor names no space (T-6162, DM-57): a model started from a space's page is that
+  // space's model, any other one a project model a space adopts later (DM-75).
+  const newSpace = handedOff.space ?? held?.space ?? "";
   const importOpen = importChoice ?? !held;
 
   // The list keys are shared with every page that lists these kinds, so the cache holds the list
@@ -226,6 +225,16 @@ export function ModelsPage({
   const publishedSource = published?.source ?? loaded.data;
 
   const model = useMemo(() => parseModel(source), [source]);
+  const displayName = creating ? newName : (model.title?.en ?? Object.values(model.title ?? {})[0] ?? "");
+  // A rename writes the model's title; a new model's id follows the name until it is saved.
+  const rename = (name: string) => {
+    if (name.trim() !== "") {
+      setSource(edit(source, (document) => setModelTitle(document, name.trim())));
+    }
+    if (creating) {
+      setNewName(name);
+    }
+  };
 
   // What is kept: the manifest the Save would propose, minus the name the person may still
   // change. A model the project already publishes is not kept — its source lives in the
@@ -349,25 +358,20 @@ export function ModelsPage({
   // and an AirQualityObserved can sit in one model and a slot can relate them. A name the model
   // already has is kept and reported: what is in hand may have been edited, and an import must
   // not undo that.
-  const onImport = (imported: string, catalogueModel: CatalogueModel, space?: string) => {
+  const onImport = (imported: string, catalogueModel: CatalogueModel) => {
     const editing = source.trim() !== "" && parseModel(source).classes.length > 0;
     const { source: joined, conflicts } = editing
       ? mergeModels(source, imported)
       : { source: imported, conflicts: [] };
     setSource(joined);
     setImportConflicts(conflicts.map((conflict) => `${conflict.section}: ${conflict.name}`));
-    // The space the person picked in the import travels with the model (DM-57, T-1108);
-    // without one the editor asks for it, as it always did.
-    if (space) {
-      setNewSpace(space);
-    }
     // Into an empty editor the import is a new model, as an inferred one is: nothing published
     // to compare against or to read, named after the upstream model and renamable before Save
     // creates it (T-2847).
     if (!editing) {
       setChosen(undefined);
       setEditing(undefined);
-      setNewName(manifestName(catalogueModel.name) ?? "");
+      setNewName(catalogueModel.name);
     }
     setImportOpen(false);
   };
@@ -454,15 +458,20 @@ export function ModelsPage({
         {t("models.page.back")}
       </Link>
       <PageHeader
-        compact
-        title={t("models.title")}
-        aside={
-          <p className="text-body text-fg-muted">
-            {t("models.version", { version: nextVersion })}
-          </p>
+        title={t("models.editor.title")}
+        description={t("models.editor.lead")}
+        note={
+          <ModelIdentity
+            name={displayName}
+            id={targetName}
+            creating={creating}
+            version={published?.version}
+            readOnly={!mayPropose}
+            onRename={rename}
+          />
         }
         actions={
-          targetName && (!creating || (newSpace && !spaceTakenBy)) ? (
+          targetName && !spaceTakenBy ? (
             <>
               {/* Refused where they stand for a person who may not propose (UI-44, T-2848). */}
               <PermissionGuard project={project} kind="DataModel" verb="propose">
@@ -605,11 +614,7 @@ export function ModelsPage({
         {/* The catalogue first, as the description reads: on a phone the file drop's help
             pushed it below the dialog's fold (T-6106). */}
         <div className="flex flex-col gap-4">
-          <SmartDataModelsImport
-            onImport={onImport}
-            // A new model goes to a space that has none (DM-61).
-            spaces={(spaces.data ?? []).map((space) => space.metadata.name).filter((space) => !occupied.has(space))}
-          />
+          <SmartDataModelsImport onImport={onImport} />
           <ModelFileDrop project={project} onPopulate={onPopulate} />
         </div>
       </Dialog>
@@ -620,57 +625,8 @@ export function ModelsPage({
             {t("models.sdm.mergedKept", { names: importConflicts.join(", ") })}
           </Alert>
         ) : null}
-        {creating ? (
-          <section
-            aria-labelledby="models-new"
-            className="flex flex-col gap-2 rounded border border-border p-3"
-          >
-            <h2 id="models-new" className="text-sm font-semibold">
-              {t("models.create.title")}
-            </h2>
-            <div className="flex flex-wrap items-end gap-3">
-              <Field id="models-new-name" label={t("models.create.name")}>
-                <Input
-                  id="models-new-name"
-                  className="w-56"
-                  value={newName}
-                  onChange={(event) => setNewName(event.target.value)}
-                />
-              </Field>
-              <Field id="models-new-space" label={t("models.create.space")}>
-                <Select
-                  id="models-new-space"
-                  className="w-56"
-                  value={newSpace}
-                  onChange={(event) => setNewSpace(event.target.value)}
-                >
-                  <option value="">{t("models.create.chooseSpace")}</option>
-                  {(spaces.data ?? []).map((space) => {
-                    const holder = occupied.get(space.metadata.name);
-                    return (
-                      <option key={space.metadata.name} value={space.metadata.name} disabled={holder !== undefined}>
-                        {holder === undefined
-                          ? space.metadata.name
-                          : t("models.create.spaceHas", { space: space.metadata.name, model: holder })}
-                      </option>
-                    );
-                  })}
-                </Select>
-              </Field>
-              {spaces.data && spaces.data.every((space) => occupied.has(space.metadata.name)) ? (
-                <p role="status" className="text-body text-fg-muted">
-                  {t(spaces.data.length === 0 ? "models.create.noSpace" : "models.create.noFreeSpace")}{" "}
-                  <Link to="/projects/$project/$plural/new" params={{ project, plural: "spaces" }}>
-                    {t("models.create.newSpace")}
-                  </Link>
-                </p>
-              ) : null}
-              {targetName ? (
-                <p className="text-body text-fg-muted">
-                  {t("models.create.file", { name: targetName })}
-                </p>
-              ) : null}
-            </div>
+        {creating && (taken || spaceTakenBy || heldConflict || kept || held) ? (
+          <section aria-label={t("models.create.title")} className="flex flex-col gap-2">
             {taken ? (
               <InlineError>
                 {t("models.create.taken", { name: targetName })}

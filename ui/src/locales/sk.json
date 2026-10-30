@@ -4194,7 +4194,6 @@
       "copyFailed": "Kópiu organizácie sa nepodarilo načítať: {reason}. Obnovte stránku a skúste to znova."
     },
     "title": "Editor modelov",
-    "version": "Verzia {version}",
     "add": "Pridať",
     "classes": "Typy",
     "enums": "Číselníky",
@@ -4301,8 +4300,6 @@
       "requiredAttribute": "povinný",
       "showMore": "Zobraziť ďalších {count}",
       "noAttribute": "Žiadny atribút tohto modelu nezodpovedá.",
-      "space": "Priestor pre tento model",
-      "spaceLater": "Vybrať neskôr, v editore",
       "catalogueLoading": "Načítava sa katalóg…",
       "count": "{count, plural, one {# model} few {# modely} other {# modelov}}",
       "allAttributes": "Všetky",
@@ -4345,18 +4342,10 @@
     },
     "create": {
       "title": "Nový model",
-      "name": "Názov",
-      "space": "Priestor",
-      "chooseSpace": "Vyberte priestor",
-      "file": "Uloží sa ako {name}.linkml.yaml",
       "taken": "Projekt už má model s názvom {name}. Zvoľte iný názov.",
       "held": "Uložené ako zdieľaný koncept {name}; po obnovení stránky je stále tu, kým model neuložíte.",
       "heldConflict": "Tento koncept medzitým uložil niekto iný. Obnovte stránku, aby ste videli jeho verziu; dovtedy sa vaša neukladá.",
-      "spaceHas": "{space} (už má {model})",
-      "spaceTaken": "Priestor {space} už má model {model} a priestor má jeden model. Zvoľte iný priestor alebo otvorte {model} a pridajte doň svoje triedy.",
-      "noSpace": "Model patrí jednému kontextovému priestoru a projekt ešte žiadny nemá.",
-      "noFreeSpace": "Každý priestor projektu už má svoj model; nový model potrebuje nový priestor, alebo pridajte triedy do modelu priestoru.",
-      "newSpace": "Vytvoriť kontextový priestor"
+      "spaceTaken": "Priestor {space} už má model {model} a priestor má jeden model. Zvoľte iný priestor alebo otvorte {model} a pridajte doň svoje triedy."
     },
     "infer": {
       "title": "Model zo súboru",
@@ -4746,6 +4735,27 @@
       "editing": "Upravujete zdroj modelu. Každý pohľad ukazuje, čo tu napíšete.",
       "edit": "Upraviť zdroj",
       "done": "Hotovo"
+    },
+    "editor": {
+      "title": "Editor dátového modelu",
+      "lead": "Typy, polia a číselníky jedného modelu; uloženie navrhne novú verziu."
+    },
+    "identity": {
+      "name": "Názov",
+      "nameHint": "Čo ľudia čítajú, napríklad Kvalita ovzdušia. Identifikátor a súbor si ponechajú svoje mená.",
+      "nameHintNew": "Čo ľudia čítajú, napríklad Kvalita ovzdušia. Identifikátor sa z neho vytvorí a pri prvom uložení sa zafixuje.",
+      "nameEmpty": "Napíšte názov, napríklad Kvalita ovzdušia.",
+      "rename": "Premenovať {name}",
+      "done": "Hotovo",
+      "unnamed": "Model bez názvu",
+      "id": "Identifikátor",
+      "noId": "bez identifikátora, kým model nemá názov",
+      "idNew": "Identifikátor sa riadi názvom až do prvého uloženia modelu; potom je pevný.",
+      "idFixed": "Identifikátor je pevný: endpointy, priestory a importy podľa neho model menujú.",
+      "file": "Súbor",
+      "fileFixed": "Názov súboru je pevný: premenovanie mení len názov, ktorý ľudia čítajú.",
+      "version": "Verzia",
+      "renameShort": "Premenovať"
     }
   },
   "apps": {
