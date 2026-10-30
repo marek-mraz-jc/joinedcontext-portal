@@ -175,6 +175,8 @@ pub struct Syncer {
     mqtt_clients: Option<Arc<super::mqtt_brokers::MqttClientSync>>,
     /// The subscriber of every `capture` MqttBroker (ADR-N-048 §2.10, T-4880).
     mqtt_capture: Option<Arc<crate::mqtt_capture::Capture>>,
+    /// The MqttBroker warnings the last cycle logged ([`super::mqtt_brokers::log_warnings`]).
+    mqtt_warned: std::sync::Mutex<std::collections::BTreeSet<String>>,
     /// Where a run says what it did (OPS-48). `None` leaves the loop silent, which is what a
     /// Portal built without a state does in a unit test.
     activity: Option<ActivityStore>,
@@ -284,6 +286,7 @@ impl Syncer {
             mqtt_brokers: None,
             mqtt_clients: None,
             mqtt_capture: None,
+            mqtt_warned: Default::default(),
             activity: None,
             apps_cache_dir: None,
             apps_dir: None,
@@ -1996,7 +1999,9 @@ impl Syncer {
         }
         if self.mqtt_brokers.is_some() || self.mqtt_clients.is_some() {
             let brokers = super::mqtt_brokers::declared(&self.mirror);
-            super::mqtt_brokers::log_warnings(&brokers);
+            if let Ok(mut seen) = self.mqtt_warned.lock() {
+                super::mqtt_brokers::log_warnings(&brokers, &mut seen);
+            }
             let mut failed: BTreeMap<String, String> = brokers
                 .iter()
                 .filter_map(|broker| Some((broker.label(), broker.spec.clone().err()?)))

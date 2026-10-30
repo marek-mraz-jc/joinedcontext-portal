@@ -374,20 +374,21 @@ pub fn warnings(brokers: &[Broker]) -> Vec<String> {
     found
 }
 
-/// Logs each of [`warnings`] once per process: the reconciler judges the brokers every cycle,
-/// and a line repeated each cycle hides the next one.
-pub fn log_warnings(brokers: &[Broker]) {
-    static LOGGED: std::sync::LazyLock<std::sync::Mutex<BTreeSet<String>>> =
-        std::sync::LazyLock::new(Default::default);
-    let Ok(mut logged) = LOGGED.lock() else {
-        return;
-    };
-    for warning in warnings(brokers) {
-        if !logged.contains(&warning) {
-            tracing::warn!(%warning, "MQTT broker manifest");
-            logged.insert(warning);
-        }
+/// Logs each of [`warnings`] the previous cycle did not have: the reconciler judges the brokers
+/// every cycle, and a line repeated each cycle hides the next one. `seen` holds the last
+/// cycle's warnings only, so it never outgrows the manifests.
+pub fn log_warnings(brokers: &[Broker], seen: &mut BTreeSet<String>) {
+    for warning in fresh(warnings(brokers), seen) {
+        tracing::warn!(%warning, "MQTT broker manifest");
     }
+}
+
+/// The `current` warnings not in `seen`; `seen` becomes `current`.
+fn fresh(current: Vec<String>, seen: &mut BTreeSet<String>) -> Vec<String> {
+    let current: BTreeSet<String> = current.into_iter().collect();
+    let new = current.difference(seen).cloned().collect();
+    *seen = current;
+    new
 }
 
 /// The broker's `max_packet_size`: its `maxMessageBytes`, and never under [`CONNECT_ALLOWANCE`].
@@ -1053,6 +1054,18 @@ impl MqttClientSync {
 mod tests {
     use super::*;
     use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+
+    #[test]
+    fn a_warning_logs_once_and_seen_keeps_only_the_last_cycle() {
+        let mut seen = BTreeSet::new();
+        let a = || "MQTT broker x: a".to_owned();
+        let b = || "MQTT broker x: b".to_owned();
+        assert_eq!(fresh(vec![a(), b()], &mut seen), vec![a(), b()]);
+        assert_eq!(fresh(vec![a(), b()], &mut seen), Vec::<String>::new());
+        assert_eq!(fresh(vec![b()], &mut seen), Vec::<String>::new());
+        assert_eq!(seen, BTreeSet::from([b()]));
+        assert_eq!(fresh(vec![a(), b()], &mut seen), vec![a()]);
+    }
 
     fn envelope(kind: &str, project: &str, name: &str, spec: Value) -> ResourceEnvelope {
         ResourceEnvelope {

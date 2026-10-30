@@ -337,7 +337,7 @@ pub(crate) async fn propose_secret(
             &pr_body,
         )
         .await?;
-    tracing::info!(%project, secret = %body.name, pull = pull.number, "secret proposed");
+    tracing::info!(%project, secret_name = %body.name, pull = pull.number, "secret proposed");
     let mut response = (
         StatusCode::ACCEPTED,
         Json(crate::change::Change::new(
