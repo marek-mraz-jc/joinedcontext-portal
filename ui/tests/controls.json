@@ -1614,7 +1614,7 @@
     },
     "src/pages/models/ModelCanvas.tsx": {
       "controls": {
-        "Button": 5
+        "Button": 6
       },
       "tests": [
         "model_canvas.test.tsx"

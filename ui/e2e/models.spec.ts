@@ -798,6 +798,8 @@ test.describe("the model canvas (T-6094)", () => {
     await expect(details).toBeInViewport({ ratio: 1 });
     await expect(page.getByRole("table", { name: "Fields of Dataset" })).toBeInViewport();
     await shot(page, "canvas-diagram-details-400", false);
+    await page.getByRole("button", { name: "Back to the diagram" }).click();
+    await expect(page.getByTestId("diagram-badge-Dataset")).toBeInViewport();
   });
 });
 

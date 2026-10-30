@@ -114,6 +114,7 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
   const [hintOpen, setHintOpen] = useState(false);
   const hintId = useId();
   const details = useRef<HTMLHeadingElement>(null);
+  const diagram = useRef<HTMLElement>(null);
 
   const parsed = useMemo(() => {
     const own = parseModel(source.data ?? "");
@@ -327,7 +328,7 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col max-sm:flex-none lg:flex-row">
-        <section aria-label={t("models.canvas.diagram")} className={`${diagramOnPhone ? "" : "max-sm:hidden"} flex min-h-0 min-w-0 flex-1 flex-col p-2 max-sm:min-h-160`}>
+        <section ref={diagram} aria-label={t("models.canvas.diagram")} className={`${diagramOnPhone ? "" : "max-sm:hidden"} flex min-h-0 min-w-0 flex-1 flex-col p-2 max-sm:min-h-160`}>
           {source.data === undefined ? (
             <p role="status" className="text-body text-fg-muted">
               {t("models.source.loading")}
@@ -368,6 +369,12 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
           <h2 id="model-canvas-details" ref={details} tabIndex={-1} className="focus-ring scroll-mt-2 rounded-sm text-body font-semibold">
             {picked ? localized(picked.title, i18n.language, picked.name) : t("models.canvas.details")}
           </h2>
+          {picked && diagramOnPhone ? (
+            // The press scrolled the drawing away: one press takes the phone back to it (T-6164 UI judge).
+            <Button size="sm" variant="secondary" className="self-start sm:hidden" onClick={() => diagram.current?.scrollIntoView?.({ block: "start" })}>
+              {t("models.canvas.backToDiagram")}
+            </Button>
+          ) : null}
           {picked ? (
             <ClassDetails
               project={project}
