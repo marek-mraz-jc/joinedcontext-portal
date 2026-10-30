@@ -108,6 +108,18 @@ walk() {
 )
 echo "rollout-walk: walks done (logs $dir/walk-steward.log, $dir/walk-viewer.log)"
 
+# T-6174: the settle gate covers rollouts before the walk, not one that starts during it. The
+# 06:55Z walk of 8ee371d ran 14 min into the deployer's next apply (portal d8f3d24, 07:05Z) and met
+# the one-replica Portal's 503 on /projects/helsinki/knowledge at 07:14Z, fine on retry. When dev
+# names another commit after the walk, its findings judge a Portal mid-rollout: nothing is filed,
+# and the next tick walks the new commit once it has settled. A version read that fails is no
+# proof of a rollout, so that walk is judged as usual.
+after=$(curl -fsS -m 20 "$PORTAL_URL/api/v1/version" | jq -r '.portal.commit // empty' 2>/dev/null) || after=
+if [[ $after =~ ^[0-9a-f]{40}$ ]] && [ "$after" != "$sha" ]; then
+  echo "rollout-walk: dev moved from $sha to $after during the walk: its findings are not filed, $after is walked once it has settled" >&2
+  exit 1
+fi
+
 # No report from either person: the walk did not run (Keycloak, the Portal, the cap); the next
 # tick tries this commit again, three times at most, then files what it has.
 if [ ! -s "$dir/walker-steward.json" ] && [ ! -s "$dir/walker-viewer.json" ]; then

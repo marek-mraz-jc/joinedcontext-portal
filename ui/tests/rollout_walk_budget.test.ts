@@ -104,3 +104,62 @@ describe("rollout-walk settle gate", () => {
     expect(walk(root).status).toBe(1);
   });
 });
+
+// T-6174: the deployer's next apply rolled the one-replica Portal 14 min into the 06:55Z walk of
+// 8ee371d, and the viewer met a 503 on /projects/helsinki/knowledge, fine on retry. A walk after
+// which dev names another commit judged a Portal mid-rollout: its findings are not filed.
+describe("rollout-walk rollout during the walk", () => {
+  const sha = "8ee371d53e394b90e45f9afb97efe4948b74f125";
+  const next = "d8f3d2456906c85d4270b8ef0471ff7d1e4f1542";
+  const tool = (dir: string, name: string, body: string) => {
+    writeFileSync(join(dir, name), `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 });
+  };
+  // git, pnpm and npx stand in for the worktree, the install and Playwright: the npx stand-in
+  // writes an empty walker report and, with ROLL_TO set, makes dev serve that commit from then on.
+  const setup = () => {
+    const root = mkdtempSync(join(tmpdir(), "rollout-walk-"));
+    const bin = join(root, "bin");
+    mkdirSync(join(root, "portal/api/v1"), { recursive: true });
+    mkdirSync(join(root, "evidence"));
+    mkdirSync(bin);
+    writeFileSync(join(root, "portal/api/v1/version"), JSON.stringify({ portal: { commit: sha } }));
+    writeFileSync(join(root, "meminfo"), "MemAvailable: 12000000 kB\n");
+    writeFileSync(join(root, "users"), "demo.steward@hel.fi s-pass 123456\ndemo.viewer@hel.fi v-pass\n");
+    tool(bin, "git", `[ "$3" = worktree ] && [ "$4" = add ] && mkdir -p "$7/ui/e2e/live" && echo WALK_REPORT_DIR >"$7/ui/e2e/live/walker.spec.ts"; exit 0`);
+    tool(bin, "pnpm", "exit 0");
+    tool(bin, "npx", [
+      'person=$(printf "%s\\n" "$@" | sed -n "s/^for the \\(.*\\)\\$$/\\1/p")',
+      'echo "[]" >"$WALK_REPORT_DIR/walker-$person.json"',
+      '[ -n "${ROLL_TO:-}" ] && printf \'{"portal":{"commit":"%s"}}\' "$ROLL_TO" >"$VERSION_FILE"',
+      "exit 0",
+    ].join("\n"));
+    return root;
+  };
+  const walk = (root: string, env: Record<string, string> = {}) =>
+    spawnSync("bash", ["e2e/live/rollout-walk.sh"], {
+      env: {
+        ...process.env, PATH: `${join(root, "bin")}:${process.env.PATH}`, PORTAL_URL: `file://${root}/portal`,
+        VERSION_FILE: join(root, "portal/api/v1/version"), WALK_EVIDENCE: join(root, "evidence"),
+        WALK_MEMINFO: join(root, "meminfo"), DEMO_USERS: join(root, "users"), WALK_SETTLE_S: "0",
+        WALK_KUBECONFIG: join(root, "none"), WALK_JOURNEYS: "0", TASKS_DIR: "", ...env,
+      },
+      encoding: "utf8",
+    });
+
+  it("files nothing when dev serves another commit after the walk", () => {
+    const root = setup();
+    const moved = walk(root, { ROLL_TO: next });
+    expect(moved.stderr).toContain(`dev moved from ${sha} to ${next} during the walk`);
+    expect(moved.status).toBe(1);
+    expect(existsSync(join(root, "evidence", sha, "walker-viewer.json"))).toBe(true);
+    expect(existsSync(join(root, "evidence", sha, "summary.json"))).toBe(false);
+    expect(existsSync(join(root, "evidence/last-summary.json"))).toBe(false);
+  });
+
+  it("judges a walk when dev still serves the walked commit", () => {
+    const root = setup();
+    const kept = walk(root);
+    expect(kept.stderr).not.toContain("during the walk");
+    expect(kept.stdout).toContain("journeys skipped");
+  });
+});
