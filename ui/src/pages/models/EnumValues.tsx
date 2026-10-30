@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   Button,
   Field,
+  Icon,
   Input,
   Table,
   TableBody,
@@ -72,7 +73,11 @@ export function EnumValues({
         <TableHead>
           <TableHeaderCell>{t("models.enumValues.stored")}</TableHeaderCell>
           <TableHeaderCell>{t("models.enumValues.label")}</TableHeaderCell>
-          {readOnly ? null : <TableHeaderCell secondary>{t("models.enumValues.actions")}</TableHeaderCell>}
+          {readOnly ? null : (
+            <TableHeaderCell>
+              <span className="sr-only">{t("models.enumValues.actions")}</span>
+            </TableHeaderCell>
+          )}
         </TableHead>
         <TableBody>
           {entry.permissible_values.length === 0 ? (
@@ -91,6 +96,8 @@ export function EnumValues({
                       <Input
                         aria-label={t("models.enumValues.labelOf", { value: value.name })}
                         value={value.title?.en ?? ""}
+                        // Without a label people read the stored value.
+                        placeholder={value.name}
                         onChange={(event) =>
                           run({ op: "setEnumValue", enum: entry.name, value: value.name, field: "title", locale: "en", text: event.target.value })
                         }
@@ -124,9 +131,17 @@ export function EnumValues({
                   )}
                 </TableCell>
                 {readOnly ? null : (
-                  <TableCell secondary>
-                    <Button size="sm" variant="ghost" onClick={() => run({ op: "removeEnumValue", enum: entry.name, value: value.name })}>
-                      {t("models.removeEnumValue", { value: value.name })}
+                  <TableCell className="w-px">
+                    {/* An icon with its full name: a phone keeps this column, and the row says which value. */}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-danger"
+                      aria-label={t("models.removeEnumValue", { value: value.name })}
+                      title={t("models.removeEnumValue", { value: value.name })}
+                      onClick={() => run({ op: "removeEnumValue", enum: entry.name, value: value.name })}
+                    >
+                      <Icon name="trash" className="size-4" />
                     </Button>
                   </TableCell>
                 )}
