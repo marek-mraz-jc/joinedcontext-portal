@@ -584,6 +584,7 @@
       "noTypes": "The data model {model} defines no entity type.",
       "readThrough": "read through endpoint {endpoint}",
       "noEndpoint": "counts need an endpoint that is public or has no policy",
+      "sampleSize": "Size of this entity as JSON: {bytes}",
       "noEntities": "No entity of this type yet.",
       "notReadable": "not readable anonymously",
       "noEndpoints": "This space has no endpoint yet.",

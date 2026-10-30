@@ -1,6 +1,6 @@
 /** T-2890: a space's size as the broker measured it, in binary units and matched to the model's types. */
 import { describe, expect, it } from "vitest";
-import { bytesOfType, exactBytes, sizeText, totalBytes } from "../src/api/spaceUsage";
+import { bytesOfType, entityBytes, exactBytes, sizeText, totalBytes } from "../src/api/spaceUsage";
 
 describe("space size", () => {
   it("writes_binary_units_with_the_locales_separators", () => {
@@ -33,5 +33,11 @@ describe("space size", () => {
     expect(bytesOfType(byType, "Room")).toBeUndefined();
     expect(bytesOfType(byType, "Missing")).toBeUndefined();
     expect(bytesOfType(undefined, "Bridge")).toBeUndefined();
+  });
+
+  it("weighs_a_sample_entity_as_its_utf8_json", () => {
+    expect(entityBytes({ id: "urn:ngsi-ld:Bridge:1" })).toBe(29);
+    expect(entityBytes({ name: "Šafárik" })).toBe(20);
+    expect(entityBytes(undefined)).toBe(0);
   });
 });
