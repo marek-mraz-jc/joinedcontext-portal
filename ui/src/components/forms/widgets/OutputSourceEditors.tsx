@@ -67,6 +67,7 @@ export function IcalSourceEditor({ id, value, onChange, project, space, model, f
               id={`${id}-type`}
               label={t("endpoints.ical.type")}
               labelled
+              aria-describedby={`${id}-hint`}
               project={project}
               space={space || undefined}
               value={[type]}
@@ -103,7 +104,7 @@ export function IcalSourceEditor({ id, value, onChange, project, space, model, f
         {t("endpoints.outputs.type.hint")} {t("endpoints.outputs.presetHint")}
       </p>
       {missing.length > 0 ? <InlineError>{t("endpoints.ical.missing", { fields: missing.join(", ") })}</InlineError> : null}
-      <Table caption={t("endpoints.ical.caption")} zebra={false}>
+      <Table stack caption={t("endpoints.ical.caption")} zebra={false}>
         <TableHead>
           <TableHeaderCell>{t("endpoints.ical.field")}</TableHeaderCell>
           <TableHeaderCell>{t("endpoints.ical.attribute")}</TableHeaderCell>
@@ -132,6 +133,7 @@ export function IcalSourceEditor({ id, value, onChange, project, space, model, f
                   ) : (
                     <AttributeSelect
                       id={inputId}
+                      aria-describedby={`${id}-hint`}
                       value={picked ?? ""}
                       choices={choices}
                       empty={fromPreset[field] ? t("endpoints.outputs.fromPreset", { attribute: fromPreset[field] }) : t("endpoints.ical.unmapped")}
@@ -154,11 +156,14 @@ export function AttributeSelect({
   id,
   value,
   choices,
+  "aria-describedby": describedBy,
   empty,
   invalid,
   onChange,
 }: {
   id: string;
+  /** The hint that says where the field's attribute comes from (UI-16); `Field` passes its own. */
+  "aria-describedby"?: string;
   value: string;
   choices: string[];
   empty: string;
@@ -167,7 +172,7 @@ export function AttributeSelect({
 }): JSX.Element {
   const options = value && !choices.includes(value) ? [value, ...choices] : choices;
   return (
-    <Select id={id} value={value} aria-invalid={invalid ? "true" : undefined} onChange={(event) => onChange(event.currentTarget.value)}>
+    <Select id={id} value={value} aria-describedby={describedBy} aria-invalid={invalid ? "true" : undefined} onChange={(event) => onChange(event.currentTarget.value)}>
       <option value="">{empty}</option>
       {options.map((choice) => (
         <option key={choice} value={choice}>
@@ -201,6 +206,7 @@ export function FeedSourceEditor({ id, value, onChange, project, space, model, f
               id={`${id}-type`}
               label={t("endpoints.ical.type")}
               labelled
+              aria-describedby={`${id}-hint`}
               project={project}
               space={space || undefined}
               value={value.type ? [value.type] : []}
@@ -237,7 +243,7 @@ export function FeedSourceEditor({ id, value, onChange, project, space, model, f
         {t("endpoints.outputs.type.hint")} {t("endpoints.outputs.feedPresetHint")}
       </p>
       {missing.length > 0 ? <InlineError>{t("endpoints.ical.missing", { fields: missing.join(", ") })}</InlineError> : null}
-      <Table caption={t("endpoints.outputs.rolesCaption")} zebra={false}>
+      <Table stack caption={t("endpoints.outputs.rolesCaption")} zebra={false}>
         <TableHead>
           <TableHeaderCell>{t("endpoints.outputs.role")}</TableHeaderCell>
           <TableHeaderCell>{t("endpoints.ical.attribute")}</TableHeaderCell>
@@ -265,6 +271,7 @@ export function FeedSourceEditor({ id, value, onChange, project, space, model, f
                   ) : (
                     <AttributeSelect
                       id={inputId}
+                      aria-describedby={`${id}-hint`}
                       value={picked ?? ""}
                       choices={choices}
                       empty={fromPreset ? t("endpoints.outputs.fromPreset", { attribute: fromPreset }) : t("endpoints.ical.unmapped")}
@@ -309,12 +316,16 @@ export function MapSourceEditor({ id, value, onChange, project, space, model, fr
             id={`${id}-type`}
             label={t("endpoints.ical.type")}
             labelled
+            aria-describedby={`${id}-type-hint`}
             project={project}
             space={space || undefined}
             value={value.type ? [value.type] : []}
             onChange={(types) => onChange({ type: types[0] ?? value.type })}
           />
         )}
+        <span id={`${id}-type-hint`} className="font-normal text-fg-muted">
+          {t("endpoints.outputs.type.hint")}
+        </span>
       </label>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field id={`${id}-geometry`} label={t("endpoints.outputs.map.geometry.label")} help={t("endpoints.outputs.map.geometry.hint")}>
