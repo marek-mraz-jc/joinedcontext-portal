@@ -34,8 +34,9 @@ export function MqttBrokersPage({ project }: { project: string }): JSX.Element {
   const refused = useCreateRefused(project);
   return (
     <div className="flex flex-col gap-section">
-      <AllowancePanel project={project} />
+      {/* The page's title comes first; what the project may still add sits under its brokers (owner 2026-10-30). */}
       <KindList project={project} plural="mqttbrokers" createRefused={refused} />
+      <AllowancePanel project={project} />
       {items.length > 0 ? <Connections project={project} brokers={items} /> : null}
     </div>
   );

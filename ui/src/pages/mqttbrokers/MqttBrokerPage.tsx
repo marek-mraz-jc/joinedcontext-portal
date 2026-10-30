@@ -238,10 +238,10 @@ function BrokerHeader({
   );
   return (
     <div className="flex flex-col gap-2">
-      <BackLink project={project} />
+      {/* The breadcrumb leads back; the id sits beside the title (on a phone the breadcrumb ends with it). */}
       <PageHeader
         title={title}
-        description={<span className="font-mono">{name}</span>}
+        titleAction={<code className="ms-2 hidden font-mono text-caption text-fg-muted sm:inline">{name}</code>}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button onClick={onTest}>{t("mqttbrokers.test.open")}</Button>

@@ -17,7 +17,7 @@ import { ResourcePageFailed } from "../../components/ui/PageState";
 import { Alert, Badge, Button, PageHeader, SourceLink } from "../../components/ui";
 import { TypeLink } from "../models/ModelLinks";
 import { ago } from "../apps/CatalogCards";
-import { nextRuns, parseCron } from "./cron";
+import { nextRuns, parseCron, scheduleWords } from "./cron";
 import { endpointUrn } from "./PipelineEditor";
 import { PipelineRejectedDialog } from "./PipelineRejected";
 import { PipelineAccessRequests } from "./AccessRequests";
@@ -247,7 +247,7 @@ export function nextRunOf(
 
 function Fact({ label, children }: { label: string; children: ReactNode }): JSX.Element {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex min-w-0 flex-col gap-0.5">
       <dt className="text-caption text-fg-subtle">{label}</dt>
       <dd className="text-body text-fg [overflow-wrap:anywhere]">{children}</dd>
     </div>
@@ -370,14 +370,16 @@ export function PipelineOverview({ project, name }: { project: string; name: str
     (condition) => condition.type === "StreamWriting" && condition.status === "False",
   );
   const refusedRecords: Rejected[] = rejected.data?.items ?? [];
+  const scheduleText = spec.schedule ? scheduleWords(spec.schedule, t, locale) : undefined;
 
   return (
     <div className="flex flex-col gap-section">
       <div className="flex flex-col gap-2">
-        {back}
+        {/* One header row: the title with its id, the actions on the same row; the breadcrumb leads back. */}
         <PageHeader
           title={localized(manifest.metadata.title, locale, name)}
-          description={<span className="font-mono">{name}</span>}
+          // The id beside the title; on a phone the breadcrumb already ends with it.
+          titleAction={<code className="ms-2 hidden font-mono text-caption text-fg-muted sm:inline">{name}</code>}
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <PermissionGuard project={project} kind="Pipeline" verb="propose">
@@ -427,7 +429,7 @@ export function PipelineOverview({ project, name }: { project: string; name: str
         <h2 id="pipeline-facts" className="text-title text-fg">
           {t("pipelines.overview.facts")}
         </h2>
-        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 lg:grid-cols-3">
           <Fact label={t("pipelines.field.phase")}>
             <span className="flex flex-wrap items-center gap-1.5">
               <LifecycleBadge
@@ -470,7 +472,10 @@ export function PipelineOverview({ project, name }: { project: string; name: str
           </Fact>
           <Fact label={t("pipelines.field.schedule")}>
             {spec.schedule ? (
-              <span className="font-mono">{spec.schedule}</span>
+              // In words when the cron says one of the form's choices; the cron itself on hover.
+              <span title={spec.schedule} className={scheduleText ? undefined : "font-mono"}>
+                {scheduleText ?? spec.schedule}
+              </span>
             ) : spec.period ? (
               t("pipelines.overview.every", { period: spec.period })
             ) : (
@@ -518,7 +523,6 @@ export function PipelineOverview({ project, name }: { project: string; name: str
         <h2 id="pipeline-runs" className="text-title text-fg">
           {t("pipelines.overview.runs")}
         </h2>
-        <p className="text-sm text-fg-muted">{t("pipelines.runs.lead")}</p>
         <PipelineRunsView
           key={openRun ?? "newest"}
           project={project}
@@ -532,7 +536,6 @@ export function PipelineOverview({ project, name }: { project: string; name: str
         <h2 id="pipeline-source" className="text-title text-fg">
           {t("pipelines.source.section")}
         </h2>
-        <p className="text-sm text-fg-muted">{t("pipelines.source.lead")}</p>
         <PipelineSourceReport project={project} name={name} snapshot={spec.sourceDeletes?.mode === "snapshot"} />
       </section>
 
@@ -540,7 +543,6 @@ export function PipelineOverview({ project, name }: { project: string; name: str
         <h2 id="pipeline-access" className="text-title text-fg">
           {t("pipelines.access.section")}
         </h2>
-        <p className="text-sm text-fg-muted">{t("pipelines.access.lead")}</p>
         <PipelineAccessRequests project={project} name={name} />
       </section>
 

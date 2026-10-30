@@ -2250,6 +2250,14 @@
         "policy_form.test.tsx"
       ]
     },
+    "src/routes/RegistrationPage.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "context_sources_ui.test.tsx"
+      ]
+    },
     "src/routes/RegistrationsPage.tsx": {
       "controls": {
         "Button": 1,

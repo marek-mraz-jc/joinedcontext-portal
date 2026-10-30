@@ -3130,6 +3130,13 @@
         "minutes": "{count} minut",
         "hours": "{count, plural, few {# hodiny} other {# hodin}}"
       },
+      "say": {
+        "minutes": "Každých {count} minut",
+        "hours": "Každé {count} hodiny, v minutě {minute}",
+        "hourly": "Každou hodinu, v minutě {minute}",
+        "daily": "Každý den v {time} UTC",
+        "weekly": "Každý týden ({weekday}) v {time} UTC"
+      },
       "atMinute": "V minutě",
       "on": "Ve dny",
       "atTime": "V (UTC)",
@@ -5394,7 +5401,7 @@
     "proposed": "Běh otevřel žádost o sloučení.",
     "nothingToDo": "Běh nic nezměnil: zdroj se neposunul.",
     "byWebhook": "Běží, když to zdroj oznámí",
-    "everyInterval": "Každých {interval}",
+    "everyInterval": "Interval {interval}",
     "add": "Přidat zdroj",
     "propose": "Navrhnout změnu",
     "dialog": {

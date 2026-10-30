@@ -3130,6 +3130,13 @@
         "minutes": "{count} Minuten",
         "hours": "{count} Stunden"
       },
+      "say": {
+        "minutes": "Alle {count} Minuten",
+        "hours": "Alle {count} Stunden, zur Minute {minute}",
+        "hourly": "Jede Stunde, zur Minute {minute}",
+        "daily": "Jeden Tag um {time} UTC",
+        "weekly": "Jeden {weekday} um {time} UTC"
+      },
       "atMinute": "In Minute",
       "on": "Am",
       "atTime": "Um (UTC)",
@@ -5394,7 +5401,7 @@
     "proposed": "Der Lauf hat einen Merge Request geöffnet.",
     "nothingToDo": "Der Lauf hat nichts geändert: die Quelle hat sich nicht bewegt.",
     "byWebhook": "Läuft, wenn die Quelle es meldet",
-    "everyInterval": "Alle {interval}",
+    "everyInterval": "Intervall {interval}",
     "add": "Quelle hinzufügen",
     "propose": "Änderung vorschlagen",
     "dialog": {

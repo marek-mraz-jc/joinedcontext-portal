@@ -118,6 +118,18 @@ describe("a pipeline's runs and log", () => {
     await expectAxeClean(container);
   });
 
+  it("leaves_out_the_message_column_when_no_line_of_the_page_has_one", async () => {
+    await renderRoute({
+      path: PATH,
+      answer: answering({ items: [run(TICK, 2, 0, 0)] }, { [TICK]: { newest: { items: [line(2), line(1)] } } }),
+    });
+    const dialog = await openRuns();
+    const log = await within(dialog).findByRole("region", { name: /^Log of the run / });
+    const table = await within(log).findByRole("table");
+    expect(within(table).getAllByRole("columnheader")).toHaveLength(3);
+    expect(within(table).queryByRole("columnheader", { name: en.pipelines.runs.message })).toBeNull();
+  });
+
   it("says_how_long_each_run_took_what_moved_since_the_one_before_and_flags_a_silent_run", async () => {
     const at = (name: string, sent: number, first: string, last: string) => ({ run: name, firstAt: first, lastAt: last, sent, rejected: 0, failed: 0 });
     const runs = [

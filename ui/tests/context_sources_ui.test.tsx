@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import en from "../src/locales/en.json";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
 import { ConnectionTest } from "../src/pages/datasources/ConnectionTest";
@@ -87,6 +88,8 @@ describe("context sources and the connection test (T-4819)", () => {
     expect(screen.getByText("retrieveEntity, queryEntity")).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("the broker answered 409 Conflict");
     expect(screen.getByRole("link", { name: "indicators" })).toHaveAttribute("href", "/projects/helsinki/endpoints/indicators");
+    // Edit is a button on the header's row, not a link at the far edge of the page.
+    expect(screen.getByRole("button", { name: en.registrations.page.edit })).toBeInTheDocument();
   });
 
   it("tests a saved source and shows its first record and the pipelines that read it", async () => {
