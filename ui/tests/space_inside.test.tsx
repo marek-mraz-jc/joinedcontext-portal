@@ -1202,6 +1202,20 @@ describe("the space's own data", () => {
       expect(await screen.findByRole("button", { name: en.entityGrid.undo })).toBeInTheDocument();
     });
 
+    it("reads the grid's first page once, and the probe asks no count (T-6161)", async () => {
+      const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200, rows }, { source, access: steward, attributes: stewardWrites });
+      await screen.findByRole("spinbutton", { name: /pm10/i });
+      const reads = fetchMock.mock.calls
+        .map((call) => urlOf(call[0]))
+        .filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities"));
+      // The writer's grant lands after the first read: it changes where a correction goes, never the read.
+      const pages = reads.filter((url) => url.searchParams.get("limit") !== "1");
+      expect(pages.map((url) => url.search)).toHaveLength(1);
+      // The probe only asks whether the surface answers: counting the type there costs a second scan.
+      const probes = reads.filter((url) => url.searchParams.get("limit") === "1");
+      expect(probes.every((url) => url.searchParams.get("count") !== "true")).toBe(true);
+    });
+
     it("gives a viewer, whose grant names no write, no editor", async () => {
       renderInside({ status: 200, count: 1 }, { status: 200, rows }, {
         source,

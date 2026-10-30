@@ -186,6 +186,12 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await shot(page, `grid-filter-${label}`);
     await page.keyboard.press("Escape");
     await expect(toolbar.locator("summary", { hasText: "Filter" })).toContainText("2");
+    // The filters in force stay in sight as chips under the toolbar (T-6161).
+    const chips = page.getByRole("list", { name: "Active filters" });
+    await expect(chips.getByRole("listitem")).toHaveCount(3);
+    await expect(chips).toContainText("contains cafe");
+    await expect(chips.getByRole("listitem").nth(1)).toContainText(/^or\s*Places is greater than 50/);
+    await shot(page, `grid-filter-chips-${label}`);
 
     // Search asks the endpoint across the text fields, beside the filter.
     await page.getByRole("searchbox", { name: "Search the rows" }).fill("Espoo");
@@ -219,6 +225,14 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await expect(page.locator(".jc-grid")).toHaveAttribute("data-row-size", "large");
     await page.keyboard.press("Escape");
     await shot(page, `grid-row-large-${label}`);
+
+    // A chip's ✕ drops its condition and the read follows; Clear filters drops the rest (T-6161).
+    await chips.getByRole("button", { name: /^Remove filter: .*contains cafe$/ }).click();
+    await expect.poll(() => asked.includes("audience>50")).toBe(true);
+    await expect(chips.getByRole("listitem")).toHaveCount(1);
+    await chips.getByRole("button", { name: /^Remove filter: / }).click();
+    await expect(page.getByRole("list", { name: "Active filters" })).toHaveCount(0);
+    await shot(page, `grid-filter-cleared-${label}`);
   });
 }
 
@@ -435,6 +449,14 @@ test.describe("The space page at phone width with touch", () => {
       expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches), "the phone is a touch screen").toBe(true);
 
       expect(await smallTouchTargets(page), "every control is at least 44 x 44 px").toEqual([]);
+      // The filter chips under the toolbar keep the finger's size too (T-6161).
+      await page.getByTestId("grid-toolbar").getByText("Filter", { exact: true }).click();
+      await page.getByRole("button", { name: "Add condition", exact: true }).click();
+      await page.getByRole("textbox", { name: "Value", exact: true }).fill("cafe");
+      await page.getByRole("button", { name: "Add condition", exact: true }).click();
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("list", { name: "Active filters" }).getByRole("listitem")).toHaveCount(3);
+      expect(await smallTouchTargets(page), "every chip control is at least 44 x 44 px").toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth), "nothing scrolls sideways").toBeLessThanOrEqual(width);
       // The box keeps its size: the label around it is what grew.
       const box = await page.getByRole("checkbox", { name: /^Select row: / }).first().boundingBox();
