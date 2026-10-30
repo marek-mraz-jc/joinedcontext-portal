@@ -11019,7 +11019,7 @@
     "openDetails": "Details zu {name}",
     "noMatch": "Keine Zeile passt zu Suche und Filtern.",
     "clearAll": "Suche und Filter löschen",
-    "footer": "{shown} von {count} passenden angezeigt ({total} insgesamt)",
+    "footer": "{shown} von {count} angezeigt",
     "showMore": "{count} weitere anzeigen",
     "panelLead": "Alle Werte dieser Zeile. Ein geändertes Feld wird zu einer vorgeschlagenen Änderung zur Freigabe; geschrieben wird erst nach der Freigabe.",
     "platformDefault": "Vorgabe der Plattform",
@@ -11051,6 +11051,7 @@
       "lifecycle": "Lebenszyklus",
       "openWorld": "Offene Welt",
       "space": "Kontextraum"
-    }
+    },
+    "footerOf": "{shown} von {count} passenden angezeigt, {total} insgesamt"
   }
 }

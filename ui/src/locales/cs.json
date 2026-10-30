@@ -11019,7 +11019,7 @@
     "openDetails": "Podrobnosti {name}",
     "noMatch": "Hledání a filtrům neodpovídá žádný řádek.",
     "clearAll": "Zrušit hledání a filtry",
-    "footer": "Zobrazeno {shown} z {count} odpovídajících (celkem {total})",
+    "footer": "Zobrazeno {shown} z {count}",
     "showMore": "Zobrazit dalších {count}",
     "panelLead": "Všechny hodnoty tohoto řádku. Změněné pole se stane navrženou změnou ke schválení; nic se nezapíše, dokud ji někdo neschválí.",
     "platformDefault": "Výchozí hodnota platformy",
@@ -11051,6 +11051,7 @@
       "lifecycle": "Životní cyklus",
       "openWorld": "Otevřený svět",
       "space": "Kontextový prostor"
-    }
+    },
+    "footerOf": "Zobrazeno {shown} z {count} odpovídajících, celkem {total}"
   }
 }

@@ -476,7 +476,7 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
         caption={t("pipelines.title")}
         storageKey="pipelines"
         searchLabel={t("grid.searchIn", { list: t("pipelines.title") })}
-        search=""
+        search={needle}
         onSearchChange={setNeedle}
         rows={shown}
         rowKey={(row) => row.metadata.name}

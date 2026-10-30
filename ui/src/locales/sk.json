@@ -11019,7 +11019,7 @@
     "openDetails": "Podrobnosti {name}",
     "noMatch": "Hľadaniu a filtrom nezodpovedá žiadny riadok.",
     "clearAll": "Zrušiť hľadanie a filtre",
-    "footer": "Zobrazených {shown} z {count} zodpovedajúcich (spolu {total})",
+    "footer": "Zobrazených {shown} z {count}",
     "showMore": "Zobraziť ďalších {count}",
     "panelLead": "Všetky hodnoty tohto riadku. Zmenené pole sa stane navrhnutou zmenou na schválenie; nič sa nezapíše, kým ju niekto neschváli.",
     "platformDefault": "Predvolené platformou",
@@ -11051,6 +11051,7 @@
       "lifecycle": "Životný cyklus",
       "openWorld": "Otvorený svet",
       "space": "Kontextový priestor"
-    }
+    },
+    "footerOf": "Zobrazených {shown} z {count} zodpovedajúcich, spolu {total}"
   }
 }

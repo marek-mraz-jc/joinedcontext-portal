@@ -222,8 +222,7 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
             {
               id: "classes",
               label: t("models.classes"),
-              numeric: true,
-              text: (row) => String(row.classes.length),
+              text: (row) => row.classes.join(", "),
               cell: (row) => (
                 <>
                   <span className="font-medium">{row.classes.length}</span>

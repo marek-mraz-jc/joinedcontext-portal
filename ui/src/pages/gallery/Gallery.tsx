@@ -63,6 +63,13 @@ import {
   Textarea,
 } from "../../components/ui";
 import { MayNotCreate, PermissionGuard } from "../../components/ui/PermissionGuard";
+import { ManifestGrid } from "../../components/grid/ManifestGrid";
+
+const GRID_ROWS = [
+  { name: "air-quality", audience: "public", calls: 1204, space: "air" },
+  { name: "parking-occupancy", audience: "organization", calls: 87, space: "mobility" },
+  { name: "street-works", audience: "public", calls: 0, space: "works" },
+];
 
 /**
  * A label of sixty characters, in German, where the words are longest. Every control is shown
@@ -368,6 +375,39 @@ export function Gallery(): JSX.Element {
               </TableEmpty>
             </TableBody>
           </Table>
+        </State>
+      </Specimen>
+
+      <Specimen name="ManifestGrid">
+        <State is="three rows, a filter and hidden columns">
+          <ManifestGrid
+            caption="Endpoints of the project"
+            storageKey="gallery"
+            searchLabel="Search endpoints"
+            rows={GRID_ROWS}
+            rowKey={(row) => row.name}
+            query={{ isPending: false, isError: false, error: null, refetch: () => undefined }}
+            name={{ id: "name", label: "Name", text: (row) => row.name }}
+            columns={[
+              { id: "audience", label: "Audience", filter: true, text: (row) => row.audience },
+              { id: "calls", label: "Calls in 7 days", numeric: true, align: "right", text: (row) => String(row.calls) },
+              { id: "space", label: "Context Space", hidden: true, text: (row) => row.space },
+            ]}
+            empty={<EmptyState bare title="No endpoints yet" />}
+          />
+        </State>
+        <State is="waiting">
+          <ManifestGrid
+            caption="Reading the endpoints"
+            storageKey="gallery-waiting"
+            searchLabel="Search endpoints"
+            rows={[] as typeof GRID_ROWS}
+            rowKey={(row) => row.name}
+            query={{ isPending: true, isError: false, error: null, refetch: () => undefined }}
+            name={{ id: "name", label: "Name", text: (row) => row.name }}
+            columns={[{ id: "audience", label: "Audience", text: (row) => row.audience }]}
+            empty={<EmptyState bare title="No endpoints yet" />}
+          />
         </State>
       </Specimen>
 

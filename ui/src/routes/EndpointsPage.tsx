@@ -1257,9 +1257,10 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         caption={t("endpoints.title")}
         storageKey="endpoints"
         searchLabel={t("endpoints.find")}
-        search=""
+        search={needle}
         onSearchChange={setNeedle}
         rows={matching}
+        total={endpoints.length}
         rowKey={(endpoint) => endpoint.metadata.name}
         query={list}
         name={{

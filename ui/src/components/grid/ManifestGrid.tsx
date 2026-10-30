@@ -76,7 +76,10 @@ export interface ManifestGridProps<T> {
   actions?: (row: T) => ReactNode;
   /** What an empty list says, with the page's create action. */
   empty: ReactNode;
-  /** The search a page holds in its header; without it the grid draws its own. */
+  /**
+   * The search a page holds in its header and has already applied to `rows`; without it the grid
+   * draws its own box and searches every column.
+   */
   search?: string;
   onSearchChange?: (text: string) => void;
   searchLabel: string;
@@ -89,6 +92,8 @@ export interface ManifestGridProps<T> {
     onChange: (change: Change) => void;
   };
   pageSize?: number;
+  /** How many rows the list holds before the page's own search, when `rows` is already narrowed. */
+  total?: number;
 }
 
 type Sort = { column: string; desc: boolean } | null;
@@ -154,7 +159,8 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
   const [sort, setSort] = useState<Sort>(null);
   const step = props.pageSize ?? PAGE;
   // Rows shown past the first page, for this search and these filters only: a new query starts at the top.
-  const [more, setMore] = useState<{ query: string; rows: number }>({ query: "", rows: 0 });
+  const [more, setMore] = useState(0);
+  const [askedBefore, setAskedBefore] = useState("");
   const [shown, setShown] = useState<string[]>(
     () => readShown(storageKey) ?? columns.filter((column) => !column.hidden).map((column) => column.id),
   );
@@ -163,8 +169,12 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
   const all = useMemo(() => [name, ...columns], [name, columns]);
   const visibleColumns = columns.filter((column) => shown.includes(column.id));
   const asked = JSON.stringify([search, filters]);
-  const limit = step + (more.query === asked ? more.rows : 0);
-  const kept = useMemo(() => visibleRows(rows, all, search, filters, sort), [rows, all, search, filters, sort]);
+  if (askedBefore !== asked) {
+    setAskedBefore(asked);
+    setMore(0);
+  }
+  const limit = step + more;
+  const kept = useMemo(() => visibleRows(rows, all, props.search === undefined ? ownSearch : "", filters, sort), [rows, all, props.search, ownSearch, filters, sort]);
   const page = kept.slice(0, limit);
   const width = visibleColumns.length + (actions ? 2 : 1);
   const chips = Object.entries(filters).flatMap(([id, values]) => values.map((value) => ({ id, value })));
@@ -357,13 +367,15 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
         )}
       </Table>
 
-      {!query.isPending && rows.length > 0 ? (
+      {!query.isPending && kept.length > 0 && (kept.length > page.length || kept.length !== (props.total ?? rows.length)) ? (
         <div className="flex flex-wrap items-center gap-3">
           <p role="status" className="text-caption text-fg-muted">
-            {t("grid.footer", { shown: page.length, count: kept.length, total: rows.length })}
+            {kept.length === (props.total ?? rows.length)
+              ? t("grid.footer", { shown: page.length, count: kept.length })
+              : t("grid.footerOf", { shown: page.length, count: kept.length, total: props.total ?? rows.length })}
           </p>
           {kept.length > page.length ? (
-            <Button variant="secondary" size="sm" onClick={() => setMore({ query: asked, rows: limit })}>
+            <Button variant="secondary" size="sm" onClick={() => setMore(limit)}>
               {t("grid.showMore", { count: Math.min(step, kept.length - page.length) })}
             </Button>
           ) : null}

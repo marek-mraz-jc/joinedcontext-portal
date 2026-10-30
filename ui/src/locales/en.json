@@ -11019,7 +11019,7 @@
     "openDetails": "Details of {name}",
     "noMatch": "No rows match the search and filters.",
     "clearAll": "Clear search and filters",
-    "footer": "Showing {shown} of {count} matching ({total} in total)",
+    "footer": "Showing {shown} of {count}",
     "showMore": "Show {count} more",
     "panelLead": "Every value of this row. A changed field becomes a proposed change for approval; nothing is written until it is approved.",
     "platformDefault": "Platform default",
@@ -11051,6 +11051,7 @@
       "lifecycle": "Lifecycle",
       "openWorld": "Open world",
       "space": "Context Space"
-    }
+    },
+    "footerOf": "Showing {shown} of {count} matching, {total} in total"
   }
 }
