@@ -215,10 +215,11 @@ describe("endpoint sharing", () => {
     renderAt("/projects/helsinki/endpoints");
 
     const row = (await screen.findByRole("link", { name: "Air quality" })).closest("tr") as HTMLElement;
-    for (const text of ["app-air-quality", i18n.t("endpoints.ofApp", { app: "air-quality" })]) {
+    // The manifest name waits for a wide screen (2xl, T-6169: the grid's columns fill 1440 px).
+    for (const [text, from] of [["app-air-quality", "2xl:inline"], [i18n.t("endpoints.ofApp", { app: "air-quality" }), "sm:inline"]]) {
       const line = within(row).getByText(text);
       expect(line.className).toMatch(/(^| )hidden( |$)/);
-      expect(line.className).toContain("sm:inline");
+      expect(line.className).toContain(from);
     }
     // One line from sm up (T-4989): the title is the row's link, not an underlined one.
     const open = within(row).getByRole("link", { name: "Air quality" });
@@ -255,7 +256,6 @@ describe("endpoint sharing", () => {
     const bikes = within(section).getByText("bikes").closest("tr") as HTMLElement;
     // The Source chip names the publishing project; the name opens its Endpoint page there.
     expect(within(bikes).getByText("Shared by helsinki")).toBeInTheDocument();
-    expect(within(bikes).getByText("liikenne")).toBeInTheDocument();
     expect(within(bikes).getByRole("link", { name: "bikes" })).toHaveAttribute(
       "href",
       "/projects/helsinki/endpoints/bikes",

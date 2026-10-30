@@ -56,24 +56,46 @@ const pipelines = [
   spec: { class: klass, enabled, period: "5m", targetEndpoint: "air-quality", output: { type: "AirQualityObserved" } },
   status: { phase: "Live" },
 }));
+// T-6169: an Endpoint espoo shares with the whole organization, a broker for the generic kind list.
+const espooEndpoints = [
+  {
+    apiVersion: V,
+    kind: "Endpoint",
+    metadata: { name: "bikes", namespace: "espoo", title: { en: "City bikes in Espoo" } },
+    spec: { contextSpaceRef: "liikenne", slug: "bikesespooendpointaaaaaaaaaaaa", audience: "organization", enabledRepresentations: ["ngsi-ld", "mcp"] },
+    status: { phase: "Live" },
+  },
+];
+const brokers = [
+  { apiVersion: V, kind: "MqttBroker", metadata: { name: "sensors", namespace: "helsinki", title: { en: "Street sensors" } }, spec: { contextSpaceRef: "air" }, status: { phase: "Live" } },
+  { apiVersion: V, kind: "MqttBroker", metadata: { name: "buses", namespace: "helsinki" }, spec: { contextSpaceRef: "mobility" }, status: { phase: "Pending" } },
+];
+const usage = {
+  from: "2026-10-24",
+  to: "2026-10-30",
+  endpoints: [{ name: "air-quality", slug: "x", total: 18342, daily: [], totals: { "ngsi-ld": 15000, mcp: 3000, "ogc": 342 } }],
+};
 const spaces = ["air", "mobility", "works"].map((name) => ({ apiVersion: V, kind: "ContextSpace", metadata: { name, namespace: "helsinki" }, spec: {} }));
 
-async function stub(page: Page, opts: { empty?: boolean; refuse?: boolean } = {}) {
+async function stub(page: Page, opts: { empty?: boolean; refuse?: boolean; slow?: boolean } = {}) {
   await page.route("**/api/**", async (route: Route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: status >= 400 ? "application/problem+json" : "application/json", body: JSON.stringify(body) });
     if (path.endsWith("/auth/me")) return json({ subject: "s", username: "jana", name: "Jana Kováčová", roles: ["portal-editor"] });
     if (path.endsWith("/permissions/me")) {
-      return json({ project: "helsinki", bootstrap: false, grants: [{ scope: "project:helsinki", rule: { kinds: ["Endpoint", "Subscription", "DataModel", "Pipeline", "ContextSpace"], verbs: ["read", "propose"] } }] });
+      return json({ project: "helsinki", bootstrap: false, grants: [{ scope: "project:helsinki", rule: { kinds: ["Endpoint", "Subscription", "DataModel", "Pipeline", "ContextSpace", "MqttBroker", "SharedSpaceReference"], verbs: ["read", "propose"] } }] });
     }
-    if (path === "/api/v1/projects") return json({ apiVersion: V, kind: "ProjectList", items: [{ name: "helsinki" }] });
+    if (path === "/api/v1/projects") return json({ apiVersion: V, kind: "ProjectList", items: [{ name: "helsinki" }, { name: "espoo" }] });
+    if (path === "/api/v1/projects/espoo/endpoints") return json(list(opts.empty ? [] : espooEndpoints));
+    if (path.endsWith("/usage/endpoints")) return json(usage);
+    if (opts.slow && /\/projects\/helsinki\/\w+$/.test(path)) await new Promise((resolve) => setTimeout(resolve, 60_000));
     const kind = /^\/api\/v1\/kinds\/(\w+)\/schema$/.exec(path)?.[1];
     if (kind) return json(schema(kind));
     if (request.method() === "PUT" && opts.refuse) {
       return json({ type: "about:blank", title: "Forbidden", status: 403, detail: "Your role may not change the audience of Endpoint air-quality: ask a project steward." }, 403);
     }
-    const lists: Record<string, unknown[]> = { endpoints, subscriptions, datamodels: models, pipelines, spaces };
+    const lists: Record<string, unknown[]> = { endpoints, subscriptions, datamodels: models, pipelines, spaces, mqttbrokers: brokers };
     const plural = /^\/api\/v1\/projects\/helsinki\/(\w+)$/.exec(path)?.[1];
     if (plural && plural in lists) return json(list(opts.empty && plural !== "spaces" ? [] : lists[plural]));
     if (path.endsWith("/events")) return route.fulfill({ status: 200, contentType: "text/event-stream", body: "" });
@@ -86,6 +108,8 @@ const PAGES = [
   ["subscriptions", "air-alerts"],
   ["models", "Air quality"],
   ["pipelines", "air-intake"],
+  ["spaces", "air"],
+  ["mqttbrokers", "Street sensors"],
 ] as const;
 
 for (const width of [1440, 400]) {
@@ -105,6 +129,32 @@ for (const width of [1440, 400]) {
         expect(await axeViolations(page)).toEqual([]);
       });
     }
+
+    test("a shared Endpoint is a row with its Source, Use in this project and View YAML (T-6169)", async ({ page }, info) => {
+      await stub(page);
+      await page.goto("/projects/helsinki/endpoints?lang=en");
+      const row = page.getByRole("row").filter({ hasText: "City bikes in Espoo" });
+      await expect(row.getByText("Shared by espoo")).toBeVisible();
+      if (width === 1440) await expect(page.getByRole("row").filter({ hasText: "Air quality" }).getByText("18,342")).toBeVisible();
+      await row.getByRole("button", { name: /More actions/ }).click();
+      await expect(page.getByRole("menuitem", { name: "Use in this project" })).toBeVisible();
+      await page.screenshot({ path: info.outputPath(`endpoints-shared-menu-${width}.png`) });
+      await page.getByRole("menuitem", { name: "View YAML" }).click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog.getByText("kind: Endpoint")).toBeVisible();
+      await expect(dialog.getByText("status")).toHaveCount(0);
+      await page.screenshot({ path: info.outputPath(`endpoints-yaml-${width}.png`) });
+      expect(await axeViolations(page)).toEqual([]);
+    });
+
+    test("a list on its way shows a skeleton that fits the screen", async ({ page }, info) => {
+      await stub(page, { slow: true });
+      await page.goto("/projects/helsinki/mqttbrokers?lang=en");
+      await expect(page.locator("tbody[aria-hidden=true]")).toBeVisible();
+      const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(sideways, "the page scrolls sideways while loading").toBeLessThanOrEqual(1);
+      await page.screenshot({ path: info.outputPath(`mqttbrokers-loading-${width}.png`) });
+    });
 
     test("a filter chip narrows the endpoints and the panel edits the audience", async ({ page }, info) => {
       await stub(page);

@@ -146,7 +146,6 @@ test.describe("sharing", () => {
     const shared = page.getByRole("table", { name: "Endpoints" });
     const bikes = shared.getByRole("row").filter({ hasText: "bikes" });
     await expect(bikes.getByText("Shared by helsinki")).toBeVisible();
-    await expect(bikes.getByText("liikenne")).toBeVisible();
     await bikes.getByRole("button", { name: /More actions/ }).click();
     await page.getByRole("menuitem", { name: "Use in this project" }).click();
 
@@ -175,11 +174,12 @@ test.describe("sharing", () => {
     expect(new URL(page.url()).pathname).toBe("/projects/espoo/endpoints");
   });
 
-  test("the endpoints route with a shared section has no axe violations", async ({ page }) => {
+  test("the endpoints route has no axe violations, empty and with nothing shared", async ({ page }) => {
     await stubApi(page);
 
     await page.goto("/projects/espoo/endpoints?lang=sk");
-    await expect(page.getByRole("table").getByText("Zdieľa helsinki").first()).toBeVisible();
+    // Nothing shared with espoo yet: the empty card offers the way to what other projects publish.
+    await expect(page.getByRole("link", { name: "Pozrieť, čo zverejňujú iné projekty" })).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
   });
 });

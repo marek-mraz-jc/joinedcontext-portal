@@ -497,10 +497,11 @@ export function CallsCell({ calls, known }: { calls: ProjectUsage["endpoints"][n
   const parts = SURFACES.filter((surface) => (calls?.totals[surface] ?? 0) > 0).map(
     (surface) => `${t(`spaces.api.surface.${surface}`, { defaultValue: surface })} ${numbers.format(calls?.totals[surface] ?? 0)}`,
   );
+  // One line per row (T-4989): the split by surface is the cell's tooltip and is read out with it.
   return (
-    <span className="flex flex-col items-end tabular-nums">
-      <span>{numbers.format(total)}</span>
-      {parts.length > 0 ? <span className="hidden text-caption text-fg-muted sm:inline">{parts.join(" · ")}</span> : null}
+    <span className="whitespace-nowrap tabular-nums" title={parts.join(" · ") || undefined}>
+      {numbers.format(total)}
+      {parts.length > 0 ? <span className="sr-only"> ({parts.join(", ")})</span> : null}
     </span>
   );
 }
@@ -1299,7 +1300,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
             }
             if (!row.own) {
               return (
-                <div className="flex min-w-0 max-w-xs items-baseline gap-2 whitespace-nowrap">
+                <div className="flex min-w-0 max-w-60 items-baseline gap-2 whitespace-nowrap">
                   <Link
                     data-row-link=""
                     to="/projects/$project/$plural/$name"
@@ -1309,7 +1310,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                     {rowLabel(row)}
                   </Link>
                   {endpoint.metadata.title ? (
-                    <span className="hidden truncate font-mono text-caption font-normal text-fg-subtle sm:inline">
+                    <span className="hidden truncate font-mono text-caption font-normal text-fg-subtle 2xl:inline">
                       {endpoint.metadata.name}
                     </span>
                   ) : null}
@@ -1318,7 +1319,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
               );
             }
             return (
-            <div className="flex min-w-0 max-w-xs items-baseline gap-2 whitespace-nowrap">
+            <div className="flex min-w-0 max-w-60 items-baseline gap-2 whitespace-nowrap">
               <Link
                 data-row-link=""
                 to="/projects/$project/$plural/$name"
@@ -1329,7 +1330,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
               </Link>
               {/* Below `sm` a row is the title, the state and the action (UI-27, T-4214). */}
               {endpoint.metadata.title ? (
-                <span className="hidden truncate font-mono text-caption font-normal text-fg-subtle sm:inline">
+                <span className="hidden truncate font-mono text-caption font-normal text-fg-subtle 2xl:inline">
                   {endpoint.metadata.name}
                 </span>
               ) : null}
@@ -1354,7 +1355,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
               row.own ? (
                 <span className="text-fg-muted">{t("endpoints.source.own")}</span>
               ) : row.source ? (
-                <Badge tone="info" data-source={row.source}>{t("endpoints.source.shared", { project: row.source })}</Badge>
+                <Badge tone="info" className="whitespace-nowrap" data-source={row.source}>{t("endpoints.source.shared", { project: row.source })}</Badge>
               ) : (
                 <span className="text-fg-muted">{t("endpoints.shared.goneSource")}</span>
               ),
@@ -1364,8 +1365,18 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
             label: t("grid.field.space"),
             field: "contextSpaceRef",
             filter: true,
+            // Under Columns, beside the filter chips (T-6169): eight columns do not fit 1440 px.
+            hidden: true,
             text: (row) => (row.endpoint ? (spaceOf(row.endpoint) ?? "") : ""),
-            cell: (row) => <span className="font-mono text-caption">{(row.endpoint && spaceOf(row.endpoint)) || "—"}</span>,
+            // One line per row (T-4989): a long space name is cut, whole in its tooltip.
+            cell: (row) => {
+              const space = (row.endpoint && spaceOf(row.endpoint)) || "";
+              return (
+                <span className="block max-w-48 truncate font-mono text-caption" title={space || undefined}>
+                  {space || "—"}
+                </span>
+              );
+            },
           },
           {
             id: "audience",

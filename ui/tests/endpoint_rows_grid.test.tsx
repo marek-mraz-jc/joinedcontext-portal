@@ -75,9 +75,10 @@ describe("the one Endpoints grid (T-6169)", () => {
         <CallsCell known calls={{ name: "mine", slug: "x", total: 1234, daily: [], totals: { "ngsi-ld": 1200, mcp: 34, ogc: 0 } }} />
       </I18nextProvider>,
     );
-    expect(screen.getByText((1234).toLocaleString())).toBeInTheDocument();
-    expect(screen.getByText(/NGSI-LD.*1,200.*MCP.*34/)).toBeInTheDocument();
-    expect(screen.queryByText(/OGC/)).toBeNull();
+    const cell = screen.getByText(/^1,234/);
+    expect(cell).toHaveAttribute("title", expect.stringMatching(/NGSI-LD 1,200 · MCP 34/));
+    expect(cell).toHaveTextContent(/NGSI-LD 1,200, MCP 34/);
+    expect(cell.title).not.toMatch(/OGC/);
     rerender(
       <I18nextProvider i18n={i18n}>
         <CallsCell known={false} calls={undefined} />
