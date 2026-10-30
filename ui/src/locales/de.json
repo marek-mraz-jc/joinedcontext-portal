@@ -550,7 +550,9 @@
       "entities": "Entitäten",
       "inside": "Inhalt",
       "missingUnitCode": "Fehlende Einheit",
-      "size": "Größe"
+      "size": "Größe",
+      "history": "Verlauf",
+      "historySize": "Größe des Verlaufs"
     },
     "inside": {
       "more": "Mehr",
@@ -1274,6 +1276,11 @@
       "value": "Wert",
       "upperValue": "Oberer Wert",
       "removeCondition": "Bedingung entfernen",
+      "activeFilters": "Aktive Filter",
+      "removeFilter": "Filter entfernen: {name}",
+      "chipAny": "eine von {n} Bedingungen",
+      "chipAll": "alle von {n} Bedingungen",
+      "clearFilters": "Filter zurücksetzen",
       "selectRow": "Zeile auswählen",
       "selectAll": "Alle geladenen Zeilen auswählen",
       "query": "Abfrage",
@@ -1471,7 +1478,9 @@
       "moveReason": "Wird bei jeder Verschiebung im Änderungsverlauf gespeichert, z. B. „Verschoben, weil der Ort abgesagt hat“.",
       "moveStart": "Wählen Sie einen Tag, z. B. 2026-11-03.",
       "placeBy": "Das Ortsfeld, das jede Zeile auf die Karte setzt, z. B. location."
-    }
+    },
+    "sizeMissing": "Vom Broker nicht gemeldet: er konnte diesen Bereich nicht rechtzeitig messen",
+    "historyEstimated": "Aus den Datenbankstatistiken geschätzt"
   },
   "endpoints": {
     "surfaceFit": {
@@ -5517,6 +5526,7 @@
       "notEquals": "ist nicht",
       "between": "zwischen",
       "isEmpty": "ist leer",
+      "empty": "ist leer",
       "present": "hat einen Wert",
       "pattern": "passt auf",
       "anyOf": "ist eine von",
@@ -11003,5 +11013,74 @@
   },
   "pageHeader": {
     "about": "Über diese Seite"
+  },
+  "grid": {
+    "toolbar": "{list}: Suche, Filter, Spalten und Reihenfolge",
+    "filter": "Filtern",
+    "noValues": "Diese Liste hat noch keine Werte.",
+    "columns": "Spalten",
+    "columnsHint": "In diesem Browser angezeigte Spalten",
+    "sort": "Sortieren",
+    "sortHint": "Zeilen ordnen nach",
+    "sortNone": "Reihenfolge der Liste",
+    "sortDirection": "Richtung",
+    "ascending": "Aufsteigend (A bis Z, 0 bis 9)",
+    "descending": "Absteigend (Z bis A, 9 bis 0)",
+    "sortBy": "Nach {column} sortieren",
+    "removeFilter": "Filter {column}: {value} entfernen",
+    "clearFilters": "Filter löschen",
+    "details": "Details",
+    "openDetails": "Details zu {name}",
+    "noMatch": "Keine Zeile passt zu Suche und Filtern.",
+    "clearAll": "Suche und Filter löschen",
+    "footer": "{shown} von {count} angezeigt",
+    "showMore": "{count} weitere anzeigen",
+    "panelLead": "Alle Werte dieser Zeile. Ein geändertes Feld wird zu einer vorgeschlagenen Änderung zur Freigabe; geschrieben wird erst nach der Freigabe.",
+    "platformDefault": "Vorgabe der Plattform",
+    "referenceEmpty": "Noch nichts zur Auswahl: legen Sie es zuerst auf seiner eigenen Seite an.",
+    "on": "Ein",
+    "off": "Aus",
+    "propose": "Änderung vorschlagen",
+    "undo": "Rückgängig",
+    "searchIn": "{list} durchsuchen",
+    "field": {
+      "active": "Aktiv",
+      "throttling": "Mindestabstand zwischen Benachrichtigungen in Sekunden",
+      "expiresAt": "Läuft ab am",
+      "enabled": "Aktiviert",
+      "class": "Klasse",
+      "period": "Abfrageintervall",
+      "schedule": "Zeitplan",
+      "mcp": "MCP-Werkzeuge",
+      "lifecycle": "Lebenszyklus",
+      "openWorld": "Offene Welt",
+      "space": "Kontextraum"
+    },
+    "footerOf": "{shown} von {count} passenden angezeigt, {total} insgesamt",
+    "retry": "Abgelehnt: ändern Sie den Wert, um erneut vorzuschlagen.",
+    "choose": {
+      "hint": "Wählen Sie einen der Werte {options}."
+    },
+    "multi": {
+      "hint": "Kreuzen Sie beliebige der Werte {options} an."
+    },
+    "reference": {
+      "hint": "Aufgeführt ist nur, was Sie in diesem Projekt lesen dürfen."
+    },
+    "boolean": {
+      "hint": "Ein- oder ausschalten."
+    },
+    "number": {
+      "hint": "Eine Zahl, zum Beispiel {example}."
+    },
+    "duration": {
+      "hint": "Eine Dauer, zum Beispiel 30s, 5m oder 1h."
+    },
+    "dateTime": {
+      "hint": "Datum und Uhrzeit in UTC, zum Beispiel 2026-12-31T23:00:00Z."
+    },
+    "text": {
+      "hint": "Einfacher Text, zum Beispiel ein kurzer Satz."
+    }
   }
 }

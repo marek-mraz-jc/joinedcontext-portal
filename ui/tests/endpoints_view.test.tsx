@@ -229,10 +229,11 @@ describe("endpoints view", () => {
     renderEndpoints();
 
     const row = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
-    // The row's name opens the endpoint and its data (T-6095): the menu is the only control in the cell.
+    // The row's name opens the endpoint and its data (T-6095): the grid's details button and the
+    // menu are the cell's controls (T-6115).
     const cell = row.lastElementChild as HTMLElement;
     const open = within(cell).getAllByRole("button");
-    expect(open.map((button) => button.textContent)).toEqual(["\u22ef"]);
+    expect(open.map((button) => button.getAttribute("aria-label") ?? button.textContent)).toEqual([en.grid.openDetails.replace("{name}", "public-air"), expect.stringMatching(/More actions/)]);
 
     await userEvent.click(within(cell).getByRole("button", { name: /More actions/ }));
     const menu = await screen.findByRole("menu");

@@ -331,7 +331,7 @@
     },
     "src/components/entities/FilterPanel.tsx": {
       "controls": {
-        "Button": 5
+        "Button": 7
       },
       "tests": [
         "grid_toolbar.test.tsx"
@@ -464,6 +464,16 @@
       },
       "tests": [
         "resource_picker.test.tsx"
+      ]
+    },
+    "src/components/grid/ManifestGrid.tsx": {
+      "controls": {
+        "Button": 8,
+        "Checkbox": 3,
+        "Switch": 1
+      },
+      "tests": [
+        "manifest_grid.test.tsx"
       ]
     },
     "src/components/layout/NewProject.tsx": {
@@ -2208,7 +2218,7 @@
     },
     "src/routes/EndpointsPage.tsx": {
       "controls": {
-        "Button": 5
+        "Button": 4
       },
       "tests": [
         "edit_prefill.test.tsx",

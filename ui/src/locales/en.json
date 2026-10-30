@@ -550,7 +550,9 @@
       "entities": "Entities",
       "inside": "Inside",
       "missingUnitCode": "Missing unit",
-      "size": "Size"
+      "size": "Size",
+      "history": "History",
+      "historySize": "History size"
     },
     "inside": {
       "more": "More",
@@ -1274,6 +1276,11 @@
       "value": "Value",
       "upperValue": "Upper value",
       "removeCondition": "Remove condition",
+      "activeFilters": "Active filters",
+      "removeFilter": "Remove filter: {name}",
+      "chipAny": "any of {n} conditions",
+      "chipAll": "all of {n} conditions",
+      "clearFilters": "Clear filters",
       "selectRow": "Select row",
       "selectAll": "Select all loaded rows",
       "query": "Query",
@@ -1471,7 +1478,9 @@
       "moveReason": "Kept with each move in the change history, e.g. \"Moved after the venue cancelled\".",
       "moveStart": "Pick a day, e.g. 2026-11-03.",
       "placeBy": "The place field that puts each row on the map, e.g. location."
-    }
+    },
+    "sizeMissing": "Not reported by the broker: it could not measure this space in time",
+    "historyEstimated": "Estimated from the database statistics"
   },
   "endpoints": {
     "surfaceFit": {
@@ -5517,6 +5526,7 @@
       "notEquals": "is not",
       "between": "between",
       "isEmpty": "is empty",
+      "empty": "is empty",
       "present": "has a value",
       "pattern": "matches",
       "anyOf": "is one of",
@@ -11003,5 +11013,74 @@
   },
   "pageHeader": {
     "about": "About this page"
+  },
+  "grid": {
+    "toolbar": "{list}: search, filter, columns and sort",
+    "filter": "Filter",
+    "noValues": "No values in this list yet.",
+    "columns": "Columns",
+    "columnsHint": "Columns shown in this browser",
+    "sort": "Sort",
+    "sortHint": "Order rows by",
+    "sortNone": "List order",
+    "sortDirection": "Direction",
+    "ascending": "Ascending (A to Z, 0 to 9)",
+    "descending": "Descending (Z to A, 9 to 0)",
+    "sortBy": "Sort by {column}",
+    "removeFilter": "Remove filter {column}: {value}",
+    "clearFilters": "Clear filters",
+    "details": "Details",
+    "openDetails": "Details of {name}",
+    "noMatch": "No rows match the search and filters.",
+    "clearAll": "Clear search and filters",
+    "footer": "Showing {shown} of {count}",
+    "showMore": "Show {count} more",
+    "panelLead": "Every value of this row. A changed field becomes a proposed change for approval; nothing is written until it is approved.",
+    "platformDefault": "Platform default",
+    "referenceEmpty": "Nothing to pick yet: create it on its own page first.",
+    "on": "On",
+    "off": "Off",
+    "propose": "Propose change",
+    "undo": "Undo",
+    "searchIn": "Search {list}",
+    "field": {
+      "active": "Active",
+      "throttling": "Minimum seconds between notifications",
+      "expiresAt": "Expires at",
+      "enabled": "Enabled",
+      "class": "Class",
+      "period": "Polling period",
+      "schedule": "Schedule",
+      "mcp": "MCP tools",
+      "lifecycle": "Lifecycle",
+      "openWorld": "Open world",
+      "space": "Context Space"
+    },
+    "footerOf": "Showing {shown} of {count} matching, {total} in total",
+    "retry": "Refused: change the value to propose again.",
+    "choose": {
+      "hint": "Pick one of {options}."
+    },
+    "multi": {
+      "hint": "Tick any of {options}."
+    },
+    "reference": {
+      "hint": "Only what you may read in this project is listed."
+    },
+    "boolean": {
+      "hint": "Switch on or off."
+    },
+    "number": {
+      "hint": "A number, for example {example}."
+    },
+    "duration": {
+      "hint": "A duration, for example 30s, 5m or 1h."
+    },
+    "dateTime": {
+      "hint": "A date and time in UTC, for example 2026-12-31T23:00:00Z."
+    },
+    "text": {
+      "hint": "Plain text, for example a short sentence."
+    }
   }
 }

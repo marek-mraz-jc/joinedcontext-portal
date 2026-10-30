@@ -13,7 +13,7 @@ import type { Change, Manifest } from "../api/manifest";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { ChangeNotice } from "../components/ChangeNotice";
 import { TypeLink } from "../pages/models/ModelLinks";
-import { ResourceList } from "../components/ResourceList";
+import { ManifestGrid } from "../components/grid/ManifestGrid";
 import { ResourceRowActions } from "../components/ResourceRowActions";
 import { PipelineEditorDialog, expiryWindow, fromManifest } from "../pages/pipelines/PipelineEditor";
 import { KpiEditorDialog } from "../pages/pipelines/KpiEditor";
@@ -42,10 +42,6 @@ import {
   EmptyState,
   Icon,
   PageHeader,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
   Input,
   Select,
 } from "../components/ui";
@@ -120,8 +116,6 @@ export function pipelineMatches(
     spec.output?.type ?? "",
   ].some((text) => text.toLowerCase().includes(words));
 }
-
-const COLUMNS = 5;
 
 /** Ingestion pipelines of one project: what runs where, how it is doing, and its credentials. */
 type PipelineView = "list" | "map" | "health";
@@ -302,15 +296,40 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
     setDialogOpen(true);
   }
 
-  const head = (
-    <TableHead className="max-sm:hidden">
-      <TableHeaderCell>{t("pipelines.field.name")}</TableHeaderCell>
-      <TableHeaderCell secondary>{t("pipelines.field.class")}</TableHeaderCell>
-      <TableHeaderCell>{t("pipelines.field.phase")}</TableHeaderCell>
-      <TableHeaderCell>{t("pipelines.field.lastRun")}</TableHeaderCell>
-      <TableHeaderCell align="right">{t("approvals.actions")}</TableHeaderCell>
-    </TableHead>
-  );
+  const rowParts = (pipeline: Manifest) => {
+    const spec = pipeline.spec as PipelineSpec;
+    const klass = executionClass(spec);
+    // Absent means running: a pipeline is only paused by an explicit `false`.
+    const running = spec.enabled !== false;
+    const stalled = notWriting(pipeline);
+    const counted = running && klass === "resident";
+    const source = dataSourceOf(spec);
+    const phase = (
+      <>
+        {/* The row said "Live" beside a stream that said "Paused" (T-2759): a paused
+            pipeline is applied and stopped, and stopped is what a person needs to read. */}
+        <LifecycleBadge
+          kind="phase"
+          value={
+            !running && ["live", "applied", "synced"].includes((pipeline.status?.phase ?? "").toLowerCase())
+              ? "paused"
+              : pipeline.status?.phase
+          }
+        />
+        {/* Live says the stream is deployed; whether anything lands is this condition
+            (T-2967): hsl-hfp-vehicles read Live for half an hour of writing nothing. */}
+        {stalled !== null ? (
+          <div className="mt-1">
+            <Badge tone="warning" title={stalled || undefined}>
+              {t("pipelines.notWriting")}
+              {stalled ? <span className="sr-only">: {stalled}</span> : null}
+            </Badge>
+          </div>
+        ) : null}
+      </>
+    );
+    return { spec, klass, running, counted, phase, source };
+  };
 
   const pipelines = asManifests(list.data?.items ?? []);
   const shown = pipelines.filter((pipeline) =>
@@ -453,12 +472,148 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
 
       {/* An empty list is where a person decides what to do next, so it says what the
           two ways in are rather than only that there is nothing here (UI-01). */}
-      <ResourceList
-        query={list}
+      <ManifestGrid<Manifest>
         caption={t("pipelines.title")}
-        head={head}
-        columns={COLUMNS}
-        count={shown.length}
+        storageKey="pipelines"
+        searchLabel={t("grid.searchIn", { list: t("pipelines.title") })}
+        search={needle}
+        onSearchChange={setNeedle}
+        rows={shown}
+        rowKey={(row) => row.metadata.name}
+        query={list}
+        name={{
+          id: "name",
+          label: t("pipelines.field.name"),
+          text: (pipeline) => localized(pipeline.metadata.title, locale, pipeline.metadata.name),
+          cell: (pipeline) => {
+            const { spec, source } = rowParts(pipeline);
+            return (
+              <>
+                  <div>
+                    <RecordLink project={project} plural="pipelines" name={pipeline.metadata.name}>
+                      {localized(pipeline.metadata.title, locale, pipeline.metadata.name)}
+                    </RecordLink>
+                  </div>
+                  {pipeline.metadata.title ? (
+                    <div className="mt-0.5 font-mono text-caption text-fg-subtle">
+                      {pipeline.metadata.name}
+                    </div>
+                  ) : null}
+                  {source ? (
+                    <div className="mt-0.5 text-caption text-fg-subtle">
+                      {t("pipelines.readsSource")} <span className="font-mono">{source}</span>
+                    </div>
+                  ) : null}
+                  {typeof spec.output?.type === "string" && spec.output.type !== "" ? (
+                    <div className="mt-0.5 text-caption text-fg-subtle">
+                      {t("pipelines.writesType")}{" "}
+                      <TypeLink project={project} type={spec.output.type} className="font-mono" />
+                    </div>
+                  ) : null}
+                  {typeof spec.expiry?.after === "string" ? (
+                    <div className="mt-0.5 text-caption text-fg-subtle">
+                      {t("pipelines.expiryRemoves", { window: expiryWindow(spec.expiry.after, locale) })}
+                    </div>
+                  ) : null}
+                  {(() => {
+                    // The sweep runs as its own stream; one the runner refused leaves the pipeline
+                    // writing and nothing removed, which the row says rather than the log (PL-64, T-3091).
+                    const sweep = (pipeline.status?.conditions ?? []).find(
+                      (condition) => condition.type === "ExpirySweep" && condition.status === "False",
+                    );
+                    return sweep && typeof spec.expiry?.after === "string" ? (
+                      <div className="mt-0.5 text-caption text-danger [overflow-wrap:anywhere]" data-testid="pipeline-expiry-refused">
+                        {t("pipelines.expiryRefused", { reason: sweep.message ?? sweep.reason ?? "" })}
+                      </div>
+                    ) : null;
+                  })()}
+              </>
+            );
+          },
+        }}
+        columns={[
+          {
+            id: "class",
+            label: t("pipelines.field.class"),
+            field: "class",
+            text: (pipeline) => t(`pipelines.class.${rowParts(pipeline).klass}`),
+            cell: (pipeline) => {
+              const { klass } = rowParts(pipeline);
+              return (
+                <Badge tone={klass === "resident" ? "info" : "neutral"} title={t(`pipelines.class.${klass}Help`)}>
+                  {t(`pipelines.class.${klass}`)}
+                </Badge>
+              );
+            },
+          },
+          {
+            id: "phase",
+            label: t("pipelines.field.phase"),
+            field: "enabled",
+            text: (pipeline) => pipeline.status?.phase ?? "",
+            cell: (pipeline) => rowParts(pipeline).phase,
+          },
+          {
+            id: "lastRun",
+            label: t("pipelines.field.lastRun"),
+            text: () => "",
+            cell: (pipeline) => (
+              <RowLastRun project={project} name={pipeline.metadata.name} latest={latestRuns} counted={rowParts(pipeline).counted} now={now} />
+            ),
+          },
+          { id: "period", label: t("grid.field.period"), field: "period", hidden: true, text: (pipeline) => String((pipeline.spec as { period?: string }).period ?? "") },
+          { id: "schedule", label: t("grid.field.schedule"), field: "schedule", hidden: true, text: (pipeline) => String((pipeline.spec as { schedule?: string }).schedule ?? "") },
+        ]}
+        actions={(pipeline) => {
+          const { running } = rowParts(pipeline);
+          return (
+            <div className="flex items-center justify-end gap-1.5">
+              <ResourceRowActions
+                project={project}
+                target={{
+                  project,
+                  kind: "Pipeline",
+                  plural: "pipelines",
+                  name: pipeline.metadata.name,
+                }}
+                extra={[
+                  {
+                    key: "runs",
+                    label: t("pipelines.runs.open"),
+                    onSelect: () => setRunsOf(pipeline.metadata.name),
+                  },
+                  {
+                    key: "rejected",
+                    label: t("pipelines.rejected.open"),
+                    onSelect: () => setRejectedOf(pipeline.metadata.name),
+                  },
+                  {
+                    key: "alerts",
+                    label: t("alerts.open"),
+                    onSelect: () => setAlertOf(pipeline.metadata.name),
+                  },
+                ]}
+                onEdit={() =>
+                  formRoute ? formRoute.openEdit(pipeline.metadata.name) : openEditor(pipeline)
+                }
+                primary={
+                  // A phone card has room for it beside the menu (T-6115 review): Pause stays one tap away.
+                  <Button
+                    size="sm"
+                    className="whitespace-nowrap"
+                    disabled={toggle.isPending}
+                    onClick={() => toggle.mutate({ pipeline, run: !running })}
+                    title={t(running ? "pipelines.pauseHint" : "pipelines.resumeHint")}
+                  >
+                    {t(running ? "pipelines.pause" : "pipelines.resume")}
+                  </Button>
+                }
+                sourceUrl={pipeline.status?.sourceUrl}
+              />
+            </div>
+          );
+        }}
+        edit={{ project, plural: "pipelines", kind: "Pipeline", manifest: (row) => row, onChange: setChange }}
         empty={
           pipelines.length > 0 ? (
             <EmptyState
@@ -483,155 +638,7 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
           />
           )
         }
-      >
-        {shown.map((pipeline) => {
-          const spec = pipeline.spec as PipelineSpec;
-          const klass = executionClass(spec);
-          // Absent means running: a pipeline is only paused by an explicit `false`.
-          const running = spec.enabled !== false;
-          const stalled = notWriting(pipeline);
-          const counted = running && klass === "resident";
-          const source = dataSourceOf(spec);
-          const phase = (
-            <>
-              {/* The row said "Live" beside a stream that said "Paused" (T-2759): a paused
-                  pipeline is applied and stopped, and stopped is what a person needs to read. */}
-              <LifecycleBadge
-                kind="phase"
-                value={
-                  !running && ["live", "applied", "synced"].includes((pipeline.status?.phase ?? "").toLowerCase())
-                    ? "paused"
-                    : pipeline.status?.phase
-                }
-              />
-              {/* Live says the stream is deployed; whether anything lands is this condition
-                  (T-2967): hsl-hfp-vehicles read Live for half an hour of writing nothing. */}
-              {stalled !== null ? (
-                <div className="mt-1">
-                  <Badge tone="warning" title={stalled || undefined}>
-                    {t("pipelines.notWriting")}
-                    {stalled ? <span className="sr-only">: {stalled}</span> : null}
-                  </Badge>
-                </div>
-              ) : null}
-            </>
-          );
-          return (
-            // A phone has no room for columns: the row becomes a card, the state and the last run
-            // under the title and the menu as its one action (T-4817).
-            <TableRow
-              key={pipeline.metadata.name}
-              className="max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:border-b max-sm:border-border"
-            >
-              <TableCell primary className="max-sm:col-start-1 max-sm:pb-1">
-                <div>
-                  <RecordLink project={project} plural="pipelines" name={pipeline.metadata.name}>
-                    {localized(pipeline.metadata.title, locale, pipeline.metadata.name)}
-                  </RecordLink>
-                </div>
-                {pipeline.metadata.title ? (
-                  <div className="mt-0.5 font-mono text-caption text-fg-subtle">
-                    {pipeline.metadata.name}
-                  </div>
-                ) : null}
-                {source ? (
-                  <div className="mt-0.5 text-caption text-fg-subtle">
-                    {t("pipelines.readsSource")} <span className="font-mono">{source}</span>
-                  </div>
-                ) : null}
-                {typeof spec.output?.type === "string" && spec.output.type !== "" ? (
-                  <div className="mt-0.5 text-caption text-fg-subtle">
-                    {t("pipelines.writesType")}{" "}
-                    <TypeLink project={project} type={spec.output.type} className="font-mono" />
-                  </div>
-                ) : null}
-                {typeof spec.expiry?.after === "string" ? (
-                  <div className="mt-0.5 text-caption text-fg-subtle">
-                    {t("pipelines.expiryRemoves", { window: expiryWindow(spec.expiry.after, locale) })}
-                  </div>
-                ) : null}
-                {(() => {
-                  // The sweep runs as its own stream; one the runner refused leaves the pipeline
-                  // writing and nothing removed, which the row says rather than the log (PL-64, T-3091).
-                  const sweep = (pipeline.status?.conditions ?? []).find(
-                    (condition) => condition.type === "ExpirySweep" && condition.status === "False",
-                  );
-                  return sweep && typeof spec.expiry?.after === "string" ? (
-                    <div className="mt-0.5 text-caption text-danger [overflow-wrap:anywhere]" data-testid="pipeline-expiry-refused">
-                      {t("pipelines.expiryRefused", { reason: sweep.message ?? sweep.reason ?? "" })}
-                    </div>
-                  ) : null;
-                })()}
-              </TableCell>
-              <TableCell secondary>
-                <Badge tone={klass === "resident" ? "info" : "neutral"} title={t(`pipelines.class.${klass}Help`)}>
-                  {t(`pipelines.class.${klass}`)}
-                </Badge>
-              </TableCell>
-              <TableCell className="max-sm:col-start-1 max-sm:py-1">{phase}</TableCell>
-              <TableCell className="max-sm:col-start-1 max-sm:pt-1">
-                <RowLastRun
-                  project={project}
-                  name={pipeline.metadata.name}
-                  latest={latestRuns}
-                  counted={counted}
-                  now={now}
-                />
-              </TableCell>
-              <TableCell align="right" className="max-sm:col-start-2 max-sm:row-span-3 max-sm:row-start-1">
-                <div className="flex items-center justify-end gap-1.5">
-                  {/* Running or paused is what a person comes to this row for; the rest is in the
-                      menu at its end (T-2287). */}
-                  <ResourceRowActions
-                    project={project}
-                    target={{
-                      project,
-                      kind: "Pipeline",
-                      plural: "pipelines",
-                      name: pipeline.metadata.name,
-                    }}
-                    extra={[
-                      {
-                        key: "runs",
-                        label: t("pipelines.runs.open"),
-                        onSelect: () => setRunsOf(pipeline.metadata.name),
-                      },
-                      {
-                        key: "rejected",
-                        label: t("pipelines.rejected.open"),
-                        onSelect: () => setRejectedOf(pipeline.metadata.name),
-                      },
-                      {
-                        key: "alerts",
-                        label: t("alerts.open"),
-                        onSelect: () => setAlertOf(pipeline.metadata.name),
-                      },
-                    ]}
-                    onEdit={() =>
-                      formRoute ? formRoute.openEdit(pipeline.metadata.name) : openEditor(pipeline)
-                    }
-                    primary={
-                      // On a phone the row's one action is its menu; Pause is on the pipeline's page.
-                      <span className="hidden sm:inline-flex">
-                        <Button
-                          size="sm"
-                          className="whitespace-nowrap"
-                          disabled={toggle.isPending}
-                          onClick={() => toggle.mutate({ pipeline, run: !running })}
-                          title={t(running ? "pipelines.pauseHint" : "pipelines.resumeHint")}
-                        >
-                          {t(running ? "pipelines.pause" : "pipelines.resume")}
-                          </Button>
-                      </span>
-                    }
-                    sourceUrl={pipeline.status?.sourceUrl}
-                  />
-                </div>
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </ResourceList>
+      />
       </div>
       )}
 
