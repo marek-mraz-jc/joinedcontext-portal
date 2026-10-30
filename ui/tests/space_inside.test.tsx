@@ -558,6 +558,11 @@ describe("space inside view", () => {
     await openTab(en.endpoints.title);
     const endpointRow = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
     expect(within(endpointRow).getByText(en.endpoints.audience.public)).toBeInTheDocument();
+    // the endpoint's name opens its own page
+    expect(within(endpointRow).getByRole("link", { name: "public-air" })).toHaveAttribute(
+      "href",
+      "/projects/banskabystrica/endpoints/public-air",
+    );
     expect(within(endpointRow).getByRole("link", { name: "ngsi-ld" })).toHaveAttribute(
       "href",
       `${window.location.origin}/api/endpoint/${SLUG}/ngsi-ld/v1/types`,
@@ -570,8 +575,12 @@ describe("space inside view", () => {
 
     await openTab(en.spaces.inside.policies);
     const policyRow = (await screen.findByText("public-air-quality")).closest("tr") as HTMLElement;
-    expect(within(policyRow).getByText("role:public")).toBeInTheDocument();
-    expect(within(policyRow).getByText("queryEntity, retrieveEntity")).toBeInTheDocument();
+    // the assignee in words and the operations as kinds, the CIM 009 names one hover away
+    expect(within(policyRow).getByText(en.spaces.inside.policyPublic)).toHaveAttribute("title", "role:public");
+    expect(within(policyRow).getByText(en.spaces.inside.operationKind.read)).toHaveAttribute(
+      "title",
+      "queryEntity, retrieveEntity",
+    );
   });
 
   it("says a type's read met the endpoint's rate limit, with a retry, and not that it is unreadable (T-3161)", async () => {
@@ -1200,6 +1209,20 @@ describe("the space's own data", () => {
       expect((init!.headers as Record<string, string>)["JC-Reason"]).toBe(encodeURIComponent(en.entityGrid.reasonDefault));
       expect(JSON.parse(String(init!.body))).toEqual({ pm10: { type: "Property", value: 14, unitCode: "GQ" } });
       expect(await screen.findByRole("button", { name: en.entityGrid.undo })).toBeInTheDocument();
+    });
+
+    it("reads the grid's first page once, and the probe asks no count (T-6161)", async () => {
+      const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200, rows }, { source, access: steward, attributes: stewardWrites });
+      await screen.findByRole("spinbutton", { name: /pm10/i });
+      const reads = fetchMock.mock.calls
+        .map((call) => urlOf(call[0]))
+        .filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities"));
+      // The writer's grant lands after the first read: it changes where a correction goes, never the read.
+      const pages = reads.filter((url) => url.searchParams.get("limit") !== "1");
+      expect(pages.map((url) => url.search)).toHaveLength(1);
+      // The probe only asks whether the surface answers: counting the type there costs a second scan.
+      const probes = reads.filter((url) => url.searchParams.get("limit") === "1");
+      expect(probes.every((url) => url.searchParams.get("count") !== "true")).toBe(true);
     });
 
     it("gives a viewer, whose grant names no write, no editor", async () => {

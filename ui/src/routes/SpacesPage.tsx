@@ -1,7 +1,7 @@
 import { useCreateForm } from "../components/forms/FormRoute";
 import { RecordLink } from "../components/RecordLink";
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
 import { Skeleton } from "../components/ui/Skeleton";
 import type { JSX } from "react";
@@ -401,7 +401,24 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
             label: t("spaces.field.dataModel"),
             filter: true,
             text: modelOf,
-            cell: (space) => (modelOf(space) ? <span className="font-mono text-caption">{modelOf(space)}</span> : <span className="text-fg-subtle">—</span>),
+            // Each model one click away, as the models list links each space (not a mono id).
+            cell: (space) =>
+              modelOf(space) ? (
+                <span className="flex flex-col gap-0.5">
+                  {modelOf(space).split(", ").map((one) => (
+                    <Link
+                      key={one}
+                      to="/projects/$project/models/$name"
+                      params={{ project, name: one }}
+                      className="focus-ring w-fit text-primary-soft-fg underline-offset-2 hover:underline"
+                    >
+                      {one}
+                    </Link>
+                  ))}
+                </span>
+              ) : (
+                <span className="text-fg-subtle">—</span>
+              ),
           },
           {
             id: "phase",

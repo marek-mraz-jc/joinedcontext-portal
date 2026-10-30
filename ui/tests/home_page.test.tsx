@@ -9,7 +9,7 @@ import { HomePage } from "../src/pages/home/HomePage";
 import "../src/pages/home/firstRun";
 import { SharedWithMe } from "../src/pages/home/SharedWithMe";
 import { expectNoViolations } from "./checks";
-import { json, list, renderPage } from "./page_contract";
+import { json, list, OTHER_BRAND, renderPage } from "./page_contract";
 
 const named = (name: string, phase?: string) => ({ metadata: { name, namespace: "helsinki" }, spec: {}, ...(phase ? { status: { phase } } : {}) });
 
@@ -28,12 +28,17 @@ interface World {
   projects?: { name: string; sample: boolean }[];
   /** What `GET /api/v1/shared-apps` lists for the person (AP-174). */
   shared?: unknown[];
+  /** The project's Dashboards, by name. */
+  dashboards?: string[];
+  /** The installation's branding, its hidden sections included. */
+  branding?: unknown;
 }
 
 function show(world: World) {
   const sent: { method: string; path: string; body: unknown }[] = [];
   const result = renderPage(<HomePage project="helsinki" welcome={world.welcome} onWelcomeClosed={world.onWelcomeClosed} />, {
     path: "/projects/helsinki/home",
+    ...(world.branding ? { branding: world.branding } : {}),
     answer: async (url, request) => {
       if (request.method !== "GET") {
         sent.push({ method: request.method, path: url.pathname, body: await request.clone().json().catch(() => undefined) });
@@ -51,6 +56,7 @@ function show(world: World) {
       if (path.match(/\/spaces\/[^/]+\/usage$/)) return json({ entities: world.entities ?? 0, observedAt: "2026-10-07T20:00:00Z" });
       if (path === "/api/v1/projects/helsinki/endpoints")
         return json(list((world.endpoints ?? []).map(([name, published]) => ({ ...named(name), spec: published ? { publish: { ckan: { instanceRef: { name: "ckan" } } } } : {} }))));
+      if (path === "/api/v1/projects/helsinki/dashboards") return json(list((world.dashboards ?? []).map((name) => named(name))));
       if (path === "/api/v1/projects/helsinki/pipelines") return json(list((world.pipelines ?? []).map((phase, at) => named(`p${at}`, phase))));
       if (path === "/api/v1/projects/helsinki/changes") return json(list([{ metadata: { name: "chg-1" }, status: { phase: "PendingApproval" } }]));
       if (path === "/api/v1/organization/people") return json({ title: "Forbidden", status: 403 }, 403);
@@ -133,6 +139,17 @@ describe("the project home (T-3233, T-3235)", () => {
     show({ verbs: ["read"], dismissed: true });
     await screen.findByText(en.home.lead.viewer);
     expect(screen.queryByRole("region", { name: en.home.next })).toBeNull();
+  });
+
+  it("offers a viewer the project's dashboard only where the installation shows dashboards", async () => {
+    show({ verbs: ["read"], dismissed: true, dashboards: ["city"], branding: { ...OTHER_BRAND, hiddenSections: [] } });
+    const card = await screen.findByRole("link", { name: /1 dashboard/ });
+    expect(card).toHaveAttribute("href", "/projects/helsinki/dashboards/city");
+    cleanup();
+    show({ verbs: ["read"], dismissed: true, dashboards: ["city"], branding: { ...OTHER_BRAND, hiddenSections: ["dashboards"] } });
+    await screen.findByText(en.home.lead.viewer);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole("link", { name: /1 dashboard/ })).toBeNull();
   });
 });
 

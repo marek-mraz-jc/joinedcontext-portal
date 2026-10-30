@@ -1,6 +1,7 @@
 /** T-3259: a schedule in words, the cron it writes and reads back, and the next runs it makes. */
 import { describe, expect, it } from "vitest";
-import { choiceOf, cronOf, intervalSeconds, nextRuns, parseCron } from "../src/pages/pipelines/cron";
+import { choiceOf, cronOf, intervalSeconds, nextRuns, parseCron, scheduleWords } from "../src/pages/pipelines/cron";
+import i18n from "../src/i18n";
 import type { Choice } from "../src/pages/pipelines/cron";
 
 const iso = (dates: Date[]) => dates.map((date) => date.toISOString().slice(0, 16));
@@ -66,5 +67,21 @@ describe("the pipeline form's schedule", () => {
     const shown = { source: "datasource" as const, readsMore: false, computeFilled: [], scheduled: true };
     expect((pipelineUiSchemaFor(shown) as Record<string, unknown>).schedule).toEqual({ "ui:widget": "cronSchedule" });
     expect((pipelineUiSchemaFor({ ...shown, scheduled: false }) as Record<string, unknown>).schedule).toEqual({ "ui:widget": "hidden" });
+  });
+});
+
+describe("a pipeline page's schedule", () => {
+  const t = i18n.getFixedT("en");
+  it("says each choice in words", () => {
+    expect(scheduleWords("*/30 * * * *", t, "en")).toBe("Every 30 minutes");
+    expect(scheduleWords("5 * * * *", t, "en")).toBe("Every hour, at minute 5");
+    expect(scheduleWords("0 */6 * * *", t, "en")).toBe("Every 6 hours, at minute 0");
+    expect(scheduleWords("0 3 * * *", t, "en")).toBe("Every day at 03:00 UTC");
+    expect(scheduleWords("30 7 * * 1", t, "en")).toBe("Every Monday at 07:30 UTC");
+  });
+
+  it("leaves a cron the choices do not say to the caller", () => {
+    expect(scheduleWords("0 3 1 * *", t, "en")).toBeUndefined();
+    expect(scheduleWords("not a cron", t, "en")).toBeUndefined();
   });
 });

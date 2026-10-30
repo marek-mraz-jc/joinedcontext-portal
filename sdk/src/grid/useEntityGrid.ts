@@ -73,8 +73,6 @@ export interface GridLabels {
   queryAll: string;
   /** Said for a moment after the query was copied. */
   copied: string;
-  /** Under the table while columns wait to its right (T-5415). */
-  scrollHint: string;
   /** Said on a sortable header, because the order is of the loaded page only (UI-66). */
   sortPage: string;
   /** Said on a sortable header whose source orders the whole answer. */
@@ -273,7 +271,6 @@ export const DEFAULT_LABELS: GridLabels = {
   exampleLead: "e.g.",
   queryAll: "all records",
   copied: "Copied",
-  scrollHint: "More columns to the right: scroll the table sideways.",
   sortPage: "Sort this page by",
   sortAll: "Sort all rows by",
   sortedLoaded: "Sorted within the {count} loaded rows: this view also reads other brokers, which do not sort.",
@@ -942,7 +939,8 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     const limit = Math.max(config.pageSize, VIRTUAL_PAGE_SIZE);
     setLoadingMore(true);
     source
-      .query(JSON.parse(gridQueryKey) as GridQuery, { offset: from, limit })
+      // The first page brought the total: a further page asks for rows alone (T-6161).
+      .query(JSON.parse(gridQueryKey) as GridQuery, { offset: from, limit, count: false })
       .then((page) => {
         if (nonceRef.current !== nonce) return;
         setRows((loaded) => {

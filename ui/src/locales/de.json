@@ -606,7 +606,6 @@
       "modelCreate": "Datenmodell anlegen",
       "modelImport": "Smart Data Model importieren",
       "modelOpen": "Datenmodell öffnen",
-      "modelOpenLead": "Das Modell wird auf seiner eigenen Seite gelesen und bearbeitet: Diagramm, Formular, YAML und Verlauf.",
       "modelClasses": "{count, plural, =0 {Noch keine Klassen} one {# Klasse} other {# Klassen}}",
       "modelClassList": "Klassen des Datenmodells",
       "modelMore": "und {count} weitere",
@@ -622,7 +621,18 @@
       "allRows": "Alle Zeilen",
       "savedViews": "Gespeicherte Ansichten",
       "typeHint": "Welche Art von Entitäten die Zeilen unten zeigen, zum Beispiel Event.",
-      "restoreReason": "Aus dem Papierkorb wiederhergestellt"
+      "restoreReason": "Aus dem Papierkorb wiederhergestellt",
+      "policyPublic": "Alle (öffentlich)",
+      "everyType": "Jeder Typ",
+      "operationKind": {
+        "read": "Lesen",
+        "history": "Verlauf",
+        "write": "Schreiben",
+        "delete": "Löschen",
+        "subscribe": "Abonnements",
+        "types": "Typen",
+        "other": "Sonstige"
+      }
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -709,7 +719,8 @@
         "rejected": "Abgelehnt, 7 Tage",
         "quarantined": "In Quarantäne, 7 Tage",
         "lastRejected": "Zuletzt abgelehnt",
-        "since": "Gezählt ab {day} (24 h) und ab {week} (7 Tage)."
+        "since": "Gezählt ab {day} (24 h) und ab {week} (7 Tage).",
+        "sinceOne": "Gezählt seit {at}."
       }
     },
     "fields": {
@@ -1276,6 +1287,11 @@
       "value": "Wert",
       "upperValue": "Oberer Wert",
       "removeCondition": "Bedingung entfernen",
+      "activeFilters": "Aktive Filter",
+      "removeFilter": "Filter entfernen: {name}",
+      "chipAny": "eine von {n} Bedingungen",
+      "chipAll": "alle von {n} Bedingungen",
+      "clearFilters": "Filter zurücksetzen",
       "selectRow": "Zeile auswählen",
       "selectAll": "Alle geladenen Zeilen auswählen",
       "query": "Abfrage",
@@ -1460,7 +1476,8 @@
         "item": "{id}: vorgeschlagen von {by} am {at}, {count, plural, one {# Entität} other {# Entitäten}} gefunden, offen bis {expires}",
         "approve": "Genehmigen…",
         "decline": "Ablehnen…",
-        "own": "Sie haben diese Löschung vorgeschlagen: Ein anderer Eigentümer des Bereichs genehmigt sie."
+        "own": "Sie haben diese Löschung vorgeschlagen: Ein anderer Eigentümer des Bereichs genehmigt sie.",
+        "ownersOnly": "Nur ein Eigentümer dieses Space sieht diese Anfragen."
       },
       "approveTitle": "Löschung {id} genehmigen?",
       "approveLead": "Geben Sie die Kennung der Person aus der Anfrage ein. Das Portal vergleicht sie mit dem Vorschlag, durchsucht den Bereich erneut und löscht, was er enthält. Das lässt sich nicht rückgängig machen.",
@@ -3122,6 +3139,13 @@
         "minutes": "{count} Minuten",
         "hours": "{count} Stunden"
       },
+      "say": {
+        "minutes": "Alle {count} Minuten",
+        "hours": "Alle {count} Stunden, zur Minute {minute}",
+        "hourly": "Jede Stunde, zur Minute {minute}",
+        "daily": "Jeden Tag um {time} UTC",
+        "weekly": "Jeden {weekday} um {time} UTC"
+      },
       "atMinute": "In Minute",
       "on": "Am",
       "atTime": "Um (UTC)",
@@ -4630,7 +4654,8 @@
       "addFieldTo": "Feld zu {type} hinzufügen",
       "typeCaption": "Felder von {type}",
       "noFields": "Noch kein Feld.",
-      "addType": "Typ hinzufügen"
+      "addType": "Typ hinzufügen",
+      "classesMore": "+{count} weitere"
     },
     "hints": {
       "title": "Dieses Modell hat noch keine Klasse. Drei Schritte zum Anfang:",
@@ -5385,7 +5410,7 @@
     "proposed": "Der Lauf hat einen Merge Request geöffnet.",
     "nothingToDo": "Der Lauf hat nichts geändert: die Quelle hat sich nicht bewegt.",
     "byWebhook": "Läuft, wenn die Quelle es meldet",
-    "everyInterval": "Alle {interval}",
+    "everyInterval": "Intervall {interval}",
     "add": "Quelle hinzufügen",
     "propose": "Änderung vorschlagen",
     "dialog": {
@@ -5523,6 +5548,7 @@
       "notEquals": "ist nicht",
       "between": "zwischen",
       "isEmpty": "ist leer",
+      "empty": "ist leer",
       "present": "hat einen Wert",
       "pattern": "passt auf",
       "anyOf": "ist eine von",
@@ -5539,7 +5565,6 @@
     "exampleLead": "z. B.",
     "queryAll": "alle Datensätze",
     "copied": "Kopiert",
-    "scrollHint": "Rechts folgen weitere Spalten: die Tabelle seitlich verschieben.",
     "filterRow": "Filter",
     "sortPage": "Diese Seite sortieren nach",
     "sortAll": "Alle Zeilen sortieren nach",
@@ -6489,8 +6514,7 @@
       "space": "Kontextraum",
       "all": "Alle",
       "connector": "Konnektor",
-      "connectorHint": "Nur die Aufrufe und Änderungen eines Ihrer Konnektoren, z. B. doprava-in-claude.",
-      "connectorNone": "Sie haben noch keinen Konnektor: Legen Sie einen unter Meine Konnektoren an, um danach zu filtern."
+      "connectorHint": "Nur die Aufrufe und Änderungen eines Ihrer Konnektoren, z. B. doprava-in-claude."
     },
     "severity": {
       "info": "Info",
@@ -10622,8 +10646,7 @@
     "emptyHint": "Das Portal prüft die Ressourcen wenige Minuten nach dem Start. Legen Sie eine Pipeline, einen Kontextraum oder einen Endpoint an, oder schauen Sie in ein paar Minuten wieder vorbei.",
     "summary": "{errors, plural, one {# Fehler} other {# Fehler}} und {warnings, plural, one {# Warnung} other {# Warnungen}} unter {total} Prüfungen: die Behebung steht unter jeder.",
     "allWell": "Alle {total} Prüfungen sind in Ordnung.",
-    "kind": "Anzeigen",
-    "kindHint": "Die Liste auf eine Art von Ressource einschränken, z. B. Pipelines.",
+    "kind": "Art",
     "allKinds": "Alle Arten",
     "kinds": {
       "pipeline": "Pipeline",
@@ -10632,8 +10655,8 @@
       "model": "Modell",
       "datasource": "Datenquelle"
     },
-    "noneOfKind": "Keine Prüfungen dieser Art",
-    "noneOfKindHint": "Wählen Sie Alle Arten, um jede Prüfung zu sehen.",
+    "noneOfKind": "Keine Prüfungen passen",
+    "noneOfKindHint": "Wählen Sie Alle bei Status und Alle Arten, um jede Prüfung zu sehen.",
     "status": "Status",
     "project": "Projekt",
     "resource": "Ressource",
@@ -10697,6 +10720,14 @@
       "publicRefused": "Der Endpoint ist öffentlich, aber seine Schnittstelle verlangt ein Token: prüfen Sie spec.audience und die Policy in spec.policyRef.",
       "surfaceMissing": "Das Gateway bietet diese Schnittstelle nicht an: prüfen Sie spec.enabledRepresentations und ob der Endpoint angewendet ist.",
       "slowSurface": "Die Schnittstelle antwortet langsam: prüfen Sie die Last des Brokers und den Filter des Endpoints."
+    },
+    "statusFilter": "Status",
+    "shown": {
+      "attention": "Braucht Aufmerksamkeit ({count})",
+      "broken": "Defekt ({count})",
+      "look": "Prüfen ({count})",
+      "working": "Funktioniert ({count})",
+      "all": "Alle ({count})"
     }
   },
   "accessibility": {

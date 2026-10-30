@@ -429,18 +429,23 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   // rest, so ten thousand rows cost the DOM a screenful.
   const virtual = hookOptions.virtual === true;
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Columns waiting beyond the right edge: the table says so in words as well as by its shadow (T-5415).
-  const [overflows, setOverflows] = useState(false);
+  // A scrolling table ends at the window's bottom with its footer in sight, so the last row and the
+  // totals never need a page scroll (owner 2026-10-30). Measured from the page top, so a scrolled
+  // page keeps the height; at least 15rem where the window is short.
+  const [fitHeight, setFitHeight] = useState<number>();
   useEffect(() => {
     const box = scrollRef.current;
-    if (!box || typeof ResizeObserver === "undefined") return;
-    const measure = () => setOverflows(box.scrollWidth > box.clientWidth + 1);
-    const observer = new ResizeObserver(measure);
-    observer.observe(box);
-    if (box.firstElementChild) observer.observe(box.firstElementChild);
-    measure();
-    return () => observer.disconnect();
-  }, []);
+    if (!virtual || !box) return;
+    const fit = () => {
+      const rect = box.getBoundingClientRect();
+      const below = (box.parentElement?.getBoundingClientRect().bottom ?? rect.bottom) - rect.bottom;
+      const top = rect.top + window.scrollY;
+      setFitHeight(Math.max(240, window.innerHeight - top - below - 16));
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [virtual]);
   const rowHeight = useRef(FALLBACK_ROW_HEIGHT);
   const [windowStart, setWindowStart] = useState(0);
   const [windowSize, setWindowSize] = useState(FALLBACK_VIEWPORT_ROWS);
@@ -1229,11 +1234,15 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         </button>
       )}
       {!onHide && ownHidden.length > 0 && <HiddenFields attrs={ownHidden} labels={labels} labelOf={hiddenLabel} onShow={showColumns} />}
-      {overflows && <p className="jc-grid-scroll-hint">{labels.scrollHint}</p>}
       {grid.sortedLoadedOnly && rows.length > 0 && (
         <p className="jc-grid-sort-note" role="status">{labels.sortedLoaded.replace("{count}", String(rows.length))}</p>
       )}
-      <div className="jc-grid-scroll" ref={scrollRef} onScroll={virtual ? onScroll : undefined}>
+      <div
+        className="jc-grid-scroll"
+        ref={scrollRef}
+        onScroll={virtual ? onScroll : undefined}
+        style={virtual && fitHeight !== undefined ? { maxHeight: fitHeight } : undefined}
+      >
         <table
           ref={tableRef}
           className={`jc-grid-table${classNames?.table ? ` ${classNames.table}` : ""}`}

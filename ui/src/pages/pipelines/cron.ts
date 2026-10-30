@@ -161,3 +161,35 @@ export const FREQUENCY_SECONDS: Record<string, number> = {
   QUARTERLY: 91 * 86_400,
   ANNUAL: 365 * 86_400,
 };
+
+/**
+ * A cron in the words a person reads ("Every 30 minutes"), or `undefined` for a schedule the
+ * choices do not say, which the caller shows as the cron itself.
+ */
+export function scheduleWords(
+  text: string,
+  t: (key: string, values?: Record<string, unknown>) => string,
+  locale: string,
+): string | undefined {
+  const choice = choiceOf(text);
+  const time = (hour: number, minute: number) => `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  switch (choice.kind) {
+    case "minutes":
+      return t("pipelines.schedule.say.minutes", { count: choice.every });
+    case "hourly":
+      return t("pipelines.schedule.say.hourly", { minute: choice.minute });
+    case "hours":
+      return t("pipelines.schedule.say.hours", { count: choice.every, minute: choice.minute });
+    case "daily":
+      return t("pipelines.schedule.say.daily", { time: time(choice.hour, choice.minute) });
+    case "weekly": {
+      // 2023-01-01 was a Sunday: day 0 of cron's week.
+      const weekday = new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" }).format(
+        new Date(Date.UTC(2023, 0, 1 + choice.weekday)),
+      );
+      return t("pipelines.schedule.say.weekly", { weekday, time: time(choice.hour, choice.minute) });
+    }
+    case "custom":
+      return undefined;
+  }
+}

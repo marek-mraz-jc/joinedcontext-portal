@@ -158,7 +158,7 @@ describe("data sources view", () => {
 
   it("starts a pipeline on a source from its row, the editor opening with that source picked", async () => {
     renderDataSources();
-    const row = (await screen.findByRole("link", { name: SOURCES.items[0].metadata.name })).closest("tr") as HTMLElement;
+    const row = (await screen.findByRole("link", { name: "City MQTT broker" })).closest("tr") as HTMLElement;
     await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: en.datasources.newPipeline }));
     await waitFor(() => expect(window.location.pathname).toBe("/projects/banskabystrica/pipelines"));
@@ -175,6 +175,8 @@ describe("data sources view", () => {
     const row = (await screen.findByText("City MQTT broker")).closest("tr") as HTMLElement;
     const cells = within(row).getAllByRole("cell");
     expect(cells[0]).toHaveTextContent("mqtt-mesto");
+    // The title is the link and reads first; the id is the line under it.
+    expect(within(cells[0]).getByRole("link")).toHaveTextContent("City MQTT broker");
     expect(cells[1]).toHaveTextContent(en.datasources.type.mqtt);
     expect(cells[2]).toHaveTextContent("mqtt.banskabystrica.sk:8883");
     expect(cells[3]).toHaveTextContent("mqtt-mesto");

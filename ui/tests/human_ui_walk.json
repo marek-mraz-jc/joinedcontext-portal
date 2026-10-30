@@ -410,11 +410,11 @@
       ]
     },
     "src/components/entities/FilterPanel.tsx": {
-      "walkedBy": "worker-t4883",
-      "date": "2026-10-20",
+      "walkedBy": "worker-t6161",
+      "date": "2026-10-30",
       "screenshots": [
-        "evidence/worker-t4883/T-4883/grid-filter-desktop-1440.png",
-        "evidence/worker-t4883/T-4883/grid-filter-phone-400.png"
+        "evidence/worker-t6161/T-6161/grid-filter-chips-desktop-1440.png",
+        "evidence/worker-t6161/T-6161/grid-filter-chips-phone-400.png"
       ]
     },
     "src/components/entities/ViewBar.tsx": {
@@ -2200,6 +2200,14 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-members-dialog-remove-demo-steward-hel-fi-org-admin-steward-en-1440.png",
         "evidence/deployer/T-3986/full-0500/portal-organization-roles-dialog-remove-app-editor-steward-en-1440.png",
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
+      ]
+    },
+    "src/routes/RegistrationPage.tsx": {
+      "walkedBy": "ui-w2",
+      "date": "2026-10-30",
+      "screenshots": [
+        "evidence/ui-w2/after/csr-1440.png",
+        "evidence/ui-w2/after/csr-400.png"
       ]
     },
     "src/routes/RegistrationsPage.tsx": {

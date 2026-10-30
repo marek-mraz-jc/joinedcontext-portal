@@ -180,7 +180,7 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
               const state = standing(row);
               return (
                 <TableRow key={row.source}>
-                  <TableCell className="font-mono">
+                  <TableCell className="whitespace-nowrap font-mono">
                     {/* Every source opens: an upload before its first file is where it is sent
                         (T-4185), a source not crawled yet or whose crawl failed says so there and
                         offers a search; the row hands its click to this link (T-5328). */}
@@ -213,7 +213,7 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
                       <span className="block text-caption text-fg-muted [overflow-wrap:anywhere]">{row.job.error}</span>
                     ) : null}
                   </TableCell>
-                  <TableCell secondary>{timeText(row.lastCrawl, i18n.language)}</TableCell>
+                  <TableCell secondary className="whitespace-nowrap">{timeText(row.lastCrawl, i18n.language)}</TableCell>
                   <TableCell align="right" secondary className="whitespace-nowrap tabular-nums">
                     {row.state === "crawled"
                       ? t("knowledge.ofTotal", { part: number.format(row.pagesIncluded ?? 0), total: number.format(row.pages ?? 0) })
@@ -232,7 +232,7 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
                   <TableCell secondary>
                     {row.state === "crawled" ? <Languages languages={row.languages} /> : "—"}
                   </TableCell>
-                  <TableCell align="right">
+                  <TableCell align="right" className="whitespace-nowrap">
                     {row.type === "upload" ? null : (
                     <PermissionGuard project={project} kind="KnowledgeSource" verb="propose">
                       <Button
@@ -370,15 +370,15 @@ function Assistants({ project }: { project: string }): JSX.Element {
           <TableBody>
             {items.map((item) => (
               <TableRow key={item.metadata.name}>
-                <TableCell className="font-mono">
+                <TableCell className="whitespace-nowrap font-mono">
                   <RecordLink project={project} plural="assistantdeployments" name={item.metadata.name} />
                 </TableCell>
-                <TableCell secondary className="font-mono">{item.spec.publicId ?? "—"}</TableCell>
+                <TableCell secondary className="whitespace-nowrap font-mono">{item.spec.publicId ?? "—"}</TableCell>
                 <TableCell secondary>
                   {item.spec.channel ? t(`knowledge.channel.${item.spec.channel}`) : "—"}
                   {/* A visitor-facing assistant whose privacy dialog would name no contact (T-4670). */}
                   {item.spec.channel && item.spec.channel !== "internal" && !item.spec.privacy?.contact ? (
-                    <Badge tone="warning" className="ml-2">
+                    <Badge tone="warning" className="ml-2 whitespace-nowrap">
                       {t("knowledge.assistants.noPrivacyContact")}
                     </Badge>
                   ) : null}
@@ -386,7 +386,7 @@ function Assistants({ project }: { project: string }): JSX.Element {
                 <TableCell secondary>{(item.spec.sources ?? []).join(", ") || "—"}</TableCell>
                 <TableCell secondary>{(item.spec.connectors ?? []).map((c) => c.endpoint).join(", ") || "—"}</TableCell>
                 <TableCell align="right">
-                  <div className="flex flex-wrap justify-end gap-1">
+                  <div className="flex justify-end gap-1">
                     <Button
                       variant="ghost"
                       size="sm"

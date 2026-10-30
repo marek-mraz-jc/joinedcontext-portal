@@ -161,6 +161,9 @@ export function SpacePersonalData({ project, space }: { project: string; space: 
       },
   });
 
+  // A 403 on the list is the role, not a fault: said as a quiet line, never a red alert.
+  const ownersOnly = proposals.error instanceof ApiError && proposals.error.status === 403;
+
   return (
     <div className="space-y-4">
       <p className="text-body text-fg-muted">{t("spaces.personal.lead")}</p>
@@ -244,7 +247,8 @@ export function SpacePersonalData({ project, space }: { project: string; space: 
         project={project}
         space={space}
         items={(proposals.data?.items ?? []).filter((item) => item.state === "proposed")}
-        failed={proposals.isError ? said(proposals.error) : null}
+        failed={proposals.isError && !ownersOnly ? said(proposals.error) : null}
+        ownersOnly={ownersOnly}
         onDecided={(id) => {
           setErasureId(id);
           void proposals.refetch();
@@ -294,12 +298,15 @@ function ErasureProposals({
   space,
   items,
   failed,
+  ownersOnly = false,
   onDecided,
 }: {
   project: string;
   space: string;
   items: Erasure[];
   failed: string | null;
+  /** The caller is no owner of the space: the list is theirs to see only as one. */
+  ownersOnly?: boolean;
   onDecided: (id: string) => void;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
@@ -359,7 +366,8 @@ function ErasureProposals({
         {t("spaces.personal.proposals.title")}
       </h3>
       {failed !== null && <Alert tone="danger">{failed}</Alert>}
-      {failed === null && items.length === 0 && (
+      {ownersOnly ? <p className="text-body text-fg-muted">{t("spaces.personal.proposals.ownersOnly")}</p> : null}
+      {failed === null && !ownersOnly && items.length === 0 && (
         <p className="text-body text-fg-muted">{t("spaces.personal.proposals.empty")}</p>
       )}
       <ul className="space-y-2">

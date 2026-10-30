@@ -97,7 +97,8 @@ export interface EntitySource {
   orders?: boolean;
   /** The Endpoint base (`/api/endpoint/{slug}`) whose OGC vector tiles draw the map past a count (T-5195). */
   tilesAt?: string;
-  query(q: GridQuery, page: { offset: number; limit: number }): Promise<GridPage>;
+  /** `count: false` asks for rows alone: the broker then skips counting the whole match (T-6161). */
+  query(q: GridQuery, page: { offset: number; limit: number; count?: boolean }): Promise<GridPage>;
   get(id: string): Promise<RichRow | null>;
   history?(id: string, attr: string, window: HistoryWindow): Promise<HistoryPoint[]>;
   /** `reason` is why the person writes, sent as `JC-Reason` (DM-113). */
@@ -208,15 +209,16 @@ function problemOf(body: unknown): { type?: string; title?: string; detail?: str
   return { type: text("type"), title: text("title"), detail: text("detail") };
 }
 
-function entitiesQuery(q: GridQuery, offset: number, limit: number): string {
+function entitiesQuery(q: GridQuery, offset: number, limit: number, count = true): string {
   // id and type come with every entity; asking for them as attributes is a 400.
   const attrs = (q.attrs ?? []).filter((attr) => attr !== "id" && attr !== "type");
   return queryString({
     type: q.type,
     options: "sysAttrs",
     // How many entities the query matches, for the footer: the broker counts, the grid never does
-    // (a page cannot be counted into a total).
-    count: "true",
+    // (a page cannot be counted into a total). A count scans the whole match, so a caller that
+    // already has it, or only asks whether the read is allowed, leaves it out (T-6161).
+    count: count ? "true" : undefined,
     limit: String(limit),
     offset: offset > 0 ? String(offset) : undefined,
     q: q.q || undefined,
@@ -297,7 +299,7 @@ function ngsiSource(base: string, transport: Transport, language: string, hidden
     async query(q, page) {
       const { status, body, headers } = await transport({
         method: "GET",
-        path: `${base}/entities?${entitiesQuery(q, page.offset, page.limit)}`,
+        path: `${base}/entities?${entitiesQuery(q, page.offset, page.limit, page.count ?? true)}`,
       });
       if (status === 400) {
         const { type, title, detail } = problemOf(body);

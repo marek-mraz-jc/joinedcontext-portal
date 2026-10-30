@@ -606,7 +606,6 @@
       "modelCreate": "Create a data model",
       "modelImport": "Import a Smart Data Model",
       "modelOpen": "Open data model",
-      "modelOpenLead": "The model is read and edited on its own page: its diagram, form, YAML and history.",
       "modelClasses": "{count, plural, =0 {No classes yet} one {# class} other {# classes}}",
       "modelClassList": "Classes of the data model",
       "modelMore": "and {count} more",
@@ -622,7 +621,18 @@
       "allRows": "All rows",
       "savedViews": "Saved views",
       "typeHint": "Which kind of entity the rows below show, for example Event.",
-      "restoreReason": "Restored from the trash"
+      "restoreReason": "Restored from the trash",
+      "policyPublic": "Everyone (public)",
+      "everyType": "Every type",
+      "operationKind": {
+        "read": "Read",
+        "history": "History",
+        "write": "Write",
+        "delete": "Delete",
+        "subscribe": "Subscriptions",
+        "types": "Types",
+        "other": "Other"
+      }
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -709,7 +719,8 @@
         "rejected": "Rejected, 7 days",
         "quarantined": "Quarantined, 7 days",
         "lastRejected": "Last rejected",
-        "since": "Counted from {day} (24 h) and from {week} (7 days)."
+        "since": "Counted from {day} (24 h) and from {week} (7 days).",
+        "sinceOne": "Counted since {at}."
       }
     },
     "fields": {
@@ -1276,6 +1287,11 @@
       "value": "Value",
       "upperValue": "Upper value",
       "removeCondition": "Remove condition",
+      "activeFilters": "Active filters",
+      "removeFilter": "Remove filter: {name}",
+      "chipAny": "any of {n} conditions",
+      "chipAll": "all of {n} conditions",
+      "clearFilters": "Clear filters",
       "selectRow": "Select row",
       "selectAll": "Select all loaded rows",
       "query": "Query",
@@ -1460,7 +1476,8 @@
         "item": "{id}: proposed by {by} on {at}, {count, plural, one {# entity} other {# entities}} found, open until {expires}",
         "approve": "Approve…",
         "decline": "Decline…",
-        "own": "You proposed this erasure: another owner of the space approves it."
+        "own": "You proposed this erasure: another owner of the space approves it.",
+        "ownersOnly": "Only an owner of this space sees these requests."
       },
       "approveTitle": "Approve erasure {id}?",
       "approveLead": "Type the person's identifier from the request. The Portal checks it against the proposal, searches the space again and erases what it holds. This cannot be undone.",
@@ -3122,6 +3139,13 @@
         "minutes": "{count} minutes",
         "hours": "{count} hours"
       },
+      "say": {
+        "minutes": "Every {count} minutes",
+        "hours": "Every {count} hours, at minute {minute}",
+        "hourly": "Every hour, at minute {minute}",
+        "daily": "Every day at {time} UTC",
+        "weekly": "Every {weekday} at {time} UTC"
+      },
       "atMinute": "At minute",
       "on": "On",
       "atTime": "At (UTC)",
@@ -4630,7 +4654,8 @@
       "addFieldTo": "Add field to {type}",
       "typeCaption": "Fields of {type}",
       "noFields": "No field yet.",
-      "addType": "Add type"
+      "addType": "Add type",
+      "classesMore": "+{count} more"
     },
     "hints": {
       "title": "This model has no type yet. Three steps to start:",
@@ -5523,6 +5548,7 @@
       "notEquals": "is not",
       "between": "between",
       "isEmpty": "is empty",
+      "empty": "is empty",
       "present": "has a value",
       "pattern": "matches",
       "anyOf": "is one of",
@@ -5539,7 +5565,6 @@
     "exampleLead": "e.g.",
     "queryAll": "all records",
     "copied": "Copied",
-    "scrollHint": "More columns to the right: scroll the table sideways.",
     "filterRow": "Filters",
     "sortPage": "Sort this page by",
     "sortAll": "Sort all rows by",
@@ -6489,8 +6514,7 @@
       "space": "Context Space",
       "all": "Any",
       "connector": "Connector",
-      "connectorHint": "Only the calls and changes of one of your connectors, e.g. doprava-in-claude.",
-      "connectorNone": "You have no connectors yet: create one on My connectors to filter by it."
+      "connectorHint": "Only the calls and changes of one of your connectors, e.g. doprava-in-claude."
     },
     "severity": {
       "info": "Info",
@@ -10622,8 +10646,7 @@
     "emptyHint": "The Portal checks the resources a few minutes after it starts. Add a pipeline, a Context Space or an Endpoint, or come back in a few minutes.",
     "summary": "{errors, plural, one {# error} other {# errors}} and {warnings, plural, one {# warning} other {# warnings}} among {total} checks: read the fix under each.",
     "allWell": "All {total} checks are ok.",
-    "kind": "Show",
-    "kindHint": "Narrow the list to one kind of resource, e.g. Pipelines.",
+    "kind": "Kind",
     "allKinds": "All kinds",
     "kinds": {
       "pipeline": "Pipeline",
@@ -10632,8 +10655,8 @@
       "model": "Model",
       "datasource": "Data source"
     },
-    "noneOfKind": "No checks of this kind",
-    "noneOfKindHint": "Choose All kinds to see every check.",
+    "noneOfKind": "No checks match",
+    "noneOfKindHint": "Choose All in Status and All kinds to see every check.",
     "status": "Status",
     "project": "Project",
     "resource": "Resource",
@@ -10697,6 +10720,14 @@
       "publicRefused": "The Endpoint is public but its surface asks for a token: check spec.audience and the Policy named in spec.policyRef.",
       "surfaceMissing": "The gateway does not serve this surface: check spec.enabledRepresentations and that the Endpoint is applied.",
       "slowSurface": "The surface answers slowly: check the broker's load and the Endpoint's filter."
+    },
+    "statusFilter": "Status",
+    "shown": {
+      "attention": "Needs attention ({count})",
+      "broken": "Broken ({count})",
+      "look": "Needs a look ({count})",
+      "working": "Working ({count})",
+      "all": "All ({count})"
     }
   },
   "accessibility": {

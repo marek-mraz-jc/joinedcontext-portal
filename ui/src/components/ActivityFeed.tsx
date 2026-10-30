@@ -315,31 +315,29 @@ export function ActivityFeed({
           ))}
         </Select>
       </Field>
-      <Field
-        id={`${ids}-connector`}
-        label={t("activity.filter.connector")}
-        description={
-          ownConnectors.length > 0
-            ? t("activity.filter.connectorHint")
-            : t("activity.filter.connectorNone")
-        }
-        className="w-56"
-      >
-        <Select
+      {/* A filter with nothing to choose is no filter: shown once the reader has a connector. */}
+      {ownConnectors.length > 0 ? (
+        <Field
           id={`${ids}-connector`}
-          value={connector}
-          disabled={ownConnectors.length === 0}
-          aria-describedby={fieldIds(`${ids}-connector`).description}
-          onChange={(event) => setConnector(event.target.value)}
+          label={t("activity.filter.connector")}
+          description={t("activity.filter.connectorHint")}
+          className="w-56"
         >
-          <option value="">{t("activity.filter.all")}</option>
-          {ownConnectors.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.name}
-            </option>
-          ))}
-        </Select>
-      </Field>
+          <Select
+            id={`${ids}-connector`}
+            value={connector}
+            aria-describedby={fieldIds(`${ids}-connector`).description}
+            onChange={(event) => setConnector(event.target.value)}
+          >
+            <option value="">{t("activity.filter.all")}</option>
+            {ownConnectors.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      ) : null}
       <Switch
         checked={tailing}
         onCheckedChange={setTailing}

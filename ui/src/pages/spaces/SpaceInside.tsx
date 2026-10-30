@@ -42,7 +42,7 @@ import { columnLabel, displayOrder } from "../../components/entities/displayOrde
 import { readLayout, writeLayout } from "../../components/entities/viewLayout";
 import { dataViewsKey, listViews } from "../../api/dataViews";
 import { GroupCounts, groupTerm, ViewOptions } from "../../components/entities/ViewOptions";
-import { conditionCount, EMPTY_GROUP, FilterPanel, readGroup } from "../../components/entities/FilterPanel";
+import { conditionCount, EMPTY_GROUP, FilterChips, FilterPanel, readGroup } from "../../components/entities/FilterPanel";
 import { AGGREGATIONS, FooterAggregate, GroupCount, GroupPanel, MAX_GROUP_FIELDS, MAX_SORT_KEYS, ROW_SIZES, SortPanel, ToolbarPopover } from "../../components/entities/GridToolbar";
 import type { SortKey } from "../../components/entities/GridToolbar";
 import type { Aggregation, RowSize } from "../../components/entities/GridToolbar";
@@ -50,6 +50,8 @@ import type { ViewExtras } from "../../components/entities/ViewOptions";
 import type { DataView as SavedView, ViewConfig } from "../../api/dataViews";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { usePermissions } from "../../api/permissions";
+import { assigneeWords, operationKinds } from "./policyWords";
 import { classSlots, isAnyClass, parseModel } from "../models/linkml";
 import { localId, textOf } from "../apps/QueryResultCard";
 import { TypeLink } from "../models/ModelLinks";
@@ -179,12 +181,37 @@ async function fetchTypeInside(slug: string, type: string): Promise<TypeInside> 
  * One entity in keyValues form as a single line of values a person reads (T-2760): a place as
  * its position, a name in the reader's language. It printed `location={"coordinates":…}`.
  */
+const URN = /urn:ngsi-ld:[^\s,;]+/g;
+const INSTANT = /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?/g;
+
+/**
+ * A sample value as a person reads it: a number to two decimals, an instant as a date and time,
+ * a URN as its own name, never `urn:ngsi-ld:Pipeline:hel.fi:…` or `8.897155361050329`.
+ */
+export function readable(value: unknown, language?: string): string {
+  const plain = isKeyValue(value) ? value.value : value;
+  if (typeof plain === "number") {
+    return new Intl.NumberFormat(language, { maximumFractionDigits: 2 }).format(plain);
+  }
+  const when = new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" });
+  return textOf(value, language)
+    .replace(URN, (urn) => localId(urn))
+    .replace(INSTANT, (instant) => {
+      const at = new Date(instant);
+      return Number.isNaN(at.getTime()) ? instant : when.format(at);
+    });
+}
+
+function isKeyValue(value: unknown): value is { value: unknown } {
+  return typeof value === "object" && value !== null && !Array.isArray(value) && "value" in value;
+}
+
 export function summarize(entity: KeyValues, language?: string): string {
   const attributes = Object.entries(entity)
     .filter(([key]) => key !== "id" && key !== "type" && key !== "@context")
     .slice(0, 4)
     .map(([key, value]) => {
-      const text = textOf(value, language);
+      const text = readable(value, language);
       return `${key}: ${text.length > 40 ? `${text.slice(0, 39)}…` : text}`;
     });
   return attributes.join(" · ");
@@ -263,7 +290,7 @@ function TypeRow({
         </span>
       );
   } else {
-    count = inside.data.count === undefined ? "—" : String(inside.data.count);
+    count = inside.data.count === undefined ? "—" : inside.data.count.toLocaleString(i18n.language);
   }
 
   return (
@@ -744,9 +771,25 @@ function SpaceData({
     () => (copy ? null : writerOf(tables, endpoints, slots)),
     [copy, tables, endpoints, slots],
   );
+  // The grid reads again whenever its source changes, and the writer's grant lands after the first
+  // read: the source keeps one identity and its patch asks the current writer, so the grant moves
+  // where a correction goes without a second read of the type (T-6161, 4.4 s twice on Helsinki).
+  // A viewer gets no editor anyway: the grid edits only with `mode: "edit"`, the views only the
+  // attributes `editable` names, both empty without a writer.
+  const writerSlug = useRef<string | null>(null);
+  useEffect(() => {
+    writerSlug.current = writer?.slug ?? null;
+  }, [writer]);
   const gridSource = useMemo(
-    () => (writer ? { ...source, patch: endpointSource(writer.slug, originTransport(), i18n.language).patch } : source),
-    [writer, source, i18n.language],
+    () => ({
+      ...source,
+      patch: (id: string, attrs: Record<string, unknown>, reason?: string) => {
+        const slug = writerSlug.current;
+        const write = slug === null ? undefined : endpointSource(slug, originTransport(), i18n.language).patch;
+        return write ? write(id, attrs, reason) : Promise.reject(new SourceError(403, t("spaces.views.readOnly")));
+      },
+    }),
+    [source, i18n.language, t],
   );
 
   const probe = useQuery({
@@ -754,7 +797,8 @@ function SpaceData({
     enabled: type !== "",
     retry: false,
     queryFn: async () => {
-      await source.query({ type }, { offset: 0, limit: 1 });
+      // Only whether the surface answers: a count would scan the whole type once more (T-6161).
+      await source.query({ type }, { offset: 0, limit: 1, count: false });
       return true;
     },
   });
@@ -867,6 +911,16 @@ function SpaceData({
     value: attr,
     label: columnLabel(typeSlots.find((slot) => slot.name === attr), attr, i18n.language),
   }));
+  const viewTabs = (
+    <Tabs
+      id="space-data-view"
+      label={t("spaces.views.label")}
+      variant="pill"
+      tabs={DATA_VIEWS.map((value) => ({ value, label: t(`spaces.views.kind.${value}`) }))}
+      value={view}
+      onChange={setView}
+    />
+  );
   const rowNumberLabels = { selectRow: t("spaces.toolbar.selectRow"), selectAll: t("spaces.toolbar.selectAll") };
 
   if (types.length === 0) {
@@ -939,16 +993,9 @@ function SpaceData({
       {probe.isError ? (
         <ProbeFailure key={probe.errorUpdatedAt} error={probe.error} endpoints={endpoints} retrying={probe.isFetching} onRetry={() => void probe.refetch()} />
       ) : null}
-      {readable ? (
-        <Tabs
-          id="space-data-view"
-          label={t("spaces.views.label")}
-          variant="pill"
-          tabs={DATA_VIEWS.map((value) => ({ value, label: t(`spaces.views.kind.${value}`) }))}
-          value={view}
-          onChange={setView}
-        />
-      ) : null}
+      {/* The view switch sits in the toolbar's row (owner 2026-10-30: more height for the rows);
+          the API view has no toolbar, so there it stands alone. */}
+      {readable && view === "api" ? viewTabs : null}
       {readable && view !== "api" ? (
         <>
           <Dialog
@@ -1014,9 +1061,13 @@ function SpaceData({
           the row, share and the rest of the type's actions at its end. */}
       {readable && view !== "api" ? (
         <div className="flex flex-wrap items-center gap-1 border-b border-border pb-2" data-testid="grid-toolbar">
-          <span className="mr-2 max-w-48 truncate text-body font-semibold" title={saved?.title}>
-            {saved?.title ?? t("spaces.inside.allRows")}
-          </span>
+          <div className="mr-2">{viewTabs}</div>
+          {/* A saved view names itself; "All rows" said nothing the tabs did not (owner 2026-10-30: one row). */}
+          {saved ? (
+            <span className="mr-2 max-w-48 truncate text-body font-semibold" title={saved.title}>
+              {saved.title}
+            </span>
+          ) : null}
           {view === "grid" ? (
             <>
             <ToolbarPopover label={t("spaces.toolbar.filter")} count={conditionCount(filters)} wide>
@@ -1054,7 +1105,7 @@ function SpaceData({
               type="search"
               aria-label={t("spaces.toolbar.search")}
               placeholder={t("spaces.toolbar.searchPlaceholder")}
-              className="h-control w-full sm:w-48"
+              className="h-control w-full sm:w-36"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
             />
@@ -1115,6 +1166,7 @@ function SpaceData({
           </div>
         </div>
       ) : null}
+      {readable && view === "grid" ? <FilterChips columns={filterColumns} titleOf={filterTitle} value={filters} onChange={setFilters} /> : null}
       {readable && config && view === "grid" && selectedRows.length > 0 ? (
         <BulkBar
           project={project}
@@ -1926,7 +1978,6 @@ function SpaceModel({
           {t("spaces.inside.modelOpen")}
         </Link>
       </div>
-      <p className="text-caption text-fg-muted">{t("spaces.inside.modelOpenLead")}</p>
       {source.isError ? (
         <Alert tone="danger" role="alert">
           <p>{t("models.page.sourceFailed", { reason: source.error instanceof Error ? source.error.message : "" })}</p>
@@ -2003,6 +2054,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   // The space's alerts are being chosen (T-3261).
   const [alerting, setAlerting] = useState(false);
+  const { can: mayPropose, checking: permissionsChecking } = usePermissions(project);
   // The page opens on the rows; the model, quality, retention, endpoints and policies are tabs
   // beside them, kept in the address (T-4825: the whole model came before the grid, 14,515 px).
   const [tab, setTab] = useUrlParam<SpaceTab>("tab", "data", SPACE_TABS);
@@ -2086,7 +2138,10 @@ export function SpaceInside({ project, name }: { project: string; name: string }
         actions={
           <>
             {/* Completing works on one space, so it lives here and not on the list (T-6084). */}
-            <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+            {/* Allowed: a Link (opens in a new tab too); refused or checking: a Button the guard
+                disables with its reason. A guarded Link stayed clickable and leaked `disabledReason`
+                onto the <a>. */}
+            {!permissionsChecking && mayPropose("ContextSpace", "propose") ? (
               <Link
                 to="/projects/$project/spaces/complete"
                 params={{ project }}
@@ -2095,7 +2150,13 @@ export function SpaceInside({ project, name }: { project: string; name: string }
               >
                 {t("spaces.complete.title")}
               </Link>
-            </PermissionGuard>
+            ) : (
+              <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+                <Button variant="secondary" size="sm">
+                  {t("spaces.complete.title")}
+                </Button>
+              </PermissionGuard>
+            )}
             <Button variant="secondary" size="sm" onClick={() => setAlerting(true)}>
               {t("alerts.forSpace")}
             </Button>
@@ -2258,9 +2319,13 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                 return (
                   <TableRow key={endpoint.metadata.name}>
                     <TableCell>
-                      <div className="font-medium">
+                      <Link
+                        to="/projects/$project/$plural/$name"
+                        params={{ project, plural: "endpoints", name: endpoint.metadata.name }}
+                        className="focus-ring font-medium text-primary-soft-fg underline-offset-2 hover:underline"
+                      >
                         {localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
-                      </div>
+                      </Link>
                       <div className="font-mono text-caption text-fg-subtle">
                         {endpoint.metadata.title ? endpoint.metadata.name : null}
                         {policyRefs
@@ -2300,12 +2365,12 @@ export function SpaceInside({ project, name }: { project: string; name: string }
         {spacePolicies.length === 0 ? (
           <SectionState query={policies} empty={t("spaces.inside.noPolicies")} />
         ) : (
-          <Table caption={t("spaces.inside.policies")}>
+          <Table caption={t("spaces.inside.policies")} stack>
             <TableHead>
               <TableHeaderCell>{t("spaces.field.name")}</TableHeaderCell>
               <TableHeaderCell>{t("spaces.inside.assignee")}</TableHeaderCell>
-              <TableHeaderCell secondary>{t("spaces.inside.operations")}</TableHeaderCell>
-              <TableHeaderCell secondary>{t("spaces.inside.type")}</TableHeaderCell>
+              <TableHeaderCell>{t("spaces.inside.operations")}</TableHeaderCell>
+              <TableHeaderCell>{t("spaces.inside.type")}</TableHeaderCell>
             </TableHead>
             <TableBody>
               {spacePolicies.map((policy) => {
@@ -2314,10 +2379,15 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                   operations?: string[];
                   information?: Array<{ entities?: Array<{ type?: string }> }>;
                 };
-                const policyTypes = (spec.information ?? [])
-                  .flatMap((info) => info.entities ?? [])
-                  .map((entity) => entity.type)
-                  .filter((type): type is string => typeof type === "string");
+                const policyTypes = [
+                  ...new Set(
+                    (spec.information ?? [])
+                      .flatMap((info) => info.entities ?? [])
+                      .map((entity) => entity.type)
+                      .filter((type): type is string => typeof type === "string"),
+                  ),
+                ];
+                const kinds = operationKinds(spec.operations ?? []);
                 return (
                   <TableRow key={policy.metadata.name}>
                     <TableCell>
@@ -2330,16 +2400,38 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                         </div>
                       ) : null}
                     </TableCell>
-                    <TableCell className="font-mono text-caption">
-                      {spec.assignee
-                        ? `${spec.assignee.kind ?? ""}${spec.assignee.kind ? ":" : ""}${spec.assignee.id ?? ""}`
-                        : "—"}
+                    <TableCell data-label={t("spaces.inside.assignee")}>
+                      <span title={spec.assignee ? `${spec.assignee.kind ?? ""}:${spec.assignee.id ?? ""}` : undefined}>
+                        {assigneeWords(spec.assignee, t)}
+                      </span>
                     </TableCell>
-                    <TableCell secondary className="font-mono text-caption">
-                      {(spec.operations ?? []).join(", ") || "—"}
+                    <TableCell data-label={t("spaces.inside.operations")}>
+                      {kinds.length === 0 ? (
+                        "—"
+                      ) : (
+                        <span className="flex flex-wrap gap-1">
+                          {kinds.map(({ kind, operations }) => (
+                            <Badge
+                              key={kind}
+                              tone={kind === "write" || kind === "delete" ? "warning" : "neutral"}
+                              title={operations.join(", ")}
+                            >
+                              {t(`spaces.inside.operationKind.${kind}`)}
+                            </Badge>
+                          ))}
+                        </span>
+                      )}
                     </TableCell>
-                    <TableCell secondary className="font-mono text-caption">
-                      {policyTypes.join(", ") || "—"}
+                    <TableCell data-label={t("spaces.inside.type")}>
+                      {policyTypes.length > 0 ? (
+                        <span className="flex flex-col">
+                          {policyTypes.map((type) => (
+                            <span key={type}>{type}</span>
+                          ))}
+                        </span>
+                      ) : (
+                        <span className="text-fg-muted">{t("spaces.inside.everyType")}</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

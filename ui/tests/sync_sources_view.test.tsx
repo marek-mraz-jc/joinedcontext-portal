@@ -145,7 +145,7 @@ describe("sync sources view", () => {
     expect(
       within(card).getByText("https://git.region.sk/udp/datamodels.git#main (models/transport)"),
     ).toBeInTheDocument();
-    expect(within(card).getByText("Every 30m")).toBeInTheDocument();
+    expect(within(card).getByText("Every 30 minutes")).toBeInTheDocument();
     expect(await within(card).findByText(en.phase.pendingApproval)).toBeInTheDocument();
     expect(await within(card).// `ExternalLink` appends "Opens in a new tab" for a screen reader, so the name is a prefix.
       findByRole("link", { name: new RegExp(`^${en.syncSources.review}`) })).toHaveAttribute(

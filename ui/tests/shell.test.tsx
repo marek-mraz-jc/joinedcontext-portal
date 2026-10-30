@@ -159,6 +159,17 @@ describe("portal shell", () => {
     expect(within(crumbs()).queryByText("Home")).not.toBeInTheDocument();
   });
 
+  it("names a static page under Context Spaces in words, not as a space called 'complete'", async () => {
+    window.history.pushState({}, "", "/projects/helsinki/spaces/complete");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    const crumbs = () => screen.getByRole("navigation", { name: "Breadcrumb" });
+    await waitFor(() => {
+      expect(within(crumbs()).getByText(i18n.t("spaces.complete.title"))).toHaveAttribute("aria-current", "page");
+    });
+    expect(within(crumbs()).queryByText("complete")).toBeNull();
+    expect(within(crumbs()).getByRole("link", { name: i18n.t("nav.spaces") })).toBeInTheDocument();
+  });
+
   // T-4216 (photo audit T-4157, T-4163): the pages below the section list end the trail with
   // their own name, like every section does, not at the project.
   it("ends the trail with the page's own name on the pages below the section list", async () => {
@@ -215,15 +226,15 @@ describe("portal shell", () => {
     await user.click(screen.getByRole("button", { name: "Projects" }));
 
     const items = await screen.findAllByRole("menuitem");
-    // The sample says so in words beside its name (PF-109).
-    expect(items.map((item) => item.textContent)).toEqual(["helsinki", "banskabystrica Sample"]);
+    // Every row the same, no sample badge (owner 2026-10-30).
+    expect(items.map((item) => item.textContent?.trim())).toEqual(["helsinki", "banskabystrica"]);
 
-    await user.click(screen.getByRole("menuitem", { name: "banskabystrica Sample" }));
+    await user.click(screen.getByRole("menuitem", { name: "banskabystrica" }));
 
     await waitFor(() => {
       expect(window.location.pathname).toBe("/projects/banskabystrica/home");
     });
-    expect(screen.getByRole("button", { name: "Projects" })).toHaveTextContent("banskabystrica Sample");
+    expect(screen.getByRole("button", { name: "Projects" })).toHaveTextContent("banskabystrica");
     const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
     expect(within(crumbs).getByRole("link", { name: "banskabystrica" })).toBeInTheDocument();
     await waitFor(() => {

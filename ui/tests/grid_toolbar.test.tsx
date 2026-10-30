@@ -13,7 +13,7 @@ import { queryFromGroup, SourceError } from "@joinedcontext/sdk";
 import type { EntitySource, FilterColumn, FilterGroup, GridQuery } from "@joinedcontext/sdk";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { conditionCount, EMPTY_GROUP, FilterPanel, readGroup } from "../src/components/entities/FilterPanel";
+import { conditionCount, conditionText, EMPTY_GROUP, FilterChips, FilterPanel, readGroup } from "../src/components/entities/FilterPanel";
 import { FooterAggregate, footerText, percent, ToolbarPopover } from "../src/components/entities/GridToolbar";
 import { mayDelete } from "../src/components/entities/AccessPanel";
 import type { Aggregation } from "../src/components/entities/GridToolbar";
@@ -53,6 +53,62 @@ function Panel({ seen }: { seen: (next: FilterGroup) => void }) {
     />
   );
 }
+
+function Chips({ start, seen }: { start: FilterGroup; seen: (next: FilterGroup) => void }) {
+  const [value, setValue] = useState<FilterGroup>(start);
+  return (
+    <main>
+      <FilterChips
+        columns={COLUMNS}
+        titleOf={(column) => (column.attr === "seats" ? "Seats" : (column.attr ?? column.key))}
+        value={value}
+        onChange={(next) => {
+          setValue(next);
+          seen(next);
+        }}
+      />
+    </main>
+  );
+}
+
+describe("FilterChips (T-6161)", () => {
+  const tree: FilterGroup = {
+    join: "and",
+    conditions: [
+      { key: "seats", filter: { op: "gt", value: "3" } },
+      { key: "category", filter: { op: "anyOf", value: "", values: ["music", "sport"] } },
+      { join: "or", conditions: [{ key: "name", filter: { op: "empty", value: "" } }, { key: "seats", filter: { op: "between", value: "1", value2: "9" } }] },
+    ],
+  };
+
+  it("says each condition in words, the enum by its titles and a group by its size", () => {
+    const t = i18n.getFixedT("en");
+    const titleOf = (column: FilterColumn) => (column.attr === "seats" ? "Seats" : (column.attr ?? column.key));
+    expect(tree.conditions.map((item) => conditionText(item, COLUMNS, titleOf, t))).toEqual([
+      "Seats is greater than 3",
+      "category is one of Music, sport",
+      "any of 2 conditions",
+    ]);
+    expect(conditionText({ key: "name", filter: { op: "empty", value: "" } }, COLUMNS, titleOf, t)).toBe("name is empty");
+    expect(conditionText({ key: "gone", filter: { op: "equals", value: "x" } }, COLUMNS, titleOf, t)).toBe("gone is x");
+  });
+
+  it("drops one condition per chip, and all with Clear filters; the q follows", async () => {
+    const user = userEvent.setup();
+    const seen = vi.fn();
+    wrap(<Chips start={tree} seen={seen} />);
+    expect(screen.getAllByRole("listitem")).toHaveLength(4);
+    // The join is said between the chips, so an OR never reads as AND.
+    expect(screen.getAllByRole("listitem")[1]).toHaveTextContent(/^and\s*category/);
+    await user.click(screen.getByRole("button", { name: "Remove filter: Seats is greater than 3" }));
+    expect(queryFromGroup(COLUMNS, seen.mock.lastCall![0] as FilterGroup)).toBe('category=="music","sport";(!name|(seats>=1;seats<=9))');
+    // A chip only edits the filter in hand: the walker does not read it as a viewer's write.
+    expect(viewerWriteFindings(false)).toEqual([]);
+    await user.click(screen.getByRole("button", { name: L.clearFilters }));
+    expect(seen.mock.lastCall![0]).toEqual({ join: "and", conditions: [] });
+    expect(screen.queryByRole("list", { name: L.activeFilters })).toBeNull();
+  });
+});
 
 describe("FilterPanel", () => {
   it("builds conditions joined by AND or OR, and a group, into the endpoint's q", async () => {
