@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { InRouter } from "./pageHarness";
 import { queryKeys } from "../src/api/client";
-import { ExplorePage } from "../src/pages/explore/ExplorePage";
+import { ExplorePage, firstWithData } from "../src/pages/explore/ExplorePage";
 import { expectDenied } from "./checks";
 import en from "../src/locales/en.json";
 
@@ -798,4 +798,22 @@ it("words a refused read as a refusal and hides Your access", async () => {
   expect(screen.queryByText(new RegExp(en.entityGrid.error))).toBeNull();
   expect(screen.queryByText(en.explore.yourAccess)).toBeNull();
   expect(screen.queryByRole("button", { name: en.explore.useData.open })).toBeNull();
+});
+
+describe("the space the page opens on", () => {
+  const counted = (entities: number) => ({ isPending: false, data: { entities } });
+  const waiting = { isPending: true };
+
+  it("is the first space that holds entities, not an empty one that sorts first", () => {
+    expect(firstWithData(["catalog", "helsinki", "kpi"], [counted(0), counted(189), counted(6)])).toBe("helsinki");
+  });
+
+  it("waits for an earlier space's count, so the page never jumps between spaces", () => {
+    expect(firstWithData(["catalog", "helsinki"], [waiting, counted(189)])).toBeUndefined();
+  });
+
+  it("is the first space when none holds entities or a count failed", () => {
+    expect(firstWithData(["catalog", "hub"], [counted(0), { isPending: false }])).toBe("catalog");
+    expect(firstWithData([], [])).toBeUndefined();
+  });
 });
