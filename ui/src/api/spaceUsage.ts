@@ -67,7 +67,8 @@ export function sizeText(bytes: number, language: string): string {
 
 /**
  * What one entity weighs as the gateway answered it: the UTF-8 length of its JSON (T-6145). The
- * broker's own row size (`byType`) also counts its storage overhead, so the two differ a little.
+ * broker's own row size (`byType`) holds every attribute expanded, with its metadata, plus the
+ * row's own columns, so it runs several times a keyValues sample (T-6156, `spaces.inside.sizeHint`).
  */
 export function entityBytes(entity: unknown): number {
   return new TextEncoder().encode(JSON.stringify(entity) ?? "").length;
