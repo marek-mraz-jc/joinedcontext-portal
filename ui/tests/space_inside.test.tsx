@@ -558,6 +558,11 @@ describe("space inside view", () => {
     await openTab(en.endpoints.title);
     const endpointRow = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
     expect(within(endpointRow).getByText(en.endpoints.audience.public)).toBeInTheDocument();
+    // the endpoint's name opens its own page
+    expect(within(endpointRow).getByRole("link", { name: "public-air" })).toHaveAttribute(
+      "href",
+      "/projects/banskabystrica/endpoints/public-air",
+    );
     expect(within(endpointRow).getByRole("link", { name: "ngsi-ld" })).toHaveAttribute(
       "href",
       `${window.location.origin}/api/endpoint/${SLUG}/ngsi-ld/v1/types`,

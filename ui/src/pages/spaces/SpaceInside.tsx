@@ -2294,9 +2294,13 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                 return (
                   <TableRow key={endpoint.metadata.name}>
                     <TableCell>
-                      <div className="font-medium">
+                      <Link
+                        to="/projects/$project/$plural/$name"
+                        params={{ project, plural: "endpoints", name: endpoint.metadata.name }}
+                        className="focus-ring font-medium text-primary-soft-fg underline-offset-2 hover:underline"
+                      >
                         {localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
-                      </div>
+                      </Link>
                       <div className="font-mono text-caption text-fg-subtle">
                         {endpoint.metadata.title ? endpoint.metadata.name : null}
                         {policyRefs
