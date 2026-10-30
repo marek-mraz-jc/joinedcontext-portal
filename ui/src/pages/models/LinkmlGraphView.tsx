@@ -81,7 +81,7 @@ const MINIMAP = 160;
 const MINIMAP_ROW = 56;
 const ARROWS: readonly string[] = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
 /** The opacity of what lies outside a focus or a path: still there to place it, not in the way. */
-const FADED = 0.2;
+const FADED = 0.3;
 /** An attribute the picked Endpoint does not serve, on a class it does. */
 const UNSERVED = 0.35;
 /**

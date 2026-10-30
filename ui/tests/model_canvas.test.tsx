@@ -184,7 +184,7 @@ describe("the canvas page", () => {
     expect(await screen.findByText("1 class of 4 is reached; the rest is faded.")).toBeInTheDocument();
     const station = screen.getByRole("button", { name: en.models.graph.openClass.replace("{name}", "BikeHireDockingStation") });
     expect(station).not.toHaveAttribute("opacity");
-    expect(screen.getByRole("button", { name: en.models.graph.openClass.replace("{name}", "Operator") })).toHaveAttribute("opacity", "0.2");
+    expect(screen.getByRole("button", { name: en.models.graph.openClass.replace("{name}", "Operator") })).toHaveAttribute("opacity", "0.3");
     expect(station.querySelectorAll('[data-served="false"]')).toHaveLength(1);
 
     await userEvent.click(station);

@@ -722,16 +722,26 @@ test.describe("the model canvas (T-6094)", () => {
     // The shot waits for the tab underline's colour transition and the pointer's hover to end.
     await page.mouse.move(700, 450);
     await expect(page.getByRole("tab", { name: "Main" })).toHaveCSS("border-bottom-color", "rgba(0, 0, 0, 0)");
+    // One class fits the frame: no minimap, whose viewport box was a solid grey block (T-6164).
+    await expect(page.getByTestId("diagram-minimap")).toHaveCount(0);
     await shot(page, "canvas-personal-1440");
     await page.getByRole("tab", { name: "Main" }).click();
 
     const overlay = page.getByLabel("Show what serves the classes");
     const lit = async (expected: string[]) => {
       for (const name of ["Place", "BikeHireDockingStation", "Event", "Organization", "Dataset", "DataService", "Distribution"]) {
-        if (expected.includes(name)) await expect(opened(page, name)).not.toHaveAttribute("opacity", "0.2");
-        else await expect(opened(page, name)).toHaveAttribute("opacity", "0.2");
+        if (expected.includes(name)) await expect(opened(page, name)).not.toHaveAttribute("opacity", "0.3");
+        else await expect(opened(page, name)).toHaveAttribute("opacity", "0.3");
       }
     };
+    // The how-to is a ? beside the label (T-6164): the header holds no paragraph under the pick.
+    await expect(page.getByRole("tooltip")).toHaveClass(/sr-only/);
+    await page.getByRole("button", { name: "How the highlight works" }).hover();
+    await expect(page.getByRole("tooltip")).not.toHaveClass(/sr-only/);
+    await expect(overlay).toHaveAccessibleDescription(/Pick an Endpoint \(e\.g\. helsinki-bikes\)/);
+    await shot(page, "canvas-hint-1440");
+    await page.mouse.move(700, 450);
+    await expect(page.getByRole("tooltip")).toHaveClass(/sr-only/);
     await overlay.selectOption("endpoint:helsinki-bikes");
     await expect(page.getByText("1 class of 8 is reached; the rest is faded.")).toBeVisible();
     await lit(["BikeHireDockingStation"]);
@@ -772,12 +782,22 @@ test.describe("the model canvas (T-6094)", () => {
     await classes.getByRole("button", { name: /Dataset/ }).first().click();
     await expect(page.getByRole("table", { name: "Fields of Dataset" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(400);
+    // Each card holds its name and its badge line: a card cut to one control's height overlapped the next (T-6164).
+    const card = await classes.getByRole("button", { name: /Dataset/ }).first().boundingBox();
+    expect(card?.height ?? 0).toBeGreaterThan(48);
     await shot(page, "canvas-list-400");
     await page.getByRole("button", { name: "Show diagram" }).click();
     await expect(opened(page, "Dataset")).toBeVisible();
     // The canvas opens on the first class the overlay lights, not on a faded one (T-6094 UI judge).
     await shot(page, "canvas-diagram-400");
     await expect(page.getByTestId("diagram-badge-Dataset")).toBeInViewport();
+    // A press on a box on the phone canvas brings its details into view (T-6164).
+    await opened(page, "Dataset").click();
+    const details = page.getByRole("heading", { level: 2, name: "Dataset" });
+    await expect(details).toBeFocused();
+    await expect(details).toBeInViewport({ ratio: 1 });
+    await expect(page.getByRole("table", { name: "Fields of Dataset" })).toBeInViewport();
+    await shot(page, "canvas-diagram-details-400", false);
   });
 });
 

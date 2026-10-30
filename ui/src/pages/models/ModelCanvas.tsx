@@ -172,7 +172,7 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
     setSelected(klass);
     if (typeof window === "undefined" || window.matchMedia?.("(min-width: 1024px)").matches !== false) return;
     window.requestAnimationFrame(() => {
-      details.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+      details.current?.scrollIntoView?.({ block: "start" });
       details.current?.focus({ preventScroll: true });
     });
   };
@@ -231,13 +231,15 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
                 keeps its next step in sight below. */}
             {ofSpace.length > 0 ? (
               <>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="xs"
                   data-testid="model-canvas-overlay-help"
                   aria-label={t("models.canvas.overlayHelp")}
+                  title={t("models.canvas.overlayHelp")}
                   aria-describedby={hintId}
                   aria-expanded={hintOpen}
-                  className="focus-ring inline-flex size-5 items-center justify-center rounded-full text-fg-muted hover:bg-surface-muted hover:text-fg"
+                  className="px-1 text-fg-muted"
                   onClick={() => setHintOpen(true)}
                   onMouseEnter={() => setHintOpen(true)}
                   onMouseLeave={() => setHintOpen(false)}
@@ -250,13 +252,13 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
                   }}
                 >
                   <Icon name="help" className="size-4" aria-hidden="true" />
-                </button>
+                </Button>
                 <span
                   id={hintId}
                   role="tooltip"
                   className={
                     hintOpen
-                      ? "absolute left-0 top-full z-50 mt-1 w-72 max-w-[calc(100vw-2rem)] rounded-md border border-border bg-surface p-2 text-caption font-normal text-fg shadow-2"
+                      ? "absolute left-0 top-full z-50 mt-1 w-72 rounded-md border border-border bg-surface p-2 text-caption font-normal text-fg shadow-2"
                       : "sr-only"
                   }
                 >
@@ -324,7 +326,7 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col max-sm:flex-none lg:flex-row">
         <section aria-label={t("models.canvas.diagram")} className={`${diagramOnPhone ? "" : "max-sm:hidden"} flex min-h-0 min-w-0 flex-1 flex-col p-2 max-sm:min-h-160`}>
           {source.data === undefined ? (
             <p role="status" className="text-body text-fg-muted">
@@ -361,7 +363,7 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
 
         <aside
           aria-labelledby="model-canvas-details"
-          className="flex min-h-0 flex-col gap-3 overflow-auto border-border p-4 max-lg:border-t lg:w-88 lg:border-l"
+          className="flex min-h-0 flex-col gap-3 overflow-auto border-border p-4 max-lg:border-t max-sm:overflow-visible lg:w-88 lg:border-l"
         >
           <h2 id="model-canvas-details" ref={details} tabIndex={-1} className="focus-ring scroll-mt-2 rounded-sm text-body font-semibold">
             {picked ? localized(picked.title, i18n.language, picked.name) : t("models.canvas.details")}
@@ -438,7 +440,7 @@ function ClassList({
               variant="secondary"
               aria-pressed={klass.name === selected}
               onClick={() => onSelect(klass.name)}
-              className={`h-auto w-full flex-wrap justify-start p-3 text-left ${klass.name === selected ? "border-primary" : ""} ${highlight && !highlight.has(klass.name) ? "opacity-50" : ""}`}
+              className={`h-auto! w-full flex-wrap justify-start p-3 text-left ${klass.name === selected ? "border-primary" : ""} ${highlight && !highlight.has(klass.name) ? "opacity-50" : ""}`}
             >
               <span className="w-full min-w-0 font-mono text-body font-medium [overflow-wrap:anywhere]">{klass.name}</span>
               <Badge tone={areas.get(klass.name) === PERSONAL_AREA ? "danger" : "neutral"}>{areaLabel(areas.get(klass.name), t)}</Badge>
