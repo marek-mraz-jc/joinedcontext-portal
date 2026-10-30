@@ -584,6 +584,7 @@
       "noTypes": "Datový model {model} nedefinuje žádný typ entity.",
       "readThrough": "čteno přes endpoint {endpoint}",
       "noEndpoint": "počty potřebují veřejný endpoint nebo endpoint bez politiky",
+      "sampleSize": "Velikost této entity v JSON: {bytes}",
       "noEntities": "Zatím žádná entita tohoto typu.",
       "notReadable": "nelze číst anonymně",
       "noEndpoints": "Prostor zatím nemá endpoint.",

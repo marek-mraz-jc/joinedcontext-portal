@@ -9,7 +9,7 @@ import type { FilterColumn, FilterGroup, GridState, RichRow } from "@joinedconte
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "../../api/client";
-import { bytesOfType, exactBytes, sizeText, spaceUsageQuery, usageRefusal } from "../../api/spaceUsage";
+import { bytesOfType, entityBytes, exactBytes, sizeText, spaceUsageQuery, usageRefusal } from "../../api/spaceUsage";
 import type { SpaceUsage } from "../../api/spaceUsage";
 import { asManifests, localized, refName } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
@@ -253,7 +253,9 @@ function TypeRow({
           </Button>
         </span>
       ) : (
-        <span className="text-fg-muted">
+        // in the page's text face and caption size: a monospace sentence in the count column ran
+        // three lines and pushed the size off a phone's screen (T-6145)
+        <span className="inline-block max-w-44 font-sans text-caption text-fg-muted">
           {status === 403 || status === 404 || status === 401
             ? t("spaces.inside.notReadable")
             : t("app.error.generic")}
@@ -265,11 +267,12 @@ function TypeRow({
 
   return (
     <TableRow>
-      <TableCell className="font-mono">
+      {/* a long type name breaks where it must, so the size column stays on a phone's screen */}
+      <TableCell className="font-mono [overflow-wrap:anywhere]">
         <TypeLink project={project} type={type} space={space} />
       </TableCell>
       <TableCell align="right" className="font-mono">{count}</TableCell>
-      <TableCell align="right" secondary className="tabular-nums">
+      <TableCell align="right" className="whitespace-nowrap tabular-nums">
         {bytes === undefined ? (
           <span className="text-fg-subtle">—</span>
         ) : (
@@ -282,6 +285,7 @@ function TypeRow({
             {inside.data.samples.map((entity) => (
               <li key={entity.id} className="text-caption">
                 <EntityId id={entity.id} />
+                <SampleSize bytes={entityBytes(entity)} />
                 {summarize(entity, i18n.language) ? (
                   <span className="ml-2 text-fg-subtle">{summarize(entity, i18n.language)}</span>
                 ) : null}
@@ -293,6 +297,20 @@ function TypeRow({
         ) : null}
       </TableCell>
     </TableRow>
+  );
+}
+
+/** One sample entity's size beside its id, read aloud with its label (T-6145). */
+function SampleSize({ bytes }: { bytes: number }): JSX.Element {
+  const { t, i18n } = useTranslation();
+  return (
+    <span
+      className="ml-2 tabular-nums text-fg-muted"
+      title={t("spaces.inside.sampleSize", { bytes: exactBytes(bytes, i18n.language) })}
+    >
+      <span className="sr-only">{t("spaces.inside.size")}: </span>
+      {sizeText(bytes, i18n.language)}
+    </span>
   );
 }
 
@@ -2135,8 +2153,8 @@ export function SpaceInside({ project, name }: { project: string; name: string }
               <TableHead>
                 <TableHeaderCell>{t("spaces.inside.type")}</TableHeaderCell>
                 <TableHeaderCell align="right">{t("spaces.inside.count")}</TableHeaderCell>
-                <TableHeaderCell align="right" secondary>{t("spaces.inside.size")}</TableHeaderCell>
-                {/* A phone keeps the type and its count (UI-27): the samples squeezed to a letter
+                <TableHeaderCell align="right">{t("spaces.inside.size")}</TableHeaderCell>
+                {/* A phone keeps the type, its count and size (UI-27, T-6145): the samples squeezed to a letter
                     a line ran 800 px down the page (T-4265, photo audit T-4160 #5). */}
                 <TableHeaderCell secondary>{t("spaces.inside.samples")}</TableHeaderCell>
               </TableHead>
@@ -2401,8 +2419,9 @@ function SpaceTotal({ usage }: { usage: UseQueryResult<SpaceUsage> }): JSX.Eleme
     );
   }
   return (
-    <footer className="border-t border-border pt-2 text-body text-fg-muted" data-testid="space-total" role="status">
+    // a div: a footer may not carry role="status" (axe aria-allowed-role, T-6145)
+    <div className="border-t border-border pt-2 text-body text-fg-muted" data-testid="space-total" role="status">
       {usage.isError ? t("spaces.entitiesUnknown", { reason: usageRefusal(usage.error) }) : t("spaces.inside.counting")}
-    </footer>
+    </div>
   );
 }
