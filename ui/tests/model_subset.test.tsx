@@ -8,7 +8,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { expectDenied } from "./checks";
 import { ModelSubsetPicker } from "../src/pages/models/ModelSubsetPicker";
-import { parseModel, effectiveSlots } from "../src/pages/models/linkml";
+import { parseModel, effectiveSlots, slotOrigins } from "../src/pages/models/linkml";
 import { EMPTY_SUBSET, subsetProblems, subsetSource, wholeSubset } from "../src/pages/models/subset";
 import type { Subset } from "../src/pages/models/subset";
 
@@ -188,6 +188,18 @@ slots:
   it("answers the parent's and the mixins' slots before its own", () => {
     const klass = model.classes.find((one) => one.name === "AirQualityObserved");
     expect(effectiveSlots(model, klass!)).toEqual(["id_", "createdAt", "observedAt", "pm10"]);
+  });
+
+  it("names the class each slot comes from, the class itself for one it redeclares (T-6106)", () => {
+    const klass = model.classes.find((one) => one.name === "AirQualityObserved")!;
+    expect([...slotOrigins(model, klass)]).toEqual([
+      ["id_", "Entity"],
+      ["createdAt", "Entity"],
+      ["observedAt", "Timed"],
+      ["pm10", "AirQualityObserved"],
+    ]);
+    const redeclared = { ...klass, slots: ["pm10", "createdAt"] };
+    expect(slotOrigins(model, redeclared).get("createdAt")).toBe("AirQualityObserved");
   });
 
   it("answers a class with no hierarchy exactly its own slots", () => {

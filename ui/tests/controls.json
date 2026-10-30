@@ -1583,9 +1583,17 @@
         "part_linkml_preview_panel.test.tsx"
       ]
     },
+    "src/pages/models/LinkmlSourceEditor.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "linkml_source_editor.test.tsx"
+      ]
+    },
     "src/pages/models/LinkmlVisualEditor.tsx": {
       "controls": {
-        "Button": 11,
+        "Button": 13,
         "Checkbox": 3
       },
       "tests": [
@@ -1686,7 +1694,7 @@
     "src/pages/models/SmartDataModelsImport.tsx": {
       "controls": {
         "button": 1,
-        "Button": 10,
+        "Button": 11,
         "Checkbox": 1,
         "RadioGroup": 1
       },

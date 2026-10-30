@@ -7,7 +7,7 @@ import { api, unwrap } from "../../api/client";
 import { isSeq, parseDocument } from "yaml";
 import { edit, parseModel } from "./linkml";
 import type { Artifacts } from "./LinkmlPreviewPanel";
-import { CodeBlock, Alert, Button, Checkbox, Field, Input, RadioGroup, Select, Skeleton, safeHref } from "../../components/ui";
+import { CodeBlock, Alert, Button, Checkbox, EmptyState, Field, Input, RadioGroup, Select, Skeleton, safeHref } from "../../components/ui";
 
 /**
  * The primary path into a model: take an official Smart Data Model and adapt it (DM-07).
@@ -130,6 +130,15 @@ export function withAttributes(source: string, className: string, added: AddedAt
  * The upstream model the import came from, pinned to its commit (DM-08): the repository, path and
  * commit the importer writes as the model's annotations, as an address a person can open.
  */
+/**
+ * On a phone the preview sits under the catalogue, below the dialog's fold: a refusal that
+ * appears there scrolls into view, or the person sees nothing happen (T-6106). A stable
+ * callback ref runs once per mount.
+ */
+function revealOnMount(node: HTMLDivElement | null): void {
+  node?.scrollIntoView?.({ block: "start" });
+}
+
 export function originOf(source: string): { href: string; commit: string } | undefined {
   const document = parseDocument(source);
   const annotation = (key: string): string | undefined => {
@@ -378,7 +387,32 @@ export function SmartDataModelsImport({
           </Button>
         ) : null}
         {!catalogue.isLoading && !catalogue.isError && visible.length === 0 ? (
-          <p className="text-body text-fg-muted">{t("models.sdm.noMatches")}</p>
+          subjects.length === 0 ? (
+            <EmptyState
+              className="py-6"
+              icon="models"
+              title={t("models.sdm.emptyCatalogue")}
+              description={t("models.sdm.emptyCatalogueHint")}
+            />
+          ) : (
+            <EmptyState
+              className="py-6"
+              icon="search"
+              title={t("models.sdm.noMatches")}
+              description={t("models.sdm.noMatchesHint")}
+              action={
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setSearch("");
+                    setSubject("");
+                  }}
+                >
+                  {t("models.sdm.clearSearch")}
+                </Button>
+              }
+            />
+          )
         ) : null}
       </section>
 
@@ -395,6 +429,7 @@ export function SmartDataModelsImport({
           // Model Tools timing out is the ordinary failure here, and selecting the model again
           // to retry is a step nobody should have to know about (T-1109).
           <Alert
+            ref={revealOnMount}
             tone="danger"
             role="status"
             actions={
@@ -409,6 +444,7 @@ export function SmartDataModelsImport({
           // Model Tools answers a model it cannot convert with 200 and `errors` (T-6101): the
           // person has to read why, not watch a loading line that never ends.
           <Alert
+            ref={revealOnMount}
             tone="danger"
             role="alert"
             actions={

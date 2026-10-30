@@ -213,14 +213,18 @@ describe("Smart Data Models import wizard", () => {
   /// read only `linkml` and showed "Fetching the upstream model..." for good.
   it("says in words why a catalogue model cannot be imported, instead of loading for ever", async () => {
     const { user } = renderWizard({ previewErrors: ["garden: duplicate key"] });
+    // T-6106: at 400 px the refusal sits below the dialog's fold, so it scrolls into view.
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
 
     await user.click(await screen.findByRole("button", { name: /AirQualityObserved/ }));
 
     const alert = await screen.findByRole("alert");
+    expect(scrolled.mock.contexts).toContain(alert);
     expect(alert).toHaveTextContent(en.models.sdm.importRefused.replace("{name}", "AirQualityObserved"));
     expect(alert).toHaveTextContent("garden: duplicate key");
     expect(screen.queryByText(en.models.sdm.loading)).not.toBeInTheDocument();
-    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
   });
 
   /// T-1107: a model of the catalogue can carry two hundred attributes.
@@ -378,6 +382,24 @@ describe("Smart Data Models import wizard", () => {
     expect(await screen.findByText(en.models.sdm.unavailable)).toBeInTheDocument();
     expect(screen.queryByText(en.models.sdm.noMatches)).not.toBeInTheDocument();
     expect(screen.queryByText(en.models.sdm.catalogueLoading)).not.toBeInTheDocument();
+  });
+
+  // T-6106: an empty list says what to do next, and a search that finds nothing can be cleared.
+  it("says what to do when the search finds nothing, clears it, and names an empty catalogue apart", async () => {
+    const { user } = renderWizard();
+    expect(await screen.findByText(/^\d+ models?$/)).toBeInTheDocument();
+    await user.type(screen.getByLabelText(en.models.sdm.search), "zzz-nothing");
+    expect(await screen.findByText(en.models.sdm.noMatchesHint)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: en.models.sdm.clearSearch }));
+    expect(screen.getByLabelText(en.models.sdm.search)).toHaveValue("");
+    expect(screen.queryByText(en.models.sdm.noMatches)).not.toBeInTheDocument();
+  });
+
+  it("calls an empty catalogue empty, with the refresh and the file drop as next steps", async () => {
+    renderWizard({ catalogue: { subjects: [] } });
+    expect(await screen.findByText(en.models.sdm.emptyCatalogue)).toBeInTheDocument();
+    expect(screen.getByText(en.models.sdm.emptyCatalogueHint)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.models.sdm.clearSearch })).not.toBeInTheDocument();
   });
 
   // UI-16, DM-11 (T-1851): keeping 8 attributes of 46 must not take 38 clicks.

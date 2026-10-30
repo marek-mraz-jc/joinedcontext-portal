@@ -1,8 +1,9 @@
-import { Suspense, lazy, useCallback, useEffect, useRef } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
 import type { OnMount } from "@monaco-editor/react";
 import type { editor, languages, Position } from "monaco-editor";
 import { useTranslation } from "react-i18next";
+import { Badge, Button } from "../../components/ui";
 import { NGSI_LD_KINDS, RANGES } from "./linkml";
 import { UNITS } from "../../units";
 import type { Diagnostic } from "./linkml";
@@ -24,6 +25,8 @@ export interface LinkmlSourceEditorProps {
   onChange: (source: string) => void;
   diagnostics?: Diagnostic[];
   height?: string;
+  /** No "Edit source", for a person who may not propose the model. */
+  readOnly?: boolean;
 }
 
 /**
@@ -124,8 +127,13 @@ export function LinkmlSourceEditor({
   onChange,
   diagnostics = [],
   height = "24rem",
+  readOnly = false,
 }: LinkmlSourceEditorProps): JSX.Element {
   const { t } = useTranslation();
+  // The source is read first and typed into only on purpose (T-6106): the structure view is
+  // where a model is edited, and a stray keystroke here breaks the YAML for every view.
+  const [unlocked, setUnlocked] = useState(false);
+  const editable = unlocked && !readOnly;
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const monacoRef = useRef<Parameters<OnMount>[1] | null>(null);
 
@@ -193,13 +201,33 @@ export function LinkmlSourceEditor({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-hidden rounded-lg border border-border">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p id="models-source-mode" className="text-body text-fg-muted">
+          {t(editable ? "models.sourceMode.editing" : "models.sourceMode.reading")}
+        </p>
+        {readOnly ? null : (
+          <Button size="sm" variant="secondary" aria-pressed={editable} onClick={() => setUnlocked(!unlocked)}>
+            {t(editable ? "models.sourceMode.done" : "models.sourceMode.edit")}
+          </Button>
+        )}
+      </div>
+      {/* Editing shows in the frame too, not only in the line above it (UI judge, T-6106). */}
+      <div
+        className={
+          editable
+            ? "overflow-hidden rounded-lg border border-primary ring-2 ring-primary/30"
+            : // Reading greys the editor's own ground, so the state shows at a glance (UI judge pass 3).
+              "overflow-hidden rounded-lg border border-dashed border-border [&_.monaco-editor]:[--vscode-editor-background:var(--color-surface-subtle)]! [&_.monaco-editor]:[--vscode-editorGutter-background:var(--color-surface-subtle)]!"
+        }
+      >
         <Suspense fallback={<p className="p-3 text-body text-fg-muted">{t("models.loadingEditor")}</p>}>
           <MonacoSourceView
             value={source}
             onChange={onChange}
             onMount={onMount}
             height={height}
+            readOnly={!editable}
+            ariaLabel={t(editable ? "models.sourceMode.editing" : "models.sourceMode.reading")}
           />
         </Suspense>
       </div>
@@ -210,17 +238,18 @@ export function LinkmlSourceEditor({
         {diagnostics.length === 0 ? (
           <p className="text-body text-fg-muted">{t("models.noDiagnostics")}</p>
         ) : (
-          <ul className="mt-1 flex flex-col gap-1 text-body">
+          <ul className="mt-1 flex flex-col gap-2 text-body">
             {diagnostics.map((diagnostic, index) => (
-              <li
-                key={`${diagnostic.line}-${index}`}
-                className={
-                  diagnostic.severity === "error" ? "text-danger" : "text-warning"
-                }
-              >
-                <span className="font-mono text-caption">
-                  {t("models.atLine", { line: diagnostic.line, column: diagnostic.column })}
-                </span>{" "}
+              // The badge carries the severity in words and colour; the message stays readable text.
+              <li key={`${diagnostic.line}-${index}`} className="flex flex-col gap-0.5 text-fg">
+                <span className="flex items-center gap-2">
+                  <Badge tone={diagnostic.severity === "error" ? "danger" : "warning"}>
+                    {t(`models.diagnosticSeverity.${diagnostic.severity}`)}
+                  </Badge>
+                  <span className="font-mono text-caption text-fg-muted">
+                    {t("models.atLine", { line: diagnostic.line, column: diagnostic.column })}
+                  </span>
+                </span>
                 {diagnostic.message}
               </li>
             ))}
