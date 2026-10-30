@@ -2321,16 +2321,35 @@ export function SpaceInside({ project, name }: { project: string; name: string }
 function OneLine({ text }: { text: string }): JSX.Element {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  // Phrasing content only: PageHeader puts it inside its description <p>.
-  return (
+  // More only when the one line cuts the text at this width; opened, the text stays open.
+  const [cut, setCut] = useState(false);
+  const line = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const element = line.current;
+    if (!element || open) return;
+    const measure = () => setCut(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    return () => observer?.disconnect();
+  }, [open, text]);
+  const toggle =
+    cut || open ? (
+      <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {open ? t("spaces.inside.less") : t("spaces.inside.more")}
+      </Button>
+    ) : null;
+  // Phrasing content only: PageHeader puts it inside its description <p>. Open, Less follows the text's last word.
+  return open ? (
+    <span>
+      {text} {toggle}
+    </span>
+  ) : (
     <span className="flex items-baseline gap-2">
-      <span className={clsx("min-w-0", !open && "line-clamp-1")}>{text}</span>
-      {/* About what a phone line holds: a shorter text never needs opening. */}
-      {text.length > 40 ? (
-        <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>
-          {open ? t("spaces.inside.less") : t("spaces.inside.more")}
-        </Button>
-      ) : null}
+      <span ref={line} className="min-w-0 line-clamp-1">
+        {text}
+      </span>
+      {toggle}
     </span>
   );
 }

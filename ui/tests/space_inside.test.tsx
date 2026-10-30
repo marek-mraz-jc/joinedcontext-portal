@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -673,12 +673,20 @@ describe("the space's own data", () => {
       space: { ...SPACE, metadata: { ...SPACE.metadata, description: { en: description } } },
     });
     expect(await screen.findByRole("button", { name: "ovzdusie" })).toHaveAttribute("title", "ovzdusie");
-    const text = screen.getByText(description);
-    expect(text).toHaveClass("line-clamp-1");
-    const more = screen.getByRole("button", { name: en.spaces.inside.more });
+    expect(screen.getByText(description)).toHaveClass("line-clamp-1");
+    // jsdom lays nothing out: the line cuts nothing, so there is nothing to open (T-6138).
+    expect(screen.queryByRole("button", { name: en.spaces.inside.more })).toBeNull();
+    cleanup();
+    // A line the clamp cuts offers More.
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(40);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(20);
+    renderInside({ status: 200, count: 1 }, { status: 200 }, {
+      space: { ...SPACE, metadata: { ...SPACE.metadata, description: { en: description } } },
+    });
+    const more = await screen.findByRole("button", { name: en.spaces.inside.more });
     expect(more).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(more);
-    expect(text).not.toHaveClass("line-clamp-1");
+    expect(screen.getByText(description, { exact: false })).not.toHaveClass("line-clamp-1");
     expect(screen.getByRole("button", { name: en.spaces.inside.less })).toHaveAttribute("aria-expanded", "true");
     // The walker reads the purpose line as the h1's next sibling <p> (T-6138).
     expect(screen.getByRole("heading", { level: 1 }).nextElementSibling?.tagName).toBe("P");
