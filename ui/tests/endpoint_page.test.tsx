@@ -257,8 +257,6 @@ describe("the endpoint's own settings page", () => {
 
     expect(await screen.findByRole("heading", { name: "Air quality, open" })).toBeInTheDocument();
     for (const section of [
-      en.endpoints.page.whatItIs,
-      en.endpoints.page.whatItAnswers,
       en.endpoints.page.filtering,
       en.endpoints.page.whoMayCall,
       en.endpoints.page.traffic,
@@ -266,23 +264,13 @@ describe("the endpoint's own settings page", () => {
       expect(screen.getByRole("heading", { name: section })).toBeInTheDocument();
     }
 
-    // What it is: the space it publishes, who it admits, and the address a caller uses.
-    expect(screen.getByRole("link", { name: "ovzdusie" })).toBeInTheDocument();
-    expect(screen.getByText(en.endpoints.audience["project-list"])).toBeInTheDocument();
-    // Named among the facts and again where the share is managed (T-3275).
+    // The share is managed further down (T-3275).
     expect(screen.getAllByText("kosice").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole("heading", { name: en.endpoints.shareFlow.section })).toBeInTheDocument();
-    expect(screen.getByText(`${window.location.origin}/api/endpoint/${SLUG}`)).toBeInTheDocument();
 
-    // What it answers, and what it keeps back.
+    // What it answers is one row of links under the header (owner 2026-10-30).
     expect(screen.getByRole("link", { name: "ngsi-ld" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "csv" })).toBeInTheDocument();
-    // Read in its own section: the filter editor further down names the type as well (T-2776).
-    const answers = screen
-      .getByRole("heading", { name: en.endpoints.page.whatItAnswers })
-      .closest("section") as HTMLElement;
-    expect(within(answers).getByText("AirQualityObserved")).toBeInTheDocument();
-    expect(within(answers).getByText("reportedBy")).toBeInTheDocument();
 
     // Who may call it: the policy the URN names, what it grants, and to whom (T-2282, GW34).
     expect(screen.getByRole("link", { name: "readers" })).toBeInTheDocument();
@@ -294,8 +282,9 @@ describe("the endpoint's own settings page", () => {
     expect(screen.getByText("A caller may cache an answer for 60 seconds.")).toBeInTheDocument();
     expect(screen.getByText("At most 50000 rows in a file")).toBeInTheDocument();
 
-    // A change is proposed and reviewed, said before the first control (PF-57).
-    expect(screen.getByText(en.endpoints.page.proposedNotice)).toBeInTheDocument();
+    // The owner took the review sentence and the fact sections off the page (2026-10-30).
+    expect(screen.queryByText(en.endpoints.page.proposedNotice)).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: en.endpoints.page.whatItIs })).not.toBeInTheDocument();
   });
 
   it("offers the one connector for every endpoint, never this endpoint's own slug in it (T-4114, EP-113)", async () => {
@@ -305,33 +294,6 @@ describe("the endpoint's own settings page", () => {
     ) as HTMLElement;
     expect(within(panel).getByText(`${window.location.origin}/api/mcp`, { selector: "code" })).toBeInTheDocument();
     expect(panel.textContent).not.toContain(SLUG);
-  });
-
-  it("shows one first call a newcomer can make, with a token only where the endpoint needs one (T-3212)", async () => {
-    renderPage();
-
-    const answers = (
-      await screen.findByRole("heading", { name: en.endpoints.page.whatItAnswers })
-    ).closest("section") as HTMLElement;
-    const url = `${window.location.origin}/api/endpoint/${SLUG}/ngsi-ld/v1/entities?type=AirQualityObserved&limit=5`;
-    await waitFor(() =>
-      expect(within(answers).getByRole("link", { name: en.endpoints.page.firstCallOpen })).toHaveAttribute(
-        "href",
-        url,
-      ),
-    );
-    // Not public: the command names the token a program sends, never a real one.
-    expect(
-      within(answers).getByText(
-        `curl -H 'Accept: application/ld+json' -H "Authorization: Bearer $TOKEN" '${url}'`,
-      ),
-    ).toBeInTheDocument();
-    expect(within(answers).getByText(en.endpoints.page.firstCallToken)).toBeInTheDocument();
-
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
-    await userEvent.click(within(answers).getByRole("button", { name: en.endpoints.page.firstCallCopy }));
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining(url));
   });
 
   it("reads the filtering from the named projection it publishes through", async () => {
@@ -566,8 +528,6 @@ describe("the endpoint's own settings page", () => {
 
     expect(await screen.findByText(en.endpoints.page.noProjection)).toBeInTheDocument();
     expect(screen.queryByText(en.endpoints.filter.qHelp)).not.toBeInTheDocument();
-    // Without a projection the types are the space's own, not an empty list pretending to be none.
-    expect(screen.getByText(en.endpoints.page.everyTypeOfTheSpace)).toBeInTheDocument();
   });
 
   it("links Your access here to the Data access table opened on this endpoint (T-5593)", async () => {

@@ -215,15 +215,15 @@ describe("portal shell", () => {
     await user.click(screen.getByRole("button", { name: "Projects" }));
 
     const items = await screen.findAllByRole("menuitem");
-    // The sample says so in words beside its name (PF-109).
-    expect(items.map((item) => item.textContent)).toEqual(["helsinki", "banskabystrica Sample"]);
+    // Every row the same, no sample badge (owner 2026-10-30).
+    expect(items.map((item) => item.textContent?.trim())).toEqual(["helsinki", "banskabystrica"]);
 
-    await user.click(screen.getByRole("menuitem", { name: "banskabystrica Sample" }));
+    await user.click(screen.getByRole("menuitem", { name: "banskabystrica" }));
 
     await waitFor(() => {
       expect(window.location.pathname).toBe("/projects/banskabystrica/home");
     });
-    expect(screen.getByRole("button", { name: "Projects" })).toHaveTextContent("banskabystrica Sample");
+    expect(screen.getByRole("button", { name: "Projects" })).toHaveTextContent("banskabystrica");
     const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
     expect(within(crumbs).getByRole("link", { name: "banskabystrica" })).toBeInTheDocument();
     await waitFor(() => {

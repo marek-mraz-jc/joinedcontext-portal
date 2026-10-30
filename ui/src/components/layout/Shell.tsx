@@ -16,12 +16,11 @@ import { CommandPalette } from "../../navigation/CommandPalette";
 import { PageTools } from "../../navigation/PageTools";
 import { useAuth } from "../../auth/AuthProvider";
 import { localized } from "../../api/manifest";
-import { lastAddress, rememberAddress, rememberProject, useOrganizations, useProjects, useProjectTitles, useSampleProjects } from "../../api/projects";
+import { lastAddress, rememberAddress, rememberProject, useOrganizations, useProjects, useProjectTitles } from "../../api/projects";
 import { useAdministers } from "../../api/permissions";
 import { useBranding, useHiddenSections } from "../../branding";
 import {
   Alert,
-  Badge,
   Button,
   buttonClass,
   Icon,
@@ -48,7 +47,6 @@ export { BrandMark, navLinkClass };
 function ProjectSelector({ active }: { active: string }) {
   const { t } = useTranslation();
   const known = useProjects().data ?? [];
-  const samples = useSampleProjects().data ?? [];
   const titleOf = useProjectTitles();
   // With several Organizations the list is the chosen one's (PF-124); the active project stays.
   const organization = useChosenOrganization(active);
@@ -82,12 +80,9 @@ function ProjectSelector({ active }: { active: string }) {
           <span className="min-w-0 flex-1">
             <span className="block truncate text-body font-semibold text-fg">{titleOf(active)}</span>
             {/* The slug under the title, the name every path and manifest uses (T-4243). */}
-            {titleOf(active) !== active || samples.includes(active) ? (
-              <span className="block truncate text-caption text-fg-muted">
-                {titleOf(active) !== active ? <span className="font-mono">{active}</span> : null}
-                {samples.includes(active) ? <> {t("home.sample.badge")}</> : null}
-              </span>
-            ) : null}
+            <span aria-hidden={titleOf(active) === active || undefined} className="block truncate font-mono text-caption text-fg-muted">
+              {titleOf(active) !== active ? active : "\u00a0"}
+            </span>
           </span>
           <Icon name="chevronDown" className="size-4 text-fg-subtle" />
         </Button>
@@ -102,15 +97,18 @@ function ProjectSelector({ active }: { active: string }) {
               {...switchTo(project)}
               aria-current={project === active ? "true" : undefined}
             >
-              {project === active ? <Icon name="check" className="size-4" /> : <span className="size-4" />}
-              <span className="min-w-0">
+              {project === active ? <Icon name="check" className="size-4 shrink-0" /> : <span className="size-4 shrink-0" />}
+              {/* Every row the same two lines: the title, then the slug every path uses (owner 2026-10-30). */}
+              <span className="min-w-0 flex-1">
                 <span className="block truncate">{titleOf(project)}</span>
-                {titleOf(project) !== project ? (
-                  <span className="block truncate font-mono text-caption text-fg-muted">{project}</span>
-                ) : null}
+                {/* Without a title the slug is the first line, and the second keeps the row's height. */}
+                <span
+                  aria-hidden={titleOf(project) === project || undefined}
+                  className="block truncate font-mono text-caption text-fg-muted"
+                >
+                  {titleOf(project) !== project ? project : "\u00a0"}
+                </span>
               </span>
-              {/* A space, so the name is read as two words, not one ("banskabystricaSample"). */}
-              {samples.includes(project) ? <> <Badge tone="info">{t("home.sample.badge")}</Badge></> : null}
             </Link>
           </MenuItem>
         ))}
