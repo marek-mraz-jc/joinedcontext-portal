@@ -3118,6 +3118,13 @@
         "minutes": "{count} minutes",
         "hours": "{count} hours"
       },
+      "say": {
+        "minutes": "Every {count} minutes",
+        "hours": "Every {count} hours, at minute {minute}",
+        "hourly": "Every hour, at minute {minute}",
+        "daily": "Every day at {time} UTC",
+        "weekly": "Every {weekday} at {time} UTC"
+      },
       "atMinute": "At minute",
       "on": "On",
       "atTime": "At (UTC)",

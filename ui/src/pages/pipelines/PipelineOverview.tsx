@@ -17,7 +17,7 @@ import { ResourcePageFailed } from "../../components/ui/PageState";
 import { Alert, Badge, Button, PageHeader, SourceLink } from "../../components/ui";
 import { TypeLink } from "../models/ModelLinks";
 import { ago } from "../apps/CatalogCards";
-import { nextRuns, parseCron } from "./cron";
+import { nextRuns, parseCron, scheduleWords } from "./cron";
 import { endpointUrn } from "./PipelineEditor";
 import { PipelineRejectedDialog } from "./PipelineRejected";
 import { PipelineAccessRequests } from "./AccessRequests";
@@ -370,6 +370,7 @@ export function PipelineOverview({ project, name }: { project: string; name: str
     (condition) => condition.type === "StreamWriting" && condition.status === "False",
   );
   const refusedRecords: Rejected[] = rejected.data?.items ?? [];
+  const scheduleText = spec.schedule ? scheduleWords(spec.schedule, t, locale) : undefined;
 
   return (
     <div className="flex flex-col gap-section">
@@ -470,7 +471,10 @@ export function PipelineOverview({ project, name }: { project: string; name: str
           </Fact>
           <Fact label={t("pipelines.field.schedule")}>
             {spec.schedule ? (
-              <span className="font-mono">{spec.schedule}</span>
+              // In words when the cron says one of the form's choices; the cron itself on hover.
+              <span title={spec.schedule} className={scheduleText ? undefined : "font-mono"}>
+                {scheduleText ?? spec.schedule}
+              </span>
             ) : spec.period ? (
               t("pipelines.overview.every", { period: spec.period })
             ) : (

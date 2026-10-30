@@ -3118,6 +3118,13 @@
         "minutes": "{count} minút",
         "hours": "{count, plural, few {# hodiny} other {# hodín}}"
       },
+      "say": {
+        "minutes": "Každých {count} minút",
+        "hours": "Každé {count} hodiny, v minúte {minute}",
+        "hourly": "Každú hodinu, v minúte {minute}",
+        "daily": "Každý deň o {time} UTC",
+        "weekly": "Každý týždeň ({weekday}) o {time} UTC"
+      },
       "atMinute": "V minúte",
       "on": "V deň",
       "atTime": "O (UTC)",

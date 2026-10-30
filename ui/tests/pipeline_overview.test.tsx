@@ -171,7 +171,7 @@ describe("a pipeline's own page", () => {
     await renderRoute({ path: "/projects/helsinki/pipelines/air-quality", answer, permissions: EDITOR_GRANTS });
     expect(await screen.findByRole("heading", { level: 1, name: "Air quality" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "fmi-feed" })).toBeInTheDocument();
-    expect(screen.getByText("0 * * * *")).toBeInTheDocument();
+    expect(screen.getByText("Every hour, at minute 0")).toHaveAttribute("title", "0 * * * *");
     expect(await screen.findByText("pm10 is not of the slot's datatype")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: en.pipelines.overview.runs })).toBeInTheDocument();
     // Names of the secret only, never its value (PL-17).
