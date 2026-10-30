@@ -315,6 +315,59 @@ fn feeders(state: &AppState, project: &str) -> BTreeMap<String, String> {
     out
 }
 
+/// The models that match `words`, each with the verdict of its space's door.
+fn model_items(
+    models: &[ResourceEnvelope],
+    project: &str,
+    space_access: &BTreeMap<String, Access>,
+    words: &[String],
+    items: &mut Vec<CatalogItem>,
+) {
+    for env in models {
+        let space = space_of(env);
+        let access = space_access
+            .get(&space)
+            .cloned()
+            .unwrap_or_else(|| Access::restricted("no endpoint of the model's space admits you"));
+        let (hits, reasons) = score(&fields(env), words);
+        if hits == 0 {
+            continue;
+        }
+        items.push(item(env, project, space, hits, reasons, access));
+    }
+}
+
+/// The Endpoints other projects share with this one that match `words`, as far as their
+/// audience admits the project; the reference is the caller's to read like any manifest of the
+/// project, and an Endpoint already in `items` stays there once (T-6104).
+fn shared_items(
+    state: &AppState,
+    project: &str,
+    effective: &crate::permissions::Effective,
+    words: &[String],
+    items: &mut Vec<CatalogItem>,
+) {
+    for (reference, env) in shared_endpoints(&state.mirror, project) {
+        if !effective.may_read_envelope("SharedSpaceReference", &reference)
+            || items
+                .iter()
+                .any(|i| i.kind == "Endpoint" && i.name == env.metadata.name)
+        {
+            continue;
+        }
+        let mut searched = fields(&env);
+        searched.push(("alias", text_of(&reference.spec["alias"])));
+        let (hits, mut reasons) = score(&searched, words);
+        if hits == 0 {
+            continue;
+        }
+        let owner = env.metadata.namespace.clone().unwrap_or_default();
+        reasons.push(format!("shared with this project by {owner}"));
+        let access = endpoint_access(&env.spec, project);
+        items.push(item(&env, &owner, space_of(&env), hits, reasons, access));
+    }
+}
+
 /// The search over the mirror, with the freshness read from the runner for the endpoints that
 /// are returned and open to the caller.
 ///
@@ -372,27 +425,7 @@ pub async fn search(
             .push(env.metadata.name.clone());
         items.push(item(env, project, space, hits, reasons, access));
     }
-    // Endpoints other projects share with this one, as far as their audience admits it; the
-    // reference is the caller's to read like any manifest of the project (T-6104).
-    for (reference, env) in shared_endpoints(&state.mirror, project) {
-        if !effective.may_read_envelope("SharedSpaceReference", &reference)
-            || items
-                .iter()
-                .any(|i| i.kind == "Endpoint" && i.name == env.metadata.name)
-        {
-            continue;
-        }
-        let mut searched = fields(&env);
-        searched.push(("alias", text_of(&reference.spec["alias"])));
-        let (hits, mut reasons) = score(&searched, &words);
-        if hits == 0 {
-            continue;
-        }
-        let owner = env.metadata.namespace.clone().unwrap_or_default();
-        reasons.push(format!("shared with this project by {owner}"));
-        let access = endpoint_access(&env.spec, project);
-        items.push(item(&env, &owner, space_of(&env), hits, reasons, access));
-    }
+    shared_items(state, project, effective, &words, &mut items);
     for env in &spaces {
         let name = env.metadata.name.clone();
         let access = space_access
@@ -409,18 +442,7 @@ pub async fn search(
         }
         items.push(item(env, project, name, hits, reasons, access));
     }
-    for env in &models {
-        let space = space_of(env);
-        let access = space_access
-            .get(&space)
-            .cloned()
-            .unwrap_or_else(|| Access::restricted("no endpoint of the model's space admits you"));
-        let (hits, reasons) = score(&fields(env), &words);
-        if hits == 0 {
-            continue;
-        }
-        items.push(item(env, project, space, hits, reasons, access));
-    }
+    model_items(&models, project, &space_access, &words, &mut items);
 
     if let Some(scope) = scope {
         items.retain(|i| i.kind == scope);
