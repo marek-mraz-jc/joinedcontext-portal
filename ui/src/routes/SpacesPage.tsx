@@ -1,7 +1,7 @@
 import { useCreateForm } from "../components/forms/FormRoute";
 import { RecordLink } from "../components/RecordLink";
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
 import { Skeleton } from "../components/ui/Skeleton";
 import type { JSX } from "react";
@@ -419,12 +419,12 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
           // The pointer names a model even while the list is on its way or cannot be read; the
           // models that name the space follow it, as on the space's own page (T-2760).
           const pointer = refName(spec.dataModelRef);
-          const model = [
+          const modelNames = [
             ...new Set([
               ...(pointer ? [pointer] : []),
               ...modelsOfSpace(space, asManifests(models.data?.items ?? [])).map((m) => m.metadata.name),
             ]),
-          ].join(", ");
+          ];
           const title = localized(space.metadata.title, locale, space.metadata.name);
           const target = {
             project,
@@ -455,8 +455,20 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
                 </div>
               </TableCell>
               <TableCell secondary>
-                {model ? (
-                  <span className="font-mono text-caption">{model}</span>
+                {modelNames.length > 0 ? (
+                  // each model one click away, as the models list links each space (not a mono id)
+                  <span className="flex flex-col gap-0.5">
+                    {modelNames.map((one) => (
+                      <Link
+                        key={one}
+                        to="/projects/$project/models/$name"
+                        params={{ project, name: one }}
+                        className="focus-ring w-fit text-primary-soft-fg underline-offset-2 hover:underline"
+                      >
+                        {one}
+                      </Link>
+                    ))}
+                  </span>
                 ) : (
                   <span className="text-fg-subtle">—</span>
                 )}
