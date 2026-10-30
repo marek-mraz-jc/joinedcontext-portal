@@ -4281,7 +4281,11 @@
       "refresh": "Obnoviť teraz",
       "unavailable": "Katalóg je nedostupný; import podľa identifikátora funguje ďalej.",
       "stale": "Uložený index z {at}; posledné obnovenie sa ku katalógu nedostalo.",
-      "noMatches": "Žiadny model nevyhovuje.",
+      "noMatches": "Hľadaniu nezodpovedá žiadny model.",
+      "noMatchesHint": "Vymažte hľadanie alebo vyberte inú tému; model, ktorý katalóg nemá, nahrajte súborom vyššie.",
+      "clearSearch": "Vymazať hľadanie",
+      "emptyCatalogue": "Katalóg zatiaľ neobsahuje žiadny model.",
+      "emptyCatalogueHint": "Stlačte Obnoviť teraz a načítajte ho znova, alebo nahrajte súbor s dátami nižšie.",
       "preview": "Prevzatý model",
       "pick": "Vyberte model a uvidíte, čo sa naimportuje.",
       "importRefused": "Schému {name} z katalógu nie je možné previesť na model. Model Tools nižšie uvádza, čo je zle. Vyberte iný model alebo začnite prázdnym modelom a polia doplňte ručne.",
@@ -4717,6 +4721,28 @@
       "broken": "{count, plural, one {# entita porušuje} few {# entity porušujú} other {# entít porušuje}} {rules}",
       "queryAction": "Dopytovať",
       "queryLabel": "Otvoriť Prieskum na entitách {type}, ktoré majú {field}"
+    },
+    "from": "Odkiaľ",
+    "inheritedFrom": "Z typu {type}",
+    "ownField": "Tento typ",
+    "typePicker": "Upravovaný typ",
+    "typePickerHint": "Všetky typy tohto modelu; nový pridáte v časti Typy na konci stránky, napríklad Station.",
+    "diagnosticSeverity": {
+      "error": "Treba opraviť",
+      "warning": "Upozornenie"
+    },
+    "inheritedDefinedOn": "Definované v type {type}. Zmeňte ho tam: zmena platí pre každý typ, ktorý ho dedí.",
+    "inheritedOpen": "Otvoriť {type}",
+    "importDialog": {
+      "title": "Importovať dátový model",
+      "description": "Začnite zo Smart Data Model alebo zo vzorového súboru. Import sa pridá k modelu v editore; zatvorte okno a model si postavíte ručne.",
+      "close": "Zavrieť import"
+    },
+    "sourceMode": {
+      "reading": "Zdroj modelu len na čítanie. Typy a polia upravte v Štruktúre, alebo zdroj odomknite a píšte doň.",
+      "editing": "Upravujete zdroj modelu. Každý pohľad ukazuje, čo tu napíšete.",
+      "edit": "Upraviť zdroj",
+      "done": "Hotovo"
     }
   },
   "apps": {

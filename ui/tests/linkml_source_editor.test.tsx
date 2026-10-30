@@ -20,10 +20,12 @@ function MockEditor({
   value,
   onChange,
   onMount,
+  readOnly,
 }: {
   value: string;
   onChange?: (value: string) => void;
   onMount?: (editor: unknown, api: unknown) => void;
+  readOnly?: boolean;
 }) {
     useEffect(() => {
       onMount?.(
@@ -42,6 +44,7 @@ function MockEditor({
   return (
     <textarea
       aria-label="LinkML source"
+      readOnly={readOnly}
       value={value}
       onChange={(event) => onChange?.(event.target.value)}
     />
@@ -178,6 +181,7 @@ describe("LinkML source editor", () => {
   it("carries an edit made in the source through to the structured view", async () => {
     const { area, user } = renderEditor();
 
+    await user.click(screen.getByRole("button", { name: "Edit source" }));
     await user.clear(area());
     await user.paste(SOURCE.replace("      - pm10", "      - pm10\n      - pm25").replace(
       "    slot_uri: bb:pm10\n",
@@ -195,6 +199,29 @@ describe("LinkML source editor", () => {
 
     expect(area().value).toContain("ngsi_ld_kind: GeoProperty");
     expect(parseModel(area().value).slots[0].kind).toBe("GeoProperty");
+  });
+
+  it("opens the source read-only, and types into it only after Edit source (T-6106)", async () => {
+    const { area, user } = renderEditor();
+
+    expect(area()).toHaveAttribute("readonly");
+    const edit = screen.getByRole("button", { name: "Edit source" });
+    expect(edit).toHaveAttribute("aria-pressed", "false");
+    await user.click(edit);
+    expect(area()).not.toHaveAttribute("readonly");
+    await user.click(screen.getByRole("button", { name: "Done editing" }));
+    expect(area()).toHaveAttribute("readonly");
+  });
+
+  it("offers no Edit source to a person who may not propose the model", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <LinkmlSourceEditor source={SOURCE} onChange={() => {}} readOnly />
+      </I18nextProvider>,
+    );
+
+    expect(screen.queryByRole("button", { name: "Edit source" })).toBeNull();
+    expect(screen.getByLabelText("LinkML source")).toHaveAttribute("readonly");
   });
 
   it("says so when the model has no open problem", async () => {
@@ -242,7 +269,8 @@ describe("the LinkML source editor against the UI contract", () => {
     const { container, user } = renderAlone(SOURCE);
 
     const area = screen.getByLabelText("LinkML source");
-    expect(focusables(container)[0]).toBe(area);
+    await user.click(screen.getByRole("button", { name: "Edit source" }));
+    expect(focusables(container)[1]).toBe(area);
     area.focus();
     await user.type(area, " ");
     expect(document.activeElement).toBe(area);

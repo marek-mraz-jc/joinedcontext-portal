@@ -14,13 +14,12 @@ import {
   Alert,
   Button,
   Checkbox,
+  Dialog,
   Field,
   InlineError,
   Input,
   PageHeader,
   Select,
-  tabPanelProps,
-  Tabs,
 } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { usePermissions } from "../../api/permissions";
@@ -68,9 +67,6 @@ export interface ModelsPageProps {
   baseline?: { source?: string; version: string; lifecycle: Lifecycle; name: string };
 }
 
-type Tab = "import" | "editor";
-
-const TABS: Tab[] = ["import", "editor"];
 
 /** How long a keystroke waits before the draft is kept, as the resource form waits (UI-47). */
 const DRAFT_DEBOUNCE_MS = 600;
@@ -123,8 +119,9 @@ export function ModelsPage({
   });
   const prefilled = handedOff.source;
   const [editing, setEditing] = useState(baseline ? undefined : handedOff.edit);
-  const [tabChoice, setTab] = useState<Tab | undefined>(
-    baseline || prefilled || editing || handedOff.start === "blank" ? "editor" : undefined,
+  // A new model starts in the import dialog (T-6106); a loaded, handed-off or blank one does not.
+  const [importChoice, setImportOpen] = useState<boolean | undefined>(
+    baseline || prefilled || editing || handedOff.start === "blank" ? false : undefined,
   );
   const [chosen, setChosen] = useState(baseline);
   const [breakingConfirmed, setBreakingConfirmed] = useState(false);
@@ -168,7 +165,7 @@ export function ModelsPage({
 
   const newName = nameChoice ?? held?.name ?? "";
   const newSpace = spaceChoice ?? held?.space ?? "";
-  const tab: Tab = tabChoice ?? (held ? "editor" : "import");
+  const importOpen = importChoice ?? !held;
 
   // The list keys are shared with every page that lists these kinds, so the cache holds the list
   // as the API answers it and the manifests are read off it here (T-0625).
@@ -372,7 +369,7 @@ export function ModelsPage({
       setEditing(undefined);
       setNewName(manifestName(catalogueModel.name) ?? "");
     }
-    setTab("editor");
+    setImportOpen(false);
   };
 
   // A model inferred from a file is a new draft: nothing published to compare against. Its
@@ -382,7 +379,7 @@ export function ModelsPage({
     setChosen(undefined);
     setEditing(undefined);
     setNewName(parseModel(draft).name ?? "");
-    setTab("editor");
+    setImportOpen(false);
   };
 
   // The space travels with a create, and with nothing else: for a model that exists the route
@@ -597,113 +594,111 @@ export function ModelsPage({
         </section>
       ) : null}
 
-      <Tabs
-        id="models"
-        label={t("models.title")}
-        tabs={TABS.map((name) => ({ value: name, label: t(`models.view.${name}`) }))}
-        value={tab}
-        onChange={setTab}
-      />
+      <Dialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title={t("models.importDialog.title")}
+        description={t("models.importDialog.description")}
+        closeLabel={t("models.importDialog.close")}
+        size="lg"
+      >
+        {/* The catalogue first, as the description reads: on a phone the file drop's help
+            pushed it below the dialog's fold (T-6106). */}
+        <div className="flex flex-col gap-4">
+          <SmartDataModelsImport
+            onImport={onImport}
+            // A new model goes to a space that has none (DM-61).
+            spaces={(spaces.data ?? []).map((space) => space.metadata.name).filter((space) => !occupied.has(space))}
+          />
+          <ModelFileDrop project={project} onPopulate={onPopulate} />
+        </div>
+      </Dialog>
 
-      <div {...tabPanelProps("models", tab)}>
-        {tab === "import" ? (
-          <div className="flex flex-col gap-4">
-            <ModelFileDrop project={project} onPopulate={onPopulate} />
-            <SmartDataModelsImport
-              onImport={onImport}
-              // A new model goes to a space that has none (DM-61).
-              spaces={(spaces.data ?? []).map((space) => space.metadata.name).filter((space) => !occupied.has(space))}
-            />
-          </div>
+      <div className="flex flex-col gap-3">
+        {importConflicts.length > 0 ? (
+          <Alert tone="info" role="status">
+            {t("models.sdm.mergedKept", { names: importConflicts.join(", ") })}
+          </Alert>
         ) : null}
-        {tab === "editor" ? (
-          <div className="flex flex-col gap-3">
-            {importConflicts.length > 0 ? (
-              <Alert tone="info" role="status">
-                {t("models.sdm.mergedKept", { names: importConflicts.join(", ") })}
-              </Alert>
+        {creating ? (
+          <section
+            aria-labelledby="models-new"
+            className="flex flex-col gap-2 rounded border border-border p-3"
+          >
+            <h2 id="models-new" className="text-sm font-semibold">
+              {t("models.create.title")}
+            </h2>
+            <div className="flex flex-wrap items-end gap-3">
+              <Field id="models-new-name" label={t("models.create.name")}>
+                <Input
+                  id="models-new-name"
+                  className="w-56"
+                  value={newName}
+                  onChange={(event) => setNewName(event.target.value)}
+                />
+              </Field>
+              <Field id="models-new-space" label={t("models.create.space")}>
+                <Select
+                  id="models-new-space"
+                  className="w-56"
+                  value={newSpace}
+                  onChange={(event) => setNewSpace(event.target.value)}
+                >
+                  <option value="">{t("models.create.chooseSpace")}</option>
+                  {(spaces.data ?? []).map((space) => {
+                    const holder = occupied.get(space.metadata.name);
+                    return (
+                      <option key={space.metadata.name} value={space.metadata.name} disabled={holder !== undefined}>
+                        {holder === undefined
+                          ? space.metadata.name
+                          : t("models.create.spaceHas", { space: space.metadata.name, model: holder })}
+                      </option>
+                    );
+                  })}
+                </Select>
+              </Field>
+              {spaces.data && spaces.data.every((space) => occupied.has(space.metadata.name)) ? (
+                <p role="status" className="text-body text-fg-muted">
+                  {t(spaces.data.length === 0 ? "models.create.noSpace" : "models.create.noFreeSpace")}{" "}
+                  <Link to="/projects/$project/$plural/new" params={{ project, plural: "spaces" }}>
+                    {t("models.create.newSpace")}
+                  </Link>
+                </p>
+              ) : null}
+              {targetName ? (
+                <p className="text-body text-fg-muted">
+                  {t("models.create.file", { name: targetName })}
+                </p>
+              ) : null}
+            </div>
+            {taken ? (
+              <InlineError>
+                {t("models.create.taken", { name: targetName })}
+              </InlineError>
             ) : null}
-            {creating ? (
-              <section
-                aria-labelledby="models-new"
-                className="flex flex-col gap-2 rounded border border-border p-3"
-              >
-                <h2 id="models-new" className="text-sm font-semibold">
-                  {t("models.create.title")}
-                </h2>
-                <div className="flex flex-wrap items-end gap-3">
-                  <Field id="models-new-name" label={t("models.create.name")}>
-                    <Input
-                      id="models-new-name"
-                      className="w-56"
-                      value={newName}
-                      onChange={(event) => setNewName(event.target.value)}
-                    />
-                  </Field>
-                  <Field id="models-new-space" label={t("models.create.space")}>
-                    <Select
-                      id="models-new-space"
-                      className="w-56"
-                      value={newSpace}
-                      onChange={(event) => setNewSpace(event.target.value)}
-                    >
-                      <option value="">{t("models.create.chooseSpace")}</option>
-                      {(spaces.data ?? []).map((space) => {
-                        const holder = occupied.get(space.metadata.name);
-                        return (
-                          <option key={space.metadata.name} value={space.metadata.name} disabled={holder !== undefined}>
-                            {holder === undefined
-                              ? space.metadata.name
-                              : t("models.create.spaceHas", { space: space.metadata.name, model: holder })}
-                          </option>
-                        );
-                      })}
-                    </Select>
-                  </Field>
-                  {spaces.data && spaces.data.every((space) => occupied.has(space.metadata.name)) ? (
-                    <p role="status" className="text-body text-fg-muted">
-                      {t(spaces.data.length === 0 ? "models.create.noSpace" : "models.create.noFreeSpace")}{" "}
-                      <Link to="/projects/$project/$plural/new" params={{ project, plural: "spaces" }}>
-                        {t("models.create.newSpace")}
-                      </Link>
-                    </p>
-                  ) : null}
-                  {targetName ? (
-                    <p className="text-body text-fg-muted">
-                      {t("models.create.file", { name: targetName })}
-                    </p>
-                  ) : null}
-                </div>
-                {taken ? (
-                  <InlineError>
-                    {t("models.create.taken", { name: targetName })}
-                  </InlineError>
-                ) : null}
-                {spaceTakenBy ? (
-                  <InlineError>
-                    {t("models.create.spaceTaken", { space: newSpace, model: spaceTakenBy })}
-                  </InlineError>
-                ) : null}
-                {heldConflict ? (
-                  <InlineError>
-                    {t("models.create.heldConflict")}
-                  </InlineError>
-                ) : kept ?? held ? (
-                  <p role="status" className="text-body text-fg-muted">
-                    {t("models.create.held", { name: (kept ?? held)?.name })}
-                  </p>
-                ) : null}
-              </section>
+            {spaceTakenBy ? (
+              <InlineError>
+                {t("models.create.spaceTaken", { space: newSpace, model: spaceTakenBy })}
+              </InlineError>
             ) : null}
-            <LinkmlEditor
-              source={source}
-              onChange={setSource}
-              locales={locales}
-              onImport={() => setTab("import")}
-              readOnlyDrawing={!mayPropose}
-            />
-          </div>
+            {heldConflict ? (
+              <InlineError>
+                {t("models.create.heldConflict")}
+              </InlineError>
+            ) : kept ?? held ? (
+              <p role="status" className="text-body text-fg-muted">
+                {t("models.create.held", { name: (kept ?? held)?.name })}
+              </p>
+            ) : null}
+          </section>
         ) : null}
+        <LinkmlEditor
+          source={source}
+          onChange={setSource}
+          locales={locales}
+          onImport={() => setImportOpen(true)}
+          readOnlyDrawing={!mayPropose}
+        />
       </div>
     </div>
   );

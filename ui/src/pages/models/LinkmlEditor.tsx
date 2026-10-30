@@ -108,7 +108,12 @@ export function LinkmlEditor({
           />
         ) : null}
         {view === "source" ? (
-          <LinkmlSourceEditor source={source} onChange={onChange} diagnostics={diagnostics} />
+          <LinkmlSourceEditor
+            source={source}
+            onChange={onChange}
+            diagnostics={diagnostics}
+            readOnly={readOnlyDrawing}
+          />
         ) : null}
         {view === "subset" && onSubsetChange ? (
           <ModelSubsetPicker model={model} subset={chosen} onChange={onSubsetChange} />

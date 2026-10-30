@@ -193,7 +193,7 @@ const KPI_LINKML = [
   "",
 ].join("\n");
 
-async function stubKpi(page: Page, verbs: string[]): Promise<void> {
+async function stubKpi(page: Page, verbs: string[], linkml = KPI_LINKML): Promise<void> {
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const json = (body: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
@@ -207,7 +207,7 @@ async function stubKpi(page: Page, verbs: string[]): Promise<void> {
         apiVersion: "joinedcontext.com/v1alpha1",
         kind: "DataModel",
         metadata: { name: "helsinki-kpi", namespace: "helsinki", title: "Helsinki indicators" },
-        spec: { contextSpaceRef: "helsinki-kpi", version: "1.0.0", lifecycle: "published", linkml: KPI_LINKML },
+        spec: { contextSpaceRef: "helsinki-kpi", version: "1.0.0", lifecycle: "published", linkml },
       }]));
     }
     if (path === "/api/v1/tools/sdm-catalog") return json({ subjects: [] });
@@ -218,12 +218,15 @@ async function stubKpi(page: Page, verbs: string[]): Promise<void> {
   });
 }
 
-/** Screenshots for the task, where `JC_EVIDENCE_DIR` asks for them. */
-async function shot(page: Page, name: string): Promise<void> {
+/**
+ * Screenshots for the task, where `JC_EVIDENCE_DIR` asks for them. A dialog is shot as the
+ * viewport shows it: a full-page capture stretches the fixed dialog past the phone's height.
+ */
+async function shot(page: Page, name: string, fullPage = true): Promise<void> {
   const dir = process.env.JC_EVIDENCE_DIR;
   if (!dir) return;
   mkdirSync(dir, { recursive: true });
-  await page.screenshot({ path: join(dir, `${name}.png`), fullPage: true });
+  await page.screenshot({ path: join(dir, `${name}.png`), fullPage });
 }
 
 test.describe("one plain model editor (T-4829)", () => {
@@ -316,9 +319,11 @@ test.describe("one plain model editor (T-4829)", () => {
       await expect(alert).toContainText("The catalogue's Event schema cannot be turned into a model.");
       await expect(alert.getByRole("button", { name: "Retry" })).toBeVisible();
       await expect(page.getByText("Fetching the upstream model…")).toHaveCount(0);
+      // At 400 px the preview sits below the dialog's fold: the refusal scrolls into view (T-6106).
+      await expect(alert).toBeInViewport({ ratio: 1 });
       const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
       expect(overflow).toBeLessThanOrEqual(0);
-      await shot(page, `sdm-import-error-${width}`);
+      await shot(page, `sdm-import-error-${width}`, false);
     });
   }
 
@@ -411,6 +416,69 @@ test.describe("a model change is proposed, and read back (T-4830)", () => {
       const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
       expect(overflow).toBeLessThanOrEqual(0);
       await shot(page, `model-propose-unchanged-${width}`);
+    });
+  }
+});
+
+// A type that specialises another, so the fields table shows what it inherits (T-6106).
+const INHERITING_LINKML = KPI_LINKML.replace(
+  "  KeyPerformanceIndicator:\n",
+  "  Indicator:\n    title: { en: Indicator }\n    slots: [name, location]\n  KeyPerformanceIndicator:\n    is_a: Indicator\n",
+).replace("    slots: [name, currentValue, calculationPeriod, computedBy, location]", "    slots: [currentValue, calculationPeriod, computedBy]");
+
+test.describe("the model editor's import dialog, inherited fields and read-only source (T-6106)", () => {
+  for (const width of [1440, 400]) {
+    test(`a new model opens on the import dialog, and an open one reads its source first at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read", "propose"], INHERITING_LINKML);
+      // Registered after stubKpi, so it answers first: the editor reads the committed source.
+      await page.route("**/datamodels/helsinki-kpi/source", (route) =>
+        route.fulfill({ status: 200, contentType: "text/yaml", body: INHERITING_LINKML }),
+      );
+      await page.goto("/projects/helsinki/models?new=sdm&lang=en");
+      const dialog = page.getByRole("dialog", { name: "Import a data model" });
+      await expect(dialog).toBeVisible();
+      await expect(page.getByRole("tab", { name: "Import", exact: true })).toHaveCount(0);
+      await shot(page, `import-dialog-${width}`, false);
+      await dialog.getByRole("button", { name: "Close import" }).click();
+      await expect(dialog).toBeHidden();
+      await expect(page.getByRole("tab", { name: "Structure", selected: true })).toBeVisible();
+      await shot(page, `blank-editor-${width}`);
+
+      await page.goto("/projects/helsinki/models?edit=helsinki-kpi&lang=en");
+      await page.getByRole("button", { name: "KeyPerformanceIndicator", exact: true }).click();
+      const fields = page.getByRole("table", { name: "Fields", exact: true });
+      const inherited = fields.getByRole("row").filter({ hasText: "From Indicator" });
+      await expect(inherited).toHaveCount(2);
+      await expect(fields.getByRole("row").filter({ hasText: "This type" })).toHaveCount(3);
+      await inherited.first().scrollIntoViewIfNeeded();
+      await shot(page, `inherited-fields-${width}`);
+      // An inherited field opens read-only: editing it would change the parent for every type.
+      await inherited.filter({ hasText: "location" }).getByRole("button", { name: "location", exact: true }).click();
+      const detail = page.getByRole("region", { name: "location" });
+      await expect(detail).toContainText("Defined on Indicator");
+      await expect(detail.getByRole("checkbox")).toHaveCount(0);
+      await detail.scrollIntoViewIfNeeded();
+      await shot(page, `inherited-field-read-only-${width}`);
+      await detail.getByRole("button", { name: "Open Indicator" }).click();
+      await expect(page.getByRole("button", { name: "Indicator", exact: true })).toHaveAttribute("aria-current", "true");
+      await expect(page.getByRole("region", { name: "location" }).getByRole("checkbox").first()).toBeVisible();
+      await page.getByRole("button", { name: "KeyPerformanceIndicator", exact: true }).click();
+
+      await page.getByRole("tab", { name: "Source" }).click();
+      const edit = page.getByRole("button", { name: "Edit source" });
+      await expect(edit).toHaveAttribute("aria-pressed", "false");
+      await expect(page.locator(".monaco-editor .view-lines").first()).toContainText(
+        // Long lines wrap at a phone's width, so is_a sits below the first screen there.
+        width > 600 ? "is_a: Indicator" : "name: helsinki-kpi",
+        { timeout: 60_000 },
+      );
+      await shot(page, `source-read-only-${width}`);
+      await edit.click();
+      await expect(page.getByRole("button", { name: "Done editing" })).toHaveAttribute("aria-pressed", "true");
+      await shot(page, `source-editing-${width}`);
+      const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(0);
     });
   }
 });

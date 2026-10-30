@@ -4299,7 +4299,11 @@
       "refresh": "Refresh now",
       "unavailable": "The catalogue is not reachable; import by identifier still works.",
       "stale": "Cached index from {at}; the last refresh did not reach the catalogue.",
-      "noMatches": "No model matches.",
+      "noMatches": "No model matches the search.",
+      "noMatchesHint": "Clear the search or choose another subject; the file drop above takes a model the catalogue lacks.",
+      "clearSearch": "Clear the search",
+      "emptyCatalogue": "The catalogue lists no model yet.",
+      "emptyCatalogueHint": "Press Refresh now to read it again, or drop a file with your data below.",
       "preview": "Upstream model",
       "pick": "Pick a model to see what would be imported.",
       "importRefused": "The catalogue's {name} schema cannot be turned into a model. Model Tools said what is wrong below. Pick another model, or start from an empty model and add the fields by hand.",
@@ -4717,6 +4721,28 @@
       "broken": "{count, plural, one {# entity breaks} other {# entities break}} {rules}",
       "queryAction": "Query",
       "queryLabel": "Open Explore on the {type} entities that have {field}"
+    },
+    "from": "From",
+    "inheritedFrom": "From {type}",
+    "ownField": "This type",
+    "typePicker": "Type to edit",
+    "typePickerHint": "Every type of this model; add one under Types at the end of the page, for example Station.",
+    "diagnosticSeverity": {
+      "error": "Must fix",
+      "warning": "Warning"
+    },
+    "inheritedDefinedOn": "Defined on {type}. Change it there: the change reaches every type that inherits it.",
+    "inheritedOpen": "Open {type}",
+    "importDialog": {
+      "title": "Import a data model",
+      "description": "Start from a Smart Data Model or a sample file. The import joins the model in the editor; close this to build one by hand.",
+      "close": "Close import"
+    },
+    "sourceMode": {
+      "reading": "The model's source, read-only. Edit types and fields in Structure, or unlock the source to type in it.",
+      "editing": "Editing the model's source. Every view shows what you type here.",
+      "edit": "Edit source",
+      "done": "Done editing"
     }
   },
   "apps": {

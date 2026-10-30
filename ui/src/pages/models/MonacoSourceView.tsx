@@ -151,6 +151,9 @@ export default function MonacoSourceView({
         fontSize: 13,
         tabSize: 2,
         scrollBeyondLastLine: false,
+        // A long line wraps under its indent: at a phone's width it was cut off with no cue.
+        wordWrap: "on",
+        wrappingIndent: "indent",
         renderWhitespace: "boundary",
         readOnly,
         folding: true,

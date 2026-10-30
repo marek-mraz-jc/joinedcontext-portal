@@ -28,6 +28,7 @@ import {
   slotAffordance,
   unitCode,
   UPSTREAM_ANNOTATION,
+  slotOrigins,
 } from "./linkml";
 import type { Diagnostic, LinkmlSlot, NgsiLdKind } from "./linkml";
 import { applyOperations } from "./operations";
@@ -98,6 +99,11 @@ export function LinkmlVisualEditor({
   const activeClass =
     model.classes.find((klass) => klass.name === selectedClass) ?? model.classes[0];
   const activeSlot = model.slots.find((slot) => slot.name === selectedSlot);
+  const origins = activeClass ? slotOrigins(model, activeClass) : new Map<string, string>();
+  // A field inherited from a parent is shared by every type below it: it opens read-only here.
+  const activeSlotOwner = activeSlot ? origins.get(activeSlot.name) : undefined;
+  const activeSlotInheritedFrom =
+    activeSlotOwner && activeSlotOwner !== activeClass?.name ? activeSlotOwner : undefined;
 
   /** One operation, the same way an assistant would send it; a refusal is shown, not swallowed. */
   const run = (operation: Operation): boolean => {
@@ -160,6 +166,10 @@ export function LinkmlVisualEditor({
     setSelectedSlot(name);
     setIriDraft(null);
     setIriError(null);
+    // The panel opens under the table, a screen away on a phone: bring it into view.
+    requestAnimationFrame(() =>
+      document.getElementById("models-slot-detail")?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }),
+    );
   };
 
   const addClass = () => {
@@ -267,7 +277,8 @@ export function LinkmlVisualEditor({
           {t("models.refused", { reason: refusal })}
         </Alert>
       ) : null}
-      <div className="flex flex-col gap-6">
+      {/* On a phone the rail goes under the type it opens; a picker above takes its place (UI judge, T-6106). */}
+      <div className="order-last flex flex-col gap-6 lg:order-none">
         <section aria-labelledby="models-classes">
           <h2 id="models-classes" className="mb-2 text-sm font-semibold uppercase tracking-wide">
             {t("models.classes")}
@@ -282,7 +293,7 @@ export function LinkmlVisualEditor({
                   aria-current={klass.name === activeClass?.name ? "true" : undefined}
                   className={
                     klass.name === activeClass?.name
-                      ? "w-full justify-start bg-surface-subtle font-medium"
+                      ? "w-full justify-start bg-primary-soft font-semibold text-primary-soft-fg border-l-4 border-primary"
                       : "w-full justify-start"
                   }
                 >
@@ -425,6 +436,26 @@ export function LinkmlVisualEditor({
       </div>
 
       <div className="flex flex-col gap-6">
+        {model.classes.length > 1 ? (
+          <Field
+            id="class-phone-picker"
+            label={t("models.typePicker")}
+            description={t("models.typePickerHint")}
+            className="lg:hidden"
+          >
+            <Select
+              id="class-phone-picker"
+              value={activeClass?.name ?? ""}
+              onChange={(event) => setSelectedClass(event.target.value)}
+            >
+              {model.classes.map((klass) => (
+                <option key={klass.name} value={klass.name}>
+                  {klass.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
         {activeClass ? (
           <section aria-labelledby="models-class-detail" className="flex flex-col gap-3">
             <h2 id="models-class-detail" className="text-base font-semibold">
@@ -537,46 +568,86 @@ export function LinkmlVisualEditor({
           <h2 id="models-slots" className="mb-2 text-sm font-semibold uppercase tracking-wide">
             {t("models.slots")}
           </h2>
-          <Table caption={t("models.slots")}>
+          {/* No zebra: the row tint already means "inherited", a stripe would read as one more. */}
+          <Table caption={t("models.slots")} zebra={false}>
             <TableHead>
               <TableHeaderCell>{t("models.slot")}</TableHeaderCell>
               <TableHeaderCell>{t("models.range")}</TableHeaderCell>
               <TableHeaderCell>
                 <Term name="ngsiLd">{t("models.kind")}</Term>
               </TableHeaderCell>
-              <TableHeaderCell>{t("models.unit")}</TableHeaderCell>
-              <TableHeaderCell>{t("models.affordanceLabel")}</TableHeaderCell>
+              <TableHeaderCell secondary>{t("models.unit")}</TableHeaderCell>
+              <TableHeaderCell secondary>{t("models.affordanceLabel")}</TableHeaderCell>
+              <TableHeaderCell secondary>{t("models.from")}</TableHeaderCell>
             </TableHead>
             <TableBody>
-              {(activeClass?.slots ?? []).map((name) => {
+              {/* Inherited fields too, greyed, with the type they come from (T-6106). */}
+              {[...origins].map(([name, from]) => {
                 const slot: LinkmlSlot | undefined = model.slots.find(
                   (candidate) => candidate.name === name,
                 );
+                const inherited = from !== activeClass?.name;
                 return (
-                  <TableRow key={name}>
-                    <TableCell primary>
+                  <TableRow key={name} className={
+                      // The open row: a tint plus an accent bar on its first cell. An inherited row:
+                      // a tint on every cell and a grey bar; the text keeps full contrast and "From <type>" says why.
+                      name === selectedSlot
+                        ? "[&>td]:bg-primary-soft [&>td:first-child]:border-l-4 [&>td:first-child]:border-primary"
+                        : inherited
+                          ? "[&>td]:bg-surface-muted [&>td:first-child]:border-l-4 [&>td:first-child]:border-border-strong"
+                          : undefined
+                    }
+                    aria-current={name === selectedSlot ? "true" : undefined}>
+                    {/* Below lg the Table paints the sticky name cell opaque in its own colour, which
+                        beats the row tint: the cell takes the row's tint itself or it reads as a column. */}
+                    <TableCell
+                      primary
+                      className={
+                        name === selectedSlot ? "max-lg:bg-primary-soft!" : inherited ? "max-lg:bg-surface-muted!" : undefined
+                      }
+                    >
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="underline-offset-2 hover:underline"
+                        className="-mx-2.5 -my-1 h-auto! py-1 text-body! underline-offset-2 hover:underline"
                         onClick={() => openSlot(name)}
                       >
                         {name}
                         {slot?.deprecated ? ` (${t("models.deprecated")})` : ""}
                       </Button>
+                      {/* A phone hides the From column, so the origin rides under the name. */}
+                      {inherited ? (
+                        <span className="block px-2 text-body font-normal text-fg-muted sm:hidden">
+                          {t("models.inheritedFrom", { type: from })}
+                        </span>
+                      ) : null}
                     </TableCell>
                     <TableCell>{slot ? word(fieldWord(slot, model)) : "—"}</TableCell>
                     <TableCell>{slot?.kind ?? DEFAULT_KIND}</TableCell>
-                    <TableCell>{unitSymbol(unitCode(slot?.unit)) || slot?.unit?.ucum_code || "—"}</TableCell>
-                    <TableCell>{slot ? t(`models.affordance.${slotAffordance(slot, model.enums.map((one) => one.name))}`) : "—"}</TableCell>
+                    <TableCell secondary>{unitSymbol(unitCode(slot?.unit)) || slot?.unit?.ucum_code || "—"}</TableCell>
+                    <TableCell secondary>{slot ? t(`models.affordance.${slotAffordance(slot, model.enums.map((one) => one.name))}`) : "—"}</TableCell>
+                    <TableCell secondary>
+                      {inherited ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="-mx-2.5 -my-1 h-auto! py-1 text-body! underline-offset-2 hover:underline"
+                          onClick={() => setSelectedClass(from)}
+                        >
+                          {t("models.inheritedFrom", { type: from })}
+                        </Button>
+                      ) : (
+                        t("models.ownField")
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })}
             </TableBody>
           </Table>
-          <div className="mt-2 flex gap-1">
+          {/* Input is w-full, so the row's width caps it: across the page its Add sat under the chat button. */}
+          <div className="mt-2 flex max-w-md gap-1">
             <Input
-              className="w-64"
               aria-label={t("models.newSlot")}
               placeholder={t("models.newSlot")}
               value={newSlot}
@@ -592,7 +663,25 @@ export function LinkmlVisualEditor({
           </div>
         </section>
 
-        {activeSlot ? (
+        {activeSlot && activeSlotInheritedFrom ? (
+          <section aria-labelledby="models-slot-detail" className="flex flex-col gap-2">
+            <h2 id="models-slot-detail" className="text-base font-semibold">
+              {activeSlot.name}
+            </h2>
+            <p className="text-fg-muted">
+              {t("models.inheritedDefinedOn", { type: activeSlotInheritedFrom })}
+            </p>
+            <div>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setSelectedClass(activeSlotInheritedFrom)}
+              >
+                {t("models.inheritedOpen", { type: activeSlotInheritedFrom })}
+              </Button>
+            </div>
+          </section>
+        ) : activeSlot ? (
           <section aria-labelledby="models-slot-detail" className="flex flex-col gap-3">
             <h2 id="models-slot-detail" className="text-base font-semibold">
               {activeSlot.name}

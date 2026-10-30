@@ -239,8 +239,15 @@ export function BrokerEditor({
   );
 }
 
+type Say = (key: string, values?: Record<string, unknown>) => string;
+
 /** The pending changes in words, one line each. */
-export function changeWords(stored: Draft, draft: Draft, t: (key: string, values?: Record<string, unknown>) => string): string[] {
+export function changeWords(stored: Draft, draft: Draft, t: Say): string[] {
+  return [...roleWords(stored, draft, t), ...settingWords(stored, draft, t)];
+}
+
+/** Roles added, changed and removed, then the grants and revocations. */
+function roleWords(stored: Draft, draft: Draft, t: Say): string[] {
   const words: string[] = [];
   const before = new Map((stored.form.roles ?? []).map((role) => [role.name, role]));
   const after = draft.form.roles ?? [];
@@ -260,6 +267,13 @@ export function changeWords(stored: Draft, draft: Draft, t: (key: string, values
     const [account, role] = key.split("/");
     words.push(t("mqttbrokers.edit.change.revoke", { account, role }));
   }
+  return words;
+}
+
+/** Allowance mode, capture, limits, port and allowed sources. */
+function settingWords(stored: Draft, draft: Draft, t: Say): string[] {
+  const words: string[] = [];
+  const after = draft.form.roles ?? [];
   const oldMode = modeOf(stored.form.roles ?? [], stored.keep);
   const newMode = modeOf(after, draft.keep);
   if (oldMode !== newMode) words.push(t("mqttbrokers.edit.change.mode", { mode: t(`mqttAllowance.mode.${newMode}`) }));
@@ -501,7 +515,7 @@ function Chip({ label, note, removable, onRemove }: { label: string; note?: stri
 }
 
 /** A list of values as chips, each checked as it is typed; Enter or Add puts it on the list. */
-function ChipInput({
+export function ChipInput({
   label,
   help,
   values,

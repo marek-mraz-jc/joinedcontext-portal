@@ -4281,7 +4281,11 @@
       "refresh": "Jetzt aktualisieren",
       "unavailable": "Der Katalog ist nicht erreichbar; der Import über die Kennung funktioniert weiter.",
       "stale": "Zwischengespeicherter Index vom {at}; die letzte Aktualisierung erreichte den Katalog nicht.",
-      "noMatches": "Kein Modell passt.",
+      "noMatches": "Kein Modell passt zur Suche.",
+      "noMatchesHint": "Leeren Sie die Suche oder wählen Sie ein anderes Thema; ein Modell, das der Katalog nicht hat, laden Sie oben als Datei.",
+      "clearSearch": "Suche leeren",
+      "emptyCatalogue": "Der Katalog enthält noch kein Modell.",
+      "emptyCatalogueHint": "Drücken Sie Jetzt aktualisieren, um ihn neu zu lesen, oder laden Sie unten eine Datei mit Ihren Daten.",
       "preview": "Fremdmodell",
       "pick": "Wählen Sie ein Modell, um zu sehen, was importiert würde.",
       "importRefused": "Das Schema {name} aus dem Katalog lässt sich nicht in ein Modell umwandeln. Model Tools nennt unten den Grund. Wählen Sie ein anderes Modell oder beginnen Sie mit einem leeren Modell und ergänzen Sie die Felder von Hand.",
@@ -4717,6 +4721,28 @@
       "broken": "{count, plural, one {# Entität verletzt} other {# Entitäten verletzen}} {rules}",
       "queryAction": "Abfragen",
       "queryLabel": "Explore für die {type}-Entitäten mit {field} öffnen"
+    },
+    "from": "Herkunft",
+    "inheritedFrom": "Aus {type}",
+    "ownField": "Dieser Typ",
+    "typePicker": "Bearbeiteter Typ",
+    "typePickerHint": "Alle Typen dieses Modells; einen neuen fügen Sie unter Typen am Seitenende hinzu, zum Beispiel Station.",
+    "diagnosticSeverity": {
+      "error": "Muss behoben werden",
+      "warning": "Warnung"
+    },
+    "inheritedDefinedOn": "Definiert in {type}. Ändern Sie es dort: die Änderung gilt für jeden Typ, der es erbt.",
+    "inheritedOpen": "{type} öffnen",
+    "importDialog": {
+      "title": "Datenmodell importieren",
+      "description": "Beginnen Sie mit einem Smart Data Model oder einer Beispieldatei. Der Import wird dem Modell im Editor hinzugefügt; schließen Sie den Dialog, um eines von Hand zu bauen.",
+      "close": "Import schließen"
+    },
+    "sourceMode": {
+      "reading": "Die Quelle des Modells, schreibgeschützt. Typen und Felder bearbeiten Sie in Struktur, oder Sie entsperren die Quelle zum Tippen.",
+      "editing": "Sie bearbeiten die Quelle des Modells. Jede Ansicht zeigt, was Sie hier tippen.",
+      "edit": "Quelle bearbeiten",
+      "done": "Fertig"
     }
   },
   "apps": {

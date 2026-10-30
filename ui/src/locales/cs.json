@@ -4281,7 +4281,11 @@
       "refresh": "Obnovit nyní",
       "unavailable": "Katalog je nedostupný; import podle identifikátoru funguje dál.",
       "stale": "Uložený index z {at}; poslední obnovení se ke katalogu nedostalo.",
-      "noMatches": "Žádný model neodpovídá.",
+      "noMatches": "Hledání neodpovídá žádný model.",
+      "noMatchesHint": "Vymažte hledání nebo vyberte jiné téma; model, který katalog nemá, nahrajte souborem výše.",
+      "clearSearch": "Vymazat hledání",
+      "emptyCatalogue": "Katalog zatím neobsahuje žádný model.",
+      "emptyCatalogueHint": "Stiskněte Obnovit nyní a načtěte ho znovu, nebo nahrajte soubor s daty níže.",
       "preview": "Převzatý model",
       "pick": "Vyberte model a uvidíte, co se naimportuje.",
       "importRefused": "Schéma {name} z katalogu nelze převést na model. Model Tools níže uvádí, co je špatně. Vyberte jiný model nebo začněte prázdným modelem a pole doplňte ručně.",
@@ -4717,6 +4721,28 @@
       "broken": "{count, plural, one {# entita porušuje} few {# entity porušují} other {# entit porušuje}} {rules}",
       "queryAction": "Dotazovat",
       "queryLabel": "Otevřít Průzkum na entitách {type}, které mají {field}"
+    },
+    "from": "Odkud",
+    "inheritedFrom": "Z typu {type}",
+    "ownField": "Tento typ",
+    "typePicker": "Upravovaný typ",
+    "typePickerHint": "Všechny typy tohoto modelu; nový přidáte v části Typy na konci stránky, například Station.",
+    "diagnosticSeverity": {
+      "error": "Nutno opravit",
+      "warning": "Upozornění"
+    },
+    "inheritedDefinedOn": "Definováno v typu {type}. Změňte ho tam: změna platí pro každý typ, který ho dědí.",
+    "inheritedOpen": "Otevřít {type}",
+    "importDialog": {
+      "title": "Importovat datový model",
+      "description": "Začněte ze Smart Data Model nebo z ukázkového souboru. Import se přidá k modelu v editoru; zavřete okno a model postavíte ručně.",
+      "close": "Zavřít import"
+    },
+    "sourceMode": {
+      "reading": "Zdroj modelu jen pro čtení. Typy a pole upravte ve Struktuře, nebo zdroj odemkněte a pište do něj.",
+      "editing": "Upravujete zdroj modelu. Každý pohled ukazuje, co sem napíšete.",
+      "edit": "Upravit zdroj",
+      "done": "Hotovo"
     }
   },
   "apps": {
