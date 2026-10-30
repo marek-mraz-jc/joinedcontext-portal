@@ -279,9 +279,11 @@ export function PipelineRunsView({
                     <Button
                       size="sm"
                       aria-pressed={open === run.run}
+                      // One word in the cell; the run it opens is in the name a screen reader says.
+                      aria-label={t("pipelines.runs.show", { run: label(run.run) })}
                       onClick={() => setPicked(run.run)}
                     >
-                      {t("pipelines.runs.show", { run: label(run.run) })}
+                      {t("pipelines.runs.log")}
                     </Button>
                   </TableCell>
                 </TableRow>
