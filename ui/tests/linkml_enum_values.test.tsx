@@ -9,6 +9,7 @@ import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
+import { enumUses } from "../src/pages/models/EnumValues";
 import { LinkmlVisualEditor } from "../src/pages/models/LinkmlVisualEditor";
 import { parseModel } from "../src/pages/models/linkml";
 import { applyOperations } from "../src/pages/models/operations";
@@ -100,25 +101,54 @@ describe("the editor's enums", () => {
     );
   });
 
-  const boxOf = (name: string) =>
-    screen.getByLabelText(en.models.newEnumValue.replace("{name}", name)) as HTMLInputElement;
+  const source = () => (screen.getByLabelText("source") as HTMLTextAreaElement).value;
+  const openEnum = (name: string) => userEvent.click(screen.getByRole("button", { name: new RegExp(`^${name}`) }));
 
-  it("gives each enum its own box for a new value", async () => {
-    await userEvent.type(boxOf("AlertCategory"), "fire");
-    expect(boxOf("AlertCategory").value).toBe("fire");
-    expect(boxOf("Severity").value).toBe("");
-    await userEvent.click(screen.getByRole("button", { name: en.models.addValue.replace("{name}", "AlertCategory") }));
-    expect(values((screen.getByLabelText("source") as HTMLTextAreaElement).value).map((v) => v.name)).toContain("fire");
-    expect(boxOf("AlertCategory").value).toBe("");
+  /// T-6162: an enumeration opens its values table from the rail; a stored value is no input.
+  it("opens an enumeration's values from the rail and adds one, each enum with its own box", async () => {
+    await openEnum("AlertCategory");
+    const table = screen.getByRole("table", { name: en.models.enumValues.caption.replace("{name}", "AlertCategory") });
+    expect(table).toHaveTextContent("weather");
+    expect(screen.queryByRole("textbox", { name: "weather" })).not.toBeInTheDocument();
+    expect(screen.getByText(en.models.enumValues.unused)).toBeInTheDocument();
+
+    const box = screen.getByRole("textbox", { name: en.models.enumValues.new });
+    expect(box).toHaveAccessibleDescription(en.models.enumValues.newHint);
+    await userEvent.type(box, "fire");
+    await openEnum("Severity");
+    expect(screen.getByRole("textbox", { name: en.models.enumValues.new })).toHaveValue("");
+    await openEnum("AlertCategory");
+    await userEvent.type(screen.getByRole("textbox", { name: en.models.enumValues.new }), "fire{Enter}");
+    expect(values(source()).map((v) => v.name)).toContain("fire");
+    expect(screen.getByRole("textbox", { name: en.models.enumValues.new })).toHaveValue("");
   });
 
-  it("edits a value's title and removes a value", async () => {
-    await userEvent.click(screen.getByText("weather"));
-    const title = document.getElementById("enum-AlertCategory-weather-title-sk") as HTMLInputElement;
-    await userEvent.type(title, "Počasie");
-    const source = () => (screen.getByLabelText("source") as HTMLTextAreaElement).value;
-    expect(values(source())[1].title).toEqual({ sk: "Počasie" });
+  it("edits a value's label and its translation, and removes a value", async () => {
+    await openEnum("AlertCategory");
+    await userEvent.type(screen.getByRole("textbox", { name: en.models.enumValues.labelOf.replace("{value}", "weather") }), "Weather");
+    expect(values(source())[1].title).toEqual({ en: "Weather" });
+    const sk = document.getElementById("enum-AlertCategory-weather-title-sk") as HTMLInputElement;
+    await userEvent.type(sk, "Počasie");
+    expect(values(source())[1].title).toEqual({ en: "Weather", sk: "Počasie" });
     await userEvent.click(screen.getByRole("button", { name: en.models.removeEnumValue.replace("{value}", "weather") }));
     expect(values(source()).map((value) => value.name)).toEqual(["traffic", "health"]);
+  });
+});
+
+describe("enumUses", () => {
+  it("names each field whose range is the enumeration, with the types that carry it", () => {
+    const model = parseModel(`id: https://hel.fi/m
+name: m
+classes:
+  Alert: { slots: [category] }
+  Notice: { slots: [category, level] }
+slots:
+  category: { range: AlertCategory }
+  level: { range: Severity }
+enums:
+  AlertCategory: { permissible_values: { traffic: {} } }
+`);
+    expect(enumUses(model, "AlertCategory")).toEqual([{ field: "category", types: ["Alert", "Notice"] }]);
+    expect(enumUses(model, "Nothing")).toEqual([]);
   });
 });

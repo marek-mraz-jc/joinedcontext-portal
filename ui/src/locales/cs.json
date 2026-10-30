@@ -4229,7 +4229,6 @@
     "newClass": "Nový typ",
     "newSlot": "Nové pole",
     "newEnum": "Nový číselník",
-    "newEnumValue": "Nová hodnota číselníku {name}",
     "removeEnumValue": "Odebrat hodnotu {value}",
     "classUri": "IRI třídy",
     "description": "Popis",
@@ -4761,6 +4760,21 @@
       "version": "Verze",
       "renameShort": "Přejmenovat",
       "renamed": "Přejmenováno. Identifikátor {id} a jeho soubor zůstávají; Navrhnout uloží nový název."
+    },
+    "findType": "Najít typ",
+    "enumValues": {
+      "caption": "Hodnoty {name}",
+      "stored": "Uložená hodnota",
+      "label": "Popisek",
+      "labelOf": "Popisek hodnoty {value}",
+      "actions": "Akce",
+      "translations": "Překlady a popis",
+      "empty": "Zatím žádné hodnoty: přidejte první níže.",
+      "none": "Zatím žádné číselníky: pojmenujte jeden níže.",
+      "new": "Nová hodnota",
+      "newHint": "Hodnota, kterou entity ukládají, po přidání pevná, například active.",
+      "unused": "Tento číselník zatím nepoužívá žádné pole: vyberte ho jako typ hodnoty pole.",
+      "usedBy": "Používá {fields}"
     }
   },
   "apps": {

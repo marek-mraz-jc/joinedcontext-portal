@@ -469,6 +469,34 @@ test.describe("the model editor's name line (T-6162)", () => {
   }
 });
 
+// T-6162: an enumeration opens its values table from the rail: stored value fixed, label edited.
+const ENUM_LINKML = `${KPI_LINKML}enums:\n  KpiStatus:\n    permissible_values:\n      active: { title: { en: Active, fi: Aktiivinen } }\n      retired: {}\n`;
+
+test.describe("the model editor's enumerations (T-6162)", () => {
+  for (const width of [1440, 400]) {
+    test(`an enumeration's values are a table with fixed stored values at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read", "propose"], ENUM_LINKML);
+      await page.goto("/projects/helsinki/models?edit=helsinki-kpi&lang=en");
+      await page.getByRole("button", { name: /^KpiStatus/ }).click();
+      const table = page.getByRole("table", { name: "Values of KpiStatus" });
+      await expect(table).toContainText("retired");
+      await page.getByRole("textbox", { name: "Label of retired" }).fill("Retired");
+      await page.getByRole("textbox", { name: "New value", exact: true }).fill("planned");
+      await page.getByRole("button", { name: "Add value to KpiStatus" }).click();
+      await expect(table).toContainText("planned");
+      const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(0);
+      await shot(page, `enum-values-${width}`);
+
+      await page.getByRole("textbox", { name: "New enum" }).fill("Band");
+      await page.getByRole("button", { name: "Add enum" }).click();
+      await expect(page.getByRole("table", { name: "Values of Band" })).toContainText("No values yet");
+      await shot(page, `enum-empty-${width}`);
+    });
+  }
+});
+
 // A type that specialises another, so the fields table shows what it inherits (T-6106).
 const INHERITING_LINKML = KPI_LINKML.replace(
   "  KeyPerformanceIndicator:\n",

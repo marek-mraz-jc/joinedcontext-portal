@@ -4229,7 +4229,6 @@
     "newClass": "Nový typ",
     "newSlot": "Nové pole",
     "newEnum": "Nový číselník",
-    "newEnumValue": "Nová hodnota číselníka {name}",
     "removeEnumValue": "Odstrániť hodnotu {value}",
     "classUri": "IRI triedy",
     "description": "Popis",
@@ -4761,6 +4760,21 @@
       "version": "Verzia",
       "renameShort": "Premenovať",
       "renamed": "Premenované. Identifikátor {id} a jeho súbor zostávajú; Navrhnúť uloží nový názov."
+    },
+    "findType": "Nájsť typ",
+    "enumValues": {
+      "caption": "Hodnoty {name}",
+      "stored": "Uložená hodnota",
+      "label": "Popis",
+      "labelOf": "Popis hodnoty {value}",
+      "actions": "Akcie",
+      "translations": "Preklady a opis",
+      "empty": "Zatiaľ žiadne hodnoty: pridajte prvú nižšie.",
+      "none": "Zatiaľ žiadne číselníky: pomenujte jeden nižšie.",
+      "new": "Nová hodnota",
+      "newHint": "Hodnota, ktorú entity ukladajú, po pridaní pevná, napríklad active.",
+      "unused": "Tento číselník zatiaľ nepoužíva žiadne pole: vyberte ho ako typ hodnoty poľa.",
+      "usedBy": "Používa {fields}"
     }
   },
   "apps": {

@@ -1568,6 +1568,14 @@
         "diagram_editing.test.tsx"
       ]
     },
+    "src/pages/models/EnumValues.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "linkml_enum_values.test.tsx"
+      ]
+    },
     "src/pages/models/LinkmlGraphView.tsx": {
       "controls": {
         "Button": 8
@@ -1603,7 +1611,7 @@
     },
     "src/pages/models/LinkmlVisualEditor.tsx": {
       "controls": {
-        "Button": 13,
+        "Button": 12,
         "Checkbox": 3
       },
       "tests": [

@@ -4229,7 +4229,6 @@
     "newClass": "Neuer Typ",
     "newSlot": "Neues Feld",
     "newEnum": "Neue Werteliste",
-    "newEnumValue": "Neuer Wert von {name}",
     "removeEnumValue": "Wert {value} entfernen",
     "classUri": "Klassen-IRI",
     "description": "Beschreibung",
@@ -4761,6 +4760,21 @@
       "version": "Version",
       "renameShort": "Umbenennen",
       "renamed": "Umbenannt. Die Kennung {id} und ihre Datei bleiben; Vorschlagen speichert den neuen Namen."
+    },
+    "findType": "Typ finden",
+    "enumValues": {
+      "caption": "Werte von {name}",
+      "stored": "Gespeicherter Wert",
+      "label": "Bezeichnung",
+      "labelOf": "Bezeichnung von {value}",
+      "actions": "Aktionen",
+      "translations": "Übersetzungen und Beschreibung",
+      "empty": "Noch keine Werte: fügen Sie unten den ersten hinzu.",
+      "none": "Noch keine Aufzählungen: benennen Sie unten eine.",
+      "new": "Neuer Wert",
+      "newHint": "Der Wert, den Entitäten speichern, nach dem Hinzufügen fest, zum Beispiel active.",
+      "unused": "Noch kein Feld nutzt diese Aufzählung: wählen Sie sie als Werttyp eines Feldes.",
+      "usedBy": "Genutzt von {fields}"
     }
   },
   "apps": {

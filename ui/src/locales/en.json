@@ -4200,7 +4200,7 @@
     "title": "Model editor",
     "add": "Add",
     "classes": "Types",
-    "enums": "Enums",
+    "enums": "Enumerations",
     "slots": "Fields",
     "slot": "Field",
     "range": "Type of value",
@@ -4229,7 +4229,6 @@
     "newClass": "New type",
     "newSlot": "New field",
     "newEnum": "New enum",
-    "newEnumValue": "New value of {name}",
     "removeEnumValue": "Remove the value {value}",
     "classUri": "Class IRI",
     "description": "Description",
@@ -4761,6 +4760,21 @@
       "version": "Version",
       "renameShort": "Rename",
       "renamed": "Renamed. The id {id} and its file stay as they are; Propose saves the new name."
+    },
+    "findType": "Find a type",
+    "enumValues": {
+      "caption": "Values of {name}",
+      "stored": "Stored value",
+      "label": "Label",
+      "labelOf": "Label of {value}",
+      "actions": "Actions",
+      "translations": "Translations and description",
+      "empty": "No values yet: add the first one below.",
+      "none": "No enumerations yet: name one below.",
+      "new": "New value",
+      "newHint": "The value entities store, fixed once added, for example active.",
+      "unused": "No field uses this enumeration yet: pick it as a field's type of value.",
+      "usedBy": "Used by {fields}"
     }
   },
   "apps": {
