@@ -4626,7 +4626,8 @@
       "addFieldTo": "Add field to {type}",
       "typeCaption": "Fields of {type}",
       "noFields": "No field yet.",
-      "addType": "Add type"
+      "addType": "Add type",
+      "classesMore": "+{count} more"
     },
     "hints": {
       "title": "This model has no type yet. Three steps to start:",

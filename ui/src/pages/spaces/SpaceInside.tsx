@@ -50,6 +50,7 @@ import type { ViewExtras } from "../../components/entities/ViewOptions";
 import type { DataView as SavedView, ViewConfig } from "../../api/dataViews";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { usePermissions } from "../../api/permissions";
 import { classSlots, isAnyClass, parseModel } from "../models/linkml";
 import { localId, textOf } from "../apps/QueryResultCard";
 import { TypeLink } from "../models/ModelLinks";
@@ -2003,6 +2004,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   // The space's alerts are being chosen (T-3261).
   const [alerting, setAlerting] = useState(false);
+  const { can: mayPropose, checking: permissionsChecking } = usePermissions(project);
   // The page opens on the rows; the model, quality, retention, endpoints and policies are tabs
   // beside them, kept in the address (T-4825: the whole model came before the grid, 14,515 px).
   const [tab, setTab] = useUrlParam<SpaceTab>("tab", "data", SPACE_TABS);
@@ -2086,7 +2088,10 @@ export function SpaceInside({ project, name }: { project: string; name: string }
         actions={
           <>
             {/* Completing works on one space, so it lives here and not on the list (T-6084). */}
-            <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+            {/* Allowed: a Link (opens in a new tab too); refused or checking: a Button the guard
+                disables with its reason. A guarded Link stayed clickable and leaked `disabledReason`
+                onto the <a>. */}
+            {!permissionsChecking && mayPropose("ContextSpace", "propose") ? (
               <Link
                 to="/projects/$project/spaces/complete"
                 params={{ project }}
@@ -2095,7 +2100,13 @@ export function SpaceInside({ project, name }: { project: string; name: string }
               >
                 {t("spaces.complete.title")}
               </Link>
-            </PermissionGuard>
+            ) : (
+              <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+                <Button variant="secondary" size="sm">
+                  {t("spaces.complete.title")}
+                </Button>
+              </PermissionGuard>
+            )}
             <Button variant="secondary" size="sm" onClick={() => setAlerting(true)}>
               {t("alerts.forSpace")}
             </Button>

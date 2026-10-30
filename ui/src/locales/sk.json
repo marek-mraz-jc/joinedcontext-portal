@@ -4626,7 +4626,8 @@
       "addFieldTo": "Pridať pole do {type}",
       "typeCaption": "Polia typu {type}",
       "noFields": "Zatiaľ žiadne pole.",
-      "addType": "Pridať typ"
+      "addType": "Pridať typ",
+      "classesMore": "+{count} ďalších"
     },
     "hints": {
       "title": "Tento model zatiaľ nemá typ. Tri kroky na začiatok:",

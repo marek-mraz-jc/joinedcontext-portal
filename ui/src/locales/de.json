@@ -4626,7 +4626,8 @@
       "addFieldTo": "Feld zu {type} hinzufügen",
       "typeCaption": "Felder von {type}",
       "noFields": "Noch kein Feld.",
-      "addType": "Typ hinzufügen"
+      "addType": "Typ hinzufügen",
+      "classesMore": "+{count} weitere"
     },
     "hints": {
       "title": "Dieses Modell hat noch keine Klasse. Drei Schritte zum Anfang:",

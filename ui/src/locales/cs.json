@@ -4626,7 +4626,8 @@
       "addFieldTo": "Přidat pole do {type}",
       "typeCaption": "Pole typu {type}",
       "noFields": "Zatím žádné pole.",
-      "addType": "Přidat typ"
+      "addType": "Přidat typ",
+      "classesMore": "+{count} dalších"
     },
     "hints": {
       "title": "Tento model zatím nemá třídu. Tři kroky na začátek:",
