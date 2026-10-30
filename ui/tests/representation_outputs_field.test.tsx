@@ -21,6 +21,7 @@ import { AttributeSelect } from "../src/components/forms/widgets/OutputSourceEdi
 import { baseOf, unmappedRequired, withPreset, withSource } from "../src/components/forms/widgets/icalMapping";
 import { duplicateNames, freeName, isSlug, outputsOf, unmappedRoles, withMapRole, withPopup, written } from "../src/components/forms/widgets/representationOutputs";
 import { keptRepresentations, representationSpec } from "../src/routes/EndpointsPage";
+import { pageFindings } from "./pageChecks";
 
 const c = en.endpoints.ical;
 const o = en.endpoints.outputs;
@@ -62,7 +63,9 @@ function show(initial?: unknown, form: unknown = ON, linkml = LINKML) {
       <I18nextProvider i18n={i18n}>
         <FormProjectContext.Provider value="city">
           <FormDataContext.Provider value={form}>
-            <Held initial={initial} seen={seen} />
+            <div data-testid="form-page">
+              <Held initial={initial} seen={seen} />
+            </div>
           </FormDataContext.Provider>
         </FormProjectContext.Provider>
       </I18nextProvider>
@@ -160,6 +163,27 @@ const MAP_LINKML = [
   "  area: { range: GeoJSON, annotations: { ngsi_ld_kind: GeoProperty } }",
   "enums:\n  EventCategory:\n    permissible_values: { sport: {}, music: {} }\n",
 ].join("\n");
+
+// The walker found the type and attribute dropdowns of these editors with no hint wired to them (T-6134).
+describe("every output field carries its hint", () => {
+  const unhinted = () => pageFindings({ namespaces: [], layout: false }).filter((finding) => finding.startsWith("field-hint"));
+
+  it("wires the calendar's type and attribute dropdowns to the editor's hint", () => {
+    show({ ical: [{ name: "kalendar", sources: [{ type: "Event", preset: "sdm-event" }] }] });
+    expect(screen.getByLabelText("DTSTART")).toHaveAttribute("aria-describedby");
+    expect(unhinted()).toEqual([]);
+  });
+
+  it("wires the feed's dropdowns to the editor's hint", () => {
+    show({ feed: [{ name: "spravy", sources: [{ type: "Event", preset: "event" }] }] }, { contextSpaceRef: "events", enabledRepresentations: ["ngsi-ld", "feed"] });
+    expect(unhinted()).toEqual([]);
+  });
+
+  it("wires the map's type and role dropdowns to their hints", () => {
+    show({ widget: [{ name: "mapa", sources: [{ type: "Event" }] }] }, ON, MAP_LINKML);
+    expect(unhinted()).toEqual([]);
+  });
+});
 
 describe("the catalogue map defaults (T-5239)", () => {
   it("says the map keeps its built-in defaults until a publisher adds some", () => {
