@@ -550,7 +550,9 @@
       "entities": "Entitäten",
       "inside": "Inhalt",
       "missingUnitCode": "Fehlende Einheit",
-      "size": "Größe"
+      "size": "Größe",
+      "history": "Verlauf",
+      "historySize": "Größe des Verlaufs"
     },
     "inside": {
       "more": "Mehr",
@@ -1471,7 +1473,9 @@
       "moveReason": "Wird bei jeder Verschiebung im Änderungsverlauf gespeichert, z. B. „Verschoben, weil der Ort abgesagt hat“.",
       "moveStart": "Wählen Sie einen Tag, z. B. 2026-11-03.",
       "placeBy": "Das Ortsfeld, das jede Zeile auf die Karte setzt, z. B. location."
-    }
+    },
+    "sizeMissing": "Vom Broker nicht gemeldet: er konnte diesen Bereich nicht rechtzeitig messen",
+    "historyEstimated": "Aus den Datenbankstatistiken geschätzt"
   },
   "endpoints": {
     "surfaceFit": {

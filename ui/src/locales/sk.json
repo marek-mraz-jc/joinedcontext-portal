@@ -550,7 +550,9 @@
       "entities": "Entity",
       "inside": "Obsah",
       "missingUnitCode": "Chýbajúca jednotka",
-      "size": "Veľkosť"
+      "size": "Veľkosť",
+      "history": "História",
+      "historySize": "Veľkosť histórie"
     },
     "inside": {
       "more": "Viac",
@@ -1471,7 +1473,9 @@
       "moveReason": "Uloží sa pri každom presune do histórie zmien, napr. „Presunuté, lebo miesto zrušili“.",
       "moveStart": "Vyberte deň, napr. 2026-11-03.",
       "placeBy": "Pole s miestom, ktoré dá každý riadok na mapu, napr. location."
-    }
+    },
+    "sizeMissing": "Broker veľkosť neuviedol: tento priestor nestihol zmerať",
+    "historyEstimated": "Odhad zo štatistík databázy"
   },
   "endpoints": {
     "surfaceFit": {
