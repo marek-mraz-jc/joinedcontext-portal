@@ -232,6 +232,10 @@
     "src/pages/mqttbrokers/BrokerEditor.tsx :: (no label)": {
       "class": "FREE",
       "reason": "a topic filter or a network typed as a chip, checked as typed against jc-core's rules (brokerDraft.ts); topics and networks name no stored thing"
+    },
+    "src/components/grid/ManifestGrid.tsx :: (no label)": {
+      "class": "FREE",
+      "reason": "a cell panel string field the kind's JSON Schema leaves free (version, schedule, description); an enum, a reference or a boolean gets its Select, picker or switch, and the Field's label names it"
     }
   }
 }

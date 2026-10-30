@@ -550,7 +550,9 @@
       "entities": "Entity",
       "inside": "Obsah",
       "missingUnitCode": "Chybějící jednotka",
-      "size": "Velikost"
+      "size": "Velikost",
+      "history": "Historie",
+      "historySize": "Velikost historie"
     },
     "inside": {
       "more": "Více",
@@ -1471,7 +1473,9 @@
       "moveReason": "Uloží se u každého přesunu do historie změn, např. „Přesunuto, protože místo zrušili“.",
       "moveStart": "Vyberte den, např. 2026-11-03.",
       "placeBy": "Pole s místem, které dá každý řádek na mapu, např. location."
-    }
+    },
+    "sizeMissing": "Broker velikost neuvedl: tento prostor nestihl změřit",
+    "historyEstimated": "Odhad ze statistik databáze"
   },
   "endpoints": {
     "surfaceFit": {
@@ -11012,5 +11016,74 @@
   },
   "pageHeader": {
     "about": "O této stránce"
+  },
+  "grid": {
+    "toolbar": "{list}: hledání, filtr, sloupce a pořadí",
+    "filter": "Filtr",
+    "noValues": "Tento seznam zatím nemá žádné hodnoty.",
+    "columns": "Sloupce",
+    "columnsHint": "Sloupce zobrazené v tomto prohlížeči",
+    "sort": "Pořadí",
+    "sortHint": "Seřadit řádky podle",
+    "sortNone": "Pořadí seznamu",
+    "sortDirection": "Směr",
+    "ascending": "Vzestupně (A až Z, 0 až 9)",
+    "descending": "Sestupně (Z až A, 9 až 0)",
+    "sortBy": "Seřadit podle {column}",
+    "removeFilter": "Odebrat filtr {column}: {value}",
+    "clearFilters": "Zrušit filtry",
+    "details": "Podrobnosti",
+    "openDetails": "Podrobnosti {name}",
+    "noMatch": "Hledání a filtrům neodpovídá žádný řádek.",
+    "clearAll": "Zrušit hledání a filtry",
+    "footer": "Zobrazeno {shown} z {count}",
+    "showMore": "Zobrazit dalších {count}",
+    "panelLead": "Všechny hodnoty tohoto řádku. Změněné pole se stane navrženou změnou ke schválení; nic se nezapíše, dokud ji někdo neschválí.",
+    "platformDefault": "Výchozí hodnota platformy",
+    "referenceEmpty": "Zatím není z čeho vybrat: nejprve to vytvořte na jeho stránce.",
+    "on": "Zapnuto",
+    "off": "Vypnuto",
+    "propose": "Navrhnout změnu",
+    "undo": "Vrátit",
+    "searchIn": "Hledat v: {list}",
+    "field": {
+      "active": "Aktivní",
+      "throttling": "Nejméně sekund mezi oznámeními",
+      "expiresAt": "Platí do",
+      "enabled": "Zapnuto",
+      "class": "Třída",
+      "period": "Interval čtení",
+      "schedule": "Plán",
+      "mcp": "Nástroje MCP",
+      "lifecycle": "Životní cyklus",
+      "openWorld": "Otevřený svět",
+      "space": "Kontextový prostor"
+    },
+    "footerOf": "Zobrazeno {shown} z {count} odpovídajících, celkem {total}",
+    "retry": "Zamítnuto: změňte hodnotu a navrhněte znovu.",
+    "choose": {
+      "hint": "Vyberte jednu z hodnot {options}."
+    },
+    "multi": {
+      "hint": "Zaškrtněte libovolné z hodnot {options}."
+    },
+    "reference": {
+      "hint": "V seznamu je jen to, co v tomto projektu smíte číst."
+    },
+    "boolean": {
+      "hint": "Zapněte nebo vypněte."
+    },
+    "number": {
+      "hint": "Číslo, například {example}."
+    },
+    "duration": {
+      "hint": "Doba trvání, například 30s, 5m nebo 1h."
+    },
+    "dateTime": {
+      "hint": "Datum a čas v UTC, například 2026-12-31T23:00:00Z."
+    },
+    "text": {
+      "hint": "Prostý text, například krátká věta."
+    }
   }
 }

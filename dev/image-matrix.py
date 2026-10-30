@@ -7,10 +7,14 @@ every image.
 - Any path outside `ui/` builds the binary: it embeds the SDK's kit, the docs and the migrations.
 - The two builder images only when what they carry moved (T-6154): their Dockerfile and lane
   (`builder/`), the SDK (AP-82), the apps' crates and the locks their crate store is fetched from.
-- Until the cut-over, `ui/**` also builds the binary: it still embeds the bundle and is what an
-  installation without `portal-ui` serves (T-2485). The cut-over sets EMBEDS_UI to False.
+- A change only under `ui/` builds `portal-ui` alone (T-6158, the cut-over of T-2485): every
+  installation reads its pages from `portal-ui` (JC_PORTAL_UI_URL, deployment components/portal
+  `ui.enabled`), so the copy of ui/dist the binary still embeds is a fallback for a Portal run
+  without the bundle (local `cargo run`), and pin-portal.sh keeps the binary pinned for such a
+  commit. `--binary` (a ci-full commit promote.yml attests, which needs the binary of its own
+  commit) adds the binary whenever the commit lacks one.
 
-    git diff --name-only "$BEFORE" "$GITHUB_SHA" | dev/image-matrix.py owner/repo owner
+    git diff --name-only "$BEFORE" "$GITHUB_SHA" | dev/image-matrix.py owner/repo owner [--binary]
     python3 dev/image-matrix.py --selftest
 """
 import json
@@ -41,38 +45,34 @@ def images(repository: str, owner: str) -> dict[str, dict]:
     }
 
 
-# The binary embeds ui/dist until every installation reads its pages from `portal-ui` (T-2485).
-EMBEDS_UI = True
-
-
 # What builder/Dockerfile copies besides the Cargo manifests and locks anywhere in the tree.
 BUILDER_INPUTS = ("builder/", "sdk/", "apps/", "scripts/app-integrity.mjs")
 
 
-def wanted(paths: list[str], embeds_ui: bool = EMBEDS_UI) -> list[str]:
+def wanted(paths: list[str], binary: bool = False) -> list[str]:
     paths = [p.strip() for p in paths if p.strip()]
     if "ALL" in paths:
         return ["portal", "portal-ui", "app-builder", "app-builder-rust"]
     names = []
     if any(p.startswith(("ui/", "sdk/")) for p in paths):
         names.append("portal-ui")
-    if any(not p.startswith("ui/") for p in paths):
+    if binary or any(not p.startswith("ui/") for p in paths):
         names = ["portal", *names]
         if any(p.startswith(BUILDER_INPUTS) or p.rsplit("/", 1)[-1] in ("Cargo.toml", "Cargo.lock") for p in paths):
             names += ["app-builder", "app-builder-rust"]
-    elif names and embeds_ui:
-        names = ["portal", *names]
     return names
 
 
-def matrix(paths: list[str], repository: str, owner: str) -> dict:
+def matrix(paths: list[str], repository: str, owner: str, binary: bool = False) -> dict:
     known = images(repository, owner)
-    return {"include": [known[name] for name in wanted(paths)]}
+    return {"include": [known[name] for name in wanted(paths, binary)]}
 
 
 def selftest() -> None:
-    assert wanted(["ui/src/App.tsx", "ui/package.json"]) == ["portal", "portal-ui"]
-    assert wanted(["ui/src/App.tsx"], embeds_ui=False) == ["portal-ui"]
+    # A ui/-only change: the bundle alone, ~2 min instead of the binary's ~11 (T-6158).
+    assert wanted(["ui/src/App.tsx", "ui/package.json"]) == ["portal-ui"]
+    assert wanted(["ui/src/App.tsx"], binary=True) == ["portal", "portal-ui"]
+    assert wanted([], binary=True) == ["portal"]
     assert wanted(["src/main.rs"]) == ["portal"]
     for path in ("builder/lane.mjs", "scripts/app-integrity.mjs", "apps/air-quality/src/main.rs", "Cargo.lock", "apps/hsl-transport/server/Cargo.toml"):
         assert wanted([path]) == ["portal", "app-builder", "app-builder-rust"], path
@@ -84,9 +84,10 @@ def selftest() -> None:
     assert wanted(["ALL"]) == ["portal", "portal-ui", "app-builder", "app-builder-rust"]
     # Nothing changed (an empty merge): nothing to build, and image.yml skips the job.
     assert wanted([]) == [] and wanted(["", "  "]) == []
-    # `ui` as a prefix of another folder is not the UI.
+    # `ui` as a prefix of another folder is not the UI, and a path no rule names builds the binary.
     assert wanted(["uikit/x"]) == ["portal"]
-    built = matrix(["ui/x"], "o/joinedcontext-portal", "o")["include"][1:]
+    assert wanted(["newdir/x.txt"]) == ["portal"]
+    built = matrix(["ui/x"], "o/joinedcontext-portal", "o")["include"]
     assert built == [
         {
             "name": "portal-ui",
@@ -102,10 +103,11 @@ def main(argv: list[str]) -> int:
     if argv[1:] == ["--selftest"]:
         selftest()
         return 0
-    if len(argv) != 3:
+    binary = argv[3:] == ["--binary"]
+    if len(argv) != 3 + binary:
         print(__doc__, file=sys.stderr)
         return 2
-    print(json.dumps(matrix(sys.stdin.read().splitlines(), argv[1], argv[2])))
+    print(json.dumps(matrix(sys.stdin.read().splitlines(), argv[1], argv[2], binary)))
     return 0
 
 
