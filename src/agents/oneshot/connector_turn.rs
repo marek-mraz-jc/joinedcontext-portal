@@ -9,6 +9,7 @@
 //! reason said in the chat.
 
 use super::model::{assistant_turn_message, tool_result_message, user_content, ToolSpec};
+use super::ui_actions::refused;
 use super::*;
 
 use std::borrow::Cow;
@@ -65,11 +66,6 @@ pub(super) fn tool_specs(offered: &[OperationSummary]) -> Vec<ToolSpec> {
             }
         })
         .collect()
-}
-
-/// A refusal before the operation runs, as the document every door answers (API/09).
-pub(super) fn refused(error: ApiError) -> String {
-    error.into_document().1.to_string()
 }
 
 /// `output` without the attributes the project's models mark personal (AG-158), the same
