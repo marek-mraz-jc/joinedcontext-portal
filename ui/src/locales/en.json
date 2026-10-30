@@ -6504,8 +6504,7 @@
       "space": "Context Space",
       "all": "Any",
       "connector": "Connector",
-      "connectorHint": "Only the calls and changes of one of your connectors, e.g. doprava-in-claude.",
-      "connectorNone": "You have no connectors yet: create one on My connectors to filter by it."
+      "connectorHint": "Only the calls and changes of one of your connectors, e.g. doprava-in-claude."
     },
     "severity": {
       "info": "Info",
@@ -10637,8 +10636,7 @@
     "emptyHint": "The Portal checks the resources a few minutes after it starts. Add a pipeline, a Context Space or an Endpoint, or come back in a few minutes.",
     "summary": "{errors, plural, one {# error} other {# errors}} and {warnings, plural, one {# warning} other {# warnings}} among {total} checks: read the fix under each.",
     "allWell": "All {total} checks are ok.",
-    "kind": "Show",
-    "kindHint": "Narrow the list to one kind of resource, e.g. Pipelines.",
+    "kind": "Kind",
     "allKinds": "All kinds",
     "kinds": {
       "pipeline": "Pipeline",
@@ -10647,8 +10645,8 @@
       "model": "Model",
       "datasource": "Data source"
     },
-    "noneOfKind": "No checks of this kind",
-    "noneOfKindHint": "Choose All kinds to see every check.",
+    "noneOfKind": "No checks match",
+    "noneOfKindHint": "Choose All in Status and All kinds to see every check.",
     "status": "Status",
     "project": "Project",
     "resource": "Resource",
@@ -10712,6 +10710,14 @@
       "publicRefused": "The Endpoint is public but its surface asks for a token: check spec.audience and the Policy named in spec.policyRef.",
       "surfaceMissing": "The gateway does not serve this surface: check spec.enabledRepresentations and that the Endpoint is applied.",
       "slowSurface": "The surface answers slowly: check the broker's load and the Endpoint's filter."
+    },
+    "statusFilter": "Status",
+    "shown": {
+      "attention": "Needs attention ({count})",
+      "broken": "Broken ({count})",
+      "look": "Needs a look ({count})",
+      "working": "Working ({count})",
+      "all": "All ({count})"
     }
   },
   "accessibility": {

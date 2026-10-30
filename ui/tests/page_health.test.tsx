@@ -66,7 +66,9 @@ describe("the health log", () => {
     await screen.findByRole("columnheader", { name: en.health.found });
     const table = screen.getByRole("table", { name: en.health.caption });
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows).toHaveLength(3);
+    // The list opens on what needs attention: the working check waits behind the status filter.
+    expect(rows).toHaveLength(2);
+    expect(screen.getByLabelText(en.health.statusFilter)).toHaveValue("attention");
     expect(within(rows[0]).getByText(en.health.broken)).toBeInTheDocument();
     expect(within(rows[0]).getByText(/403 no policy grants/)).toBeInTheDocument();
     expect(within(rows[0]).getByText(/pl-podujatia-zvolen create and update/)).toBeInTheDocument();
@@ -81,11 +83,17 @@ describe("the health log", () => {
     expect(calls()).toContain("GET /api/v1/projects/bbsk/health-checks");
     await expectAxeClean(container);
 
+    await userEvent.selectOptions(screen.getByLabelText(en.health.statusFilter), "all");
+    expect(within(screen.getByRole("table", { name: en.health.caption })).getAllByRole("row").slice(1)).toHaveLength(3);
+    expect(screen.getByRole("option", { name: "Working (1)" })).toBeInTheDocument();
+
     await userEvent.selectOptions(screen.getByLabelText(en.health.kind), "endpoint");
     const filtered = within(screen.getByRole("table", { name: en.health.caption })).getAllByRole("row").slice(1);
     expect(filtered).toHaveLength(1);
     expect(within(filtered[0]).getByText("air-api")).toBeInTheDocument();
-    expect(screen.getByText(en.health.kindHint)).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText(en.health.statusFilter), "ok");
+    expect(await screen.findByText(en.health.noneOfKind)).toBeInTheDocument();
   });
 
   it("says_what_to_do_when_nothing_was_checked", async () => {
@@ -113,7 +121,7 @@ describe("the health log", () => {
       path: "/organization/health",
       answer: (path: string) =>
         path.endsWith("/organization/health-checks")
-          ? jsonResponse({ items: [CHECKS[0], { ...CHECKS[2], project: "helsinki" }] })
+          ? jsonResponse({ items: [CHECKS[0], { ...CHECKS[1], project: "helsinki" }] })
           : path.endsWith("/organization/health")
             ? jsonResponse({ checks: [] })
             : undefined,
@@ -149,7 +157,7 @@ describe("the health log", () => {
   it("gives_a_phone_one_card_per_check_with_the_whole_finding", async () => {
     await renderRoute({ path: "/projects/bbsk/health", answer: answering(() => jsonResponse({ items: CHECKS })) });
     const cards = within(await screen.findByRole("list", { name: en.health.caption })).getAllByRole("listitem");
-    expect(cards).toHaveLength(3);
+    expect(cards).toHaveLength(2);
     expect(within(cards[0]).getByText(/403 no policy grants/)).toBeInTheDocument();
     expect(within(cards[0]).getByText(/pl-podujatia-zvolen create and update/)).toBeInTheDocument();
   });

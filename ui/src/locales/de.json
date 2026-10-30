@@ -6504,8 +6504,7 @@
       "space": "Kontextraum",
       "all": "Alle",
       "connector": "Konnektor",
-      "connectorHint": "Nur die Aufrufe und Änderungen eines Ihrer Konnektoren, z. B. doprava-in-claude.",
-      "connectorNone": "Sie haben noch keinen Konnektor: Legen Sie einen unter Meine Konnektoren an, um danach zu filtern."
+      "connectorHint": "Nur die Aufrufe und Änderungen eines Ihrer Konnektoren, z. B. doprava-in-claude."
     },
     "severity": {
       "info": "Info",
@@ -10637,8 +10636,7 @@
     "emptyHint": "Das Portal prüft die Ressourcen wenige Minuten nach dem Start. Legen Sie eine Pipeline, einen Kontextraum oder einen Endpoint an, oder schauen Sie in ein paar Minuten wieder vorbei.",
     "summary": "{errors, plural, one {# Fehler} other {# Fehler}} und {warnings, plural, one {# Warnung} other {# Warnungen}} unter {total} Prüfungen: die Behebung steht unter jeder.",
     "allWell": "Alle {total} Prüfungen sind in Ordnung.",
-    "kind": "Anzeigen",
-    "kindHint": "Die Liste auf eine Art von Ressource einschränken, z. B. Pipelines.",
+    "kind": "Art",
     "allKinds": "Alle Arten",
     "kinds": {
       "pipeline": "Pipeline",
@@ -10647,8 +10645,8 @@
       "model": "Modell",
       "datasource": "Datenquelle"
     },
-    "noneOfKind": "Keine Prüfungen dieser Art",
-    "noneOfKindHint": "Wählen Sie Alle Arten, um jede Prüfung zu sehen.",
+    "noneOfKind": "Keine Prüfungen passen",
+    "noneOfKindHint": "Wählen Sie Alle bei Status und Alle Arten, um jede Prüfung zu sehen.",
     "status": "Status",
     "project": "Projekt",
     "resource": "Ressource",
@@ -10712,6 +10710,14 @@
       "publicRefused": "Der Endpoint ist öffentlich, aber seine Schnittstelle verlangt ein Token: prüfen Sie spec.audience und die Policy in spec.policyRef.",
       "surfaceMissing": "Das Gateway bietet diese Schnittstelle nicht an: prüfen Sie spec.enabledRepresentations und ob der Endpoint angewendet ist.",
       "slowSurface": "Die Schnittstelle antwortet langsam: prüfen Sie die Last des Brokers und den Filter des Endpoints."
+    },
+    "statusFilter": "Status",
+    "shown": {
+      "attention": "Braucht Aufmerksamkeit ({count})",
+      "broken": "Defekt ({count})",
+      "look": "Prüfen ({count})",
+      "working": "Funktioniert ({count})",
+      "all": "Alle ({count})"
     }
   },
   "accessibility": {

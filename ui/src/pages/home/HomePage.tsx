@@ -12,6 +12,8 @@ import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { mayRead, usePermissions } from "../../api/permissions";
 import { spaceUsageQuery } from "../../api/spaceUsage";
 import { useSampleProjects } from "../../api/projects";
+import { useHiddenSections } from "../../branding";
+import { isHiddenSection } from "../../components/layout/navigation";
 import { Alert, Badge, Button, Card, PageFailed, PageHeader } from "../../components/ui";
 import { cardsFor, draftPage, firstRunSteps, roleOf, sampleToTry, welcomeStep } from "./home";
 import type { Facts } from "./home";
@@ -64,7 +66,9 @@ export function HomePage({
   const spaces = useList(project, "spaces", reads("ContextSpace"));
   const pipelines = useList(project, "pipelines", reads("Pipeline"));
   const endpoints = useList(project, "endpoints", reads("Endpoint"));
-  const dashboards = useList(project, "dashboards", role === "viewer" && reads("Dashboard"));
+  // An installation that hides the dashboards section has no page for the card to open (T-2874).
+  const dashboardsShown = !isHiddenSection("dashboards", useHiddenSections());
+  const dashboards = useList(project, "dashboards", dashboardsShown && role === "viewer" && reads("Dashboard"));
   const changes = useQuery({
     queryKey: queryKeys.changes(project),
     enabled: role === "steward",
@@ -112,7 +116,7 @@ export function HomePage({
         ? { count: drafts.data?.items?.length ?? 0, to: draftPage(project, firstDraft.kind, firstDraft.name) ?? `/projects/${project}` }
         : undefined,
     spaceWithData,
-    dashboards: (dashboards.data?.items ?? []).map((item) => item.metadata?.name ?? "").filter(Boolean),
+    dashboards: (dashboardsShown ? (dashboards.data?.items ?? []) : []).map((item) => item.metadata?.name ?? "").filter(Boolean),
   };
   const cards = role ? cardsFor(project, role, facts) : [];
   const samples = useSampleProjects().data ?? [];

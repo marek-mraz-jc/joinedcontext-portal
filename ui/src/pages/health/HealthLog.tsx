@@ -55,6 +55,18 @@ function useSay(): (text: Check["detail"]) => string {
       : t(`health.say.${text.code}`, { ...text.args, defaultValue: text.text });
 }
 
+/** Which checks the list shows: those needing attention (broken or a warning), one status, or all. */
+type Shown = "attention" | Status | "all";
+export const SHOWN: readonly Shown[] = ["attention", "error", "warn", "ok", "all"];
+/** Each choice's label key, in the reader's words like `LABEL`. */
+const SHOWN_KEY: Record<Shown, string> = { attention: "attention", error: "broken", warn: "look", ok: "working", all: "all" };
+
+function showsStatus(shown: Shown, status: Status): boolean {
+  if (shown === "all") return true;
+  if (shown === "attention") return status !== "ok";
+  return status === shown;
+}
+
 /** The statuses of the last 7 days as a strip of bars, oldest first; read as a sentence. */
 function History({ points, label }: { points: Check["history"]; label: string }): JSX.Element {
   if (points.length === 0) {
@@ -80,6 +92,8 @@ export function HealthLog({ project }: { project?: string }): JSX.Element {
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const time = new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" });
   const [kind, setKind] = useState<Kind | "">("");
+  // A project holds hundreds of checks, almost all working: the list opens on what needs a look.
+  const [shown, setShown] = useState<Shown | undefined>(undefined);
   const checks = useQuery({
     queryKey: project ? ["projects", project, "health-checks"] : ["organization", "health-checks"],
     queryFn: async () =>
@@ -105,9 +119,17 @@ export function HealthLog({ project }: { project?: string }): JSX.Element {
   if (all.length === 0) {
     return <EmptyState icon="refresh" title={t("health.empty")} description={t("health.emptyHint")} />;
   }
-  const items = kind === "" ? all : all.filter((item) => item.kind === kind);
   const errors = all.filter((item) => item.status === "error").length;
   const warnings = all.filter((item) => item.status === "warn").length;
+  const status: Shown = shown ?? (errors + warnings > 0 ? "attention" : "all");
+  const counts: Record<Shown, number> = {
+    attention: errors + warnings,
+    error: errors,
+    warn: warnings,
+    ok: all.length - errors - warnings,
+    all: all.length,
+  };
+  const items = all.filter((item) => (kind === "" || item.kind === kind) && showsStatus(status, item.status));
   return (
     <div className="flex flex-col gap-4">
       {errors + warnings > 0 ? (
@@ -119,16 +141,27 @@ export function HealthLog({ project }: { project?: string }): JSX.Element {
           {t("health.allWell", { total: all.length })}
         </Alert>
       )}
-      <Field id="health-kind" label={t("health.kind")} description={t("health.kindHint")} className="max-w-xs">
-        <Select id="health-kind" value={kind} onChange={(event) => setKind(event.target.value as Kind | "")}>
-          <option value="">{t("health.allKinds")}</option>
-          {KINDS.map((value) => (
-            <option key={value} value={value}>
-              {t(`health.kinds.${value}`)}
-            </option>
-          ))}
-        </Select>
-      </Field>
+      <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
+        <Field id="health-status" label={t("health.statusFilter")} className="min-w-0 sm:w-56">
+          <Select id="health-status" value={status} onChange={(event) => setShown(event.target.value as Shown)}>
+            {SHOWN.map((value) => (
+              <option key={value} value={value}>
+                {t(`health.shown.${SHOWN_KEY[value]}`, { count: counts[value] })}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field id="health-kind" label={t("health.kind")} className="min-w-0 sm:w-56">
+          <Select id="health-kind" value={kind} onChange={(event) => setKind(event.target.value as Kind | "")}>
+            <option value="">{t("health.allKinds")}</option>
+            {KINDS.map((value) => (
+              <option key={value} value={value}>
+                {t(`health.kinds.${value}`)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
       {items.length === 0 ? (
         <EmptyState bare icon="refresh" title={t("health.noneOfKind")} description={t("health.noneOfKindHint")} />
       ) : (

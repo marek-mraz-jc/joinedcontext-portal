@@ -61,12 +61,12 @@ export function ApprovalsPage({ project }: { project: string }): JSX.Element {
   const head = (
     <TableHead>
       <TableHeaderCell>{t("approvals.summary")}</TableHeaderCell>
-      <TableHeaderCell>{t("approvals.phase")}</TableHeaderCell>
+      <TableHeaderCell className="hidden sm:table-cell">{t("approvals.phase")}</TableHeaderCell>
       <TableHeaderCell>
         <Term name="lane">{t("approvals.lane")}</Term>
       </TableHeaderCell>
-      <TableHeaderCell>{t("approvals.author")}</TableHeaderCell>
-      <TableHeaderCell>{t("approvals.created")}</TableHeaderCell>
+      <TableHeaderCell className="hidden sm:table-cell">{t("approvals.author")}</TableHeaderCell>
+      <TableHeaderCell className="hidden sm:table-cell">{t("approvals.created")}</TableHeaderCell>
       <TableHeaderCell align="right">{t("approvals.actions")}</TableHeaderCell>
     </TableHead>
   );
@@ -250,14 +250,16 @@ export function ApprovalsPage({ project }: { project: string }): JSX.Element {
                     </div>
                   ) : null}
                 </TableCell>
-                <TableCell>
+                {/* A badge or a name broken over two lines reads as two values; a phone keeps
+                    the summary, the lane and the action, the rest is on the change's page. */}
+                <TableCell className="hidden whitespace-nowrap sm:table-cell">
                   <LifecycleBadge kind="phase" value={proposal.status.phase} />
                 </TableCell>
-                <TableCell>
+                <TableCell className="whitespace-nowrap">
                   <LifecycleBadge kind="lane" value={proposal.status.lane} />
                 </TableCell>
-                <TableCell>{proposal.author.name}</TableCell>
-                <TableCell className="whitespace-nowrap text-fg-muted">
+                <TableCell className="hidden whitespace-nowrap sm:table-cell">{proposal.author.name}</TableCell>
+                <TableCell className="hidden whitespace-nowrap text-fg-muted sm:table-cell">
                   {formattedDate}
                 </TableCell>
                 <TableCell align="right">

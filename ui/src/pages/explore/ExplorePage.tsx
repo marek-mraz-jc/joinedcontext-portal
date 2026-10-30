@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
 import { useTranslation } from "react-i18next";
 import { parseGridConfig } from "@joinedcontext/sdk";
 import type { ResolvedGridConfig, RichRow } from "@joinedcontext/sdk";
 import { api, queryKeys, unwrap } from "../../api/client";
+import { spaceUsageQuery } from "../../api/spaceUsage";
 import { asManifests, localized, refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { AccessPanel, useAccess } from "../../components/entities/AccessPanel";
@@ -56,6 +57,26 @@ function useProjectList(project: string, plural: string) {
  * entity (UI-60) — and the grid owns the table: the columns, the metadata a person opens, the
  * paging, the per-column filter row and the correction of a value where the grant allows one.
  */
+/** How many of the project's spaces are counted for the one the page opens on. */
+const COUNTED_SPACES = 5;
+
+/**
+ * The space the page opens on: the first, in the list's order, whose count says it holds
+ * entities; the first space when none does or a count failed. Undefined while an earlier
+ * space's count is still on its way, so the page never jumps from one space to another.
+ */
+export function firstWithData(
+  names: string[],
+  counts: { isPending: boolean; data?: { entities?: number } }[],
+): string | undefined {
+  for (const [at, name] of names.entries()) {
+    const count = counts[at];
+    if (count === undefined || count.isPending) return undefined;
+    if ((count.data?.entities ?? 0) > 0) return name;
+  }
+  return names[0];
+}
+
 export function ExplorePage({
   project,
   initialSpace,
@@ -112,9 +133,14 @@ export function ExplorePage({
   const handedSpace = (endpoints.data ?? []).find(
     (e) => e.metadata.name === initialEndpoint,
   );
-  // Nobody chose and nothing was handed: the page opens on the project's first space, so it shows
-  // data rather than a card asking for a pick (T-6107).
-  const space = chosenSpace ?? (handedSpace ? spaceOf(handedSpace) : initialEndpoint ? "" : (spaces.data?.[0]?.metadata.name ?? ""));
+  // Nobody chose and nothing was handed: the page opens on the first of the project's first spaces
+  // that holds entities, so it shows data rather than a card asking for a pick (T-6107) or an
+  // empty catalogue space that sorts first. A count that has not come yet is waited for.
+  const opening = chosenSpace === null && !initialEndpoint;
+  const candidates = (spaces.data ?? []).slice(0, COUNTED_SPACES).map((item) => item.metadata.name);
+  const usage = useQueries({ queries: (opening ? candidates : []).map((name) => spaceUsageQuery(project, name)) });
+  const firstSpace = firstWithData(candidates, usage) ?? "";
+  const space = chosenSpace ?? (handedSpace ? spaceOf(handedSpace) : initialEndpoint ? "" : firstSpace);
   const spaceEndpoints = (endpoints.data ?? []).filter((e) => spaceOf(e) === space);
   const chosenEndpoint = spaceEndpoints.find((e) => e.metadata.name === endpointChoice);
   // A link that names an Endpoint this person is not shown in the space reads through nothing
