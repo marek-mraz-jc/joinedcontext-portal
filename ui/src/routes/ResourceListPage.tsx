@@ -1,7 +1,8 @@
 import { lazy, useState } from "react";
 import type { ComponentType, JSX } from "react";
 import { RecordLink } from "../components/RecordLink";
-import { ResourceList } from "../components/ResourceList";
+import { ManifestGrid } from "../components/grid/ManifestGrid";
+import { spaceOf } from "../components/endpoints/sharing";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -62,10 +63,6 @@ import {
   buttonClass,
   Icon,
   PageHeader,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
 } from "../components/ui";
 // Each section's page loads with its section (T-3280): a list page beside it never pays for a map,
 // a graph or an editor it does not draw.
@@ -342,18 +339,48 @@ export function KindList({
         <PageHeader compact title={title} description={t(`resourceList.lead${holder}`, { kind: title })} actions={newButton} />
       )}
       {change ? <ChangeNotice change={change} project={project} /> : null}
-      <ResourceList
-      query={list}
-      caption={title}
-      head={
-        <TableHead>
-          <TableHeaderCell>{t("resourceList.name")}</TableHeaderCell>
-          <TableHeaderCell>{t("resourceList.phase")}</TableHeaderCell>
-          <TableHeaderCell align="right">{t("approvals.actions")}</TableHeaderCell>
-        </TableHead>
-      }
-      columns={3}
-      count={items.length}
+      <ManifestGrid<Manifest>
+        caption={title}
+        storageKey={`kind.${plural}`}
+        searchLabel={t("grid.searchIn", { list: title })}
+        rows={items}
+        rowKey={(item) => item.metadata.name}
+        query={list}
+        name={{
+          id: "name",
+          label: t("resourceList.name"),
+          text: (item) => localized(item.metadata.title, locale, item.metadata.name),
+          cell: (item) => (
+            <div className="min-w-0">
+              <RecordLink project={project} plural={plural} name={item.metadata.name}>
+                {localized(item.metadata.title, locale, item.metadata.name)}
+              </RecordLink>
+              {item.metadata.title ? (
+                <div className="mt-0.5 truncate font-mono text-caption text-fg-subtle">{item.metadata.name}</div>
+              ) : null}
+            </div>
+          ),
+        }}
+        columns={[
+          ...(items.some((item) => spaceOf(item))
+            ? [{ id: "space", label: t("grid.field.space"), filter: true, text: (item: Manifest) => spaceOf(item) ?? "" }]
+            : []),
+          {
+            id: "phase",
+            label: t("resourceList.phase"),
+            filter: true,
+            text: (item) => item.status?.phase ?? "",
+            cell: (item) => <LifecycleBadge kind="phase" value={item.status?.phase} />,
+          },
+        ]}
+        // One menu at the end of the row, for every kind that falls through here (T-2287).
+        actions={(item) => (
+          <ResourceRowActions
+            project={project}
+            target={{ project, kind: item.kind, plural, name: item.metadata.name, label: localized(item.metadata.title, locale, item.metadata.name) }}
+            form={form}
+          />
+        )}
       empty={<EmptyState bare
             title={t("resourceList.empty")}
             // A page with no create action names none in its hint (T-2488).
@@ -374,33 +401,7 @@ export function KindList({
                 </Link>
               ))
             } />}
-    >
-      {items.map((item) => {
-          const title = localized(item.metadata.title, locale, item.metadata.name);
-          const target = { project, kind: item.kind, plural, name: item.metadata.name, label: title };
-          return (
-            <TableRow key={item.metadata.name}>
-              <TableCell primary>
-                <div>
-                  <RecordLink project={project} plural={plural} name={item.metadata.name}>
-                    {title}
-                  </RecordLink>
-                </div>
-                {item.metadata.title ? (
-                  <div className="mt-0.5 font-mono text-caption text-fg-subtle">{item.metadata.name}</div>
-                ) : null}
-              </TableCell>
-              <TableCell>
-                <LifecycleBadge kind="phase" value={item.status?.phase} />
-              </TableCell>
-              <TableCell align="right">
-                {/* One menu at the end of the row, for every kind that falls through here (T-2287). */}
-                <ResourceRowActions project={project} target={target} form={form} />
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </ResourceList>
+      />
       {createKind && form ? (
         <ResourceFormDialog<Record<string, unknown>>
           kind={createKind}

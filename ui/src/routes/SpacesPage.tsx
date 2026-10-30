@@ -15,7 +15,7 @@ import { asManifests, isChange, localized, refName, rewritten, storedMetadata } 
 import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { ResourceFormDialog } from "../components/ResourceFormDialog";
-import { ResourceList } from "../components/ResourceList";
+import { ManifestGrid } from "../components/grid/ManifestGrid";
 import { ChangeNotice } from "../components/ChangeNotice";
 import { ProjectQuota, useProjectUsage } from "../components/ProjectQuota";
 import type { ResourceTarget } from "../components/DeleteResourceDialog";
@@ -30,10 +30,6 @@ import {
   Icon,
   MayNotCreate,
   PageHeader,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
 } from "../components/ui";
 
 export interface SpaceForm {
@@ -105,7 +101,6 @@ export function fromEnvelope(manifest: unknown, locale = "en"): SpaceForm {
   } as SpaceForm;
 }
 
-const COLUMNS = 6;
 
 /** Context Spaces of one project: what exists, what it costs against the quota, where it lives. */
 /**
@@ -254,7 +249,6 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
   const [form, setForm] = useState<SpaceForm | undefined>(undefined);
   const [change, setChange] = useState<Change | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [bySize, setBySize] = useState(false);
 
   const list = useQuery({
     queryKey: queryKeys.list(project, "spaces"),
@@ -306,46 +300,24 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
     },
   });
 
-  const head = (
-    <TableHead>
-      <TableHeaderCell>{t("spaces.field.name")}</TableHeaderCell>
-      <TableHeaderCell secondary>{t("spaces.field.dataModel")}</TableHeaderCell>
-      <TableHeaderCell>{t("spaces.field.phase")}</TableHeaderCell>
-      {/* A phone keeps the name, the state and the way inside (UI-27): the count is on the space's page. */}
-      <TableHeaderCell align="right" secondary aria-sort={bySize ? "descending" : "none"}>
-        {/* The biggest space is one click away (T-2889); a second click puts the list back. */}
-        <Button
-          size="sm"
-          variant="ghost"
-          className="uppercase tracking-wide"
-          aria-pressed={bySize}
-          onClick={() => setBySize(!bySize)}
-        >
-          {t("spaces.field.entities")}
-          <span aria-hidden="true">{bySize ? " ↓" : ""}</span>
-        </Button>
-      </TableHeaderCell>
-      <TableHeaderCell align="right" secondary>{t("spaces.field.history")}</TableHeaderCell>
-      <TableHeaderCell align="right">
-        <span className="sr-only">{t("spaces.field.inside")}</span>
-      </TableHeaderCell>
-    </TableHead>
-  );
-
   const listed = asManifests(list.data?.items ?? []);
   const usages = useQueries({
     queries: listed.map((space) => spaceUsageQuery(project, space.metadata.name)),
   });
-  const entitiesOf = (index: number) => usages[index]?.data?.entities;
-  // Sorted by size, a space whose count is not known yet goes last rather than first.
-  const spaces = bySize
-    ? listed
-        .map((space, index) => ({ space, index, entities: entitiesOf(index) ?? -1 }))
-        .sort((a, b) => b.entities - a.entities)
-        .map(({ space }) => space)
-    : listed;
+  const spaces = listed;
   const usageOf = (name: string) => usages[listed.findIndex((space) => space.metadata.name === name)];
   const numbers = new Intl.NumberFormat(locale);
+  // The pointer names a model even while the list is on its way or cannot be read; the models that
+  // name the space follow it, as on the space's own page (T-2760).
+  const modelOf = (space: Manifest): string => {
+    const pointer = refName((space.spec as { dataModelRef?: unknown }).dataModelRef);
+    return [
+      ...new Set([
+        ...(pointer ? [pointer] : []),
+        ...modelsOfSpace(space, asManifests(models.data?.items ?? [])).map((m) => m.metadata.name),
+      ]),
+    ].join(", ");
+  };
   // The API counts what the project holds and knows which quota is in force, the project's own
   // or the organization's default (PF-73, PF-75); the page only reads the numbers.
   const contextSpaces = usage.data?.contextSpaces;
@@ -393,78 +365,60 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
 
       {change ? <ChangeNotice change={change} project={project} /> : null}
 
-      <ResourceList
-        query={list}
+      <ManifestGrid<Manifest>
         caption={t("spaces.title")}
-        head={head}
-        columns={COLUMNS}
-        count={spaces.length}
-        empty={
-          <EmptyState
-            bare
-            icon="spaces"
-            title={t("spaces.empty")}
-            description={t("spaces.addHint")}
-            action={addButton}
-          />
-        }
-      >
-        {spaces.map((space: Manifest) => {
-          const spec = space.spec as {
-            dataModelRef?: unknown;
-            isSandbox?: boolean;
-            ttlDays?: number;
-            urnSegment?: string;
-          };
-          // The pointer names a model even while the list is on its way or cannot be read; the
-          // models that name the space follow it, as on the space's own page (T-2760).
-          const pointer = refName(spec.dataModelRef);
-          const model = [
-            ...new Set([
-              ...(pointer ? [pointer] : []),
-              ...modelsOfSpace(space, asManifests(models.data?.items ?? [])).map((m) => m.metadata.name),
-            ]),
-          ].join(", ");
-          const title = localized(space.metadata.title, locale, space.metadata.name);
-          const target = {
-            project,
-            kind: "ContextSpace",
-            plural: "spaces",
-            name: space.metadata.name,
-            label: title,
-          };
-          return (
-            <TableRow key={space.metadata.name}>
-              <TableCell primary>
-                <div>
-                  <RecordLink project={project} plural="spaces" name={space.metadata.name}>
-                    {title}
-                  </RecordLink>
-                </div>
+        storageKey="spaces"
+        searchLabel={t("grid.searchIn", { list: t("spaces.title") })}
+        rows={spaces}
+        rowKey={(space) => space.metadata.name}
+        query={list}
+        name={{
+          id: "name",
+          label: t("spaces.field.name"),
+          text: (space) => `${localized(space.metadata.title, locale, space.metadata.name)} ${space.metadata.name}`,
+          cell: (space) => {
+            const spec = space.spec as { isSandbox?: boolean; ttlDays?: number; urnSegment?: string };
+            return (
+              <div className="min-w-0">
+                <RecordLink project={project} plural="spaces" name={space.metadata.name}>
+                  {localized(space.metadata.title, locale, space.metadata.name)}
+                </RecordLink>
                 {/* The entity-id segment is detail, read on hover like a description (T-6095). */}
                 <div
                   className="mt-0.5 flex flex-wrap items-center gap-1.5 font-mono text-caption text-fg-subtle"
-                  title={t("spaces.segment", {
-                    segment: spaceSegment(project, space.metadata.name, spec.urnSegment),
-                  })}
+                  title={t("spaces.segment", { segment: spaceSegment(project, space.metadata.name, spec.urnSegment) })}
                 >
                   {space.metadata.title ? <span>{space.metadata.name}</span> : null}
-                  {spec.isSandbox ? (
-                    <Badge tone="warning">{t("spaces.sandbox", { days: spec.ttlDays ?? 0 })}</Badge>
-                  ) : null}
+                  {spec.isSandbox ? <Badge tone="warning">{t("spaces.sandbox", { days: spec.ttlDays ?? 0 })}</Badge> : null}
                 </div>
-              </TableCell>
-              <TableCell secondary>
-                {model ? (
-                  <span className="font-mono text-caption">{model}</span>
-                ) : (
-                  <span className="text-fg-subtle">—</span>
-                )}
-              </TableCell>
-              <TableCell>
-                <LifecycleBadge kind="phase" value={space.status?.phase} />
-              </TableCell>
-              <TableCell align="right" secondary className="tabular-nums">
+              </div>
+            );
+          },
+        }}
+        columns={[
+          {
+            id: "model",
+            label: t("spaces.field.dataModel"),
+            filter: true,
+            text: modelOf,
+            cell: (space) => (modelOf(space) ? <span className="font-mono text-caption">{modelOf(space)}</span> : <span className="text-fg-subtle">—</span>),
+          },
+          {
+            id: "phase",
+            label: t("spaces.field.phase"),
+            filter: true,
+            text: (space) => space.status?.phase ?? "",
+            cell: (space) => <LifecycleBadge kind="phase" value={space.status?.phase} />,
+          },
+          {
+            // The biggest space is one sort away (T-2889): Entities, descending.
+            id: "entities",
+            label: t("spaces.field.entities"),
+            numeric: true,
+            align: "right",
+            text: (space) => String(usageOf(space.metadata.name)?.data?.entities ?? ""),
+            cell: (space) => (
+              <span className="tabular-nums">
                 <EntityCount usage={usageOf(space.metadata.name)} numbers={numbers} />
                 <SizeLine
                   bytes={usageOf(space.metadata.name)?.data?.bytes?.entities}
@@ -472,23 +426,41 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
                   locale={locale}
                   label={t("spaces.field.size")}
                 />
-              </TableCell>
-              <TableCell align="right" secondary className="tabular-nums">
+              </span>
+            ),
+          },
+          {
+            id: "history",
+            label: t("spaces.field.history"),
+            numeric: true,
+            align: "right",
+            text: (space) => String(usageOf(space.metadata.name)?.data?.attrInstances ?? ""),
+            cell: (space) => (
+              <span className="tabular-nums">
                 <HistoryCount usage={usageOf(space.metadata.name)?.data} numbers={numbers} locale={locale} />
-              </TableCell>
-              <TableCell align="right">
-                <SpaceRowActions
-                  project={project}
-                  name={space.metadata.name}
-                  target={target}
-                  locale={locale}
-                  sourceUrl={space.status?.sourceUrl}
-                />
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </ResourceList>
+              </span>
+            ),
+          },
+        ]}
+        actions={(space) => (
+          <SpaceRowActions
+            project={project}
+            name={space.metadata.name}
+            target={{
+              project,
+              kind: "ContextSpace",
+              plural: "spaces",
+              name: space.metadata.name,
+              label: localized(space.metadata.title, locale, space.metadata.name),
+            }}
+            locale={locale}
+            sourceUrl={space.status?.sourceUrl}
+          />
+        )}
+        empty={
+          <EmptyState bare icon="spaces" title={t("spaces.empty")} description={t("spaces.addHint")} action={addButton} />
+        }
+      />
 
       {/* What the project holds against its quota comes after what it holds: for a first
           steward the list, empty or not, is the page, and the bar is secondary (T-1396). */}

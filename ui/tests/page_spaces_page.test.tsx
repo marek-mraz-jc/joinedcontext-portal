@@ -180,17 +180,15 @@ describe("the Context Spaces page", () => {
         .map((cell) => cell.textContent);
     expect(shown()).toEqual(["1,200", "14,232", "0"]);
 
+    // The grid's own sort (T-6169): ascending, then descending, then the list order.
     const sort = within(table).getByRole("button", {
-      name: en.spaces.field.entities,
+      name: en.grid.sortBy.replace("{column}", en.spaces.field.entities),
     });
     const header = sort.closest("th") as HTMLElement;
-    expect(header).toHaveAttribute("aria-sort", "none");
-    // A column a phone does without (UI-27, T-2946): at 400 px it pushed "Look inside" and the
-    // row's menu off the screen; the count stays on the space's own page.
-    expect(header).toHaveClass("hidden", "sm:table-cell");
-    for (const cell of within(table).getAllByTestId("space-entities")) {
-      expect(cell.closest("td")).toHaveClass("hidden", "sm:table-cell");
-    }
+    expect(header).not.toHaveAttribute("aria-sort");
+    await userEvent.click(sort);
+    expect(header).toHaveAttribute("aria-sort", "ascending");
+    expect(shown()).toEqual(["0", "1,200", "14,232"]);
     await userEvent.click(sort);
     expect(header).toHaveAttribute("aria-sort", "descending");
     expect(shown()).toEqual(["14,232", "1,200", "0"]);
@@ -319,14 +317,6 @@ describe("the Context Spaces page", () => {
     }
   });
 
-  it("names_the_count_column_in_the_same_case_as_the_others", async () => {
-    await renderRoute({ path: PATH, answer: answering([space("air")]) });
-    const sort = await screen.findByRole("button", {
-      name: en.spaces.field.entities,
-    });
-    expect(sort.className).toMatch(/\buppercase\b/);
-  });
-
   it("survives_0_1_and_500_rows", async () => {
     for (const count of [0, 1, 500]) {
       const items = Array.from({ length: count }, (_, index) =>
@@ -336,12 +326,17 @@ describe("the Context Spaces page", () => {
         path: PATH,
         answer: answering(items),
       });
-      const table = await screen.findByRole("table");
-      await waitFor(() =>
-        expect(within(table).getAllByRole("row").length).toBe(
-          count === 0 ? 2 : count + 1,
-        ),
-      );
+      if (count === 0) {
+        // An empty list is one card with the way to the first space, no table (T-6115).
+        expect(await screen.findByText(en.spaces.empty)).toBeInTheDocument();
+        expect(screen.queryByRole("table")).toBeNull();
+      } else {
+        const table = await screen.findByRole("table");
+        // The grid shows 50 rows and offers the rest (T-6115).
+        await waitFor(() =>
+          expect(within(table).getAllByRole("row").length).toBe(Math.min(count, 50) + 1),
+        );
+      }
       unmount();
       vi.restoreAllMocks();
     }
