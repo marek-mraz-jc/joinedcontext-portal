@@ -939,7 +939,8 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     const limit = Math.max(config.pageSize, VIRTUAL_PAGE_SIZE);
     setLoadingMore(true);
     source
-      .query(JSON.parse(gridQueryKey) as GridQuery, { offset: from, limit })
+      // The first page brought the total: a further page asks for rows alone (T-6161).
+      .query(JSON.parse(gridQueryKey) as GridQuery, { offset: from, limit, count: false })
       .then((page) => {
         if (nonceRef.current !== nonce) return;
         setRows((loaded) => {

@@ -66,6 +66,16 @@ describe("endpointSource", () => {
     expect(call.path).not.toContain("id");
   });
 
+  it("asks for rows alone when the caller needs no total (T-6161)", async () => {
+    const transport = stubTransport(new Map());
+    const source = endpointSource("demo", transport);
+    await source.query({ type: "Bike" }, { offset: 100, limit: 50, count: false }).catch(() => undefined);
+    const call = (transport as unknown as { calls: JcRequest[] }).calls[0];
+    // A count scans the whole match on the broker: a next page or a probe skips it.
+    expect(call.path).not.toContain("count=");
+    expect(call.path).toContain("offset=100");
+  });
+
   it("asks the drawn area as a geo query, all four parameters together (UI-72)", async () => {
     const transport = stubTransport(new Map());
     const source = endpointSource("demo", transport);

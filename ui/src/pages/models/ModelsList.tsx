@@ -17,23 +17,14 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap, whilePending } from "../../api/client";
 import { asManifests, localized } from "../../api/manifest";
-import type { Manifest } from "../../api/manifest";
-import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
+import type { Change, Manifest } from "../../api/manifest";
+import { ChangeNotice } from "../../components/ChangeNotice";
+import { ManifestGrid } from "../../components/grid/ManifestGrid";
 import { usePermissions } from "../../api/permissions";
 import {
-  Badge,
   EmptyState,
-  Field,
-  Input,
   Button,
   PageHeader,
-  Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
   buttonClass,
 } from "../../components/ui";
 import type { ButtonVariant } from "../../components/ui";
@@ -88,9 +79,6 @@ export function lastChangeOf(model: Manifest): string | undefined {
 /** The "used by" column's kinds: the ones a person builds on a model. */
 const COUNTED: readonly UsingKind[] = ["Endpoint", "Pipeline", "App", "Dashboard"];
 
-/** Types named in a row before the rest folds into "+N more": a 27-type model was a paragraph. */
-const CLASSES_SHOWN = 5;
-
 /**
  * A link that proposes a change to a DataModel (create or edit): a link for a person whose role
  * may propose one, and a disabled button that says why for anyone else (UI-44), since a link
@@ -132,8 +120,7 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
   const locale = i18n.language;
   const models = useProjectList(project, "datamodels");
   const all = useProjectManifests(project);
-  const [search, setSearch] = useState("");
-  const [space, setSpace] = useState("");
+  const [change, setChange] = useState<Change | null>(null);
 
   const rows = useMemo(
     () =>
@@ -150,21 +137,7 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
       }),
     [models.data, all, locale],
   );
-  const spaces = useMemo(
-    () => [...new Set(rows.map((row) => row.space).filter((one): one is string => one !== undefined))].sort(),
-    [rows],
-  );
-  const needle = search.trim().toLowerCase();
-  const shown = rows.filter(
-    (row) =>
-      (space === "" || row.space === space) &&
-      (needle === "" ||
-        [row.title, row.model.metadata.name, ...row.classes].some((one) => one.toLowerCase().includes(needle))),
-  );
   const date = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" });
-  // A column every row would fill with "—" says nothing: shown only once one model has a change.
-  const anyChange = rows.some((row) => row.changed !== undefined);
-  const columns = anyChange ? 6 : 5;
 
   const create = (
     <div className="flex flex-wrap gap-2">
@@ -184,148 +157,111 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
         <h2 id="models-project" className="text-title font-semibold text-fg">
           {t("models.page.projectSection")}
         </h2>
-        {models.isError ? (
-          <ListFailed
-            what={t("nav.models")}
-            reason={reasonOf(models.error, t("app.error.generic"))}
-            onRetry={() => void models.refetch()}
-          />
-        ) : models.isPending ? (
-          <p role="status" className="text-body text-fg-muted">
-            {t("app.loading")}
-          </p>
-        ) : rows.length === 0 ? (
-          <EmptyState
-            icon="models"
-            title={t("models.page.emptyTitle")}
-            description={t("models.page.emptyLead")}
-            action={create}
-          />
-        ) : (
-          <>
-            <div className="grid max-w-3xl gap-3 sm:grid-cols-2">
-              <Field id="models-search" label={t("models.page.search")}>
-                <Input
-                  id="models-search"
-                  type="search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-              </Field>
-              <Field id="models-space" label={t("models.field.space")}>
-                <Select id="models-space" value={space} onChange={(event) => setSpace(event.target.value)}>
-                  <option value="">{t("models.page.everySpace")}</option>
-                  {spaces.map((one) => (
-                    <option key={one} value={one}>
-                      {one}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            </div>
-            <Table data-records="" caption={t("models.page.listCaption")}>
-              <TableHead>
-                <TableHeaderCell>{t("models.field.name")}</TableHeaderCell>
-                <TableHeaderCell secondary>{t("models.field.space")}</TableHeaderCell>
-                <TableHeaderCell>{t("models.field.version")}</TableHeaderCell>
-                <TableHeaderCell>{t("models.classes")}</TableHeaderCell>
-                {anyChange ? <TableHeaderCell secondary>{t("models.page.lastChange")}</TableHeaderCell> : null}
-                <TableHeaderCell secondary>{t("models.page.usedBy")}</TableHeaderCell>
-              </TableHead>
-              <TableBody>
-                {shown.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={columns}>{t("models.page.noMatch")}</TableCell>
-                  </TableRow>
+        {change ? <ChangeNotice change={change} project={project} /> : null}
+        <ManifestGrid
+          caption={t("models.page.listCaption")}
+          storageKey="datamodels"
+          searchLabel={t("models.page.search")}
+          rows={rows}
+          rowKey={(row) => row.model.metadata.name}
+          query={models}
+          name={{
+            id: "name",
+            label: t("models.field.name"),
+            text: (row) => row.title,
+            cell: (row) => (
+              <>
+                <Link
+                  data-row-link=""
+                  to="/projects/$project/models/$name"
+                  params={{ project, name: row.model.metadata.name }}
+                  className="focus-ring text-primary-soft-fg underline-offset-2 hover:underline"
+                >
+                  {row.title}
+                </Link>
+                {row.title !== row.model.metadata.name ? (
+                  <span className="block font-mono text-caption text-fg-muted">{row.model.metadata.name}</span>
                 ) : null}
-                {shown.map((row) => {
-                  const version = text(row.model.spec.version);
-                  const lifecycle = text(row.model.spec.lifecycle);
-                  return (
-                    <TableRow key={row.model.metadata.name}>
-                      <TableCell primary>
-                        <Link
-                          data-row-link=""
-                          to="/projects/$project/models/$name"
-                          params={{ project, name: row.model.metadata.name }}
-                          className="focus-ring text-primary-soft-fg underline-offset-2 hover:underline"
-                        >
-                          {row.title}
-                        </Link>
-                        {row.title !== row.model.metadata.name ? (
-                          <span className="block font-mono text-caption text-fg-muted">{row.model.metadata.name}</span>
-                        ) : null}
-                      </TableCell>
-                      <TableCell secondary>
-                        {row.space ? (
+              </>
+            ),
+          }}
+          columns={[
+            {
+              id: "space",
+              label: t("models.field.space"),
+              field: "contextSpaceRef",
+              filter: true,
+              text: (row) => row.space ?? "",
+              cell: (row) => (
+                <>
+                  {row.space ? (
+                    <Link
+                      to="/projects/$project/$plural/$name"
+                      params={{ project, plural: "spaces", name: row.space }}
+                      className="focus-ring text-primary-soft-fg underline-offset-2 hover:underline"
+                    >
+                      {row.space}
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
+                </>
+              ),
+            },
+            { id: "version", label: t("models.field.version"), field: "version", text: (row) => text(row.model.spec.version) ?? "", cell: (row) => <span className="font-mono">{text(row.model.spec.version) ?? "—"}</span> },
+            {
+              id: "lifecycle",
+              label: t("grid.field.lifecycle"),
+              field: "lifecycle",
+              filter: true,
+              text: (row) => {
+                const lifecycle = text(row.model.spec.lifecycle);
+                return lifecycle ? t(`models.lifecycleOption.${lifecycle}`, { defaultValue: lifecycle }) : "";
+              },
+            },
+            {
+              id: "classes",
+              label: t("models.classes"),
+              text: (row) => row.classes.join(" "),
+              cell: (row) => (
+                <>
+                  <span className="font-medium">{row.classes.length}</span>
+                  {row.classes.length > 0 ? (
+                    <span className="block text-caption text-fg-muted">
+                      {row.classes.map((klass, index) => (
+                        <Fragment key={klass}>
+                          {index === 0 ? null : ", "}
                           <Link
-                            to="/projects/$project/$plural/$name"
-                            params={{ project, plural: "spaces", name: row.space }}
-                            className="focus-ring text-primary-soft-fg underline-offset-2 hover:underline"
+                            to="/projects/$project/models/$name"
+                            params={{ project, name: row.model.metadata.name }}
+                            search={{ class: klass }}
+                            className="focus-ring underline-offset-2 hover:underline"
                           >
-                            {row.space}
+                            {klass}
                           </Link>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-mono">{version ?? "—"}</span>
-                        {lifecycle ? (
-                          <Badge className="ml-2 whitespace-nowrap">{t(`models.lifecycleOption.${lifecycle}`, { defaultValue: lifecycle })}</Badge>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-medium">{row.classes.length}</span>
-                        {row.classes.length > 0 ? (
-                          <span className="block text-caption text-fg-muted">
-                            {row.classes.slice(0, CLASSES_SHOWN).map((klass, index) => (
-                              <Fragment key={klass}>
-                                {index === 0 ? null : ", "}
-                                <Link
-                                  to="/projects/$project/models/$name"
-                                  params={{ project, name: row.model.metadata.name }}
-                                  search={{ class: klass }}
-                                  className="focus-ring underline-offset-2 hover:underline"
-                                >
-                                  {klass}
-                                </Link>
-                              </Fragment>
-                            ))}
-                            {row.classes.length > CLASSES_SHOWN ? (
-                              <>
-                                {" "}
-                                <Link
-                                  to="/projects/$project/models/$name"
-                                  params={{ project, name: row.model.metadata.name }}
-                                  className="focus-ring whitespace-nowrap font-medium text-primary-soft-fg underline-offset-2 hover:underline"
-                                >
-                                  {t("models.page.classesMore", { count: row.classes.length - CLASSES_SHOWN })}
-                                </Link>
-                              </>
-                            ) : null}
-                          </span>
-                        ) : null}
-                      </TableCell>
-                      {anyChange ? (
-                        <TableCell secondary className="whitespace-nowrap">
-                          {row.changed ? date.format(new Date(row.changed)) : "—"}
-                        </TableCell>
-                      ) : null}
-                      <TableCell secondary>
-                        {COUNTED.every((kind) => (row.counts[kind] ?? 0) === 0)
-                          ? t("models.page.unused")
-                          : COUNTED.filter((kind) => (row.counts[kind] ?? 0) > 0)
-                              .map((kind) => t(`models.page.uses.${kind}`, { count: row.counts[kind] }))
-                              .join(", ")}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </>
-        )}
+                        </Fragment>
+                      ))}
+                    </span>
+                  ) : null}
+                </>
+              ),
+            },
+            { id: "changed", label: t("models.page.lastChange"), text: (row) => row.changed ?? "", cell: (row) => (row.changed ? date.format(new Date(row.changed)) : "—") },
+            {
+              id: "usedBy",
+              label: t("models.page.usedBy"),
+              text: (row) =>
+                COUNTED.every((kind) => (row.counts[kind] ?? 0) === 0)
+                  ? t("models.page.unused")
+                  : COUNTED.filter((kind) => (row.counts[kind] ?? 0) > 0)
+                      .map((kind) => t(`models.page.uses.${kind}`, { count: row.counts[kind] }))
+                      .join(", "),
+            },
+            { id: "openWorld", label: t("grid.field.openWorld"), field: "openWorld", hidden: true, text: (row) => (row.model.spec.openWorld === true ? t("grid.on") : t("grid.off")) },
+          ]}
+          edit={{ project, plural: "datamodels", kind: "DataModel", manifest: (row) => row.model, onChange: setChange }}
+          empty={<EmptyState bare icon="models" title={t("models.page.emptyTitle")} description={t("models.page.emptyLead")} action={create} />}
+        />
       </section>
 
       <OrganizationModels inProject />
