@@ -325,4 +325,23 @@ describe("a person's data in a space (DM-124, DM-126)", () => {
       "true",
     );
   });
+
+  it("says the erasure list is for owners in a quiet line, not a red alert, on a 403", async () => {
+    renderSection((url, request) =>
+      url.pathname === `${BASE}/erasures` && request.method === "GET"
+        ? json(
+            {
+              type: "about:blank",
+              title: "Forbidden",
+              status: 403,
+              detail: "only an owner of context space 'riders' runs a data subject's export and erasure",
+            },
+            403,
+          )
+        : undefined,
+    );
+    expect(await screen.findByText(T.proposals.ownersOnly)).toBeInTheDocument();
+    expect(screen.queryByText(/only an owner of context space 'riders'/)).toBeNull();
+    expect(screen.queryByText(T.proposals.empty)).toBeNull();
+  });
 });

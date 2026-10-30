@@ -1471,7 +1471,8 @@
         "item": "{id}: proposed by {by} on {at}, {count, plural, one {# entity} other {# entities}} found, open until {expires}",
         "approve": "Approve…",
         "decline": "Decline…",
-        "own": "You proposed this erasure: another owner of the space approves it."
+        "own": "You proposed this erasure: another owner of the space approves it.",
+        "ownersOnly": "Only an owner of this space sees these requests."
       },
       "approveTitle": "Approve erasure {id}?",
       "approveLead": "Type the person's identifier from the request. The Portal checks it against the proposal, searches the space again and erases what it holds. This cannot be undone.",

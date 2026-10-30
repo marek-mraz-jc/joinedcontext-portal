@@ -1471,7 +1471,8 @@
         "item": "{id}: vorgeschlagen von {by} am {at}, {count, plural, one {# Entität} other {# Entitäten}} gefunden, offen bis {expires}",
         "approve": "Genehmigen…",
         "decline": "Ablehnen…",
-        "own": "Sie haben diese Löschung vorgeschlagen: Ein anderer Eigentümer des Bereichs genehmigt sie."
+        "own": "Sie haben diese Löschung vorgeschlagen: Ein anderer Eigentümer des Bereichs genehmigt sie.",
+        "ownersOnly": "Nur ein Eigentümer dieses Space sieht diese Anfragen."
       },
       "approveTitle": "Löschung {id} genehmigen?",
       "approveLead": "Geben Sie die Kennung der Person aus der Anfrage ein. Das Portal vergleicht sie mit dem Vorschlag, durchsucht den Bereich erneut und löscht, was er enthält. Das lässt sich nicht rückgängig machen.",

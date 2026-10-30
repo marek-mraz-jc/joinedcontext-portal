@@ -1471,7 +1471,8 @@
         "item": "{id}: navrhl(a) {by} {at}, {count, plural, one {# nalezená entita} few {# nalezené entity} other {# nalezených entit}}, platí do {expires}",
         "approve": "Schválit…",
         "decline": "Zamítnout…",
-        "own": "Toto vymazání jste navrhli vy: schválí ho jiný vlastník prostoru."
+        "own": "Toto vymazání jste navrhli vy: schválí ho jiný vlastník prostoru.",
+        "ownersOnly": "Tyto žádosti vidí jen vlastník tohoto prostoru."
       },
       "approveTitle": "Schválit vymazání {id}?",
       "approveLead": "Zadejte identifikátor osoby ze žádosti. Portál ho porovná s návrhem, znovu prohledá prostor a vymaže, co obsahuje. Nelze to vrátit.",
