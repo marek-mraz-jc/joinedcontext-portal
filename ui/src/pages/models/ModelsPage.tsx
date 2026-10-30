@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap, whilePending } from "../../api/client";
 import { readModelSource, writeModelSource } from "../../api/datamodelSource";
 import type { ProblemDetails } from "../../api/client";
-import { asManifests, refName } from "../../api/manifest";
+import { asManifests, localized, refName } from "../../api/manifest";
 import { useOrgDomain, useOrgLocales } from "../../api/projects";
 import type { Change } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
@@ -89,7 +89,7 @@ export function ModelsPage({
   locales: given,
   baseline,
 }: ModelsPageProps): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // Titles in the Organization's languages (T-4829): Helsinki's include fi.
   const orgLocales = useOrgLocales(project);
   const locales = given ?? orgLocales;
@@ -225,7 +225,15 @@ export function ModelsPage({
   const publishedSource = published?.source ?? loaded.data;
 
   const model = useMemo(() => parseModel(source), [source]);
-  const displayName = creating ? newName : (model.title?.en ?? Object.values(model.title ?? {})[0] ?? "");
+  // The LinkML title first (a rename writes it), then the title the manifest carries, as the
+  // list shows it: a model titled only in its manifest is not "Unnamed" (uijudge T-6162).
+  const manifestTitle = models.data?.find((one) => one.metadata.name === activeModelName)?.metadata.title as
+    | string
+    | Record<string, string>
+    | undefined;
+  const displayName = creating
+    ? newName
+    : (model.title?.en ?? Object.values(model.title ?? {})[0] ?? localized(manifestTitle, i18n.language, ""));
   // A rename writes the model's title; a new model's id follows the name until it is saved.
   const rename = (name: string) => {
     if (name.trim() !== "") {

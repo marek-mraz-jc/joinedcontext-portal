@@ -463,6 +463,8 @@ test.describe("the model editor's name line (T-6162)", () => {
       await stubKpi(page, ["read"]);
       await page.goto("/projects/helsinki/models?edit=helsinki-kpi&lang=en");
       await expect(page.getByText("helsinki-kpi.linkml.yaml")).toBeVisible();
+      // The stub's manifest carries the title the list shows; the LinkML has none.
+      await expect(page.getByText("Helsinki indicators", { exact: true })).toBeVisible();
       await expect(page.getByRole("button", { name: /^Rename / })).toHaveCount(0);
       await shot(page, `name-line-viewer-${width}`);
     });
