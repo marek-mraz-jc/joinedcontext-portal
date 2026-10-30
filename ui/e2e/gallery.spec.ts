@@ -13,7 +13,7 @@
  * person notices in a recording.
  *
  * A baseline changes only on purpose, and the four PNGs under `gallery.spec.ts-snapshots/` are
- * reviewed like code. They are taken in the Playwright image ci.yml's `ui-gallery` job runs in,
+ * reviewed like code. They are taken in the Playwright image ci-full.yml's `ui-gallery` job runs in,
  * never on a bare machine, whose fallback fonts move ~2 000 pixels (T-5575). From `ui/`, after
  * `pnpm install` here and in `../sdk`:
  *

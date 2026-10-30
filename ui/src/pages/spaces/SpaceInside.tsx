@@ -229,20 +229,23 @@ function TypeRow({
   bytes?: number;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
+  const signedIn = useIdentity() !== null;
   const inside = useQuery({
     queryKey: ["gateway", slug ?? "", "inside", type],
     enabled: slug !== undefined,
     retry: false,
     queryFn: () => inTurn(slug ?? "", () => fetchTypeInside(slug ?? "", type)),
   });
+  const status = inside.error instanceof ApiError ? inside.error.status : undefined;
+  const refused = status === 401 || status === 403 || status === 404;
 
   let count: JSX.Element | string;
   if (slug === undefined) {
     count = <span className="text-fg-subtle">—</span>;
   } else if (inside.isPending) {
-    count = <span className="text-fg-subtle">{t("app.loading")}</span>;
+    // caption sans, as the refusal: a monospace "Loading..." pushed SIZE off a phone (T-6156)
+    count = <span className="font-sans text-caption text-fg-subtle">{t("app.loading")}</span>;
   } else if (inside.isError) {
-    const status = inside.error instanceof ApiError ? inside.error.status : undefined;
     count =
       status === 429 ? (
         // The Endpoint's own rate limit, not a refusal: said, with the read one press away.
@@ -256,9 +259,7 @@ function TypeRow({
         // in the page's text face and caption size: a monospace sentence in the count column ran
         // three lines and pushed the size off a phone's screen (T-6145)
         <span className="inline-block max-w-44 font-sans text-caption text-fg-muted">
-          {status === 403 || status === 404 || status === 401
-            ? t("spaces.inside.notReadable")
-            : t("app.error.generic")}
+          {t(refused ? refusalKey(signedIn) : "app.error.generic")}
         </span>
       );
   } else {
@@ -267,36 +268,59 @@ function TypeRow({
 
   return (
     <TableRow>
-      {/* a long type name breaks where it must, so the size column stays on a phone's screen */}
-      <TableCell className="font-mono [overflow-wrap:anywhere]">
-        <TypeLink project={project} type={type} space={space} />
+      {/* the samples sit under their type at every width, so a phone sees them too (T-6156) */}
+      <TableCell className="align-top">
+        {/* a long type name ends in "…" with the whole name on hover, never broken mid-word */}
+        <span className="block max-w-64 truncate font-mono sm:max-w-none" title={type}>
+          <TypeLink project={project} type={type} space={space} />
+        </span>
+        {inside.isSuccess ? <Samples samples={inside.data.samples} /> : null}
       </TableCell>
-      <TableCell align="right" className="font-mono">{count}</TableCell>
-      <TableCell align="right" className="whitespace-nowrap tabular-nums">
-        {bytes === undefined ? (
-          <span className="text-fg-subtle">—</span>
-        ) : (
-          <span title={exactBytes(bytes, i18n.language)}>{sizeText(bytes, i18n.language)}</span>
-        )}
-      </TableCell>
-      <TableCell secondary>
-        {inside.isSuccess && inside.data.samples.length > 0 ? (
-          <ul className="space-y-1">
-            {inside.data.samples.map((entity) => (
-              <li key={entity.id} className="text-caption">
-                <EntityId id={entity.id} />
-                <SampleSize bytes={entityBytes(entity)} />
-                {summarize(entity, i18n.language) ? (
-                  <span className="ml-2 text-fg-subtle">{summarize(entity, i18n.language)}</span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        ) : inside.isSuccess ? (
-          <span className="text-caption text-fg-subtle">{t("spaces.inside.noEntities")}</span>
-        ) : null}
-      </TableCell>
+      {refused && bytes === undefined ? (
+        // one sentence for a refused person, no count and no size to leave blank (T-6156)
+        <TableCell colSpan={2} className="align-top font-sans text-caption text-fg-muted">
+          {t(refusalKey(signedIn))}
+        </TableCell>
+      ) : (
+        <>
+          <TableCell align="right" className="align-top font-mono">{count}</TableCell>
+          <TableCell align="right" className="align-top whitespace-nowrap tabular-nums">
+            {bytes === undefined ? (
+              <span className="text-fg-subtle">—</span>
+            ) : (
+              <span title={exactBytes(bytes, i18n.language)}>{sizeText(bytes, i18n.language)}</span>
+            )}
+          </TableCell>
+        </>
+      )}
     </TableRow>
+  );
+}
+
+/** A refused read said for who is asking: anonymous, or a person without a read grant (T-6156). */
+export function refusalKey(signedIn: boolean): "spaces.inside.noReadGrant" | "spaces.inside.notReadable" {
+  return signedIn ? "spaces.inside.noReadGrant" : "spaces.inside.notReadable";
+}
+
+/** A type's sample entities, each with its own size, under the type's name (T-2760, T-6145). */
+export function Samples({ samples }: { samples: KeyValues[] }): JSX.Element {
+  const { t, i18n } = useTranslation();
+  if (samples.length === 0) {
+    return <p className="mt-1 text-caption text-fg-subtle">{t("spaces.inside.noEntities")}</p>;
+  }
+  return (
+    <ul className="mt-1 space-y-1" aria-label={t("spaces.inside.samples")}>
+      {samples.map((entity) => (
+        <li key={entity.id} className="text-caption">
+          <EntityId id={entity.id} />
+          <SampleSize bytes={entityBytes(entity)} />
+          {summarize(entity, i18n.language) ? (
+            // its own line under the id, so a wrapped summary never starts with a stray "·"
+            <span className="block text-fg-subtle [overflow-wrap:anywhere]">{summarize(entity, i18n.language)}</span>
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -2154,9 +2178,6 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                 <TableHeaderCell>{t("spaces.inside.type")}</TableHeaderCell>
                 <TableHeaderCell align="right">{t("spaces.inside.count")}</TableHeaderCell>
                 <TableHeaderCell align="right">{t("spaces.inside.size")}</TableHeaderCell>
-                {/* A phone keeps the type, its count and size (UI-27, T-6145): the samples squeezed to a letter
-                    a line ran 800 px down the page (T-4265, photo audit T-4160 #5). */}
-                <TableHeaderCell secondary>{t("spaces.inside.samples")}</TableHeaderCell>
               </TableHead>
               <TableBody>
                 {types.map((type) => (
@@ -2171,6 +2192,10 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                 ))}
               </TableBody>
             </Table>
+            {/* what a size counts, said only beside sizes (T-6156) */}
+            {Object.keys(usage.data?.bytes?.byType ?? {}).length > 0 ? (
+              <p className="text-caption text-fg-muted">{t("spaces.inside.sizeHint")}</p>
+            ) : null}
             <SpaceTotal usage={usage} />
           </>
         )}

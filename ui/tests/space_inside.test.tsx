@@ -6,13 +6,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
-import { inTurn } from "../src/pages/spaces/SpaceInside";
+import { inTurn, refusalKey, Samples } from "../src/pages/spaces/SpaceInside";
 import { entityTypesOf, parseResultsCount, pickReadEndpoint, spaceOf } from "../src/pages/spaces/spaceFacts";
 import type { Manifest } from "../src/api/manifest";
 import { ApiError } from "../src/api/client";
 import { spaceUsageQuery, usageRefusal } from "../src/api/spaceUsage";
 import { readLayout, writeLayout } from "../src/components/entities/viewLayout";
 import { pageFindings } from "./pageChecks";
+import { renderPart } from "./page_contract";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -416,6 +417,8 @@ describe("space inside view", () => {
     const table = await screen.findByRole("table", { name: en.spaces.inside.types });
     const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
     expect(within(row).getByTitle("3,145,728 B")).toHaveTextContent("3 MiB");
+    // what the type size counts against what a sample's size counts, in words (T-6156)
+    expect(screen.getByText(en.spaces.inside.sizeHint)).toBeInTheDocument();
   });
 
   // T-6085: the history's count beside the entities', and the broker's word when it estimated it.
@@ -596,13 +599,48 @@ describe("space inside view", () => {
     expect(most).toBe(1);
   });
 
-  it("says a type is not readable anonymously when the gateway refuses", async () => {
-    renderInside({ status: 403 });
+  it("tells a signed-in person refused by the gateway that they hold no read grant (T-6156)", async () => {
+    renderInside({ status: 403 }, { status: 200 }, {
+      usage: { status: 403, body: { title: "Forbidden", status: 403, detail: "you may not read this space's usage" } },
+    });
 
     await openTab(en.spaces.inside.model);
     const table = await screen.findByRole("table", { name: en.spaces.inside.types });
     const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
-    expect(await within(row).findByText(en.spaces.inside.notReadable)).toBeInTheDocument();
+    // one sentence over the count and size cells: no count, no size, no blank cell, no dash
+    const refusal = await within(row).findByText(en.spaces.inside.noReadGrant);
+    expect(refusal.closest("td")).toHaveAttribute("colspan", "2");
+    expect(within(row).queryByText(en.spaces.inside.notReadable)).toBeNull();
+    expect(row.querySelectorAll("td")).toHaveLength(2);
+    expect(row.textContent).not.toMatch(/—|\d B|KiB|MiB/);
+  });
+
+  it("says anonymous for a caller with no session, a missing grant for a signed-in one", () => {
+    expect(refusalKey(false)).toBe("spaces.inside.notReadable");
+    expect(refusalKey(true)).toBe("spaces.inside.noReadGrant");
+  });
+
+  it("stacks the samples under their type, so a phone that hides no column still shows them (T-6156)", async () => {
+    renderInside({ status: 200, count: 42 });
+    await openTab(en.spaces.inside.model);
+    const table = await screen.findByRole("table", { name: en.spaces.inside.types });
+    // three columns: type with its samples, entities, size; no samples column a phone drops
+    expect(within(table).getAllByRole("columnheader").map((th) => th.textContent)).toEqual([
+      en.spaces.inside.type,
+      en.spaces.inside.count,
+      en.spaces.inside.size,
+    ]);
+    const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
+    const typeCell = row.querySelectorAll("td")[0];
+    const samples = await within(typeCell).findByRole("list", { name: en.spaces.inside.samples });
+    expect(within(samples).getByTitle(SAMPLES[0].id)).toBeInTheDocument();
+    expect(typeCell.className).not.toMatch(/hidden/);
+    // the type name ends in "…" with its whole name on hover, never broken mid-word
+    const name = within(typeCell).getByTitle("AirQualityObserved");
+    expect(name.className).toMatch(/truncate/);
+    expect(name.className).not.toMatch(/overflow-wrap/);
+    // no size measured, so no words on what a size counts
+    expect(screen.queryByText(en.spaces.inside.sizeHint)).toBeNull();
   });
 });
 
@@ -1255,5 +1293,19 @@ describe("the space's own data", () => {
     // two or fewer therefore shows no count at all, which is the same branch (`rest > 0`).
     expect(within(endpointRow).getByText("ngsi-ld, csv")).toBeInTheDocument();
     expect(within(endpointRow).queryByText("+8 more")).toBeNull();
+  });
+});
+
+describe("a type's samples (T-6156)", () => {
+  it("lists each sample with its size, or says there is none", () => {
+    const { unmount } = renderPart(<Samples samples={[{ id: "urn:ngsi-ld:Kpi:1", type: "Kpi", name: "District 1" }]} />);
+    const list = screen.getByRole("list", { name: en.spaces.inside.samples });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(list).getByText("name: District 1")).toBeInTheDocument();
+    expect(within(list).getByTitle(/^Size of the values shown, as JSON: \d+ B$/)).toBeInTheDocument();
+    unmount();
+    renderPart(<Samples samples={[]} />);
+    expect(screen.getByText(en.spaces.inside.noEntities)).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 });

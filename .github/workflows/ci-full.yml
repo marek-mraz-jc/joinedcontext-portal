@@ -1,5 +1,7 @@
 name: ci-full
-# the slow lane: runs once a day on main (02:07Z) and on demand; never a PR gate.
+# the slow lane: runs once a day on main (02:07Z) when main moved, and on demand; never a PR gate.
+# It also holds what left the per-push ci.yml (T-6153): the SDK's screens, the component gallery
+# and every App (apps-all); ui-coverage runs the whole UI suite.
 # The MVP pushes to main many times an hour, and a full run per push queued behind the next
 # one; ci.yml stays the per-push gate. tasks/ci files a task for a red daily run like any other.
 # Every 3 h it billed ~1,100 portal and ~300 platform minutes a day (T-4696). image.yml also
@@ -11,7 +13,30 @@ on:
 permissions: { contents: read }
 concurrency: { group: "ci-full-${{ github.ref }}", cancel-in-progress: false }
 jobs:
+  # Only when main moved since this workflow's last verdict (T-6153: the checks the
+  # per-push lane dropped run here, and a schedule that finds main unchanged repeats nothing);
+  # a dispatch always runs. promote.yml promotes, and a production namespace admits, only a
+  # commit with a green run of this workflow that ran its checks, so every check here holds
+  # before prod.
+  moved:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions: { contents: read, actions: read }
+    outputs: { run: "${{ steps.last.outputs.run }}" }
+    steps:
+      - id: last
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          set -eu
+          # An earlier run of this workflow on this commit that reached a verdict (a cancelled one did not).
+          earlier=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci-full.yml/runs?head_sha=$GITHUB_SHA&status=completed&per_page=20" \
+            --jq "[.workflow_runs[] | select(.id != $GITHUB_RUN_ID and (.conclusion == \"success\" or .conclusion == \"failure\"))] | length" || echo 0)
+          echo "earlier runs on $GITHUB_SHA: $earlier"
+          if [ "$GITHUB_EVENT_NAME" = schedule ] && [ "$earlier" != 0 ]; then run=false; else run=true; fi
+          echo "run=$run" | tee -a "$GITHUB_OUTPUT"
   test-all:
+    needs: moved
+    if: needs.moved.outputs.run == 'true'
     runs-on: ubuntu-latest
     # A cold cache compiles for ~31 min before the first test (run 39819576000), and a run cut
     # off at the timeout saves no cache, so 40 min kept every later run cold (T-5251).
@@ -124,6 +149,8 @@ jobs:
   # job summary. The pass rate is a reading: the job is red only when the model API refuses more
   # than a tenth of the scenarios. Without the repository secret it prints a notice and runs nothing.
   model-evals:
+    needs: moved
+    if: needs.moved.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env: { OPENROUTER_API_KEY: "${{ secrets.OPENROUTER_API_KEY }}" }
@@ -147,6 +174,8 @@ jobs:
       - if: always() && env.OPENROUTER_API_KEY != ''
         run: cat "${{ runner.temp }}/model-evals.md" >> "$GITHUB_STEP_SUMMARY" || true
   wasm-apps:
+    needs: moved
+    if: needs.moved.outputs.run == 'true'
     # The Helsinki server WASM Apps on the real host (T-3346..T-3350, ADR-N-044): each App's
     # component, its migrations run twice as its owner, its routes against Postgres and RustFS and
     # a mock gateway (tests/wasm-apps). Its own workspace, so wasmtime stays out of test-all.
@@ -182,6 +211,8 @@ jobs:
           JC_WASM_TEST_S3_KEY: ci-root
           JC_WASM_TEST_S3_SECRET: ci-root-secret
   connector-load:
+    needs: moved
+    if: needs.moved.outputs.run == 'true'
     # The connector door's budget (T-5978, AG-143): a release Portal with 1,000 connectors over
     # 50 projects and its stores in Postgres, k6 holding tools/list and two read tools at 60 calls
     # a second; p95 over the budget, a dropped arrival, a wrong answer or a rights change not
@@ -211,6 +242,8 @@ jobs:
         env:
           JC_PORTAL_TEST_DATABASE_URL: postgres://jc:jc@127.0.0.1:5432/jc_portal_test
   readme:
+    needs: moved
+    if: needs.moved.outputs.run == 'true'
     # Every command the README tells a newcomer to type is run here (T-2144, TS-19). A
     # renamed crate, a moved script or a flag that no longer exists then fails a lane rather
     # than somebody's first hour. Only the Build and Test sections run; "Run locally" starts
@@ -233,6 +266,8 @@ jobs:
         run: python3 scripts/ci/check-readme-commands.py --selftest
       - run: python3 scripts/ci/check-readme-commands.py
   ui-coverage:
+    needs: moved
+    if: needs.moved.outputs.run == 'true'
     # What the UI suite covers, measured and never targeted (T-2136, TS-01). The thresholds in
     # `ui/vite.config.ts` are what it reached when they were written, so the number can rise and
     # cannot fall. Not in the fast lane: instrumenting every module costs more than its budget.
@@ -263,6 +298,8 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with: { name: ui-coverage, path: ui/coverage, if-no-files-found: error }
   web-performance:
+    needs: moved
+    if: needs.moved.outputs.run == 'true'
     # The public pages on a phone (T-5122): Lighthouse's mobile profile against dev, three runs a
     # page, judged by scripts/web-performance.mjs (a ceiling fails, the Core Web Vitals target
     # warns). Lighthouse runs on the runner; nothing is added to the pages it measures, and the
@@ -301,6 +338,8 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with: { name: lighthouse, path: "${{ runner.temp }}/lighthouse", if-no-files-found: warn }
   apps-all:
+    needs: moved
+    if: needs.moved.outputs.run == 'true'
     # Every App, its tests, the coverage gate and its bundle (T-3373); the fast lane runs only the
     # Apps a change touched. The WebAssembly Apps with the lane's builder and wasm-bindgen.
     runs-on: ubuntu-latest
@@ -329,7 +368,58 @@ jobs:
         run: sh scripts/apps-ci.sh wasm
       - name: every other App
         run: sh scripts/apps-ci.sh ui
+  # The component-gallery baselines (T-5575; UI-15, UI-16, UI-27): four screenshots against the
+  # vite dev server, no backend. Per push from T-5575 to T-6153, here since (no failure in 7 days). PW_ONLY=gallery starts the dev server alone (playwright.config.ts). A baseline
+  # changes on purpose only: `pnpm e2e -- --project=gallery --update-snapshots`.
+  ui-gallery:
+    needs: moved
+    if: needs.moved.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The baselines are taken in this image (its chromium and fonts; the command is in
+    # gallery.spec.ts): on the bare runner the fallback fonts moved ~2 000 pixels per shot (T-5575).
+    # Its tag matches @playwright/test in ui/pnpm-lock.yaml; move both together.
+    container:
+      image: mcr.microsoft.com/playwright@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27 # v1.63.0-noble
+      options: --ipc=host
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with: { version: 10 }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: ui/pnpm-lock.yaml }
+      # The UI links the SDK's sources and `link:` installs nothing for the sibling (T-1439).
+      - run: cd sdk && pnpm install --frozen-lockfile
+      - run: cd ui && pnpm install --frozen-lockfile
+      - name: the component gallery matches its baselines
+        env: { PW_ONLY: gallery }
+        run: cd ui && pnpm exec playwright test
+      # The actual and diff PNGs tell an intended change, whose baseline then wants regenerating,
+      # from a layout that broke (T-2311).
+      - if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ui-gallery-results
+          path: ui/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+  # The SDK's own typecheck, screens and build (SDK-01, AP-56), per push until T-6153 (166 s a
+  # push, no failure in 7 days).
+  sdk-screens:
+    needs: moved
+    if: needs.moved.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with: { version: 10 }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: sdk/pnpm-lock.yaml }
+      - run: cd sdk && pnpm install --frozen-lockfile && pnpm typecheck && pnpm test && pnpm build
   supply-chain:
+    needs: moved
+    if: needs.moved.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -340,6 +430,8 @@ jobs:
       - run: cargo audit
       - run: cargo deny check advisories bans licenses sources
   trivy-fs:
+    needs: moved
+    if: needs.moved.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -347,6 +439,8 @@ jobs:
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with: { scan-type: fs, severity: "HIGH,CRITICAL", exit-code: "1", ignore-unfixed: true }
   e2e:
+    needs: moved
+    if: needs.moved.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # The Apps installed without a lockfile take no release younger than a day (T-3527, as
