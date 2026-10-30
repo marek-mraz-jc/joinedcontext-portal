@@ -19,8 +19,6 @@ use chrono::Utc;
 
 use crate::error::ApiError;
 
-use super::connector_turn::refused;
-
 /// The names of the browser actions, in the order the model reads them.
 pub(crate) const UI_TOOLS: [&str; 5] = [
     "jc_ui_navigate",
@@ -124,6 +122,11 @@ pub(super) fn ui_specs() -> Vec<ToolSpec> {
             }),
         ),
     ]
+}
+
+/// A refusal before the operation runs, as the document every door answers (API/09).
+pub(super) fn refused(error: ApiError) -> String {
+    error.into_document().1.to_string()
 }
 
 /// A browser action the Portal will not run, as the 422 every door answers (API/09).
