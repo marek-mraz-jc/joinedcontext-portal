@@ -2,6 +2,7 @@
  * The data source templates on the new-source form (T-3249): pick what the source is, give its
  * address, and the form is filled and checked at once, so the first records show before anything
  * is proposed. The full form stays below for everything a template does not ask.
+ * Closed at first: one summary line, so the first field shows in the first screen at 400 px (T-6163).
  */
 import { useState } from "react";
 import type { JSX } from "react";
@@ -39,7 +40,7 @@ export function TemplateGallery({ onUse }: TemplateGalleryProps): JSX.Element {
   };
 
   return (
-    <details open className="rounded-md border border-border bg-surface-subtle p-3" data-testid="datasource-templates">
+    <details className="rounded-md border border-border bg-surface-subtle p-3" data-testid="datasource-templates">
       <summary className="focus-ring cursor-pointer rounded-md text-body font-semibold text-fg">
         {t("datasources.template.title")}
       </summary>

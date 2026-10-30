@@ -23,7 +23,7 @@ import { useYamlEditor } from "./forms/useYamlEditor";
 import { useYamlSubmitQueue } from "./forms/useYamlSubmitQueue";
 import { ResourceFormFooter, verdictStateOf } from "./forms/ResourceFormFooter";
 import type { ResourceFormFooterProps, VerdictState } from "./forms/ResourceFormFooter";
-import { FormGuideLink, ResourceFormNotes } from "./forms/ResourceFormNotes";
+import { FillFromSentence, FormGuideLink, ResourceFormNotes } from "./forms/ResourceFormNotes";
 import { ResourceYamlPanel } from "./forms/ResourceYamlPanel";
 
 export type { ManifestSource };
@@ -382,26 +382,29 @@ export function ResourceFormDialogBody<T>({
     >
       <div className="flex flex-col gap-4">
         <ResourceFormNotes
-          kind={kind}
           conflict={draft.conflict}
           saveRefused={draft.saveRefused}
           project={project}
           draftKind={draftKind}
           draft={draft.currentDraft}
-          strict={!isLax}
           verdict={draft.verdict}
           restartsStream={check.restartsStream}
         />
 
-        {source ? (
-          <Tabs
-            id={viewsId}
-            label={title}
-            variant="pill"
-            tabs={views.map((name) => ({ value: name, label: t(`form.view.${name}`) }))}
-            value={view}
-            onChange={show}
-          />
+        {source || kind ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {source ? (
+              <Tabs
+                id={viewsId}
+                label={title}
+                variant="pill"
+                tabs={views.map((name) => ({ value: name, label: t(`form.view.${name}`) }))}
+                value={view}
+                onChange={show}
+              />
+            ) : null}
+            {kind ? <FillFromSentence kind={kind} /> : null}
+          </div>
         ) : null}
 
         {view === "form" ? (

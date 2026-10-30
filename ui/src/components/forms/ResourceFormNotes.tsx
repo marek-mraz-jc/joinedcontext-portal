@@ -1,7 +1,7 @@
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Badge, Button, ExternalLink, Icon, safeHref } from "../ui";
+import { Alert, Button, ExternalLink, Icon, safeHref } from "../ui";
 import { queryKeys } from "../../api/client";
 import type { Effective } from "../../api/permissions";
 import { proposeStanding } from "../../api/approval";
@@ -27,19 +27,17 @@ function ProposeStandingNote({ project, kind }: { project: string; kind: string 
   );
 }
 
-/** The draft's last writer and the strict badge, for a form that keeps a draft. */
-function DraftStatus({ draft, strict }: { draft: Draft | null; strict: boolean }): JSX.Element | null {
+/**
+ * The draft's last writer, for a form that keeps a draft. Strict validation is the normal case and
+ * says nothing here: the Propose button gives its reason, and a lax form warns in the footer (T-6163).
+ */
+function DraftStatus({ draft }: { draft: Draft | null }): JSX.Element | null {
   const { t } = useTranslation();
-  if (!draft && !strict) return null;
+  if (!draft) return null;
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {draft ? (
-        <span data-testid="draft-status" className="text-caption text-fg-muted">
-          {t("drafts.touched", { who: draft.touchedBy, kind: draft.touchedKind, version: draft.version })}
-        </span>
-      ) : null}
-      {strict ? <Badge title={t("drafts.strictHelp")}>{t("drafts.strict")}</Badge> : null}
-    </div>
+    <span data-testid="draft-status" className="text-caption text-fg-muted">
+      {t("drafts.touched", { who: draft.touchedBy, kind: draft.touchedKind, version: draft.version })}
+    </span>
   );
 }
 
@@ -68,13 +66,11 @@ function Findings({ findings }: { findings: NonNullable<Verdict["findings"]> }):
 }
 
 export interface ResourceFormNotesProps {
-  kind?: string;
   conflict: string | null;
   saveRefused: string | null;
   project?: string;
   draftKind?: string;
   draft: Draft | null;
-  strict: boolean;
   verdict: Verdict | null;
   restartsStream: boolean;
 }
@@ -106,25 +102,30 @@ export function FormGuideLink({ kind, href }: { kind?: string; href?: string | n
   );
 }
 
+/**
+ * "Fill this from a sentence": opens the assistant with the form's kind in the question. It sits on
+ * the row of the Form/YAML tabs, so the first field stays in the first screen at 400 px (T-6163).
+ */
+export function FillFromSentence({ kind }: { kind: string }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={() => askAbout(t("form.fillFromSentenceQuestion", { kind }))}
+    >
+      {t("form.fillFromSentence")}
+    </Button>
+  );
+}
+
 /** What a form says above its fields: the draft's state, and only what changes what happens. */
 export function ResourceFormNotes(props: ResourceFormNotesProps): JSX.Element {
   const { t } = useTranslation();
-  const { kind, draftKind, project } = props;
+  const { draftKind, project } = props;
   return (
     <>
-      {kind ? (
-        <div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => askAbout(t("form.fillFromSentenceQuestion", { kind }))}
-          >
-            {t("form.fillFromSentence")}
-          </Button>
-        </div>
-      ) : null}
-
       {props.conflict ? (
         <Alert role="alert" tone="warning">
           {props.conflict}
@@ -138,7 +139,7 @@ export function ResourceFormNotes(props: ResourceFormNotesProps): JSX.Element {
 
       {draftKind && project ? <ProposeStandingNote project={project} kind={draftKind} /> : null}
 
-      {draftKind ? <DraftStatus draft={props.draft} strict={props.strict} /> : null}
+      {draftKind ? <DraftStatus draft={props.draft} /> : null}
 
       {draftKind && props.verdict?.findings ? <Findings findings={props.verdict.findings} /> : null}
 

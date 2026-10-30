@@ -149,6 +149,8 @@
     "chooseVariant": "{label}: zadané ako",
     "useExample": "Použiť príklad",
     "noResults": "Žiadne výsledky",
+    "noSpaces": "Tento projekt zatiaľ nemá kontextový priestor, ktorý môžete čítať. Vytvorte ho v časti Kontextové priestory a potom ho vyberte tu.",
+    "noneYet": "Tento projekt zatiaľ nemá žiadny, ktorý môžete čítať. Vytvorte ho na jeho vlastnej stránke a potom ho vyberte tu.",
     "entityPickerPending": "Najprv vyberte priestor a typ entity a tu sa zobrazia ich entity; identifikátor entity sem môžete aj vložiť.",
     "listFailed": "Zoznam sa nepodarilo načítať, skúste znova: {reason}",
     "listRetry": "Skúsiť znova",
@@ -517,7 +519,7 @@
     },
     "lead": "Všetko tohto druhu, čo projekt obsahuje. Každý riadok otvorí to, čo pomenúva.",
     "new": "Nový {kind}",
-    "newHint": "Vyplňte formulár, skontrolujte ho a navrhnite; zmenu posúdi schvaľovateľ.",
+    "newHint": "Skontrolujte ho a navrhnite schvaľovateľovi.",
     "propose": "Navrhnúť zmenu",
     "emptyHintCreate": "V projekte zatiaľ nič z tohto druhu nie je. {new} otvorí formulár.",
     "askAssistant": "Požiadať asistenta o návrh",
@@ -1487,7 +1489,7 @@
     "searchNoMatchHint": "Skontrolujte pravopis alebo vymažte hľadanie a uvidíte všetky endpointy.",
     "add": "Nový endpoint",
     "edit": "Upraviť",
-    "addHint": "Uložením vznikne návrh zmeny; endpoint začne odpovedať po jeho schválení.",
+    "addHint": "Odpovedá po schválení zmeny.",
     "propose": "Navrhnúť zmenu",
     "generateSlug": "Vygenerovať slug",
     "copyUrl": "Kopírovať URL",
@@ -2579,7 +2581,7 @@
     "dialog": {
       "create": "Nová pipelina",
       "edit": "Úprava pipeliny",
-      "lead": "Formulár a manifest, ktorý zapisuje: obe podoby opisujú tú istú pipelinu a návrh ide do Schvaľovania ako každá iná zmena."
+      "lead": "Návrh ide do Schvaľovania ako každá iná zmena."
     },
     "bloblangHint": "Bloblang mapovanie sa upravuje tu a ukladá do manifestu; prázdne ostáva v bento.yaml vedľa tohto manifestu vo forge.",
     "bloblangFile": "Otvoriť bento.yaml",
@@ -6376,8 +6378,6 @@
     },
     "laxWarning": "Mierne overenie: kontrola neprebehla alebo neuspela.",
     "findings": "Zistenia",
-    "strict": "prísne overenie",
-    "strictHelp": "Nič sa nenavrhne, kým kontrola nie je zelená.",
     "saveRefused": "Koncept sa neuložil: {reason}",
     "elsewhere": {
       "title": "Na tejto stránke nie je koncept „{name}“",
