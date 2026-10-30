@@ -2344,7 +2344,8 @@
         "Checkbox": 2
       },
       "tests": [
-        "mqtt_broker_draft.test.ts"
+        "mqtt_broker_draft.test.ts",
+        "mqtt_broker_parts.test.tsx"
       ]
     },
     "src/pages/mqttbrokers/MqttBrokerPage.tsx": {
