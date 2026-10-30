@@ -780,3 +780,83 @@ test.describe("the model canvas (T-6094)", () => {
     await expect(page.getByTestId("diagram-badge-Dataset")).toBeInViewport();
   });
 });
+
+// T-6146 (owner): the Overview is one toolbar row ending in Open full screen, the canvas across the
+// content width and the relationships below it; the header names no space (a DataModel binds none).
+const CITY_LINKED = CITY.replace("    slots: [name, address]", "    slots: [name, address, events]")
+  .replace("  location: { range: Place }", "  location: { range: Place, inverse: events, annotations: { ngsi_ld_kind: Relationship } }")
+  .replace(
+    "  organizer: { range: Organization }",
+    "  organizer: { range: Organization }\n  events: { range: Event, multivalued: true, inverse: location, annotations: { ngsi_ld_kind: Relationship } }",
+  );
+
+const OVERVIEW_MODELS: Record<string, string> = {
+  city: CITY_LINKED,
+  helsinki: LINKML,
+  empty: "id: https://hel.fi/models/empty\nname: empty\n",
+};
+
+async function stubOverview(page: Page, verbs: string[]): Promise<void> {
+  // A URL test, not a glob: the route gate (tests/gates.ts) reads a slash and two stars as a comment.
+  await page.route((url) => url.pathname.startsWith("/api/"), async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const json = (body: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+    if (path.endsWith("/auth/me")) return json(IDENTITY);
+    if (path === "/api/v1/projects") return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "helsinki" }] });
+    if (path.endsWith("/permissions/me")) return json({ project: "helsinki", grants: [{ rule: { kinds: ["DataModel", "ContextSpace", "Endpoint"], verbs } }] });
+    if (path.endsWith("/datamodels")) {
+      return json(list(Object.entries(OVERVIEW_MODELS).map(([name, linkml]) => meta("DataModel", name, { contextSpaceRef: "helsinki", version: "1.0.0", linkml }))));
+    }
+    if (path === "/api/v1/tools/generate") return json(ARTIFACTS);
+    const plural = /^\/api\/v1\/projects\/helsinki\/([a-z]+)$/.exec(path)?.[1];
+    return json(plural && CANVAS_LISTS[plural] && plural !== "datamodels" ? CANVAS_LISTS[plural] : list([]));
+  });
+}
+
+test.describe("the model Overview (T-6146)", () => {
+  for (const width of [1440, 400]) {
+    test(`one toolbar row, the canvas full width, relationships below, at ${width}`, async ({ page }) => {
+      await stubOverview(page, ["read", "propose", "delete"]);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/projects/helsinki/models/city?lang=en");
+      const toolbar = page.getByRole("toolbar", { name: "Diagram tools" });
+      const open = toolbar.getByRole("link", { name: "Open full screen" });
+      await expect(open).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1 }).locator("xpath=following-sibling::p")).not.toContainText("Context space");
+      const drawing = page.getByRole("group", { name: "The model's classes and what joins them" });
+      const table = page.getByRole("table", { name: "Relationships in the drawing" });
+      const [frame, rows] = [await drawing.locator("xpath=..").boundingBox(), await table.boundingBox()];
+      expect(frame && rows && rows.y >= frame.y + frame.height).toBe(true);
+      if (width === 1440) {
+        // The canvas takes the content column, not a share of it beside the table.
+        const toolbarBox = await toolbar.boundingBox();
+        expect(frame && toolbarBox && frame.width >= toolbarBox.width - 2).toBe(true);
+        // Open full screen sits on the toolbar's own row, at its end.
+        const [openBox, fit] = [await open.boundingBox(), await toolbar.getByRole("button", { name: "Fit" }).boundingBox()];
+        expect(openBox && fit && Math.abs(openBox.y - fit.y) < 8 && openBox.x > fit.x).toBe(true);
+      }
+      await shot(page, `overview-large-${width}`);
+
+      await page.goto("/projects/helsinki/models/helsinki?lang=en");
+      await expect(page.getByRole("toolbar", { name: "Diagram tools" }).getByRole("link", { name: "Open full screen" })).toBeVisible();
+      await shot(page, `overview-small-${width}`);
+
+      await page.goto("/projects/helsinki/models/empty?lang=en");
+      await expect(page.getByRole("heading", { level: 1, name: "empty" })).toBeVisible();
+      // Nothing to draw: no toolbar and no way to an empty full-screen canvas.
+      await expect(page.getByText("This model declares no class yet, so there is nothing to draw.")).toBeVisible();
+      await expect(page.getByRole("link", { name: "Open full screen" })).toHaveCount(0);
+      await shot(page, `overview-empty-${width}`);
+    });
+
+    test(`a viewer reads the Overview with Edit disabled, at ${width}`, async ({ page }) => {
+      await stubOverview(page, ["read"]);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/projects/helsinki/models/city?lang=en");
+      await expect(page.getByRole("toolbar", { name: "Diagram tools" }).getByRole("link", { name: "Open full screen" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1 }).locator("xpath=following-sibling::p")).not.toContainText("Context space");
+      await expect(page.getByRole("button", { name: "Edit model" })).toHaveAttribute("aria-disabled", "true");
+      await shot(page, `overview-viewer-${width}`);
+    });
+  }
+});
