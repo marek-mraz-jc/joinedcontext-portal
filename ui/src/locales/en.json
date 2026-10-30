@@ -4755,7 +4755,8 @@
       "file": "File",
       "fileFixed": "The file name is fixed: a rename changes only the name people read.",
       "version": "Version",
-      "renameShort": "Rename"
+      "renameShort": "Rename",
+      "renamed": "Renamed. The id {id} and its file stay as they are; Propose saves the new name."
     }
   },
   "apps": {

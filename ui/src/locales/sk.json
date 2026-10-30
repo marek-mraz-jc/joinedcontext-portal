@@ -4755,7 +4755,8 @@
       "file": "Súbor",
       "fileFixed": "Názov súboru je pevný: premenovanie mení len názov, ktorý ľudia čítajú.",
       "version": "Verzia",
-      "renameShort": "Premenovať"
+      "renameShort": "Premenovať",
+      "renamed": "Premenované. Identifikátor {id} a jeho súbor zostávajú; Navrhnúť uloží nový názov."
     }
   },
   "apps": {

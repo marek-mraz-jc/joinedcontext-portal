@@ -26,6 +26,7 @@ export function ModelIdentity({ name, id, creating, version, readOnly, onRename 
   const inputId = useId();
   const [draft, setDraft] = useState<string | undefined>(undefined);
   const [empty, setEmpty] = useState(false);
+  const [renamed, setRenamed] = useState(false);
   const field = useRef<HTMLInputElement>(null);
   // The pencil the person pressed is gone: the field it opened takes the focus in its place.
   const renaming = draft !== undefined;
@@ -41,6 +42,7 @@ export function ModelIdentity({ name, id, creating, version, readOnly, onRename 
       return;
     }
     onRename(value);
+    setRenamed(true);
     setDraft(undefined);
     setEmpty(false);
   };
@@ -116,6 +118,11 @@ export function ModelIdentity({ name, id, creating, version, readOnly, onRename 
           </div>
         </form>
       )}
+      {renamed && id ? (
+        <p role="status" className="text-caption text-fg-muted">
+          {t("models.identity.renamed", { id })}
+        </p>
+      ) : null}
       <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-fg-muted">
         <div className="flex items-center gap-1" title={t(creating ? "models.identity.idNew" : "models.identity.idFixed")}>
           <Icon name="lock" className="size-3.5" />

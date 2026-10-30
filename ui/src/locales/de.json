@@ -4755,7 +4755,8 @@
       "file": "Datei",
       "fileFixed": "Der Dateiname ist fest: Umbenennen ändert nur den Namen, den Menschen lesen.",
       "version": "Version",
-      "renameShort": "Umbenennen"
+      "renameShort": "Umbenennen",
+      "renamed": "Umbenannt. Die Kennung {id} und ihre Datei bleiben; Vorschlagen speichert den neuen Namen."
     }
   },
   "apps": {

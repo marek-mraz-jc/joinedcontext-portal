@@ -37,6 +37,7 @@ describe("ModelIdentity", () => {
     await user.type(field, "Air quality stations{Enter}");
 
     expect(onRename).toHaveBeenCalledWith("Air quality stations");
+    expect(screen.getByRole("status")).toHaveTextContent(en.models.identity.renamed.replace("{id}", "air-quality"));
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     await expectNoViolations(container);
   });
