@@ -5,8 +5,8 @@ export const NAV_SECTIONS = [
   // The project's home: the first-run checklist and what the person's role does next (T-3233).
   { plural: "home", labelKey: "nav.home", icon: "globe" },
   { plural: "spaces", labelKey: "nav.spaces", icon: "spaces" },
-  // What this project references from other projects' endpoints lives in the Endpoints page's
-  // "Shared with this project" section, not in a page of its own (T-0706, EP-15).
+  // What this project references from other projects' endpoints are rows of the Endpoints grid,
+  // not a page of their own (T-0706, EP-15, T-6169).
   { plural: "endpoints", labelKey: "nav.endpoints", icon: "endpoints" },
   // A standing query of a space and where its notifications go; like a sync source, its page
   // is the only way to add one, so it needs an entry of its own (CC-72, T-2344).

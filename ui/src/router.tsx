@@ -1165,8 +1165,8 @@ const assistantRoute = createRoute({
   },
 });
 
-// The shared references had a page of their own; they live in the Endpoints page's
-// "Shared with this project" section now. The old URL still lands there, so a bookmark and the
+// The shared references had a page of their own; they are rows of the Endpoints grid now
+// (T-6169). The old URL still lands there, so a bookmark and the
 // assistant's `navigate` are not broken (T-0706, EP-15).
 const sharedRedirectRoute = createRoute({
   getParentRoute: () => protectedRoute,
@@ -1178,7 +1178,6 @@ const sharedRedirectRoute = createRoute({
         replace
         to="/projects/$project/$plural"
         params={{ project, plural: "endpoints" }}
-        hash="shared-with-project"
       />
     );
   },

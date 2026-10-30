@@ -5,7 +5,7 @@ import { I18nextProvider } from "react-i18next";
 import validator from "@rjsf/validator-ajv8";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
-import { expectDenied, expectOpen } from "./checks";
+import { expectOpen } from "./checks";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import {
@@ -138,8 +138,15 @@ function writes(fetchMock: ReturnType<typeof vi.fn>): Request[] {
     .filter((request) => request instanceof Request && request.method !== "GET" && !String((request as Request).url ?? request).includes("/drafts") && !new URL((request as Request).url).searchParams.has("dryRun"));
 }
 
+/** The one Endpoints grid: own, shared and gone-reference rows together (T-6169). */
 function sharedSection(): Promise<HTMLElement> {
-  return screen.findByRole("region", { name: en.endpoints.shared.title });
+  return screen.findByRole("table", { name: en.endpoints.title });
+}
+
+/** Opens a row's menu and returns its items. */
+async function rowMenu(row: HTMLElement): Promise<HTMLElement[]> {
+  await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
+  return screen.findAllByRole("menuitem");
 }
 
 describe("endpoint sharing", () => {
@@ -246,13 +253,12 @@ describe("endpoint sharing", () => {
     expect(within(section).queryByText("weather")).not.toBeInTheDocument();
 
     const bikes = within(section).getByText("bikes").closest("tr") as HTMLElement;
-    expect(within(bikes).getByRole("link", { name: "helsinki" })).toHaveAttribute(
+    // The Source chip names the publishing project; the name opens its Endpoint page there.
+    expect(within(bikes).getByText("Shared by helsinki")).toBeInTheDocument();
+    expect(within(bikes).getByText("liikenne")).toBeInTheDocument();
+    expect(within(bikes).getByRole("link", { name: "bikes" })).toHaveAttribute(
       "href",
-      "/projects/helsinki/endpoints",
-    );
-    expect(within(bikes).getByRole("link", { name: "liikenne" })).toHaveAttribute(
-      "href",
-      "/projects/helsinki/spaces/liikenne",
+      "/projects/helsinki/endpoints/bikes",
     );
     // What it serves is one summary; the surface links are on the endpoint's page (T-4989).
     expect(within(bikes).getByText(/^NGSI-LD, MCP/)).toBeInTheDocument();
@@ -263,10 +269,9 @@ describe("endpoint sharing", () => {
     const fetchMock = renderAt("/projects/espoo/endpoints");
 
     const section = await sharedSection();
-    await within(section).findByText("bikes");
-    await userEvent.click(
-      within(section).getByRole("button", { name: `${en.endpoints.shared.use}: helsinki/bikes` }),
-    );
+    const row = (await within(section).findByText("bikes")).closest("tr") as HTMLElement;
+    await rowMenu(row);
+    await userEvent.click(screen.getByRole("menuitem", { name: en.endpoints.shared.use }));
 
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
     const request = writes(fetchMock)[0];
@@ -299,11 +304,13 @@ describe("endpoint sharing", () => {
     const fetchMock = renderAt("/projects/espoo/endpoints");
 
     const section = await sharedSection();
-    await within(section).findByText("bikes");
-    const use = within(section).getByRole("button", { name: `${en.endpoints.shared.use}: helsinki/bikes` });
+    const row = (await within(section).findByText("bikes")).closest("tr") as HTMLElement;
+    await rowMenu(row);
+    const use = screen.getByRole("menuitem", { name: new RegExp(en.endpoints.shared.use) });
     await waitFor(() => {
-      expectDenied(use, "Disabled: your role does not permit 'propose' on 'SharedSpaceReference' in this project");
+      expect(use).toHaveAttribute("aria-disabled", "true");
     });
+    expect(use).toHaveTextContent("your role does not permit 'propose' on 'SharedSpaceReference' in this project");
     await userEvent.click(use);
     expect(writes(fetchMock)).toHaveLength(0);
   });
@@ -323,18 +330,16 @@ describe("endpoint sharing", () => {
     const section = await sharedSection();
     const bikes = (await within(section).findByText("bikes")).closest("tr") as HTMLElement;
     await within(bikes).findByText(en.endpoints.shared.referenced);
-    expect(within(bikes).getByText(/city-bikes/)).toBeInTheDocument();
-    expect(
-      within(bikes).queryByRole("button", { name: `${en.endpoints.shared.use}: helsinki/bikes` }),
-    ).not.toBeInTheDocument();
-    // The other endpoints still offer the button.
+    const items = (await rowMenu(bikes)).map((item) => item.textContent);
+    expect(items).not.toContain(en.endpoints.shared.use);
+    expect(items).toContain(en.endpoints.shared.stop);
+    await userEvent.keyboard("{Escape}");
+    // The other endpoints still offer Use in this project.
     const events = within(section).getByText("events").closest("tr") as HTMLElement;
-    expect(
-      within(events).getByRole("button", { name: `${en.endpoints.shared.use}: helsinki/events` }),
-    ).toBeInTheDocument();
+    expect((await rowMenu(events)).map((item) => item.textContent)).toContain(en.endpoints.shared.use);
   });
 
-  it("keeps a shared row to its own controls in the open, never a menu (T-2288, T-2570)", async () => {
+  it("offers a shared row only what a reference can do: open, YAML, alias, stop using (T-6169)", async () => {
     byPath["/api/v1/projects/espoo/shared"] = list([
       {
         apiVersion: API,
@@ -346,22 +351,35 @@ describe("endpoint sharing", () => {
     ]);
     renderAt("/projects/espoo/endpoints");
 
-    // A reference is not a manifest a consumer saves as or works on a copy of: this row changes
-    // its alias and schedule, or stops referencing it, and both stay in the open rather than
-    // becoming a menu with items that make no sense for it.
+    // A reference is not a manifest a consumer saves as or works on a copy of.
     const section = await sharedSection();
     const bikes = (await within(section).findByText("bikes")).closest("tr") as HTMLElement;
     await within(bikes).findByText(en.endpoints.shared.referenced);
-    expect(within(bikes).getAllByRole("button")).toHaveLength(2);
-    expect(
-      within(bikes).getByRole("button", { name: new RegExp(en.resourceDelete.button) }),
-    ).toBeInTheDocument();
-    expect(
-      within(bikes).getByRole("button", { name: new RegExp(en.resourceEdit.button) }),
-    ).toBeInTheDocument();
+    expect((await rowMenu(bikes)).map((item) => item.textContent)).toEqual([
+      en.resourceList.open,
+      en.grid.yaml.action,
+      en.endpoints.shared.editAlias,
+      en.endpoints.shared.stop,
+    ]);
+  });
 
-    const events = within(section).getByText("events").closest("tr") as HTMLElement;
-    expect(within(events).getAllByRole("button")).toHaveLength(1);
+  it("keeps a reference whose Endpoint is gone as a row with Stop using (EP-15)", async () => {
+    byPath["/api/v1/projects/espoo/shared"] = list([
+      {
+        apiVersion: API,
+        kind: "SharedSpaceReference",
+        metadata: { name: "gone-ref", namespace: "espoo" },
+        spec: { endpointRef: { project: "vantaa", name: "nothing" }, alias: "old-alias" },
+      },
+    ]);
+    renderAt("/projects/espoo/endpoints");
+    const section = await sharedSection();
+    const gone = (await within(section).findByText("old-alias")).closest("tr") as HTMLElement;
+    expect(within(gone).getByText(en.endpoints.shared.gone)).toBeInTheDocument();
+    expect((await rowMenu(gone)).map((item) => item.textContent)).toEqual([
+      en.endpoints.shared.editAlias,
+      en.endpoints.shared.stop,
+    ]);
   });
 
   // T-2570, EP-15, DM-49: the alias and the mirror schedule change in place; the source stays.
@@ -383,15 +401,13 @@ describe("endpoint sharing", () => {
 
     const section = await sharedSection();
     const bikes = (await within(section).findByText("bikes")).closest("tr") as HTMLElement;
-    await userEvent.click(
-      await within(bikes).findByRole("button", { name: new RegExp(en.resourceEdit.button) }),
-    );
+    await rowMenu(bikes);
+    await userEvent.click(screen.getByRole("menuitem", { name: en.endpoints.shared.editAlias }));
     const alias = await screen.findByLabelText(new RegExp(en.endpoints.shared.edit.alias));
     await userEvent.clear(alias);
     await userEvent.type(alias, "bikes-hki");
     await userEvent.type(screen.getByLabelText(new RegExp(en.endpoints.shared.edit.interval)), "6h");
     await userEvent.click(screen.getByRole("button", { name: en.resourceEdit.propose }));
-
     await waitFor(() => expect(writes(fetchMock)).toHaveLength(1));
     const put = writes(fetchMock)[0];
     expect(put.method).toBe("PUT");
@@ -456,17 +472,13 @@ describe("endpoint sharing", () => {
 
     const nav = await screen.findByRole("navigation", { name: "Main navigation" });
     expect(within(nav).queryByRole("link", { name: /shared/i })).toBeNull();
-    expect(
-      await screen.findByRole("heading", { name: en.endpoints.shared.title }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("table", { name: en.endpoints.title })).toBeInTheDocument();
   });
 
   it("the old references URL lands on the Endpoints page (T-0706)", async () => {
     renderAt("/projects/espoo/shared");
 
-    expect(
-      await screen.findByRole("heading", { name: en.endpoints.shared.title }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("table", { name: en.endpoints.title })).toBeInTheDocument();
     expect(window.location.pathname).toBe("/projects/espoo/endpoints");
   });
 });

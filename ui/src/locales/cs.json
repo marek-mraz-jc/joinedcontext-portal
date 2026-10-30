@@ -1670,7 +1670,9 @@
         "intervalHelp": "Jak často se sem zrcadlí schéma zdroje, například 6h nebo 1d; prázdné znamená jednou denně."
       },
       "browse": "Podívat se, co zveřejňují jiné projekty",
-      "noAddress": "Tento endpoint ještě nemá adresu; použít ho můžete, až bude zveřejněn."
+      "noAddress": "Tento endpoint ještě nemá adresu; použít ho můžete, až bude zveřejněn.",
+      "stop": "Přestat používat",
+      "editAlias": "Upravit alias"
     },
     "audienceOption": {
       "project-list": "Vybrané projekty: pouze projekty, které označíte",
@@ -2338,6 +2340,14 @@
         "until": "Poslední den oprávnění, např. 2027-01-31. Prázdné znamená bez konce.",
         "reason": "K čemu data potřebujete, např. Týdenní zpráva o ovzduší pro okresní úřad."
       }
+    },
+    "source": {
+      "label": "Zdroj",
+      "own": "Tento projekt",
+      "shared": "Sdílí {project}"
+    },
+    "calls": {
+      "label": "Volání, 7 dní"
     }
   },
   "datasources": {
@@ -11073,6 +11083,11 @@
     },
     "text": {
       "hint": "Prostý text, například krátká věta."
+    },
+    "yaml": {
+      "action": "Zobrazit YAML",
+      "title": "{name} jako YAML",
+      "lead": "Manifest tak, jak ho drží repozitář projektu, jen pro čtení. Tajemství jsou jen odkazem (secretRef); hodnota pod klíčem, který vypadá jako tajemství, je skrytá."
     }
   }
 }

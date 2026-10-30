@@ -1670,7 +1670,9 @@
         "intervalHelp": "How often the source's schema is mirrored here, such as 6h or 1d; leave empty for once a day."
       },
       "browse": "See what other projects publish",
-      "noAddress": "This endpoint has no address yet; you can use it once it is published."
+      "noAddress": "This endpoint has no address yet; you can use it once it is published.",
+      "stop": "Stop using",
+      "editAlias": "Edit alias"
     },
     "audienceOption": {
       "project-list": "Selected projects: only the projects you tick",
@@ -2338,6 +2340,14 @@
         "until": "The last day of the grant, e.g. 2027-01-31. Leave empty for no end.",
         "reason": "What you need the data for, e.g. Weekly air report for the district office."
       }
+    },
+    "source": {
+      "label": "Source",
+      "own": "This project",
+      "shared": "Shared by {project}"
+    },
+    "calls": {
+      "label": "Calls, 7 days"
     }
   },
   "datasources": {
@@ -11073,6 +11083,11 @@
     },
     "text": {
       "hint": "Plain text, for example a short sentence."
+    },
+    "yaml": {
+      "action": "View YAML",
+      "title": "{name} as YAML",
+      "lead": "The manifest as the project repository holds it, read only. Secrets appear by reference (secretRef) only; a value under a secret-like key is masked."
     }
   }
 }
