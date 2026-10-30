@@ -6,6 +6,21 @@
   ],
   "enforce": false,
   "modules": {
+    "src/components/grid/ManifestGrid.tsx": {
+      "walkedBy": "worker-t6115",
+      "date": "2026-10-30",
+      "screenshots": [
+        "evidence/T-6115/endpoints-filled-1440.png",
+        "evidence/T-6115/endpoints-filled-400.png",
+        "evidence/T-6115/endpoints-filtered-1440.png",
+        "evidence/T-6115/endpoints-panel-1440.png",
+        "evidence/T-6115/endpoints-panel-400.png",
+        "evidence/T-6115/endpoints-refused-1440.png",
+        "evidence/T-6115/subscriptions-empty-400.png",
+        "evidence/T-6115/pipelines-filled-1440.png",
+        "evidence/T-6115/models-filled-1440.png"
+      ]
+    },
     "src/connectors/PairedTabBar.tsx": {
       "walkedBy": "worker-t5967 (stub walk, e2e/paired_tab.spec.ts)",
       "date": "2026-10-29",

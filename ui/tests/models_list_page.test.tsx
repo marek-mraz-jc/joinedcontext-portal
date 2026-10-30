@@ -93,7 +93,7 @@ describe("the list of data models", () => {
   it("lists every model with its space, version, lifecycle, classes, last change and users", async () => {
     await renderRoute({ path: "/projects/helsinki/models", answer });
     const table = await screen.findByRole("table", { name: en.models.page.listCaption });
-    const air = within(table).getByRole("link", { name: "Air quality" }).closest("tr") as HTMLElement;
+    const air = (await within(table).findByRole("link", { name: "Air quality" })).closest("tr") as HTMLElement;
     expect(within(table).getByRole("link", { name: "Air quality" })).toHaveAttribute("href", "/projects/helsinki/models/air");
     expect(within(air).getByRole("link", { name: "ilma" })).toHaveAttribute("href", "/projects/helsinki/spaces/ilma");
     expect(air).toHaveTextContent("1.2.0");
@@ -108,10 +108,13 @@ describe("the list of data models", () => {
   it("narrows by the search and by the space", async () => {
     await renderRoute({ path: "/projects/helsinki/models", answer });
     const table = await screen.findByRole("table", { name: en.models.page.listCaption });
+    await within(table).findByRole("link", { name: "Air quality" });
     await userEvent.type(screen.getByLabelText(en.models.page.search), "bikehire");
     expect(within(table).getAllByRole("link").map((link) => link.textContent)).toEqual(["bikes", "mobility", "BikeHireDockingStation"]);
     await userEvent.clear(screen.getByLabelText(en.models.page.search));
-    await userEvent.selectOptions(screen.getByLabelText(en.models.field.space), "culture");
+    // The space is a filter chip of the shared grid (T-6115).
+    await userEvent.click(screen.getByText(en.grid.filter));
+    await userEvent.click(screen.getByRole("checkbox", { name: /^culture/ }));
     expect(within(table).getAllByRole("link").map((link) => link.textContent)).toEqual(["events", "culture"]);
   });
 

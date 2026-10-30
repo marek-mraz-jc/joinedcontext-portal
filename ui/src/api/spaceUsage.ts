@@ -79,12 +79,6 @@ export function exactBytes(bytes: number, language: string): string {
   return `${new Intl.NumberFormat(language).format(bytes)} B`;
 }
 
-/** Everything the space takes: its current state and its history. */
-export function totalBytes(usage: SpaceUsage | undefined): number | undefined {
-  const bytes = usage?.bytes;
-  return bytes ? bytes.entities + bytes.attrInstances : undefined;
-}
-
 /**
  * The bytes of one type of the space's DataModel. The broker keys them by the stored type, an
  * expanded IRI, and the model names the type short, so a key matches by itself or by its last

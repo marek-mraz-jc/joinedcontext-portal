@@ -19,7 +19,7 @@ import { PermissionGuard } from "../components/ui/PermissionGuard";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { ResourceFormDialog } from "../components/ResourceFormDialog";
 import { ChangeNotice } from "../components/ChangeNotice";
-import { ResourceList } from "../components/ResourceList";
+import { ManifestGrid } from "../components/grid/ManifestGrid";
 import { DeleteResourceAction } from "../components/DeleteResourceDialog";
 import { EditResourceAction, EditResourceDialog } from "../components/EditResourceDialog";
 import type { ResourceTarget } from "../components/DeleteResourceDialog";
@@ -354,8 +354,6 @@ function isLive(endpoint: Manifest | null): boolean {
   return (endpoint?.status?.phase ?? "").toLowerCase() === "live";
 }
 
-const COLUMNS = 5;
-
 /** `schema` without `allowedProjects`: the manifest refuses the list outside `project-list`. */
 function withoutBurst(schema: JsonSchema): JsonSchema {
   const rateLimits = schema.properties?.rateLimits as JsonSchema | undefined;
@@ -487,9 +485,6 @@ function EndpointRowActions({
 }
 
 /** Endpoints of one project: who may call them, in which representations, and their public URL. */
-/** Rows the list mounts at a time (T-4545). */
-const ROWS_PER_PAGE = 50;
-
 /** Whether the endpoint's name or title holds `needle`, case aside. */
 function matches(endpoint: Manifest, needle: string, locale: string): boolean {
   const wanted = needle.trim().toLowerCase();
@@ -560,7 +555,6 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   const [activeSlug, setActiveSlug] = useState<string>(() => generateSlug());
   // The rows on screen and the name or title they are narrowed by (T-4545): 10 000 rows mounted at
   // once took 18 s to show the first; a page of them shows at once and the rest wait behind a button.
-  const [shown, setShown] = useState(ROWS_PER_PAGE);
   const [needle, setNeedle] = useState("");
 
   const [pickerState, setPickerState] = useState<ModelPickerState>({
@@ -1025,21 +1019,10 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
     },
   });
 
-  const head = (
-    <TableHead>
-      <TableHeaderCell>{t("endpoints.field.name")}</TableHeaderCell>
-      <TableHeaderCell secondary>{t("endpoints.field.audience")}</TableHeaderCell>
-      <TableHeaderCell secondary>{t("endpoints.field.representations")}</TableHeaderCell>
-      <TableHeaderCell>{t("endpoints.field.phase")}</TableHeaderCell>
-      <TableHeaderCell align="right">{t("approvals.actions")}</TableHeaderCell>
-    </TableHead>
-  );
-
   const endpoints = asManifests(list.data?.items ?? []);
   const matching = needle.trim()
     ? endpoints.filter((endpoint) => matches(endpoint, needle, locale))
     : endpoints;
-  const visible = matching.slice(0, shown);
 
   /** Open this page's own editor on one endpoint: the row's action and `?edit=<name>` (T-2281). */
   const openEditor = useCallback((endpoint: Manifest) => {
@@ -1260,7 +1243,6 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
               value={needle}
               onChange={(event) => {
                 setNeedle(event.target.value);
-                setShown(ROWS_PER_PAGE);
               }}
             />
           ) : undefined
@@ -1289,12 +1271,92 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
 
       {change ? <ChangeNotice change={change} project={project} /> : null}
 
-      <ResourceList
-        query={list}
+      <ManifestGrid<Manifest>
         caption={t("endpoints.title")}
-        head={head}
-        columns={COLUMNS}
-        count={matching.length}
+        storageKey="endpoints"
+        searchLabel={t("endpoints.find")}
+        search={needle}
+        onSearchChange={setNeedle}
+        rows={matching}
+        total={endpoints.length}
+        rowKey={(endpoint) => endpoint.metadata.name}
+        query={list}
+        name={{
+          id: "name",
+          label: t("endpoints.field.name"),
+          text: (endpoint) => localized(endpoint.metadata.title, locale, endpoint.metadata.name),
+          // The name opens the endpoint's own page, where every setting and every surface link is
+          // (T-2281); the whole row opens it, so the name is no underlined link (T-4989).
+          cell: (endpoint) => (
+            <div className="flex min-w-0 max-w-xs items-baseline gap-2 whitespace-nowrap">
+              <Link
+                data-row-link=""
+                to="/projects/$project/$plural/$name"
+                params={{ plural: "endpoints", project, name: endpoint.metadata.name }}
+                className="focus-ring max-w-full shrink-0 truncate rounded-sm text-fg hover:text-primary-soft-fg"
+              >
+                {localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
+              </Link>
+              {/* Below `sm` a row is the title, the state and the action (UI-27, T-4214). */}
+              {endpoint.metadata.title ? (
+                <span className="hidden truncate font-mono text-caption font-normal text-fg-subtle sm:inline">
+                  {endpoint.metadata.name}
+                </span>
+              ) : null}
+              {/* An App's own endpoint, written by the Portal beside it (T-2759): said so, since
+                  nobody created it on this page and editing it here is undone by the App. */}
+              {endpoint.metadata.annotations?.["joinedcontext.com/generated-by"] === "portal/app-reconciler" ? (
+                <span className="hidden truncate text-caption font-normal text-fg-subtle sm:inline">
+                  {t("endpoints.ofApp", { app: endpoint.metadata.name.replace(/^app-/, "") })}
+                </span>
+              ) : null}
+            </div>
+          ),
+        }}
+        columns={[
+          {
+            id: "space",
+            label: t("grid.field.space"),
+            field: "contextSpaceRef",
+            filter: true,
+            text: (endpoint) => spaceOf(endpoint) ?? "",
+            cell: (endpoint) => <span className="font-mono text-caption">{spaceOf(endpoint) || "—"}</span>,
+          },
+          {
+            id: "audience",
+            label: t("endpoints.field.audience"),
+            field: "audience",
+            filter: true,
+            text: (endpoint) => String((endpoint.spec as { audience?: string }).audience ?? ""),
+            valueLabel: (value) => t(`endpoints.audience.${value}`, { defaultValue: value }),
+            cell: (endpoint) => <SharedWithBadge endpoint={endpoint} />,
+          },
+          {
+            id: "representations",
+            label: t("endpoints.field.representations"),
+            field: "enabledRepresentations",
+            valueLabel: (value) => t(`spaces.api.surface.${value}`, { defaultValue: value }),
+            text: (endpoint) => servedRepresentations(endpoint.spec as { enabledRepresentations?: string[] }).join(", "),
+            cell: (endpoint) => <RepresentationSummary served={servedRepresentations(endpoint.spec as { enabledRepresentations?: string[] })} />,
+          },
+          { id: "mcp", label: t("grid.field.mcp"), field: "mcp", hidden: true, text: (endpoint) => ((endpoint.spec as { mcp?: boolean | null }).mcp === false ? t("grid.off") : t("grid.on")) },
+          {
+            id: "phase",
+            label: t("endpoints.field.phase"),
+            filter: true,
+            text: (endpoint) => endpoint.status?.phase ?? "",
+            cell: (endpoint) => <LifecycleBadge kind="phase" value={endpoint.status?.phase} />,
+          },
+        ]}
+        actions={(endpoint) => (
+          <EndpointRowActions
+            project={project}
+            endpoint={endpoint}
+            label={localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
+            onEdit={() => (formRoute ? formRoute.openEdit(endpoint.metadata.name) : openEditor(endpoint))}
+          />
+        )}
+        edit={{ project, plural: "endpoints", kind: "Endpoint", manifest: (row) => row, onChange: setChange }}
         empty={
           endpoints.length > 0 ? (
             // A search that matches nothing names the text and offers the way back (T-6095).
@@ -1319,78 +1381,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
           />
           )
         }
-      >
-        {visible.map((endpoint) => {
-          const spec = endpoint.spec as {
-            slug?: string;
-            enabledRepresentations?: string[];
-          };
-          return (
-            <TableRow key={endpoint.metadata.name}>
-              <TableCell primary className="align-middle">
-                {/* The name opens the endpoint's own page, where every setting and every surface
-                    link is (T-2281); the whole row opens it, so the name is no underlined link
-                    and the row stays one line (T-4989). */}
-                <div className="flex min-w-0 max-w-xs items-baseline gap-2 whitespace-nowrap">
-                  <Link
-                    data-row-link=""
-                    to="/projects/$project/$plural/$name"
-                    params={{ plural: "endpoints", project, name: endpoint.metadata.name }}
-                    className="focus-ring max-w-full shrink-0 truncate rounded-sm text-fg hover:text-primary-soft-fg"
-                  >
-                    {localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
-                  </Link>
-                  {/* Below `sm` a row is the title, the state and the action (UI-27, T-4214). */}
-                  {endpoint.metadata.title ? (
-                    <span className="hidden truncate font-mono text-caption font-normal text-fg-subtle sm:inline">
-                      {endpoint.metadata.name}
-                    </span>
-                  ) : null}
-                  {/* An App's own endpoint, written by the Portal beside it (T-2759): said so, since
-                      nobody created it on this page and editing it here is undone by the App. */}
-                  {endpoint.metadata.annotations?.["joinedcontext.com/generated-by"] === "portal/app-reconciler" ? (
-                    <span className="hidden truncate text-caption font-normal text-fg-subtle sm:inline">
-                      {t("endpoints.ofApp", { app: endpoint.metadata.name.replace(/^app-/, "") })}
-                    </span>
-                  ) : null}
-                </div>
-              </TableCell>
-              <TableCell secondary className="align-middle">
-                <SharedWithBadge endpoint={endpoint} />
-              </TableCell>
-              <TableCell secondary className="align-middle">
-                <RepresentationSummary served={servedRepresentations(spec)} />
-              </TableCell>
-              <TableCell className="align-middle">
-                <LifecycleBadge kind="phase" value={endpoint.status?.phase} />
-              </TableCell>
-              <TableCell align="right" className="align-middle">
-                <EndpointRowActions
-                  project={project}
-                  endpoint={endpoint}
-                  label={localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
-                  onEdit={() =>
-                    formRoute ? formRoute.openEdit(endpoint.metadata.name) : openEditor(endpoint)
-                  }
-                />
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </ResourceList>
-      {matching.length > visible.length || (needle.trim() && matching.length > 0) ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <p role="status" className="text-caption text-fg-muted">
-            {t("endpoints.shownOf", { shown: visible.length, count: matching.length })}
-          </p>
-          {matching.length > visible.length ? (
-            <Button variant="secondary" size="sm" onClick={() => setShown((now) => now + ROWS_PER_PAGE)}>
-              {t("endpoints.showMore", { count: Math.min(ROWS_PER_PAGE, matching.length - visible.length) })}
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-
+      />
 
       <section aria-labelledby="shared-with-project" className="flex flex-col gap-3">
         {/* Nothing shared is one line, not a table with an empty state (T-6095 review). */}
