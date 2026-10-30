@@ -4345,7 +4345,8 @@
       "taken": "Projekt už má model s názvom {name}. Zvoľte iný názov.",
       "held": "Uložené ako zdieľaný koncept {name}; po obnovení stránky je stále tu, kým model neuložíte.",
       "heldConflict": "Tento koncept medzitým uložil niekto iný. Obnovte stránku, aby ste videli jeho verziu; dovtedy sa vaša neukladá.",
-      "spaceTaken": "Priestor {space} už má model {model} a priestor má jeden model. Zvoľte iný priestor alebo otvorte {model} a pridajte doň svoje triedy."
+      "spaceTaken": "Priestor {space} už má model {model} a priestor má jeden model. Zvoľte iný priestor alebo otvorte {model} a pridajte doň svoje triedy.",
+      "nameHint": "Pomenujte model, napríklad Kvalita ovzdušia; identifikátor sa vytvorí z neho."
     },
     "infer": {
       "title": "Model zo súboru",
@@ -4742,11 +4743,10 @@
     },
     "identity": {
       "name": "Názov",
-      "nameHint": "Čo ľudia čítajú, napríklad Kvalita ovzdušia. Identifikátor a súbor si ponechajú svoje mená.",
-      "nameHintNew": "Čo ľudia čítajú, napríklad Kvalita ovzdušia. Identifikátor sa z neho vytvorí a pri prvom uložení sa zafixuje.",
-      "nameEmpty": "Napíšte názov, napríklad Kvalita ovzdušia.",
+      "nameHint": "Čo ľudia čítajú; identifikátor a súbor si ponechajú svoje mená.",
+      "nameEmpty": "Napíšte názov: model ho potrebuje.",
       "rename": "Premenovať {name}",
-      "done": "Hotovo",
+      "done": "Použiť názov",
       "unnamed": "Model bez názvu",
       "id": "Identifikátor",
       "noId": "bez identifikátora, kým model nemá názov",

@@ -51,7 +51,7 @@ export function ModelIdentity({ name, id, creating, version, readOnly, onRename 
     <div className="mt-2 flex flex-col gap-1 text-body">
       {creating && !readOnly ? (
         // A new model is named as it is typed: the id below follows, and Save waits for it.
-        <Field id={inputId} label={t("models.identity.name")} help={t("models.identity.nameHintNew")}>
+        <Field id={inputId} label={t("models.identity.name")} help={t("models.create.nameHint")}>
           <Input
             id={inputId}
             className="w-64 max-w-full"
@@ -62,7 +62,7 @@ export function ModelIdentity({ name, id, creating, version, readOnly, onRename 
       ) : draft === undefined ? (
         <span className="flex items-center gap-1">
           {/* A model without a title says so, rather than repeating its id (T-6162 judge). */}
-          <span className={name ? "text-heading font-semibold" : "text-heading text-fg-muted"}>
+          <span className={name ? "text-title font-semibold" : "text-title text-fg-muted"}>
             {name || t("models.identity.unnamed")}
           </span>
           {readOnly ? null : (

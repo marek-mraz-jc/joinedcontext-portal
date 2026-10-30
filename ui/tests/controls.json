@@ -1630,6 +1630,14 @@
         "part_model_file_drop.test.tsx"
       ]
     },
+    "src/pages/models/ModelIdentity.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "model_identity.test.tsx"
+      ]
+    },
     "src/pages/models/ModelPage.tsx": {
       "controls": {
         "Button": 2

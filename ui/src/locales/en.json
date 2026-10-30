@@ -4363,7 +4363,8 @@
       "taken": "The project already has a model named {name}. Choose another name.",
       "held": "Kept as the shared draft {name}; it is here after a reload, until you save the model.",
       "heldConflict": "Somebody else saved this draft while you were editing. Reload the page to see theirs; nothing of yours is kept until you do.",
-      "spaceTaken": "The space {space} already has the model {model}, and a space has one model. Choose another space, or open {model} and add your classes to it."
+      "spaceTaken": "The space {space} already has the model {model}, and a space has one model. Choose another space, or open {model} and add your classes to it.",
+      "nameHint": "Name the model, for example Air quality; the id is made from it."
     },
     "infer": {
       "title": "Model from a file",
@@ -4742,11 +4743,10 @@
     },
     "identity": {
       "name": "Name",
-      "nameHint": "What people read, for example Air quality. The id and the file keep their names.",
-      "nameHintNew": "What people read, for example Air quality. The id is made from it and fixed when the model is first saved.",
-      "nameEmpty": "Type a name, for example Air quality.",
+      "nameHint": "What people read; the id and the file keep their names.",
+      "nameEmpty": "Type a name: the model needs one.",
       "rename": "Rename {name}",
-      "done": "Done",
+      "done": "Use this name",
       "unnamed": "Unnamed model",
       "id": "Id",
       "noId": "no id until the model has a name",

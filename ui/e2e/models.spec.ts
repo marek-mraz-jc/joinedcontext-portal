@@ -445,8 +445,8 @@ test.describe("the model editor's name line (T-6162)", () => {
       await page.getByRole("button", { name: /^Rename / }).click();
       const name = page.getByRole("textbox", { name: "Name", exact: true });
       await name.fill("");
-      await page.getByRole("button", { name: "Done" }).click();
-      await expect(page.getByText("Type a name, for example Air quality.")).toBeVisible();
+      await page.getByRole("button", { name: "Use this name" }).click();
+      await expect(page.getByText("Type a name: the model needs one.")).toBeVisible();
       await shot(page, `rename-empty-${width}`);
       await name.fill("City indicators");
       await name.press("Enter");
