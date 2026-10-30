@@ -606,7 +606,6 @@
       "modelCreate": "Datenmodell anlegen",
       "modelImport": "Smart Data Model importieren",
       "modelOpen": "Datenmodell öffnen",
-      "modelOpenLead": "Das Modell wird auf seiner eigenen Seite gelesen und bearbeitet: Diagramm, Formular, YAML und Verlauf.",
       "modelClasses": "{count, plural, =0 {Noch keine Klassen} one {# Klasse} other {# Klassen}}",
       "modelClassList": "Klassen des Datenmodells",
       "modelMore": "und {count} weitere",

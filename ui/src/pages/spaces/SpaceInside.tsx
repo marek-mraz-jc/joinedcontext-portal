@@ -181,12 +181,37 @@ async function fetchTypeInside(slug: string, type: string): Promise<TypeInside> 
  * One entity in keyValues form as a single line of values a person reads (T-2760): a place as
  * its position, a name in the reader's language. It printed `location={"coordinates":…}`.
  */
+const URN = /urn:ngsi-ld:[^\s,;]+/g;
+const INSTANT = /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?/g;
+
+/**
+ * A sample value as a person reads it: a number to two decimals, an instant as a date and time,
+ * a URN as its own name, never `urn:ngsi-ld:Pipeline:hel.fi:…` or `8.897155361050329`.
+ */
+export function readable(value: unknown, language?: string): string {
+  const plain = isKeyValue(value) ? value.value : value;
+  if (typeof plain === "number") {
+    return new Intl.NumberFormat(language, { maximumFractionDigits: 2 }).format(plain);
+  }
+  const when = new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" });
+  return textOf(value, language)
+    .replace(URN, (urn) => localId(urn))
+    .replace(INSTANT, (instant) => {
+      const at = new Date(instant);
+      return Number.isNaN(at.getTime()) ? instant : when.format(at);
+    });
+}
+
+function isKeyValue(value: unknown): value is { value: unknown } {
+  return typeof value === "object" && value !== null && !Array.isArray(value) && "value" in value;
+}
+
 export function summarize(entity: KeyValues, language?: string): string {
   const attributes = Object.entries(entity)
     .filter(([key]) => key !== "id" && key !== "type" && key !== "@context")
     .slice(0, 4)
     .map(([key, value]) => {
-      const text = textOf(value, language);
+      const text = readable(value, language);
       return `${key}: ${text.length > 40 ? `${text.slice(0, 39)}…` : text}`;
     });
   return attributes.join(" · ");
@@ -265,7 +290,7 @@ function TypeRow({
         </span>
       );
   } else {
-    count = inside.data.count === undefined ? "—" : String(inside.data.count);
+    count = inside.data.count === undefined ? "—" : inside.data.count.toLocaleString(i18n.language);
   }
 
   return (
@@ -1928,7 +1953,6 @@ function SpaceModel({
           {t("spaces.inside.modelOpen")}
         </Link>
       </div>
-      <p className="text-caption text-fg-muted">{t("spaces.inside.modelOpenLead")}</p>
       {source.isError ? (
         <Alert tone="danger" role="alert">
           <p>{t("models.page.sourceFailed", { reason: source.error instanceof Error ? source.error.message : "" })}</p>

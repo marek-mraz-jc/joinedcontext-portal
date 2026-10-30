@@ -606,7 +606,6 @@
       "modelCreate": "Vytvoriť dátový model",
       "modelImport": "Importovať Smart Data Model",
       "modelOpen": "Otvoriť dátový model",
-      "modelOpenLead": "Model sa číta a upravuje na jeho vlastnej stránke: diagram, formulár, YAML a história.",
       "modelClasses": "{count, plural, =0 {Zatiaľ bez tried} one {# trieda} few {# triedy} other {# tried}}",
       "modelClassList": "Triedy dátového modelu",
       "modelMore": "a ďalšie ({count})",

@@ -606,7 +606,6 @@
       "modelCreate": "Create a data model",
       "modelImport": "Import a Smart Data Model",
       "modelOpen": "Open data model",
-      "modelOpenLead": "The model is read and edited on its own page: its diagram, form, YAML and history.",
       "modelClasses": "{count, plural, =0 {No classes yet} one {# class} other {# classes}}",
       "modelClassList": "Classes of the data model",
       "modelMore": "and {count} more",
