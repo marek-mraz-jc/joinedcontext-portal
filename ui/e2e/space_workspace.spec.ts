@@ -63,9 +63,26 @@ function kpi(n: number) {
   };
 }
 
+function station(n: number) {
+  return {
+    id: `urn:ngsi-ld:BikeHireDockingStation:hel.fi:station:${n}`,
+    type: TYPES[1],
+    name: { type: "Property", value: ["Kamppi", "Rautatientori", "Kaivopuisto", "Töölönlahti"][n % 4] },
+    availableBikeNumber: { type: "Property", value: 3 + n, observedAt: "2026-10-20T15:55:00Z" },
+    freeSlotNumber: { type: "Property", value: 20 - n, observedAt: "2026-10-20T15:55:00Z" },
+    status: { type: "Property", value: "working" },
+    location: { type: "GeoProperty", value: { type: "Point", coordinates: [24.93 + n / 100, 60.17] } },
+  };
+}
+
+// The broker stores each entity in full expanded form with its metadata, several times what its
+// keyValues sample weighs: 12 KPIs of ~1.1 KiB and 8 stations of ~2.3 KiB (T-6156).
+const KPI_BYTES = 13824;
+const STATION_BYTES = 18432;
+
 // How the broker and the gateway answer: a filled space, one that holds nothing yet, a broker that
 // fails, and a person the gateway refuses (T-6145).
-type Mode = "filled" | "empty" | "error" | "refused";
+type Mode = "filled" | "empty" | "error" | "refused" | "loading";
 
 async function stubApi(page: Page, counted = true, mode: Mode = "filled"): Promise<void> {
   await page.route("**/{api,cs}/**", async (route) => {
@@ -79,12 +96,19 @@ async function stubApi(page: Page, counted = true, mode: Mode = "filled"): Promi
     if (path.endsWith("/datamodels/helsinki-kpi/source")) {
       return route.fulfill({ status: 200, contentType: "text/yaml", body: LINKML });
     }
+    if ((path.endsWith("/entities") || path.endsWith(`/spaces/${SPACE}/usage`)) && mode === "loading") {
+      // the gateway and the broker still counting: the page shows what it waits for
+      return new Promise<void>(() => undefined);
+    }
     if (path.endsWith("/entities") && mode === "refused") {
       return json({ type: "about:blank", title: "Forbidden", status: 403, detail: "not readable" }, 403);
     }
     if (path.endsWith("/entities") && mode === "empty") return json([], 200, { "NGSILD-Results-Count": "0" });
     if (path.endsWith("/entities")) {
-      const rows = Array.from({ length: 12 }, (_, i) => kpi(i + 1));
+      const rows =
+        url.searchParams.get("type") === TYPES[1]
+          ? Array.from({ length: 8 }, (_, i) => station(i + 1))
+          : Array.from({ length: 12 }, (_, i) => kpi(i + 1));
       return json(rows, 200, counted ? { "NGSILD-Results-Count": String(rows.length) } : {});
     }
     if (path === "/api/v1/projects") return json({ kind: "ProjectList", items: [{ name: PROJECT }] });
@@ -98,13 +122,13 @@ async function stubApi(page: Page, counted = true, mode: Mode = "filled"): Promi
     }
     if (path.endsWith(`/spaces/${SPACE}/usage`)) {
       return json({
-        entities: 24,
+        entities: 20,
         attrInstances: 3250000,
         estimated: true,
-        bytes: { entities: 48 * 1024, attrInstances: 1536 * 1024 * 1024, byType: {
+        bytes: { entities: KPI_BYTES + STATION_BYTES, attrInstances: 1536 * 1024 * 1024, byType: {
           // the broker keys a type by its expanded IRI; the page matches it to the model's name
-          "https://smartdatamodels.org/dataModel.KPI/KeyPerformanceIndicator": 30 * 1024,
-          "https://smartdatamodels.org/dataModel.Transportation/BikeHireDockingStation": 18 * 1024,
+          "https://smartdatamodels.org/dataModel.KPI/KeyPerformanceIndicator": KPI_BYTES,
+          "https://smartdatamodels.org/dataModel.Transportation/BikeHireDockingStation": STATION_BYTES,
         } },
         broker: "main",
         observedAt: "2026-10-20T16:00:00Z",
@@ -161,22 +185,25 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await tabs.getByRole("tab", { name: "Data model" }).click();
     await expect(page).toHaveURL(/[?&]tab=model/);
     await expect(page.getByRole("table", { name: "Entity types" })).toBeVisible();
-    await expect(page.getByTestId("space-total")).toHaveText("The space holds 24 entities.");
+    await expect(page.getByTestId("space-total")).toHaveText("The space holds 20 entities.");
     // T-6085: the history count and both sizes, and the broker's word that it estimated them.
     await expect(page.getByTestId("space-history")).toHaveText("Its history holds 3,250,000 records.");
     await expect(page.getByTestId("space-size")).toHaveText(
-      "It takes 1.5 GiB in the broker's store: 48 KiB current state, 1.5 GiB history.",
+      "It takes 1.5 GiB in the broker's store: 32 KiB current state, 1.5 GiB history.",
     );
     await expect(page.getByTestId("space-estimated")).toBeVisible();
     // T-6145: each type's share of the current state, and each sample entity's own size.
     const typeTable = page.getByRole("table", { name: "Entity types" });
     const kpiRow = typeTable.getByRole("row").filter({ hasText: TYPES[0] });
-    await expect(kpiRow.getByTitle("30,720 B")).toHaveText("30 KiB");
+    await expect(kpiRow.getByTitle("13,824 B")).toHaveText("14 KiB");
     const bikeRow = typeTable.getByRole("row").filter({ hasText: TYPES[1] });
     await expect(bikeRow.getByTitle("18,432 B")).toHaveText("18 KiB");
     const sampleBytes = new TextEncoder().encode(JSON.stringify(kpi(1))).length;
-    // districts 1 and 3 weigh the same
-    await expect(kpiRow.getByTitle(`Size of this entity as JSON: ${sampleBytes} B`).first()).toHaveText(`Size: ${sampleBytes} B`);
+    // districts 1 and 3 weigh the same; the samples sit under the type at every width (T-6156)
+    await expect(kpiRow.getByTitle(`Size of the values shown, as JSON: ${sampleBytes} B`).first()).toHaveText(`Size: ${sampleBytes} B`);
+    await expect(kpiRow.getByText("District 1", { exact: false }).first()).toBeVisible();
+    await expect(bikeRow.getByRole("list", { name: "Sample entities" })).toContainText("Rautatientori");
+    await expect(page.getByText(/^Size is what a type's entities take/)).toBeVisible();
     await shot(page, `model-tab-${label}`);
     await page.getByTestId("space-total").scrollIntoViewIfNeeded();
     await shot(page, `model-tab-total-${label}`);
@@ -185,7 +212,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
 
 // T-6145: the model tab when the space holds nothing, the broker fails, or the person is refused:
 // no size the broker did not give, and the reason in words.
-for (const mode of ["empty", "error", "refused"] as const) {
+for (const mode of ["empty", "error", "refused", "loading"] as const) {
   for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
     test(`The model tab says what it knows of a ${mode} space (${label})`, async ({ page }) => {
       await page.setViewportSize({ width, height });
@@ -195,17 +222,21 @@ for (const mode of ["empty", "error", "refused"] as const) {
       await expect(table).toBeVisible();
       const row = table.getByRole("row").filter({ hasText: TYPES[0] });
       if (mode === "empty") {
-        // a phone hides the samples column (UI-27)
-        if (width >= 1024) await expect(row.getByText("No entity of this type yet.")).toBeVisible();
+        // the samples sit under the type, a phone sees them too (T-6156)
+        await expect(row.getByText("No entity of this type yet.")).toBeVisible();
         await expect(page.getByTestId("space-total")).toHaveText("The space holds 0 entities.");
       } else if (mode === "refused") {
-        await expect(row.getByText("not readable anonymously")).toBeVisible();
+        // Jana is signed in: the refusal names the missing grant in one cell, no count, no size (T-6156)
+        await expect(row.getByText("No read grant: your account may not read this type through the endpoint.")).toBeVisible();
+        await expect(row.locator("td")).toHaveCount(2);
         await expect(page.getByText("you may not read this space's usage")).toBeVisible();
+      } else if (mode === "loading") {
+        await expect(row.getByText("Loading", { exact: false }).first()).toBeVisible();
       } else {
         await expect(page.getByText("the context broker main did not answer")).toBeVisible();
       }
       // no type size and no space size the broker did not give
-      await expect(row.locator("td").nth(2)).toHaveText("—");
+      if (mode !== "refused") await expect(row.locator("td").nth(2)).toHaveText("—");
       if (mode !== "empty") await expect(page.getByTestId("space-size")).toHaveCount(0);
       const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(sideways).toBeLessThanOrEqual(0);
