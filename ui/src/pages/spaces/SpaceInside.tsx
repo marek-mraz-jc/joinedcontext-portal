@@ -42,7 +42,7 @@ import { columnLabel, displayOrder } from "../../components/entities/displayOrde
 import { readLayout, writeLayout } from "../../components/entities/viewLayout";
 import { dataViewsKey, listViews } from "../../api/dataViews";
 import { GroupCounts, groupTerm, ViewOptions } from "../../components/entities/ViewOptions";
-import { conditionCount, EMPTY_GROUP, FilterPanel, readGroup } from "../../components/entities/FilterPanel";
+import { conditionCount, EMPTY_GROUP, FilterChips, FilterPanel, readGroup } from "../../components/entities/FilterPanel";
 import { AGGREGATIONS, FooterAggregate, GroupCount, GroupPanel, MAX_GROUP_FIELDS, MAX_SORT_KEYS, ROW_SIZES, SortPanel, ToolbarPopover } from "../../components/entities/GridToolbar";
 import type { SortKey } from "../../components/entities/GridToolbar";
 import type { Aggregation, RowSize } from "../../components/entities/GridToolbar";
@@ -744,9 +744,25 @@ function SpaceData({
     () => (copy ? null : writerOf(tables, endpoints, slots)),
     [copy, tables, endpoints, slots],
   );
+  // The grid reads again whenever its source changes, and the writer's grant lands after the first
+  // read: the source keeps one identity and its patch asks the current writer, so the grant moves
+  // where a correction goes without a second read of the type (T-6161, 4.4 s twice on Helsinki).
+  // A viewer gets no editor anyway: the grid edits only with `mode: "edit"`, the views only the
+  // attributes `editable` names, both empty without a writer.
+  const writerSlug = useRef<string | null>(null);
+  useEffect(() => {
+    writerSlug.current = writer?.slug ?? null;
+  }, [writer]);
   const gridSource = useMemo(
-    () => (writer ? { ...source, patch: endpointSource(writer.slug, originTransport(), i18n.language).patch } : source),
-    [writer, source, i18n.language],
+    () => ({
+      ...source,
+      patch: (id: string, attrs: Record<string, unknown>, reason?: string) => {
+        const slug = writerSlug.current;
+        const write = slug === null ? undefined : endpointSource(slug, originTransport(), i18n.language).patch;
+        return write ? write(id, attrs, reason) : Promise.reject(new SourceError(403, t("spaces.views.readOnly")));
+      },
+    }),
+    [source, i18n.language, t],
   );
 
   const probe = useQuery({
@@ -754,7 +770,8 @@ function SpaceData({
     enabled: type !== "",
     retry: false,
     queryFn: async () => {
-      await source.query({ type }, { offset: 0, limit: 1 });
+      // Only whether the surface answers: a count would scan the whole type once more (T-6161).
+      await source.query({ type }, { offset: 0, limit: 1, count: false });
       return true;
     },
   });
@@ -1115,6 +1132,7 @@ function SpaceData({
           </div>
         </div>
       ) : null}
+      {readable && view === "grid" ? <FilterChips columns={filterColumns} titleOf={filterTitle} value={filters} onChange={setFilters} /> : null}
       {readable && config && view === "grid" && selectedRows.length > 0 ? (
         <BulkBar
           project={project}

@@ -226,7 +226,7 @@ export const OWN_ROUTES: ReadonlySet<string> = new Set(["/connectors", "/ai-conn
 export function viewerWriteFindings(layout: boolean): string[] {
   const found: string[] = [];
   const draftOnly =
-    /^(Add to the query|Add filter|Add condition|Add condition group|Remove condition|Remove group|Add a colour rule|Add the line for .+ to the mapping|Add to my connectors)$/;
+    /^(Add to the query|Add filter|Add condition|Add condition group|Remove condition|Remove group|Remove filter: .+|Add a colour rule|Add the line for .+ to the mapping|Add to my connectors)$/;
   for (const button of document.querySelectorAll("main button:not([role='tab']), main a[role='button']")) {
     const name = (button.getAttribute("aria-label") ?? button.textContent ?? "").replace(/\s+/g, " ").trim();
     if (!/^(New|Edit|Remove|Delete|Propose|Add|Create|Publish|Approve)\b/.test(name) || draftOnly.test(name)) continue;
