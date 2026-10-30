@@ -6485,8 +6485,7 @@
       "space": "Kontextový prostor",
       "all": "Jakékoli",
       "connector": "Konektor",
-      "connectorHint": "Jen volání a změny jednoho z vašich konektorů, např. doprava-in-claude.",
-      "connectorNone": "Zatím nemáte žádný konektor: vytvořte ho na stránce Moje konektory a filtrujte podle něj."
+      "connectorHint": "Jen volání a změny jednoho z vašich konektorů, např. doprava-in-claude."
     },
     "severity": {
       "info": "Info",

@@ -6485,8 +6485,7 @@
       "space": "Kontextraum",
       "all": "Alle",
       "connector": "Konnektor",
-      "connectorHint": "Nur die Aufrufe und Änderungen eines Ihrer Konnektoren, z. B. doprava-in-claude.",
-      "connectorNone": "Sie haben noch keinen Konnektor: Legen Sie einen unter Meine Konnektoren an, um danach zu filtern."
+      "connectorHint": "Nur die Aufrufe und Änderungen eines Ihrer Konnektoren, z. B. doprava-in-claude."
     },
     "severity": {
       "info": "Info",

@@ -6485,8 +6485,7 @@
       "space": "Context Space",
       "all": "Any",
       "connector": "Connector",
-      "connectorHint": "Only the calls and changes of one of your connectors, e.g. doprava-in-claude.",
-      "connectorNone": "You have no connectors yet: create one on My connectors to filter by it."
+      "connectorHint": "Only the calls and changes of one of your connectors, e.g. doprava-in-claude."
     },
     "severity": {
       "info": "Info",
