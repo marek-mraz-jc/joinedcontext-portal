@@ -12,7 +12,7 @@ import { ChangeNotice } from "../components/ChangeNotice";
 import { TypeLink } from "../pages/models/ModelLinks";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { ResourceFormDialog } from "../components/ResourceFormDialog";
-import { ResourceList } from "../components/ResourceList";
+import { ManifestGrid } from "../components/grid/ManifestGrid";
 import { ResourceRowActions } from "../components/ResourceRowActions";
 import { subscriptionSchema, subscriptionUiSchema } from "../schemas/kinds";
 import {
@@ -21,11 +21,6 @@ import {
   EmptyState,
   Icon,
   PageHeader,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
-  Term,
 } from "../components/ui";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
 import { SPACE_LABEL } from "../schemas/modelprojection";
@@ -235,8 +230,6 @@ export function DeliveryCell({ deliveries, live }: { deliveries?: Deliveries; li
   );
 }
 
-const COLUMNS = 7;
-
 /**
  * The subscriptions of one project: what each one watches, in which space, and where its
  * notifications go (CC-72, DS-16, UI-01).
@@ -278,6 +271,8 @@ export function SubscriptionsPage({ project, edit }: { project: string; edit?: s
   const spaceNames = asManifests(spaces.data?.items ?? []).map((space) => space.metadata.name);
   const subscriptions = asManifests(list.data?.items ?? []);
   const schema = subscriptionSchema(t, spaceNames, secretNames(subscriptions));
+  const titleOf = (row: Manifest) =>
+    localized(row.metadata.title, locale, fromSubscriptionEnvelope(row).subscriptionName || row.metadata.name);
 
   const create = useMutation({
     mutationFn: async (form: SubscriptionForm) => {
@@ -334,99 +329,105 @@ export function SubscriptionsPage({ project, edit }: { project: string; edit?: s
 
       {change ? <ChangeNotice change={change} project={project} /> : null}
 
-      <ResourceList
-        query={list}
+      <ManifestGrid<Manifest>
         caption={t("subscriptions.title")}
-        head={
-          <TableHead>
-            <TableHeaderCell>{t("subscriptions.field.name")}</TableHeaderCell>
-            <TableHeaderCell>
-              <Term name="contextSpace">{t("subscriptions.field.space")}</Term>
-            </TableHeaderCell>
-            <TableHeaderCell>{t("subscriptions.field.watches")}</TableHeaderCell>
-            <TableHeaderCell>{t("subscriptions.field.receiver")}</TableHeaderCell>
-            <TableHeaderCell>{t("subscriptions.field.deliveries")}</TableHeaderCell>
-            <TableHeaderCell>{t("resourceList.phase")}</TableHeaderCell>
-            <TableHeaderCell align="right">{t("approvals.actions")}</TableHeaderCell>
-          </TableHead>
-        }
-        columns={COLUMNS}
-        count={subscriptions.length}
-        empty={
-          <EmptyState
-            bare
-            title={t("subscriptions.empty")}
-            description={t("subscriptions.addHint")}
-            action={addButton}
+        storageKey="subscriptions"
+        searchLabel={t("grid.searchIn", { list: t("subscriptions.title") })}
+        rows={subscriptions}
+        rowKey={(row) => row.metadata.name}
+        query={list}
+        name={{
+          id: "name",
+          label: t("subscriptions.field.name"),
+          text: (row) => titleOf(row),
+          cell: (row) => (
+            <div className="flex items-center gap-2">
+              <RecordLink project={project} plural="subscriptions" name={row.metadata.name}>
+                {titleOf(row)}
+              </RecordLink>
+            </div>
+          ),
+        }}
+        columns={[
+          {
+            id: "space",
+            label: t("subscriptions.field.space"),
+            field: "contextSpaceRef",
+            filter: true,
+            text: (row) => fromSubscriptionEnvelope(row).contextSpaceRef,
+            cell: (row) => <span className="font-mono text-caption">{fromSubscriptionEnvelope(row).contextSpaceRef || "—"}</span>,
+          },
+          {
+            id: "watches",
+            label: t("subscriptions.field.watches"),
+            text: (row) => {
+              const shape = fromSubscriptionEnvelope(row);
+              return [...selectors(shape.entities).map((each) => String(each.type ?? each.id ?? each.idPattern ?? "")), ...(shape.watchedAttributes ?? [])].join(", ");
+            },
+            cell: (row) => (
+              <span className="font-mono text-caption">
+                <Watched project={project} form={fromSubscriptionEnvelope(row)} />
+              </span>
+            ),
+          },
+          {
+            id: "receiver",
+            label: t("subscriptions.field.receiver"),
+            text: (row) => fromSubscriptionEnvelope(row).notification.endpoint.uri,
+            cell: (row) => <span className="break-all font-mono text-caption">{fromSubscriptionEnvelope(row).notification.endpoint.uri || "—"}</span>,
+          },
+          {
+            id: "deliveries",
+            label: t("subscriptions.field.deliveries"),
+            text: (row) => String((row.status as { notifications?: Deliveries } | undefined)?.notifications?.timesSent ?? ""),
+            numeric: true,
+            cell: (row) => (
+              <DeliveryCell
+                deliveries={(row.status as { notifications?: Deliveries } | undefined)?.notifications}
+                live={row.status?.phase === "Live"}
+              />
+            ),
+          },
+          {
+            id: "active",
+            label: t("grid.field.active"),
+            field: "isActive",
+            filter: true,
+            hidden: true,
+            text: (row) => (fromSubscriptionEnvelope(row).isActive === false ? t("grid.off") : t("grid.on")),
+          },
+          { id: "throttling", label: t("grid.field.throttling"), field: "throttling", hidden: true, numeric: true, text: (row) => String((row.spec as { throttling?: number }).throttling ?? "") },
+          { id: "expiresAt", label: t("grid.field.expiresAt"), field: "expiresAt", hidden: true, text: (row) => String((row.spec as { expiresAt?: string }).expiresAt ?? "") },
+          {
+            id: "phase",
+            label: t("resourceList.phase"),
+            filter: true,
+            // One state per row (T-6115 review): a paused Subscription is applied (Live) but sends
+            // nothing, so it reads as Paused rather than as Live beside a Paused badge.
+            text: (row) => (fromSubscriptionEnvelope(row).isActive === false ? t("subscriptions.paused") : row.status?.phase ?? ""),
+            cell: (row) =>
+              fromSubscriptionEnvelope(row).isActive === false ? (
+                <Badge tone="warning">{t("subscriptions.paused")}</Badge>
+              ) : (
+                <LifecycleBadge kind="phase" value={row.status?.phase} />
+              ),
+          },
+        ]}
+        actions={(subscription) => (
+          <ResourceRowActions
+            project={project}
+            target={{ project, kind: "Subscription", plural: "subscriptions", name: subscription.metadata.name, label: titleOf(subscription) }}
+            form={{
+              schema,
+              uiSchema: subscriptionUiSchema,
+              fromManifest: (manifest) => fromSubscriptionEnvelope(manifest) as unknown as Record<string, unknown>,
+              toManifest: (edited, stored) => toSubscriptionEnvelope(project, edited as unknown as SubscriptionForm, stored),
+            }}
           />
-        }
-      >
-        {subscriptions.map((subscription: Manifest) => {
-          const shape = fromSubscriptionEnvelope(subscription);
-          const title = localized(
-            subscription.metadata.title,
-            locale,
-            shape.subscriptionName || subscription.metadata.name,
-          );
-          const target = {
-            project,
-            kind: "Subscription",
-            plural: "subscriptions",
-            name: subscription.metadata.name,
-            label: title,
-          };
-          return (
-            <TableRow key={subscription.metadata.name}>
-              <TableCell primary>
-                <div className="flex items-center gap-2">
-                  <RecordLink project={project} plural="subscriptions" name={subscription.metadata.name}>
-                    {title}
-                  </RecordLink>
-                  {shape.isActive === false ? (
-                    <Badge tone="warning">{t("subscriptions.paused")}</Badge>
-                  ) : null}
-                </div>
-              </TableCell>
-              <TableCell>
-                <span className="font-mono text-caption">{shape.contextSpaceRef || "—"}</span>
-              </TableCell>
-              <TableCell>
-                <span className="font-mono text-caption">
-                  <Watched project={project} form={shape} />
-                </span>
-              </TableCell>
-              <TableCell>
-                <span className="break-all font-mono text-caption">
-                  {shape.notification.endpoint.uri || "—"}
-                </span>
-              </TableCell>
-              <TableCell>
-                <DeliveryCell
-                  deliveries={(subscription.status as { notifications?: Deliveries } | undefined)?.notifications}
-                  live={subscription.status?.phase === "Live"}
-                />
-              </TableCell>
-              <TableCell>
-                <LifecycleBadge kind="phase" value={subscription.status?.phase} />
-              </TableCell>
-              <TableCell align="right">
-                <ResourceRowActions
-                  project={project}
-                  target={target}
-                  form={{
-                    schema,
-                    uiSchema: subscriptionUiSchema,
-                    fromManifest: (manifest) =>
-                      fromSubscriptionEnvelope(manifest) as unknown as Record<string, unknown>,
-                    toManifest: (edited, stored) =>
-                      toSubscriptionEnvelope(project, edited as unknown as SubscriptionForm, stored),
-                  }}
-                />
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </ResourceList>
+        )}
+        edit={{ project, plural: "subscriptions", kind: "Subscription", manifest: (row) => row, onChange: setChange }}
+        empty={<EmptyState bare title={t("subscriptions.empty")} description={t("subscriptions.addHint")} action={addButton} />}
+      />
 
       <ResourceFormDialog<SubscriptionForm>
         kind="Subscription"

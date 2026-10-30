@@ -11005,5 +11005,74 @@
   },
   "pageHeader": {
     "about": "Über diese Seite"
+  },
+  "grid": {
+    "toolbar": "{list}: Suche, Filter, Spalten und Reihenfolge",
+    "filter": "Filtern",
+    "noValues": "Diese Liste hat noch keine Werte.",
+    "columns": "Spalten",
+    "columnsHint": "In diesem Browser angezeigte Spalten",
+    "sort": "Sortieren",
+    "sortHint": "Zeilen ordnen nach",
+    "sortNone": "Reihenfolge der Liste",
+    "sortDirection": "Richtung",
+    "ascending": "Aufsteigend (A bis Z, 0 bis 9)",
+    "descending": "Absteigend (Z bis A, 9 bis 0)",
+    "sortBy": "Nach {column} sortieren",
+    "removeFilter": "Filter {column}: {value} entfernen",
+    "clearFilters": "Filter löschen",
+    "details": "Details",
+    "openDetails": "Details zu {name}",
+    "noMatch": "Keine Zeile passt zu Suche und Filtern.",
+    "clearAll": "Suche und Filter löschen",
+    "footer": "{shown} von {count} angezeigt",
+    "showMore": "{count} weitere anzeigen",
+    "panelLead": "Alle Werte dieser Zeile. Ein geändertes Feld wird zu einer vorgeschlagenen Änderung zur Freigabe; geschrieben wird erst nach der Freigabe.",
+    "platformDefault": "Vorgabe der Plattform",
+    "referenceEmpty": "Noch nichts zur Auswahl: legen Sie es zuerst auf seiner eigenen Seite an.",
+    "on": "Ein",
+    "off": "Aus",
+    "propose": "Änderung vorschlagen",
+    "undo": "Rückgängig",
+    "searchIn": "{list} durchsuchen",
+    "field": {
+      "active": "Aktiv",
+      "throttling": "Mindestabstand zwischen Benachrichtigungen in Sekunden",
+      "expiresAt": "Läuft ab am",
+      "enabled": "Aktiviert",
+      "class": "Klasse",
+      "period": "Abfrageintervall",
+      "schedule": "Zeitplan",
+      "mcp": "MCP-Werkzeuge",
+      "lifecycle": "Lebenszyklus",
+      "openWorld": "Offene Welt",
+      "space": "Kontextraum"
+    },
+    "footerOf": "{shown} von {count} passenden angezeigt, {total} insgesamt",
+    "retry": "Abgelehnt: ändern Sie den Wert, um erneut vorzuschlagen.",
+    "choose": {
+      "hint": "Wählen Sie einen der Werte {options}."
+    },
+    "multi": {
+      "hint": "Kreuzen Sie beliebige der Werte {options} an."
+    },
+    "reference": {
+      "hint": "Aufgeführt ist nur, was Sie in diesem Projekt lesen dürfen."
+    },
+    "boolean": {
+      "hint": "Ein- oder ausschalten."
+    },
+    "number": {
+      "hint": "Eine Zahl, zum Beispiel {example}."
+    },
+    "duration": {
+      "hint": "Eine Dauer, zum Beispiel 30s, 5m oder 1h."
+    },
+    "dateTime": {
+      "hint": "Datum und Uhrzeit in UTC, zum Beispiel 2026-12-31T23:00:00Z."
+    },
+    "text": {
+      "hint": "Einfacher Text, zum Beispiel ein kurzer Satz."
+    }
   }
 }

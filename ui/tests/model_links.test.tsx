@@ -192,7 +192,7 @@ describe("the places that name a model or a type", () => {
   it("a model's classes in the list, and a class the model page opens on", async () => {
     await renderRoute({ path: "/projects/helsinki/models", answer });
     const table = await screen.findByRole("table", { name: en.models.page.listCaption });
-    expect(within(table).getAllByRole("link", { name: "Station" })[0]).toHaveAttribute("href", "/projects/helsinki/models/air?class=Station");
+    expect((await within(table).findAllByRole("link", { name: "Station" }))[0]).toHaveAttribute("href", "/projects/helsinki/models/air?class=Station");
   });
 
   it("the model page opens the form on the class a link named", async () => {

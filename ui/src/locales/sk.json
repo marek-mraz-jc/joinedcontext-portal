@@ -11005,5 +11005,74 @@
   },
   "pageHeader": {
     "about": "O tejto stránke"
+  },
+  "grid": {
+    "toolbar": "{list}: hľadanie, filter, stĺpce a poradie",
+    "filter": "Filter",
+    "noValues": "Tento zoznam zatiaľ nemá žiadne hodnoty.",
+    "columns": "Stĺpce",
+    "columnsHint": "Stĺpce zobrazené v tomto prehliadači",
+    "sort": "Poradie",
+    "sortHint": "Zoradiť riadky podľa",
+    "sortNone": "Poradie zoznamu",
+    "sortDirection": "Smer",
+    "ascending": "Vzostupne (A až Z, 0 až 9)",
+    "descending": "Zostupne (Z až A, 9 až 0)",
+    "sortBy": "Zoradiť podľa {column}",
+    "removeFilter": "Odstrániť filter {column}: {value}",
+    "clearFilters": "Zrušiť filtre",
+    "details": "Podrobnosti",
+    "openDetails": "Podrobnosti {name}",
+    "noMatch": "Hľadaniu a filtrom nezodpovedá žiadny riadok.",
+    "clearAll": "Zrušiť hľadanie a filtre",
+    "footer": "Zobrazených {shown} z {count}",
+    "showMore": "Zobraziť ďalších {count}",
+    "panelLead": "Všetky hodnoty tohto riadku. Zmenené pole sa stane navrhnutou zmenou na schválenie; nič sa nezapíše, kým ju niekto neschváli.",
+    "platformDefault": "Predvolené platformou",
+    "referenceEmpty": "Zatiaľ nie je z čoho vybrať: najprv to vytvorte na jeho stránke.",
+    "on": "Zapnuté",
+    "off": "Vypnuté",
+    "propose": "Navrhnúť zmenu",
+    "undo": "Vrátiť",
+    "searchIn": "Hľadať v: {list}",
+    "field": {
+      "active": "Aktívne",
+      "throttling": "Najmenej sekúnd medzi oznámeniami",
+      "expiresAt": "Platí do",
+      "enabled": "Zapnuté",
+      "class": "Trieda",
+      "period": "Interval čítania",
+      "schedule": "Plán",
+      "mcp": "Nástroje MCP",
+      "lifecycle": "Životný cyklus",
+      "openWorld": "Otvorený svet",
+      "space": "Kontextový priestor"
+    },
+    "footerOf": "Zobrazených {shown} z {count} zodpovedajúcich, spolu {total}",
+    "retry": "Zamietnuté: zmeňte hodnotu a navrhnite znova.",
+    "choose": {
+      "hint": "Vyberte jednu z hodnôt {options}."
+    },
+    "multi": {
+      "hint": "Zaškrtnite ľubovoľné z hodnôt {options}."
+    },
+    "reference": {
+      "hint": "V zozname je len to, čo v tomto projekte smiete čítať."
+    },
+    "boolean": {
+      "hint": "Zapnite alebo vypnite."
+    },
+    "number": {
+      "hint": "Číslo, napríklad {example}."
+    },
+    "duration": {
+      "hint": "Trvanie, napríklad 30s, 5m alebo 1h."
+    },
+    "dateTime": {
+      "hint": "Dátum a čas v UTC, napríklad 2026-12-31T23:00:00Z."
+    },
+    "text": {
+      "hint": "Obyčajný text, napríklad krátka veta."
+    }
   }
 }
