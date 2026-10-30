@@ -568,7 +568,8 @@ export function LinkmlVisualEditor({
           <h2 id="models-slots" className="mb-2 text-sm font-semibold uppercase tracking-wide">
             {t("models.slots")}
           </h2>
-          <Table caption={t("models.slots")}>
+          {/* No zebra: the row tint already means "inherited", a stripe would read as one more. */}
+          <Table caption={t("models.slots")} zebra={false}>
             <TableHead>
               <TableHeaderCell>{t("models.slot")}</TableHeaderCell>
               <TableHeaderCell>{t("models.range")}</TableHeaderCell>
@@ -597,7 +598,14 @@ export function LinkmlVisualEditor({
                           : undefined
                     }
                     aria-current={name === selectedSlot ? "true" : undefined}>
-                    <TableCell primary>
+                    {/* Below lg the Table paints the sticky name cell opaque in its own colour, which
+                        beats the row tint: the cell takes the row's tint itself or it reads as a column. */}
+                    <TableCell
+                      primary
+                      className={
+                        name === selectedSlot ? "max-lg:bg-primary-soft!" : inherited ? "max-lg:bg-surface-muted!" : undefined
+                      }
+                    >
                       <Button
                         variant="ghost"
                         size="sm"
@@ -609,7 +617,7 @@ export function LinkmlVisualEditor({
                       </Button>
                       {/* A phone hides the From column, so the origin rides under the name. */}
                       {inherited ? (
-                        <span className="block px-2 text-caption sm:hidden">
+                        <span className="block px-2 text-body font-normal text-fg-muted sm:hidden">
                           {t("models.inheritedFrom", { type: from })}
                         </span>
                       ) : null}

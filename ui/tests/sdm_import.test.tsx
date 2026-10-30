@@ -213,14 +213,18 @@ describe("Smart Data Models import wizard", () => {
   /// read only `linkml` and showed "Fetching the upstream model..." for good.
   it("says in words why a catalogue model cannot be imported, instead of loading for ever", async () => {
     const { user } = renderWizard({ previewErrors: ["garden: duplicate key"] });
+    // T-6106: at 400 px the refusal sits below the dialog's fold, so it scrolls into view.
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
 
     await user.click(await screen.findByRole("button", { name: /AirQualityObserved/ }));
 
     const alert = await screen.findByRole("alert");
+    expect(scrolled.mock.contexts).toContain(alert);
     expect(alert).toHaveTextContent(en.models.sdm.importRefused.replace("{name}", "AirQualityObserved"));
     expect(alert).toHaveTextContent("garden: duplicate key");
     expect(screen.queryByText(en.models.sdm.loading)).not.toBeInTheDocument();
-    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+    expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
   });
 
   /// T-1107: a model of the catalogue can carry two hundred attributes.

@@ -218,12 +218,15 @@ async function stubKpi(page: Page, verbs: string[], linkml = KPI_LINKML): Promis
   });
 }
 
-/** Screenshots for the task, where `JC_EVIDENCE_DIR` asks for them. */
-async function shot(page: Page, name: string): Promise<void> {
+/**
+ * Screenshots for the task, where `JC_EVIDENCE_DIR` asks for them. A dialog is shot as the
+ * viewport shows it: a full-page capture stretches the fixed dialog past the phone's height.
+ */
+async function shot(page: Page, name: string, fullPage = true): Promise<void> {
   const dir = process.env.JC_EVIDENCE_DIR;
   if (!dir) return;
   mkdirSync(dir, { recursive: true });
-  await page.screenshot({ path: join(dir, `${name}.png`), fullPage: true });
+  await page.screenshot({ path: join(dir, `${name}.png`), fullPage });
 }
 
 test.describe("one plain model editor (T-4829)", () => {
@@ -316,9 +319,11 @@ test.describe("one plain model editor (T-4829)", () => {
       await expect(alert).toContainText("The catalogue's Event schema cannot be turned into a model.");
       await expect(alert.getByRole("button", { name: "Retry" })).toBeVisible();
       await expect(page.getByText("Fetching the upstream model…")).toHaveCount(0);
+      // At 400 px the preview sits below the dialog's fold: the refusal scrolls into view (T-6106).
+      await expect(alert).toBeInViewport({ ratio: 1 });
       const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
       expect(overflow).toBeLessThanOrEqual(0);
-      await shot(page, `sdm-import-error-${width}`);
+      await shot(page, `sdm-import-error-${width}`, false);
     });
   }
 
@@ -434,7 +439,7 @@ test.describe("the model editor's import dialog, inherited fields and read-only 
       const dialog = page.getByRole("dialog", { name: "Import a data model" });
       await expect(dialog).toBeVisible();
       await expect(page.getByRole("tab", { name: "Import", exact: true })).toHaveCount(0);
-      await shot(page, `import-dialog-${width}`);
+      await shot(page, `import-dialog-${width}`, false);
       await dialog.getByRole("button", { name: "Close import" }).click();
       await expect(dialog).toBeHidden();
       await expect(page.getByRole("tab", { name: "Structure", selected: true })).toBeVisible();

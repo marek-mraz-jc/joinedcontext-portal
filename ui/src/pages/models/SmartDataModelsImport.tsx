@@ -130,6 +130,15 @@ export function withAttributes(source: string, className: string, added: AddedAt
  * The upstream model the import came from, pinned to its commit (DM-08): the repository, path and
  * commit the importer writes as the model's annotations, as an address a person can open.
  */
+/**
+ * On a phone the preview sits under the catalogue, below the dialog's fold: a refusal that
+ * appears there scrolls into view, or the person sees nothing happen (T-6106). A stable
+ * callback ref runs once per mount.
+ */
+function revealOnMount(node: HTMLDivElement | null): void {
+  node?.scrollIntoView?.({ block: "start" });
+}
+
 export function originOf(source: string): { href: string; commit: string } | undefined {
   const document = parseDocument(source);
   const annotation = (key: string): string | undefined => {
@@ -420,6 +429,7 @@ export function SmartDataModelsImport({
           // Model Tools timing out is the ordinary failure here, and selecting the model again
           // to retry is a step nobody should have to know about (T-1109).
           <Alert
+            ref={revealOnMount}
             tone="danger"
             role="status"
             actions={
@@ -434,6 +444,7 @@ export function SmartDataModelsImport({
           // Model Tools answers a model it cannot convert with 200 and `errors` (T-6101): the
           // person has to read why, not watch a loading line that never ends.
           <Alert
+            ref={revealOnMount}
             tone="danger"
             role="alert"
             actions={
