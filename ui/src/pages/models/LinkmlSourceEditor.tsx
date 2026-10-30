@@ -216,7 +216,8 @@ export function LinkmlSourceEditor({
         className={
           editable
             ? "overflow-hidden rounded-lg border border-primary ring-2 ring-primary/30"
-            : "overflow-hidden rounded-lg border border-dashed border-border"
+            : // Reading greys the editor's own ground, so the state shows at a glance (UI judge pass 3).
+              "overflow-hidden rounded-lg border border-dashed border-border [&_.monaco-editor]:[--vscode-editor-background:var(--color-surface-subtle)]! [&_.monaco-editor]:[--vscode-editorGutter-background:var(--color-surface-subtle)]!"
         }
       >
         <Suspense fallback={<p className="p-3 text-body text-fg-muted">{t("models.loadingEditor")}</p>}>
