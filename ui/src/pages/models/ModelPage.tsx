@@ -307,20 +307,6 @@ export function ModelPage({
           description={
             <span className="flex flex-wrap items-center gap-2">
               <span className="font-mono">{name}</span>
-              {space ? (
-                <span>
-                  {t("models.field.space")}:{" "}
-                  <Link
-                    to="/projects/$project/$plural/$name"
-                    params={{ project, plural: "spaces", name: space }}
-                    // Underlined: inside a line of text a link told apart by colour alone is
-                    // missed by a reader who cannot see the colour (WCAG 1.4.1, T-3143).
-                    className="focus-ring text-primary-soft-fg underline underline-offset-2"
-                  >
-                    {space}
-                  </Link>
-                </span>
-              ) : null}
               {version ? <span className="font-mono">v{version}</span> : null}
               {lifecycle ? <Badge>{t(`models.lifecycleOption.${lifecycle}`, { defaultValue: lifecycle })}</Badge> : null}
             </span>
@@ -365,17 +351,17 @@ export function ModelPage({
           <>
             {view === "overview" && source.data !== undefined && parsed ? (
               <div className="flex flex-col gap-4">
-                <Link
-                  to="/projects/$project/models/$name/diagram"
-                  params={{ project, name }}
-                  className={buttonClass("secondary", "sm", "self-start")}
-                >
-                  <Icon name="expand" className="size-4" />
-                  {t("models.canvas.open")}
-                </Link>
+                {/* One toolbar row ending in Open full screen; the relationships go below the
+                    drawing, so it spans the page (owner, T-6146). */}
                 <LinkmlGraphView
                   source={source.data}
                   imports={imports}
+                  toolbarEnd={
+                    <Link to="/projects/$project/models/$name/diagram" params={{ project, name }} className={buttonClass("secondary", "sm")}>
+                      <Icon name="expand" className="size-4" />
+                      {t("models.canvas.open")}
+                    </Link>
+                  }
                   onOpenClass={() => {
                     setView("form");
                   }}
