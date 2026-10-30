@@ -6,7 +6,7 @@ import { axeViolations } from "./axe";
 
 // T-6105 (owner): a create form opens on its first field. No paragraph on the kind, no User Guide
 // sentence and no "Approved as soon as you propose it" line above it; the guide is a "?" beside
-// the title. `vite preview` has no Portal API behind it, so the API is answered in the browser.
+// the title. T-6163: nor the strict chip or a "Fill this from a sentence" line. `vite preview` has no Portal API behind it, so the API is answered in the browser.
 
 const PROJECT = "banskabystrica";
 const EVIDENCE = process.env.JC_EVIDENCE_DIR;
@@ -74,6 +74,19 @@ for (const width of [1440, 400]) {
         await expect(page.getByText(/^Read about .* in the User Guide$/)).toHaveCount(0);
         await expect(page.getByText(/Approved as soon as you propose it/)).toHaveCount(0);
         await expect(page.getByTestId("propose-standing")).toHaveCount(0);
+
+        // T-6163: the first field shows in the first screen, the sentence button shares the tab
+        // row, and strict validation (the normal case) shows no chip.
+        await expect(formPage.getByRole("textbox").first()).toBeInViewport();
+        await expect(page.getByText("strict validation")).toHaveCount(0);
+        const fill = page.getByRole("button", { name: "Fill this from a sentence" });
+        const formTab = page.getByRole("tab", { name: "Form" });
+        const [fillBox, tabBox] = [await fill.boundingBox(), await formTab.boundingBox()];
+        expect(Math.abs((fillBox?.y ?? 0) - (tabBox?.y ?? 100))).toBeLessThan(12);
+        if (form.name === "endpoint") {
+          // The project holds no space: the picker names where one is created.
+          await expect(page.getByText(/Create one under Context Spaces/)).toBeVisible();
+        }
 
         // The guide is one "?" in the title row, named for the page it opens.
         const guide = page.getByRole("link", { name: form.guide });
