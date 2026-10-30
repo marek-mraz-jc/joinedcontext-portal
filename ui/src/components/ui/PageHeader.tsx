@@ -148,7 +148,8 @@ export function PageHeader({
   return (
     <div className={clsx("flex flex-col gap-3", className)}>
       {breadcrumb}
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+      {/* Beside a title control the actions keep to the title's row, so a description opening below never moves them. */}
+      <div className={clsx("flex flex-wrap justify-between gap-x-6 gap-y-3", titleAction ? "items-start" : "items-end")}>
         {/* The description <p> stays the h1's next sibling (screen reader order, walker checks); a grid puts titleAction beside the title. */}
         <div className={clsx("min-w-0", titleAction && "grid grid-cols-[auto_1fr] items-center gap-x-1")}>
           {h1}

@@ -2029,39 +2029,37 @@ export function SpaceInside({ project, name }: { project: string; name: string }
 
   return (
     <div className="space-y-4">
-      {/* One line: the way back, the name with its identifier as a copy chip and the state, the
-          actions at the right; what the space is for on one line below (T-6092). */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-          <Link
-            to="/projects/$project/$plural"
-            params={{ project, plural: "spaces" }}
-            className="focus-ring touch-target text-body text-primary-soft-fg underline hover:no-underline"
-          >
-            {t("spaces.inside.back")}
-          </Link>
-          <PageHeader title={localized(manifest.metadata.title, locale, manifest.metadata.name)} />
-          <CopyUrlButton url={manifest.metadata.name} label={manifest.metadata.name} />
-          <LifecycleBadge kind="phase" value={manifest.status?.phase} />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Completing works on one space, so it lives here and not on the list (T-6084). */}
-          <PermissionGuard project={project} kind="ContextSpace" verb="propose">
-            <Link
-              to="/projects/$project/spaces/complete"
-              params={{ project }}
-              search={{ space: manifest.metadata.name }}
-              className={buttonClass("secondary", "sm")}
-            >
-              {t("spaces.complete.title")}
-            </Link>
-          </PermissionGuard>
-          <Button variant="secondary" size="sm" onClick={() => setAlerting(true)}>
-            {t("alerts.forSpace")}
-          </Button>
-        </div>
-      </div>
-      <OneLine text={localized(manifest.metadata.description, locale, "") || t("spaces.inside.lead")} />
+      {/* The name with its identifier as a copy chip and the state beside it, the actions at the right,
+          and what the space is for on one line below (T-6092); the shell's crumb is the way back. PageHeader keeps
+          the description the h1's next sibling, which screen readers and the walker read (T-6138). */}
+      <PageHeader
+        title={localized(manifest.metadata.title, locale, manifest.metadata.name)}
+        titleAction={
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 ps-2">
+            <CopyUrlButton url={manifest.metadata.name} label={manifest.metadata.name} />
+            <LifecycleBadge kind="phase" value={manifest.status?.phase} />
+          </span>
+        }
+        description={<OneLine text={localized(manifest.metadata.description, locale, "") || t("spaces.inside.lead")} />}
+        actions={
+          <>
+            {/* Completing works on one space, so it lives here and not on the list (T-6084). */}
+            <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+              <Link
+                to="/projects/$project/spaces/complete"
+                params={{ project }}
+                search={{ space: manifest.metadata.name }}
+                className={buttonClass("secondary", "sm")}
+              >
+                {t("spaces.complete.title")}
+              </Link>
+            </PermissionGuard>
+            <Button variant="secondary" size="sm" onClick={() => setAlerting(true)}>
+              {t("alerts.forSpace")}
+            </Button>
+          </>
+        }
+      />
       {alerting ? (
         <AlertDialog
           project={project}
@@ -2323,16 +2321,37 @@ export function SpaceInside({ project, name }: { project: string; name: string }
 function OneLine({ text }: { text: string }): JSX.Element {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  return (
-    <div className="flex max-w-prose items-start gap-2 text-body text-fg-muted">
-      <p className={clsx("min-w-0", !open && "line-clamp-1")}>{text}</p>
-      {/* About what a phone line holds: a shorter text never needs opening. */}
-      {text.length > 40 ? (
-        <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>
-          {open ? t("spaces.inside.less") : t("spaces.inside.more")}
-        </Button>
-      ) : null}
-    </div>
+  // More only when the one line cuts the text at this width; opened, the text stays open.
+  const [cut, setCut] = useState(false);
+  const line = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const element = line.current;
+    if (!element || open) return;
+    const measure = () => setCut(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    return () => observer?.disconnect();
+  }, [open, text]);
+  const toggle =
+    cut || open ? (
+      // The negative margin keeps the toggle's box out of the line height; its target stays whole.
+      <Button variant="ghost" size="xs" className="-my-1" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {open ? t("spaces.inside.less") : t("spaces.inside.more")}
+      </Button>
+    ) : null;
+  // Phrasing content only: PageHeader puts it inside its description <p>. Open, Less follows the text's last word.
+  return open ? (
+    <span>
+      {text} {toggle}
+    </span>
+  ) : (
+    <span className="flex items-baseline gap-2">
+      <span ref={line} className="min-w-0 line-clamp-1">
+        {text}
+      </span>
+      {toggle}
+    </span>
   );
 }
 
