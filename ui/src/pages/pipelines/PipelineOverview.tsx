@@ -522,7 +522,6 @@ export function PipelineOverview({ project, name }: { project: string; name: str
         <h2 id="pipeline-runs" className="text-title text-fg">
           {t("pipelines.overview.runs")}
         </h2>
-        <p className="text-sm text-fg-muted">{t("pipelines.runs.lead")}</p>
         <PipelineRunsView
           key={openRun ?? "newest"}
           project={project}
@@ -536,7 +535,6 @@ export function PipelineOverview({ project, name }: { project: string; name: str
         <h2 id="pipeline-source" className="text-title text-fg">
           {t("pipelines.source.section")}
         </h2>
-        <p className="text-sm text-fg-muted">{t("pipelines.source.lead")}</p>
         <PipelineSourceReport project={project} name={name} snapshot={spec.sourceDeletes?.mode === "snapshot"} />
       </section>
 
@@ -544,7 +542,6 @@ export function PipelineOverview({ project, name }: { project: string; name: str
         <h2 id="pipeline-access" className="text-title text-fg">
           {t("pipelines.access.section")}
         </h2>
-        <p className="text-sm text-fg-muted">{t("pipelines.access.lead")}</p>
         <PipelineAccessRequests project={project} name={name} />
       </section>
 
