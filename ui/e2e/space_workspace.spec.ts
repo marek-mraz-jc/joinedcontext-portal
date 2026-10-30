@@ -63,7 +63,11 @@ function kpi(n: number) {
   };
 }
 
-async function stubApi(page: Page, counted = true): Promise<void> {
+// How the broker and the gateway answer: a filled space, one that holds nothing yet, a broker that
+// fails, and a person the gateway refuses (T-6145).
+type Mode = "filled" | "empty" | "error" | "refused";
+
+async function stubApi(page: Page, counted = true, mode: Mode = "filled"): Promise<void> {
   await page.route("**/{api,cs}/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -75,17 +79,33 @@ async function stubApi(page: Page, counted = true): Promise<void> {
     if (path.endsWith("/datamodels/helsinki-kpi/source")) {
       return route.fulfill({ status: 200, contentType: "text/yaml", body: LINKML });
     }
+    if (path.endsWith("/entities") && mode === "refused") {
+      return json({ type: "about:blank", title: "Forbidden", status: 403, detail: "not readable" }, 403);
+    }
+    if (path.endsWith("/entities") && mode === "empty") return json([], 200, { "NGSILD-Results-Count": "0" });
     if (path.endsWith("/entities")) {
       const rows = Array.from({ length: 12 }, (_, i) => kpi(i + 1));
       return json(rows, 200, counted ? { "NGSILD-Results-Count": String(rows.length) } : {});
     }
     if (path === "/api/v1/projects") return json({ kind: "ProjectList", items: [{ name: PROJECT }] });
+    if (path.endsWith(`/spaces/${SPACE}/usage`) && (mode === "error" || mode === "refused")) {
+      const status = mode === "error" ? 502 : 403;
+      const detail = mode === "error" ? "the context broker main did not answer" : "you may not read this space's usage";
+      return json({ type: "about:blank", title: "Not counted", status, detail }, status);
+    }
+    if (path.endsWith(`/spaces/${SPACE}/usage`) && mode === "empty") {
+      return json({ entities: 0, attrInstances: 0, estimated: false, bytes: { entities: 0, attrInstances: 0, byType: {} }, broker: "main", observedAt: "2026-10-20T16:00:00Z" });
+    }
     if (path.endsWith(`/spaces/${SPACE}/usage`)) {
       return json({
         entities: 14232,
         attrInstances: 3250000,
         estimated: true,
-        bytes: { entities: 48 * 1024 * 1024, attrInstances: 1536 * 1024 * 1024, byType: {} },
+        bytes: { entities: 48 * 1024 * 1024, attrInstances: 1536 * 1024 * 1024, byType: {
+          // the broker keys a type by its expanded IRI; the page matches it to the model's name
+          "https://smartdatamodels.org/dataModel.KPI/KeyPerformanceIndicator": 30 * 1024 * 1024,
+          "https://smartdatamodels.org/dataModel.Transportation/BikeHireDockingStation": 18 * 1024 * 1024,
+        } },
         broker: "main",
         observedAt: "2026-10-20T16:00:00Z",
       });
@@ -148,10 +168,52 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
       "It takes 1.5 GiB in the broker's store: 48 MiB current state, 1.5 GiB history.",
     );
     await expect(page.getByTestId("space-estimated")).toBeVisible();
+    // T-6145: each type's share of the current state, and each sample entity's own size.
+    const typeTable = page.getByRole("table", { name: "Entity types" });
+    const kpiRow = typeTable.getByRole("row").filter({ hasText: TYPES[0] });
+    await expect(kpiRow.getByTitle("31,457,280 B")).toHaveText("30 MiB");
+    const bikeRow = typeTable.getByRole("row").filter({ hasText: TYPES[1] });
+    await expect(bikeRow.getByTitle("18,874,368 B")).toHaveText("18 MiB");
+    const sampleBytes = new TextEncoder().encode(JSON.stringify(kpi(1))).length;
+    // districts 1 and 3 weigh the same
+    await expect(kpiRow.getByTitle(`Size of this entity as JSON: ${sampleBytes} B`).first()).toHaveText(`Size: ${sampleBytes} B`);
     await shot(page, `model-tab-${label}`);
     await page.getByTestId("space-total").scrollIntoViewIfNeeded();
     await shot(page, `model-tab-total-${label}`);
   });
+}
+
+// T-6145: the model tab when the space holds nothing, the broker fails, or the person is refused:
+// no size the broker did not give, and the reason in words.
+for (const mode of ["empty", "error", "refused"] as const) {
+  for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
+    test(`The model tab says what it knows of a ${mode} space (${label})`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await stubApi(page, true, mode);
+      await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en&tab=model`);
+      const table = page.getByRole("table", { name: "Entity types" });
+      await expect(table).toBeVisible();
+      const row = table.getByRole("row").filter({ hasText: TYPES[0] });
+      if (mode === "empty") {
+        // a phone hides the samples column (UI-27)
+        if (width >= 1024) await expect(row.getByText("No entity of this type yet.")).toBeVisible();
+        await expect(page.getByTestId("space-total")).toHaveText("The space holds 0 entities.");
+      } else if (mode === "refused") {
+        await expect(row.getByText("not readable anonymously")).toBeVisible();
+        await expect(page.getByText("you may not read this space's usage")).toBeVisible();
+      } else {
+        await expect(page.getByText("the context broker main did not answer")).toBeVisible();
+      }
+      // no type size and no space size the broker did not give
+      await expect(row.locator("td").nth(2)).toHaveText("—");
+      if (mode !== "empty") await expect(page.getByTestId("space-size")).toHaveCount(0);
+      const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(sideways).toBeLessThanOrEqual(0);
+      expect(await axeViolations(page)).toEqual([]);
+      await page.getByRole("table", { name: "Entity types" }).scrollIntoViewIfNeeded();
+      await shot(page, `model-tab-${mode}-${label}`);
+    });
+  }
 }
 
 // T-4885: an answer the gateway narrowed carries no total (R22); the footer says so in words.

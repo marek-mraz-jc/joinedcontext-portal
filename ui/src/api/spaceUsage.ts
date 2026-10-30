@@ -65,6 +65,14 @@ export function sizeText(bytes: number, language: string): string {
   return `${new Intl.NumberFormat(language, { maximumFractionDigits: digits }).format(value)} ${BINARY[unit]}`;
 }
 
+/**
+ * What one entity weighs as the gateway answered it: the UTF-8 length of its JSON (T-6145). The
+ * broker's own row size (`byType`) also counts its storage overhead, so the two differ a little.
+ */
+export function entityBytes(entity: unknown): number {
+  return new TextEncoder().encode(JSON.stringify(entity) ?? "").length;
+}
+
 /** The exact bytes, for the tooltip: 1 572 864 B. */
 export function exactBytes(bytes: number, language: string): string {
   return `${new Intl.NumberFormat(language).format(bytes)} B`;

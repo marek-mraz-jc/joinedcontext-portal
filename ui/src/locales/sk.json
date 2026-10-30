@@ -584,6 +584,7 @@
       "noTypes": "Dátový model {model} nedefinuje žiadny typ entity.",
       "readThrough": "čítané cez endpoint {endpoint}",
       "noEndpoint": "počty potrebujú verejný endpoint alebo endpoint bez politiky",
+      "sampleSize": "Veľkosť tejto entity v JSON: {bytes}",
       "noEntities": "Zatiaľ žiadna entita tohto typu.",
       "notReadable": "nedá sa čítať anonymne",
       "noEndpoints": "Priestor zatiaľ nemá endpoint.",

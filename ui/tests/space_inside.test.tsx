@@ -355,6 +355,10 @@ describe("space inside view", () => {
     ).toBeInTheDocument();
     expect(within(row).getByText("pm10: 12 · name: SNP Square · location: Point [19.1461, 48.7356]")).toBeInTheDocument();
     expect(row.textContent).not.toMatch(/languageMap|coordinates|\{/);
+    // T-6145: each sample's own size, its JSON as the gateway answered it, read aloud as a size.
+    const bytes = new TextEncoder().encode(JSON.stringify(SAMPLES[0])).length;
+    const sampleSize = within(row).getByTitle(i18n.t("spaces.inside.sampleSize", { bytes: `${bytes} B` }));
+    expect(sampleSize).toHaveTextContent(`${en.spaces.inside.size}: ${bytes} B`);
 
     const gatewayCalls = fetchMock.mock.calls
       .map((call) => urlOf(call[0]))
@@ -456,7 +460,10 @@ describe("space inside view", () => {
     expect(screen.queryByTestId("space-size")).toBeNull();
     const table = await screen.findByRole("table", { name: en.spaces.inside.types });
     const row = within(table).getByText("AirQualityObserved").closest("tr") as HTMLElement;
-    expect(row.textContent).not.toMatch(/\d B|KiB|MiB/);
+    // the type's size cell: the samples beside it carry their own JSON size (T-6145)
+    const sizeCell = row.querySelectorAll("td")[2];
+    expect(sizeCell).toHaveTextContent("—");
+    expect(sizeCell.textContent).not.toMatch(/\d B|KiB|MiB/);
   });
 
   it("names the reason instead of a count the broker could not give", async () => {
