@@ -550,7 +550,9 @@
       "entities": "Entity",
       "inside": "Obsah",
       "missingUnitCode": "Chybějící jednotka",
-      "size": "Velikost"
+      "size": "Velikost",
+      "history": "Historie",
+      "historySize": "Velikost historie"
     },
     "inside": {
       "more": "Více",
@@ -1471,7 +1473,9 @@
       "moveReason": "Uloží se u každého přesunu do historie změn, např. „Přesunuto, protože místo zrušili“.",
       "moveStart": "Vyberte den, např. 2026-11-03.",
       "placeBy": "Pole s místem, které dá každý řádek na mapu, např. location."
-    }
+    },
+    "sizeMissing": "Broker velikost neuvedl: tento prostor nestihl změřit",
+    "historyEstimated": "Odhad ze statistik databáze"
   },
   "endpoints": {
     "surfaceFit": {

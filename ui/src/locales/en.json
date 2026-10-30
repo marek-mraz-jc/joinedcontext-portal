@@ -550,7 +550,9 @@
       "entities": "Entities",
       "inside": "Inside",
       "missingUnitCode": "Missing unit",
-      "size": "Size"
+      "size": "Size",
+      "history": "History",
+      "historySize": "History size"
     },
     "inside": {
       "more": "More",
@@ -1471,7 +1473,9 @@
       "moveReason": "Kept with each move in the change history, e.g. \"Moved after the venue cancelled\".",
       "moveStart": "Pick a day, e.g. 2026-11-03.",
       "placeBy": "The place field that puts each row on the map, e.g. location."
-    }
+    },
+    "sizeMissing": "Not reported by the broker: it could not measure this space in time",
+    "historyEstimated": "Estimated from the database statistics"
   },
   "endpoints": {
     "surfaceFit": {
