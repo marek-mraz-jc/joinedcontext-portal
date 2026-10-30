@@ -644,7 +644,6 @@ describe("EntityGrid", () => {
       exampleLead: "napr.",
       queryAll: "všetky záznamy",
       copied: "Skopírované",
-      scrollHint: "Vpravo sú ďalšie stĺpce: posuňte tabuľku do strany.",
       sortPage: "Zoradiť túto stranu podľa",
       matching: "vyhovujúcich",
       columnMenu: "Možnosti stĺpca",

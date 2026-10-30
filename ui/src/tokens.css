@@ -137,7 +137,12 @@
   --portal-space-gutter: 1.25rem;
   --portal-space-section: 1rem;
   --portal-space-stack: 0.625rem;
-  --portal-content-max: 80rem;
+  /* The page takes the window's width (owner 2026-10-30: no empty margin left of the data);
+     prose keeps its own measure (max-w-prose). */
+  --portal-content-max: 100%;
+  /* The SDK grid's text in rem, so it follows the Portal's root size (owner 2026-10-30, 80 %). */
+  --jc-font-size-md: 0.875rem;
+  --jc-font-size-sm: 0.75rem;
   --portal-sidebar-width: 13rem;
   /* The preview column of an application: the page IS the application, so the frame takes what
      the viewport allows and never falls below a phone's screen. The building state uses the
@@ -169,14 +174,6 @@
   --portal-ring-offset: 2px;
 }
 
-/* On a big screen the page takes the width: grids, editors and forms are what these pages hold,
-   and a 1280px column left most of a 2560px screen empty (owner, 2026-09-24). Prose keeps its
-   own measure (max-w-prose) wherever it appears. */
-@media (min-width: 1800px) {
-  :root {
-    --portal-content-max: 150rem;
-  }
-}
 
 @media (prefers-color-scheme: dark) {
   :root {

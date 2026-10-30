@@ -73,8 +73,6 @@ export interface GridLabels {
   queryAll: string;
   /** Said for a moment after the query was copied. */
   copied: string;
-  /** Under the table while columns wait to its right (T-5415). */
-  scrollHint: string;
   /** Said on a sortable header, because the order is of the loaded page only (UI-66). */
   sortPage: string;
   /** Said on a sortable header whose source orders the whole answer. */
@@ -273,7 +271,6 @@ export const DEFAULT_LABELS: GridLabels = {
   exampleLead: "e.g.",
   queryAll: "all records",
   copied: "Copied",
-  scrollHint: "More columns to the right: scroll the table sideways.",
   sortPage: "Sort this page by",
   sortAll: "Sort all rows by",
   sortedLoaded: "Sorted within the {count} loaded rows: this view also reads other brokers, which do not sort.",
