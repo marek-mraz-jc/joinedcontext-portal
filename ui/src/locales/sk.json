@@ -5388,7 +5388,7 @@
     "proposed": "Beh otvoril žiadosť o zlúčenie.",
     "nothingToDo": "Beh nič nezmenil: zdroj sa neposunul.",
     "byWebhook": "Beží, keď to zdroj oznámi",
-    "everyInterval": "Každých {interval}",
+    "everyInterval": "Interval {interval}",
     "add": "Pridať zdroj",
     "propose": "Navrhnúť zmenu",
     "dialog": {

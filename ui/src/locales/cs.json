@@ -5388,7 +5388,7 @@
     "proposed": "Běh otevřel žádost o sloučení.",
     "nothingToDo": "Běh nic nezměnil: zdroj se neposunul.",
     "byWebhook": "Běží, když to zdroj oznámí",
-    "everyInterval": "Každých {interval}",
+    "everyInterval": "Interval {interval}",
     "add": "Přidat zdroj",
     "propose": "Navrhnout změnu",
     "dialog": {

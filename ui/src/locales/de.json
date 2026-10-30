@@ -5388,7 +5388,7 @@
     "proposed": "Der Lauf hat einen Merge Request geöffnet.",
     "nothingToDo": "Der Lauf hat nichts geändert: die Quelle hat sich nicht bewegt.",
     "byWebhook": "Läuft, wenn die Quelle es meldet",
-    "everyInterval": "Alle {interval}",
+    "everyInterval": "Intervall {interval}",
     "add": "Quelle hinzufügen",
     "propose": "Änderung vorschlagen",
     "dialog": {
