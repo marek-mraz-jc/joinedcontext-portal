@@ -201,6 +201,14 @@ RUN for name in sharing-private sharing-project sharing-organization sharing-rol
       && node /work/scripts/app-integrity.mjs "/srv/apps/$name" || exit 1; \
     done
 
+# The two bundles the binary embeds, alone (T-6154): image.yml exports this stage
+# (`--target bundles --output type=local`) and compiles the binary outside Docker over them.
+FROM scratch AS bundles
+COPY --from=ui /work/ui/dist /ui/dist
+COPY --from=sdk /sdk/dist /sdk/dist
+
+# image.yml replaces this stage with the binary it compiled in the runner (a named build context
+# `build`, T-6154); a plain `docker build` still compiles here.
 FROM rust:1.97-slim-trixie@sha256:8e8cf8f7fd54a2d23d5a743b3a03f56e26b6c774276c33fa0595111704ebb15c AS build
 WORKDIR /src
 # tikv-jemalloc-sys (the binary's allocator, T-5283) runs `make` in its build script,
