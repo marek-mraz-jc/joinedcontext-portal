@@ -418,7 +418,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
             align: "right",
             text: (space) => String(usageOf(space.metadata.name)?.data?.entities ?? ""),
             cell: (space) => (
-              <span className="tabular-nums">
+              <span className="inline-flex flex-col items-start tabular-nums sm:items-end">
                 <EntityCount usage={usageOf(space.metadata.name)} numbers={numbers} />
                 <SizeLine
                   bytes={usageOf(space.metadata.name)?.data?.bytes?.entities}
@@ -436,7 +436,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
             align: "right",
             text: (space) => String(usageOf(space.metadata.name)?.data?.attrInstances ?? ""),
             cell: (space) => (
-              <span className="tabular-nums">
+              <span className="inline-flex flex-col items-start tabular-nums sm:items-end">
                 <HistoryCount usage={usageOf(space.metadata.name)?.data} numbers={numbers} locale={locale} />
               </span>
             ),

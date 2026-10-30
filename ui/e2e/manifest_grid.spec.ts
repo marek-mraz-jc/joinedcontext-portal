@@ -75,7 +75,7 @@ const usage = {
   to: "2026-10-30",
   endpoints: [{ name: "air-quality", slug: "x", total: 18342, daily: [], totals: { "ngsi-ld": 15000, mcp: 3000, "ogc": 342 } }],
 };
-const spaces = ["air", "mobility", "works"].map((name) => ({ apiVersion: V, kind: "ContextSpace", metadata: { name, namespace: "helsinki" }, spec: {} }));
+const spaces = ["air", "mobility", "works"].map((name) => ({ apiVersion: V, kind: "ContextSpace", metadata: { name, namespace: "helsinki" }, spec: {}, status: { phase: "Live" } }));
 
 async function stub(page: Page, opts: { empty?: boolean; refuse?: boolean; slow?: boolean } = {}) {
   await page.route("**/api/**", async (route: Route) => {
@@ -89,6 +89,8 @@ async function stub(page: Page, opts: { empty?: boolean; refuse?: boolean; slow?
     if (path === "/api/v1/projects") return json({ apiVersion: V, kind: "ProjectList", items: [{ name: "helsinki" }, { name: "espoo" }] });
     if (path === "/api/v1/projects/espoo/endpoints") return json(list(opts.empty ? [] : espooEndpoints));
     if (path.endsWith("/usage/endpoints")) return json(usage);
+    const spaceUsage = /\/spaces\/(\w+)\/usage$/.exec(path)?.[1];
+    if (spaceUsage) return json({ entities: spaceUsage.length * 1234, attrInstances: spaceUsage.length * 9876, bytes: { entities: 1048576, attrInstances: 4194304 }, observedAt: "2026-10-30T06:00:00Z" });
     if (opts.slow && /\/projects\/helsinki\/\w+$/.test(path)) await new Promise((resolve) => setTimeout(resolve, 60_000));
     const kind = /^\/api\/v1\/kinds\/(\w+)\/schema$/.exec(path)?.[1];
     if (kind) return json(schema(kind));
