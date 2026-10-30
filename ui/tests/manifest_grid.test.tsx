@@ -167,7 +167,7 @@ describe("ManifestGrid", () => {
     const { sent, answer } = harness((_body, dryRun) => json(dryRun ? { valid: true } : change, dryRun ? 200 : 202));
     const onChange = vi.fn();
     renderPage(grid(onChange), { answer });
-    await userEvent.click(within(await screen.findByRole("table", { name: "Endpoints" })).getByText("organization"));
+    await userEvent.click(await screen.findByRole("button", { name: en.grid.openDetails.replace("{name}", "air-quality") }));
     const dialog = await screen.findByRole("dialog");
     const select = await within(dialog).findByRole("combobox", { name: "Audience" });
     expect(select).toHaveAccessibleDescription(/for example/);
@@ -183,7 +183,7 @@ describe("ManifestGrid", () => {
   it("shows the server's 403 on the field it was for", async () => {
     const { answer } = harness(() => problem(403, "You may not change the audience of Endpoint air-quality."));
     renderPage(grid(), { answer });
-    await userEvent.click(within(await screen.findByRole("table", { name: "Endpoints" })).getByText("organization"));
+    await userEvent.click(await screen.findByRole("button", { name: en.grid.openDetails.replace("{name}", "air-quality") }));
     const dialog = await screen.findByRole("dialog");
     await userEvent.selectOptions(await within(dialog).findByRole("combobox", { name: "Audience" }), "public");
     await userEvent.click(within(dialog).getByRole("button", { name: en.grid.propose }));
@@ -194,7 +194,7 @@ describe("ManifestGrid", () => {
   it("disables the proposal for a person without propose on the kind, with the reason", async () => {
     const { answer } = harness(() => json({}), false);
     renderPage(grid(), { answer });
-    await userEvent.click(within(await screen.findByRole("table", { name: "Endpoints" })).getByText("organization"));
+    await userEvent.click(await screen.findByRole("button", { name: en.grid.openDetails.replace("{name}", "air-quality") }));
     const dialog = await screen.findByRole("dialog");
     await userEvent.selectOptions(await within(dialog).findByRole("combobox", { name: "Audience" }), "public");
     await waitFor(() => expect(within(dialog).getByRole("button", { name: en.grid.propose })).toHaveAttribute("aria-disabled", "true"));

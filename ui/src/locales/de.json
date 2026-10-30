@@ -11027,17 +11027,7 @@
     "on": "Ein",
     "off": "Aus",
     "propose": "Änderung vorschlagen",
-    "proposing": "Wird geprüft und vorgeschlagen…",
     "undo": "Rückgängig",
-    "hint": {
-      "choose": "Wählen Sie einen der angebotenen Werte, zum Beispiel {example}.",
-      "reference": "Aufgeführt ist nur, was Sie in diesem Projekt lesen dürfen.",
-      "boolean": "Ein- oder ausschalten.",
-      "number": "Eine Zahl, zum Beispiel {example}.",
-      "duration": "Eine Dauer, zum Beispiel 30s, 5m oder 1h.",
-      "dateTime": "Datum und Uhrzeit in UTC, zum Beispiel 2026-12-31T23:00:00Z.",
-      "text": "Einfacher Text, zum Beispiel ein kurzer Satz."
-    },
     "searchIn": "{list} durchsuchen",
     "field": {
       "active": "Aktiv",
@@ -11052,6 +11042,27 @@
       "openWorld": "Offene Welt",
       "space": "Kontextraum"
     },
-    "footerOf": "{shown} von {count} passenden angezeigt, {total} insgesamt"
+    "footerOf": "{shown} von {count} passenden angezeigt, {total} insgesamt",
+    "choose": {
+      "hint": "Wählen Sie einen der angebotenen Werte, zum Beispiel {example}."
+    },
+    "reference": {
+      "hint": "Aufgeführt ist nur, was Sie in diesem Projekt lesen dürfen."
+    },
+    "boolean": {
+      "hint": "Ein- oder ausschalten."
+    },
+    "number": {
+      "hint": "Eine Zahl, zum Beispiel {example}."
+    },
+    "duration": {
+      "hint": "Eine Dauer, zum Beispiel 30s, 5m oder 1h."
+    },
+    "dateTime": {
+      "hint": "Datum und Uhrzeit in UTC, zum Beispiel 2026-12-31T23:00:00Z."
+    },
+    "text": {
+      "hint": "Einfacher Text, zum Beispiel ein kurzer Satz."
+    }
   }
 }

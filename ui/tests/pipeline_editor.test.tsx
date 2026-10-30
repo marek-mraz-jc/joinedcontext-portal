@@ -906,12 +906,13 @@ it("tells a feed from a space and reads the attributes of a class from an inline
     const row = (await screen.findByText("aq-mqtt-ingest")).closest("tr") as HTMLElement;
     const cell = row.lastElementChild as HTMLElement;
 
-    // The live control stays out; the menu button is the only other control in the cell.
+    // The grid's details button, the live control, then the menu (T-6115).
     const open = within(cell).getAllByRole("button");
-    expect(open).toHaveLength(2);
-    expect(open[1].textContent).toBe("\u22ef");
+    expect(open).toHaveLength(3);
+    expect(open[0]).toHaveAccessibleName(/^Details of /);
+    expect(open[2].textContent).toBe("\u22ef");
 
-    await user.click(open[1]);
+    await user.click(open[2]);
     const menu = await screen.findByRole("menu");
     expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
       en.pipelines.runs.open,

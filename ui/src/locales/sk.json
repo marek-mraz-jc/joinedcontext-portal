@@ -11027,17 +11027,7 @@
     "on": "Zapnuté",
     "off": "Vypnuté",
     "propose": "Navrhnúť zmenu",
-    "proposing": "Kontrolujem a navrhujem…",
     "undo": "Vrátiť",
-    "hint": {
-      "choose": "Vyberte jednu z ponúkaných hodnôt, napríklad {example}.",
-      "reference": "V zozname je len to, čo v tomto projekte smiete čítať.",
-      "boolean": "Zapnite alebo vypnite.",
-      "number": "Číslo, napríklad {example}.",
-      "duration": "Trvanie, napríklad 30s, 5m alebo 1h.",
-      "dateTime": "Dátum a čas v UTC, napríklad 2026-12-31T23:00:00Z.",
-      "text": "Obyčajný text, napríklad krátka veta."
-    },
     "searchIn": "Hľadať v: {list}",
     "field": {
       "active": "Aktívne",
@@ -11052,6 +11042,27 @@
       "openWorld": "Otvorený svet",
       "space": "Kontextový priestor"
     },
-    "footerOf": "Zobrazených {shown} z {count} zodpovedajúcich, spolu {total}"
+    "footerOf": "Zobrazených {shown} z {count} zodpovedajúcich, spolu {total}",
+    "choose": {
+      "hint": "Vyberte jednu z ponúkaných hodnôt, napríklad {example}."
+    },
+    "reference": {
+      "hint": "V zozname je len to, čo v tomto projekte smiete čítať."
+    },
+    "boolean": {
+      "hint": "Zapnite alebo vypnite."
+    },
+    "number": {
+      "hint": "Číslo, napríklad {example}."
+    },
+    "duration": {
+      "hint": "Trvanie, napríklad 30s, 5m alebo 1h."
+    },
+    "dateTime": {
+      "hint": "Dátum a čas v UTC, napríklad 2026-12-31T23:00:00Z."
+    },
+    "text": {
+      "hint": "Obyčajný text, napríklad krátka veta."
+    }
   }
 }

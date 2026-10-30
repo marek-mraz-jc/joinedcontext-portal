@@ -23,6 +23,7 @@ import { ToolbarPopover } from "../entities/GridToolbar";
 import { PageFailed } from "../ui/PageState";
 import {
   Button,
+  Card,
   Checkbox,
   Dialog,
   Field,
@@ -100,6 +101,9 @@ type Sort = { column: string; desc: boolean } | null;
 
 const PAGE = 50;
 
+/** The actions column, pinned to the frame's right edge over the scrolled cells; on a phone the row is a card (`stack`). */
+const STICKY = "sm:sticky sm:right-0 sm:border-l sm:border-border sm:bg-surface";
+
 /** The browser key a grid keeps its chosen columns under: a view preference (UI-09). */
 function columnsKey(storageKey: string): string {
   return `jc.list.${storageKey}.columns`;
@@ -164,7 +168,7 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
   const [shown, setShown] = useState<string[]>(
     () => readShown(storageKey) ?? columns.filter((column) => !column.hidden).map((column) => column.id),
   );
-  const [panel, setPanel] = useState<{ key: string; focus?: string } | null>(null);
+  const [panel, setPanel] = useState<string | null>(null);
 
   const all = useMemo(() => [name, ...columns], [name, columns]);
   const visibleColumns = columns.filter((column) => shown.includes(column.id));
@@ -176,10 +180,10 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
   const limit = step + more;
   const kept = useMemo(() => visibleRows(rows, all, props.search === undefined ? ownSearch : "", filters, sort), [rows, all, props.search, ownSearch, filters, sort]);
   const page = kept.slice(0, limit);
-  const width = visibleColumns.length + (actions ? 2 : 1);
+  const width = visibleColumns.length + 2;
   const chips = Object.entries(filters).flatMap(([id, values]) => values.map((value) => ({ id, value })));
   const filterable = columns.filter((column) => column.filter);
-  const opened = panel ? rows.find((row) => rowKey(row) === panel.key) : undefined;
+  const opened = panel ? rows.find((row) => rowKey(row) === panel) : undefined;
 
   if (query.isError) {
     return <PageFailed error={query.error} onRetry={() => void query.refetch()} />;
@@ -201,15 +205,10 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
     const state = sort?.column === column.id ? (sort.desc ? "descending" : "ascending") : undefined;
     return (
       <TableHeaderCell key={column.id} align={column.align} aria-sort={state} className={primary ? undefined : "whitespace-nowrap"}>
-        <button
-          type="button"
-          className="focus-ring inline-flex items-center gap-1 rounded-sm font-semibold hover:text-primary-soft-fg"
-          onClick={() => sortBy(column.id)}
-          aria-label={t("grid.sortBy", { column: column.label })}
-        >
+        <Button variant="ghost" size="sm" className="-ml-2 font-semibold" aria-label={t("grid.sortBy", { column: column.label })} onClick={() => sortBy(column.id)}>
           {column.label}
           {state ? <Icon name={state === "ascending" ? "arrowUp" : "arrowDown"} className="size-3.5" /> : null}
-        </button>
+        </Button>
       </TableHeaderCell>
     );
   };
@@ -303,30 +302,30 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
         ) : null}
       </div>
 
-      <Table data-records="" caption={caption} status={query.isPending ? t("app.loading") : undefined}>
+      {!query.isPending && rows.length === 0 ? (
+        <Card padding="md">{empty}</Card>
+      ) : (
+      <Table stack data-records="" caption={caption} status={query.isPending ? t("app.loading") : undefined}>
         <TableHead>
           {header(name, true)}
           {visibleColumns.map((column) => header(column))}
-          <TableHeaderCell align="right">
-            <span className="sr-only">{t("grid.details")}</span>
+          <TableHeaderCell align="right" className={clsx(STICKY, "bg-surface-subtle")}>
+            <span className="sr-only">{t("approvals.actions")}</span>
           </TableHeaderCell>
-          {actions ? <TableHeaderCell align="right">{t("approvals.actions")}</TableHeaderCell> : null}
         </TableHead>
         {query.isPending ? (
-          <TableSkeleton columns={width + 1} />
+          <TableSkeleton columns={width} />
         ) : (
           <TableBody>
             {page.length === 0 ? (
-              <TableEmpty columns={width + 1}>
-                {rows.length > 0 ? (
+              <TableEmpty columns={width}>
+                {(
                   <div className="flex flex-col items-center gap-2 py-6 text-center">
                     <p className="text-body font-medium text-fg">{t("grid.noMatch")}</p>
                     <Button variant="secondary" size="sm" onClick={() => { setFilters({}); setOwnSearch(""); props.onSearchChange?.(""); }}>
                       {t("grid.clearAll")}
                     </Button>
                   </div>
-                ) : (
-                  empty
                 )}
               </TableEmpty>
             ) : (
@@ -338,27 +337,24 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
                       {name.cell ? name.cell(row) : name.text(row)}
                     </TableCell>
                     {visibleColumns.map((column) => (
-                      <TableCell
-                        key={column.id}
-                        align={column.align}
-                        className="align-middle"
-                        // A click on a value opens it in the panel rather than the row's object.
-                        onClick={(event) => {
-                          event.preventDefault();
-                          setPanel({ key, focus: column.id });
-                        }}
-                      >
+                      <TableCell key={column.id} align={column.align} className="align-middle" data-label={column.label}>
                         {column.cell ? column.cell(row) : column.text(row) || <span className="text-fg-subtle">—</span>}
                       </TableCell>
                     ))}
-                    <TableCell align="right" className="align-middle" onClick={(event) => event.preventDefault()}>
-                      <Button variant="ghost" size="sm" aria-label={t("grid.openDetails", { name: name.text(row) })} icon={<Icon name="sidebar" className="size-4" />} onClick={() => setPanel({ key })} />
+                    {/* Sticky at the frame's right edge: on a phone the row's ways in stay in view (T-6115 judge). */}
+                    <TableCell align="right" className={clsx("align-middle", STICKY)} onClick={(event) => event.preventDefault()}>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={t("grid.openDetails", { name: name.text(row) })}
+                          title={t("grid.details")}
+                          icon={<Icon name="sidebar" className="size-4" />}
+                          onClick={() => setPanel(key)}
+                        />
+                        {actions ? actions(row) : null}
+                      </div>
                     </TableCell>
-                    {actions ? (
-                      <TableCell align="right" className="align-middle" onClick={(event) => event.preventDefault()}>
-                        {actions(row)}
-                      </TableCell>
-                    ) : null}
                   </TableRow>
                 );
               })
@@ -366,6 +362,7 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
           </TableBody>
         )}
       </Table>
+      )}
 
       {!query.isPending && kept.length > 0 && (kept.length > page.length || kept.length !== (props.total ?? rows.length)) ? (
         <div className="flex flex-wrap items-center gap-3">
@@ -387,7 +384,6 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
           row={opened}
           name={name}
           columns={columns}
-          focus={panel?.focus}
           edit={edit}
           onClose={() => setPanel(null)}
         />
@@ -401,14 +397,12 @@ function CellPanel<T>({
   row,
   name,
   columns,
-  focus,
   edit,
   onClose,
 }: {
   row: T;
   name: GridColumn<T>;
   columns: GridColumn<T>[];
-  focus?: string;
   edit: ManifestGridProps<T>["edit"];
   onClose: () => void;
 }): JSX.Element {
@@ -422,8 +416,6 @@ function CellPanel<T>({
     queryFn: async () =>
       unwrap(await api.GET("/api/v1/kinds/{kind}/schema", { params: { path: { kind: edit?.kind ?? "" } } })),
   });
-  // A focused column first, so the value a person clicked is the first thing the panel reads.
-  const ordered = focus ? [...columns.filter((c) => c.id === focus), ...columns.filter((c) => c.id !== focus)] : columns;
   return (
     <Dialog
       open
@@ -434,7 +426,7 @@ function CellPanel<T>({
       size="md"
     >
       <div className="flex flex-col gap-4">
-        {ordered.map((column) => {
+        {columns.map((column) => {
           const resolved = edit && manifest && column.field && schema.data ? fieldWidget(edit.kind, schema.data, column.field) : null;
           return (
             <div key={column.id} className="flex flex-col gap-1" data-panel-field={column.id}>
@@ -446,8 +438,7 @@ function CellPanel<T>({
                   manifest={manifest}
                   path={column.field}
                   edit={edit}
-                  autoFocus={column.id === focus}
-                  onDone={onClose}
+                                    onDone={onClose}
                 />
               ) : (
                 <dl className="flex flex-col gap-1">
@@ -494,19 +485,19 @@ function example(widget: FieldWidget, t: (key: string, values?: Record<string, u
   switch (widget.kind) {
     case "enum":
     case "multiEnum":
-      return t("grid.hint.choose", { example: widget.options[0]?.value ?? "" });
+      return t("grid.choose.hint", { example: widget.options[0]?.value ?? "" });
     case "reference":
-      return t("grid.hint.reference");
+      return t("grid.reference.hint");
     case "boolean":
-      return t("grid.hint.boolean");
+      return t("grid.boolean.hint");
     case "number":
-      return t("grid.hint.number", { example: widget.integer ? "60" : "1.5" });
+      return t("grid.number.hint", { example: widget.integer ? "60" : "1.5" });
     case "duration":
-      return t("grid.hint.duration");
+      return t("grid.duration.hint");
     case "dateTime":
-      return t("grid.hint.dateTime");
+      return t("grid.dateTime.hint");
     default:
-      return t("grid.hint.text");
+      return t("grid.text.hint");
   }
 }
 
@@ -517,7 +508,6 @@ function FieldEditor({
   manifest,
   path,
   edit,
-  autoFocus,
   onDone,
 }: {
   label: string;
@@ -526,7 +516,6 @@ function FieldEditor({
   manifest: Manifest;
   path: string;
   edit: Omit<NonNullable<ManifestGridProps<unknown>["edit"]>, "manifest">;
-  autoFocus: boolean;
   onDone: () => void;
 }): JSX.Element {
   const { t } = useTranslation();
@@ -556,7 +545,7 @@ function FieldEditor({
     switch (widget.kind) {
       case "enum":
         return (
-          <Select id={id} autoFocus={autoFocus} value={String(held)} onChange={(event) => setHeld(event.target.value)}>
+          <Select id={id} value={String(held)} onChange={(event) => setHeld(event.target.value)}>
             {widget.nullable || held === "" ? <option value="">{t("grid.platformDefault")}</option> : null}
             {widget.options.map((option) => (
               <option key={option.value} value={option.value} title={option.description}>
@@ -593,13 +582,13 @@ function FieldEditor({
           />
         );
       case "boolean":
-        return <Switch id={id} autoFocus={autoFocus} checked={held === true} onCheckedChange={setHeld} label={held === true ? t("grid.on") : t("grid.off")} />;
+        return <Switch id={id} checked={held === true} onCheckedChange={setHeld} label={held === true ? t("grid.on") : t("grid.off")} />;
       case "number":
         return (
-          <Input id={id} autoFocus={autoFocus} type="number" inputMode="numeric" min={widget.minimum} step={widget.integer ? 1 : "any"} value={String(held)} onChange={(event) => setHeld(event.target.value)} />
+          <Input id={id} type="number" inputMode="numeric" min={widget.minimum} step={widget.integer ? 1 : "any"} value={String(held)} onChange={(event) => setHeld(event.target.value)} />
         );
       default:
-        return <Input id={id} autoFocus={autoFocus} value={String(held)} onChange={(event) => setHeld(event.target.value)} />;
+        return <Input id={id} value={String(held)} onChange={(event) => setHeld(event.target.value)} />;
     }
   })();
 
@@ -617,8 +606,8 @@ function FieldEditor({
       {changed ? (
         <div className={clsx("flex flex-wrap items-center gap-2")}>
           <PermissionGuard project={edit.project} kind={edit.kind} verb="propose">
-            <Button type="submit" size="sm" variant="primary" disabled={propose.isPending}>
-              {propose.isPending ? t("grid.proposing") : t("grid.propose")}
+            <Button type="submit" size="sm" variant="primary" loading={propose.isPending}>
+              {t("grid.propose")}
             </Button>
           </PermissionGuard>
           <Button type="button" size="sm" variant="ghost" onClick={() => { setHeld(controlValue(widget, before)); propose.reset(); }}>

@@ -11027,17 +11027,7 @@
     "on": "On",
     "off": "Off",
     "propose": "Propose change",
-    "proposing": "Checking and proposing…",
     "undo": "Undo",
-    "hint": {
-      "choose": "Pick one of the listed values, for example {example}.",
-      "reference": "Only what you may read in this project is listed.",
-      "boolean": "Switch on or off.",
-      "number": "A number, for example {example}.",
-      "duration": "A duration, for example 30s, 5m or 1h.",
-      "dateTime": "A date and time in UTC, for example 2026-12-31T23:00:00Z.",
-      "text": "Plain text, for example a short sentence."
-    },
     "searchIn": "Search {list}",
     "field": {
       "active": "Active",
@@ -11052,6 +11042,27 @@
       "openWorld": "Open world",
       "space": "Context Space"
     },
-    "footerOf": "Showing {shown} of {count} matching, {total} in total"
+    "footerOf": "Showing {shown} of {count} matching, {total} in total",
+    "choose": {
+      "hint": "Pick one of the listed values, for example {example}."
+    },
+    "reference": {
+      "hint": "Only what you may read in this project is listed."
+    },
+    "boolean": {
+      "hint": "Switch on or off."
+    },
+    "number": {
+      "hint": "A number, for example {example}."
+    },
+    "duration": {
+      "hint": "A duration, for example 30s, 5m or 1h."
+    },
+    "dateTime": {
+      "hint": "A date and time in UTC, for example 2026-12-31T23:00:00Z."
+    },
+    "text": {
+      "hint": "Plain text, for example a short sentence."
+    }
   }
 }

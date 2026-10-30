@@ -163,7 +163,13 @@ describe("the endpoints page", () => {
       // The row count is the check. A role query over 500 rows computes the accessible role of
       // every cell on every poll, seconds of CPU that a loaded host turns into a timeout (T-3538).
       // 500 rows mount one page of 50 (T-4545).
-      await waitFor(() => expect(container.querySelector("table")?.rows.length).toBe(count === 0 ? 2 : Math.min(count, 50) + 1));
+      // An empty list is the empty state at the frame's width, no table (T-6115 judge: clipped at 400 px).
+      await waitFor(() =>
+        count === 0
+          ? expect(container.querySelector("[data-manifest-grid] table")).toBeNull()
+          : expect(container.querySelector("table")?.rows.length).toBe(Math.min(count, 50) + 1),
+      );
+      if (count === 0) await screen.findByText(en.endpoints.empty);
       sent.set(count, [...new Set(calls())].sort());
       unmount();
       vi.restoreAllMocks();
