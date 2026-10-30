@@ -420,7 +420,9 @@ function RecordId({ id }: { id: string }): JSX.Element {
   const short = urnName(id);
   if (!short) return <span className="font-mono text-caption [overflow-wrap:anywhere]">{id}</span>;
   return (
-    <span className="font-mono text-caption [overflow-wrap:anywhere]" title={id}>
+    // A short name keeps its letters together: the column takes its width and the table scrolls,
+    // where `anywhere` broke it one letter per line at 400 px.
+    <span className="whitespace-nowrap font-mono text-caption" title={id}>
       <span aria-hidden>{short}</span>
       <span className="sr-only">{id}</span>
     </span>

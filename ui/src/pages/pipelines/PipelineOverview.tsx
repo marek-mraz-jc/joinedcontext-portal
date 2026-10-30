@@ -247,7 +247,7 @@ export function nextRunOf(
 
 function Fact({ label, children }: { label: string; children: ReactNode }): JSX.Element {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex min-w-0 flex-col gap-0.5">
       <dt className="text-caption text-fg-subtle">{label}</dt>
       <dd className="text-body text-fg [overflow-wrap:anywhere]">{children}</dd>
     </div>
@@ -375,10 +375,11 @@ export function PipelineOverview({ project, name }: { project: string; name: str
   return (
     <div className="flex flex-col gap-section">
       <div className="flex flex-col gap-2">
-        {back}
+        {/* One header row: the title with its id, the actions on the same row; the breadcrumb leads back. */}
         <PageHeader
           title={localized(manifest.metadata.title, locale, name)}
-          description={<span className="font-mono">{name}</span>}
+          // The id beside the title; on a phone the breadcrumb already ends with it.
+          titleAction={<code className="ms-2 hidden font-mono text-caption text-fg-muted sm:inline">{name}</code>}
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <PermissionGuard project={project} kind="Pipeline" verb="propose">
@@ -428,7 +429,7 @@ export function PipelineOverview({ project, name }: { project: string; name: str
         <h2 id="pipeline-facts" className="text-title text-fg">
           {t("pipelines.overview.facts")}
         </h2>
-        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 lg:grid-cols-3">
           <Fact label={t("pipelines.field.phase")}>
             <span className="flex flex-wrap items-center gap-1.5">
               <LifecycleBadge

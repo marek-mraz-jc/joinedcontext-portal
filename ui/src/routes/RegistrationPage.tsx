@@ -101,7 +101,8 @@ export function RegistrationPage({ project, name }: { project: string; name: str
         title={localized(manifest.metadata.title, locale, name)}
         titleAction={
           <span className="ms-2 flex flex-wrap items-center gap-2">
-            <code className="font-mono text-caption text-fg-muted">{name}</code>
+            {/* On a phone the breadcrumb already ends with the id. */}
+            <code className="hidden font-mono text-caption text-fg-muted sm:inline">{name}</code>
             <LifecycleBadge kind="phase" value={manifest.status?.phase} />
           </span>
         }
