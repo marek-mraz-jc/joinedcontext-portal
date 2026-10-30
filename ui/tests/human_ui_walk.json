@@ -395,11 +395,11 @@
       ]
     },
     "src/components/entities/FilterPanel.tsx": {
-      "walkedBy": "worker-t4883",
-      "date": "2026-10-20",
+      "walkedBy": "worker-t6161",
+      "date": "2026-10-30",
       "screenshots": [
-        "evidence/worker-t4883/T-4883/grid-filter-desktop-1440.png",
-        "evidence/worker-t4883/T-4883/grid-filter-phone-400.png"
+        "evidence/worker-t6161/T-6161/grid-filter-chips-desktop-1440.png",
+        "evidence/worker-t6161/T-6161/grid-filter-chips-phone-400.png"
       ]
     },
     "src/components/entities/ViewBar.tsx": {

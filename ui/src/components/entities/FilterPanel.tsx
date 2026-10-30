@@ -265,3 +265,66 @@ function ConditionRow({
     </div>
   );
 }
+
+/** One condition in words, as its chip says it: "Available bikes is greater than 3" (T-6161). */
+export function conditionText(
+  item: FilterCondition | FilterGroup,
+  columns: FilterColumn[],
+  titleOf: (column: FilterColumn) => string,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  if ("conditions" in item) {
+    return t(item.join === "or" ? "spaces.toolbar.chipAny" : "spaces.toolbar.chipAll", { n: conditionCount(item) });
+  }
+  const column = columns.find((each) => each.key === item.key);
+  const { op, value, value2, values } = item.filter;
+  const said =
+    op === "anyOf"
+      ? (values ?? []).map((each) => column?.options?.find((option) => option.value === each)?.title ?? each).join(", ")
+      : op === "between"
+        ? `${value} – ${value2 ?? ""}`
+        : op === "empty" || op === "present"
+          ? ""
+          : value;
+  return [column ? titleOf(column) : item.key, t(`entityGrid.ops.${op}`, { defaultValue: op }), said].filter((part) => part !== "").join(" ");
+}
+
+/**
+ * The filters in force as removable chips under the toolbar (T-6161): each top-level condition or
+ * group one chip, its ✕ drops it and the read follows, the panel behind Filter still edits them.
+ */
+export function FilterChips({ columns, titleOf, value, onChange }: FilterPanelProps): JSX.Element | null {
+  const { t } = useTranslation();
+  if (value.conditions.length === 0) return null;
+  return (
+    <ul aria-label={t("spaces.toolbar.activeFilters")} className="flex flex-wrap items-center gap-1" data-testid="filter-chips">
+      {value.conditions.map((item, index) => {
+        const text = conditionText(item, columns, titleOf, t);
+        return (
+          <li key={index} className="inline-flex max-w-full items-center gap-1 text-caption">
+            {/* How the chips meet, said between them: two chips side by side otherwise read as AND. */}
+            {index > 0 ? <span className="text-fg-muted">{t(`spaces.toolbar.${value.join}`)}</span> : null}
+            <span className="inline-flex min-w-0 items-center gap-1 rounded-full border border-border bg-surface-muted py-0.5 pl-3 pr-1 text-fg">
+              <span className="truncate" title={text}>{text}</span>
+              <Button
+                size="xs"
+                variant="ghost"
+                aria-label={t("spaces.toolbar.removeFilter", { name: text })}
+                onClick={() => onChange({ ...value, conditions: value.conditions.filter((_, at) => at !== index) })}
+              >
+                ✕
+              </Button>
+            </span>
+          </li>
+        );
+      })}
+      {value.conditions.length > 1 ? (
+        <li>
+          <Button size="xs" variant="ghost" onClick={() => onChange({ ...value, conditions: [] })}>
+            {t("spaces.toolbar.clearFilters")}
+          </Button>
+        </li>
+      ) : null}
+    </ul>
+  );
+}
