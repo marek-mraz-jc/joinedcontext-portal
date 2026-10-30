@@ -616,7 +616,7 @@
       "broker": "Běží na kontextovém brokeru {broker}.",
       "size": "Velikost",
       "totalSize": "V úložišti brokera zabírá {size}: aktuální stav {entities}, historie {history}.",
-      "estimated": "Historie je odhadnuta ze statistik databáze: je příliš dlouhá na okamžité spočítání.",
+      "estimated": "Velikosti a počet záznamů historie jsou odhadnuty ze statistik databáze: prostor je příliš velký na okamžité změření.",
       "sections": "Části prostoru",
       "counting": "Počítám entity prostoru…",
       "allRows": "Všechny řádky",
