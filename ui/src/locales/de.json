@@ -4725,6 +4725,8 @@
     "from": "Herkunft",
     "inheritedFrom": "Aus {type}",
     "ownField": "Dieser Typ",
+    "typePicker": "Bearbeiteter Typ",
+    "typePickerHint": "Alle Typen dieses Modells; einen neuen fügen Sie unter Typen am Seitenende hinzu, zum Beispiel Station.",
     "diagnosticSeverity": {
       "error": "Muss behoben werden",
       "warning": "Warnung"

@@ -83,6 +83,17 @@ describe("LinkML visual editor", () => {
     expect(screen.getByRole("button", { name: "Observed" })).toHaveAttribute("aria-current", "true");
   });
 
+  it("offers a type picker for a phone, where the rail sits under the type it opens (T-6106)", async () => {
+    const { user } = renderEditor(
+      SOURCE.replace("  AirQualityObserved:\n", "  Observed:\n    slots:\n      - pm10\n  AirQualityObserved:\n"),
+    );
+    const picker = screen.getByRole("combobox", { name: en.models.typePicker });
+    expect(picker.closest(".lg\\:hidden")).not.toBeNull();
+    await user.selectOptions(picker, "AirQualityObserved");
+    expect(screen.getByRole("button", { name: "AirQualityObserved" })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("heading", { name: "AirQualityObserved", level: 2 })).toBeInTheDocument();
+  });
+
   it("opens an inherited field read-only, naming the parent it is defined on, and goes there (T-6106)", async () => {
     const { source, user } = renderEditor(
       SOURCE.replace(

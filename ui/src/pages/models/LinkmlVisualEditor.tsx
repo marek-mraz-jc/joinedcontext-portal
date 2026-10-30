@@ -277,7 +277,8 @@ export function LinkmlVisualEditor({
           {t("models.refused", { reason: refusal })}
         </Alert>
       ) : null}
-      <div className="flex flex-col gap-6">
+      {/* On a phone the rail goes under the type it opens; a picker above takes its place (UI judge, T-6106). */}
+      <div className="order-last flex flex-col gap-6 lg:order-none">
         <section aria-labelledby="models-classes">
           <h2 id="models-classes" className="mb-2 text-sm font-semibold uppercase tracking-wide">
             {t("models.classes")}
@@ -435,6 +436,26 @@ export function LinkmlVisualEditor({
       </div>
 
       <div className="flex flex-col gap-6">
+        {model.classes.length > 1 ? (
+          <Field
+            id="class-phone-picker"
+            label={t("models.typePicker")}
+            description={t("models.typePickerHint")}
+            className="lg:hidden"
+          >
+            <Select
+              id="class-phone-picker"
+              value={activeClass?.name ?? ""}
+              onChange={(event) => setSelectedClass(event.target.value)}
+            >
+              {model.classes.map((klass) => (
+                <option key={klass.name} value={klass.name}>
+                  {klass.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
         {activeClass ? (
           <section aria-labelledby="models-class-detail" className="flex flex-col gap-3">
             <h2 id="models-class-detail" className="text-base font-semibold">

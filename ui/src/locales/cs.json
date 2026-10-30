@@ -4725,6 +4725,8 @@
     "from": "Odkud",
     "inheritedFrom": "Z typu {type}",
     "ownField": "Tento typ",
+    "typePicker": "Upravovaný typ",
+    "typePickerHint": "Všechny typy tohoto modelu; nový přidáte v části Typy na konci stránky, například Station.",
     "diagnosticSeverity": {
       "error": "Nutno opravit",
       "warning": "Upozornění"

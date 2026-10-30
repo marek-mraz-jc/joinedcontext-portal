@@ -4725,6 +4725,8 @@
     "from": "From",
     "inheritedFrom": "From {type}",
     "ownField": "This type",
+    "typePicker": "Type to edit",
+    "typePickerHint": "Every type of this model; add one under Types at the end of the page, for example Station.",
     "diagnosticSeverity": {
       "error": "Must fix",
       "warning": "Warning"
