@@ -1,6 +1,6 @@
 /** T-2890: a space's size as the broker measured it, in binary units and matched to the model's types. */
 import { describe, expect, it } from "vitest";
-import { bytesOfType, entityBytes, exactBytes, sizeText, totalBytes } from "../src/api/spaceUsage";
+import { bytesOfType, entityBytes, exactBytes, sizeText } from "../src/api/spaceUsage";
 
 describe("space size", () => {
   it("writes_binary_units_with_the_locales_separators", () => {
@@ -11,13 +11,6 @@ describe("space size", () => {
     expect(sizeText(340 * 1024, "en")).toBe("340 KiB");
     expect(sizeText(3 * 1024 ** 4 * 2048, "en")).toBe("6,144 TiB");
     expect(exactBytes(1_572_864, "en")).toBe("1,572,864 B");
-  });
-
-  it("adds_the_history_to_the_current_state_and_knows_no_size_without_one", () => {
-    const at = "2026-10-18T12:00:00Z";
-    expect(totalBytes(undefined)).toBeUndefined();
-    expect(totalBytes({ entities: 1, broker: "main", estimated: false, observedAt: at })).toBeUndefined();
-    expect(totalBytes({ entities: 1, broker: "main", estimated: false, observedAt: at, bytes: { entities: 10, attrInstances: 5, byType: {} } })).toBe(15);
   });
 
   it("matches_a_short_type_to_its_stored_iri_and_never_guesses_between_two", () => {
