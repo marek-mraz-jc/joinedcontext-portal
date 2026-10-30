@@ -12,6 +12,7 @@ import type { Manifest } from "../src/api/manifest";
 import { ApiError } from "../src/api/client";
 import { spaceUsageQuery, usageRefusal } from "../src/api/spaceUsage";
 import { readLayout, writeLayout } from "../src/components/entities/viewLayout";
+import { pageFindings } from "./pageChecks";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -679,6 +680,9 @@ describe("the space's own data", () => {
     await userEvent.click(more);
     expect(text).not.toHaveClass("line-clamp-1");
     expect(screen.getByRole("button", { name: en.spaces.inside.less })).toHaveAttribute("aria-expanded", "true");
+    // The walker reads the purpose line as the h1's next sibling <p> (T-6138).
+    expect(screen.getByRole("heading", { level: 1 }).nextElementSibling?.tagName).toBe("P");
+    expect(pageFindings({ namespaces: [], layout: false }).filter((f) => f.startsWith("purpose-line"))).toEqual([]);
   });
 
   // T-6092: ticking a column in a view beside the grid was dropped, so the read never changed.
