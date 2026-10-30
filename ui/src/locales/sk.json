@@ -10618,8 +10618,7 @@
     "emptyHint": "Portál skontroluje zdroje pár minút po štarte. Pridajte pipeline, kontextový priestor alebo Endpoint, alebo sa vráťte o pár minút.",
     "summary": "{errors, plural, one {# chyba} few {# chyby} other {# chýb}} a {warnings, plural, one {# varovanie} few {# varovania} other {# varovaní}} z {total} kontrol: pod každou je oprava.",
     "allWell": "Všetkých {total} kontrol je v poriadku.",
-    "kind": "Zobraziť",
-    "kindHint": "Zúžte zoznam na jeden druh zdroja, napr. Pipeline.",
+    "kind": "Druh",
     "allKinds": "Všetky druhy",
     "kinds": {
       "pipeline": "Pipeline",
@@ -10628,8 +10627,8 @@
       "model": "Model",
       "datasource": "Zdroj údajov"
     },
-    "noneOfKind": "Žiadne kontroly tohto druhu",
-    "noneOfKindHint": "Vyberte Všetky druhy a uvidíte každú kontrolu.",
+    "noneOfKind": "Žiadne kontroly nezodpovedajú",
+    "noneOfKindHint": "Vyberte Všetky v poli Stav a Všetky druhy a uvidíte každú kontrolu.",
     "status": "Stav",
     "project": "Projekt",
     "resource": "Zdroj",
@@ -10693,6 +10692,14 @@
       "publicRefused": "Endpoint je verejný, ale pýta token: skontrolujte spec.audience a Policy v spec.policyRef.",
       "surfaceMissing": "Brána túto reprezentáciu neposkytuje: skontrolujte spec.enabledRepresentations a či je Endpoint nasadený.",
       "slowSurface": "Reprezentácia odpovedá pomaly: skontrolujte záťaž brokera a filter Endpointu."
+    },
+    "statusFilter": "Stav",
+    "shown": {
+      "attention": "Treba riešiť ({count})",
+      "broken": "Nefunguje ({count})",
+      "look": "Treba pozrieť ({count})",
+      "working": "Funguje ({count})",
+      "all": "Všetky ({count})"
     }
   },
   "accessibility": {
