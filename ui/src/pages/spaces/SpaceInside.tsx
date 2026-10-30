@@ -867,6 +867,16 @@ function SpaceData({
     value: attr,
     label: columnLabel(typeSlots.find((slot) => slot.name === attr), attr, i18n.language),
   }));
+  const viewTabs = (
+    <Tabs
+      id="space-data-view"
+      label={t("spaces.views.label")}
+      variant="pill"
+      tabs={DATA_VIEWS.map((value) => ({ value, label: t(`spaces.views.kind.${value}`) }))}
+      value={view}
+      onChange={setView}
+    />
+  );
   const rowNumberLabels = { selectRow: t("spaces.toolbar.selectRow"), selectAll: t("spaces.toolbar.selectAll") };
 
   if (types.length === 0) {
@@ -939,16 +949,9 @@ function SpaceData({
       {probe.isError ? (
         <ProbeFailure key={probe.errorUpdatedAt} error={probe.error} endpoints={endpoints} retrying={probe.isFetching} onRetry={() => void probe.refetch()} />
       ) : null}
-      {readable ? (
-        <Tabs
-          id="space-data-view"
-          label={t("spaces.views.label")}
-          variant="pill"
-          tabs={DATA_VIEWS.map((value) => ({ value, label: t(`spaces.views.kind.${value}`) }))}
-          value={view}
-          onChange={setView}
-        />
-      ) : null}
+      {/* The view switch sits in the toolbar's row (owner 2026-10-30: more height for the rows);
+          the API view has no toolbar, so there it stands alone. */}
+      {readable && view === "api" ? viewTabs : null}
       {readable && view !== "api" ? (
         <>
           <Dialog
@@ -1014,9 +1017,13 @@ function SpaceData({
           the row, share and the rest of the type's actions at its end. */}
       {readable && view !== "api" ? (
         <div className="flex flex-wrap items-center gap-1 border-b border-border pb-2" data-testid="grid-toolbar">
-          <span className="mr-2 max-w-48 truncate text-body font-semibold" title={saved?.title}>
-            {saved?.title ?? t("spaces.inside.allRows")}
-          </span>
+          <div className="mr-2">{viewTabs}</div>
+          {/* A saved view names itself; "All rows" said nothing the tabs did not (owner 2026-10-30: one row). */}
+          {saved ? (
+            <span className="mr-2 max-w-48 truncate text-body font-semibold" title={saved.title}>
+              {saved.title}
+            </span>
+          ) : null}
           {view === "grid" ? (
             <>
             <ToolbarPopover label={t("spaces.toolbar.filter")} count={conditionCount(filters)} wide>
@@ -1054,7 +1061,7 @@ function SpaceData({
               type="search"
               aria-label={t("spaces.toolbar.search")}
               placeholder={t("spaces.toolbar.searchPlaceholder")}
-              className="h-control w-full sm:w-48"
+              className="h-control w-full sm:w-36"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
             />
