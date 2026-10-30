@@ -339,6 +339,7 @@ function RunLog({
   });
   const caption = t("pipelines.runs.logCaption", { run: title });
   const lines: LogLine[] = page.data?.items ?? [];
+  const withMessages = lines.some((line) => (line.message ?? "").trim() !== "");
 
   return (
     <section aria-label={caption} className="flex flex-col gap-2">
@@ -360,7 +361,8 @@ function RunLog({
               <TableHeaderCell>{t("pipelines.runs.at")}</TableHeaderCell>
               <TableHeaderCell>{t("pipelines.runs.record")}</TableHeaderCell>
               <TableHeaderCell>{t("pipelines.runs.outcome")}</TableHeaderCell>
-              <TableHeaderCell>{t("pipelines.runs.message")}</TableHeaderCell>
+              {/* A page of plain writes says nothing per line: no empty Message column. */}
+              {withMessages ? <TableHeaderCell>{t("pipelines.runs.message")}</TableHeaderCell> : null}
             </TableHead>
             <TableBody>
               {lines.map((line) => (
@@ -387,9 +389,11 @@ function RunLog({
                       ) : null}
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <p className="text-body text-fg">{line.message}</p>
-                  </TableCell>
+                  {withMessages ? (
+                    <TableCell>
+                      <p className="text-body text-fg">{line.message}</p>
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))}
             </TableBody>
