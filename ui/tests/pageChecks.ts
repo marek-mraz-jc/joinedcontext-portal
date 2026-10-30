@@ -216,8 +216,9 @@ export const OWN_ROUTES: ReadonlySet<string> = new Set(["/connectors", "/ai-conn
 /**
  * A write control the viewer can press, or one refused without a reason (UI-44). A tab is a place
  * to go, and a control that only edits the draft in hand writes nothing: a term added to the filter
- * being tried, a condition of the grid's filter panel (FilterPanel, T-5005), a colour rule of one's
- * own view, a line of a mapping whose Propose is refused. "Add to my connectors" writes the person's
+ * being tried, a row of the Explore filters (EntityFilters, T-6139), a condition of the grid's filter
+ * panel (FilterPanel, T-5005), a colour rule of one's own view, a line of a mapping whose Propose is
+ * refused. "Add to my connectors" writes the person's
  * own preferences (UI-98): a viewer may add an Endpoint they read, and the server refuses one they
  * cannot (T-4949, connectors_tests.rs). Self-contained for `page.evaluate`, as `pageFindings` is;
  * without `layout` (jsdom) a control counts as shown.
@@ -225,7 +226,7 @@ export const OWN_ROUTES: ReadonlySet<string> = new Set(["/connectors", "/ai-conn
 export function viewerWriteFindings(layout: boolean): string[] {
   const found: string[] = [];
   const draftOnly =
-    /^(Add to the query|Add condition|Add condition group|Remove condition|Remove group|Add a colour rule|Add the line for .+ to the mapping|Add to my connectors)$/;
+    /^(Add to the query|Add filter|Add condition|Add condition group|Remove condition|Remove group|Add a colour rule|Add the line for .+ to the mapping|Add to my connectors)$/;
   for (const button of document.querySelectorAll("main button:not([role='tab']), main a[role='button']")) {
     const name = (button.getAttribute("aria-label") ?? button.textContent ?? "").replace(/\s+/g, " ").trim();
     if (!/^(New|Edit|Remove|Delete|Propose|Add|Create|Publish|Approve)\b/.test(name) || draftOnly.test(name)) continue;

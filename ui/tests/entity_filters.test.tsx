@@ -11,6 +11,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import type { Manifest } from "../src/api/manifest";
+import { viewerWriteFindings } from "./pageChecks";
 import { filterSlotsOf, filtersFromQ, opsFor, qFromFilters, qProblem, typeGroups } from "../src/components/entities/filters";
 
 const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", name: "Jana Kováčová", roles: [] };
@@ -298,6 +299,8 @@ describe("data explorer (UI-33)", () => {
     await userEvent.selectOptions(await screen.findByLabelText(en.entities.type), "AirQualityObserved");
 
     // The source route carried the LinkML the manifest only names, so the rows are typed.
+    // Add filter only edits the query in hand: the viewer-write walker check passes it (T-6139).
+    expect(viewerWriteFindings(false)).not.toContain(`viewer-write: "${en.entities.addFilter}" can be pressed`);
     await userEvent.click(screen.getByRole("button", { name: en.entities.addFilter }));
     await waitFor(() => expect(screen.getByLabelText(en.entities.value)).toHaveAttribute("type", "number"));
     expect(
