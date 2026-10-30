@@ -720,7 +720,8 @@
         "rejected": "Rejected, 7 days",
         "quarantined": "Quarantined, 7 days",
         "lastRejected": "Last rejected",
-        "since": "Counted from {day} (24 h) and from {week} (7 days)."
+        "since": "Counted from {day} (24 h) and from {week} (7 days).",
+        "sinceOne": "Counted since {at}."
       }
     },
     "fields": {

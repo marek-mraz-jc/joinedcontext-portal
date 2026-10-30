@@ -720,7 +720,8 @@
         "rejected": "Abgelehnt, 7 Tage",
         "quarantined": "In Quarantäne, 7 Tage",
         "lastRejected": "Zuletzt abgelehnt",
-        "since": "Gezählt ab {day} (24 h) und ab {week} (7 Tage)."
+        "since": "Gezählt ab {day} (24 h) und ab {week} (7 Tage).",
+        "sinceOne": "Gezählt seit {at}."
       }
     },
     "fields": {

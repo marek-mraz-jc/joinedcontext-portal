@@ -720,7 +720,8 @@
         "rejected": "Odmietnuté, 7 dní",
         "quarantined": "V karanténe, 7 dní",
         "lastRejected": "Naposledy odmietnuté",
-        "since": "Počítané od {day} (24 h) a od {week} (7 dní)."
+        "since": "Počítané od {day} (24 h) a od {week} (7 dní).",
+        "sinceOne": "Počítané od {at}."
       }
     },
     "fields": {
