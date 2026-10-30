@@ -303,11 +303,11 @@ export function FilterChips({ columns, titleOf, value, onChange }: FilterPanelPr
         return (
           <li key={index} className="inline-flex max-w-full items-center gap-1 text-caption">
             {/* How the chips meet, said between them: two chips side by side otherwise read as AND. */}
-            {index > 0 ? <span className="text-fg-muted">{t(`spaces.toolbar.${value.join}`)}</span> : null}
-            <span className="inline-flex min-w-0 items-center gap-1 rounded-full border border-border bg-surface-muted py-0.5 pl-3 pr-1 text-fg">
+            {index > 0 ? <span className="px-1 font-medium text-fg">{t(`spaces.toolbar.${value.join}`)}</span> : null}
+            <span className="inline-flex min-w-0 items-center gap-1 rounded-full border border-border bg-surface-muted pl-3 text-fg">
               <span className="truncate" title={text}>{text}</span>
               <Button
-                size="xs"
+                size="sm"
                 variant="ghost"
                 aria-label={t("spaces.toolbar.removeFilter", { name: text })}
                 onClick={() => onChange({ ...value, conditions: value.conditions.filter((_, at) => at !== index) })}
@@ -320,7 +320,7 @@ export function FilterChips({ columns, titleOf, value, onChange }: FilterPanelPr
       })}
       {value.conditions.length > 1 ? (
         <li>
-          <Button size="xs" variant="ghost" onClick={() => onChange({ ...value, conditions: [] })}>
+          <Button size="sm" variant="secondary" onClick={() => onChange({ ...value, conditions: [] })}>
             {t("spaces.toolbar.clearFilters")}
           </Button>
         </li>

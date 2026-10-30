@@ -449,6 +449,14 @@ test.describe("The space page at phone width with touch", () => {
       expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches), "the phone is a touch screen").toBe(true);
 
       expect(await smallTouchTargets(page), "every control is at least 44 x 44 px").toEqual([]);
+      // The filter chips under the toolbar keep the finger's size too (T-6161).
+      await page.getByTestId("grid-toolbar").getByText("Filter", { exact: true }).click();
+      await page.getByRole("button", { name: "Add condition", exact: true }).click();
+      await page.getByRole("textbox", { name: "Value", exact: true }).fill("cafe");
+      await page.getByRole("button", { name: "Add condition", exact: true }).click();
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("list", { name: "Active filters" }).getByRole("listitem")).toHaveCount(3);
+      expect(await smallTouchTargets(page), "every chip control is at least 44 x 44 px").toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth), "nothing scrolls sideways").toBeLessThanOrEqual(width);
       // The box keeps its size: the label around it is what grew.
       const box = await page.getByRole("checkbox", { name: /^Select row: / }).first().boundingBox();
