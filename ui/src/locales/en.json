@@ -4418,6 +4418,7 @@
       "open": "Open full screen",
       "overlay": "Show what serves the classes",
       "overlayNone": "Nothing highlighted",
+      "overlayHelp": "How the highlight works",
       "overlayHint": "Pick an Endpoint (e.g. helsinki-bikes) to light the classes and fields it serves, or a Pipeline to light what it writes.",
       "endpoints": "Endpoints",
       "pipelines": "Pipelines that write a class",

@@ -4418,6 +4418,7 @@
       "open": "Otvoriť na celú obrazovku",
       "overlay": "Zvýrazniť, čo sprístupňuje triedy",
       "overlayNone": "Nič nezvýrazňovať",
+      "overlayHelp": "Ako funguje zvýraznenie",
       "overlayHint": "Vyberte Endpoint (napr. helsinki-bikes) a zvýraznia sa triedy a polia, ktoré sprístupňuje, alebo Pipeline a zvýrazní sa, čo zapisuje.",
       "endpoints": "Endpointy",
       "pipelines": "Pipeliny, ktoré zapisujú triedu",

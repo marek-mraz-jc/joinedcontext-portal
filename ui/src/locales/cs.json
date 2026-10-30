@@ -4418,6 +4418,7 @@
       "open": "Otevřít na celou obrazovku",
       "overlay": "Zvýraznit, co zpřístupňuje třídy",
       "overlayNone": "Nic nezvýrazňovat",
+      "overlayHelp": "Jak funguje zvýraznění",
       "overlayHint": "Vyberte Endpoint (např. helsinki-bikes) a zvýrazní se třídy a pole, které zpřístupňuje, nebo Pipeline a zvýrazní se, co zapisuje.",
       "endpoints": "Endpointy",
       "pipelines": "Pipeliny, které zapisují třídu",
