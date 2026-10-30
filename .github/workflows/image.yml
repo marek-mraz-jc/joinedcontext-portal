@@ -4,8 +4,8 @@ name: ship
 # Builds, signs and pushes the Portal's two images, the binary and the `portal-ui` bundle it reads
 # its pages from (T-2485), and the build lane's images (AP-82: the builder carries the SDK of the
 # same commit), after each green ci on main and on tags. A run builds only what the paths changed
-# since the last green build need (dev/image-matrix.py); a ui/-only change builds the bundle and,
-# until the cut-over, the binary.
+# since the last green build need (dev/image-matrix.py); a ui/-only change builds the bundle alone
+# (T-6158: ~2 min instead of the binary's ~11), and pin-images keeps the binary pinned for it.
 # No hourly wait since T-6108 (owner: a merge reaches dev within the hour): T-4696's hourly gate
 # saved billed minutes, and the repository is public, so Actions minutes cost nothing. The gate's
 # concurrency group still keeps one run deciding and the newest commit pending behind it, so builds
@@ -64,9 +64,12 @@ jobs:
       # The cron, a green ci and ci-full's request build what changed since the newest green run of this lane on
       # main, nothing when main has not moved since; a tag, a dispatch or a last build git cannot
       # diff builds everything.
+      # promote.yml attests the binary of ci-full's own commit: when that commit built only the
+      # bundle (a ui/-only push), ci-full's request adds the binary (T-6158).
       - id: pick
         env:
           EVENT: ${{ github.event_name }}
+          WORKFLOW: ${{ github.event.workflow_run.name }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
@@ -79,8 +82,12 @@ jobs:
               paths=$(git diff --name-only "$built" "$GITHUB_SHA")
             fi
           fi
-          printf '%s\n' "$paths"
-          echo "matrix=$(printf '%s\n' "$paths" | python3 dev/image-matrix.py "${{ github.repository }}" "${{ github.repository_owner }}")" >> "$GITHUB_OUTPUT"
+          binary=""
+          if [ "$WORKFLOW" = ci-full ] && ! docker buildx imagetools inspect "ghcr.io/$GITHUB_REPOSITORY:$GITHUB_SHA" >/dev/null 2>&1; then
+            binary=--binary
+          fi
+          printf '%s\n' "$paths" ${binary:+"(and the binary ci-full attests)"}
+          echo "matrix=$(printf '%s\n' "$paths" | python3 dev/image-matrix.py "${{ github.repository }}" "${{ github.repository_owner }}" $binary)" >> "$GITHUB_OUTPUT"
   build:
     needs: changes
     if: fromJSON(needs.changes.outputs.matrix).include[0] != null
