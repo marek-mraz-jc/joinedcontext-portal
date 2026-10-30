@@ -622,7 +622,18 @@
       "allRows": "Všechny řádky",
       "savedViews": "Uložené pohledy",
       "typeHint": "Který druh entit ukazují řádky níže, například Event.",
-      "restoreReason": "Obnoveno z koše"
+      "restoreReason": "Obnoveno z koše",
+      "policyPublic": "Kdokoli (veřejné)",
+      "everyType": "Každý typ",
+      "operationKind": {
+        "read": "Čtení",
+        "history": "Historie",
+        "write": "Zápis",
+        "delete": "Mazání",
+        "subscribe": "Odběry",
+        "types": "Typy",
+        "other": "Jiné"
+      }
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",

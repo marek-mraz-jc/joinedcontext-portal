@@ -51,6 +51,7 @@ import type { DataView as SavedView, ViewConfig } from "../../api/dataViews";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { usePermissions } from "../../api/permissions";
+import { assigneeWords, operationKinds } from "./policyWords";
 import { classSlots, isAnyClass, parseModel } from "../models/linkml";
 import { localId, textOf } from "../apps/QueryResultCard";
 import { TypeLink } from "../models/ModelLinks";
@@ -2311,12 +2312,12 @@ export function SpaceInside({ project, name }: { project: string; name: string }
         {spacePolicies.length === 0 ? (
           <SectionState query={policies} empty={t("spaces.inside.noPolicies")} />
         ) : (
-          <Table caption={t("spaces.inside.policies")}>
+          <Table caption={t("spaces.inside.policies")} stack>
             <TableHead>
               <TableHeaderCell>{t("spaces.field.name")}</TableHeaderCell>
               <TableHeaderCell>{t("spaces.inside.assignee")}</TableHeaderCell>
-              <TableHeaderCell secondary>{t("spaces.inside.operations")}</TableHeaderCell>
-              <TableHeaderCell secondary>{t("spaces.inside.type")}</TableHeaderCell>
+              <TableHeaderCell>{t("spaces.inside.operations")}</TableHeaderCell>
+              <TableHeaderCell>{t("spaces.inside.type")}</TableHeaderCell>
             </TableHead>
             <TableBody>
               {spacePolicies.map((policy) => {
@@ -2325,10 +2326,15 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                   operations?: string[];
                   information?: Array<{ entities?: Array<{ type?: string }> }>;
                 };
-                const policyTypes = (spec.information ?? [])
-                  .flatMap((info) => info.entities ?? [])
-                  .map((entity) => entity.type)
-                  .filter((type): type is string => typeof type === "string");
+                const policyTypes = [
+                  ...new Set(
+                    (spec.information ?? [])
+                      .flatMap((info) => info.entities ?? [])
+                      .map((entity) => entity.type)
+                      .filter((type): type is string => typeof type === "string"),
+                  ),
+                ];
+                const kinds = operationKinds(spec.operations ?? []);
                 return (
                   <TableRow key={policy.metadata.name}>
                     <TableCell>
@@ -2341,16 +2347,38 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                         </div>
                       ) : null}
                     </TableCell>
-                    <TableCell className="font-mono text-caption">
-                      {spec.assignee
-                        ? `${spec.assignee.kind ?? ""}${spec.assignee.kind ? ":" : ""}${spec.assignee.id ?? ""}`
-                        : "—"}
+                    <TableCell data-label={t("spaces.inside.assignee")}>
+                      <span title={spec.assignee ? `${spec.assignee.kind ?? ""}:${spec.assignee.id ?? ""}` : undefined}>
+                        {assigneeWords(spec.assignee, t)}
+                      </span>
                     </TableCell>
-                    <TableCell secondary className="font-mono text-caption">
-                      {(spec.operations ?? []).join(", ") || "—"}
+                    <TableCell data-label={t("spaces.inside.operations")}>
+                      {kinds.length === 0 ? (
+                        "—"
+                      ) : (
+                        <span className="flex flex-wrap gap-1">
+                          {kinds.map(({ kind, operations }) => (
+                            <Badge
+                              key={kind}
+                              tone={kind === "write" || kind === "delete" ? "warning" : "neutral"}
+                              title={operations.join(", ")}
+                            >
+                              {t(`spaces.inside.operationKind.${kind}`)}
+                            </Badge>
+                          ))}
+                        </span>
+                      )}
                     </TableCell>
-                    <TableCell secondary className="font-mono text-caption">
-                      {policyTypes.join(", ") || "—"}
+                    <TableCell data-label={t("spaces.inside.type")}>
+                      {policyTypes.length > 0 ? (
+                        <span className="flex flex-col">
+                          {policyTypes.map((type) => (
+                            <span key={type}>{type}</span>
+                          ))}
+                        </span>
+                      ) : (
+                        <span className="text-fg-muted">{t("spaces.inside.everyType")}</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

@@ -622,7 +622,18 @@
       "allRows": "Alle Zeilen",
       "savedViews": "Gespeicherte Ansichten",
       "typeHint": "Welche Art von Entitäten die Zeilen unten zeigen, zum Beispiel Event.",
-      "restoreReason": "Aus dem Papierkorb wiederhergestellt"
+      "restoreReason": "Aus dem Papierkorb wiederhergestellt",
+      "policyPublic": "Alle (öffentlich)",
+      "everyType": "Jeder Typ",
+      "operationKind": {
+        "read": "Lesen",
+        "history": "Verlauf",
+        "write": "Schreiben",
+        "delete": "Löschen",
+        "subscribe": "Abonnements",
+        "types": "Typen",
+        "other": "Sonstige"
+      }
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",

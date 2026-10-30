@@ -622,7 +622,18 @@
       "allRows": "All rows",
       "savedViews": "Saved views",
       "typeHint": "Which kind of entity the rows below show, for example Event.",
-      "restoreReason": "Restored from the trash"
+      "restoreReason": "Restored from the trash",
+      "policyPublic": "Everyone (public)",
+      "everyType": "Every type",
+      "operationKind": {
+        "read": "Read",
+        "history": "History",
+        "write": "Write",
+        "delete": "Delete",
+        "subscribe": "Subscriptions",
+        "types": "Types",
+        "other": "Other"
+      }
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
