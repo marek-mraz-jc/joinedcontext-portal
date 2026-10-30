@@ -243,7 +243,8 @@ function TypeRow({
   if (slug === undefined) {
     count = <span className="text-fg-subtle">—</span>;
   } else if (inside.isPending) {
-    count = <span className="text-fg-subtle">{t("app.loading")}</span>;
+    // caption sans, as the refusal: a monospace "Loading..." pushed SIZE off a phone (T-6156)
+    count = <span className="font-sans text-caption text-fg-subtle">{t("app.loading")}</span>;
   } else if (inside.isError) {
     count =
       status === 429 ? (
@@ -314,7 +315,8 @@ export function Samples({ samples }: { samples: KeyValues[] }): JSX.Element {
           <EntityId id={entity.id} />
           <SampleSize bytes={entityBytes(entity)} />
           {summarize(entity, i18n.language) ? (
-            <span className="ml-2 text-fg-subtle [overflow-wrap:anywhere]">{summarize(entity, i18n.language)}</span>
+            // its own line under the id, so a wrapped summary never starts with a stray "·"
+            <span className="block text-fg-subtle [overflow-wrap:anywhere]">{summarize(entity, i18n.language)}</span>
           ) : null}
         </li>
       ))}
