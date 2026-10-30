@@ -9,7 +9,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { proposeChecked } from "../api/proposal";
-import { exactBytes, sizeText, spaceUsageQuery, totalBytes, usageRefusal } from "../api/spaceUsage";
+import { exactBytes, sizeText, spaceUsageQuery, usageRefusal } from "../api/spaceUsage";
 import type { SpaceUsage } from "../api/spaceUsage";
 import { asManifests, isChange, localized, refName, rewritten, storedMetadata } from "../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../api/manifest";
@@ -105,7 +105,7 @@ export function fromEnvelope(manifest: unknown, locale = "en"): SpaceForm {
   } as SpaceForm;
 }
 
-const COLUMNS = 5;
+const COLUMNS = 6;
 
 /** Context Spaces of one project: what exists, what it costs against the quota, where it lives. */
 /**
@@ -190,16 +190,38 @@ function EntityCount({
   );
 }
 
-/** What a space takes in the broker's store, a line under its count, exact in the tooltip; nothing
- *  while it is not known. Under the count, not a column of its own: one more column pushed the
- *  table past its frame at 768 px (red ci-full 39140815794). */
-function SpaceSize({ usage, locale, label }: { usage: SpaceUsage | undefined; locale: string; label: string }): JSX.Element | null {
-  const bytes = totalBytes(usage);
-  if (bytes === undefined) return null;
+/** One size under its count, exact in the tooltip; "—" with the reason when the broker gave none
+ *  (it leaves `bytes` out for a space it could not measure in time, e.g. Helsinki on dev). */
+function SizeLine({ bytes, known, locale, label, testId = "space-size" }: { bytes: number | undefined; known: boolean; locale: string; label: string; testId?: string }): JSX.Element | null {
+  const { t } = useTranslation();
+  if (!known) return null;
+  if (bytes === undefined) {
+    return (
+      <div data-testid={testId} className="text-caption text-fg-subtle" title={t("spaces.sizeMissing")}>
+        <span aria-hidden="true">— </span>
+        <span className="sr-only">{t("spaces.sizeMissing")}</span>
+      </div>
+    );
+  }
   return (
-    <div data-testid="space-size" className="text-caption text-fg-muted" title={`${label}: ${exactBytes(bytes, locale)}`}>
+    <div data-testid={testId} className="text-caption text-fg-muted" title={`${label}: ${exactBytes(bytes, locale)}`}>
       {sizeText(bytes, locale)}
     </div>
+  );
+}
+
+/** The space's history: its temporal records ("≈" when the broker estimated them) and their size. */
+function HistoryCount({ usage, numbers, locale }: { usage: SpaceUsage | undefined; numbers: Intl.NumberFormat; locale: string }): JSX.Element | null {
+  const { t } = useTranslation();
+  if (!usage) return null;
+  const records = usage.attrInstances;
+  return (
+    <>
+      <span data-testid="space-history" title={usage.estimated ? t("spaces.historyEstimated") : undefined}>
+        {records === undefined || records === null ? "—" : `${usage.estimated ? "≈ " : ""}${numbers.format(records)}`}
+      </span>
+      <SizeLine bytes={usage.bytes?.attrInstances} known locale={locale} label={t("spaces.field.historySize")} testId="space-history-size" />
+    </>
   );
 }
 
@@ -303,6 +325,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
           <span aria-hidden="true">{bySize ? " ↓" : ""}</span>
         </Button>
       </TableHeaderCell>
+      <TableHeaderCell align="right" secondary>{t("spaces.field.history")}</TableHeaderCell>
       <TableHeaderCell align="right">
         <span className="sr-only">{t("spaces.field.inside")}</span>
       </TableHeaderCell>
@@ -443,7 +466,15 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
               </TableCell>
               <TableCell align="right" secondary className="tabular-nums">
                 <EntityCount usage={usageOf(space.metadata.name)} numbers={numbers} />
-                <SpaceSize usage={usageOf(space.metadata.name)?.data} locale={locale} label={t("spaces.field.size")} />
+                <SizeLine
+                  bytes={usageOf(space.metadata.name)?.data?.bytes?.entities}
+                  known={usageOf(space.metadata.name)?.data !== undefined}
+                  locale={locale}
+                  label={t("spaces.field.size")}
+                />
+              </TableCell>
+              <TableCell align="right" secondary className="tabular-nums">
+                <HistoryCount usage={usageOf(space.metadata.name)?.data} numbers={numbers} locale={locale} />
               </TableCell>
               <TableCell align="right">
                 <SpaceRowActions

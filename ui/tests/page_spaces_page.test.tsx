@@ -224,20 +224,16 @@ describe("the Context Spaces page", () => {
       },
     });
     const table = await screen.findByRole("table");
-    await waitFor(() =>
-      expect(within(table).getAllByTestId("space-size")).toHaveLength(2),
-    );
+    // Owner 2026-10-30: the current state and the history each show their size, under their own count.
+    await waitFor(() => expect(within(table).getAllByTestId("space-size")).toHaveLength(3));
     const sizes = within(table).getAllByTestId("space-size");
-    expect(sizes.map((cell) => cell.textContent)).toEqual(["1.5 MiB", "900 B"]);
-    expect(sizes[0]).toHaveAttribute(
-      "title",
-      `${en.spaces.field.size}: 1,572,864 B`,
-    );
-    // A line under the count, not a column: a column more ran the table past its frame at 768 px.
-    expect(
-      within(table).queryByRole("columnheader", { name: en.spaces.field.size }),
-    ).toBeNull();
-    expect(sizes[0].closest("td")).toHaveTextContent(/^3\s*1\.5 MiB$/);
+    expect(sizes.slice(0, 2).map((cell) => cell.textContent)).toEqual(["1 MiB", "900 B"]);
+    expect(sizes[0]).toHaveAttribute("title", `${en.spaces.field.size}: 1,048,576 B`);
+    expect(sizes[2]).toHaveAttribute("title", en.spaces.sizeMissing);
+    const history = within(table).getAllByTestId("space-history-size");
+    expect(history.slice(0, 2).map((cell) => cell.textContent)).toEqual(["512 KiB", "0 B"]);
+    expect(history[2]).toHaveAttribute("title", en.spaces.sizeMissing);
+    expect(within(table).getByRole("columnheader", { name: en.spaces.field.history })).toBeInTheDocument();
   });
 
   it("says_why_a_count_is_missing_and_never_shows_a_zero_for_it", async () => {
