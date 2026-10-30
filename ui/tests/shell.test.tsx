@@ -159,6 +159,17 @@ describe("portal shell", () => {
     expect(within(crumbs()).queryByText("Home")).not.toBeInTheDocument();
   });
 
+  it("names a static page under Context Spaces in words, not as a space called 'complete'", async () => {
+    window.history.pushState({}, "", "/projects/helsinki/spaces/complete");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    const crumbs = () => screen.getByRole("navigation", { name: "Breadcrumb" });
+    await waitFor(() => {
+      expect(within(crumbs()).getByText(i18n.t("spaces.complete.title"))).toHaveAttribute("aria-current", "page");
+    });
+    expect(within(crumbs()).queryByText("complete")).toBeNull();
+    expect(within(crumbs()).getByRole("link", { name: i18n.t("nav.spaces") })).toBeInTheDocument();
+  });
+
   // T-4216 (photo audit T-4157, T-4163): the pages below the section list end the trail with
   // their own name, like every section does, not at the project.
   it("ends the trail with the page's own name on the pages below the section list", async () => {
