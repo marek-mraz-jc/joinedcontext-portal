@@ -6,13 +6,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
-import { inTurn, refusalKey } from "../src/pages/spaces/SpaceInside";
+import { inTurn, refusalKey, Samples } from "../src/pages/spaces/SpaceInside";
 import { entityTypesOf, parseResultsCount, pickReadEndpoint, spaceOf } from "../src/pages/spaces/spaceFacts";
 import type { Manifest } from "../src/api/manifest";
 import { ApiError } from "../src/api/client";
 import { spaceUsageQuery, usageRefusal } from "../src/api/spaceUsage";
 import { readLayout, writeLayout } from "../src/components/entities/viewLayout";
 import { pageFindings } from "./pageChecks";
+import { renderPart } from "./page_contract";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -1292,5 +1293,19 @@ describe("the space's own data", () => {
     // two or fewer therefore shows no count at all, which is the same branch (`rest > 0`).
     expect(within(endpointRow).getByText("ngsi-ld, csv")).toBeInTheDocument();
     expect(within(endpointRow).queryByText("+8 more")).toBeNull();
+  });
+});
+
+describe("a type's samples (T-6156)", () => {
+  it("lists each sample with its size, or says there is none", () => {
+    const { unmount } = renderPart(<Samples samples={[{ id: "urn:ngsi-ld:Kpi:1", type: "Kpi", name: "District 1" }]} />);
+    const list = screen.getByRole("list", { name: en.spaces.inside.samples });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(list).getByText("name: District 1")).toBeInTheDocument();
+    expect(within(list).getByTitle(/^Size of the values shown, as JSON: \d+ B$/)).toBeInTheDocument();
+    unmount();
+    renderPart(<Samples samples={[]} />);
+    expect(screen.getByText(en.spaces.inside.noEntities)).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 });
