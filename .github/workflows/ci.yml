@@ -31,7 +31,9 @@ jobs:
       rust: ${{ steps.paths.outputs.rust }}
       ui: ${{ steps.paths.outputs.ui }}
       apps: ${{ steps.paths.outputs.apps }}
-      gallery: ${{ steps.paths.outputs.gallery }}
+      ui_scope: ${{ steps.paths.outputs.ui_scope }}
+      ui_shards: ${{ steps.paths.outputs.ui_scope == 'full' && '[1,2,3,4]' || '[1]' }}
+      base: ${{ steps.paths.outputs.base }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with: { fetch-depth: 0 }
@@ -58,6 +60,7 @@ jobs:
             base=$(git merge-base HEAD "origin/$BASE_REF" || true)
           fi
           echo "base: ${base:-none}"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
           sh scripts/ci/changes.sh "$base" | tee -a "$GITHUB_OUTPUT"
   # Supersede (T-5659): with the account's job slots full, every merge queued one more main run and
   # none finished (9 portal runs queued 10:08-11:55Z on 2026-10-25). tasks/ci closes a task once a
@@ -140,10 +143,10 @@ jobs:
       # rustdoc reuses clippy's metadata, so it costs seconds here.
       - run: cargo doc --workspace --no-deps
         env: { RUSTDOCFLAGS: "-D warnings" }
-  # The SDK's own checks, the inventories, lint, the build and the bundle weight: the steps that
-  # run once. They used to ride on vitest shard 1, which then ran 450-720 s against a 720 s cap
-  # and was cut off with every test green (T-5158, run 39687447235); in their own job they take
-  # 4-6 minutes beside the shards.
+  # Lint, the build and the bundle weight: the steps that run once, beside the vitest job(s). They
+  # used to ride on vitest shard 1 (T-5158, run 39687447235). The SDK's own typecheck, screens and
+  # build left for ci-full (T-6153: 166 s a push, no failure in 7 days), and so did the four
+  # inventories this job ran a second time: the ui job runs them on every UI change.
   ui-checks:
     needs: changes
     if: needs.changes.outputs.ui == 'true'
@@ -170,17 +173,10 @@ jobs:
       # installs nothing for the sibling, so the UI's own typecheck and Vite build need the SDK's
       # dependencies to be beside its sources already (the red main of 1a7c5b9).
       - if: steps.has.outputs.ui == 'yes'
-        name: the SDK builds and its screens pass (SDK-01, AP-56)
-        run: cd sdk && pnpm install --frozen-lockfile && pnpm typecheck && pnpm test && pnpm build
+        name: the SDK the UI links
+        run: cd sdk && pnpm install --frozen-lockfile && pnpm build
       - if: steps.has.outputs.ui == 'yes'
         run: cd ui && pnpm install --frozen-lockfile
-      # The four inventories first (T-2136, T-2728): they read the tree and need no browser, so a
-      # module with no test, a route no spec opens, a control nothing uses or a workflow step with
-      # no journey fails in seconds with its own step name instead of somewhere inside the
-      # 4 000-case suite of the shards.
-      - if: steps.has.outputs.ui == 'yes'
-        name: every module, route, control and workflow step has a test (T-2136, T-2728), and no text box for a picked value (T-4945)
-        run: cd ui && pnpm vitest run tests/gate_modules.test.ts tests/gate_routes.test.ts tests/gate_controls.test.ts tests/gate_workflows.test.ts tests/gate_human_text.test.ts tests/gate_free_text.test.ts
       - if: steps.has.outputs.ui == 'yes'
         run: cd ui && pnpm lint
       - if: steps.has.outputs.ui == 'yes'
@@ -195,15 +191,15 @@ jobs:
     needs: changes
     if: needs.changes.outputs.ui == 'true'
     runs-on: ubuntu-latest
-    # The suite runs in four shards of one matrix: every file once, in one of them, nothing
-    # skipped (vitest --shard splits the files, not the cases). It outgrew one job twice (8 minutes
-    # in T-2447, 12 in T-2920: 372 files took 570 s of vitest alone), and three shards plus the
-    # once-only steps on shard 1 reached the cap again (T-5158: vitest 200-433 s per shard over
-    # 20 main runs). The cap stays; the suite now spreads under it.
-    name: ui (${{ matrix.shard }}/4)
+    # A change only to ui/src, ui/tests or ui/e2e runs one job: the tests it reaches and every
+    # test that reads the tree (ui_scope=related, scripts/ci/ui-related.sh; T-6153: four shards of
+    # 320-393 s for a one-page change). Anything else runs the whole suite in four shards of one
+    # matrix: every file once, in one of them, nothing skipped (vitest --shard splits the files,
+    # not the cases). It outgrew one job twice (T-2447, T-2920) and three shards (T-5158).
+    name: ui (${{ needs.changes.outputs.ui_scope == 'full' && format('{0}/4', matrix.shard) || 'related' }})
     strategy:
       fail-fast: false
-      matrix: { shard: [1, 2, 3, 4] }
+      matrix: { shard: "${{ fromJSON(needs.changes.outputs.ui_shards) }}" }
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -221,121 +217,22 @@ jobs:
         run: cd sdk && pnpm install --frozen-lockfile && pnpm build
       - if: steps.has.outputs.ui == 'yes'
         run: cd ui && pnpm install --frozen-lockfile
-      - if: steps.has.outputs.ui == 'yes'
+      - if: steps.has.outputs.ui == 'yes' && needs.changes.outputs.ui_scope == 'full'
         name: the UI suite, shard ${{ matrix.shard }} of 4
         run: cd ui && pnpm vitest run --shard=${{ matrix.shard }}/4
+      - if: steps.has.outputs.ui == 'yes' && needs.changes.outputs.ui_scope != 'full'
+        name: the UI tests this change reaches
+        env: { BASE: "${{ needs.changes.outputs.base }}" }
+        run: |
+          set -eu
+          sh scripts/ci/ui-related.sh --selftest
+          git fetch -q --depth=1 origin "$BASE"
+          sh scripts/ci/ui-related.sh "$BASE"
       - if: steps.has.outputs.ui == 'no'
         run: echo "no ui/package.json yet"
-  # The component-gallery baselines (T-5575; UI-15, UI-16, UI-27): four screenshots against the
-  # vite dev server, no backend. They ran only in the daily ci-full e2e, so a shared component's
-  # spacing or a token changed by hand turned red a day later in a lane already red for other
-  # reasons. PW_ONLY=gallery starts the dev server alone (playwright.config.ts). A baseline
-  # changes on purpose only: `pnpm e2e -- --project=gallery --update-snapshots`.
-  ui-gallery:
-    needs: changes
-    if: needs.changes.outputs.gallery == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # The baselines are taken in this image (its chromium and fonts; the command is in
-    # gallery.spec.ts): on the bare runner the fallback fonts moved ~2 000 pixels per shot (T-5575).
-    # Its tag matches @playwright/test in ui/pnpm-lock.yaml; move both together.
-    container:
-      image: mcr.microsoft.com/playwright@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27 # v1.63.0-noble
-      options: --ipc=host
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with: { version: 10 }
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with: { node-version: 22, cache: pnpm, cache-dependency-path: ui/pnpm-lock.yaml }
-      # The UI links the SDK's sources and `link:` installs nothing for the sibling (T-1439).
-      - run: cd sdk && pnpm install --frozen-lockfile
-      - run: cd ui && pnpm install --frozen-lockfile
-      - name: the component gallery matches its baselines
-        env: { PW_ONLY: gallery }
-        run: cd ui && pnpm exec playwright test
-      # The actual and diff PNGs tell an intended change, whose baseline then wants regenerating,
-      # from a layout that broke (T-2311).
-      - if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: ui-gallery-results
-          path: ui/test-results/
-          retention-days: 7
-          if-no-files-found: ignore
-  # The applications, beside the UI rather than after it: each app installs, tests and builds on
-  # its own, and after the UI suite they ran past the ui job's budget (d40934c, run 35714368871).
-  # Same steps as before, in their own job; nothing is skipped or sharded.
-  wasm-example:
-    needs: changes
-    if: needs.changes.outputs.apps == 'true'
-    # AP-142, T-3327: the SDK's React + Rust/WebAssembly example built by the lane's own
-    # builder/build-wasm.sh (the crate store is the runner's registry, fetched here once), then its
-    # tests, its bundle and its page in Chromium under the static host's policy.
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    # A change to the SDK or builder/ touches every App; one App's build and Chromium run is ~2 min
-    # and a server component's release build up to ~8, so six shards keep each under the limit.
-    strategy:
-      fail-fast: false
-      matrix: { shard: [1, 2, 3, 4, 5, 6] }
-    env:
-      WASM_BINDGEN_VERSION: "0.2.129"
-      WASM_BINDGEN_SHA256: "82d12bb940e2d4e72e0d5605387fc1b8ca179044e012b620f0ce4e7440e8320e"
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
-        with: { targets: "wasm32-unknown-unknown,wasm32-wasip2", components: "llvm-tools-preview,clippy" }
-      # The Rust part's line coverage, for the Apps' coverage gate (T-3373).
-      - uses: taiki-e/install-action@26e9283f268b880168bdbd2c545dfcd60ec2c6ab # v2.87.13
-        with: { tool: cargo-llvm-cov }
-      - name: wasm-bindgen, the runner's version, checked by its digest
-        run: |
-          curl -sSfLo wb.tar.gz "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          echo "${WASM_BINDGEN_SHA256}  wb.tar.gz" | sha256sum --check --status
-          tar xzf wb.tar.gz && sudo install -m 0755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" /usr/local/bin/
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with: { version: 10 }
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with: { node-version: 22, cache: pnpm, cache-dependency-path: sdk/pnpm-lock.yaml }
-      - run: cd sdk && pnpm install --frozen-lockfile
-      # The example and the Apps with a WebAssembly part: built by the lane's builder, tested with
-      # the coverage gate, bundled, and in Chromium; only those this change touched (T-3373), the
-      # full sweep is ci-full's.
-      - name: the touched WebAssembly Apps build, pass their tests and the gate, and answer in Chromium
-        env: { APPS_SHARD: "${{ matrix.shard }}/6" }
-        run: sh scripts/apps-ci.sh wasm
-  # A change to the SDK runs every App (T-3373); three shards keep that inside the job's timeout
-  # (APPS_SHARD in scripts/apps-ci.sh: every App in exactly one shard).
-  apps-ui:
-    needs: changes
-    if: needs.changes.outputs.apps == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
-    strategy:
-      fail-fast: false
-      matrix: { shard: [1, 2, 3] }
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - id: has
-        run: echo "ui=$([ -f ui/package.json ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
-      - if: steps.has.outputs.ui == 'yes'
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with: { version: 10 }
-      - if: steps.has.outputs.ui == 'yes'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with: { node-version: 22, cache: pnpm, cache-dependency-path: sdk/pnpm-lock.yaml }
-      # The apps link the SDK's sources, and the lane test needs its Vite.
-      - if: steps.has.outputs.ui == 'yes'
-        name: the SDK's dependencies, which the apps link
-        run: cd sdk && pnpm install --frozen-lockfile
-      # The reference apps/*/ui, the Apps in their own repository (AP-75) and the server WASM
-      # example's interface, with the SDK linked from this checkout: typecheck, the coverage gate,
-      # the bundle; only those this change touched (T-3373), the full sweep is ci-full's.
-      - if: steps.has.outputs.ui == 'yes'
-        name: the touched Apps build and pass their screens and the gate
-        env: { APPS_SHARD: "${{ matrix.shard }}/3" }
-        run: sh scripts/apps-ci.sh ui
+  # The component-gallery baselines, the WebAssembly example and the Apps' screens left the
+  # per-push lane for ci-full (T-6153: 65-454 s a push, no failure in 7 days); the jobs there are
+  # sdk-screens, ui-gallery and apps-all.
   apps:
     needs: changes
     if: needs.changes.outputs.apps == 'true'

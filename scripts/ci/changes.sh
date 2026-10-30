@@ -1,6 +1,6 @@
 #!/bin/sh
-# Which ci.yml jobs a change needs (T-4985). Prints rust=, ui=, apps= and gallery= as true/false for
-# $GITHUB_OUTPUT, from the paths changed between <base> and HEAD (or read on stdin, one per line).
+# Which ci.yml jobs a change needs (T-4985). Prints rust=, ui=, apps= as true/false and ui_scope=
+# for $GITHUB_OUTPUT, from the paths changed between <base> and HEAD (or read on stdin, one per line).
 # No base, a line `*`, or ci.yml itself runs everything; gitleaks runs on every push and main's
 # base (its last green commit, T-4696) is decided in ci.yml.
 #
@@ -13,8 +13,12 @@
 # (ui/openapi.json): the lane's unit tests read sdk/, apps/ and ui/ files. The other way round,
 # the UI suite reads a few files outside ui/ and sdk/: the help clips' script, public-docs/, the
 # Rust fixtures, and the activity kinds the server writes (src/**/*.rs, see kinds_added).
-# gallery runs the component-gallery baselines (T-5575) when a shared component, the styles they
-# draw with, the gallery page, its spec or baselines, or the SDK sources the UI links change.
+# ui_scope (T-6153) is `related` when every UI path the change touched is a file under ui/src/,
+# ui/tests/ (but its setup file) or ui/e2e/: the ui job then runs only the tests that import a
+# changed file, the changed tests and every test that reads the tree (scripts/ci/ui-related.sh).
+# Anything else the suite reads (the SDK, the package or config files, public-docs/, the Rust
+# fixtures, a new folder) is `full`: the whole suite in four shards. ci-full runs the whole suite,
+# the SDK's screens and the component-gallery baselines every day.
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 # Exit 0 when the fast lane's Rust names the ui/ file $1 or one of its folders, as a whole
@@ -36,7 +40,7 @@ rust_reads() {
 }
 
 classify() {
-  rust=false ui=false apps=false gallery=false
+  rust=false ui=false apps=false ui_scope=related
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     case $f in
@@ -49,9 +53,9 @@ classify() {
       apps/* | sdk/* | builder/* | scripts/*) apps=true ;;
     esac
     case $f in
-      ui/src/components/* | ui/src/tokens.css | ui/src/index.css | ui/src/fonts.css | \
-        ui/src/pages/gallery/* | ui/e2e/gallery.spec.ts* | ui/playwright.config.ts | \
-        ui/package.json | ui/pnpm-lock.yaml | sdk/src/*) gallery=true ;;
+      ui/tests/setup.ts) ui_scope=full ;;
+      ui/src/* | ui/tests/* | ui/e2e/* | scripts/bundle-budget*) ;;
+      ui/* | sdk/* | public-docs/* | tests/fixtures/*) ui_scope=full ;;
     esac
     case $f in
       docs/*) ;;
@@ -71,7 +75,7 @@ kinds_added() {
 }
 
 report() {
-  printf 'rust=%s\nui=%s\napps=%s\ngallery=%s\n' "$rust" "$ui" "$apps" "$gallery"
+  printf 'rust=%s\nui=%s\napps=%s\nui_scope=%s\n' "$rust" "$ui" "$apps" "$ui_scope"
 }
 
 selftest() {
@@ -79,25 +83,30 @@ selftest() {
     got=$(printf '%b' "$2" | { classify; report; } | tr '\n' ' ')
     [ "$got" = "$3" ] || { echo "changes selftest: $1: got '$got', want '$3'" >&2; exit 1; }
   }
-  check "a page outside the gallery" 'ui/src/pages/apps/AppTemplates.tsx\n' "rust=false ui=true apps=false gallery=false "
-  check "the colour tokens" 'ui/src/tokens.css\n' "rust=false ui=true apps=false gallery=true "
-  check "a gallery baseline" 'ui/e2e/gallery.spec.ts-snapshots/gallery-dark-gallery-linux.png\n' "rust=false ui=true apps=false gallery=true "
-  check "ui only" 'ui/src/components/Foo.tsx\n' "rust=false ui=true apps=false gallery=true "
-  check "committed OpenAPI spec" 'ui/openapi.json\n' "rust=true ui=true apps=false gallery=false "
-  check "read by a ci-full test only" 'ui/src/pages/apps/AppGenerator.tsx\n' "rust=false ui=true apps=false gallery=false "
-  check "a locale the problem-types test reads" 'ui/src/locales/sk.json\n' "rust=true ui=true apps=false gallery=false "
-  check "src only" 'src/main.rs\nmigrations/0001.sql\n' "rust=true ui=false apps=false gallery=false "
-  check "a fixture the UI suite reads" 'tests/fixtures/bus-expires.blobl\n' "rust=true ui=true apps=false gallery=false "
-  check "lock" 'Cargo.lock\n' "rust=true ui=false apps=false gallery=false "
-  check "apps only" 'apps/air-quality/ui/src/App.tsx\n' "rust=true ui=false apps=true gallery=false "
-  check "sdk" 'sdk/src/sdk/index.ts\n' "rust=true ui=true apps=true gallery=true "
-  check "docs only" 'docs/analysis/x.md\nREADME.md\n' "rust=false ui=false apps=false gallery=false "
-  check "nested md is not docs" 'src/agents/server_section.md\n' "rust=true ui=false apps=false gallery=false "
-  check "unknown folder runs rust" 'newdir/x.txt\n' "rust=true ui=false apps=false gallery=false "
-  check "the workflow" '.github/workflows/ci.yml\n' "rust=true ui=true apps=true gallery=true "
-  check "another workflow" '.github/workflows/image.yml\n' "rust=true ui=false apps=false gallery=false "
-  check "no base" '*\n' "rust=true ui=true apps=true gallery=true "
-  check "nothing" '' "rust=false ui=false apps=false gallery=false "
+  check "a page" 'ui/src/pages/apps/AppTemplates.tsx\n' "rust=false ui=true apps=false ui_scope=related "
+  check "the colour tokens" 'ui/src/tokens.css\n' "rust=false ui=true apps=false ui_scope=related "
+  check "a test and a journey" 'ui/tests/gate_routes.test.ts\nui/e2e/models.spec.ts\n' "rust=false ui=true apps=false ui_scope=related "
+  check "the suite's setup" 'ui/tests/setup.ts\n' "rust=false ui=true apps=false ui_scope=full "
+  check "the UI's package" 'ui/package.json\n' "rust=false ui=true apps=false ui_scope=full "
+  check "the vite config" 'ui/vite.config.ts\n' "rust=false ui=true apps=false ui_scope=full "
+  check "a new ui folder" 'ui/newdir/x.ts\n' "rust=false ui=true apps=false ui_scope=full "
+  check "a page and the lockfile" 'ui/src/App.tsx\nui/pnpm-lock.yaml\n' "rust=false ui=true apps=false ui_scope=full "
+  check "committed OpenAPI spec" 'ui/openapi.json\n' "rust=true ui=true apps=false ui_scope=full "
+  check "a locale the problem-types test reads" 'ui/src/locales/sk.json\n' "rust=true ui=true apps=false ui_scope=related "
+  check "the bundle budget" 'scripts/bundle-budget.mjs\n' "rust=true ui=true apps=true ui_scope=related "
+  check "src only" 'src/main.rs\nmigrations/0001.sql\n' "rust=true ui=false apps=false ui_scope=related "
+  check "a fixture the UI suite reads" 'tests/fixtures/bus-expires.blobl\n' "rust=true ui=true apps=false ui_scope=full "
+  check "public docs" 'public-docs/en/x.md\n' "rust=true ui=true apps=false ui_scope=full "
+  check "lock" 'Cargo.lock\n' "rust=true ui=false apps=false ui_scope=related "
+  check "apps only" 'apps/air-quality/ui/src/App.tsx\n' "rust=true ui=false apps=true ui_scope=related "
+  check "sdk" 'sdk/src/sdk/index.ts\n' "rust=true ui=true apps=true ui_scope=full "
+  check "docs only" 'docs/analysis/x.md\nREADME.md\n' "rust=false ui=false apps=false ui_scope=related "
+  check "nested md is not docs" 'src/agents/server_section.md\n' "rust=true ui=false apps=false ui_scope=related "
+  check "unknown folder runs rust" 'newdir/x.txt\n' "rust=true ui=false apps=false ui_scope=related "
+  check "the workflow" '.github/workflows/ci.yml\n' "rust=true ui=true apps=true ui_scope=full "
+  check "another workflow" '.github/workflows/image.yml\n' "rust=true ui=false apps=false ui_scope=related "
+  check "no base" '*\n' "rust=true ui=true apps=true ui_scope=full "
+  check "nothing" '' "rust=false ui=false apps=false ui_scope=related "
   printf '+        kind: "app.shared".to_owned(),\n' | grep -qE "$KIND_LINE" ||
     { echo "changes selftest: an added activity kind is not seen" >&2; exit 1; }
   ! printf '+    let kinds = 3;\n-        kind: "a.b".to_owned(),\n' | grep -qE "$KIND_LINE" ||
@@ -106,7 +115,7 @@ selftest() {
 }
 
 everything() {
-  rust=true ui=true apps=true gallery=true
+  rust=true ui=true apps=true ui_scope=full
 }
 
 case ${1:-} in
