@@ -47,8 +47,12 @@ for (const width of [1440, 400]) {
       await expect(page.getByRole("button", { name: "ovzdusie" })).toBeVisible();
       mkdirSync(SHOTS, { recursive: true });
       await page.screenshot({ path: join(SHOTS, `1-closed-${width}.png`) });
+      const alerts = page.getByRole("button", { name: "Alerts", exact: true });
+      const before = await alerts.boundingBox();
       await page.getByRole("button", { name: "More", exact: true }).click();
       await expect(page.getByRole("button", { name: "Less", exact: true })).toHaveAttribute("aria-expanded", "true");
+      // The actions keep their place while the description opens under the title (UI judge, T-6138).
+      if (width === 1440) expect((await alerts.boundingBox())?.y).toBe(before?.y);
       await page.screenshot({ path: join(SHOTS, `2-open-${width}.png`) });
     });
   });

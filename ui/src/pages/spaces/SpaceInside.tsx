@@ -2029,19 +2029,10 @@ export function SpaceInside({ project, name }: { project: string; name: string }
 
   return (
     <div className="space-y-4">
-      {/* The way back above; the name with its identifier as a copy chip and the state beside it, the
-          actions at the right, and what the space is for on one line below (T-6092). PageHeader keeps
+      {/* The name with its identifier as a copy chip and the state beside it, the actions at the right,
+          and what the space is for on one line below (T-6092); the shell's crumb is the way back. PageHeader keeps
           the description the h1's next sibling, which screen readers and the walker read (T-6138). */}
       <PageHeader
-        breadcrumb={
-          <Link
-            to="/projects/$project/$plural"
-            params={{ project, plural: "spaces" }}
-            className="focus-ring touch-target self-start text-body text-primary-soft-fg underline hover:no-underline"
-          >
-            {t("spaces.inside.back")}
-          </Link>
-        }
         title={localized(manifest.metadata.title, locale, manifest.metadata.name)}
         titleAction={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1 ps-2">
