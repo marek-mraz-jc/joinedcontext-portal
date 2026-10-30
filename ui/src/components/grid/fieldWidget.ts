@@ -19,7 +19,8 @@ export type FieldWidget =
   | { kind: "enum"; options: EnumChoice[]; nullable: boolean }
   | { kind: "multiEnum"; options: EnumChoice[] }
   | { kind: "reference"; plural: string }
-  | { kind: "boolean" }
+  /** `absent`: what an unset switch means, read off the schema's default or its own words. */
+  | { kind: "boolean"; absent: boolean }
   | { kind: "number"; integer: boolean; minimum?: number }
   | { kind: "duration" }
   | { kind: "dateTime" }
@@ -134,7 +135,11 @@ export function fieldWidget(kind: string, schema: unknown, path: string): Resolv
   const own = choices(found.schema);
   if (own) return { widget: { kind: "enum", options: own, nullable: found.nullable }, description };
   const type = found.schema.type;
-  if (type === "boolean") return { widget: { kind: "boolean" }, description };
+  if (type === "boolean") {
+    // jc-core says "Absent means `true`" or "`false` turns X off" where it writes no default.
+    const absent = found.schema.default === true || /absent means `?true|^`false` turns/i.test(description ?? "");
+    return { widget: { kind: "boolean", absent }, description };
+  }
   if (type === "integer" || type === "number") {
     const minimum = typeof found.schema.minimum === "number" ? found.schema.minimum : undefined;
     return { widget: { kind: "number", integer: type === "integer", minimum }, description };
@@ -148,6 +153,17 @@ export function fieldWidget(kind: string, schema: unknown, path: string): Resolv
     return { widget: isDuration(found.schema) ? { kind: "duration" } : { kind: "text" }, description };
   }
   return null;
+}
+
+/** A schema sentence as a hint: no requirement ids, no code ticks, no rustdoc links. */
+export function hintText(description: string | undefined): string | undefined {
+  if (!description) return undefined;
+  const first = description.split(/(?<=\.)\s/)[0];
+  return first
+    .replace(/\s*\((?:[A-Z]{2,5}-\d+|T-\d+)(?:[,;]\s*(?:[A-Z]{2,5}-\d+|T-\d+|[^)]*))*\)/g, "")
+    .replace(/\[`([^`\]]+)`\]/g, "$1")
+    .replace(/`/g, "")
+    .trim();
 }
 
 /** The value at `spec.<path>` of a manifest; a reference reads as its name. */

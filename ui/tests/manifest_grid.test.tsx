@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import "../src/i18n";
 import en from "../src/locales/en.json";
 import type { Manifest } from "../src/api/manifest";
-import { fieldWidget, specValue, withSpecValue } from "../src/components/grid/fieldWidget";
+import { fieldWidget, hintText, specValue, withSpecValue } from "../src/components/grid/fieldWidget";
 import { ManifestGrid, visibleRows } from "../src/components/grid/ManifestGrid";
 import type { GridColumn } from "../src/components/grid/ManifestGrid";
 import endpointSchema from "./fixtures/kinds/Endpoint.json";
@@ -35,17 +35,24 @@ describe("fieldWidget reads the control off the kind's schema", () => {
     expect(representations?.kind).toBe("multiEnum");
     expect(representations?.kind === "multiEnum" && representations.options.map((o) => o.value)).toContain("ngsi-ld");
     expect(fieldWidget("Endpoint", endpointSchema, "contextSpaceRef")?.widget).toEqual({ kind: "reference", plural: "spaces" });
-    expect(fieldWidget("Endpoint", endpointSchema, "mcp")?.widget).toEqual({ kind: "boolean" });
+    expect(fieldWidget("Endpoint", endpointSchema, "mcp")?.widget).toEqual({ kind: "boolean", absent: true });
   });
 
   it("gives Subscription a switch, a number and a date-time, and Pipeline a class dropdown and a duration", () => {
-    expect(fieldWidget("Subscription", subscriptionSchema, "isActive")?.widget).toEqual({ kind: "boolean" });
+    expect(fieldWidget("Subscription", subscriptionSchema, "isActive")?.widget).toEqual({ kind: "boolean", absent: true });
     expect(fieldWidget("Subscription", subscriptionSchema, "throttling")?.widget).toMatchObject({ kind: "number", integer: true });
     expect(fieldWidget("Subscription", subscriptionSchema, "expiresAt")?.widget).toEqual({ kind: "dateTime" });
     expect(fieldWidget("Pipeline", pipelineSchema, "class")?.widget.kind).toBe("enum");
     expect(fieldWidget("Pipeline", pipelineSchema, "period")?.widget).toEqual({ kind: "duration" });
-    expect(fieldWidget("Pipeline", pipelineSchema, "enabled")?.widget).toEqual({ kind: "boolean" });
+    expect(fieldWidget("Pipeline", pipelineSchema, "enabled")?.widget).toEqual({ kind: "boolean", absent: true });
+    expect(fieldWidget("DataModel", dataModelSchema, "openWorld")?.widget).toMatchObject({ kind: "boolean" });
     expect(fieldWidget("DataModel", dataModelSchema, "lifecycle")?.widget.kind).toBe("enum");
+  });
+
+  it("turns a schema sentence into a hint without ids or code ticks", () => {
+    expect(hintText("Audience access scope (EP-14). More.")).toBe("Audience access scope.");
+    expect(hintText("`false` turns it off (EP-24, T-2901); see [`X::y`].")).toBe("false turns it off; see X::y.");
+    expect(hintText(undefined)).toBeUndefined();
   });
 
   it("refuses what one cell cannot hold and a field the schema lacks", () => {

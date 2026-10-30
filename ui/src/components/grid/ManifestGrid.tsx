@@ -40,7 +40,7 @@ import {
   TableRow,
   TableSkeleton,
 } from "../ui";
-import { fieldWidget, specValue, withSpecValue } from "./fieldWidget";
+import { fieldWidget, hintText, specValue, withSpecValue } from "./fieldWidget";
 import type { FieldWidget } from "./fieldWidget";
 
 export interface GridColumn<T> {
@@ -246,7 +246,7 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
             </div>
           </ToolbarPopover>
         ) : null}
-        <ToolbarPopover label={t("grid.columns")} count={columns.length - visibleColumns.length || undefined}>
+        <ToolbarPopover label={t("grid.columns")}>
           <fieldset className="flex flex-col gap-1">
             <legend className="mb-1 text-caption text-fg-muted">{t("grid.columnsHint")}</legend>
             {columns.map((column) => (
@@ -433,7 +433,7 @@ function CellPanel<T>({
       closeLabel={t("app.close")}
       size="md"
     >
-      <dl className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
         {ordered.map((column) => {
           const resolved = edit && manifest && column.field && schema.data ? fieldWidget(edit.kind, schema.data, column.field) : null;
           return (
@@ -450,15 +450,15 @@ function CellPanel<T>({
                   onDone={onClose}
                 />
               ) : (
-                <>
+                <dl className="flex flex-col gap-1">
                   <dt className="text-caption font-semibold text-fg-muted">{column.label}</dt>
                   <dd className="text-body text-fg">{column.cell ? column.cell(row) : column.text(row) || "—"}</dd>
-                </>
+                </dl>
               )}
             </div>
           );
         })}
-      </dl>
+      </div>
     </Dialog>
   );
 }
@@ -471,7 +471,7 @@ function controlValue(widget: FieldWidget, value: unknown): unknown {
     return typeof named?.name === "string" ? named.name : "";
   }
   if (widget.kind === "multiEnum") return Array.isArray(value) ? value : [];
-  if (widget.kind === "boolean") return value === true;
+  if (widget.kind === "boolean") return value === undefined || value === null ? widget.absent : value === true;
   return value === undefined || value === null ? "" : String(value);
 }
 
@@ -483,7 +483,9 @@ function storedValue(widget: FieldWidget, held: unknown, before: unknown): unkno
     return typeof before === "object" && before !== null ? { ...before, name: text } : text;
   }
   if (widget.kind === "number") return held === "" ? undefined : Number(held);
-  if (widget.kind === "boolean" || widget.kind === "multiEnum") return held;
+  // An unset switch left at what unset means stays unset.
+  if (widget.kind === "boolean") return (before === undefined || before === null) && held === widget.absent ? before ?? undefined : held;
+  if (widget.kind === "multiEnum") return held;
   return held === "" ? undefined : held;
 }
 
@@ -546,8 +548,8 @@ function FieldEditor({
     },
   });
   const error = propose.error instanceof Error ? propose.error.message : propose.error ? String(propose.error) : null;
-  // Only the schema's first sentence: the rest names requirement ids a person does not need here.
-  const lead = description?.split(/(?<=\.)\s/)[0];
+  // Only the schema's first sentence, without the requirement ids a person does not need here.
+  const lead = hintText(description);
   const hint = [lead, example(widget, t)].filter(Boolean).join(" ");
 
   const control = (() => {
