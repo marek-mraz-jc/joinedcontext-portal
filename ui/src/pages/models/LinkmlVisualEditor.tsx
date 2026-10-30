@@ -590,11 +590,11 @@ export function LinkmlVisualEditor({
                 return (
                   <TableRow key={name} className={
                       // The open row: a tint plus an accent bar on its first cell. An inherited row:
-                      // a tint on every cell; the text keeps full contrast and "From <type>" says why.
+                      // a tint on every cell and a grey bar; the text keeps full contrast and "From <type>" says why.
                       name === selectedSlot
                         ? "[&>td]:bg-primary-soft [&>td:first-child]:border-l-4 [&>td:first-child]:border-primary"
                         : inherited
-                          ? "[&>td]:bg-surface-muted"
+                          ? "[&>td]:bg-surface-muted [&>td:first-child]:border-l-4 [&>td:first-child]:border-border-strong"
                           : undefined
                     }
                     aria-current={name === selectedSlot ? "true" : undefined}>

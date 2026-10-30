@@ -4285,7 +4285,7 @@
       "noMatchesHint": "Leeren Sie die Suche oder wählen Sie ein anderes Thema; ein Modell, das der Katalog nicht hat, laden Sie oben als Datei.",
       "clearSearch": "Suche leeren",
       "emptyCatalogue": "Der Katalog enthält noch kein Modell.",
-      "emptyCatalogueHint": "Drücken Sie Jetzt aktualisieren, um ihn neu zu lesen, oder laden Sie oben eine Datei mit Ihren Daten.",
+      "emptyCatalogueHint": "Drücken Sie Jetzt aktualisieren, um ihn neu zu lesen, oder laden Sie unten eine Datei mit Ihren Daten.",
       "preview": "Fremdmodell",
       "pick": "Wählen Sie ein Modell, um zu sehen, was importiert würde.",
       "importRefused": "Das Schema {name} aus dem Katalog lässt sich nicht in ein Modell umwandeln. Model Tools nennt unten den Grund. Wählen Sie ein anderes Modell oder beginnen Sie mit einem leeren Modell und ergänzen Sie die Felder von Hand.",

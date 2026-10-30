@@ -4303,7 +4303,7 @@
       "noMatchesHint": "Clear the search or choose another subject; the file drop above takes a model the catalogue lacks.",
       "clearSearch": "Clear the search",
       "emptyCatalogue": "The catalogue lists no model yet.",
-      "emptyCatalogueHint": "Press Refresh now to read it again, or drop a file with your data above.",
+      "emptyCatalogueHint": "Press Refresh now to read it again, or drop a file with your data below.",
       "preview": "Upstream model",
       "pick": "Pick a model to see what would be imported.",
       "importRefused": "The catalogue's {name} schema cannot be turned into a model. Model Tools said what is wrong below. Pick another model, or start from an empty model and add the fields by hand.",

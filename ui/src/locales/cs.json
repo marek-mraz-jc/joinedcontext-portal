@@ -4285,7 +4285,7 @@
       "noMatchesHint": "Vymažte hledání nebo vyberte jiné téma; model, který katalog nemá, nahrajte souborem výše.",
       "clearSearch": "Vymazat hledání",
       "emptyCatalogue": "Katalog zatím neobsahuje žádný model.",
-      "emptyCatalogueHint": "Stiskněte Obnovit nyní a načtěte ho znovu, nebo nahrajte soubor s daty výše.",
+      "emptyCatalogueHint": "Stiskněte Obnovit nyní a načtěte ho znovu, nebo nahrajte soubor s daty níže.",
       "preview": "Převzatý model",
       "pick": "Vyberte model a uvidíte, co se naimportuje.",
       "importRefused": "Schéma {name} z katalogu nelze převést na model. Model Tools níže uvádí, co je špatně. Vyberte jiný model nebo začněte prázdným modelem a pole doplňte ručně.",

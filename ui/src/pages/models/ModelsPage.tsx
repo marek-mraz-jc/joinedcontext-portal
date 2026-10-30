@@ -602,13 +602,15 @@ export function ModelsPage({
         closeLabel={t("models.importDialog.close")}
         size="lg"
       >
+        {/* The catalogue first, as the description reads: on a phone the file drop's help
+            pushed it below the dialog's fold (T-6106). */}
         <div className="flex flex-col gap-4">
-          <ModelFileDrop project={project} onPopulate={onPopulate} />
           <SmartDataModelsImport
             onImport={onImport}
             // A new model goes to a space that has none (DM-61).
             spaces={(spaces.data ?? []).map((space) => space.metadata.name).filter((space) => !occupied.has(space))}
           />
+          <ModelFileDrop project={project} onPopulate={onPopulate} />
         </div>
       </Dialog>
 
