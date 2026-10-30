@@ -5,7 +5,6 @@ import { forPeople } from "../../api/client";
 import { asManifests } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { useReadableList } from "../../api/permissions";
-import type { components } from "../../api/schema";
 import { RecordLink, RECORD_LINK_STYLE } from "../../components/RecordLink";
 import {
   Alert,
@@ -55,8 +54,6 @@ function useCreateRefused(project: string): string | undefined {
   if (data.brokers.left === 0) return t("mqttAllowance.project.full", { limit: data.brokers.limit });
   return undefined;
 }
-
-type Measured = components["schemas"]["Measured"];
 
 interface Role {
   name?: string;
@@ -176,45 +173,6 @@ function AllowancePanel({ project }: { project: string }): JSX.Element {
         ) : null}
       </section>
     </Card>
-  );
-}
-
-/** The connected clients of a role's accounts, each with the time the newest one connected. */
-export function Connected({ accounts, measured }: { accounts: string[]; measured?: Measured }): JSX.Element {
-  const { t, i18n } = useTranslation();
-  if (!measured?.measured) return <>—</>;
-  const time = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? i18n.language ?? "en", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
-  return (
-    <ul className="flex flex-col gap-0.5">
-      {accounts.map((account) => {
-        const seen = measured.accounts.find((entry) => entry.serviceAccount === account);
-        const count = seen?.connected ?? 0;
-        return (
-          <li key={account} data-account={account}>
-            {count > 0 && seen?.since
-              ? t("mqttbrokers.measured.since", { account, count, since: time.format(new Date(seen.since)) })
-              : t("mqttbrokers.measured.count", { account, count })}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-export function Filters({ filters }: { filters?: string[] }): JSX.Element {
-  return filters && filters.length > 0 ? (
-    <ul className="flex flex-col gap-0.5">
-      {filters.map((filter) => (
-        <li key={filter}>
-          <code className="font-mono text-caption">{filter}</code>
-        </li>
-      ))}
-    </ul>
-  ) : (
-    <>—</>
   );
 }
 

@@ -1,34 +1,13 @@
-/** T-6136: the broker page's connected-clients cell and the chip list input, rendered on their own. */
+/** T-6136: the broker editor's chip list input, rendered on its own (the connected-clients cell went with T-6133: no page rendered it). */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { ChipInput } from "../src/pages/mqttbrokers/BrokerEditor";
-import { Connected } from "../src/pages/mqttbrokers/MqttBrokersPage";
 
 beforeEach(async () => {
   await i18n.changeLanguage("en");
 });
 afterEach(cleanup);
-
-describe("connected clients of a role (T-6103)", () => {
-  it("names each account with its count and says a dash while nothing was measured", () => {
-    const measured = {
-      measured: true,
-      observedAt: "2026-10-12T08:47:00Z",
-      messagesPerSecond: 0,
-      publishers: 2,
-      reason: null,
-      accounts: [{ serviceAccount: "cam-1", connected: 2, since: "2026-10-12T08:46:51Z" }],
-      rates: [],
-    };
-    const { container, unmount } = render(<Connected accounts={["cam-1", "cam-2"]} measured={measured as never} />);
-    expect(container.querySelector('[data-account="cam-1"]')?.textContent).toMatch(/^cam-1: 2, newest since /);
-    expect(container.querySelector('[data-account="cam-2"]')?.textContent).toBe("cam-2: 0");
-    unmount();
-    render(<Connected accounts={["cam-1"]} />);
-    expect(screen.getByText("—")).toBeTruthy();
-  });
-});
 
 describe("chip list input (T-6103)", () => {
   it("adds a typed value on Enter, refuses a duplicate and removes a chip", () => {

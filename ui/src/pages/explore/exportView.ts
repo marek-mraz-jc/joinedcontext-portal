@@ -1,11 +1,8 @@
 /**
- * Exporting what the explorer shows (T-3253, UI-33): every entity the view's filters match, with
- * its chosen columns, in the view's order, as a file a person keeps. Pure apart from `collect`,
- * which pages through the endpoint, so each format is tested without a page.
+ * Reading what the explorer shows (T-3253, UI-33): every entity the view's filters match, paged
+ * through the endpoint by `collect`, its geometry, and a CSV field a spreadsheet keeps as text.
+ * The file formats themselves moved to the space page's Export menu (T-6107).
  */
-
-export type ExportFormat = "csv-excel" | "csv" | "json" | "geojson";
-export const EXPORT_FORMATS: ExportFormat[] = ["csv-excel", "csv", "json", "geojson"];
 
 /** How many entities one export holds at most: past it, the person narrows the filter. */
 export const MAX_EXPORT_ROWS = 100_000;
@@ -13,11 +10,6 @@ export const MAX_EXPORT_ROWS = 100_000;
 export const EXPORT_PAGE = 500;
 
 type Entity = Record<string, unknown>;
-
-export interface ViewSort {
-  attr: string;
-  dir: "asc" | "desc";
-}
 
 /** The two NGSI-LD queries joined, as the grid joins its preset and its filter row (EP-07). */
 export function andQ(...parts: (string | undefined)[]): string | undefined {
@@ -35,39 +27,6 @@ function plain(value: unknown): unknown {
   return value;
 }
 
-/** The entity's columns: the chosen ones, or every attribute the entities carry, id and type first. */
-export function columnsOf(entities: Entity[], chosen: string[] | undefined): string[] {
-  if (chosen && chosen.length > 0) return ["id", ...chosen.filter((attr) => attr !== "id" && attr !== "type")];
-  const seen = new Set<string>();
-  for (const entity of entities) for (const key of Object.keys(entity)) if (key !== "id" && key !== "type" && key !== "@context") seen.add(key);
-  return ["id", "type", ...seen];
-}
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
-const pad = (n: number) => String(n).padStart(2, "0");
-
-/**
- * One cell as text. `excel-sk` writes what Slovak Excel reads as numbers and dates: a decimal comma
- * and `dd.mm.yyyy hh:mm:ss` in the person's own time zone; `plain` keeps the API's own forms.
- */
-export function cellText(value: unknown, style: "excel-sk" | "plain"): string {
-  const v = plain(value);
-  if (v === null || v === undefined) return "";
-  if (typeof v === "number") return style === "excel-sk" ? String(v).replace(".", ",") : String(v);
-  if (typeof v === "boolean") return String(v);
-  if (typeof v === "string") {
-    if (style === "excel-sk" && ISO_DATE.test(v)) {
-      const at = new Date(v);
-      if (!Number.isNaN(at.getTime())) {
-        const day = `${pad(at.getDate())}.${pad(at.getMonth() + 1)}.${at.getFullYear()}`;
-        return v.length === 10 ? day : `${day} ${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`;
-      }
-    }
-    return v;
-  }
-  return JSON.stringify(v);
-}
-
 /**
  * A CSV field. A text starting with `=`, `+`, `-`, `@`, a tab or a carriage return is what a
  * spreadsheet runs as a formula, so it is written with a leading apostrophe and stays text.
@@ -75,24 +34,6 @@ export function cellText(value: unknown, style: "excel-sk" | "plain"): string {
 export function csvField(text: string, separator: string, numeric: boolean): string {
   const safe = !numeric && /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
   return /["\n\r]/.test(safe) || safe.includes(separator) ? `"${safe.replace(/"/g, '""')}"` : safe;
-}
-
-/** The rows as CSV: `excel-sk` with `;`, a byte-order mark and CRLF, so Slovak Excel opens it as is. */
-export function toCsv(entities: Entity[], columns: string[], style: "excel-sk" | "plain"): string {
-  const separator = style === "excel-sk" ? ";" : ",";
-  const newline = style === "excel-sk" ? "\r\n" : "\n";
-  const lines = [columns.map((column) => csvField(column, separator, false)).join(separator)];
-  for (const entity of entities) {
-    lines.push(
-      columns
-        .map((column) => {
-          const value = plain(entity[column]);
-          return csvField(cellText(value, style), separator, typeof value === "number");
-        })
-        .join(separator),
-    );
-  }
-  return (style === "excel-sk" ? "﻿" : "") + lines.join(newline) + newline;
 }
 
 /** The first GeoJSON geometry an entity carries, the `location` attribute before any other. */
@@ -105,57 +46,6 @@ export function geometryOf(entity: Entity): { type: string; coordinates: unknown
     }
   }
   return undefined;
-}
-
-/** The located entities as a GeoJSON FeatureCollection; `null` when none carries a geometry. */
-export function toGeoJson(entities: Entity[], columns: string[]): string | null {
-  const features = entities.flatMap((entity) => {
-    const geometry = geometryOf(entity);
-    if (!geometry) return [];
-    const properties: Record<string, unknown> = {};
-    for (const column of columns) {
-      if (column === "id") continue;
-      const value = plain(entity[column]);
-      if (value !== undefined && value !== geometry) properties[column] = value;
-    }
-    return [{ type: "Feature", id: entity.id, geometry, properties }];
-  });
-  return features.length === 0 ? null : JSON.stringify({ type: "FeatureCollection", features }, null, 2);
-}
-
-/** The entities in the view's order: numbers by value, everything else as text, empty last. */
-export function sortEntities(entities: Entity[], sort: ViewSort | null | undefined): Entity[] {
-  if (!sort) return entities;
-  const factor = sort.dir === "asc" ? 1 : -1;
-  return [...entities].sort((a, b) => {
-    const left = plain(a[sort.attr]);
-    const right = plain(b[sort.attr]);
-    if (left === undefined || left === null) return right === undefined || right === null ? 0 : 1;
-    if (right === undefined || right === null) return -1;
-    if (typeof left === "number" && typeof right === "number") return (left - right) * factor;
-    return cellText(left, "plain").localeCompare(cellText(right, "plain"), undefined, { numeric: true }) * factor;
-  });
-}
-
-/** The file of one format, its name and its type; `null` when the format has nothing to hold. */
-export function exportFile(
-  format: ExportFormat,
-  entities: Entity[],
-  columns: string[],
-  base: string,
-): { name: string; type: string; text: string } | null {
-  switch (format) {
-    case "csv-excel":
-      return { name: `${base}.csv`, type: "text/csv;charset=utf-8", text: toCsv(entities, columns, "excel-sk") };
-    case "csv":
-      return { name: `${base}.csv`, type: "text/csv;charset=utf-8", text: toCsv(entities, columns, "plain") };
-    case "json":
-      return { name: `${base}.json`, type: "application/json", text: JSON.stringify(entities, null, 2) };
-    case "geojson": {
-      const text = toGeoJson(entities, columns);
-      return text === null ? null : { name: `${base}.geojson`, type: "application/geo+json", text };
-    }
-  }
 }
 
 /**

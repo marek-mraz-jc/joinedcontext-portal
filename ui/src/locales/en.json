@@ -9849,9 +9849,7 @@
       "title": "Measured",
       "connected": "Connected now",
       "not": "Not measured",
-      "summary": "{publishers, plural, one {# publisher connected} other {# publishers connected}}, {rate} messages per second",
-      "count": "{account}: {count}",
-      "since": "{account}: {count}, newest since {since}"
+      "summary": "{publishers, plural, one {# publisher connected} other {# publishers connected}}, {rate} messages per second"
     },
     "connections": {
       "title": "Connections",

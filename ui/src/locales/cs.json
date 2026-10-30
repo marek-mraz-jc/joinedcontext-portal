@@ -9849,9 +9849,7 @@
       "title": "Naměřeno",
       "connected": "Právě připojeno",
       "not": "Neměřeno",
-      "summary": "{publishers, plural, one {# připojený vydavatel} few {# připojení vydavatelé} other {# připojených vydavatelů}}, {rate} zpráv za sekundu",
-      "count": "{account}: {count}",
-      "since": "{account}: {count}, nejnovější od {since}"
+      "summary": "{publishers, plural, one {# připojený vydavatel} few {# připojení vydavatelé} other {# připojených vydavatelů}}, {rate} zpráv za sekundu"
     },
     "connections": {
       "title": "Spojení",
