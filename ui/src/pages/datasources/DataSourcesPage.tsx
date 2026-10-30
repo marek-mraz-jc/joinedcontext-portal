@@ -647,7 +647,7 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
                   <RecordLink project={project} plural="datasources" name={source.metadata.name} className="font-mono" />
                 )}
               </TableCell>
-              <TableCell>
+              <TableCell className="whitespace-nowrap">
                 {isTypedDataSource(typeOf(source.spec))
                   ? t(`datasources.type.${typeOf(source.spec)}`, { defaultValue: typeOf(source.spec) })
                   : inputLabel(typeOf(source.spec))}
