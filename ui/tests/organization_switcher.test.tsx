@@ -53,7 +53,7 @@ function start(projects: object, path: string) {
 
 const projectItems = async () => {
   await userEvent.setup().click(screen.getByRole("button", { name: "Projects" }));
-  const items = (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
+  const items = (await screen.findAllByRole("menuitem")).map((item) => item.textContent?.trim());
   await userEvent.setup().keyboard("{Escape}");
   return items;
 };
