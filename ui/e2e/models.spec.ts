@@ -730,8 +730,8 @@ test.describe("the model canvas (T-6094)", () => {
     const overlay = page.getByLabel("Show what serves the classes");
     const lit = async (expected: string[]) => {
       for (const name of ["Place", "BikeHireDockingStation", "Event", "Organization", "Dataset", "DataService", "Distribution"]) {
-        if (expected.includes(name)) await expect(opened(page, name)).not.toHaveAttribute("opacity", "0.3");
-        else await expect(opened(page, name)).toHaveAttribute("opacity", "0.3");
+        if (expected.includes(name)) await expect(opened(page, name)).not.toHaveAttribute("opacity", "0.45");
+        else await expect(opened(page, name)).toHaveAttribute("opacity", "0.45");
       }
     };
     // The how-to is a ? beside the label (T-6164): the header holds no paragraph under the pick.
