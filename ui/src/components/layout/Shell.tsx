@@ -430,6 +430,12 @@ function useSafeMatchRoute(): ReturnType<typeof useMatchRoute> {
 }
 
 /** One segment of the address as a person reads it; a broken escape stays as typed (F-UI1-002). */
+/** The static pages under `/projects/{project}/spaces/`, by their crumb's words. */
+const SPACE_PAGES: Partial<Record<string, string>> = {
+  complete: "spaces.complete.title",
+  upload: "spaces.upload.title",
+};
+
 function decodedSegment(segment: string): string {
   try {
     return decodeURIComponent(segment);
@@ -517,7 +523,14 @@ export function Shell({
   // The one thing the page is about, from the address (T-3239): an approval, a copy, or any
   // item of a section at `/projects/{project}/{plural}/{name}…`, whose own address opens it.
   const segments = pathname.split("/").filter(Boolean).map(decodedSegment);
-  const itemName = segments[0] === "projects" && segments.length >= 4 && segments[3] !== "new" ? segments[3] : undefined;
+  // A page of its own under Context Spaces is named in words: `/spaces/complete` is no space
+  // called "complete" in a monospace crumb.
+  const spacePage =
+    segments[0] === "projects" && segments[2] === "spaces" && segments.length === 4
+      ? SPACE_PAGES[segments[3] ?? ""]
+      : undefined;
+  const itemName =
+    segments[0] === "projects" && segments.length >= 4 && segments[3] !== "new" && !spacePage ? segments[3] : undefined;
   const detail = approvalDetail
     ? { to: "/projects/$project/approvals" as const, name: approvalDetail.id }
     : copyDetail
@@ -908,6 +921,20 @@ export function Shell({
                           <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
                           <span aria-current="page" className="font-mono font-medium text-fg">
                             {detail.name}
+                          </span>
+                        </>
+                      ) : spacePage ? (
+                        <>
+                          <Link
+                            to="/projects/$project/$plural"
+                            params={{ project, plural: activeSection.plural }}
+                            className="focus-ring touch-target rounded-sm hover:text-fg hover:underline"
+                          >
+                            {t(activeSection.labelKey)}
+                          </Link>
+                          <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
+                          <span aria-current="page" className="font-medium text-fg">
+                            {t(spacePage)}
                           </span>
                         </>
                       ) : itemName && activeSection.plural !== "settings" ? (

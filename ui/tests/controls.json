@@ -2076,7 +2076,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 19,
+        "Button": 20,
         "RadioGroup": 1
       },
       "tests": [

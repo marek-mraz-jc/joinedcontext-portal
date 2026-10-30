@@ -606,7 +606,6 @@
       "modelCreate": "Datenmodell anlegen",
       "modelImport": "Smart Data Model importieren",
       "modelOpen": "Datenmodell öffnen",
-      "modelOpenLead": "Das Modell wird auf seiner eigenen Seite gelesen und bearbeitet: Diagramm, Formular, YAML und Verlauf.",
       "modelClasses": "{count, plural, =0 {Noch keine Klassen} one {# Klasse} other {# Klassen}}",
       "modelClassList": "Klassen des Datenmodells",
       "modelMore": "und {count} weitere",
@@ -622,7 +621,18 @@
       "allRows": "Alle Zeilen",
       "savedViews": "Gespeicherte Ansichten",
       "typeHint": "Welche Art von Entitäten die Zeilen unten zeigen, zum Beispiel Event.",
-      "restoreReason": "Aus dem Papierkorb wiederhergestellt"
+      "restoreReason": "Aus dem Papierkorb wiederhergestellt",
+      "policyPublic": "Alle (öffentlich)",
+      "everyType": "Jeder Typ",
+      "operationKind": {
+        "read": "Lesen",
+        "history": "Verlauf",
+        "write": "Schreiben",
+        "delete": "Löschen",
+        "subscribe": "Abonnements",
+        "types": "Typen",
+        "other": "Sonstige"
+      }
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -709,7 +719,8 @@
         "rejected": "Abgelehnt, 7 Tage",
         "quarantined": "In Quarantäne, 7 Tage",
         "lastRejected": "Zuletzt abgelehnt",
-        "since": "Gezählt ab {day} (24 h) und ab {week} (7 Tage)."
+        "since": "Gezählt ab {day} (24 h) und ab {week} (7 Tage).",
+        "sinceOne": "Gezählt seit {at}."
       }
     },
     "fields": {
@@ -1460,7 +1471,8 @@
         "item": "{id}: vorgeschlagen von {by} am {at}, {count, plural, one {# Entität} other {# Entitäten}} gefunden, offen bis {expires}",
         "approve": "Genehmigen…",
         "decline": "Ablehnen…",
-        "own": "Sie haben diese Löschung vorgeschlagen: Ein anderer Eigentümer des Bereichs genehmigt sie."
+        "own": "Sie haben diese Löschung vorgeschlagen: Ein anderer Eigentümer des Bereichs genehmigt sie.",
+        "ownersOnly": "Nur ein Eigentümer dieses Space sieht diese Anfragen."
       },
       "approveTitle": "Löschung {id} genehmigen?",
       "approveLead": "Geben Sie die Kennung der Person aus der Anfrage ein. Das Portal vergleicht sie mit dem Vorschlag, durchsucht den Bereich erneut und löscht, was er enthält. Das lässt sich nicht rückgängig machen.",
@@ -4626,7 +4638,8 @@
       "addFieldTo": "Feld zu {type} hinzufügen",
       "typeCaption": "Felder von {type}",
       "noFields": "Noch kein Feld.",
-      "addType": "Typ hinzufügen"
+      "addType": "Typ hinzufügen",
+      "classesMore": "+{count} weitere"
     },
     "hints": {
       "title": "Dieses Modell hat noch keine Klasse. Drei Schritte zum Anfang:",

@@ -128,10 +128,14 @@ export function SpaceChecks({
         </TableBody>
       </Table>
       <p className="text-caption text-fg-muted">
-        {t("spaces.quality.checks.since", {
-          day: when.format(new Date(data.windows["24h"])),
-          week: when.format(new Date(data.windows["7d"])),
-        })}
+        {/* Both windows start at the same instant when the counters began after the 24 h mark
+            (a gateway restart): one date, not the same date twice. */}
+        {data.windows["24h"] === data.windows["7d"]
+          ? t("spaces.quality.checks.sinceOne", { at: when.format(new Date(data.windows["24h"])) })
+          : t("spaces.quality.checks.since", {
+              day: when.format(new Date(data.windows["24h"])),
+              week: when.format(new Date(data.windows["7d"])),
+            })}
       </p>
     </div>
   );

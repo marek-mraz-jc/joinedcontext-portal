@@ -88,6 +88,9 @@ export function lastChangeOf(model: Manifest): string | undefined {
 /** The "used by" column's kinds: the ones a person builds on a model. */
 const COUNTED: readonly UsingKind[] = ["Endpoint", "Pipeline", "App", "Dashboard"];
 
+/** Types named in a row before the rest folds into "+N more": a 27-type model was a paragraph. */
+const CLASSES_SHOWN = 5;
+
 /**
  * A link that proposes a change to a DataModel (create or edit): a link for a person whose role
  * may propose one, and a disabled button that says why for anyone else (UI-44), since a link
@@ -159,6 +162,9 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
         [row.title, row.model.metadata.name, ...row.classes].some((one) => one.toLowerCase().includes(needle))),
   );
   const date = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" });
+  // A column every row would fill with "—" says nothing: shown only once one model has a change.
+  const anyChange = rows.some((row) => row.changed !== undefined);
+  const columns = anyChange ? 6 : 5;
 
   const create = (
     <div className="flex flex-wrap gap-2">
@@ -220,16 +226,16 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
             <Table data-records="" caption={t("models.page.listCaption")}>
               <TableHead>
                 <TableHeaderCell>{t("models.field.name")}</TableHeaderCell>
-                <TableHeaderCell>{t("models.field.space")}</TableHeaderCell>
+                <TableHeaderCell secondary>{t("models.field.space")}</TableHeaderCell>
                 <TableHeaderCell>{t("models.field.version")}</TableHeaderCell>
                 <TableHeaderCell>{t("models.classes")}</TableHeaderCell>
-                <TableHeaderCell>{t("models.page.lastChange")}</TableHeaderCell>
-                <TableHeaderCell>{t("models.page.usedBy")}</TableHeaderCell>
+                {anyChange ? <TableHeaderCell secondary>{t("models.page.lastChange")}</TableHeaderCell> : null}
+                <TableHeaderCell secondary>{t("models.page.usedBy")}</TableHeaderCell>
               </TableHead>
               <TableBody>
                 {shown.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6}>{t("models.page.noMatch")}</TableCell>
+                    <TableCell colSpan={columns}>{t("models.page.noMatch")}</TableCell>
                   </TableRow>
                 ) : null}
                 {shown.map((row) => {
@@ -250,7 +256,7 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
                           <span className="block font-mono text-caption text-fg-muted">{row.model.metadata.name}</span>
                         ) : null}
                       </TableCell>
-                      <TableCell>
+                      <TableCell secondary>
                         {row.space ? (
                           <Link
                             to="/projects/$project/$plural/$name"
@@ -266,14 +272,14 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
                       <TableCell>
                         <span className="font-mono">{version ?? "—"}</span>
                         {lifecycle ? (
-                          <Badge className="ml-2">{t(`models.lifecycleOption.${lifecycle}`, { defaultValue: lifecycle })}</Badge>
+                          <Badge className="ml-2 whitespace-nowrap">{t(`models.lifecycleOption.${lifecycle}`, { defaultValue: lifecycle })}</Badge>
                         ) : null}
                       </TableCell>
                       <TableCell>
                         <span className="font-medium">{row.classes.length}</span>
                         {row.classes.length > 0 ? (
                           <span className="block text-caption text-fg-muted">
-                            {row.classes.map((klass, index) => (
+                            {row.classes.slice(0, CLASSES_SHOWN).map((klass, index) => (
                               <Fragment key={klass}>
                                 {index === 0 ? null : ", "}
                                 <Link
@@ -286,11 +292,27 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
                                 </Link>
                               </Fragment>
                             ))}
+                            {row.classes.length > CLASSES_SHOWN ? (
+                              <>
+                                {" "}
+                                <Link
+                                  to="/projects/$project/models/$name"
+                                  params={{ project, name: row.model.metadata.name }}
+                                  className="focus-ring whitespace-nowrap font-medium text-primary-soft-fg underline-offset-2 hover:underline"
+                                >
+                                  {t("models.page.classesMore", { count: row.classes.length - CLASSES_SHOWN })}
+                                </Link>
+                              </>
+                            ) : null}
                           </span>
                         ) : null}
                       </TableCell>
-                      <TableCell>{row.changed ? date.format(new Date(row.changed)) : "—"}</TableCell>
-                      <TableCell>
+                      {anyChange ? (
+                        <TableCell secondary className="whitespace-nowrap">
+                          {row.changed ? date.format(new Date(row.changed)) : "—"}
+                        </TableCell>
+                      ) : null}
+                      <TableCell secondary>
                         {COUNTED.every((kind) => (row.counts[kind] ?? 0) === 0)
                           ? t("models.page.unused")
                           : COUNTED.filter((kind) => (row.counts[kind] ?? 0) > 0)

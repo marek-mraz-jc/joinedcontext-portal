@@ -115,4 +115,14 @@ describe("the checks on write of a space (DM-94)", () => {
     expect(within(failing).getByText(/2026/)).toBeInTheDocument();
     expect(within(failing).getByText("pm10")).toBeInTheDocument();
   });
+
+  it("names one start when both windows began together, after a restart", async () => {
+    renderChecks({
+      at: "2026-10-12T08:00:00Z",
+      windows: { "24h": "2026-10-12T06:00:00Z", "7d": "2026-10-12T06:00:00Z" },
+      rules: [row("range", counts(3), counts(3))],
+    });
+    expect(await screen.findByText(/^Counted since /)).toBeInTheDocument();
+    expect(screen.queryByText(/\(7 days\)/)).toBeNull();
+  });
 });

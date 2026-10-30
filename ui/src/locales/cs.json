@@ -606,7 +606,6 @@
       "modelCreate": "Vytvořit datový model",
       "modelImport": "Importovat Smart Data Model",
       "modelOpen": "Otevřít datový model",
-      "modelOpenLead": "Model se čte a upravuje na jeho vlastní stránce: diagram, formulář, YAML a historie.",
       "modelClasses": "{count, plural, =0 {Zatím bez tříd} one {# třída} few {# třídy} other {# tříd}}",
       "modelClassList": "Třídy datového modelu",
       "modelMore": "a další ({count})",
@@ -622,7 +621,18 @@
       "allRows": "Všechny řádky",
       "savedViews": "Uložené pohledy",
       "typeHint": "Který druh entit ukazují řádky níže, například Event.",
-      "restoreReason": "Obnoveno z koše"
+      "restoreReason": "Obnoveno z koše",
+      "policyPublic": "Kdokoli (veřejné)",
+      "everyType": "Každý typ",
+      "operationKind": {
+        "read": "Čtení",
+        "history": "Historie",
+        "write": "Zápis",
+        "delete": "Mazání",
+        "subscribe": "Odběry",
+        "types": "Typy",
+        "other": "Jiné"
+      }
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -709,7 +719,8 @@
         "rejected": "Odmítnuto, 7 dní",
         "quarantined": "V karanténě, 7 dní",
         "lastRejected": "Naposledy odmítnuto",
-        "since": "Počítáno od {day} (24 h) a od {week} (7 dní)."
+        "since": "Počítáno od {day} (24 h) a od {week} (7 dní).",
+        "sinceOne": "Počítáno od {at}."
       }
     },
     "fields": {
@@ -1460,7 +1471,8 @@
         "item": "{id}: navrhl(a) {by} {at}, {count, plural, one {# nalezená entita} few {# nalezené entity} other {# nalezených entit}}, platí do {expires}",
         "approve": "Schválit…",
         "decline": "Zamítnout…",
-        "own": "Toto vymazání jste navrhli vy: schválí ho jiný vlastník prostoru."
+        "own": "Toto vymazání jste navrhli vy: schválí ho jiný vlastník prostoru.",
+        "ownersOnly": "Tyto žádosti vidí jen vlastník tohoto prostoru."
       },
       "approveTitle": "Schválit vymazání {id}?",
       "approveLead": "Zadejte identifikátor osoby ze žádosti. Portál ho porovná s návrhem, znovu prohledá prostor a vymaže, co obsahuje. Nelze to vrátit.",
@@ -4626,7 +4638,8 @@
       "addFieldTo": "Přidat pole do {type}",
       "typeCaption": "Pole typu {type}",
       "noFields": "Zatím žádné pole.",
-      "addType": "Přidat typ"
+      "addType": "Přidat typ",
+      "classesMore": "+{count} dalších"
     },
     "hints": {
       "title": "Tento model zatím nemá třídu. Tři kroky na začátek:",

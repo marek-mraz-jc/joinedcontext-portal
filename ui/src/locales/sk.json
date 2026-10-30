@@ -606,7 +606,6 @@
       "modelCreate": "Vytvoriť dátový model",
       "modelImport": "Importovať Smart Data Model",
       "modelOpen": "Otvoriť dátový model",
-      "modelOpenLead": "Model sa číta a upravuje na jeho vlastnej stránke: diagram, formulár, YAML a história.",
       "modelClasses": "{count, plural, =0 {Zatiaľ bez tried} one {# trieda} few {# triedy} other {# tried}}",
       "modelClassList": "Triedy dátového modelu",
       "modelMore": "a ďalšie ({count})",
@@ -622,7 +621,18 @@
       "allRows": "Všetky riadky",
       "savedViews": "Uložené pohľady",
       "typeHint": "Ktorý druh entít ukazujú riadky nižšie, napríklad Event.",
-      "restoreReason": "Obnovené z koša"
+      "restoreReason": "Obnovené z koša",
+      "policyPublic": "Ktokoľvek (verejné)",
+      "everyType": "Každý typ",
+      "operationKind": {
+        "read": "Čítanie",
+        "history": "História",
+        "write": "Zápis",
+        "delete": "Mazanie",
+        "subscribe": "Odbery",
+        "types": "Typy",
+        "other": "Iné"
+      }
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -709,7 +719,8 @@
         "rejected": "Odmietnuté, 7 dní",
         "quarantined": "V karanténe, 7 dní",
         "lastRejected": "Naposledy odmietnuté",
-        "since": "Počítané od {day} (24 h) a od {week} (7 dní)."
+        "since": "Počítané od {day} (24 h) a od {week} (7 dní).",
+        "sinceOne": "Počítané od {at}."
       }
     },
     "fields": {
@@ -1460,7 +1471,8 @@
         "item": "{id}: navrhol(a) {by} {at}, {count, plural, one {# nájdená entita} few {# nájdené entity} other {# nájdených entít}}, platí do {expires}",
         "approve": "Schváliť…",
         "decline": "Zamietnuť…",
-        "own": "Toto vymazanie ste navrhli vy: schváli ho iný vlastník priestoru."
+        "own": "Toto vymazanie ste navrhli vy: schváli ho iný vlastník priestoru.",
+        "ownersOnly": "Tieto žiadosti vidí iba vlastník tohto priestoru."
       },
       "approveTitle": "Schváliť vymazanie {id}?",
       "approveLead": "Zadajte identifikátor osoby zo žiadosti. Portál ho porovná s návrhom, znova prehľadá priestor a vymaže, čo obsahuje. Nedá sa to vrátiť.",
@@ -4626,7 +4638,8 @@
       "addFieldTo": "Pridať pole do {type}",
       "typeCaption": "Polia typu {type}",
       "noFields": "Zatiaľ žiadne pole.",
-      "addType": "Pridať typ"
+      "addType": "Pridať typ",
+      "classesMore": "+{count} ďalších"
     },
     "hints": {
       "title": "Tento model zatiaľ nemá typ. Tri kroky na začiatok:",

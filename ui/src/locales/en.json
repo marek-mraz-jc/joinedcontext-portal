@@ -606,7 +606,6 @@
       "modelCreate": "Create a data model",
       "modelImport": "Import a Smart Data Model",
       "modelOpen": "Open data model",
-      "modelOpenLead": "The model is read and edited on its own page: its diagram, form, YAML and history.",
       "modelClasses": "{count, plural, =0 {No classes yet} one {# class} other {# classes}}",
       "modelClassList": "Classes of the data model",
       "modelMore": "and {count} more",
@@ -622,7 +621,18 @@
       "allRows": "All rows",
       "savedViews": "Saved views",
       "typeHint": "Which kind of entity the rows below show, for example Event.",
-      "restoreReason": "Restored from the trash"
+      "restoreReason": "Restored from the trash",
+      "policyPublic": "Everyone (public)",
+      "everyType": "Every type",
+      "operationKind": {
+        "read": "Read",
+        "history": "History",
+        "write": "Write",
+        "delete": "Delete",
+        "subscribe": "Subscriptions",
+        "types": "Types",
+        "other": "Other"
+      }
     },
     "complete": {
       "urlPlaceholder": "https://example.org/stations.json",
@@ -709,7 +719,8 @@
         "rejected": "Rejected, 7 days",
         "quarantined": "Quarantined, 7 days",
         "lastRejected": "Last rejected",
-        "since": "Counted from {day} (24 h) and from {week} (7 days)."
+        "since": "Counted from {day} (24 h) and from {week} (7 days).",
+        "sinceOne": "Counted since {at}."
       }
     },
     "fields": {
@@ -1460,7 +1471,8 @@
         "item": "{id}: proposed by {by} on {at}, {count, plural, one {# entity} other {# entities}} found, open until {expires}",
         "approve": "Approve…",
         "decline": "Decline…",
-        "own": "You proposed this erasure: another owner of the space approves it."
+        "own": "You proposed this erasure: another owner of the space approves it.",
+        "ownersOnly": "Only an owner of this space sees these requests."
       },
       "approveTitle": "Approve erasure {id}?",
       "approveLead": "Type the person's identifier from the request. The Portal checks it against the proposal, searches the space again and erases what it holds. This cannot be undone.",
@@ -4626,7 +4638,8 @@
       "addFieldTo": "Add field to {type}",
       "typeCaption": "Fields of {type}",
       "noFields": "No field yet.",
-      "addType": "Add type"
+      "addType": "Add type",
+      "classesMore": "+{count} more"
     },
     "hints": {
       "title": "This model has no type yet. Three steps to start:",

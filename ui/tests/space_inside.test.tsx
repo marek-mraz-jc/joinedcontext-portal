@@ -558,6 +558,11 @@ describe("space inside view", () => {
     await openTab(en.endpoints.title);
     const endpointRow = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
     expect(within(endpointRow).getByText(en.endpoints.audience.public)).toBeInTheDocument();
+    // the endpoint's name opens its own page
+    expect(within(endpointRow).getByRole("link", { name: "public-air" })).toHaveAttribute(
+      "href",
+      "/projects/banskabystrica/endpoints/public-air",
+    );
     expect(within(endpointRow).getByRole("link", { name: "ngsi-ld" })).toHaveAttribute(
       "href",
       `${window.location.origin}/api/endpoint/${SLUG}/ngsi-ld/v1/types`,
@@ -570,8 +575,12 @@ describe("space inside view", () => {
 
     await openTab(en.spaces.inside.policies);
     const policyRow = (await screen.findByText("public-air-quality")).closest("tr") as HTMLElement;
-    expect(within(policyRow).getByText("role:public")).toBeInTheDocument();
-    expect(within(policyRow).getByText("queryEntity, retrieveEntity")).toBeInTheDocument();
+    // the assignee in words and the operations as kinds, the CIM 009 names one hover away
+    expect(within(policyRow).getByText(en.spaces.inside.policyPublic)).toHaveAttribute("title", "role:public");
+    expect(within(policyRow).getByText(en.spaces.inside.operationKind.read)).toHaveAttribute(
+      "title",
+      "queryEntity, retrieveEntity",
+    );
   });
 
   it("says a type's read met the endpoint's rate limit, with a retry, and not that it is unreadable (T-3161)", async () => {

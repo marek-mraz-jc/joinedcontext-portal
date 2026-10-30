@@ -50,6 +50,8 @@ import type { ViewExtras } from "../../components/entities/ViewOptions";
 import type { DataView as SavedView, ViewConfig } from "../../api/dataViews";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { usePermissions } from "../../api/permissions";
+import { assigneeWords, operationKinds } from "./policyWords";
 import { classSlots, isAnyClass, parseModel } from "../models/linkml";
 import { localId, textOf } from "../apps/QueryResultCard";
 import { TypeLink } from "../models/ModelLinks";
@@ -179,12 +181,37 @@ async function fetchTypeInside(slug: string, type: string): Promise<TypeInside> 
  * One entity in keyValues form as a single line of values a person reads (T-2760): a place as
  * its position, a name in the reader's language. It printed `location={"coordinates":…}`.
  */
+const URN = /urn:ngsi-ld:[^\s,;]+/g;
+const INSTANT = /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?/g;
+
+/**
+ * A sample value as a person reads it: a number to two decimals, an instant as a date and time,
+ * a URN as its own name, never `urn:ngsi-ld:Pipeline:hel.fi:…` or `8.897155361050329`.
+ */
+export function readable(value: unknown, language?: string): string {
+  const plain = isKeyValue(value) ? value.value : value;
+  if (typeof plain === "number") {
+    return new Intl.NumberFormat(language, { maximumFractionDigits: 2 }).format(plain);
+  }
+  const when = new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" });
+  return textOf(value, language)
+    .replace(URN, (urn) => localId(urn))
+    .replace(INSTANT, (instant) => {
+      const at = new Date(instant);
+      return Number.isNaN(at.getTime()) ? instant : when.format(at);
+    });
+}
+
+function isKeyValue(value: unknown): value is { value: unknown } {
+  return typeof value === "object" && value !== null && !Array.isArray(value) && "value" in value;
+}
+
 export function summarize(entity: KeyValues, language?: string): string {
   const attributes = Object.entries(entity)
     .filter(([key]) => key !== "id" && key !== "type" && key !== "@context")
     .slice(0, 4)
     .map(([key, value]) => {
-      const text = textOf(value, language);
+      const text = readable(value, language);
       return `${key}: ${text.length > 40 ? `${text.slice(0, 39)}…` : text}`;
     });
   return attributes.join(" · ");
@@ -263,7 +290,7 @@ function TypeRow({
         </span>
       );
   } else {
-    count = inside.data.count === undefined ? "—" : String(inside.data.count);
+    count = inside.data.count === undefined ? "—" : inside.data.count.toLocaleString(i18n.language);
   }
 
   return (
@@ -1933,7 +1960,6 @@ function SpaceModel({
           {t("spaces.inside.modelOpen")}
         </Link>
       </div>
-      <p className="text-caption text-fg-muted">{t("spaces.inside.modelOpenLead")}</p>
       {source.isError ? (
         <Alert tone="danger" role="alert">
           <p>{t("models.page.sourceFailed", { reason: source.error instanceof Error ? source.error.message : "" })}</p>
@@ -2010,6 +2036,7 @@ export function SpaceInside({ project, name }: { project: string; name: string }
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   // The space's alerts are being chosen (T-3261).
   const [alerting, setAlerting] = useState(false);
+  const { can: mayPropose, checking: permissionsChecking } = usePermissions(project);
   // The page opens on the rows; the model, quality, retention, endpoints and policies are tabs
   // beside them, kept in the address (T-4825: the whole model came before the grid, 14,515 px).
   const [tab, setTab] = useUrlParam<SpaceTab>("tab", "data", SPACE_TABS);
@@ -2093,7 +2120,10 @@ export function SpaceInside({ project, name }: { project: string; name: string }
         actions={
           <>
             {/* Completing works on one space, so it lives here and not on the list (T-6084). */}
-            <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+            {/* Allowed: a Link (opens in a new tab too); refused or checking: a Button the guard
+                disables with its reason. A guarded Link stayed clickable and leaked `disabledReason`
+                onto the <a>. */}
+            {!permissionsChecking && mayPropose("ContextSpace", "propose") ? (
               <Link
                 to="/projects/$project/spaces/complete"
                 params={{ project }}
@@ -2102,7 +2132,13 @@ export function SpaceInside({ project, name }: { project: string; name: string }
               >
                 {t("spaces.complete.title")}
               </Link>
-            </PermissionGuard>
+            ) : (
+              <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+                <Button variant="secondary" size="sm">
+                  {t("spaces.complete.title")}
+                </Button>
+              </PermissionGuard>
+            )}
             <Button variant="secondary" size="sm" onClick={() => setAlerting(true)}>
               {t("alerts.forSpace")}
             </Button>
@@ -2265,9 +2301,13 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                 return (
                   <TableRow key={endpoint.metadata.name}>
                     <TableCell>
-                      <div className="font-medium">
+                      <Link
+                        to="/projects/$project/$plural/$name"
+                        params={{ project, plural: "endpoints", name: endpoint.metadata.name }}
+                        className="focus-ring font-medium text-primary-soft-fg underline-offset-2 hover:underline"
+                      >
                         {localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
-                      </div>
+                      </Link>
                       <div className="font-mono text-caption text-fg-subtle">
                         {endpoint.metadata.title ? endpoint.metadata.name : null}
                         {policyRefs
@@ -2307,12 +2347,12 @@ export function SpaceInside({ project, name }: { project: string; name: string }
         {spacePolicies.length === 0 ? (
           <SectionState query={policies} empty={t("spaces.inside.noPolicies")} />
         ) : (
-          <Table caption={t("spaces.inside.policies")}>
+          <Table caption={t("spaces.inside.policies")} stack>
             <TableHead>
               <TableHeaderCell>{t("spaces.field.name")}</TableHeaderCell>
               <TableHeaderCell>{t("spaces.inside.assignee")}</TableHeaderCell>
-              <TableHeaderCell secondary>{t("spaces.inside.operations")}</TableHeaderCell>
-              <TableHeaderCell secondary>{t("spaces.inside.type")}</TableHeaderCell>
+              <TableHeaderCell>{t("spaces.inside.operations")}</TableHeaderCell>
+              <TableHeaderCell>{t("spaces.inside.type")}</TableHeaderCell>
             </TableHead>
             <TableBody>
               {spacePolicies.map((policy) => {
@@ -2321,10 +2361,15 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                   operations?: string[];
                   information?: Array<{ entities?: Array<{ type?: string }> }>;
                 };
-                const policyTypes = (spec.information ?? [])
-                  .flatMap((info) => info.entities ?? [])
-                  .map((entity) => entity.type)
-                  .filter((type): type is string => typeof type === "string");
+                const policyTypes = [
+                  ...new Set(
+                    (spec.information ?? [])
+                      .flatMap((info) => info.entities ?? [])
+                      .map((entity) => entity.type)
+                      .filter((type): type is string => typeof type === "string"),
+                  ),
+                ];
+                const kinds = operationKinds(spec.operations ?? []);
                 return (
                   <TableRow key={policy.metadata.name}>
                     <TableCell>
@@ -2337,16 +2382,38 @@ export function SpaceInside({ project, name }: { project: string; name: string }
                         </div>
                       ) : null}
                     </TableCell>
-                    <TableCell className="font-mono text-caption">
-                      {spec.assignee
-                        ? `${spec.assignee.kind ?? ""}${spec.assignee.kind ? ":" : ""}${spec.assignee.id ?? ""}`
-                        : "—"}
+                    <TableCell data-label={t("spaces.inside.assignee")}>
+                      <span title={spec.assignee ? `${spec.assignee.kind ?? ""}:${spec.assignee.id ?? ""}` : undefined}>
+                        {assigneeWords(spec.assignee, t)}
+                      </span>
                     </TableCell>
-                    <TableCell secondary className="font-mono text-caption">
-                      {(spec.operations ?? []).join(", ") || "—"}
+                    <TableCell data-label={t("spaces.inside.operations")}>
+                      {kinds.length === 0 ? (
+                        "—"
+                      ) : (
+                        <span className="flex flex-wrap gap-1">
+                          {kinds.map(({ kind, operations }) => (
+                            <Badge
+                              key={kind}
+                              tone={kind === "write" || kind === "delete" ? "warning" : "neutral"}
+                              title={operations.join(", ")}
+                            >
+                              {t(`spaces.inside.operationKind.${kind}`)}
+                            </Badge>
+                          ))}
+                        </span>
+                      )}
                     </TableCell>
-                    <TableCell secondary className="font-mono text-caption">
-                      {policyTypes.join(", ") || "—"}
+                    <TableCell data-label={t("spaces.inside.type")}>
+                      {policyTypes.length > 0 ? (
+                        <span className="flex flex-col">
+                          {policyTypes.map((type) => (
+                            <span key={type}>{type}</span>
+                          ))}
+                        </span>
+                      ) : (
+                        <span className="text-fg-muted">{t("spaces.inside.everyType")}</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
