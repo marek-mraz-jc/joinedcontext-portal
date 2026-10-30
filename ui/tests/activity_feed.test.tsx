@@ -269,11 +269,11 @@ describe("the activity feed (UI-31)", () => {
     );
   });
 
-  it("says where to make a connector when the reader has none", async () => {
+  it("offers no connector filter when the reader has none", async () => {
     renderFeed([event()]);
     await rows();
-    expect(await screen.findByText(en.activity.filter.connectorNone)).toBeInTheDocument();
-    expect(screen.getByLabelText(en.activity.filter.connector)).toBeDisabled();
+    expect(screen.getByLabelText(en.activity.filter.severity)).toBeInTheDocument();
+    expect(screen.queryByLabelText(en.activity.filter.connector)).toBeNull();
   });
 
   it("follows the tail and puts an arriving event at the top", async () => {

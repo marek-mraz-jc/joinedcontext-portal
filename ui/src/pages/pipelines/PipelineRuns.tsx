@@ -279,9 +279,11 @@ export function PipelineRunsView({
                     <Button
                       size="sm"
                       aria-pressed={open === run.run}
+                      // One word in the cell; the run it opens is in the name a screen reader says.
+                      aria-label={t("pipelines.runs.show", { run: label(run.run) })}
                       onClick={() => setPicked(run.run)}
                     >
-                      {t("pipelines.runs.show", { run: label(run.run) })}
+                      {t("pipelines.runs.log")}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -337,6 +339,7 @@ function RunLog({
   });
   const caption = t("pipelines.runs.logCaption", { run: title });
   const lines: LogLine[] = page.data?.items ?? [];
+  const withMessages = lines.some((line) => (line.message ?? "").trim() !== "");
 
   return (
     <section aria-label={caption} className="flex flex-col gap-2">
@@ -358,7 +361,8 @@ function RunLog({
               <TableHeaderCell>{t("pipelines.runs.at")}</TableHeaderCell>
               <TableHeaderCell>{t("pipelines.runs.record")}</TableHeaderCell>
               <TableHeaderCell>{t("pipelines.runs.outcome")}</TableHeaderCell>
-              <TableHeaderCell>{t("pipelines.runs.message")}</TableHeaderCell>
+              {/* A page of plain writes says nothing per line: no empty Message column. */}
+              {withMessages ? <TableHeaderCell>{t("pipelines.runs.message")}</TableHeaderCell> : null}
             </TableHead>
             <TableBody>
               {lines.map((line) => (
@@ -385,9 +389,11 @@ function RunLog({
                       ) : null}
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <p className="text-body text-fg">{line.message}</p>
-                  </TableCell>
+                  {withMessages ? (
+                    <TableCell>
+                      <p className="text-body text-fg">{line.message}</p>
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))}
             </TableBody>
@@ -418,7 +424,9 @@ function RecordId({ id }: { id: string }): JSX.Element {
   const short = urnName(id);
   if (!short) return <span className="font-mono text-caption [overflow-wrap:anywhere]">{id}</span>;
   return (
-    <span className="font-mono text-caption [overflow-wrap:anywhere]" title={id}>
+    // A short name keeps its letters together: the column takes its width and the table scrolls,
+    // where `anywhere` broke it one letter per line at 400 px.
+    <span className="whitespace-nowrap font-mono text-caption" title={id}>
       <span aria-hidden>{short}</span>
       <span className="sr-only">{id}</span>
     </span>

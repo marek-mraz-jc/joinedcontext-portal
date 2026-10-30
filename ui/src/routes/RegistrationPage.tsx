@@ -1,12 +1,12 @@
 import type { JSX, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap, whilePending } from "../api/client";
 import { localized } from "../api/manifest";
 import type { Manifest } from "../api/manifest";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
-import { Card, InlineError, PageHeader, Term } from "../components/ui";
+import { Button, Card, InlineError, PageHeader, PermissionGuard, Term } from "../components/ui";
 import { ResourcePageFailed } from "../components/ui/PageState";
 import { fromRegistrationEnvelope, targetOf } from "./RegistrationsPage";
 
@@ -47,6 +47,7 @@ const mono = (items: string[], none: string): ReactNode =>
 export function RegistrationPage({ project, name }: { project: string; name: string }): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
+  const navigate = useNavigate();
   const registration = useQuery({
     queryKey: queryKeys.resource(project, "csrs", name),
     retry: false,
@@ -95,27 +96,30 @@ export function RegistrationPage({ project, name }: { project: string; name: str
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          {back}
-          <PageHeader
-            title={localized(manifest.metadata.title, locale, name)}
-            description={<span className="font-mono">{name}</span>}
-          />
-        </div>
-        <Link
-          to="/projects/$project/$plural/$name/edit"
-          params={{ project, plural: "csrs", name }}
-          className={LINK}
-        >
-          {t("registrations.page.edit")}
-        </Link>
-      </div>
+      {/* One header row: the title with its id and state, Edit on the same row; the breadcrumb leads back. */}
+      <PageHeader
+        title={localized(manifest.metadata.title, locale, name)}
+        titleAction={
+          <span className="ms-2 flex flex-wrap items-center gap-2">
+            {/* On a phone the breadcrumb already ends with the id. */}
+            <code className="hidden font-mono text-caption text-fg-muted sm:inline">{name}</code>
+            <LifecycleBadge kind="phase" value={manifest.status?.phase} />
+          </span>
+        }
+        actions={
+          <PermissionGuard project={project} kind="ContextSourceRegistration" verb="propose">
+            <Button
+              onClick={() => {
+                void navigate({ to: "/projects/$project/$plural/$name/edit", params: { project, plural: "csrs", name } });
+              }}
+            >
+              {t("registrations.page.edit")}
+            </Button>
+          </PermissionGuard>
+        }
+      />
 
       <Card as="dl" flush className="@container px-4">
-        <Row label={t("registrations.page.state")}>
-          <LifecycleBadge kind="phase" value={manifest.status?.phase} />
-        </Row>
         <Row label={t("registrations.page.lastErrorLabel")}>
           {error ? (
             <InlineError>

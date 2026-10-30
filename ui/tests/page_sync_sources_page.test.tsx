@@ -12,7 +12,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { SyncSourcesPage } from "../src/pages/sync/SyncSourcesPage";
+import { SyncSourcesPage, intervalWords } from "../src/pages/sync/SyncSourcesPage";
 import { expectDenied, expectOpen } from "./checks";
 import {
   expectHeadingOutline,
@@ -280,5 +280,14 @@ describe("the sync sources page", () => {
     const { container } = renderSync({ fails: { status: 503, detail: "Not answering." } });
     await screen.findByRole("alert");
     await expectNoAxeViolations(container);
+  });
+});
+
+describe("a sync source's interval", () => {
+  it("is said in the reader's words, anything unknown as written", () => {
+    expect(intervalWords("1d", "en")).toBe("1 day");
+    expect(intervalWords("6h", "en")).toBe("6 hours");
+    expect(intervalWords("30m", "de")).toBe("30 Minuten");
+    expect(intervalWords("P1D", "en")).toBe("P1D");
   });
 });

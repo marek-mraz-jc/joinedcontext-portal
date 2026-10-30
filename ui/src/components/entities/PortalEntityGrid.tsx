@@ -118,7 +118,6 @@ export function gridLabels(t: (key: string, values?: Record<string, string>) => 
     exampleLead: t("entityGrid.exampleLead"),
     queryAll: t("entityGrid.queryAll"),
     copied: t("entityGrid.copied"),
-    scrollHint: t("entityGrid.scrollHint"),
     ops: {
       contains: t("entityGrid.ops.contains"),
       equals: t("entityGrid.ops.equals"),

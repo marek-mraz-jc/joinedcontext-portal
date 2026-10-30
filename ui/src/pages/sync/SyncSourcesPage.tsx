@@ -252,7 +252,7 @@ function SyncSourceCard({
   name: string;
   spec: SyncSourceSpec | undefined;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [detached, setDetached] = useState<string | null>(null);
   // Open while the dialog names the source and asks; detaching is not undone by asking again.
@@ -326,7 +326,7 @@ function SyncSourceCard({
           <RecordLink project={project} plural="syncsources" name={name} />
         </h2>
         <LifecycleBadge kind="phase" value={status.data?.phase} />
-        <span className="text-caption">{scheduleOf(spec, t)}</span>
+        <span className="text-caption">{scheduleOf(spec, t, i18n.resolvedLanguage ?? i18n.language ?? "en")}</span>
         {/* Sync now, Pause and Detach are what this card is for and stay in its body; editing
             and deleting the source itself are one menu at the end of the header (T-2288). */}
         <span className="ml-auto flex items-center gap-1.5">
@@ -484,12 +484,23 @@ function originOf(spec: SyncSourceSpec | undefined): string | undefined {
 function scheduleOf(
   spec: SyncSourceSpec | undefined,
   t: (key: string, options?: Record<string, unknown>) => string,
+  language: string,
 ): string {
   if (spec?.schedule?.webhook) {
     return t("syncSources.byWebhook");
   }
   if (spec?.schedule?.interval) {
-    return t("syncSources.everyInterval", { interval: spec.schedule.interval });
+    return t("syncSources.everyInterval", { interval: intervalWords(spec.schedule.interval, language) });
   }
   return "";
+}
+
+const INTERVAL_UNITS = { s: "second", m: "minute", h: "hour", d: "day", w: "week" } as const;
+
+/** `6h`, `1d`, `30m` as "6 hours", "1 day", "30 minutes" in the reader's language; anything else as written. */
+export function intervalWords(raw: string, language: string): string {
+  const match = /^(\d+)([smhdw])$/.exec(raw.trim());
+  if (!match) return raw;
+  const unit = INTERVAL_UNITS[match[2] as keyof typeof INTERVAL_UNITS];
+  return new Intl.NumberFormat(language, { style: "unit", unit, unitDisplay: "long" }).format(Number(match[1]));
 }

@@ -222,7 +222,9 @@
     background-color: var(--portal-bg);
     color: var(--portal-fg);
     font-family: var(--portal-font-sans);
-    font-size: 16px;
+    /* 80 % of the browser's 16 px (owner 2026-10-30: the whole UI a fifth smaller); every rem
+       follows, so spacing, controls and text shrink together. */
+    font-size: 12.8px;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }

@@ -1307,7 +1307,6 @@
       },
       "tests": [
         "endpoint_geo_property.test.ts",
-        "endpoint_ical_qr.test.tsx",
         "part_endpoint_links.test.tsx",
         "part_operation_groups.test.tsx"
       ]
@@ -2086,7 +2085,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 19,
+        "Button": 20,
         "RadioGroup": 1
       },
       "tests": [
@@ -2258,6 +2257,14 @@
         "edit_prefill.test.tsx",
         "form_required_reference_check.test.tsx",
         "policy_form.test.tsx"
+      ]
+    },
+    "src/routes/RegistrationPage.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "context_sources_ui.test.tsx"
       ]
     },
     "src/routes/RegistrationsPage.tsx": {

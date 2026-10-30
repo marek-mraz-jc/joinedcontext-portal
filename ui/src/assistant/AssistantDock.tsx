@@ -169,7 +169,8 @@ function Paths({
               onClick={() => {
                 onPick(path);
               }}
-              className="h-auto w-full items-start justify-start gap-2 whitespace-normal rounded-md bg-surface-subtle p-2 text-left"
+              // h-auto! beats the size's h-control, else the two lines overflow the fixed height (owner 2026-10-30).
+              className="h-auto! w-full items-start justify-start gap-2 whitespace-normal rounded-md bg-surface-subtle p-2 text-left"
             >
               <Icon name={icon} className="mt-0.5 size-4 shrink-0" />
               <span className="flex flex-col">

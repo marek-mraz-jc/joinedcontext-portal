@@ -55,7 +55,14 @@ export function SpaceTemporalAudit({ project, space }: { project: string; space:
       ),
   });
 
-  if (audit.isPending) return <TableSkeleton columns={6} rows={4} />;
+  // A skeleton is a <tbody>: it goes inside a Table, never straight into the section.
+  if (audit.isPending) {
+    return (
+      <Table caption={t("spaces.temporal.title")} status={t("app.loading")}>
+        <TableSkeleton columns={4} rows={4} />
+      </Table>
+    );
+  }
   if (audit.isError) {
     const error = audit.error;
     const detail = error instanceof ApiError ? (error.problem?.detail ?? error.message) : String(error);

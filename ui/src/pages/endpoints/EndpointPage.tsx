@@ -3,11 +3,9 @@ import type { JSX, ReactNode } from "react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Playground } from "./Playground";
 import { EndpointAccessRequest } from "./AccessRequest";
 import { ShareFlow } from "./ShareFlow";
 import { AccessRequestInbox } from "../pipelines/AccessRequests";
-import { EndpointDocs } from "./EndpointDocs";
 import { ConnectAssistant } from "../../components/endpoints/ConnectAssistant";
 import { QueryCard } from "../../components/endpoints/QueryCard";
 import { ApiError, api, queryKeys, unwrap, whilePending } from "../../api/client";
@@ -22,22 +20,18 @@ import { WorkOnCopyAction } from "../../components/WorkOnCopyDialog";
 import { ExportButton } from "../../components/export/ExportButton";
 import { EndpointQuality } from "./EndpointQuality";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
-import { MayNotCreate, PermissionGuard } from "../../components/ui/PermissionGuard";
+import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { RowActions } from "../../components/ui/RowActions";
 import type { RowAction } from "../../components/ui/RowActions";
 import { usePermissions } from "../../api/permissions";
 import {
-  CopyUrlButton,
-  ENDPOINT_LINKS,
   EndpointLink,
   REPRESENTATION_PATHS,
   endpointUrl,
   representationUrl,
   servedRepresentations,
-  webcalUrl,
   useCatalogueLinks,
 } from "../../components/endpoints/links";
-import { QrCode } from "../../components/endpoints/QrCode";
 import { useBranding } from "../../branding";
 import { spaceOf } from "../../components/endpoints/sharing";
 import { bindingOf, spaceSegment } from "../../components/endpoints/policyBinding";
@@ -50,7 +44,6 @@ import { FilterProof, classesWithSlots } from "./FilterProof";
 import { filterSlotsOf, useModelSource } from "../../components/entities/filters";
 import { parseModel } from "../models/linkml";
 import type { CatalogManifest } from "./catalog";
-import { TypeLink } from "../models/ModelLinks";
 import { EndpointDataView } from "../../components/entities/EndpointDataView";
 import type { DataLink } from "../../components/entities/EndpointDataView";
 import { PublishDatasetDialog } from "../catalogue/PublishDataset";
@@ -67,12 +60,10 @@ import {
   safeHref,
   Select,
   SourceLink,
-  Term,
 } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { andQ, areaQuery, queryFromFilters, ringOfBounds } from "@joinedcontext/sdk";
 import type { FilterOp } from "@joinedcontext/sdk";
-import { outputsOf } from "../../components/forms/widgets/representationOutputs";
 
 /**
  * One endpoint, the whole window (T-2281, EP-51, UI-26, UI-61).
@@ -270,44 +261,28 @@ export function EndpointPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
+      {/* One header row: the title and id, then every action (owner 2026-10-30). */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <PageHeader
+          title={localized(manifest.metadata.title, locale, name)}
+          description={<span className="font-mono">{name}</span>}
+        />
+      <div className="flex flex-wrap items-center gap-2">
+        <LifecycleBadge kind="phase" value={manifest.status?.phase} />
+        {manifest.status?.sourceUrl ? (
+          <SourceLink href={manifest.status.sourceUrl} label={t("spaces.field.source")} />
+        ) : null}
+        {/* What the person may do through this Endpoint, the Data access table opened on it (T-5593). */}
+        {slug ? (
           <Link
-            to="/projects/$project/$plural"
-            params={{ project, plural: "endpoints" }}
+            to="/projects/$project/settings/$tab"
+            params={{ project, tab: "access" }}
+            search={{ endpoint: name }}
             className="text-sm text-primary-soft-fg underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
           >
-            {t("endpoints.page.back")}
+            {t("projectSettings.access.title")}
           </Link>
-          <PageHeader
-            title={localized(manifest.metadata.title, locale, name)}
-            description={<span className="font-mono">{name}</span>}
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <LifecycleBadge kind="phase" value={manifest.status?.phase} />
-          {manifest.status?.sourceUrl ? (
-            <SourceLink href={manifest.status.sourceUrl} label={t("spaces.field.source")} />
-          ) : null}
-          {/* What the person may do through this Endpoint, the Data access table opened on it (T-5593). */}
-          {slug ? (
-            <Link
-              to="/projects/$project/settings/$tab"
-              params={{ project, tab: "access" }}
-              search={{ endpoint: name }}
-              className="text-sm text-primary-soft-fg underline hover:no-underline focus:outline-none focus:ring-2 focus:ring-border-focus"
-            >
-              {t("projectSettings.access.title")}
-            </Link>
-          ) : null}
-        </div>
-      </div>
-
-      {/* Every change here is proposed and reviewed like any other, so the page says so before the
-          first control rather than after a person has pressed one (PF-57). */}
-      <p className="text-sm text-fg-muted">{t("endpoints.page.proposedNotice")}</p>
-
-      <div className="flex flex-wrap items-center gap-2">
+        ) : null}
         <PermissionGuard project={project} kind="Endpoint" verb="propose">
           <Button
             onClick={() => {
@@ -356,182 +331,20 @@ export function EndpointPage({
           onOpenChange={(next) => setOpenAction(next ? "delete" : null)}
         />
       </div>
-      {/* The reason the two buttons above are greyed, where a viewer sees it and not only on hover (T-5592). */}
-      <MayNotCreate project={project} kinds={["Endpoint"]} message="endpoints.page.mayNotChange" />
+      </div>
 
-      <Section title={t("endpoints.page.whatItIs")}>
-        <Facts>
-          <Fact label={<Term name="contextSpace">{t("endpoints.field.space")}</Term>}>
-            {space ? (
-              <Link
-                to="/projects/$project/$plural/$name"
-                params={{ plural: "spaces", project, name: space }}
-                className="text-primary-soft-fg underline hover:no-underline"
-              >
-                {space}
-              </Link>
+      {/* What it answers, as one row of links (owner 2026-10-30). */}
+      <ul className="flex flex-wrap gap-1" aria-label={t("endpoints.field.representations")}>
+        {servedRepresentations(spec).map((rep) => (
+          <li key={rep}>
+            {slug && REPRESENTATION_PATHS[rep] ? (
+              <EndpointLink href={representationUrl(slug, rep, domain)}>{rep}</EndpointLink>
             ) : (
-              <Missing />
+              <Badge mono>{rep}</Badge>
             )}
-          </Fact>
-          <Fact label={t("endpoints.field.audience")}>
-            <Badge>{t(`endpoints.audience.${spec.audience ?? "project-list"}`, spec.audience ?? "")}</Badge>
-            {spec.audience === "public" ? (
-              <p className="mt-1 text-caption text-fg-muted">{t("endpoints.publicNotice")}</p>
-            ) : null}
-          </Fact>
-          {spec.audience === "project-list" ? (
-            <Fact label={t("endpoints.field.allowedProjects")}>
-              {spec.allowedProjects?.length ? (
-                <ul className="flex flex-wrap gap-1">
-                  {spec.allowedProjects.map((allowed) => (
-                    <li key={allowed}>
-                      <Badge mono>{allowed}</Badge>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <Missing />
-              )}
-            </Fact>
-          ) : null}
-          <Fact label={t("endpoints.field.publicUrl")}>
-            {slug ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <code className="break-all font-mono text-caption">{endpointUrl(slug, "")}</code>
-                {/* The one copy control that confirms it copied; the row's menu item cannot, because
-                    the menu closes on select (T-2287). */}
-                <CopyUrlButton url={endpointUrl(slug, "")} />
-              </div>
-            ) : (
-              <Missing />
-            )}
-          </Fact>
-        </Facts>
-      </Section>
-
-      <Section title={t("endpoints.page.whatItAnswers")}>
-        <Facts>
-          <Fact label={t("endpoints.field.representations")}>
-            <ul className="flex flex-wrap gap-1">
-              {servedRepresentations(spec).map((rep) => (
-                <li key={rep}>
-                  {slug && REPRESENTATION_PATHS[rep] ? (
-                    <EndpointLink href={representationUrl(slug, rep, domain)}>{rep}</EndpointLink>
-                  ) : (
-                    <Badge mono>{rep}</Badge>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </Fact>
-          {slug && servedRepresentations(spec).includes("ical")
-            ? // Each calendar a client subscribes to (EP-125, API/11 EP-159): the https address, and
-              // the same address as webcal://, which a phone's calendar opens as a subscription.
-              outputsOf((spec as { representations?: unknown }).representations).ical.map((calendar) => {
-                const url = representationUrl(slug, "ical", domain).replace(/events\.ics$/, `${calendar.name}.ics`);
-                const title = calendar.title?.[i18n.resolvedLanguage ?? "sk"] ?? Object.values(calendar.title ?? {})[0];
-                return (
-                  <Fact key={calendar.name} label={title ? `${t("endpoints.ical.subscribe")}: ${title}` : t("endpoints.ical.subscribe")}>
-                    <div className="flex flex-col gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <EndpointLink href={url}>{t("endpoints.ical.preview")}</EndpointLink>
-                        <CopyUrlButton url={url} />
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <code className="break-all font-mono text-caption">{webcalUrl(url)}</code>
-                        <CopyUrlButton url={webcalUrl(url)} />
-                      </div>
-                      <figure className="flex flex-wrap items-center gap-3">
-                        <QrCode value={webcalUrl(url)} label={t("endpoints.ical.qr", { address: webcalUrl(url) })} />
-                        <figcaption className="max-w-60 text-caption text-fg-muted">{t("endpoints.ical.qrHint")}</figcaption>
-                      </figure>
-                    </div>
-                  </Fact>
-                );
-              })
-            : null}
-          {slug ? (
-            <Fact label={t("endpoints.page.alwaysThere")}>
-              <ul className="flex flex-wrap gap-1">
-                {ENDPOINT_LINKS.map((link) => (
-                  <li key={link.key}>
-                    <EndpointLink muted href={endpointUrl(slug, link.path)}>
-                      {t(`endpoints.link.${link.key}`)}
-                    </EndpointLink>
-                  </li>
-                ))}
-              </ul>
-            </Fact>
-          ) : null}
-          {slug ? (
-            <Fact label={t("endpoints.page.firstCall")}>
-              <FirstCall
-                url={endpointUrl(slug, firstCallPath(projection ? classesOf(projection)[0] : undefined))}
-                open={spec.audience === "public"}
-              />
-            </Fact>
-          ) : null}
-          {slug ? (
-            <Fact label={t("endpoints.docs.title")}>
-              {/* Generated by the gateway from the Endpoint and its model (EP-99, T-3265). */}
-              <details>
-                <summary className="cursor-pointer text-body text-primary-soft-fg">{t("endpoints.docs.open")}</summary>
-                <div className="mt-2">
-                  <EndpointDocs slug={slug} open={spec.audience === "public"} heading={false} />
-                </div>
-              </details>
-              {spec.audience === "public" ? (
-                <p className="mt-1 text-caption text-fg-muted [overflow-wrap:anywhere]">
-                  {t("endpoints.docs.publicPage", { url: `${window.location.origin}/d/${slug}` })}
-                </p>
-              ) : null}
-            </Fact>
-          ) : null}
-          {slug ? (
-            <Fact label={t("endpoints.playground.title")}>
-              {/* Every read the person may send, with its parameters and the same call as code (T-3264). */}
-              <Playground slug={slug} types={projection ? classesOf(projection) : []} open={spec.audience === "public"} />
-            </Fact>
-          ) : null}
-          <Fact label={<Term name="entityType">{t("endpoints.field.types")}</Term>}>
-            {projection ? (
-              <ul className="flex flex-wrap gap-1">
-                {classesOf(projection).map((klass) => (
-                  <li key={klass}>
-                    <Badge mono>
-                      <TypeLink project={project} type={klass} space={space} />
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-caption text-fg-muted">{t("endpoints.page.everyTypeOfTheSpace")}</p>
-            )}
-          </Fact>
-          <Fact label={t("endpoints.field.hiddenAttributes")}>
-            {spec.projection?.hiddenAttributes?.length ? (
-              <ul className="flex flex-wrap gap-1">
-                {spec.projection.hiddenAttributes.map((attr) => (
-                  <li key={attr}>
-                    <Badge mono tone="warning">
-                      {attr}
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-caption text-fg-muted">{t("endpoints.page.nothingHidden")}</p>
-            )}
-          </Fact>
-          {spec.viewMappingRef ? (
-            <Fact label={t("endpoints.field.viewMapping")}>
-              <Badge mono>{refName(spec.viewMappingRef)}</Badge>
-              <p className="mt-1 text-caption text-fg-muted">{t("endpoints.page.viewMappingReadOnly")}</p>
-            </Fact>
-          ) : null}
-        </Facts>
-      </Section>
+          </li>
+        ))}
+      </ul>
 
       {/* The rows themselves, read with the person's own session through the Endpoint, so a steward
           sees what their grants show and nothing more (T-5082). Only a Live endpoint answers. */}
@@ -1528,25 +1341,6 @@ export function firstCallPath(type: string | undefined): string {
     : "/ngsi-ld/v1/types";
 }
 
-/** One example call: the link opens in the browser session, the command is for a program (T-3212). */
-function FirstCall({ url, open }: { url: string; open: boolean }): JSX.Element {
-  const { t } = useTranslation();
-  const command = open
-    ? `curl -H 'Accept: application/ld+json' '${url}'`
-    : `curl -H 'Accept: application/ld+json' -H "Authorization: Bearer $TOKEN" '${url}'`;
-  return (
-    <div className="space-y-1">
-      <EndpointLink href={url}>{t("endpoints.page.firstCallOpen")}</EndpointLink>
-      <div className="flex flex-wrap items-center gap-2">
-        <code className="break-all font-mono text-caption">{command}</code>
-        <CopyUrlButton url={command} label={t("endpoints.page.firstCallCopy")} />
-      </div>
-      <p className="text-caption text-fg-muted">
-        {open ? t("endpoints.page.firstCallPublic") : t("endpoints.page.firstCallToken")}
-      </p>
-    </div>
-  );
-}
 
 function Section({
   title,
@@ -1581,7 +1375,3 @@ function Fact({ label, children }: { label: ReactNode; children: ReactNode }): J
   );
 }
 
-function Missing(): JSX.Element {
-  const { t } = useTranslation();
-  return <span className="text-fg-muted">{t("endpoints.page.notSet")}</span>;
-}

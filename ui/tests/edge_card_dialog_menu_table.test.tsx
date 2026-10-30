@@ -57,6 +57,8 @@ describe("Table, at its edges", () => {
     expect(screen.getByRole("group", { name: "Endpoints of this project" })).toBeInTheDocument();
     expect(screen.getByRole("table")).toHaveAccessibleName("Endpoints of this project");
     expect(screen.getByText("No endpoints yet.")).toBeInTheDocument();
+    // On a phone a wide head scrolls; the message holds still in view instead of scrolling away.
+    expect(screen.getByText("No endpoints yet.")).toHaveClass("sticky");
   });
 
   it("the_skeleton_rows_are_never_read_out_as_data", () => {

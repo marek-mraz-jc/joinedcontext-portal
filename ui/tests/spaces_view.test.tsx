@@ -200,7 +200,12 @@ describe("context spaces view", () => {
     const row = (await screen.findByText("ovzdusie")).closest("tr") as HTMLElement;
     expect(within(row).getByText("Air quality")).toBeInTheDocument();
     // The pointer first, then every model that names the space, as its own page lists them (T-2760).
-    expect(await within(row).findByText("AirQualityObserved, ovzdusie-extra")).toBeInTheDocument();
+    // Each model is a link to its own page (not one mono string).
+    expect(await within(row).findByRole("link", { name: "ovzdusie-extra" })).toHaveAttribute(
+      "href",
+      "/projects/banskabystrica/models/ovzdusie-extra",
+    );
+    expect(within(row).getByRole("link", { name: "AirQualityObserved" })).toBeInTheDocument();
     expect(within(row).getByText(en.phase.live)).toBeInTheDocument();
 
     const sandbox = (await screen.findByText(/sandbox, 7 days/)).closest("tr") as HTMLElement;

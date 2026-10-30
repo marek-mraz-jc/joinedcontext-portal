@@ -376,7 +376,10 @@ export function TableEmpty({
   return (
     <tr>
       <td colSpan={columns} className="px-4 py-12 text-center text-body text-fg-muted">
-        {children}
+        {/* On a phone the head can be wider than the screen and the table scrolls: the message
+            stays in view, the width of the screen less the page's gutters, instead of centred
+            on a head nobody sees whole (owner 2026-10-30, Subscriptions at 400 px). */}
+        <div className="sticky start-4 max-w-[calc(100vw-4.5rem)] sm:static sm:max-w-none">{children}</div>
       </td>
     </tr>
   );
