@@ -11045,8 +11045,12 @@
       "space": "Context Space"
     },
     "footerOf": "Showing {shown} of {count} matching, {total} in total",
+    "retry": "Refused: change the value to propose again.",
     "choose": {
-      "hint": "Pick one of the listed values, for example {example}."
+      "hint": "Pick one of {options}."
+    },
+    "multi": {
+      "hint": "Tick any of {options}."
     },
     "reference": {
       "hint": "Only what you may read in this project is listed."

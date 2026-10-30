@@ -11045,8 +11045,12 @@
       "space": "Kontextraum"
     },
     "footerOf": "{shown} von {count} passenden angezeigt, {total} insgesamt",
+    "retry": "Abgelehnt: ändern Sie den Wert, um erneut vorzuschlagen.",
     "choose": {
-      "hint": "Wählen Sie einen der angebotenen Werte, zum Beispiel {example}."
+      "hint": "Wählen Sie einen der Werte {options}."
+    },
+    "multi": {
+      "hint": "Kreuzen Sie beliebige der Werte {options} an."
     },
     "reference": {
       "hint": "Aufgeführt ist nur, was Sie in diesem Projekt lesen dürfen."

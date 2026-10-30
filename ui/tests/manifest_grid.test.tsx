@@ -11,7 +11,7 @@ import "../src/i18n";
 import en from "../src/locales/en.json";
 import type { Manifest } from "../src/api/manifest";
 import { fieldWidget, hintText, specValue, withSpecValue } from "../src/components/grid/fieldWidget";
-import { ManifestGrid, visibleRows } from "../src/components/grid/ManifestGrid";
+import { GridFooter, GridRow, GridToolbar, ManifestGrid, example, visibleRows } from "../src/components/grid/ManifestGrid";
 import type { GridColumn } from "../src/components/grid/ManifestGrid";
 import endpointSchema from "./fixtures/kinds/Endpoint.json";
 import subscriptionSchema from "./fixtures/kinds/Subscription.json";
@@ -51,8 +51,23 @@ describe("fieldWidget reads the control off the kind's schema", () => {
 
   it("turns a schema sentence into a hint without ids or code ticks", () => {
     expect(hintText("Audience access scope (EP-14). More.")).toBe("Audience access scope.");
-    expect(hintText("`false` turns it off (EP-24, T-2901); see [`X::y`].")).toBe("false turns it off; see X::y.");
+    expect(hintText("`false` turns it off (EP-24, T-2901); see [`X::y`].")).toBe("Off turns it off; see X::y.");
     expect(hintText(undefined)).toBeUndefined();
+  });
+
+  it("hints name exactly the values a choice offers, and a switch's sentence reads as the switch", () => {
+    const t = (key: string, values?: Record<string, unknown>) => `${key} ${JSON.stringify(values ?? {})}`;
+    const audience = fieldWidget("Endpoint", endpointSchema, "audience");
+    if (audience?.widget.kind !== "enum") throw new Error("audience is no enum");
+    const offered = audience.widget.options.map((option) => option.value);
+    expect(example(audience.widget, t)).toBe(`grid.choose.hint ${JSON.stringify({ options: offered.join(", ") })}`);
+    // A column's own labels name the choices as the table shows them.
+    expect(example(audience.widget, t, (value) => value.toUpperCase())).toBe(`grid.choose.hint ${JSON.stringify({ options: offered.map((value) => value.toUpperCase()).join(", ") })}`);
+    const representations = fieldWidget("Endpoint", endpointSchema, "enabledRepresentations");
+    expect(example(representations!.widget, t)).toMatch(/^grid\.multi\.hint /);
+    expect(en.grid.multi.hint).toMatch(/^Tick any/);
+    const mcp = fieldWidget("Endpoint", endpointSchema, "mcp");
+    expect(hintText(mcp?.description)).not.toMatch(/^`?(true|false)\b/);
   });
 
   it("refuses what one cell cannot hold and a field the schema lacks", () => {
@@ -170,7 +185,7 @@ describe("ManifestGrid", () => {
     await userEvent.click(await screen.findByRole("button", { name: en.grid.openDetails.replace("{name}", "air-quality") }));
     const dialog = await screen.findByRole("dialog");
     const select = await within(dialog).findByRole("combobox", { name: "Audience" });
-    expect(select).toHaveAccessibleDescription(/for example/);
+    expect(select).toHaveAccessibleDescription(/Pick one of project-list, organization, public\./);
     await userEvent.selectOptions(select, "public");
     await userEvent.click(within(dialog).getByRole("button", { name: en.grid.propose }));
     await waitFor(() => expect(onChange).toHaveBeenCalled());
@@ -189,6 +204,11 @@ describe("ManifestGrid", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: en.grid.propose }));
     const select = within(dialog).getByRole("combobox", { name: "Audience" });
     await waitFor(() => expect(select).toHaveAccessibleDescription(/may not change the audience/));
+    // The refused value cannot be sent again; a new value clears the refusal and the button.
+    expect(within(dialog).getByRole("button", { name: new RegExp(en.grid.propose) })).toHaveAttribute("aria-disabled", "true");
+    await userEvent.selectOptions(select, "project-list");
+    expect(select).not.toHaveAccessibleDescription(/may not change the audience/);
+    expect(within(dialog).getByRole("button", { name: en.grid.propose })).not.toHaveAttribute("aria-disabled");
   });
 
   it("disables the proposal for a person without propose on the kind, with the reason", async () => {
@@ -198,5 +218,73 @@ describe("ManifestGrid", () => {
     const dialog = await screen.findByRole("dialog");
     await userEvent.selectOptions(await within(dialog).findByRole("combobox", { name: "Audience" }), "public");
     await waitFor(() => expect(within(dialog).getByRole("button", { name: en.grid.propose })).toHaveAttribute("aria-disabled", "true"));
+  });
+});
+
+describe("the grid's parts", () => {
+  const name: GridColumn<Manifest> = { id: "name", label: "Name", text: (row) => row.metadata.name };
+  const types: GridColumn<Manifest> = {
+    id: "types",
+    label: "Types",
+    text: () => "A, B",
+    cell: () => (
+      <>
+        <span>AirQualityObserved</span>
+        <span>WeatherObserved</span>
+      </>
+    ),
+  };
+
+  it("GridRow keeps a cell of several parts as one value beside its label", async () => {
+    const onDetails = vi.fn();
+    renderPage(
+      <table>
+        <tbody>
+          <GridRow row={endpoint} name={name} columns={[types]} onDetails={onDetails} />
+        </tbody>
+      </table>,
+      { answer: () => undefined },
+    );
+    await screen.findByText("AirQualityObserved");
+    const cell = document.querySelector('td[data-label="Types"]');
+    expect(cell?.children).toHaveLength(1);
+    expect(cell?.textContent).toBe("AirQualityObservedWeatherObserved");
+  });
+
+  it("GridFooter says how many show and offers the rest", async () => {
+    const onMore = vi.fn();
+    const { container } = renderPage(<GridFooter shown={50} kept={50} total={50} step={50} onMore={onMore} />, { answer: () => undefined });
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    cleanup();
+    renderPage(<GridFooter shown={50} kept={70} total={90} step={50} onMore={onMore} />, { answer: () => undefined });
+    expect(await screen.findByText(/Showing 50 of 70/)).toHaveTextContent("Showing 50 of 70 matching, 90 in total");
+    await userEvent.click(screen.getByRole("button", { name: "Show 20 more" }));
+    expect(onMore).toHaveBeenCalled();
+  });
+
+  it("GridToolbar searches, and removes a chip it shows", async () => {
+    const set = vi.fn();
+    const setFilters = vi.fn();
+    renderPage(
+      <GridToolbar<Manifest>
+        caption="Endpoints"
+        rows={[endpoint]}
+        all={[name, types]}
+        columns={[types]}
+        ownSearch={{ value: "", set, label: "Search endpoints" }}
+        filters={{ types: ["A, B"] }}
+        setFilters={setFilters}
+        shown={["types"]}
+        choose={vi.fn()}
+        sort={null}
+        setSort={vi.fn()}
+        sortId="sort"
+      />,
+      { answer: () => undefined },
+    );
+    await userEvent.type(await screen.findByRole("searchbox", { name: "Search endpoints" }), "a");
+    expect(set).toHaveBeenCalledWith("a");
+    await userEvent.click(screen.getByRole("button", { name: "Remove filter Types: A, B" }));
+    expect(setFilters).toHaveBeenCalled();
   });
 });

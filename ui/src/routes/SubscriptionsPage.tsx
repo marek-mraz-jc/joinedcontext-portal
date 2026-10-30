@@ -345,7 +345,6 @@ export function SubscriptionsPage({ project, edit }: { project: string; edit?: s
               <RecordLink project={project} plural="subscriptions" name={row.metadata.name}>
                 {titleOf(row)}
               </RecordLink>
-              {fromSubscriptionEnvelope(row).isActive === false ? <Badge tone="warning">{t("subscriptions.paused")}</Badge> : null}
             </div>
           ),
         }}
@@ -403,8 +402,15 @@ export function SubscriptionsPage({ project, edit }: { project: string; edit?: s
             id: "phase",
             label: t("resourceList.phase"),
             filter: true,
-            text: (row) => row.status?.phase ?? "",
-            cell: (row) => <LifecycleBadge kind="phase" value={row.status?.phase} />,
+            // One state per row (T-6115 review): a paused Subscription is applied (Live) but sends
+            // nothing, so it reads as Paused rather than as Live beside a Paused badge.
+            text: (row) => (fromSubscriptionEnvelope(row).isActive === false ? t("subscriptions.paused") : row.status?.phase ?? ""),
+            cell: (row) =>
+              fromSubscriptionEnvelope(row).isActive === false ? (
+                <Badge tone="warning">{t("subscriptions.paused")}</Badge>
+              ) : (
+                <LifecycleBadge kind="phase" value={row.status?.phase} />
+              ),
           },
         ]}
         actions={(subscription) => (

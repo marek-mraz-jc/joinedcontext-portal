@@ -160,6 +160,9 @@ export function hintText(description: string | undefined): string | undefined {
   if (!description) return undefined;
   const first = description.split(/(?<=\.)\s/)[0];
   return first
+    // A switch's sentence opens with the literal it is about ("`false` turns ... off"): say it as the switch reads.
+    .replace(/^`?true`?(?=\s)/, "On")
+    .replace(/^`?false`?(?=\s)/, "Off")
     .replace(/\s*\((?:[A-Z]{2,5}-\d+|T-\d+)(?:[,;]\s*(?:[A-Z]{2,5}-\d+|T-\d+|[^)]*))*\)/g, "")
     .replace(/\[`([^`\]]+)`\]/g, "$1")
     .replace(/`/g, "")

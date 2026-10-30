@@ -31,7 +31,10 @@ const subscriptions = [
   kind: "Subscription",
   metadata: { name, namespace: "helsinki" },
   spec: { contextSpaceRef: space, entities: [{ type }], isActive: active, throttling: 60, notification: { endpoint: { uri, accept: "application/json" } } },
-  status: { phase: "Live", notifications: { timesSent: 42, timesFailed: 0, lastSuccess: "2026-10-30T05:00:00Z" } },
+  // A paused one was applied (Live) and stopped sending: fewer deliveries, the last one days ago.
+  status: active
+    ? { phase: "Live", notifications: { timesSent: 42, timesFailed: 0, lastSuccess: "2026-10-30T05:00:00Z" } }
+    : { phase: "Live", notifications: { timesSent: 7, timesFailed: 0, lastSuccess: "2026-10-21T09:15:00Z" } },
 }));
 const models = [
   { name: "air", title: "Air quality", space: "air", version: "1.2.0", lifecycle: "published" },
@@ -107,12 +110,12 @@ for (const width of [1440, 400]) {
       await stub(page);
       await page.goto("/projects/helsinki/endpoints?lang=en");
       await page.getByText("Filter", { exact: true }).click();
-      await page.getByRole("checkbox", { name: /^organization/ }).check();
+      await page.getByRole("checkbox", { name: /^Organization/ }).check();
       await page.keyboard.press("Escape");
-      await expect(page.getByRole("button", { name: "Remove filter Audience: organization" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Remove filter Audience: Organization" })).toBeVisible();
       await expect(page.getByRole("link", { name: "Air quality" })).toHaveCount(0);
       await page.screenshot({ path: info.outputPath(`endpoints-filtered-${width}.png`), fullPage: true });
-      await page.getByRole("button", { name: "Remove filter Audience: organization" }).click();
+      await page.getByRole("button", { name: "Remove filter Audience: Organization" }).click();
       await page.getByRole("button", { name: "Details of Air quality" }).click();
       const panel = page.getByRole("dialog", { name: "Air quality" });
       await expect(panel.getByRole("combobox", { name: "Audience" })).toHaveValue("public");

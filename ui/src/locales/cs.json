@@ -11045,8 +11045,12 @@
       "space": "Kontextový prostor"
     },
     "footerOf": "Zobrazeno {shown} z {count} odpovídajících, celkem {total}",
+    "retry": "Zamítnuto: změňte hodnotu a navrhněte znovu.",
     "choose": {
-      "hint": "Vyberte jednu z nabízených hodnot, například {example}."
+      "hint": "Vyberte jednu z hodnot {options}."
+    },
+    "multi": {
+      "hint": "Zaškrtněte libovolné z hodnot {options}."
     },
     "reference": {
       "hint": "V seznamu je jen to, co v tomto projektu smíte číst."

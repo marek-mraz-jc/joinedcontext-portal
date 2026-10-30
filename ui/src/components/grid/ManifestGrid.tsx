@@ -52,7 +52,8 @@ export interface GridColumn<T> {
   /** What the cell draws; the text when absent. */
   cell?: (row: T) => ReactNode;
   /** The `spec` path (`audience`, `notification.format`) the cell panel edits for this column. */
-  field?: string;
+  field?: string;  /** How a stored value reads to a person (`project-list` -> "Selected projects"), in the filter, the chips and the panel's choices. */
+  valueLabel?: (value: string) => string;
   /** Offers a filter chip per value the rows hold. */
   filter?: boolean;
   /** Left out until the person ticks it under Columns. */
@@ -181,19 +182,12 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
   const kept = useMemo(() => visibleRows(rows, all, props.search === undefined ? ownSearch : "", filters, sort), [rows, all, props.search, ownSearch, filters, sort]);
   const page = kept.slice(0, limit);
   const width = visibleColumns.length + 2;
-  const chips = Object.entries(filters).flatMap(([id, values]) => values.map((value) => ({ id, value })));
-  const filterable = columns.filter((column) => column.filter);
   const opened = panel ? rows.find((row) => rowKey(row) === panel) : undefined;
 
   if (query.isError) {
     return <PageFailed error={query.error} onRetry={() => void query.refetch()} />;
   }
 
-  const toggleFilter = (id: string, value: string) =>
-    setFilters((now) => {
-      const values = now[id] ?? [];
-      return { ...now, [id]: values.includes(value) ? values.filter((each) => each !== value) : [...values, value] };
-    });
   const choose = (next: string[]) => {
     setShown(next);
     writeShown(storageKey, next);
@@ -215,92 +209,20 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
 
   return (
     <div className="flex flex-col gap-3" data-manifest-grid={storageKey}>
-      <div role="toolbar" aria-label={t("grid.toolbar", { list: caption })} className="flex flex-wrap items-center gap-2">
-        {props.search === undefined ? (
-          <div className="w-full sm:w-64">
-            <Input type="search" aria-label={searchLabel} placeholder={searchLabel} value={ownSearch} onChange={(event) => setOwnSearch(event.target.value)} />
-          </div>
-        ) : null}
-        {filterable.length > 0 ? (
-          <ToolbarPopover label={t("grid.filter")} count={chips.length} anchored>
-            <div className="flex flex-col gap-3">
-              {filterable.map((column) => {
-                const values = [...new Set(rows.map((row) => column.text(row)).filter(Boolean))].sort();
-                return (
-                  <fieldset key={column.id} className="flex flex-col gap-1">
-                    <legend className="mb-1 text-caption font-semibold text-fg-muted">{column.label}</legend>
-                    {values.length === 0 ? <p className="text-caption text-fg-muted">{t("grid.noValues")}</p> : null}
-                    {values.map((value) => (
-                      <Checkbox
-                        key={value}
-                        label={value}
-                        hint={String(rows.filter((row) => column.text(row) === value).length)}
-                        checked={(filters[column.id] ?? []).includes(value)}
-                        onChange={() => toggleFilter(column.id, value)}
-                      />
-                    ))}
-                  </fieldset>
-                );
-              })}
-            </div>
-          </ToolbarPopover>
-        ) : null}
-        <ToolbarPopover label={t("grid.columns")}>
-          <fieldset className="flex flex-col gap-1">
-            <legend className="mb-1 text-caption text-fg-muted">{t("grid.columnsHint")}</legend>
-            {columns.map((column) => (
-              <Checkbox
-                key={column.id}
-                label={column.label}
-                checked={shown.includes(column.id)}
-                onChange={() => choose(shown.includes(column.id) ? shown.filter((id) => id !== column.id) : [...shown, column.id])}
-              />
-            ))}
-          </fieldset>
-        </ToolbarPopover>
-        <ToolbarPopover label={t("grid.sort")} count={sort ? 1 : undefined}>
-          <div className="flex flex-col gap-2">
-            <label className="text-caption text-fg-muted" htmlFor={`${storageKey}-sort`}>
-              {t("grid.sortHint")}
-            </label>
-            <Select
-              id={`${storageKey}-sort`}
-              value={sort?.column ?? ""}
-              onChange={(event) => setSort(event.target.value ? { column: event.target.value, desc: sort?.desc ?? false } : null)}
-            >
-              <option value="">{t("grid.sortNone")}</option>
-              {all.map((column) => (
-                <option key={column.id} value={column.id}>
-                  {column.label}
-                </option>
-              ))}
-            </Select>
-            {sort ? (
-              <Select aria-label={t("grid.sortDirection")} value={sort.desc ? "desc" : "asc"} onChange={(event) => setSort({ ...sort, desc: event.target.value === "desc" })}>
-                <option value="asc">{t("grid.ascending")}</option>
-                <option value="desc">{t("grid.descending")}</option>
-              </Select>
-            ) : null}
-          </div>
-        </ToolbarPopover>
-        {chips.map(({ id, value }) => (
-          <Button
-            key={`${id}=${value}`}
-            variant="secondary"
-            size="sm"
-            icon={<Icon name="close" className="size-3.5" />}
-            aria-label={t("grid.removeFilter", { column: all.find((each) => each.id === id)?.label ?? id, value })}
-            onClick={() => toggleFilter(id, value)}
-          >
-            {all.find((each) => each.id === id)?.label}: {value}
-          </Button>
-        ))}
-        {chips.length > 1 ? (
-          <Button variant="ghost" size="sm" onClick={() => setFilters({})}>
-            {t("grid.clearFilters")}
-          </Button>
-        ) : null}
-      </div>
+      <GridToolbar
+        caption={caption}
+        rows={rows}
+        all={all}
+        columns={columns}
+        ownSearch={props.search === undefined ? { value: ownSearch, set: setOwnSearch, label: searchLabel } : undefined}
+        filters={filters}
+        setFilters={setFilters}
+        shown={shown}
+        choose={choose}
+        sort={sort}
+        setSort={setSort}
+        sortId={`${storageKey}-sort`}
+      />
 
       {!query.isPending && rows.length === 0 ? (
         <Card padding="md">{empty}</Card>
@@ -329,55 +251,16 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
                 )}
               </TableEmpty>
             ) : (
-              page.map((row) => {
-                const key = rowKey(row);
-                return (
-                  <TableRow key={key}>
-                    <TableCell primary className="align-middle">
-                      {name.cell ? name.cell(row) : name.text(row)}
-                    </TableCell>
-                    {visibleColumns.map((column) => (
-                      <TableCell key={column.id} align={column.align} className="align-middle" data-label={column.label}>
-                        {column.cell ? column.cell(row) : column.text(row) || <span className="text-fg-subtle">—</span>}
-                      </TableCell>
-                    ))}
-                    {/* Sticky at the frame's right edge: on a phone the row's ways in stay in view (T-6115 judge). */}
-                    <TableCell align="right" className={clsx("align-middle", STICKY)} onClick={(event) => event.preventDefault()}>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          aria-label={t("grid.openDetails", { name: name.text(row) })}
-                          title={t("grid.details")}
-                          icon={<Icon name="sidebar" className="size-4" />}
-                          onClick={() => setPanel(key)}
-                        />
-                        {actions ? actions(row) : null}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+              page.map((row) => (
+                <GridRow key={rowKey(row)} row={row} name={name} columns={visibleColumns} actions={actions} onDetails={() => setPanel(rowKey(row))} />
+              ))
             )}
           </TableBody>
         )}
       </Table>
       )}
 
-      {!query.isPending && kept.length > 0 && (kept.length > page.length || kept.length !== (props.total ?? rows.length)) ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <p role="status" className="text-caption text-fg-muted">
-            {kept.length === (props.total ?? rows.length)
-              ? t("grid.footer", { shown: page.length, count: kept.length })
-              : t("grid.footerOf", { shown: page.length, count: kept.length, total: props.total ?? rows.length })}
-          </p>
-          {kept.length > page.length ? (
-            <Button variant="secondary" size="sm" onClick={() => setMore(limit)}>
-              {t("grid.showMore", { count: Math.min(step, kept.length - page.length) })}
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
+      {query.isPending ? null : <GridFooter shown={page.length} kept={kept.length} total={props.total ?? rows.length} step={step} onMore={() => setMore(limit)} />}
 
       {opened !== undefined ? (
         <CellPanel
@@ -387,6 +270,196 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
           edit={edit}
           onClose={() => setPanel(null)}
         />
+      ) : null}
+    </div>
+  );
+}
+
+/** Search (when the page has none in its header), Filter, Columns, Sort and the removable filter chips. */
+export function GridToolbar<T>({
+  caption,
+  rows,
+  all,
+  columns,
+  ownSearch,
+  filters,
+  setFilters,
+  shown,
+  choose,
+  sort,
+  setSort,
+  sortId,
+}: {
+  caption: string;
+  rows: T[];
+  all: GridColumn<T>[];
+  columns: GridColumn<T>[];
+  ownSearch?: { value: string; set: (text: string) => void; label: string };
+  filters: Record<string, string[]>;
+  setFilters: (next: Record<string, string[]> | ((now: Record<string, string[]>) => Record<string, string[]>)) => void;
+  shown: string[];
+  choose: (next: string[]) => void;
+  sort: Sort;
+  setSort: (next: Sort) => void;
+  sortId: string;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const chips = Object.entries(filters).flatMap(([id, values]) => values.map((value) => ({ id, value })));
+  const filterable = columns.filter((column) => column.filter);
+  const toggleFilter = (id: string, value: string) =>
+    setFilters((now) => {
+      const values = now[id] ?? [];
+      return { ...now, [id]: values.includes(value) ? values.filter((each) => each !== value) : [...values, value] };
+    });  const labelOf = (id: string) => all.find((each) => each.id === id)?.label ?? id;
+  const valueOf = (id: string, value: string) => all.find((each) => each.id === id)?.valueLabel?.(value) ?? value;
+  return (
+      <div role="toolbar" aria-label={t("grid.toolbar", { list: caption })} className="flex flex-wrap items-center gap-2">
+      {ownSearch ? (
+        <div className="w-full sm:w-96">
+          <Input type="search" aria-label={ownSearch.label} placeholder={ownSearch.label} value={ownSearch.value} onChange={(event) => ownSearch.set(event.target.value)} />
+        </div>
+      ) : null}
+      {filterable.length > 0 ? (
+        <ToolbarPopover label={t("grid.filter")} count={chips.length} anchored>
+          <div className="flex flex-col gap-3">
+            {filterable.map((column) => {
+              const values = [...new Set(rows.map((row) => column.text(row)).filter(Boolean))].sort();
+              return (
+                <fieldset key={column.id} className="flex flex-col gap-1">
+                  <legend className="mb-1 text-caption font-semibold text-fg-muted">{column.label}</legend>
+                  {values.length === 0 ? <p className="text-caption text-fg-muted">{t("grid.noValues")}</p> : null}
+                  {values.map((value) => (
+                    <Checkbox
+                      key={value}
+                      label={column.valueLabel ? column.valueLabel(value) : value}
+                      hint={String(rows.filter((row) => column.text(row) === value).length)}
+                      checked={(filters[column.id] ?? []).includes(value)}
+                      onChange={() => toggleFilter(column.id, value)}
+                    />
+                  ))}
+                </fieldset>
+              );
+            })}
+          </div>
+        </ToolbarPopover>
+      ) : null}
+      <ToolbarPopover label={t("grid.columns")}>
+        <fieldset className="flex flex-col gap-1">
+          <legend className="mb-1 text-caption text-fg-muted">{t("grid.columnsHint")}</legend>
+          {columns.map((column) => (
+            <Checkbox
+              key={column.id}
+              label={column.label}
+              checked={shown.includes(column.id)}
+              onChange={() => choose(shown.includes(column.id) ? shown.filter((id) => id !== column.id) : [...shown, column.id])}
+            />
+          ))}
+        </fieldset>
+      </ToolbarPopover>
+      <ToolbarPopover label={t("grid.sort")} count={sort ? 1 : undefined}>
+        <div className="flex flex-col gap-2">
+          <label className="text-caption text-fg-muted" htmlFor={sortId}>
+            {t("grid.sortHint")}
+          </label>
+          <Select
+            id={sortId}
+            value={sort?.column ?? ""}
+            onChange={(event) => setSort(event.target.value ? { column: event.target.value, desc: sort?.desc ?? false } : null)}
+          >
+            <option value="">{t("grid.sortNone")}</option>
+            {all.map((column) => (
+              <option key={column.id} value={column.id}>
+                {column.label}
+              </option>
+            ))}
+          </Select>
+          {sort ? (
+            <Select aria-label={t("grid.sortDirection")} value={sort.desc ? "desc" : "asc"} onChange={(event) => setSort({ ...sort, desc: event.target.value === "desc" })}>
+              <option value="asc">{t("grid.ascending")}</option>
+              <option value="desc">{t("grid.descending")}</option>
+            </Select>
+          ) : null}
+        </div>
+      </ToolbarPopover>
+      {chips.map(({ id, value }) => (
+        <Button
+          key={`${id}=${value}`}
+          variant="secondary"
+          size="sm"
+          icon={<Icon name="close" className="size-3.5" />}
+          aria-label={t("grid.removeFilter", { column: labelOf(id), value: valueOf(id, value) })}
+          onClick={() => toggleFilter(id, value)}
+        >
+          {labelOf(id)}: {valueOf(id, value)}
+        </Button>
+      ))}
+      {chips.length > 1 ? (
+        <Button variant="ghost" size="sm" onClick={() => setFilters({})}>
+          {t("grid.clearFilters")}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+/** One row: the name, the shown columns (each one value for a phone card's line) and the row's ways in. */
+export function GridRow<T>({
+  row,
+  name,
+  columns,
+  actions,
+  onDetails,
+}: {
+  row: T;
+  name: GridColumn<T>;
+  columns: GridColumn<T>[];
+  actions?: (row: T) => ReactNode;
+  onDetails: () => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <TableRow>
+      <TableCell primary className="align-middle">
+        {name.cell ? name.cell(row) : name.text(row)}
+      </TableCell>
+      {columns.map((column) => (
+        <TableCell key={column.id} align={column.align} className="align-middle" data-label={column.label}>
+          {/* One element per cell: a phone card lays label and value out as a two-column grid, and a
+              second child (a list of chips) would wrap into the label column (T-6115 judge). */}
+          <div className="min-w-0">{column.cell ? column.cell(row) : column.text(row) || <span className="text-fg-subtle">—</span>}</div>
+        </TableCell>
+      ))}
+      {/* Sticky at the frame's right edge: on a phone the row's ways in stay in view (T-6115 judge). */}
+      <TableCell align="right" className={clsx("align-middle", STICKY)} onClick={(event) => event.preventDefault()}>
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={t("grid.openDetails", { name: name.text(row) })}
+            title={t("grid.details")}
+            icon={<Icon name="sidebar" className="size-4" />}
+            onClick={onDetails}
+          />
+          {actions ? actions(row) : null}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/** "Showing n of m" and Show more, when the list is cut or narrowed. */
+export function GridFooter({ shown, kept, total, step, onMore }: { shown: number; kept: number; total: number; step: number; onMore: () => void }): JSX.Element | null {
+  const { t } = useTranslation();
+  if (kept === 0 || (kept === shown && kept === total)) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <p role="status" className="text-caption text-fg-muted">
+        {kept === total ? t("grid.footer", { shown, count: kept }) : t("grid.footerOf", { shown, count: kept, total })}
+      </p>
+      {kept > shown ? (
+        <Button variant="secondary" size="sm" onClick={onMore}>
+          {t("grid.showMore", { count: Math.min(step, kept - shown) })}
+        </Button>
       ) : null}
     </div>
   );
@@ -433,6 +506,7 @@ function CellPanel<T>({
               {resolved && edit && manifest && column.field ? (
                 <FieldEditor
                   label={column.label}
+                  valueLabel={column.valueLabel}
                   description={resolved.description}
                   widget={resolved.widget}
                   manifest={manifest}
@@ -480,12 +554,17 @@ function storedValue(widget: FieldWidget, held: unknown, before: unknown): unkno
   return held === "" ? undefined : held;
 }
 
-/** The example a field's hint shows, by its widget. */
-function example(widget: FieldWidget, t: (key: string, values?: Record<string, unknown>) => string): string {
+/** The example a field's hint shows, by its widget: a choice names exactly the values it offers. Exported for its test. */
+export function example(
+  widget: FieldWidget,
+  t: (key: string, values?: Record<string, unknown>) => string,
+  valueLabel: (value: string) => string = (value) => value,
+): string {
   switch (widget.kind) {
     case "enum":
+      return t("grid.choose.hint", { options: widget.options.map((option) => valueLabel(option.value)).join(", ") });
     case "multiEnum":
-      return t("grid.choose.hint", { example: widget.options[0]?.value ?? "" });
+      return t("grid.multi.hint", { options: widget.options.map((option) => valueLabel(option.value)).join(", ") });
     case "reference":
       return t("grid.reference.hint");
     case "boolean":
@@ -503,6 +582,7 @@ function example(widget: FieldWidget, t: (key: string, values?: Record<string, u
 
 function FieldEditor({
   label,
+  valueLabel = (value) => value,
   description,
   widget,
   manifest,
@@ -511,6 +591,7 @@ function FieldEditor({
   onDone,
 }: {
   label: string;
+  valueLabel?: (value: string) => string;
   description?: string;
   widget: FieldWidget;
   manifest: Manifest;
@@ -522,7 +603,7 @@ function FieldEditor({
   const id = useId();
   const queryClient = useQueryClient();
   const before = specValue(manifest, path);
-  const [held, setHeld] = useState<unknown>(() => controlValue(widget, before));
+  const [held, setHold] = useState<unknown>(() => controlValue(widget, before));
   const changed = JSON.stringify(held) !== JSON.stringify(controlValue(widget, before));
   const propose = useMutation({
     mutationFn: async () => {
@@ -536,10 +617,15 @@ function FieldEditor({
       onDone();
     },
   });
+  // A new value clears the last refusal; the same value again would only be refused again.
+  const setHeld = (value: unknown) => {
+    setHold(value);
+    propose.reset();
+  };
   const error = propose.error instanceof Error ? propose.error.message : propose.error ? String(propose.error) : null;
   // Only the schema's first sentence, without the requirement ids a person does not need here.
   const lead = hintText(description);
-  const hint = [lead, example(widget, t)].filter(Boolean).join(" ");
+  const hint = [lead, example(widget, t, valueLabel)].filter(Boolean).join(" ");
 
   const control = (() => {
     switch (widget.kind) {
@@ -549,7 +635,7 @@ function FieldEditor({
             {widget.nullable || held === "" ? <option value="">{t("grid.platformDefault")}</option> : null}
             {widget.options.map((option) => (
               <option key={option.value} value={option.value} title={option.description}>
-                {option.value}
+                {valueLabel(option.value)}
               </option>
             ))}
           </Select>
@@ -561,7 +647,7 @@ function FieldEditor({
             {widget.options.map((option) => (
               <Checkbox
                 key={option.value}
-                label={option.value}
+                label={valueLabel(option.value)}
                 checked={list.includes(option.value)}
                 onChange={() => setHeld(list.includes(option.value) ? list.filter((each) => each !== option.value) : [...list, option.value])}
               />
@@ -597,7 +683,7 @@ function FieldEditor({
       className="flex flex-col gap-2"
       onSubmit={(event) => {
         event.preventDefault();
-        if (changed) propose.mutate();
+        if (changed && !propose.isError) propose.mutate();
       }}
     >
       <Field id={id} label={label} help={hint} errors={error ? [error] : undefined}>
@@ -606,11 +692,11 @@ function FieldEditor({
       {changed ? (
         <div className={clsx("flex flex-wrap items-center gap-2")}>
           <PermissionGuard project={edit.project} kind={edit.kind} verb="propose">
-            <Button type="submit" size="sm" variant="primary" loading={propose.isPending}>
+            <Button type="submit" size="sm" variant="primary" loading={propose.isPending} disabled={propose.isError} disabledReason={propose.isError ? t("grid.retry") : undefined}>
               {t("grid.propose")}
             </Button>
           </PermissionGuard>
-          <Button type="button" size="sm" variant="ghost" onClick={() => { setHeld(controlValue(widget, before)); propose.reset(); }}>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setHeld(controlValue(widget, before))}>
             {t("grid.undo")}
           </Button>
         </div>

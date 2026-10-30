@@ -597,18 +597,16 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
                   formRoute ? formRoute.openEdit(pipeline.metadata.name) : openEditor(pipeline)
                 }
                 primary={
-                  // On a phone the row's one action is its menu; Pause is on the pipeline's page.
-                  <span className="hidden sm:inline-flex">
-                    <Button
-                      size="sm"
-                      className="whitespace-nowrap"
-                      disabled={toggle.isPending}
-                      onClick={() => toggle.mutate({ pipeline, run: !running })}
-                      title={t(running ? "pipelines.pauseHint" : "pipelines.resumeHint")}
-                    >
-                      {t(running ? "pipelines.pause" : "pipelines.resume")}
-                      </Button>
-                  </span>
+                  // A phone card has room for it beside the menu (T-6115 review): Pause stays one tap away.
+                  <Button
+                    size="sm"
+                    className="whitespace-nowrap"
+                    disabled={toggle.isPending}
+                    onClick={() => toggle.mutate({ pipeline, run: !running })}
+                    title={t(running ? "pipelines.pauseHint" : "pipelines.resumeHint")}
+                  >
+                    {t(running ? "pipelines.pause" : "pipelines.resume")}
+                  </Button>
                 }
                 sourceUrl={pipeline.status?.sourceUrl}
               />
