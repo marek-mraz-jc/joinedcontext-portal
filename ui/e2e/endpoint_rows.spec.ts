@@ -103,11 +103,10 @@ for (const width of [1440, 400]) {
       await page.goto("/projects/helsinki/endpoints?lang=en");
       const own = page.getByRole("table", { name: "Endpoints" });
       await expect(own.getByRole("link", { name: "City bike stations" })).toBeVisible();
-      const shared = page.getByRole("region", { name: "Shared with this project" });
-      await expect(shared.getByText("Parking places in Espoo")).toBeVisible();
+      // Shared Endpoints are rows of the same grid, with a Source chip (T-6169).
+      await expect(own.getByText("Parking places in Espoo")).toBeVisible();
       if (width === 1440) {
         await expectOneLineRows(own);
-        await expectOneLineRows(shared.getByRole("table"));
         // The rest of what an endpoint serves is one Tab away, read out and shown.
         const row = own.getByRole("row").filter({ hasText: "Air quality and weather in Helsinki" });
         await expect(row.getByText("NGSI-LD, MCP, OGC Features")).toBeVisible();

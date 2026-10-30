@@ -76,7 +76,7 @@ describe("the one Endpoints grid (T-6169)", () => {
       </I18nextProvider>,
     );
     expect(screen.getByText((1234).toLocaleString())).toBeInTheDocument();
-    expect(screen.getByText(/NGSI-LD.*1200.*MCP.*34/)).toBeInTheDocument();
+    expect(screen.getByText(/NGSI-LD.*1,200.*MCP.*34/)).toBeInTheDocument();
     expect(screen.queryByText(/OGC/)).toBeNull();
     rerender(
       <I18nextProvider i18n={i18n}>

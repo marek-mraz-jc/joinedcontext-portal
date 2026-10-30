@@ -1653,14 +1653,8 @@
     },
     "sharedWith": "Shared with",
     "shared": {
-      "title": "Shared with this project",
-      "lead": "Endpoints other projects of the organization opened to this one. One click references the space here; the reference is proposed as a change like every other write.",
-      "empty": "No other project shares an endpoint with this one yet.",
-      "source": "Source project and space",
-      "reference": "Reference",
       "use": "Use in this project",
       "referenced": "Referenced",
-      "alias": "alias",
       "gone": "Endpoint no longer shared",
       "goneSource": "Source unavailable",
       "edit": {

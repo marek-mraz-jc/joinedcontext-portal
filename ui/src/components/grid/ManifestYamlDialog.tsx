@@ -51,7 +51,7 @@ export function ManifestYamlDialog({
       title={t("grid.yaml.title", { name: label })}
       description={t("grid.yaml.lead")}
     >
-      <CodeBlock label={t("grid.yaml.title", { name: label })} className="max-h-[60vh] rounded-md bg-surface-muted p-3 font-mono text-caption">
+      <CodeBlock label={t("grid.yaml.title", { name: label })} className="max-h-96 rounded-md bg-surface-muted p-3 font-mono text-caption">
         {manifestYaml(manifest)}
       </CodeBlock>
     </Dialog>

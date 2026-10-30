@@ -135,9 +135,8 @@ for (const width of [1440, 400]) {
     await page.goto("/projects/bbsk/endpoints?lang=en");
     await expect(page.getByText("This project publishes no endpoint yet.")).toBeVisible();
     await expect(page.getByRole("searchbox", { name: "Find an endpoint" })).toHaveCount(0);
-    // Nothing shared is one line with the way to find a shared endpoint, not a second empty table.
-    await expect(page.getByText("No other project shares an endpoint with this one yet.")).toBeVisible();
-    await expect(page.getByRole("table", { name: "Shared with this project" })).toHaveCount(0);
+    // Own and shared Endpoints are one grid (T-6169): the empty card offers the way to a shared one.
+    await expect(page.getByRole("link", { name: "See what other projects publish" })).toBeVisible();
     await page.screenshot({ path: join(dir, `endpoints-empty-${width}.png`) });
   });
 

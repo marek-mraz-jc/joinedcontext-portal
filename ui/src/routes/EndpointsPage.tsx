@@ -66,6 +66,7 @@ import type { CatalogForm, CatalogManifest } from "../pages/endpoints/catalog";
 import type { ModelPickerState } from "../pages/endpoints/ModelPicker";
 import { EndpointDataView } from "../components/entities/EndpointDataView";
 import { CodeBlock,
+  buttonClass,
   Alert,
   Badge,
   Button,
@@ -487,17 +488,18 @@ function EndpointRowActions({
  * (T-6169). The gateways count per surface only, never per caller (T-5118). Exported for its test.
  */
 export function CallsCell({ calls, known }: { calls: ProjectUsage["endpoints"][number] | undefined; known: boolean }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const numbers = new Intl.NumberFormat(i18n.resolvedLanguage ?? i18n.language ?? "en");
   if (!known) {
     return <span className="text-fg-subtle">—</span>;
   }
   const total = calls?.total ?? 0;
   const parts = SURFACES.filter((surface) => (calls?.totals[surface] ?? 0) > 0).map(
-    (surface) => `${t(`spaces.api.surface.${surface}`, { defaultValue: surface })} ${calls?.totals[surface] ?? 0}`,
+    (surface) => `${t(`spaces.api.surface.${surface}`, { defaultValue: surface })} ${numbers.format(calls?.totals[surface] ?? 0)}`,
   );
   return (
     <span className="flex flex-col items-end tabular-nums">
-      <span>{total.toLocaleString()}</span>
+      <span>{numbers.format(total)}</span>
       {parts.length > 0 ? <span className="hidden text-caption text-fg-muted sm:inline">{parts.join(" · ")}</span> : null}
     </span>
   );
@@ -1306,6 +1308,11 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
                   >
                     {rowLabel(row)}
                   </Link>
+                  {endpoint.metadata.title ? (
+                    <span className="hidden truncate font-mono text-caption font-normal text-fg-subtle sm:inline">
+                      {endpoint.metadata.name}
+                    </span>
+                  ) : null}
                   {row.reference ? <Badge tone="success">{t("endpoints.shared.referenced")}</Badge> : null}
                 </div>
               );
@@ -1347,7 +1354,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
               row.own ? (
                 <span className="text-fg-muted">{t("endpoints.source.own")}</span>
               ) : row.source ? (
-                <Badge tone="info">{t("endpoints.source.shared", { project: row.source })}</Badge>
+                <Badge tone="info" data-source={row.source}>{t("endpoints.source.shared", { project: row.source })}</Badge>
               ) : (
                 <span className="text-fg-muted">{t("endpoints.shared.goneSource")}</span>
               ),
@@ -1438,7 +1445,15 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
             icon="endpoints"
             title={t("endpoints.empty")}
             description={t("endpoints.addHint")}
-            action={addButton}
+            action={
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                {addButton}
+                {/* What other projects publish is where a person finds one to use here (T-3246). */}
+                <Link to="/endpoints" className={buttonClass("secondary", "md")}>
+                  {t("endpoints.shared.browse")}
+                </Link>
+              </div>
+            }
           />
           )
         }

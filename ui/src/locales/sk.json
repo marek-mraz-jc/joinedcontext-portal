@@ -1653,14 +1653,8 @@
     },
     "sharedWith": "Zdieľané s",
     "shared": {
-      "title": "Zdieľané s týmto projektom",
-      "lead": "Endpointy, ktoré iné projekty organizácie otvorili tomuto projektu. Jedno kliknutie tu vytvorí odkaz na priestor; odkaz sa navrhne ako zmena ako každý iný zápis.",
-      "empty": "Žiadny iný projekt zatiaľ nezdieľa endpoint s týmto projektom.",
-      "source": "Zdrojový projekt a priestor",
-      "reference": "Odkaz",
       "use": "Použiť v tomto projekte",
       "referenced": "Odkazované",
-      "alias": "alias",
       "gone": "Endpoint už nie je zdieľaný",
       "goneSource": "Zdroj nedostupný",
       "edit": {

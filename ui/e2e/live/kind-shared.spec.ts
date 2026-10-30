@@ -1,7 +1,7 @@
 /**
  * T-1551 — UI-44, PF-50, EP-15: a SharedSpaceReference, end to end on dev by a person.
  *
- * A reference is declared, not authored: the "Shared with this project" section of the Endpoints
+ * A reference is declared, not authored: the shared rows of the Endpoints grid (T-6169) of the Endpoints
  * page lists what the other projects of the organization opened to this one, and "Use in this
  * project" proposes the reference in one click, checked before it is proposed. The page names the
  * reference after its source, so the journey reads the name from the row it clicked. It is
@@ -33,29 +33,34 @@ kindJourney({
   plural: "shared",
   page: `/projects/${PROJECT}/endpoints`,
   create: async (page) => {
-    const section = page.getByRole("region", { name: "Shared with this project" });
-    await expect(section).toBeVisible({ timeout: 30_000 });
-    const offers = section.getByRole("button", { name: new RegExp(`^${USE}: `) });
+    // Shared Endpoints are rows of the Endpoints grid with a Source chip (T-6169).
+    const table = page.getByRole("table", { name: "Endpoints" });
+    await expect(table).toBeVisible({ timeout: 30_000 });
+    const offers = table.getByRole("row").filter({ hasText: /Shared by / }).filter({ hasNotText: "Referenced" });
     await expect(
       offers.first(),
       "another project shares an endpoint with this one that it does not reference yet",
     ).toBeVisible({ timeout: 30_000 });
-    let use = offers.first();
-    for (const offer of await offers.all()) {
-      if (await offer.isEnabled()) {
-        use = offer;
+    let source = "";
+    let endpoint = "";
+    for (const row of await offers.all()) {
+      await row.getByRole("button", { name: /More actions/ }).click();
+      const use = page.getByRole("menuitem", { name: new RegExp(`^${USE}`) });
+      if ((await use.getAttribute("aria-disabled")) !== "true") {
+        source = (await row.locator("[data-source]").getAttribute("data-source")) ?? "";
+        const href = (await row.locator("a[data-row-link]").getAttribute("href")) ?? "";
+        endpoint = href.split("/").pop() ?? "";
+        await use.click();
         break;
       }
+      await page.keyboard.press("Escape");
     }
-    const label = (await use.getAttribute("aria-label")) ?? "";
-    const [source, endpoint] = label.slice(`${USE}: `.length).split("/");
-    expect(source && endpoint, `"${label}" names a source and its endpoint`).toBeTruthy();
-    await use.click();
+    expect(source && endpoint, "a shared row offers Use in this project").toBeTruthy();
     return referenceName(source, endpoint);
   },
   assistant: {
     ask: (name) => `Create a SharedSpaceReference called ${name}`,
-    opened: (page) => page.getByRole("region", { name: "Shared with this project" }),
+    opened: (page) => page.getByRole("table", { name: "Endpoints" }),
   },
   writeControls: /^(New|Edit|Remove|Delete|Propose|Use in this project)(\b|$)/i,
 });

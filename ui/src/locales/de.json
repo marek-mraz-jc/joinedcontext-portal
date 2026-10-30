@@ -1630,14 +1630,8 @@
     },
     "sharedWith": "Geteilt mit",
     "shared": {
-      "title": "Mit diesem Projekt geteilt",
-      "lead": "Endpunkte, die andere Projekte der Organisation für dieses geöffnet haben. Ein Klick referenziert den Raum hier; die Referenz wird wie jede andere Änderung vorgeschlagen.",
-      "empty": "Noch kein anderes Projekt teilt einen Endpunkt mit diesem.",
-      "source": "Quellprojekt und Raum",
-      "reference": "Referenz",
       "use": "In diesem Projekt verwenden",
       "referenced": "Referenziert",
-      "alias": "Alias",
       "gone": "Endpunkt nicht mehr geteilt",
       "goneSource": "Quelle nicht verfügbar",
       "edit": {

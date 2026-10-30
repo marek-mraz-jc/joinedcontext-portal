@@ -1653,14 +1653,8 @@
     },
     "sharedWith": "Sdíleno s",
     "shared": {
-      "title": "Sdíleno s tímto projektem",
-      "lead": "Koncové body, které jiné projekty organizace otevřely tomuto projektu. Jedno kliknutí zde vytvoří odkaz na prostor; odkaz se navrhne jako změna jako každý jiný zápis.",
-      "empty": "Žádný jiný projekt zatím nesdílí koncový bod s tímto projektem.",
-      "source": "Zdrojový projekt a prostor",
-      "reference": "Odkaz",
       "use": "Použít v tomto projektu",
       "referenced": "Odkazováno",
-      "alias": "alias",
       "gone": "Endpoint už není sdílený",
       "goneSource": "Zdroj nedostupný",
       "edit": {
