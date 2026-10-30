@@ -2335,7 +2335,8 @@ function OneLine({ text }: { text: string }): JSX.Element {
   }, [open, text]);
   const toggle =
     cut || open ? (
-      <Button variant="ghost" size="sm" aria-expanded={open} onClick={() => setOpen(!open)}>
+      // The negative margin keeps the toggle's box out of the line height; its target stays whole.
+      <Button variant="ghost" size="xs" className="-my-1" aria-expanded={open} onClick={() => setOpen(!open)}>
         {open ? t("spaces.inside.less") : t("spaces.inside.more")}
       </Button>
     ) : null;
