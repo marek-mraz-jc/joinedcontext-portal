@@ -10,7 +10,6 @@
 //! runner's validation stage renders (PL-60).
 
 use super::bounds;
-use super::compute::candidate;
 use super::drafts::DraftRef;
 use super::parse_input;
 use super::{OpError, Operation, OperationAnnotations};
@@ -792,6 +791,36 @@ fn writable_of(
         &names,
         chrono::Utc::now(),
     )?)
+}
+
+/// The candidate pipeline of a call: the inline manifest, or the saved draft it names, and the
+/// draft a verdict is recorded on. The pipeline test and the workbench's steps read it the same
+/// way (ADR-N-034).
+pub(super) async fn candidate(
+    caller: &super::Caller,
+    state: &crate::state::AppState,
+    project: &str,
+    pipeline: Option<Value>,
+    draft: Option<&DraftRef>,
+) -> Result<(Value, Option<DraftRef>), OpError> {
+    match (pipeline, draft) {
+        (Some(p), Some(d)) => {
+            super::proposals::same_draft(&p, d)?;
+            Ok((p, Some(d.clone())))
+        }
+        (None, Some(d)) => {
+            let saved = super::drafts::readable_draft(state, &caller.identity, project, d).await?;
+            Ok((saved.manifest, Some(d.clone())))
+        }
+        (Some(p), None) => {
+            let own = super::proposals::own_draft(&p);
+            Ok((p, own))
+        }
+        (None, None) => Err(OpError::InvalidInput {
+            path: "/pipeline".into(),
+            message: "either pipeline or draft is required".into(),
+        }),
+    }
 }
 
 #[cfg(test)]
