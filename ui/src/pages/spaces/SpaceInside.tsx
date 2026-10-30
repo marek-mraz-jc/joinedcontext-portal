@@ -2332,7 +2332,7 @@ function OneLine({ text }: { text: string }): JSX.Element {
   const [open, setOpen] = useState(false);
   // Phrasing content only: PageHeader puts it inside its description <p>.
   return (
-    <span className="flex items-start gap-2">
+    <span className="flex items-baseline gap-2">
       <span className={clsx("min-w-0", !open && "line-clamp-1")}>{text}</span>
       {/* About what a phone line holds: a shorter text never needs opening. */}
       {text.length > 40 ? (
