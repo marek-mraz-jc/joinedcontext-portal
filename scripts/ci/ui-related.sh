@@ -5,7 +5,7 @@
 # control registries), which no import graph names. A deleted or renamed file runs the whole
 # suite: what imported it is no longer in any graph. ci-full runs the whole suite every day.
 #
-#   sh scripts/ci/ui-related.sh <base>       run them (from any directory, ui/ installed)
+#   UI_SHARD=1/4 sh scripts/ci/ui-related.sh <base>   run them, that shard of them (ui/ installed)
 #   sh scripts/ci/ui-related.sh --list <base> print the vitest arguments only
 #   sh scripts/ci/ui-related.sh --selftest
 set -eu
@@ -50,8 +50,9 @@ case ${1:-} in
   *)
     picked=$(list "$1")
     cd "$UI"
-    if [ "$picked" = all ]; then exec pnpm vitest run; fi
+    shard=--shard=${UI_SHARD:-1/1}
+    if [ "$picked" = all ]; then exec pnpm vitest run "$shard"; fi
     echo "$picked" | sed 's/^/vitest related: /'
-    printf '%s\n' "$picked" | xargs pnpm vitest related --run --passWithNoTests
+    printf '%s\n' "$picked" | xargs pnpm vitest related --run --passWithNoTests "$shard"
     ;;
 esac

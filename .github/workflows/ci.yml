@@ -32,7 +32,6 @@ jobs:
       ui: ${{ steps.paths.outputs.ui }}
       apps: ${{ steps.paths.outputs.apps }}
       ui_scope: ${{ steps.paths.outputs.ui_scope }}
-      ui_shards: ${{ steps.paths.outputs.ui_scope == 'full' && '[1,2,3,4]' || '[1]' }}
       base: ${{ steps.paths.outputs.base }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -191,15 +190,16 @@ jobs:
     needs: changes
     if: needs.changes.outputs.ui == 'true'
     runs-on: ubuntu-latest
-    # A change only to ui/src, ui/tests or ui/e2e runs one job: the tests it reaches and every
-    # test that reads the tree (ui_scope=related, scripts/ci/ui-related.sh; T-6153: four shards of
-    # 320-393 s for a one-page change). Anything else runs the whole suite in four shards of one
-    # matrix: every file once, in one of them, nothing skipped (vitest --shard splits the files,
-    # not the cases). It outgrew one job twice (T-2447, T-2920) and three shards (T-5158).
-    name: ui (${{ needs.changes.outputs.ui_scope == 'full' && format('{0}/4', matrix.shard) || 'related' }})
+    # The suite runs in four shards of one matrix: every file once, in one of them, nothing
+    # skipped (vitest --shard splits the files, not the cases). It outgrew one job twice (8 minutes
+    # in T-2447, 12 in T-2920) and three shards (T-5158). A change only to ui/src, ui/tests or
+    # ui/e2e runs, spread the same way, just the tests it reaches and every test that reads the
+    # tree (ui_scope=related, scripts/ci/ui-related.sh; T-6153: 320-393 s a shard for a one-page
+    # change); a page the router imports still reaches a few hundred files.
+    name: ui (${{ matrix.shard }}/4)
     strategy:
       fail-fast: false
-      matrix: { shard: "${{ fromJSON(needs.changes.outputs.ui_shards) }}" }
+      matrix: { shard: [1, 2, 3, 4] }
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -221,8 +221,8 @@ jobs:
         name: the UI suite, shard ${{ matrix.shard }} of 4
         run: cd ui && pnpm vitest run --shard=${{ matrix.shard }}/4
       - if: steps.has.outputs.ui == 'yes' && needs.changes.outputs.ui_scope != 'full'
-        name: the UI tests this change reaches
-        env: { BASE: "${{ needs.changes.outputs.base }}" }
+        name: the UI tests this change reaches, shard ${{ matrix.shard }} of 4
+        env: { BASE: "${{ needs.changes.outputs.base }}", UI_SHARD: "${{ matrix.shard }}/4" }
         run: |
           set -eu
           sh scripts/ci/ui-related.sh --selftest
