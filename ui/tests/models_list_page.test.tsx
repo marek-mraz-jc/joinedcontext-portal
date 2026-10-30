@@ -235,6 +235,19 @@ describe("a model's own page", () => {
     expect(screen.getByRole("link", { name: en.models.page.edit })).toHaveAttribute("href", "/projects/helsinki/models?edit=air");
   });
 
+  it("ends the one toolbar row with Open full screen, and names no space in the header (T-6146)", async () => {
+    await renderRoute({ path: "/projects/helsinki/models/air", answer });
+    const toolbar = await screen.findByRole("toolbar", { name: en.models.graph.tools });
+    const open = within(toolbar).getByRole("link", { name: en.models.canvas.open });
+    expect(open).toHaveAttribute("href", "/projects/helsinki/models/air/diagram");
+    const focusable = within(toolbar).getAllByRole("link").concat(within(toolbar).getAllByRole("button"));
+    expect(focusable.every((one) => one === open || one.compareDocumentPosition(open) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    // A DataModel binds no space (T-6101): "Where used" says where it is used, the header does not.
+    const header = screen.getByRole("heading", { name: "Air quality", level: 1 }).parentElement?.parentElement;
+    expect(header).not.toHaveTextContent(en.models.field.space);
+    expect(screen.queryByRole("link", { name: "ilma" })).not.toBeInTheDocument();
+  });
+
   it("shows the form a class generates, filled with the example", async () => {
     await renderRoute({ path: "/projects/helsinki/models/air", answer });
     await userEvent.click(await screen.findByRole("tab", { name: en.models.page.view.form }));

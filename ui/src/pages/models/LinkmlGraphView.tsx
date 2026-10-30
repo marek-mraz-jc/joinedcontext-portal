@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
-import type { JSX, KeyboardEvent, PointerEvent } from "react";
+import type { JSX, KeyboardEvent, PointerEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ToolbarPopover } from "../../components/entities/GridToolbar";
 import {
@@ -289,6 +289,7 @@ export function LinkmlGraphView({
   areas,
   only,
   selected,
+  toolbarEnd,
 }: {
   source: string;
   /** The sources of the models this one imports, by import name: their classes are drawn too. */
@@ -321,6 +322,8 @@ export function LinkmlGraphView({
   only?: ReadonlySet<string>;
   /** The class the details panel shows, outlined. */
   selected?: string;
+  /** Ends the toolbar row: the model page's Open full screen (T-6146). */
+  toolbarEnd?: ReactNode;
 }): JSX.Element {
   const { t } = useTranslation();
   const [zoom, setZoom] = useState(ZOOM.natural);
@@ -703,6 +706,7 @@ export function LinkmlGraphView({
             <Minimap placed={placed} width={width + 8} height={height + 8} view={view} zoom={zoom} faded={faded} onJump={jump} tall={MINIMAP_ROW} />
           </div>
         ) : null}
+        {toolbarEnd ? <div className="ml-auto">{toolbarEnd}</div> : null}
       </div>
       {editing ? <p className="text-caption text-fg-muted">{t("models.graph.edit.hint")}</p> : null}
       <div className="flex flex-wrap items-end gap-2 empty:hidden">
@@ -753,7 +757,7 @@ export function LinkmlGraphView({
       <p role="status" aria-live="polite" className="text-caption text-fg-muted">
         {status}
       </p>
-      <div className={canvas ? "flex min-h-0 flex-1 flex-col" : "grid gap-3 2xl:grid-cols-[minmax(0,1fr)_28rem]"}>
+      <div className={canvas ? "flex min-h-0 flex-1 flex-col" : "flex flex-col gap-3"}>
         <div className={canvas ? "relative min-h-0 min-w-0 flex-1" : "relative min-w-0"}>
         {/* The map rides the drawing's corner, where it costs no row of its own (T-6090). */}
         {canvas ? null : (

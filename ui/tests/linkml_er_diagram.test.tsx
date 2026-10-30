@@ -188,9 +188,11 @@ classes:
 });
 
 describe("reading it without the picture", () => {
-  it("lists every relationship in a table beside the drawing", () => {
+  it("lists every relationship in a table below the drawing", () => {
     renderPart(<LinkmlGraphView source={SCHOOLS} />);
     const table = screen.getByRole("table", { name: en.models.graph.table });
+    // Below the drawing, which keeps the whole width (T-6146).
+    expect(screen.getByRole("group", { name: en.models.graph.title }).compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const rows = within(table).getAllByRole("row").slice(1).map((row) => row.textContent);
     expect(rows).toEqual([
       "One School has one UserSchool.principalUser.principalOfSchool 0..1 — 1 User",
