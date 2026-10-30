@@ -6,7 +6,7 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 // baselines are taken against the dev server rather than the preview of `dist/`.
 const GALLERY_PORT = 4174;
 const GALLERY_URL = `http://127.0.0.1:${GALLERY_PORT}`;
-// `PW_ONLY=gallery` starts the dev server alone (T-5575): the fast lane's `ui-gallery` job runs
+// `PW_ONLY=gallery` starts the dev server alone (T-5575): ci-full's `ui-gallery` job runs
 // only the gallery project and has no use for the production build the other specs test.
 // The chromium project is dropped too, so a run without `--project` meets no missing server.
 const ONLY_GALLERY = process.env.PW_ONLY === "gallery";

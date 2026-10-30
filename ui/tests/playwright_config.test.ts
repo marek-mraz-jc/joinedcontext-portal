@@ -1,5 +1,5 @@
 /**
- * `PW_ONLY=gallery` (T-5575): the fast lane's `ui-gallery` job starts the dev server alone and
+ * `PW_ONLY=gallery` (T-5575): ci-full's `ui-gallery` job starts the dev server alone and
  * runs the gallery project alone; without it both servers and both projects stay.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
