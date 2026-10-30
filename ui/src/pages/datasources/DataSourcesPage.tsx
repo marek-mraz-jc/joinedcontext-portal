@@ -634,13 +634,18 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
           return (
             <TableRow key={source.metadata.name}>
               <TableCell>
-                <RecordLink project={project} plural="datasources" name={source.metadata.name} className="font-mono" />
-                {/* A source without a title is its name; printing it twice says nothing. */}
+                {/* The title reads first, as on the pipelines list; the id under it. A source
+                    without a title is its id, printed once. */}
                 {source.metadata.title ? (
-                  <span className="block text-caption text-fg-muted">
-                    {localized(source.metadata.title, locale, source.metadata.name)}
-                  </span>
-                ) : null}
+                  <>
+                    <RecordLink project={project} plural="datasources" name={source.metadata.name}>
+                      {localized(source.metadata.title, locale, source.metadata.name)}
+                    </RecordLink>
+                    <span className="block font-mono text-caption text-fg-muted">{source.metadata.name}</span>
+                  </>
+                ) : (
+                  <RecordLink project={project} plural="datasources" name={source.metadata.name} className="font-mono" />
+                )}
               </TableCell>
               <TableCell>
                 {isTypedDataSource(typeOf(source.spec))
