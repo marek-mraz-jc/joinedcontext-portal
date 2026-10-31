@@ -149,6 +149,7 @@ fn sign_token(
     header.kid = Some(kid.to_string());
     let now = joinedcontext_portal::auth::session::now_unix();
     let claims = json!({
+        "typ": "Bearer",
         "iss": issuer,
         "aud": audience,
         "sub": subject,
@@ -182,6 +183,7 @@ fn sign_client_token(
     header.kid = Some(kid.to_string());
     let now = joinedcontext_portal::auth::session::now_unix();
     let claims = json!({
+        "typ": "Bearer",
         "iss": issuer,
         "aud": audience,
         "azp": client,
@@ -2386,6 +2388,7 @@ fn sign_connector_token(
     header.kid = Some(kid.to_string());
     let now = joinedcontext_portal::auth::session::now_unix();
     let claims = json!({
+        "typ": "Bearer",
         "iss": issuer,
         "aud": PORTAL_AUDIENCE,
         "azp": "mcp-mobile",
