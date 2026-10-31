@@ -333,6 +333,28 @@ describe("the knowledge sources page (T-3057)", () => {
   });
 });
 
+// T-6206: the sources are on the shared grid: search, sort by passages, filter by state.
+describe("the knowledge sources grid (T-6206)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("searches, sorts by passages and filters by state", async () => {
+    const [web, , , , old] = SOURCES.items;
+    const items = [web, old, { ...web, source: "bb-news", passages: 40, embedded: 40, job: { state: "failed", attempts: 1, error: "503" } }];
+    renderAt("/projects/banskabystrica/knowledge", { sources: { code: 200, body: { items } } });
+    const table = await screen.findByRole("table", { name: "Knowledge sources" });
+    await narrowsAndOrders(table, {
+      search: { label: "Search Knowledge sources", text: "news", kept: ["bb-news"] },
+      sort: { column: "Passages", ascending: ["bb-old", "bb-news", "bb-web"] },
+      filter: { value: /^Crawled/, kept: ["bb-web"] },
+    });
+  });
+});
+
 describe("one source's pages and documents (T-3057, AG-113)", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");

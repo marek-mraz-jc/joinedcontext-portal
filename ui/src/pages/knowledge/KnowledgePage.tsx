@@ -3,6 +3,7 @@ import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { ManifestGrid } from "../../components/grid/ManifestGrid";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { startJob } from "../../jobs";
 import { RecordLink } from "../../components/RecordLink";
@@ -57,6 +58,21 @@ export function standing(row: KnowledgeSourceRow): { key: string; tone: BadgeTon
   }
 }
 
+/** What a source reads: a website's start addresses, a catalogue's spaces, the guide or the CKAN instance. */
+function useWhereOf(): (row: KnowledgeSourceRow) => string {
+  const { t } = useTranslation();
+  return (row) =>
+    row.type === "website"
+      ? row.startUrls.join(", ")
+      : row.type === "catalogue"
+        ? (row.contextSpaces ?? []).length > 0
+          ? (row.contextSpaces ?? []).join(", ")
+          : t("knowledge.everySpace")
+        : row.type === "guide"
+          ? t("knowledge.userGuide")
+          : (row.ckanInstanceRef ?? "");
+}
+
 /**
  * The knowledge assistant's sources of one project (T-3057, API/01 §34): every
  * `KnowledgeSource` the project declares and what the assistant holds of it, with the page that
@@ -65,6 +81,7 @@ export function standing(row: KnowledgeSourceRow): { key: string; tone: BadgeTon
 export function KnowledgePage({ project }: { project: string }): JSX.Element {
   const { t, i18n } = useTranslation();
   const number = new Intl.NumberFormat(i18n.language);
+  const whereOf = useWhereOf();
   const queryClient = useQueryClient();
   const { can } = usePermissions(project);
   const [queued, setQueued] = useState<string | null>(null);
@@ -158,105 +175,131 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
         </p>
       ) : null}
       {rows.length > 0 ? (
-        <Table data-records="" caption={t("knowledge.sources")}>
-          {/* A phone keeps the source, its state and the way to crawl it (UI-27): at 375 px eight
-              columns put the crawl time one letter a line and the button off the screen (T-4265,
-              photo audit T-4160 #23); the counts are on the source's page. */}
-          <TableHead>
-            <TableHeaderCell>{t("knowledge.column.source")}</TableHeaderCell>
-            <TableHeaderCell secondary>{t("knowledge.column.type")}</TableHeaderCell>
-            <TableHeaderCell>{t("knowledge.column.state")}</TableHeaderCell>
-            <TableHeaderCell secondary>{t("knowledge.column.lastCrawl")}</TableHeaderCell>
-            <TableHeaderCell align="right" secondary>{t("knowledge.column.pages")}</TableHeaderCell>
-            <TableHeaderCell align="right" secondary>{t("knowledge.column.documents")}</TableHeaderCell>
-            <TableHeaderCell align="right" secondary>{t("knowledge.column.passages")}</TableHeaderCell>
-            <TableHeaderCell secondary>{t("knowledge.column.languages")}</TableHeaderCell>
-            <TableHeaderCell align="right">
-              <span className="sr-only">{t("approvals.actions")}</span>
-            </TableHeaderCell>
-          </TableHead>
-          <TableBody>
-            {rows.map((row) => {
-              const state = standing(row);
-              return (
-                <TableRow key={row.source}>
-                  <TableCell className="whitespace-nowrap font-mono">
-                    {/* Every source opens: an upload before its first file is where it is sent
-                        (T-4185), a source not crawled yet or whose crawl failed says so there and
-                        offers a search; the row hands its click to this link (T-5328). */}
-                    <Link
-                      data-row-link=""
-                      to="/projects/$project/knowledge/$source"
-                      params={{ project, source: row.source }}
-                      className="focus-ring rounded-sm text-primary-soft-fg underline underline-offset-2"
-                    >
-                      {row.source}
-                    </Link>
-                  </TableCell>
-                  <TableCell secondary>
-                    {t(`knowledge.type.${row.type}`)}
-                    <span className="block text-caption text-fg-muted [overflow-wrap:anywhere]">
-                      {row.type === "website"
-                        ? row.startUrls.join(", ")
-                        : row.type === "catalogue"
-                          ? (row.contextSpaces ?? []).length > 0
-                            ? (row.contextSpaces ?? []).join(", ")
-                            : t("knowledge.everySpace")
-                          : row.type === "guide"
-                            ? t("knowledge.userGuide")
-                            : (row.ckanInstanceRef ?? "")}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <Badge tone={state.tone}>{t(state.key)}</Badge>
-                    {row.job?.state === "failed" && row.job.error ? (
-                      <span className="block text-caption text-fg-muted [overflow-wrap:anywhere]">{row.job.error}</span>
-                    ) : null}
-                  </TableCell>
-                  <TableCell secondary className="whitespace-nowrap">{timeText(row.lastCrawl, i18n.language)}</TableCell>
-                  <TableCell align="right" secondary className="whitespace-nowrap tabular-nums">
-                    {row.state === "crawled"
-                      ? t("knowledge.ofTotal", { part: number.format(row.pagesIncluded ?? 0), total: number.format(row.pages ?? 0) })
-                      : "—"}
-                  </TableCell>
-                  <TableCell align="right" secondary className="whitespace-nowrap tabular-nums">
-                    {row.state === "crawled" ? number.format(row.documents ?? 0) : "—"}
-                  </TableCell>
-                  <TableCell align="right" secondary className="whitespace-nowrap tabular-nums">
-                    {row.state !== "crawled"
-                      ? "—"
-                      : (row.embedded ?? 0) === (row.passages ?? 0)
-                        ? number.format(row.passages ?? 0)
-                        : t("knowledge.embeddedOf", { embedded: number.format(row.embedded ?? 0), total: number.format(row.passages ?? 0) })}
-                  </TableCell>
-                  <TableCell secondary>
-                    {row.state === "crawled" ? <Languages languages={row.languages} /> : "—"}
-                  </TableCell>
-                  <TableCell align="right" className="whitespace-nowrap">
-                    {row.type === "upload" ? null : (
-                    <PermissionGuard project={project} kind="KnowledgeSource" verb="propose">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={crawl.isPending || row.job?.state === "queued" || row.job?.state === "running"}
-                        disabledReason={
-                          row.job?.state === "queued" || row.job?.state === "running"
-                            ? t("knowledge.alreadyQueued")
-                            : t("knowledge.recrawlSending")
-                        }
-                        aria-label={t("knowledge.recrawlOf", { source: row.source })}
-                        onClick={() => crawl.mutate(row.source)}
-                      >
-                        {t("knowledge.recrawl")}
-                      </Button>
-                    </PermissionGuard>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+        <ManifestGrid<KnowledgeSourceRow>
+          caption={t("knowledge.sources")}
+          storageKey="knowledge-sources"
+          searchLabel={t("grid.searchIn", { list: t("knowledge.sources") })}
+          rows={rows}
+          rowKey={(row) => row.source}
+          query={sources}
+          name={{
+            id: "source",
+            label: t("knowledge.column.source"),
+            text: (row) => row.source,
+            // Every source opens: an upload before its first file is where it is sent (T-4185), a
+            // source not crawled yet or whose crawl failed says so there and offers a search; the
+            // row hands its click to this link (T-5328).
+            cell: (row) => (
+              <Link
+                data-row-link=""
+                to="/projects/$project/knowledge/$source"
+                params={{ project, source: row.source }}
+                className="focus-ring whitespace-nowrap rounded-sm font-mono text-primary-soft-fg underline underline-offset-2"
+              >
+                {row.source}
+              </Link>
+            ),
+          }}
+          columns={[
+            {
+              id: "type",
+              label: t("knowledge.column.type"),
+              filter: true,
+              text: (row) => row.type,
+              valueLabel: (type) => t(`knowledge.type.${type}`),
+              cell: (row) => (
+                <>
+                  {t(`knowledge.type.${row.type}`)}
+                  <span className="block text-caption text-fg-muted [overflow-wrap:anywhere]">{whereOf(row)}</span>
+                </>
+              ),
+            },
+            {
+              id: "state",
+              label: t("knowledge.column.state"),
+              filter: true,
+              text: (row) => standing(row).key,
+              valueLabel: (key) => t(key),
+              cell: (row) => (
+                <>
+                  <Badge tone={standing(row).tone}>{t(standing(row).key)}</Badge>
+                  {row.job?.state === "failed" && row.job.error ? (
+                    <span className="block text-caption text-fg-muted [overflow-wrap:anywhere]">{row.job.error}</span>
+                  ) : null}
+                </>
+              ),
+            },
+            {
+              id: "lastCrawl",
+              label: t("knowledge.column.lastCrawl"),
+              text: (row) => row.lastCrawl ?? "",
+              cell: (row) => <span className="whitespace-nowrap">{timeText(row.lastCrawl, i18n.language)}</span>,
+            },
+            {
+              id: "pages",
+              label: t("knowledge.column.pages"),
+              numeric: true,
+              align: "right",
+              text: (row) => (row.state === "crawled" ? String(row.pages ?? 0) : ""),
+              cell: (row) => (
+                <span className="whitespace-nowrap tabular-nums">
+                  {row.state === "crawled"
+                    ? t("knowledge.ofTotal", { part: number.format(row.pagesIncluded ?? 0), total: number.format(row.pages ?? 0) })
+                    : "—"}
+                </span>
+              ),
+            },
+            {
+              id: "documents",
+              label: t("knowledge.column.documents"),
+              numeric: true,
+              align: "right",
+              text: (row) => (row.state === "crawled" ? String(row.documents ?? 0) : ""),
+              cell: (row) => <span className="tabular-nums">{row.state === "crawled" ? number.format(row.documents ?? 0) : "—"}</span>,
+            },
+            {
+              id: "passages",
+              label: t("knowledge.column.passages"),
+              numeric: true,
+              align: "right",
+              text: (row) => (row.state === "crawled" ? String(row.passages ?? 0) : ""),
+              cell: (row) => (
+                <span className="whitespace-nowrap tabular-nums">
+                  {row.state !== "crawled"
+                    ? "—"
+                    : (row.embedded ?? 0) === (row.passages ?? 0)
+                      ? number.format(row.passages ?? 0)
+                      : t("knowledge.embeddedOf", { embedded: number.format(row.embedded ?? 0), total: number.format(row.passages ?? 0) })}
+                </span>
+              ),
+            },
+            {
+              id: "languages",
+              label: t("knowledge.column.languages"),
+              text: (row) => (row.state === "crawled" ? Object.keys(row.languages ?? {}).join(", ") : ""),
+              cell: (row) => (row.state === "crawled" ? <Languages languages={row.languages} /> : "—"),
+            },
+          ]}
+          actions={(row) =>
+            row.type === "upload" ? null : (
+              <PermissionGuard project={project} kind="KnowledgeSource" verb="propose">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={crawl.isPending || row.job?.state === "queued" || row.job?.state === "running"}
+                  disabledReason={
+                    row.job?.state === "queued" || row.job?.state === "running" ? t("knowledge.alreadyQueued") : t("knowledge.recrawlSending")
+                  }
+                  aria-label={t("knowledge.recrawlOf", { source: row.source })}
+                  onClick={() => crawl.mutate(row.source)}
+                >
+                  {t("knowledge.recrawl")}
+                </Button>
+              </PermissionGuard>
+            )
+          }
+          empty={<EmptyState bare title={t("knowledge.empty")} description={t("knowledge.emptyHint")} icon="search" />}
+        />
       ) : null}
       <Assistants project={project} />
     </section>
@@ -356,25 +399,29 @@ function Assistants({ project }: { project: string }): JSX.Element {
       ) : null}
       {duplicate.isError ? <PageFailed error={duplicate.error} onRetry={() => duplicate.reset()} /> : null}
       {items.length > 0 ? (
-        <Table data-records="" caption={t("knowledge.assistants.title")}>
-          <TableHead>
-            <TableHeaderCell>{t("knowledge.field.name")}</TableHeaderCell>
-            <TableHeaderCell secondary>{t("knowledge.field.publicId")}</TableHeaderCell>
-            <TableHeaderCell secondary>{t("knowledge.field.channel")}</TableHeaderCell>
-            <TableHeaderCell secondary>{t("knowledge.field.sources")}</TableHeaderCell>
-            <TableHeaderCell secondary>{t("knowledge.field.connectors")}</TableHeaderCell>
-            <TableHeaderCell align="right">
-              <span className="sr-only">{t("approvals.actions")}</span>
-            </TableHeaderCell>
-          </TableHead>
-          <TableBody>
-            {items.map((item) => (
-              <TableRow key={item.metadata.name}>
-                <TableCell className="whitespace-nowrap font-mono">
-                  <RecordLink project={project} plural="assistantdeployments" name={item.metadata.name} />
-                </TableCell>
-                <TableCell secondary className="whitespace-nowrap font-mono">{item.spec.publicId ?? "—"}</TableCell>
-                <TableCell secondary>
+        <ManifestGrid<DeploymentItem>
+          caption={t("knowledge.assistants.title")}
+          storageKey="knowledge-assistants"
+          searchLabel={t("grid.searchIn", { list: t("knowledge.assistants.title") })}
+          rows={items}
+          rowKey={(item) => item.metadata.name}
+          query={list}
+          name={{
+            id: "name",
+            label: t("knowledge.field.name"),
+            text: (item) => item.metadata.name,
+            cell: (item) => <RecordLink project={project} plural="assistantdeployments" name={item.metadata.name} />,
+          }}
+          columns={[
+            { id: "publicId", label: t("knowledge.field.publicId"), text: (item) => item.spec.publicId ?? "", cell: (item) => <span className="font-mono">{item.spec.publicId ?? "—"}</span> },
+            {
+              id: "channel",
+              label: t("knowledge.field.channel"),
+              filter: true,
+              text: (item) => item.spec.channel ?? "",
+              valueLabel: (channel) => t(`knowledge.channel.${channel}`),
+              cell: (item) => (
+                <>
                   {item.spec.channel ? t(`knowledge.channel.${item.spec.channel}`) : "—"}
                   {/* A visitor-facing assistant whose privacy dialog would name no contact (T-4670). */}
                   {item.spec.channel && item.spec.channel !== "internal" && !item.spec.privacy?.contact ? (
@@ -382,53 +429,49 @@ function Assistants({ project }: { project: string }): JSX.Element {
                       {t("knowledge.assistants.noPrivacyContact")}
                     </Badge>
                   ) : null}
-                </TableCell>
-                <TableCell secondary>{(item.spec.sources ?? []).join(", ") || "—"}</TableCell>
-                <TableCell secondary>{(item.spec.connectors ?? []).map((c) => c.endpoint).join(", ") || "—"}</TableCell>
-                <TableCell align="right">
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label={t("knowledge.chat.askOf", { name: item.metadata.name })}
-                      onClick={() => setChatWith(item)}
-                    >
-                      {t("knowledge.chat.ask")}
-                    </Button>
-                    {item.spec.channel && item.spec.channel !== "internal" && item.spec.publicId ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label={t("knowledge.embed.of", { name: item.metadata.name })}
-                        onClick={() => setEmbedOf(item)}
-                      >
-                        {t("knowledge.embed.title")}
-                      </Button>
-                    ) : null}
-                    <PermissionGuard project={project} kind="AssistantDeployment" verb="propose">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label={t("knowledge.assistants.duplicateOf", { name: item.metadata.name })}
-                        onClick={() => duplicate.mutate(item)}
-                      >
-                        {t("knowledge.assistants.duplicate")}
-                      </Button>
-                    </PermissionGuard>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label={t("knowledge.assistants.usageOf", { name: item.metadata.name })}
-                      onClick={() => setUsageOf(item.metadata.name)}
-                    >
-                      {t("knowledge.assistants.usage")}
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                </>
+              ),
+            },
+            { id: "sources", label: t("knowledge.field.sources"), text: (item) => (item.spec.sources ?? []).join(", "), cell: (item) => (item.spec.sources ?? []).join(", ") || "—" },
+            {
+              id: "connectors",
+              label: t("knowledge.field.connectors"),
+              text: (item) => (item.spec.connectors ?? []).map((c) => c.endpoint).join(", "),
+              cell: (item) => (item.spec.connectors ?? []).map((c) => c.endpoint).join(", ") || "—",
+            },
+          ]}
+          actions={(item) => (
+            <div className="flex justify-end gap-1">
+              <Button variant="ghost" size="sm" aria-label={t("knowledge.chat.askOf", { name: item.metadata.name })} onClick={() => setChatWith(item)}>
+                {t("knowledge.chat.ask")}
+              </Button>
+              {item.spec.channel && item.spec.channel !== "internal" && item.spec.publicId ? (
+                <Button variant="ghost" size="sm" aria-label={t("knowledge.embed.of", { name: item.metadata.name })} onClick={() => setEmbedOf(item)}>
+                  {t("knowledge.embed.title")}
+                </Button>
+              ) : null}
+              <PermissionGuard project={project} kind="AssistantDeployment" verb="propose">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t("knowledge.assistants.duplicateOf", { name: item.metadata.name })}
+                  onClick={() => duplicate.mutate(item)}
+                >
+                  {t("knowledge.assistants.duplicate")}
+                </Button>
+              </PermissionGuard>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={t("knowledge.assistants.usageOf", { name: item.metadata.name })}
+                onClick={() => setUsageOf(item.metadata.name)}
+              >
+                {t("knowledge.assistants.usage")}
+              </Button>
+            </div>
+          )}
+          empty={<EmptyState bare title={t("knowledge.assistants.empty")} description={t("knowledge.assistants.emptyHint")} icon="chat" />}
+        />
       ) : null}
       <Dialog
         open={usageOf !== null}
