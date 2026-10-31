@@ -617,7 +617,7 @@
       "broker": "Er liegt auf dem Context-Broker {broker}.",
       "size": "Größe",
       "totalSize": "Er belegt {size} im Speicher des Brokers: {entities} aktueller Stand, {history} Verlauf.",
-      "estimated": "Der Verlauf ist aus der Datenbankstatistik geschätzt: Er ist zu lang, um ihn sofort zu zählen.",
+      "estimated": "Die Größen und die Anzahl der Verlaufseinträge sind aus der Datenbankstatistik geschätzt: Der Bereich ist zu groß, um ihn sofort zu messen.",
       "sections": "Teile des Raums",
       "counting": "Die Entitäten des Raums werden gezählt…",
       "allRows": "Alle Zeilen",
