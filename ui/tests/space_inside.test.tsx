@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -710,15 +710,10 @@ describe("the space's own data", () => {
     expect(within(list).getByTitle("AirQualityStation")).toHaveAttribute("aria-current", "true");
   });
 
-  it("shows the same entities as cards, read through the space surface (T-3100)", async () => {
-    const fetchMock = renderInside({ status: 200, count: 1 });
-    await userEvent.click(await screen.findByRole("tab", { name: en.spaces.views.kind.gallery }));
-    const gallery = await screen.findByTestId("view-gallery");
-    expect(within(gallery).getByRole("button", { name: SPACE_ROWS[0].id })).toBeInTheDocument();
-    const reads = fetchMock.mock.calls
-      .map((call) => urlOf(call[0]))
-      .filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities"));
-    expect(reads.some((url) => url.searchParams.get("limit") === "500")).toBe(true);
+  it("offers the Grid and API tabs only (owner 2026-10-31, T-6210 deletes the other views)", async () => {
+    renderInside({ status: 200, count: 1 }, { status: 200 });
+    const tabs = await screen.findAllByRole("tab", { name: /^(Grid|Gallery|Board|Calendar|Timeline|Map|Form|API)$/ });
+    expect(tabs.map((tab) => tab.textContent)).toEqual([en.spaces.views.kind.grid, en.spaces.views.kind.api]);
   });
 
   it("keeps the header on one row: the name, its purpose behind the info mark, no copy chip (owner 2026-10-31)", async () => {
@@ -733,48 +728,6 @@ describe("the space's own data", () => {
     expect(pageFindings({ namespaces: [], layout: false }).filter((f) => f.startsWith("purpose-line"))).toEqual([]);
   });
 
-  // T-6092: ticking a column in a view beside the grid was dropped, so the read never changed.
-  it("reads only the columns chosen in a view's Columns menu, and every one again when none is", async () => {
-    const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200 }, {
-      source:
-        "name: bb-air-quality\nclasses:\n  AirQualityObserved:\n    attributes:\n      no2: { range: float, title: Nitrogen dioxide }\n      pm10: { range: float }\n",
-    });
-    await userEvent.click(await screen.findByRole("tab", { name: en.spaces.views.kind.gallery }));
-    await screen.findByTestId("view-gallery");
-    const asked = () =>
-      fetchMock.mock.calls
-        .map((call) => urlOf(call[0]))
-        .filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities") && url.searchParams.get("limit") === "500")
-        .map((url) => url.searchParams.get("attrs"));
-    expect(asked().every((attrs) => attrs === null)).toBe(true);
-
-    await userEvent.click(screen.getByText(en.entities.columns));
-    // The model's label alone; the name the data carries is the tooltip.
-    const no2 = screen.getByRole("checkbox", { name: "Nitrogen dioxide" });
-    expect(no2.closest("[title]")).toHaveAttribute("title", "no2");
-    await userEvent.click(no2);
-    await waitFor(() => expect(asked().at(-1)).toBe("no2"));
-    expect(screen.getByRole("checkbox", { name: "Nitrogen dioxide" })).toBeChecked();
-
-    await userEvent.click(screen.getByRole("checkbox", { name: "Nitrogen dioxide" }));
-    await waitFor(() => expect(asked().at(-1)).toBeNull());
-  });
-
-  // T-5093: every view keeps one toolbar row; the type's actions sit in its More, not stacked above the view.
-  it("keeps a non-grid view's actions in the one toolbar row", async () => {
-    renderInside({ status: 200, count: 1 }, { status: 200 }, {
-      source: "name: bb-air-quality\nclasses:\n  AirQualityObserved:\n    attributes:\n      no2: { range: float }\n",
-    });
-    await userEvent.click(await screen.findByRole("tab", { name: en.spaces.views.kind.gallery }));
-    await screen.findByTestId("view-gallery");
-    const toolbar = screen.getByTestId("grid-toolbar");
-    const add = screen.getByRole("button", { name: en.spaces.fields.add });
-    expect(toolbar).toContainElement(add);
-    expect(within(toolbar).getByText(en.spaces.toolbar.more)).toBeInTheDocument();
-    // The grid's own tools stay with the grid.
-    expect(within(toolbar).queryByRole("button", { name: en.spaces.toolbar.query })).toBeNull();
-  });
-
   it("folds the grid's query behind the toolbar's Query toggle (T-5093)", async () => {
     renderInside({ status: 200, count: 1 });
     expect(await screen.findByText("12 µg/m³")).toBeInTheDocument();
@@ -786,45 +739,6 @@ describe("the space's own data", () => {
     expect(await screen.findByLabelText(en.entityGrid.editAsText)).toBeInTheDocument();
   });
 
-  it("reads a view's rows again when the space says entities of its type changed (T-3105)", async () => {
-    const opened: FakeEventSource[] = [];
-    class FakeEventSource {
-      listeners: Record<string, ((event: MessageEvent<string>) => void)[]> = {};
-      closed = false;
-      constructor(readonly url: string) {
-        opened.push(this);
-      }
-      addEventListener(name: string, listener: (event: MessageEvent<string>) => void) {
-        (this.listeners[name] ??= []).push(listener);
-      }
-      removeEventListener() {}
-      close() {
-        this.closed = true;
-      }
-      emit(name: string, data: unknown) {
-        for (const listener of this.listeners[name] ?? []) listener(new MessageEvent(name, { data: JSON.stringify(data) }));
-      }
-    }
-    vi.stubGlobal("EventSource", FakeEventSource);
-    const fetchMock = renderInside({ status: 200, count: 1 });
-    await userEvent.click(await screen.findByRole("tab", { name: en.spaces.views.kind.gallery }));
-    await screen.findByTestId("view-gallery");
-    const reads = () =>
-      fetchMock.mock.calls.map((call) => urlOf(call[0])).filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities") && url.searchParams.get("limit") === "500").length;
-    const before = reads();
-    // The grid listens too (T-5186) and closes its stream when the gallery opens: the gallery's is the open one.
-    const stream = opened.find((source) => !source.closed && source.url.includes("/spaces/ovzdusie/live?type=AirQualityObserved"));
-    expect(stream).toBeDefined();
-    act(() => stream?.emit("changed", { type: "AirQualityObserved" }));
-    await waitFor(() => expect(reads()).toBeGreaterThan(before));
-    expect(screen.getByTestId("view-live")).toHaveTextContent(/^Entities of this type changed at .+; shown as they are now\.$/);
-    // Back to the grid, the stream is closed.
-    await userEvent.click(screen.getByRole("tab", { name: en.spaces.views.kind.grid }));
-    expect(stream?.closed).toBe(true);
-    vi.unstubAllGlobals();
-  });
-
-  // T-5093: a 502 behind the gateway is a failure to retry, not a space read only through its endpoints.
   it("names a failed surface read with its status and a retry", async () => {
     renderInside({ status: 200, count: 1 }, { status: 502 });
 

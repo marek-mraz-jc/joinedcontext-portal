@@ -915,7 +915,8 @@ function SpaceData({
       id="space-data-view"
       label={t("spaces.views.label")}
       variant="pill"
-      tabs={DATA_VIEWS.map((value) => ({ value, label: t(`spaces.views.kind.${value}`) }))}
+      // Grid and API only (owner 2026-10-31); the other kinds' code goes with T-6210.
+      tabs={(["grid", "api"] as const).map((value) => ({ value, label: t(`spaces.views.kind.${value}`) }))}
       value={view}
       onChange={setView}
     />
