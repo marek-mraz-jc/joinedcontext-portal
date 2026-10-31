@@ -149,6 +149,8 @@
     "chooseVariant": "{label}: angegeben als",
     "useExample": "Beispiel übernehmen",
     "noResults": "Keine Ergebnisse",
+    "noSpaces": "Dieses Projekt hat noch keinen Kontextraum, den Sie lesen dürfen. Legen Sie einen unter Kontexträume an und wählen Sie ihn dann hier.",
+    "noneYet": "Dieses Projekt enthält noch keinen Eintrag, den Sie lesen dürfen. Legen Sie ihn auf seiner eigenen Seite an und wählen Sie ihn dann hier.",
     "entityPickerPending": "Wählen Sie zuerst den Raum und den Entitätstyp, dann listet dieses Feld deren Entitäten; eine Entitäts-ID können Sie auch einfügen.",
     "listFailed": "Die Liste konnte nicht geladen werden, versuchen Sie es erneut: {reason}",
     "listRetry": "Erneut versuchen",
@@ -517,7 +519,7 @@
     },
     "lead": "Alles dieser Art, was das Projekt enthält. Jede Zeile öffnet, was sie benennt.",
     "new": "Neu: {kind}",
-    "newHint": "Füllen Sie das Formular aus, prüfen Sie es und schlagen Sie es vor; eine freigebende Person prüft die Änderung.",
+    "newHint": "Prüfen und zur Freigabe vorschlagen.",
     "propose": "Änderung vorschlagen",
     "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. {new} öffnet das Formular.",
     "askAssistant": "Den Assistenten um einen Vorschlag bitten",
@@ -1508,7 +1510,7 @@
     "searchNoMatchHint": "Prüfen Sie die Schreibweise oder leeren Sie die Suche, um alle Endpunkte zu sehen.",
     "add": "Neuer Endpunkt",
     "edit": "Bearbeiten",
-    "addHint": "Das Speichern schlägt eine Änderung vor; der Endpunkt antwortet nach der Freigabe.",
+    "addHint": "Antwortet nach der Freigabe.",
     "propose": "Änderung vorschlagen",
     "generateSlug": "Slug erzeugen",
     "copyUrl": "URL kopieren",
@@ -1886,7 +1888,6 @@
       "firstCallOpen": "Im Browser öffnen",
       "firstCallCopy": "Befehl kopieren",
       "firstCallPublic": "Jeder kann ihn aufrufen, kein Token nötig.",
-      "firstCallToken": "Im Browser genügt Ihre Portal-Sitzung. Ein Programm sendet ein Service-Account-Token als $TOKEN.",
       "filterUntouched": "Ändern Sie zuerst den Filter: Er ist derselbe wie der gespeicherte.",
       "filterFaulty": "Korrigieren Sie zuerst die markierten Felder."
     },
@@ -1978,28 +1979,6 @@
       "vscode": "Zu VS Code hinzufügen",
       "cursor": "Zu Cursor hinzufügen",
       "button": "KI verbinden"
-    },
-    "playground": {
-      "title": "Ausprobieren",
-      "reading": "Lese, was Sie aufrufen dürfen…",
-      "nothing": "Ihr Zugriff erlaubt über diesen Endpunkt keinen Aufruf. Zum Lesen fragen Sie seine Eigentümer unten unter Zugriff anfragen.",
-      "operation": "Was lesen",
-      "operations": {
-        "list": "Entitäten eines Typs",
-        "count": "Wie viele eines Typs",
-        "one": "Eine Entität nach ID",
-        "types": "Die enthaltenen Typen"
-      },
-      "type": "Entitätstyp",
-      "q": "Filterausdruck (q)",
-      "qHint": "Optional, NGSI-LD-Abfragesprache, zum Beispiel temperature>20;status==\"open\".",
-      "limit": "Wie viele (1 bis 100)",
-      "id": "Entitäts-ID (URN)",
-      "send": "Senden",
-      "fill": "Füllen Sie zuerst die Felder aus, die der Aufruf braucht.",
-      "answered": "Der Endpunkt antwortete {status}.",
-      "code": "Derselbe Aufruf als Code",
-      "noType": "Noch kein Entitätstyp: Sobald eine Pipeline oder eine Person Entitäten über diesen Endpoint schreibt, werden ihre Typen hier aufgeführt."
     },
     "docs": {
       "title": "API-Dokumentation",
@@ -2604,7 +2583,7 @@
     "dialog": {
       "create": "Neue Pipeline",
       "edit": "Pipeline bearbeiten",
-      "lead": "Ein Formular und das Manifest, das es schreibt: beide beschreiben dieselbe Pipeline, und der Vorschlag geht wie jede andere Änderung in die Freigaben."
+      "lead": "Der Vorschlag geht wie jede andere Änderung in die Freigaben."
     },
     "bloblangHint": "Das Bloblang-Mapping wird hier bearbeitet und landet im Manifest; leer bleibt es in bento.yaml neben diesem Manifest im Forge.",
     "bloblangFile": "bento.yaml öffnen",
@@ -4226,7 +4205,6 @@
       "copyFailed": "Die Kopie der Organisation konnte nicht gelesen werden: {reason}. Laden Sie die Seite neu, um es erneut zu versuchen."
     },
     "title": "Modelleditor",
-    "version": "Version {version}",
     "add": "Hinzufügen",
     "classes": "Typen",
     "enums": "Wertelisten",
@@ -4258,7 +4236,6 @@
     "newClass": "Neuer Typ",
     "newSlot": "Neues Feld",
     "newEnum": "Neue Werteliste",
-    "newEnumValue": "Neuer Wert von {name}",
     "removeEnumValue": "Wert {value} entfernen",
     "classUri": "Klassen-IRI",
     "description": "Beschreibung",
@@ -4333,8 +4310,6 @@
       "requiredAttribute": "erforderlich",
       "showMore": "{count} weitere anzeigen",
       "noAttribute": "Kein Attribut dieses Modells passt.",
-      "space": "Raum für dieses Modell",
-      "spaceLater": "Später im Editor wählen",
       "catalogueLoading": "Katalog wird geladen…",
       "count": "{count, plural, one {# Modell} other {# Modelle}}",
       "allAttributes": "Alle",
@@ -4377,18 +4352,11 @@
     },
     "create": {
       "title": "Neues Modell",
-      "name": "Name",
-      "space": "Raum",
-      "chooseSpace": "Raum wählen",
-      "file": "Wird als {name}.linkml.yaml gespeichert",
       "taken": "Das Projekt hat bereits ein Modell namens {name}. Wählen Sie einen anderen Namen.",
       "held": "Als gemeinsamer Entwurf {name} gehalten; er ist nach einem Neuladen noch da, bis Sie das Modell speichern.",
       "heldConflict": "Jemand anderes hat diesen Entwurf gespeichert, während Sie bearbeitet haben. Laden Sie die Seite neu, um dessen Fassung zu sehen; bis dahin wird Ihre nicht gehalten.",
-      "spaceHas": "{space} (hat schon {model})",
       "spaceTaken": "Der Space {space} hat schon das Modell {model}, und ein Space hat ein Modell. Wählen Sie einen anderen Space, oder öffnen Sie {model} und fügen Sie Ihre Klassen dort hinzu.",
-      "noSpace": "Ein Modell gehört zu einem Kontextraum, und das Projekt hat noch keinen.",
-      "noFreeSpace": "Jeder Raum des Projekts hat schon sein Modell; ein neues Modell braucht einen neuen Raum, oder fügen Sie Ihre Klassen dem Modell des Raums hinzu.",
-      "newSpace": "Kontextraum anlegen"
+      "nameHint": "Benennen Sie das Modell, zum Beispiel Luftqualität; die Kennung wird daraus gebildet."
     },
     "infer": {
       "title": "Modell aus einer Datei",
@@ -4450,6 +4418,8 @@
       "open": "Im Vollbild öffnen",
       "overlay": "Zeigen, was die Klassen bereitstellt",
       "overlayNone": "Nichts hervorheben",
+      "backToDiagram": "Zurück zum Diagramm",
+      "overlayHelp": "So funktioniert die Hervorhebung",
       "overlayHint": "Wählen Sie einen Endpoint (z. B. helsinki-bikes), um die Klassen und Felder hervorzuheben, die er bereitstellt, oder eine Pipeline für das, was sie schreibt.",
       "endpoints": "Endpoints",
       "pipelines": "Pipelines, die eine Klasse schreiben",
@@ -4779,6 +4749,42 @@
       "editing": "Sie bearbeiten die Quelle des Modells. Jede Ansicht zeigt, was Sie hier tippen.",
       "edit": "Quelle bearbeiten",
       "done": "Fertig"
+    },
+    "editor": {
+      "title": "Datenmodell-Editor",
+      "lead": "Typen, Felder und Aufzählungen eines Modells; Speichern schlägt eine neue Version vor."
+    },
+    "identity": {
+      "name": "Name",
+      "nameHint": "Was Menschen lesen; Kennung und Datei behalten ihre Namen.",
+      "nameEmpty": "Geben Sie einen Namen ein: das Modell braucht einen.",
+      "rename": "{name} umbenennen",
+      "done": "Namen übernehmen",
+      "unnamed": "Modell ohne Namen",
+      "id": "Kennung",
+      "noId": "keine Kennung, solange das Modell keinen Namen hat",
+      "idNew": "Die Kennung folgt dem Namen, bis das Modell zum ersten Mal gespeichert wird; dann ist sie fest.",
+      "idFixed": "Die Kennung ist fest: Endpoints, Bereiche und Importe nennen das Modell bei ihr.",
+      "file": "Datei",
+      "fileFixed": "Der Dateiname ist fest: Umbenennen ändert nur den Namen, den Menschen lesen.",
+      "version": "Version",
+      "renameShort": "Umbenennen",
+      "renamed": "Umbenannt. Die Kennung {id} und ihre Datei bleiben; Vorschlagen speichert den neuen Namen."
+    },
+    "findType": "Typ finden",
+    "enumValues": {
+      "caption": "Werte von {name}",
+      "stored": "Gespeicherter Wert",
+      "label": "Bezeichnung",
+      "labelOf": "Bezeichnung von {value}",
+      "actions": "Aktionen",
+      "translations": "Übersetzungen und Beschreibung",
+      "empty": "Noch keine Werte: fügen Sie unten den ersten hinzu.",
+      "none": "Noch keine Aufzählungen: benennen Sie unten eine.",
+      "new": "Neuer Wert",
+      "newHint": "Der Wert, den Entitäten speichern, nach dem Hinzufügen fest, zum Beispiel active.",
+      "unused": "Noch kein Feld nutzt diese Aufzählung: wählen Sie sie als Werttyp eines Feldes.",
+      "usedBy": "Genutzt von {fields}"
     }
   },
   "apps": {
@@ -6409,8 +6415,6 @@
     },
     "laxWarning": "Verhaltene Validierung: Prüfung wurde nicht ausgeführt oder ist fehlgeschlagen.",
     "findings": "Befunde",
-    "strict": "strikte Validierung",
-    "strictHelp": "Nichts wird vorgeschlagen, bevor die Prüfung grün ist.",
     "saveRefused": "Der Entwurf wurde nicht gespeichert: {reason}",
     "elsewhere": {
       "title": "Auf dieser Seite gibt es keinen Entwurf „{name}“",

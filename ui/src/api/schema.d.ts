@@ -18881,7 +18881,7 @@ export interface operations {
                 version?: string;
                 /** @description Set to 'All' for dry run */
                 dryRun?: string;
-                /** @description The space a new model is created in */
+                /** @description The space a new model is created in; without it a new model is a project model (DM-75) */
                 space?: string;
             };
             header?: never;

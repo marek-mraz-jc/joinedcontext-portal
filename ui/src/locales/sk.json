@@ -149,6 +149,8 @@
     "chooseVariant": "{label}: zadané ako",
     "useExample": "Použiť príklad",
     "noResults": "Žiadne výsledky",
+    "noSpaces": "Tento projekt zatiaľ nemá kontextový priestor, ktorý môžete čítať. Vytvorte ho v časti Kontextové priestory a potom ho vyberte tu.",
+    "noneYet": "Tento projekt zatiaľ nemá žiadny, ktorý môžete čítať. Vytvorte ho na jeho vlastnej stránke a potom ho vyberte tu.",
     "entityPickerPending": "Najprv vyberte priestor a typ entity a tu sa zobrazia ich entity; identifikátor entity sem môžete aj vložiť.",
     "listFailed": "Zoznam sa nepodarilo načítať, skúste znova: {reason}",
     "listRetry": "Skúsiť znova",
@@ -517,7 +519,7 @@
     },
     "lead": "Všetko tohto druhu, čo projekt obsahuje. Každý riadok otvorí to, čo pomenúva.",
     "new": "Nový {kind}",
-    "newHint": "Vyplňte formulár, skontrolujte ho a navrhnite; zmenu posúdi schvaľovateľ.",
+    "newHint": "Skontrolujte ho a navrhnite schvaľovateľovi.",
     "propose": "Navrhnúť zmenu",
     "emptyHintCreate": "V projekte zatiaľ nič z tohto druhu nie je. {new} otvorí formulár.",
     "askAssistant": "Požiadať asistenta o návrh",
@@ -1508,7 +1510,7 @@
     "searchNoMatchHint": "Skontrolujte pravopis alebo vymažte hľadanie a uvidíte všetky endpointy.",
     "add": "Nový endpoint",
     "edit": "Upraviť",
-    "addHint": "Uložením vznikne návrh zmeny; endpoint začne odpovedať po jeho schválení.",
+    "addHint": "Odpovedá po schválení zmeny.",
     "propose": "Navrhnúť zmenu",
     "generateSlug": "Vygenerovať slug",
     "copyUrl": "Kopírovať URL",
@@ -1886,7 +1888,6 @@
       "firstCallOpen": "Otvoriť v prehliadači",
       "firstCallCopy": "Kopírovať príkaz",
       "firstCallPublic": "Volať ho môže ktokoľvek, token netreba.",
-      "firstCallToken": "V prehliadači stačí vaše prihlásenie do Portálu. Program posiela token servisného účtu ako $TOKEN.",
       "filterUntouched": "Najprv zmeňte filter: je rovnaký ako uložený.",
       "filterFaulty": "Najprv opravte označené polia."
     },
@@ -1978,28 +1979,6 @@
       "vscode": "Pridať do VS Code",
       "cursor": "Pridať do Cursor",
       "button": "Pripojiť AI"
-    },
-    "playground": {
-      "title": "Vyskúšať",
-      "reading": "Zisťujem, čo smiete volať…",
-      "nothing": "Váš prístup vám cez tento endpoint nedovoľuje nič volať. Na čítanie požiadajte jeho vlastníkov v časti Požiadať o prístup nižšie.",
-      "operation": "Čo čítať",
-      "operations": {
-        "list": "Entity typu",
-        "count": "Koľko je entít typu",
-        "one": "Jedna entita podľa id",
-        "types": "Typy, ktoré obsahuje"
-      },
-      "type": "Typ entity",
-      "q": "Filtrovací výraz (q)",
-      "qHint": "Nepovinné, dopytovací jazyk NGSI-LD, napríklad temperature>20;status==\"open\".",
-      "limit": "Koľko (1 až 100)",
-      "id": "Id entity (URN)",
-      "send": "Odoslať",
-      "fill": "Najprv vyplňte polia, ktoré volanie potrebuje.",
-      "answered": "Endpoint odpovedal {status}.",
-      "code": "To isté volanie ako kód",
-      "noType": "Zatiaľ žiadny typ entity: keď pipeline alebo osoba zapíše entity cez tento Endpoint, ich typy sa zobrazia tu."
     },
     "docs": {
       "title": "Dokumentácia API",
@@ -2604,7 +2583,7 @@
     "dialog": {
       "create": "Nová pipelina",
       "edit": "Úprava pipeliny",
-      "lead": "Formulár a manifest, ktorý zapisuje: obe podoby opisujú tú istú pipelinu a návrh ide do Schvaľovania ako každá iná zmena."
+      "lead": "Návrh ide do Schvaľovania ako každá iná zmena."
     },
     "bloblangHint": "Bloblang mapovanie sa upravuje tu a ukladá do manifestu; prázdne ostáva v bento.yaml vedľa tohto manifestu vo forge.",
     "bloblangFile": "Otvoriť bento.yaml",
@@ -4226,7 +4205,6 @@
       "copyFailed": "Kópiu organizácie sa nepodarilo načítať: {reason}. Obnovte stránku a skúste to znova."
     },
     "title": "Editor modelov",
-    "version": "Verzia {version}",
     "add": "Pridať",
     "classes": "Typy",
     "enums": "Číselníky",
@@ -4258,7 +4236,6 @@
     "newClass": "Nový typ",
     "newSlot": "Nové pole",
     "newEnum": "Nový číselník",
-    "newEnumValue": "Nová hodnota číselníka {name}",
     "removeEnumValue": "Odstrániť hodnotu {value}",
     "classUri": "IRI triedy",
     "description": "Popis",
@@ -4333,8 +4310,6 @@
       "requiredAttribute": "povinný",
       "showMore": "Zobraziť ďalších {count}",
       "noAttribute": "Žiadny atribút tohto modelu nezodpovedá.",
-      "space": "Priestor pre tento model",
-      "spaceLater": "Vybrať neskôr, v editore",
       "catalogueLoading": "Načítava sa katalóg…",
       "count": "{count, plural, one {# model} few {# modely} other {# modelov}}",
       "allAttributes": "Všetky",
@@ -4377,18 +4352,11 @@
     },
     "create": {
       "title": "Nový model",
-      "name": "Názov",
-      "space": "Priestor",
-      "chooseSpace": "Vyberte priestor",
-      "file": "Uloží sa ako {name}.linkml.yaml",
       "taken": "Projekt už má model s názvom {name}. Zvoľte iný názov.",
       "held": "Uložené ako zdieľaný koncept {name}; po obnovení stránky je stále tu, kým model neuložíte.",
       "heldConflict": "Tento koncept medzitým uložil niekto iný. Obnovte stránku, aby ste videli jeho verziu; dovtedy sa vaša neukladá.",
-      "spaceHas": "{space} (už má {model})",
       "spaceTaken": "Priestor {space} už má model {model} a priestor má jeden model. Zvoľte iný priestor alebo otvorte {model} a pridajte doň svoje triedy.",
-      "noSpace": "Model patrí jednému kontextovému priestoru a projekt ešte žiadny nemá.",
-      "noFreeSpace": "Každý priestor projektu už má svoj model; nový model potrebuje nový priestor, alebo pridajte triedy do modelu priestoru.",
-      "newSpace": "Vytvoriť kontextový priestor"
+      "nameHint": "Pomenujte model, napríklad Kvalita ovzdušia; identifikátor sa vytvorí z neho."
     },
     "infer": {
       "title": "Model zo súboru",
@@ -4450,6 +4418,8 @@
       "open": "Otvoriť na celú obrazovku",
       "overlay": "Zvýrazniť, čo sprístupňuje triedy",
       "overlayNone": "Nič nezvýrazňovať",
+      "backToDiagram": "Späť na diagram",
+      "overlayHelp": "Ako funguje zvýraznenie",
       "overlayHint": "Vyberte Endpoint (napr. helsinki-bikes) a zvýraznia sa triedy a polia, ktoré sprístupňuje, alebo Pipeline a zvýrazní sa, čo zapisuje.",
       "endpoints": "Endpointy",
       "pipelines": "Pipeliny, ktoré zapisujú triedu",
@@ -4779,6 +4749,42 @@
       "editing": "Upravujete zdroj modelu. Každý pohľad ukazuje, čo tu napíšete.",
       "edit": "Upraviť zdroj",
       "done": "Hotovo"
+    },
+    "editor": {
+      "title": "Editor dátového modelu",
+      "lead": "Typy, polia a číselníky jedného modelu; uloženie navrhne novú verziu."
+    },
+    "identity": {
+      "name": "Názov",
+      "nameHint": "Čo ľudia čítajú; identifikátor a súbor si ponechajú svoje mená.",
+      "nameEmpty": "Napíšte názov: model ho potrebuje.",
+      "rename": "Premenovať {name}",
+      "done": "Použiť názov",
+      "unnamed": "Model bez názvu",
+      "id": "Identifikátor",
+      "noId": "bez identifikátora, kým model nemá názov",
+      "idNew": "Identifikátor sa riadi názvom až do prvého uloženia modelu; potom je pevný.",
+      "idFixed": "Identifikátor je pevný: endpointy, priestory a importy podľa neho model menujú.",
+      "file": "Súbor",
+      "fileFixed": "Názov súboru je pevný: premenovanie mení len názov, ktorý ľudia čítajú.",
+      "version": "Verzia",
+      "renameShort": "Premenovať",
+      "renamed": "Premenované. Identifikátor {id} a jeho súbor zostávajú; Navrhnúť uloží nový názov."
+    },
+    "findType": "Nájsť typ",
+    "enumValues": {
+      "caption": "Hodnoty {name}",
+      "stored": "Uložená hodnota",
+      "label": "Popis",
+      "labelOf": "Popis hodnoty {value}",
+      "actions": "Akcie",
+      "translations": "Preklady a opis",
+      "empty": "Zatiaľ žiadne hodnoty: pridajte prvú nižšie.",
+      "none": "Zatiaľ žiadne číselníky: pomenujte jeden nižšie.",
+      "new": "Nová hodnota",
+      "newHint": "Hodnota, ktorú entity ukladajú, po pridaní pevná, napríklad active.",
+      "unused": "Tento číselník zatiaľ nepoužíva žiadne pole: vyberte ho ako typ hodnoty poľa.",
+      "usedBy": "Používa {fields}"
     }
   },
   "apps": {
@@ -6409,8 +6415,6 @@
     },
     "laxWarning": "Mierne overenie: kontrola neprebehla alebo neuspela.",
     "findings": "Zistenia",
-    "strict": "prísne overenie",
-    "strictHelp": "Nič sa nenavrhne, kým kontrola nie je zelená.",
     "saveRefused": "Koncept sa neuložil: {reason}",
     "elsewhere": {
       "title": "Na tejto stránke nie je koncept „{name}“",

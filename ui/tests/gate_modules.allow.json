@@ -5,7 +5,5 @@
     "on an entry that is covered or gone. The list only ever shrinks: gate_modules.test.ts asserts",
     "its length against the number measured on 2026-09-20."
   ],
-  "modules": {
-    "src/components/layout/Shell.tsx": "T-1255"
-  }
+  "modules": {}
 }

@@ -40,8 +40,10 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
   const reason = listFailure(query.error);
   const empty = placeholder(t, query.isLoading, failed, choices.length);
 
-  // What an empty list asks the person to do next (T-5590), where the page names it.
-  const nothing = typeof options?.empty === "string" && !query.isLoading && !failed && choices.length === 0;
+  // What an empty list asks the person to do next (T-5590): the page's own words, else the
+  // generic next step, never a bare "No results" (T-6163).
+  const nothing = query.isSuccess && choices.length === 0;
+  const emptyText = typeof options?.empty === "string" ? options.empty : "form.noneYet";
 
   const select = (
     <Select
@@ -71,7 +73,7 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
       <div className="flex flex-col gap-1">
         {select}
         <p id={`${id}-empty`} className="text-caption text-fg-muted">
-          {t(options.empty as string)}
+          {t(emptyText)}
         </p>
       </div>
     );

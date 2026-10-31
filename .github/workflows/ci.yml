@@ -195,7 +195,8 @@ jobs:
     # in T-2447, 12 in T-2920) and three shards (T-5158). A change only to ui/src, ui/tests or
     # ui/e2e runs, spread the same way, just the tests it reaches and every test that reads the
     # tree (ui_scope=related, scripts/ci/ui-related.sh; T-6153: 320-393 s a shard for a one-page
-    # change); a page the router imports still reaches a few hundred files.
+    # change); a page the router imports still reaches a few hundred files. A language catalogue
+    # stands for the keys it moved, not for i18n.ts, which reaches every page.
     name: ui (${{ matrix.shard }}/4)
     strategy:
       fail-fast: false

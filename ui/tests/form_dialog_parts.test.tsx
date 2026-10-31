@@ -8,7 +8,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { Verdict } from "../src/api/drafts";
 import { ResourceFormFooter, verdictStateOf } from "../src/components/forms/ResourceFormFooter";
-import { FormGuideLink, ResourceFormNotes } from "../src/components/forms/ResourceFormNotes";
+import { FillFromSentence, FormGuideLink, ResourceFormNotes } from "../src/components/forms/ResourceFormNotes";
 import { queryKeys } from "../src/api/client";
 import { ResourceYamlPanel } from "../src/components/forms/ResourceYamlPanel";
 import { useYamlEditor } from "../src/components/forms/useYamlEditor";
@@ -70,6 +70,13 @@ describe("ResourceFormFooter", () => {
   });
 });
 
+describe("FillFromSentence", () => {
+  it("asks the assistant to fill the open form of its kind (T-6163)", () => {
+    render(<FillFromSentence kind="DataSource" />, { wrapper });
+    expect(screen.getByRole("button", { name: en.form.fillFromSentence })).toBeVisible();
+  });
+});
+
 describe("ResourceFormNotes", () => {
   it("lists_every_finding_and_the_refused_save", () => {
     const verdict = {
@@ -82,12 +89,10 @@ describe("ResourceFormNotes", () => {
     } as unknown as Verdict;
     render(
       <ResourceFormNotes
-        kind="DataSource"
         conflict={null}
         saveRefused="the draft store is read-only"
         draftKind="DataSource"
         draft={null}
-        strict
         verdict={verdict}
         restartsStream={false}
       />,
@@ -97,7 +102,9 @@ describe("ResourceFormNotes", () => {
     expect(findings).toHaveTextContent("spec.url: the address does not answer");
     expect(findings).toHaveTextContent("the space keeps no history");
     expect(screen.getByRole("alert")).toHaveTextContent("the draft store is read-only");
-    expect(screen.getByRole("button", { name: en.form.fillFromSentence })).toBeVisible();
+    // T-6163: the sentence button sits on the tab row, and strict validation, the normal case, shows no chip.
+    expect(screen.queryByRole("button", { name: en.form.fillFromSentence })).toBeNull();
+    expect(screen.queryByText("strict validation")).toBeNull();
     // T-6105: no paragraph on the kind and no guide sentence above the fields.
     expect(screen.queryByTestId("form-about")).toBeNull();
     expect(screen.queryByTestId("form-guide")).toBeNull();
@@ -112,13 +119,11 @@ describe("ResourceFormNotes", () => {
       <QueryClientProvider client={client}>
         <I18nextProvider i18n={i18n}>
           <ResourceFormNotes
-            kind={kind}
             project="p1"
             draftKind={kind}
             conflict={null}
             saveRefused={null}
             draft={null}
-            strict
             verdict={null}
             restartsStream={false}
           />

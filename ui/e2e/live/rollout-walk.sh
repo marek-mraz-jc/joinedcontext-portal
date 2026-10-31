@@ -88,6 +88,13 @@ work=$(mktemp -d)
 trap 'git -C "$repo" worktree remove --force "${work:?}/portal" >/dev/null 2>&1; rm -rf "${work:?}"' EXIT
 git -C "$repo" worktree add -q --detach "$work/portal" "$sha" || { echo "rollout-walk: $sha is not in $repo" >&2; exit 2; }
 mkdir -p "$dir"
+# dev's last apply as the jc-release ConfigMap records it (deployment commit and appliedAt); empty
+# without a readable kubeconfig.
+release() {
+  [ -r "$kubeconfig" ] && KUBECONFIG=$kubeconfig kubectl get configmap jc-release -n "${WALK_NAMESPACE:-dev}" \
+    -o jsonpath='{.data.commit} {.data.appliedAt}' 2>/dev/null
+}
+release_before=$(release) || release_before=
 run=$(date -u +%Y-%m-%dT%H:%MZ)
 echo "rollout-walk: walking portal $sha on $PORTAL_URL ($run)"
 # The steward walks, then the viewer, each with the whole cap. Side by side they shared one address
@@ -107,6 +114,27 @@ walk() {
   walk viewer
 )
 echo "rollout-walk: walks done (logs $dir/walk-steward.log, $dir/walk-viewer.log)"
+
+# T-6174, T-6179: the settle gate covers a rollout before the walk, not an apply during it. The
+# 06:55Z walk of 8ee371d met the Portal's 503 when the next apply rolled it to d8f3d24 (T-6174); the
+# 07:25Z walk of d8f3d24 met 8 /api reads answering 502 at 07:31:48Z while the deployer applied
+# deployment 6215c731 (jc-release appliedAt 07:29:59Z), the Portal commit unchanged (T-6179); both
+# fine on retry. When dev names another Portal commit or another jc-release after the walk, its
+# findings judge dev mid-apply: nothing is filed, and the next tick walks again once dev has
+# settled. A read that fails is no proof of an apply, so that walk is judged as usual.
+after=$(curl -fsS -m 20 "$PORTAL_URL/api/v1/version" | jq -r '.portal.commit // empty' 2>/dev/null) || after=
+release_after=$(release) || release_after=
+moved=
+if [[ $after =~ ^[0-9a-f]{40}$ ]] && [ "$after" != "$sha" ]; then
+  moved="dev moved from $sha to $after during the walk"
+elif [ -n "$release_before" ] && [ -n "$release_after" ] && [ "$release_after" != "$release_before" ]; then
+  moved="dev was applied during the walk (jc-release $release_before, then $release_after)"
+fi
+if [ -n "$moved" ]; then
+  echo "$sha $(date +%s)" >"$evidence/first-seen"
+  echo "rollout-walk: $moved: its findings are not filed, dev is walked again once it has settled" >&2
+  exit 1
+fi
 
 # No report from either person: the walk did not run (Keycloak, the Portal, the cap); the next
 # tick tries this commit again, three times at most, then files what it has.

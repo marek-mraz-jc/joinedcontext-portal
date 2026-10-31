@@ -81,7 +81,7 @@ const MINIMAP = 160;
 const MINIMAP_ROW = 56;
 const ARROWS: readonly string[] = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
 /** The opacity of what lies outside a focus or a path: still there to place it, not in the way. */
-const FADED = 0.2;
+const FADED = 0.45;
 /** An attribute the picked Endpoint does not serve, on a class it does. */
 const UNSERVED = 0.35;
 /**
@@ -340,7 +340,7 @@ export function LinkmlGraphView({
   const [hops, setHops] = useState<number>(1);
   const [pathTo, setPathTo] = useState<string>();
   const [query, setQuery] = useState("");
-  const [view, setView] = useState({ left: 0, top: 0, width: 0, height: 0 });
+  const [view, setView] = useState({ left: 0, top: 0, width: 0, height: 0, whole: false });
   const editing = useDiagramEditing(source, onChange);
   // A relationship being dragged out of a class: where it started and where the pointer is.
   const [connecting, setConnecting] = useState<{ from: string; to?: Point }>();
@@ -381,9 +381,17 @@ export function LinkmlGraphView({
   // The frame's visible part, in drawing units, for the minimap.
   const measure = () => {
     const frameAt = frame.current;
-    if (frameAt) setView({ left: frameAt.scrollLeft, top: frameAt.scrollTop, width: frameAt.clientWidth, height: frameAt.clientHeight });
+    if (frameAt)
+      setView({
+        left: frameAt.scrollLeft,
+        top: frameAt.scrollTop,
+        width: frameAt.clientWidth,
+        height: frameAt.clientHeight,
+        // Nothing to scroll to: the frame shows the whole drawing (jsdom, with no layout, says 0 for all four).
+        whole: frameAt.clientWidth > 0 && frameAt.scrollWidth <= frameAt.clientWidth && frameAt.scrollHeight <= frameAt.clientHeight,
+      });
   };
-  useEffect(measure, [zoom, placed]);
+  useEffect(measure, [zoom, placed, frameWidth]);
   // On load the drawing fits its card's width, never enlarged nor below readable: a big model ran off the card's
   // right edge at its natural size (T-4991). The Fit button may still enlarge a small one.
   // A frame drawn while hidden (a tab not yet open) has no width: fit once it gets one (T-6090).
@@ -1367,13 +1375,15 @@ function Minimap({
   placed: Placed[];
   width: number;
   height: number;
-  view: { left: number; top: number; width: number; height: number };
+  view: { left: number; top: number; width: number; height: number; whole?: boolean };
   zoom: number;
   faded: (name: string) => boolean;
   onJump: (point: Point) => void;
   /** The most it may be high: the canvas sets it in its toolbar row, out of the drawing's way. */
   tall?: number;
-}): JSX.Element {
+}): JSX.Element | null {
+  // A drawing the frame shows whole has nothing to jump to: its map was one grey block (T-6164).
+  if (view.whole) return null;
   // At most MINIMAP square: a tall drawing would otherwise draw a tall map over the toolbar.
   const scale = Math.min(MINIMAP / width, tall / height);
   return (

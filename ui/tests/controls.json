@@ -488,7 +488,9 @@
       "controls": {
         "Button": 6
       },
-      "tests": []
+      "tests": [
+        "addressItem.test.ts"
+      ]
     },
     "src/components/layout/PublicFrame.tsx": {
       "controls": {
@@ -1329,14 +1331,6 @@
         "part_model_picker.test.tsx"
       ]
     },
-    "src/pages/endpoints/Playground.tsx": {
-      "controls": {
-        "Button": 1
-      },
-      "tests": [
-        "endpoint_playground.test.tsx"
-      ]
-    },
     "src/pages/endpoints/SchemaProjectionPanel.tsx": {
       "controls": {
         "Button": 4,
@@ -1567,6 +1561,14 @@
         "diagram_editing.test.tsx"
       ]
     },
+    "src/pages/models/EnumValues.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "linkml_enum_values.test.tsx"
+      ]
+    },
     "src/pages/models/LinkmlGraphView.tsx": {
       "controls": {
         "Button": 8
@@ -1602,7 +1604,7 @@
     },
     "src/pages/models/LinkmlVisualEditor.tsx": {
       "controls": {
-        "Button": 13,
+        "Button": 12,
         "Checkbox": 3
       },
       "tests": [
@@ -1623,7 +1625,7 @@
     },
     "src/pages/models/ModelCanvas.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 6
       },
       "tests": [
         "model_canvas.test.tsx"
@@ -1637,6 +1639,14 @@
       "tests": [
         "model_file_drop.test.tsx",
         "part_model_file_drop.test.tsx"
+      ]
+    },
+    "src/pages/models/ModelIdentity.tsx": {
+      "controls": {
+        "Button": 3
+      },
+      "tests": [
+        "model_identity.test.tsx"
       ]
     },
     "src/pages/models/ModelPage.tsx": {

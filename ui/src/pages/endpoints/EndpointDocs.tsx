@@ -5,7 +5,7 @@ import { endpointUrl } from "../../components/endpoints/links";
 import { CodeBlock, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
 import { DeveloperPanel, TryIt } from "./DeveloperPanel";
 import { EndpointStandards } from "./EndpointStandards";
-import { snippetsOf } from "./Playground";
+import { snippetsOf } from "./snippets";
 
 /** What the docs page reads of the gateway's OpenAPI document (EP-99); the rest is not shown. */
 interface Parameter {

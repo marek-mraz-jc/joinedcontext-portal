@@ -202,6 +202,11 @@ async function stubKpi(page: Page, verbs: string[], linkml = KPI_LINKML): Promis
     if (path.endsWith("/permissions/me")) {
       return json({ project: "helsinki", grants: [{ rule: { kinds: ["DataModel", "ContextSpace", "Endpoint"], verbs } }] });
     }
+    // The editor reads the model's source here; a JSON list in its place parsed as a model with no
+    // id and no name, so every edit there showed two errors (T-6162).
+    if (path.endsWith("/datamodels/helsinki-kpi/source") && route.request().method() === "GET") {
+      return route.fulfill({ status: 200, contentType: "text/yaml", body: linkml });
+    }
     if (path.endsWith("/datamodels")) {
       return json(list([{
         apiVersion: "joinedcontext.com/v1alpha1",
@@ -416,6 +421,80 @@ test.describe("a model change is proposed, and read back (T-4830)", () => {
       const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
       expect(overflow).toBeLessThanOrEqual(0);
       await shot(page, `model-propose-unchanged-${width}`);
+    });
+  }
+});
+
+// T-6162: the editor's name line. A new model is named, never placed in a space; a rename of an
+// open model writes its title and leaves the id and the file name as they are.
+test.describe("the model editor's name line (T-6162)", () => {
+  for (const width of [1440, 400]) {
+    test(`a new model is named with no space, and an open one renamed behind the pencil at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read", "propose"]);
+      await page.goto("/projects/helsinki/models?new=blank&lang=en");
+      await expect(page.getByRole("heading", { level: 1, name: "Data model editor" })).toBeVisible();
+      await expect(page.getByText("no id until the model has a name")).toBeVisible();
+      await page.getByRole("textbox", { name: "Name", exact: true }).fill("Street trees");
+      await expect(page.getByText("street-trees.linkml.yaml")).toBeVisible();
+      await expect(page.getByRole("combobox", { name: /space/i })).toHaveCount(0);
+      await expect(page.getByRole("main").getByText(/context space/i)).toHaveCount(0);
+      await shot(page, `new-model-named-${width}`);
+
+      await page.goto("/projects/helsinki/models?edit=helsinki-kpi&lang=en");
+      await page.getByRole("button", { name: /^Rename / }).click();
+      const name = page.getByRole("textbox", { name: "Name", exact: true });
+      await name.fill("");
+      await page.getByRole("button", { name: "Use this name" }).click();
+      await expect(page.getByText("Type a name: the model needs one.")).toBeVisible();
+      await shot(page, `rename-empty-${width}`);
+      await name.fill("City indicators");
+      await name.press("Enter");
+      await expect(page.getByText("City indicators", { exact: true })).toBeVisible();
+      await expect(page.getByText("helsinki-kpi.linkml.yaml")).toBeVisible();
+      await expect(page.getByRole("button", { name: /^Propose v/ })).not.toHaveAttribute("aria-disabled", "true");
+      const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(0);
+      await shot(page, `renamed-${width}`);
+    });
+
+    test(`a viewer reads the name line with no rename at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read"]);
+      await page.goto("/projects/helsinki/models?edit=helsinki-kpi&lang=en");
+      await expect(page.getByText("helsinki-kpi.linkml.yaml")).toBeVisible();
+      // The stub's manifest carries the title the list shows; the LinkML has none.
+      await expect(page.getByText("Helsinki indicators", { exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: /^Rename / })).toHaveCount(0);
+      await shot(page, `name-line-viewer-${width}`);
+    });
+  }
+});
+
+// T-6162: an enumeration opens its values table from the rail: stored value fixed, label edited.
+const ENUM_LINKML = `${KPI_LINKML}enums:\n  KpiStatus:\n    permissible_values:\n      active: { title: { en: Active, fi: Aktiivinen } }\n      retired: {}\n`;
+
+test.describe("the model editor's enumerations (T-6162)", () => {
+  for (const width of [1440, 400]) {
+    test(`an enumeration's values are a table with fixed stored values at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read", "propose"], ENUM_LINKML);
+      await page.goto("/projects/helsinki/models?edit=helsinki-kpi&lang=en");
+      await page.getByRole("button", { name: /^KpiStatus/ }).click();
+      const table = page.getByRole("table", { name: "Values of KpiStatus" });
+      await expect(table).toContainText("retired");
+      await page.getByRole("textbox", { name: "Label of retired" }).fill("Retired");
+      await page.getByRole("textbox", { name: "New value", exact: true }).fill("planned");
+      await page.getByRole("button", { name: "Add value to KpiStatus" }).click();
+      await expect(table).toContainText("planned");
+      const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(0);
+      await shot(page, `enum-values-${width}`);
+
+      await page.getByRole("textbox", { name: "New enum" }).fill("Band");
+      await page.getByRole("button", { name: "Add enum" }).click();
+      await expect(page.getByRole("table", { name: "Values of Band" })).toContainText("No values yet");
+      await shot(page, `enum-empty-${width}`);
     });
   }
 });
@@ -722,16 +801,26 @@ test.describe("the model canvas (T-6094)", () => {
     // The shot waits for the tab underline's colour transition and the pointer's hover to end.
     await page.mouse.move(700, 450);
     await expect(page.getByRole("tab", { name: "Main" })).toHaveCSS("border-bottom-color", "rgba(0, 0, 0, 0)");
+    // One class fits the frame: no minimap, whose viewport box was a solid grey block (T-6164).
+    await expect(page.getByTestId("diagram-minimap")).toHaveCount(0);
     await shot(page, "canvas-personal-1440");
     await page.getByRole("tab", { name: "Main" }).click();
 
     const overlay = page.getByLabel("Show what serves the classes");
     const lit = async (expected: string[]) => {
       for (const name of ["Place", "BikeHireDockingStation", "Event", "Organization", "Dataset", "DataService", "Distribution"]) {
-        if (expected.includes(name)) await expect(opened(page, name)).not.toHaveAttribute("opacity", "0.2");
-        else await expect(opened(page, name)).toHaveAttribute("opacity", "0.2");
+        if (expected.includes(name)) await expect(opened(page, name)).not.toHaveAttribute("opacity", "0.45");
+        else await expect(opened(page, name)).toHaveAttribute("opacity", "0.45");
       }
     };
+    // The how-to is a ? beside the label (T-6164): the header holds no paragraph under the pick.
+    await expect(page.getByRole("tooltip")).toHaveClass(/sr-only/);
+    await page.getByRole("button", { name: "How the highlight works" }).hover();
+    await expect(page.getByRole("tooltip")).not.toHaveClass(/sr-only/);
+    await expect(overlay).toHaveAccessibleDescription(/Pick an Endpoint \(e\.g\. helsinki-bikes\)/);
+    await shot(page, "canvas-hint-1440");
+    await page.mouse.move(700, 450);
+    await expect(page.getByRole("tooltip")).toHaveClass(/sr-only/);
     await overlay.selectOption("endpoint:helsinki-bikes");
     await expect(page.getByText("1 class of 8 is reached; the rest is faded.")).toBeVisible();
     await lit(["BikeHireDockingStation"]);
@@ -772,11 +861,23 @@ test.describe("the model canvas (T-6094)", () => {
     await classes.getByRole("button", { name: /Dataset/ }).first().click();
     await expect(page.getByRole("table", { name: "Fields of Dataset" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(400);
+    // Each card holds its name and its badge line: a card cut to one control's height overlapped the next (T-6164).
+    const card = await classes.getByRole("button", { name: /Dataset/ }).first().boundingBox();
+    expect(card?.height ?? 0).toBeGreaterThan(48);
     await shot(page, "canvas-list-400");
     await page.getByRole("button", { name: "Show diagram" }).click();
     await expect(opened(page, "Dataset")).toBeVisible();
     // The canvas opens on the first class the overlay lights, not on a faded one (T-6094 UI judge).
     await shot(page, "canvas-diagram-400");
+    await expect(page.getByTestId("diagram-badge-Dataset")).toBeInViewport();
+    // A press on a box on the phone canvas brings its details into view (T-6164).
+    await opened(page, "Dataset").click();
+    const details = page.getByRole("heading", { level: 2, name: "Dataset" });
+    await expect(details).toBeFocused();
+    await expect(details).toBeInViewport({ ratio: 1 });
+    await expect(page.getByRole("table", { name: "Fields of Dataset" })).toBeInViewport();
+    await shot(page, "canvas-diagram-details-400", false);
+    await page.getByRole("button", { name: "Back to the diagram" }).click();
     await expect(page.getByTestId("diagram-badge-Dataset")).toBeInViewport();
   });
 });

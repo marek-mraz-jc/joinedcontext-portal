@@ -1227,6 +1227,24 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   const publicFull =
     publicEndpoints?.limit !== undefined && (publicEndpoints.used ?? 0) >= publicEndpoints.limit;
 
+  // The public address: on top of an existing endpoint's form, where it is copied from; under the
+  // fields of a new one, so the form opens on its first field at 400 px (T-6163).
+  const address = (
+    <div className="flex flex-col gap-1 rounded border border-border bg-surface-subtle px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-caption font-medium text-fg">{t("endpoints.field.publicUrl")}</span>
+        <code data-testid="endpoint-url" className="min-w-0 break-all font-mono text-caption text-fg-muted">
+          {`${window.location.origin}/api/endpoint/`}
+          <span data-testid="endpoint-slug" className="font-semibold text-fg">
+            {activeSlug}
+          </span>
+        </code>
+        <CopyUrlButton url={endpointUrl(activeSlug, "")} />
+      </div>
+      <p className="text-xs text-fg-subtle">{t("endpoints.slugHint")}</p>
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-section">
       <PageHeader
@@ -1534,6 +1552,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         }}
         afterFields={
           <>
+            {isNew ? address : null}
             {/* UI-58, T-0958: a form the assistant filled says so, so the person reads the
                 values as a proposal to check rather than as something they typed. */}
             {prefill ? (
@@ -1682,19 +1701,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
           </>
         }
       >
-        <div className="flex flex-col gap-1 rounded border border-border bg-surface-subtle px-3 py-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-caption font-medium text-fg">{t("endpoints.field.publicUrl")}</span>
-            <code data-testid="endpoint-url" className="min-w-0 break-all font-mono text-caption text-fg-muted">
-              {`${window.location.origin}/api/endpoint/`}
-              <span data-testid="endpoint-slug" className="font-semibold text-fg">
-                {activeSlug}
-              </span>
-            </code>
-            <CopyUrlButton url={endpointUrl(activeSlug, "")} />
-          </div>
-          <p className="text-xs text-fg-subtle">{t("endpoints.slugHint")}</p>
-        </div>
+        {isNew ? null : address}
       </ResourceFormDialog>
       )}
 

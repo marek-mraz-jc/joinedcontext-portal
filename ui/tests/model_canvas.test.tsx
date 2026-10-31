@@ -184,7 +184,7 @@ describe("the canvas page", () => {
     expect(await screen.findByText("1 class of 4 is reached; the rest is faded.")).toBeInTheDocument();
     const station = screen.getByRole("button", { name: en.models.graph.openClass.replace("{name}", "BikeHireDockingStation") });
     expect(station).not.toHaveAttribute("opacity");
-    expect(screen.getByRole("button", { name: en.models.graph.openClass.replace("{name}", "Operator") })).toHaveAttribute("opacity", "0.2");
+    expect(screen.getByRole("button", { name: en.models.graph.openClass.replace("{name}", "Operator") })).toHaveAttribute("opacity", "0.45");
     expect(station.querySelectorAll('[data-served="false"]')).toHaveLength(1);
 
     await userEvent.click(station);
@@ -240,9 +240,95 @@ describe("the canvas as a part", () => {
     expect(screen.getByText(en.models.canvas.pickHint)).toBeInTheDocument();
     expect(screen.getByLabelText(en.models.canvas.overlay)).toHaveAccessibleDescription(en.models.canvas.overlayHint);
   });
+
+  const renderCanvas = async () => {
+    const { ModelCanvas } = await import("../src/pages/models/ModelCanvas");
+    const { renderPart } = await import("./page_contract");
+    const { createRootRoute, createRouter, RouterProvider } = await import("@tanstack/react-router");
+    const root = createRootRoute({ component: () => <ModelCanvas project="helsinki" name="bikes" /> });
+    renderPart(<RouterProvider router={createRouter({ routeTree: root })} />, {
+      answer: (url) =>
+        url.pathname.endsWith("/permissions/me") ? jsonResponse({ project: "helsinki", bootstrap: false, grants: [] }) : answer(url.pathname),
+    });
+    await screen.findByTestId("diagram-badge-Operator");
+  };
+
+  it("keeps the picker's how-to behind a ? beside its label, not as a paragraph under it (T-6164)", async () => {
+    await renderCanvas();
+    const tip = screen.getByRole("tooltip", { hidden: true });
+    expect(tip).toHaveTextContent(en.models.canvas.overlayHint);
+    expect(tip).toHaveClass("sr-only");
+    const help = screen.getByRole("button", { name: en.models.canvas.overlayHelp });
+    expect(help).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(help);
+    expect(help).toHaveAttribute("aria-expanded", "true");
+    expect(tip).not.toHaveClass("sr-only");
+    await userEvent.keyboard("{Escape}");
+    expect(tip).toHaveClass("sr-only");
+  });
+
+  it("brings a pressed class's details into view and focus where they sit under the drawing (T-6164)", async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    const media = vi.spyOn(window, "matchMedia").mockImplementation((query: string) => ({ matches: false, media: query }) as MediaQueryList);
+    try {
+      await renderCanvas();
+      await userEvent.click(screen.getByRole("button", { name: en.models.graph.openClass.replace("{name}", "Operator") }));
+      const heading = screen.getByRole("heading", { level: 2, name: "Operator" });
+      await waitFor(() => expect(heading).toHaveFocus());
+      expect(scrollIntoView).toHaveBeenCalled();
+    } finally {
+      media.mockRestore();
+      Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+    }
+  });
+
+  it("leaves the focus on the drawing where the details sit beside it", async () => {
+    const media = vi.spyOn(window, "matchMedia").mockImplementation((query: string) => ({ matches: true, media: query }) as MediaQueryList);
+    try {
+      await renderCanvas();
+      const box = screen.getByRole("button", { name: en.models.graph.openClass.replace("{name}", "Operator") });
+      await userEvent.click(box);
+      expect(await screen.findByRole("heading", { level: 2, name: "Operator" })).not.toHaveFocus();
+    } finally {
+      media.mockRestore();
+    }
+  });
 });
 
 describe("the canvas drawing (UI judge fixes)", () => {
+  it("draws no minimap while the frame shows the whole drawing, and one once it does not (T-6164)", async () => {
+    const { renderPart } = await import("./page_contract");
+    const sizes = ["clientWidth", "clientHeight", "scrollWidth", "scrollHeight"] as const;
+    const kept = sizes.map((size) => Object.getOwnPropertyDescriptor(HTMLElement.prototype, size));
+    let drawing = 100;
+    for (const size of sizes)
+      Object.defineProperty(HTMLElement.prototype, size, { configurable: true, get: () => (size.startsWith("client") ? 2000 : drawing) });
+    try {
+      function Zooming() {
+        const [, setRenders] = useState(0);
+        return (
+          <>
+            <button onClick={() => setRenders((renders) => renders + 1)}>again</button>
+            <LinkmlGraphView canvas source={BIKES} />
+          </>
+        );
+      }
+      renderPart(<Zooming />);
+      await screen.findByRole("button", { name: en.models.graph.openClass.replace("{name}", "Operator") });
+      await waitFor(() => expect(screen.queryByTestId("diagram-minimap")).toBeNull());
+      drawing = 4000;
+      await userEvent.click(screen.getByRole("button", { name: en.models.graph.zoomIn }));
+      expect(await screen.findByTestId("diagram-minimap")).toBeInTheDocument();
+    } finally {
+      sizes.forEach((size, index) => {
+        const descriptor = kept[index];
+        if (descriptor) Object.defineProperty(HTMLElement.prototype, size, descriptor);
+        else Reflect.deleteProperty(HTMLElement.prototype, size);
+      });
+    }
+  });
+
   it("lets a short name leave its room to a long type, and cuts both only when both are long", () => {
     expect(fitRow("publisher", "→ Organization 0..1")).toEqual(["publisher", "→ Organization 0..1"]);
     expect(fitRow("distribution", "→ DistributionPoint *")).toEqual(["distribution", "→ DistributionPoint *"]);

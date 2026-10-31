@@ -149,6 +149,8 @@
     "chooseVariant": "{label}: given as",
     "useExample": "Use the example",
     "noResults": "No results",
+    "noSpaces": "This project has no context space you can read yet. Create one under Context Spaces, then pick it here.",
+    "noneYet": "This project holds none you can read yet. Create one on its own page, then pick it here.",
     "entityPickerPending": "Choose the space and the entity type first, and this lists their entities; an entity id can also be pasted here.",
     "listFailed": "The list could not be loaded, try again: {reason}",
     "listRetry": "Try again",
@@ -517,7 +519,7 @@
     },
     "lead": "Everything of this kind the project holds. Each row opens what it names.",
     "new": "New {kind}",
-    "newHint": "Fill the form, check it, then propose it; an approver reviews the change.",
+    "newHint": "Check it, then propose it to an approver.",
     "propose": "Propose change",
     "emptyHintCreate": "Nothing of this kind is in the project yet. {new} opens the form.",
     "askAssistant": "Ask the assistant for one",
@@ -1508,7 +1510,7 @@
     "searchNoMatchHint": "Check the spelling or clear the search to see every endpoint.",
     "add": "New endpoint",
     "edit": "Edit",
-    "addHint": "Saving proposes a change; the endpoint answers once the change is approved.",
+    "addHint": "It answers once the change is approved.",
     "propose": "Propose change",
     "generateSlug": "Generate slug",
     "copyUrl": "Copy URL",
@@ -1886,7 +1888,6 @@
       "firstCallOpen": "Open in the browser",
       "firstCallCopy": "Copy the command",
       "firstCallPublic": "Anyone can call it; no token needed.",
-      "firstCallToken": "In the browser your Portal session is enough. A program sends a service account token as $TOKEN.",
       "filterUntouched": "Change the filter first: it is the same as the one saved.",
       "filterFaulty": "Fix the marked fields first."
     },
@@ -1978,28 +1979,6 @@
       "vscode": "Add to VS Code",
       "cursor": "Add to Cursor",
       "button": "Connect AI"
-    },
-    "playground": {
-      "title": "Try it",
-      "reading": "Reading what you may call…",
-      "nothing": "Your access lets you call nothing through this endpoint. To read it, ask its owners under Request access below.",
-      "operation": "What to read",
-      "operations": {
-        "list": "Entities of a type",
-        "count": "How many of a type",
-        "one": "One entity by its id",
-        "types": "The types it holds"
-      },
-      "type": "Entity type",
-      "q": "Filter (q)",
-      "qHint": "Optional, NGSI-LD query language, for example temperature>20;status==\"open\".",
-      "limit": "How many (1 to 100)",
-      "id": "Entity id (URN)",
-      "send": "Send",
-      "fill": "Fill in the fields the call needs first.",
-      "answered": "The endpoint answered {status}.",
-      "code": "The same call as code",
-      "noType": "No entity type yet: once a pipeline or a person writes entities through this Endpoint, their types are listed here."
     },
     "docs": {
       "title": "API documentation",
@@ -2604,7 +2583,7 @@
     "dialog": {
       "create": "New pipeline",
       "edit": "Edit pipeline",
-      "lead": "A form and the manifest it writes: both describe the same pipeline, and the proposal goes to Approvals like every other change."
+      "lead": "Proposed to Approvals like every other change."
     },
     "bloblangHint": "The Bloblang mapping is edited here and lands in the manifest; left empty, it stays in bento.yaml beside this manifest in the forge.",
     "bloblangFile": "Open bento.yaml",
@@ -4226,10 +4205,9 @@
       "copyFailed": "The organization's copy could not be read: {reason}. Reload the page to try again."
     },
     "title": "Model editor",
-    "version": "Version {version}",
     "add": "Add",
     "classes": "Types",
-    "enums": "Enums",
+    "enums": "Enumerations",
     "slots": "Fields",
     "slot": "Field",
     "range": "Type of value",
@@ -4258,7 +4236,6 @@
     "newClass": "New type",
     "newSlot": "New field",
     "newEnum": "New enum",
-    "newEnumValue": "New value of {name}",
     "removeEnumValue": "Remove the value {value}",
     "classUri": "Class IRI",
     "description": "Description",
@@ -4351,8 +4328,6 @@
       "requiredAttribute": "required",
       "showMore": "Show {count} more",
       "noAttribute": "No attribute of this model matches.",
-      "space": "Space for this model",
-      "spaceLater": "Choose later, in the editor",
       "catalogueLoading": "Loading the catalogue…",
       "count": "{count, plural, one {# model} other {# models}}",
       "allAttributes": "All",
@@ -4395,18 +4370,11 @@
     },
     "create": {
       "title": "New model",
-      "name": "Name",
-      "space": "Space",
-      "chooseSpace": "Choose a space",
-      "file": "Saved as {name}.linkml.yaml",
       "taken": "The project already has a model named {name}. Choose another name.",
       "held": "Kept as the shared draft {name}; it is here after a reload, until you save the model.",
       "heldConflict": "Somebody else saved this draft while you were editing. Reload the page to see theirs; nothing of yours is kept until you do.",
-      "spaceHas": "{space} (already has {model})",
       "spaceTaken": "The space {space} already has the model {model}, and a space has one model. Choose another space, or open {model} and add your classes to it.",
-      "noSpace": "A model belongs to one context space, and the project has none yet.",
-      "noFreeSpace": "Every space of the project already has its model; a new model needs a new space, or add your classes to the space's model.",
-      "newSpace": "Create a context space"
+      "nameHint": "Name the model, for example Air quality; the id is made from it."
     },
     "infer": {
       "title": "Model from a file",
@@ -4450,6 +4418,8 @@
       "open": "Open full screen",
       "overlay": "Show what serves the classes",
       "overlayNone": "Nothing highlighted",
+      "backToDiagram": "Back to the diagram",
+      "overlayHelp": "How the highlight works",
       "overlayHint": "Pick an Endpoint (e.g. helsinki-bikes) to light the classes and fields it serves, or a Pipeline to light what it writes.",
       "endpoints": "Endpoints",
       "pipelines": "Pipelines that write a class",
@@ -4779,6 +4749,42 @@
       "editing": "Editing the model's source. Every view shows what you type here.",
       "edit": "Edit source",
       "done": "Done editing"
+    },
+    "editor": {
+      "title": "Data model editor",
+      "lead": "Types, fields and enumerations of one model; saving proposes a new version."
+    },
+    "identity": {
+      "name": "Name",
+      "nameHint": "What people read; the id and the file keep their names.",
+      "nameEmpty": "Type a name: the model needs one.",
+      "rename": "Rename {name}",
+      "done": "Use this name",
+      "unnamed": "Unnamed model",
+      "id": "Id",
+      "noId": "no id until the model has a name",
+      "idNew": "The id follows the name until the model is first saved; then it is fixed.",
+      "idFixed": "The id is fixed: Endpoints, spaces and imports name the model by it.",
+      "file": "File",
+      "fileFixed": "The file name is fixed: a rename changes only the name people read.",
+      "version": "Version",
+      "renameShort": "Rename",
+      "renamed": "Renamed. The id {id} and its file stay as they are; Propose saves the new name."
+    },
+    "findType": "Find a type",
+    "enumValues": {
+      "caption": "Values of {name}",
+      "stored": "Stored value",
+      "label": "Label",
+      "labelOf": "Label of {value}",
+      "actions": "Actions",
+      "translations": "Translations and description",
+      "empty": "No values yet: add the first one below.",
+      "none": "No enumerations yet: name one below.",
+      "new": "New value",
+      "newHint": "The value entities store, fixed once added, for example active.",
+      "unused": "No field uses this enumeration yet: pick it as a field's type of value.",
+      "usedBy": "Used by {fields}"
     }
   },
   "apps": {
@@ -6409,8 +6415,6 @@
     },
     "laxWarning": "Lax validation: check has not run or passed.",
     "findings": "Findings",
-    "strict": "strict validation",
-    "strictHelp": "Nothing is proposed until the check is green.",
     "saveRefused": "The draft was not saved: {reason}",
     "elsewhere": {
       "title": "No draft called “{name}” on this page",

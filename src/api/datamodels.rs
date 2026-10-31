@@ -56,40 +56,42 @@ pub struct SourcePutQuery {
     pub space: Option<String>,
 }
 
-/// The manifest a `PUT` creates for a name the project does not hold yet (DM-57). The space
-/// decides the folder, so without one there is nowhere to write the file and nothing is created.
+/// The manifest a `PUT` creates for a name the project does not hold yet (DM-57). With a space
+/// it is that space's model; without one it is a project model in its own folder (DM-75), and
+/// a space takes it later through its `dataModelRef` (DM-61).
 fn new_model_envelope(
     state: &AppState,
     project: &str,
     name: &str,
     space: Option<&str>,
 ) -> Result<crate::resource::ResourceEnvelope, ApiError> {
-    let space = space.map(str::trim).filter(|s| !s.is_empty()).ok_or_else(|| {
-        ApiError::BadRequest(format!(
-            "DataModel '{name}' not found in project '{project}'; to create it, name the space it belongs to with ?space="
-        ))
-    })?;
     if !crate::resource::is_dns1123(name) {
         return Err(ApiError::BadRequest(format!(
             "'{name}' is not a manifest name: lower-case letters, digits and '-', starting and ending with a letter or a digit"
         )));
     }
-    if state.mirror.get(project, "ContextSpace", space).is_none() {
-        return Err(ApiError::NotFound(format!(
-            "ContextSpace '{space}' not found in project '{project}'"
-        )));
+    let space = space.map(str::trim).filter(|s| !s.is_empty());
+    if let Some(space) = space {
+        if state.mirror.get(project, "ContextSpace", space).is_none() {
+            return Err(ApiError::NotFound(format!(
+                "ContextSpace '{space}' not found in project '{project}'"
+            )));
+        }
+    }
+    let mut spec = json!({
+        "linkml": format!("./{name}.linkml.yaml"),
+        "version": "0.1.0",
+        "lifecycle": "draft",
+        "classes": [],
+    });
+    if let Some(space) = space {
+        spec["contextSpaceRef"] = json!(space);
     }
     serde_json::from_value(json!({
         "apiVersion": crate::resource::API_VERSION,
         "kind": "DataModel",
         "metadata": { "name": name, "namespace": project },
-        "spec": {
-            "contextSpaceRef": space,
-            "linkml": format!("./{name}.linkml.yaml"),
-            "version": "0.1.0",
-            "lifecycle": "draft",
-            "classes": [],
-        }
+        "spec": spec,
     }))
     .map_err(|e| ApiError::Internal(format!("build DataModel manifest: {e}")))
 }
@@ -914,7 +916,7 @@ pub async fn get_source(
         ("name" = String, Path, description = "DataModel name"),
         ("version" = Option<String>, Query, description = "Target semver"),
         ("dryRun" = Option<String>, Query, description = "Set to 'All' for dry run"),
-        ("space" = Option<String>, Query, description = "The space a new model is created in"),
+        ("space" = Option<String>, Query, description = "The space a new model is created in; without it a new model is a project model (DM-75)"),
     ),
     request_body(
         content = String,

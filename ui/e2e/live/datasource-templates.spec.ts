@@ -39,6 +39,8 @@ test("each data source template reads its first records from a real source", asy
       await page.goto(`/projects/${PROJECT}/datasources?lang=en`, { waitUntil: "load" });
       await page.getByRole("button", { name: "New data source" }).first().click();
       const gallery = page.getByTestId("datasource-templates");
+      // Closed at first (T-6163): its summary opens it.
+      await gallery.getByText("Start from a template").click();
       // The guide walks the first template; the others only prove their sources answer.
       const shot = (name: string) => (at === 0 ? guideShot(page, name) : Promise.resolve());
       await shot("datasource-1-templates");

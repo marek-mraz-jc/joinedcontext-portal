@@ -792,6 +792,8 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
           formData={draft}
           submitLabel={t("datasources.propose")}
           submitting={propose.isPending}
+          // Under the fields, where the credentials are typed, not above the first one (T-6163).
+          afterFields={<p className="text-caption text-fg-muted">{t("datasources.secretHint")}</p>}
           error={formError}
           onChange={(data) => {
             setDraft(data);
@@ -827,7 +829,6 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
           )}
           {typePicker}
           <div className="space-y-2">
-            <p className="text-body text-surface-fg/70">{t("datasources.secretHint")}</p>
           {plan ? (
             <div>
               <h2 className="text-body font-medium">{t("datasources.plan")}</h2>

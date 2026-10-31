@@ -1334,14 +1334,6 @@ export function classesOf(projection: Manifest): string[] {
   return classes.map((klass) => klass.name ?? "").filter((klass) => klass !== "");
 }
 
-/** The read a newcomer tries first: five entities of the first published class, or the type list. */
-export function firstCallPath(type: string | undefined): string {
-  return type
-    ? `/ngsi-ld/v1/entities?type=${encodeURIComponent(type)}&limit=5`
-    : "/ngsi-ld/v1/types";
-}
-
-
 function Section({
   title,
   lead,

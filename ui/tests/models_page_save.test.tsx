@@ -9,6 +9,7 @@ import { queryKeys } from "../src/api/client";
 import { rememberPrefill, settlePrefill } from "../src/assistant/state";
 import en from "../src/locales/en.json";
 import { ModelsPage } from "../src/pages/models/ModelsPage";
+import { parseModel } from "../src/pages/models/linkml";
 
 const PUBLISHED_LINKML = `id: https://example.org/models/air-quality
 name: air-quality
@@ -452,7 +453,7 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     });
   });
 
-  it("names an inferred draft and a space, then creates the model through the same route (T-0789, DM-57)", async () => {
+  it("names a new model and creates it as a project model, naming no space (T-0789, DM-57, T-6162)", async () => {
     const user = userEvent.setup();
     const list = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
     const space = {
@@ -507,14 +508,10 @@ describe("ModelsPage save and source loading (DM-56)", () => {
 
     // A new model opens on the import dialog (T-6106); closing it leaves the blank editor.
     await user.click(await screen.findByRole("button", { name: en.models.importDialog.close }));
-    const name = await screen.findByLabelText(en.models.create.name);
+    const name = await screen.findByLabelText(en.models.identity.name);
     await user.type(name, "air-quality");
-    // The space that has a model already is named and cannot be chosen (DM-61).
-    const occupied = (await screen.findByRole("option", {
-      name: en.models.create.spaceHas.replace("{space}", "air").replace("{model}", "air-quality"),
-    })) as HTMLOptionElement;
-    expect(occupied.disabled).toBe(true);
-    await user.selectOptions(await screen.findByLabelText(en.models.create.space), "mobility");
+    // The editor names no space (T-6162): which spaces use a model stays on the space pages.
+    expect(screen.queryByRole("combobox", { name: /space/i })).not.toBeInTheDocument();
 
     // A name the project already carries would fork a second model under one name.
     expect(await screen.findByRole("alert")).toHaveTextContent(/already has a model named/i);
@@ -526,7 +523,7 @@ describe("ModelsPage save and source loading (DM-56)", () => {
 
     await waitFor(() => {
       expect(requests(fetchMock)).toContainEqual({
-        url: "/api/v1/projects/ovzdusie/datamodels/bikes/source?space=mobility",
+        url: "/api/v1/projects/ovzdusie/datamodels/bikes/source",
         method: "PUT",
       });
     });
@@ -610,17 +607,17 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     try {
       renderWithClient(<ModelsPage project="ovzdusie" />);
       await user.click(await screen.findByRole("button", { name: /AirQualityObserved/ }));
-      await user.selectOptions(await screen.findByLabelText(en.models.sdm.space), "air");
       await user.click(screen.getByRole("button", { name: "Import AirQualityObserved" }));
 
-      // Still a new model: named in DNS form from the upstream model, and the person can rename it.
-      expect(await screen.findByLabelText(en.models.create.name)).toHaveValue("air-quality-observed");
+      // Still a new model: named after the upstream model, its id in DNS form, renamable before Save.
+      expect(await screen.findByLabelText(en.models.identity.name)).toHaveValue("AirQualityObserved");
+      expect(screen.getByText("air-quality-observed.linkml.yaml")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: PROPOSE }));
       await waitFor(() => {
         expect(requests(fetchMock)).toContainEqual({
-          url: "/api/v1/projects/ovzdusie/datamodels/air-quality-observed/source?space=air",
+          url: "/api/v1/projects/ovzdusie/datamodels/air-quality-observed/source",
           method: "PUT",
         });
       });
@@ -650,47 +647,13 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     window.history.replaceState(null, "", "/?new=blank&space=air");
     try {
       renderWithClient(<ModelsPage project="ovzdusie" />);
-      await user.type(await screen.findByLabelText(en.models.create.name), "second");
+      await user.type(await screen.findByLabelText(en.models.identity.name), "second");
       expect(await screen.findByRole("alert")).toHaveTextContent(
         en.models.create.spaceTaken.replaceAll("{space}", "air").replaceAll("{model}", "air-quality"),
       );
       expect(screen.queryByRole("button", { name: PROPOSE })).not.toBeInTheDocument();
     } finally {
       window.history.replaceState(null, "", "/");
-    }
-  });
-
-  it("sends a new model to create a space first when no space is free for it (T-3213)", async () => {
-    const list = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
-    const air = { apiVersion: "joinedcontext.com/v1alpha1", kind: "ContextSpace", metadata: { name: "air" }, spec: {} };
-    const taken = {
-      apiVersion: "joinedcontext.com/v1alpha1",
-      kind: "DataModel",
-      metadata: { name: "air-quality" },
-      spec: { contextSpaceRef: "air", linkml: "./air-quality.linkml.yaml" },
-    };
-    for (const [spaces, models, text] of [
-      [[], [], en.models.create.noSpace],
-      [[air], [taken], en.models.create.noFreeSpace],
-    ] as const) {
-      global.fetch = vi.fn().mockImplementation((req: RequestInfo | URL) => {
-        const urlStr = typeof req === "string" ? req : req instanceof Request ? req.url : req.toString();
-        const body = urlStr.includes("/spaces") ? list([...spaces]) : urlStr.includes("/datamodels") ? list([...models]) : list([]);
-        return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
-      });
-      window.history.replaceState(null, "", "/?new=blank");
-      try {
-        const { unmount } = renderWithClient(<ModelsPage project="ovzdusie" />);
-        const status = await screen.findByText(new RegExp(text.slice(0, 30)));
-        expect(status).toHaveAttribute("role", "status");
-        expect(screen.getByRole("link", { name: en.models.create.newSpace })).toHaveAttribute(
-          "href",
-          "/projects/ovzdusie/spaces/new",
-        );
-        unmount();
-      } finally {
-        window.history.replaceState(null, "", "/");
-      }
     }
   });
 
@@ -740,7 +703,7 @@ describe("ModelsPage save and source loading (DM-56)", () => {
       rememberPrefill("/", { source: INFERRED });
       renderWithClient(<ModelsPage project="ovzdusie" />);
 
-      const name = await screen.findByLabelText(en.models.create.name);
+      const name = await screen.findByLabelText(en.models.identity.name);
       await user.clear(name);
       await user.type(name, "sensors");
 
@@ -748,9 +711,10 @@ describe("ModelsPage save and source loading (DM-56)", () => {
         expect(drafts).toHaveLength(1);
       });
       expect(drafts[0].url).toContain("/api/v1/projects/ovzdusie/drafts/DataModel/sensors");
-      expect(drafts[0].body).toMatchObject({
-        manifest: { kind: "DataModel", spec: { linkml: INFERRED } },
-      });
+      // The draft is the inferred model, titled with the name typed for it (T-6162).
+      const kept = drafts[0].body as { manifest: { kind: string; spec: { linkml: string } } };
+      expect(kept.manifest.kind).toBe("DataModel");
+      expect(parseModel(kept.manifest.spec.linkml)).toEqual({ ...parseModel(INFERRED), title: { en: "sensors" } });
       expect(new URL(window.location.href).searchParams.get("draft")).toBe("sensors");
       expect(await screen.findByText(en.models.create.held.replace("{name}", "sensors"))).toBeInTheDocument();
     });
@@ -778,7 +742,7 @@ describe("ModelsPage save and source loading (DM-56)", () => {
 
       renderWithClient(<ModelsPage project="ovzdusie" />);
 
-      const name = await screen.findByLabelText(en.models.create.name);
+      const name = await screen.findByLabelText(en.models.identity.name);
       await user.clear(name);
       await user.type(name, "sensors");
 

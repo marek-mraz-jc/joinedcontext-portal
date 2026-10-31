@@ -331,7 +331,7 @@ describe("LinkML visual editor", () => {
     await user.type(screen.getByLabelText("New enum"), "QualityBand");
     await user.click(screen.getByRole("button", { name: "Add enum" }));
 
-    await user.type(await screen.findByLabelText("New value of QualityBand"), "good");
+    await user.type(await screen.findByRole("textbox", { name: "New value" }), "good");
     await user.click(screen.getByRole("button", { name: "Add value to QualityBand" }));
 
     const model = parseModel(source());
