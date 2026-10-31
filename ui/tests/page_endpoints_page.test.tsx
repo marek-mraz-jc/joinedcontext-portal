@@ -248,13 +248,12 @@ describe("the endpoints page", () => {
     expect(rowLinks()).toHaveLength(50);
   });
 
-  it("nothing_shared_with_the_project_is_one_line_and_no_second_table", async () => {
+  it("nothing_shared_with_the_project_adds_no_second_table", async () => {
     await renderRoute({ path: PATH, answer: answering([endpoint("public-air")]) });
     await screen.findByRole("link", { name: "public-air" });
-    expect(await screen.findByText(en.endpoints.shared.empty)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: en.endpoints.shared.browse })).toHaveAttribute("href", "/endpoints");
-    expect(screen.queryByText(en.endpoints.shared.lead)).toBeNull();
+    // Own and shared Endpoints are one grid (T-6169): no section, no second table.
     expect(screen.getAllByRole("table")).toHaveLength(1);
+    expect(screen.getAllByText(en.endpoints.source.own).length).toBeGreaterThan(0);
   });
 
   it("finds_by_title_ignores_blank_search_and_starts_a_new_search_on_page_one", async () => {

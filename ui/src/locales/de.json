@@ -1649,14 +1649,8 @@
     },
     "sharedWith": "Geteilt mit",
     "shared": {
-      "title": "Mit diesem Projekt geteilt",
-      "lead": "Endpunkte, die andere Projekte der Organisation für dieses geöffnet haben. Ein Klick referenziert den Raum hier; die Referenz wird wie jede andere Änderung vorgeschlagen.",
-      "empty": "Noch kein anderes Projekt teilt einen Endpunkt mit diesem.",
-      "source": "Quellprojekt und Raum",
-      "reference": "Referenz",
       "use": "In diesem Projekt verwenden",
       "referenced": "Referenziert",
-      "alias": "Alias",
       "gone": "Endpunkt nicht mehr geteilt",
       "goneSource": "Quelle nicht verfügbar",
       "edit": {
@@ -1666,7 +1660,9 @@
         "intervalHelp": "Wie oft das Schema der Quelle hierher gespiegelt wird, etwa 6h oder 1d; leer heißt einmal am Tag."
       },
       "browse": "Ansehen, was andere Projekte veröffentlichen",
-      "noAddress": "Dieser Endpoint hat noch keine Adresse; Sie können ihn nutzen, sobald er veröffentlicht ist."
+      "noAddress": "Dieser Endpoint hat noch keine Adresse; Sie können ihn nutzen, sobald er veröffentlicht ist.",
+      "stop": "Nicht mehr verwenden",
+      "editAlias": "Alias bearbeiten"
     },
     "slugHint": "Die Adresse wird für Sie erzeugt und ändert sich nie, auch wenn der Endpunkt umbenannt wird.",
     "picker": {
@@ -2357,6 +2353,14 @@
         "until": "Der letzte Tag der Berechtigung, z. B. 2027-01-31. Leer bedeutet ohne Ende.",
         "reason": "Wofür Sie die Daten brauchen, z. B. Wöchentlicher Luftbericht für das Bezirksamt."
       }
+    },
+    "source": {
+      "label": "Quelle",
+      "own": "Dieses Projekt",
+      "shared": "Geteilt von {project}"
+    },
+    "calls": {
+      "label": "Aufrufe, 7 Tage"
     }
   },
   "datasources": {
@@ -11131,6 +11135,11 @@
     },
     "text": {
       "hint": "Einfacher Text, zum Beispiel ein kurzer Satz."
+    },
+    "yaml": {
+      "action": "YAML anzeigen",
+      "title": "{name} als YAML",
+      "lead": "Das Manifest, wie das Projekt-Repository es hält, nur lesbar. Geheimnisse erscheinen nur als Verweis (secretRef); ein Wert unter einem geheimnisartigen Schlüssel wird maskiert."
     }
   }
 }

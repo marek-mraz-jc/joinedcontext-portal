@@ -141,13 +141,13 @@ test.describe("sharing", () => {
     // The owner sees who it is shared with.
     await expect(row.getByRole("list", { name: "Shared with" }).getByText("espoo")).toBeVisible();
 
-    // espoo sees it under "Shared with this project" and references it with one click.
+    // espoo sees it as a row of its Endpoints grid (T-6169) and references it from the row menu.
     await page.goto("/projects/espoo/endpoints?lang=en");
-    const shared = page.getByRole("region", { name: "Shared with this project" });
+    const shared = page.getByRole("table", { name: "Endpoints" });
     const bikes = shared.getByRole("row").filter({ hasText: "bikes" });
-    await expect(bikes.getByRole("link", { name: "helsinki" })).toBeVisible();
-    await expect(bikes.getByRole("link", { name: "liikenne" })).toBeVisible();
-    await bikes.getByRole("button", { name: "Use in this project: helsinki/bikes" }).click();
+    await expect(bikes.getByText("Shared by helsinki")).toBeVisible();
+    await bikes.getByRole("button", { name: /More actions/ }).click();
+    await page.getByRole("menuitem", { name: "Use in this project" }).click();
 
     await expect(page.getByText("chg-77aa11bb")).toBeVisible();
     expect(writes).toHaveLength(2);
@@ -157,10 +157,12 @@ test.describe("sharing", () => {
     expect(writes[1]).toContain('"endpointRef":{"project":"helsinki","name":"bikes"}');
     expect(writes[1]).not.toContain(BIKES_SLUG);
     expect(writes[1]).toContain('"alias":"helsinki-liikenne"');
-    // Declared: the row now shows the alias instead of the button.
+    // Declared: the row says Referenced and its menu offers Stop using instead of Use.
     await expect(bikes.getByText("Referenced")).toBeVisible();
-    await expect(bikes.getByText("alias: helsinki-liikenne")).toBeVisible();
-    await expect(bikes.getByRole("button", { name: /Use in this project/ })).toHaveCount(0);
+    await bikes.getByRole("button", { name: /More actions/ }).click();
+    await expect(page.getByRole("menuitem", { name: "Stop using" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Use in this project" })).toHaveCount(0);
+    await page.keyboard.press("Escape");
 
     // The references have no page of their own any more: the sidebar does not offer one, and
     // the old URL lands on this section (T-0706).
@@ -168,15 +170,16 @@ test.describe("sharing", () => {
       page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Shared references" }),
     ).toHaveCount(0);
     await page.goto("/projects/espoo/shared");
-    await expect(page.getByRole("heading", { name: "Shared with this project" })).toBeVisible();
+    await expect(page.getByRole("table", { name: "Endpoints" })).toBeVisible();
     expect(new URL(page.url()).pathname).toBe("/projects/espoo/endpoints");
   });
 
-  test("the endpoints route with a shared section has no axe violations", async ({ page }) => {
+  test("the endpoints route has no axe violations, empty and with nothing shared", async ({ page }) => {
     await stubApi(page);
 
     await page.goto("/projects/espoo/endpoints?lang=sk");
-    await expect(page.getByRole("region", { name: "Zdieľané s týmto projektom" })).toBeVisible();
+    // Nothing shared with espoo yet: the empty card offers the way to what other projects publish.
+    await expect(page.getByRole("link", { name: "Pozrieť, čo zverejňujú iné projekty" })).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
   });
 });

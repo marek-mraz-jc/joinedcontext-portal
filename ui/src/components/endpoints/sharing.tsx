@@ -35,7 +35,7 @@ export function sharingOf(endpoint: Manifest): Sharing {
 }
 
 export function spaceOf(endpoint: Manifest): string | undefined {
-  const space = refName((endpoint.spec as { contextSpaceRef?: unknown }).contextSpaceRef);
+  const space = refName((endpoint.spec as { contextSpaceRef?: unknown } | undefined)?.contextSpaceRef);
   return space !== "" ? space : endpoint.metadata.labels?.[SPACE_LABEL];
 }
 

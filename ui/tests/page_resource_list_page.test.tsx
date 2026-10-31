@@ -104,11 +104,17 @@ describe("a kind with no page of its own", () => {
     for (const count of [0, 1, 500]) {
       const items = Array.from({ length: count }, (_, index) => blueprint(`bp-${index}`));
       const { unmount } = await renderRoute({ path: PATH, answer: answering(items) });
-      const table = await screen.findByRole("table");
-      await waitFor(() =>
-        // The head is a row too, and an empty list draws one row for its empty state.
-        expect(within(table).getAllByRole("row").length).toBe(count === 0 ? 2 : count + 1),
-      );
+      if (count === 0) {
+        // An empty list is one card saying what to do next, no table (T-6115, T-6169).
+        expect(await screen.findByText(i18n.t("resourceList.empty"))).toBeInTheDocument();
+        expect(screen.queryByRole("table")).toBeNull();
+      } else {
+        const table = await screen.findByRole("table");
+        // The head is a row too; the grid shows 50 rows and offers the rest.
+        await waitFor(() => expect(within(table).getAllByRole("row").length).toBe(Math.min(count, 50) + 1));
+        // One menu per row beside the grid's Details button.
+        expect(within(table).getAllByRole("button", { name: /More actions/ })).toHaveLength(Math.min(count, 50));
+      }
       unmount();
       vi.restoreAllMocks();
     }

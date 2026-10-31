@@ -398,8 +398,10 @@ export function TableSkeleton({
       {Array.from({ length: rows }, (_, row) => (
         <tr key={row}>
           {Array.from({ length: columns }, (_, col) => (
-            <td key={col} className="px-4 py-3.5">
-              <Skeleton className={col === 0 ? "h-4 w-40" : "h-4 w-24"} />
+            // A stacked table hides its header below `sm`: the skeleton shows one bar per row there,
+            // never a row of bars wider than the phone (T-6169).
+            <td key={col} className={col === 0 ? "px-4 py-3.5" : "hidden px-4 py-3.5 sm:table-cell"}>
+              <Skeleton className={col === 0 ? "h-4 w-full max-w-40" : "h-4 w-24"} />
             </td>
           ))}
         </tr>

@@ -1,15 +1,15 @@
 /**
  * T-2729 — what other projects share with this one, on dev (EP-14, EP-15, UI-44).
  *
- * `/projects/{project}/shared` is the old address of the list; it lands on the Endpoints page's
- * "Shared with this project" section (T-0706), and a bookmark or the assistant's navigation must
- * keep reaching it. The section is the organization's endpoints that admit this project, read
+ * `/projects/{project}/shared` is the old address of the list; it lands on the Endpoints grid, whose
+ * shared rows carry a "Shared by <project>" Source chip (T-0706, T-6169), and a bookmark or the
+ * assistant's navigation must keep reaching it. The shared rows are the organization's endpoints that admit this project, read
  * from the source projects: this journey reads the same lists through the API and holds the
  * section to the audience rule itself — `organization` and `public` admit every project,
  * `project-list` the projects it names, anything else none (EP-14). dev holds three projects
  * since T-2455, so there is something on the other side to share.
  *
- * The viewer reads the same section and meets every "Use in this project" refused with its
+ * The viewer reads the same rows and meets "Use in this project" in the row menu refused with its
  * reason: referencing a space is a proposal, and a viewer proposes nothing.
  */
 import { expect, test } from "@playwright/test";
@@ -42,15 +42,14 @@ async function sharedWith(page: Page, project: string): Promise<{ source: string
   return found;
 }
 
-/** The section the old address lands on, as a person reads it. */
+/** The grid the old address lands on, as a person reads it. */
 async function section(page: Page, project: string) {
   await page.goto(`/projects/${project}/shared?lang=en`, { waitUntil: "load" });
-  await expect(page, "the old address lands on the Endpoints page").toHaveURL(
-    new RegExp(`/projects/${project}/endpoints#shared-with-project$`),
-  );
-  const heading = page.getByRole("heading", { level: 2, name: "Shared with this project" });
-  await expect(heading).toBeVisible({ timeout: 60_000 });
-  return heading.locator("xpath=ancestor::section[1]");
+  await expect(page, "the old address lands on the Endpoints page").toHaveURL(new RegExp(`/projects/${project}/endpoints$`));
+  const table = page.getByRole("table", { name: "Endpoints" });
+  const empty = page.getByText("This project publishes no endpoint yet.");
+  await expect(table.or(empty)).toBeVisible({ timeout: 60_000 });
+  return table;
 }
 
 test("the old address lands on what other projects share with this one, and the list follows the audience rule", async ({
@@ -60,17 +59,12 @@ test("the old address lands on what other projects share with this one, and the 
   const { context, page } = await signIn(browser, STEWARD, `/projects/${project}/endpoints?lang=en`);
   try {
     const expected = await sharedWith(page, project);
-    const shown = await section(page, project);
-    if (expected.length === 0) {
-      await expect(shown.getByText("No other project shares an endpoint with this one yet.")).toBeVisible();
-      return;
-    }
-    const table = shown.getByRole("table", { name: "Shared with this project" });
+    const table = await section(page, project);
     for (const { source, name } of expected) {
-      const row = table.getByRole("row").filter({ hasText: source }).filter({ hasText: name });
+      const row = table.getByRole("row").filter({ hasText: `Shared by ${source}` }).filter({ hasText: name });
       await expect(row.first(), `${source}/${name} is listed as shared`).toBeVisible();
     }
-    await expect(table.getByRole("row").filter({ hasText: new RegExp(`^${project}\\b`) }), "the project shares nothing with itself").toHaveCount(0);
+    await expect(table.getByText(`Shared by ${project}`), "the project shares nothing with itself").toHaveCount(0);
   } finally {
     await context.close();
   }
@@ -80,16 +74,15 @@ test("a viewer reads what is shared and is refused referencing it, with the reas
   const project = "helsinki";
   const { context, page } = await signIn(browser, VIEWER, `/projects/${project}/endpoints?lang=en`);
   try {
-    const shown = await section(page, project);
-    // Each is named for what it references: "Use in this project: <source>/<endpoint>".
-    const use = shown.getByRole("button", { name: /^Use in this project: / });
-    const count = await use.count();
-    for (let index = 0; index < count; index += 1) {
-      await expect(use.nth(index)).toHaveAttribute("aria-disabled", "true");
-      await expect(use.nth(index)).toHaveAccessibleDescription(/propose/);
-    }
-    if (count === 0) {
-      await expect(shown.getByText(/No other project shares an endpoint|Referenced|Endpoint no longer shared/).first()).toBeVisible();
+    const table = await section(page, project);
+    // A shared row not referenced yet offers Use in this project in its menu, closed with the verb.
+    const offers = table.getByRole("row").filter({ hasText: /Shared by / }).filter({ hasNotText: "Referenced" });
+    if ((await offers.count()) > 0) {
+      await offers.first().getByRole("button", { name: /More actions/ }).click();
+      const use = page.getByRole("menuitem", { name: /^Use in this project/ });
+      await expect(use).toHaveAttribute("aria-disabled", "true");
+      await expect(use).toContainText(/propose/);
+      await page.keyboard.press("Escape");
     }
   } finally {
     await context.close();

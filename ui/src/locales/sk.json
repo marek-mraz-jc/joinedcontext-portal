@@ -1672,14 +1672,8 @@
     },
     "sharedWith": "Zdieľané s",
     "shared": {
-      "title": "Zdieľané s týmto projektom",
-      "lead": "Endpointy, ktoré iné projekty organizácie otvorili tomuto projektu. Jedno kliknutie tu vytvorí odkaz na priestor; odkaz sa navrhne ako zmena ako každý iný zápis.",
-      "empty": "Žiadny iný projekt zatiaľ nezdieľa endpoint s týmto projektom.",
-      "source": "Zdrojový projekt a priestor",
-      "reference": "Odkaz",
       "use": "Použiť v tomto projekte",
       "referenced": "Odkazované",
-      "alias": "alias",
       "gone": "Endpoint už nie je zdieľaný",
       "goneSource": "Zdroj nedostupný",
       "edit": {
@@ -1689,7 +1683,9 @@
         "intervalHelp": "Ako často sa sem zrkadlí schéma zdroja, napríklad 6h alebo 1d; prázdne znamená raz denne."
       },
       "browse": "Pozrieť, čo zverejňujú iné projekty",
-      "noAddress": "Tento endpoint ešte nemá adresu; použiť ho môžete, keď bude zverejnený."
+      "noAddress": "Tento endpoint ešte nemá adresu; použiť ho môžete, keď bude zverejnený.",
+      "stop": "Prestať používať",
+      "editAlias": "Upraviť alias"
     },
     "audienceOption": {
       "project-list": "Vybrané projekty: iba projekty, ktoré označíte",
@@ -2357,6 +2353,14 @@
         "until": "Posledný deň oprávnenia, napr. 2027-01-31. Prázdne znamená bez konca.",
         "reason": "Na čo údaje potrebujete, napr. Týždenná správa o ovzduší pre okresný úrad."
       }
+    },
+    "source": {
+      "label": "Zdroj",
+      "own": "Tento projekt",
+      "shared": "Zdieľa {project}"
+    },
+    "calls": {
+      "label": "Volania, 7 dní"
     }
   },
   "datasources": {
@@ -11131,6 +11135,11 @@
     },
     "text": {
       "hint": "Obyčajný text, napríklad krátka veta."
+    },
+    "yaml": {
+      "action": "Zobraziť YAML",
+      "title": "{name} ako YAML",
+      "lead": "Manifest tak, ako ho drží repozitár projektu, len na čítanie. Tajomstvá sú len odkazom (secretRef); hodnota pod kľúčom, ktorý vyzerá ako tajomstvo, je skrytá."
     }
   }
 }

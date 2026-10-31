@@ -2233,7 +2233,7 @@
     },
     "src/routes/EndpointsPage.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 3
       },
       "tests": [
         "edit_prefill.test.tsx",
@@ -2241,6 +2241,7 @@
         "endpoint_catalog.test.tsx",
         "endpoint_open_data.test.tsx",
         "endpoint_representations.test.ts",
+        "endpoint_rows_grid.test.tsx",
         "endpoint_write_policy.test.ts",
         "representation_outputs_field.test.tsx"
       ]
@@ -2312,7 +2313,7 @@
     },
     "src/routes/SpacesPage.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 1
       },
       "tests": [
         "edit_keeps_stored_metadata.test.ts",

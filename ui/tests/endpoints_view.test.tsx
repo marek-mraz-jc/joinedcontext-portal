@@ -240,6 +240,7 @@ describe("endpoints view", () => {
     expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
       en.resourceList.open,
       en.endpoints.edit,
+      en.grid.yaml.action,
       en.resourceList.viewSource,
       en.endpoints.copyUrl,
       en.export.action,

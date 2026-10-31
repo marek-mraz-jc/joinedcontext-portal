@@ -580,10 +580,11 @@ describe("a viewer on the spaces list", () => {
     // The name opens the space (T-6095); everything else is one menu, not four buttons.
     expect(within(row).getByRole("link", { name: "Air quality" })).toBeInTheDocument();
     expect(within(row).queryByRole("link", { name: en.spaces.inside.open })).toBeNull();
+    // The grid's Details button and the one menu (T-6169).
     const buttons = within(row).getAllByRole("button");
-    expect(buttons).toHaveLength(1);
+    expect(buttons).toHaveLength(2);
 
-    await userEvent.click(buttons[0]);
+    await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
     const menu = await screen.findByRole("menu");
     const items = within(menu)
       .getAllByRole("menuitem")

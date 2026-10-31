@@ -430,7 +430,14 @@ export function GridRow<T>({
         </TableCell>
       ))}
       {/* Sticky at the frame's right edge: on a phone the row's ways in stay in view (T-6115 judge). */}
-      <TableCell align="right" className={clsx("align-middle", STICKY)} onClick={(event) => event.preventDefault()}>
+      {/* A click in the cell itself is no row click; a click in a dialog the row menu opened reaches
+          this handler through React's portal bubbling and keeps its default, or its submit never
+          fires (T-6169). */}
+      <TableCell
+        align="right"
+        className={clsx("align-middle", STICKY)}
+        onClick={(event) => (event.currentTarget.contains(event.target as Node) ? event.preventDefault() : undefined)}
+      >
         <div className="flex items-center justify-end gap-1">
           <Button
             variant="ghost"
