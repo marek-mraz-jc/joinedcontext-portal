@@ -13,6 +13,9 @@
 # (ui/openapi.json): the lane's unit tests read sdk/, apps/ and ui/ files. The other way round,
 # the UI suite reads a few files outside ui/ and sdk/: the help clips' script, public-docs/, the
 # Rust fixtures, and the activity kinds the server writes (src/**/*.rs, see kinds_added).
+# A language catalogue (ui/src/locales/<xx>.json) runs rust only when its `problem` texts moved:
+# tests/problem_types_tests.rs is the one Rust that reads the folder, and only those files by
+# name (T-6153; without a base, always).
 # ui_scope (T-6153) is `related` when every UI path the change touched is a file under ui/src/,
 # ui/tests/ (but its setup file) or ui/e2e/: the ui job then runs only the tests that import a
 # changed file, the changed tests and every test that reads the tree (scripts/ci/ui-related.sh).
@@ -40,7 +43,7 @@ rust_reads() {
 }
 
 classify() {
-  rust=false ui=false apps=false ui_scope=related
+  rust=false ui=false apps=false ui_scope=related catalogues=""
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     case $f in
@@ -59,12 +62,32 @@ classify() {
     esac
     case $f in
       docs/*) ;;
+      ui/src/locales/[a-z][a-z].json) catalogues="$catalogues $f" ;;
+      ui/src/locales/*) ;;
       ui/*) if rust_reads "$f"; then rust=true; fi ;;
       */*) rust=true ;;
       *.md) ;;
       *) rust=true ;;
     esac
   done
+}
+
+# Exit 0 when the `problem` member differs between the JSON files $1 and $2, or either is no JSON.
+problem_differs() {
+  old=$(jq -cS '.problem' "$1" 2>/dev/null) && new=$(jq -cS '.problem' "$2" 2>/dev/null) || return 0
+  [ "$old" != "$new" ]
+}
+
+# rust=true when a catalogue the change touched moved its problem texts since $1 (no base: always).
+settle_catalogues() {
+  [ "$rust" = false ] && [ -n "$catalogues" ] || return 0
+  [ -n "$1" ] || { rust=true; return 0; }
+  was=$(mktemp)
+  for f in $catalogues; do
+    git -C "$ROOT" show "$1:$f" >"$was" 2>/dev/null || : >"$was"
+    if problem_differs "$was" "$ROOT/$f"; then rust=true; break; fi
+  done
+  rm -f "$was"
 }
 
 # Exit 0 when the Rust between $1 and HEAD adds a line ui/tests/activity_kinds.test.ts collects
@@ -80,7 +103,7 @@ report() {
 
 selftest() {
   check() {
-    got=$(printf '%b' "$2" | { classify; report; } | tr '\n' ' ')
+    got=$(printf '%b' "$2" | { classify; settle_catalogues ""; report; } | tr '\n' ' ')
     [ "$got" = "$3" ] || { echo "changes selftest: $1: got '$got', want '$3'" >&2; exit 1; }
   }
   check "a page" 'ui/src/pages/apps/AppTemplates.tsx\n' "rust=false ui=true apps=false ui_scope=related "
@@ -93,6 +116,7 @@ selftest() {
   check "a page and the lockfile" 'ui/src/App.tsx\nui/pnpm-lock.yaml\n' "rust=false ui=true apps=false ui_scope=full "
   check "committed OpenAPI spec" 'ui/openapi.json\n' "rust=true ui=true apps=false ui_scope=full "
   check "a locale the problem-types test reads" 'ui/src/locales/sk.json\n' "rust=true ui=true apps=false ui_scope=related "
+  check "the problem-type test is not a catalogue" 'ui/src/locales/public-groups.json\n' "rust=false ui=true apps=false ui_scope=related "
   check "the bundle budget" 'scripts/bundle-budget.mjs\n' "rust=true ui=true apps=true ui_scope=related "
   check "src only" 'src/main.rs\nmigrations/0001.sql\n' "rust=true ui=false apps=false ui_scope=related "
   check "a fixture the UI suite reads" 'tests/fixtures/bus-expires.blobl\n' "rust=true ui=true apps=false ui_scope=full "
@@ -107,6 +131,15 @@ selftest() {
   check "another workflow" '.github/workflows/image.yml\n' "rust=true ui=false apps=false ui_scope=related "
   check "no base" '*\n' "rust=true ui=true apps=true ui_scope=full "
   check "nothing" '' "rust=false ui=false apps=false ui_scope=related "
+  a=$(mktemp) b=$(mktemp)
+  printf '{"problem":{"x":"A"},"spaces":{"size":"Size"}}' >"$a"
+  printf '{"spaces":{"size":"Bytes"},"problem":{"x":"A"}}' >"$b"
+  ! problem_differs "$a" "$b" || { echo "changes selftest: a text outside problem runs rust" >&2; exit 1; }
+  printf '{"problem":{"x":"B"}}' >"$b"
+  problem_differs "$a" "$b" || { echo "changes selftest: a moved problem text skips rust" >&2; exit 1; }
+  : >"$a"
+  problem_differs "$a" "$b" || { echo "changes selftest: a new catalogue skips rust" >&2; exit 1; }
+  rm -f "$a" "$b"
   printf '+        kind: "app.shared".to_owned(),\n' | grep -qE "$KIND_LINE" ||
     { echo "changes selftest: an added activity kind is not seen" >&2; exit 1; }
   ! printf '+    let kinds = 3;\n-        kind: "a.b".to_owned(),\n' | grep -qE "$KIND_LINE" ||
@@ -120,13 +153,14 @@ everything() {
 
 case ${1:-} in
   --selftest) selftest ;;
-  -) classify; report ;;
+  -) classify; settle_catalogues ""; report ;;
   "") everything; report ;;
   *)
     if paths=$(git -C "$ROOT" diff --name-only "$1" HEAD 2>/dev/null); then
       classify <<EOF
 $paths
 EOF
+      settle_catalogues "$1"
       if [ "$ui" = false ] && kinds_added "$1"; then ui=true; fi
     else
       # A base the shallow clone does not hold is no base either.
