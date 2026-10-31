@@ -283,9 +283,38 @@ pub fn reference_name(reference: &serde_json::Value) -> Option<&str> {
         .or_else(|| reference.get("name").and_then(serde_json::Value::as_str))
 }
 
+/// A title written either way a manifest may write it: one string, or a text per language,
+/// English first, else the first language's (F-R2POR1-016). A blank title is none.
+pub fn title_text(title: &serde_json::Value) -> Option<String> {
+    let text = match title {
+        serde_json::Value::Object(texts) => texts
+            .get("en")
+            .and_then(serde_json::Value::as_str)
+            .or_else(|| texts.values().find_map(serde_json::Value::as_str)),
+        other => other.as_str(),
+    }?;
+    (!text.trim().is_empty()).then(|| text.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_title_is_the_plain_string_or_the_english_one() {
+        use serde_json::json;
+        assert_eq!(title_text(&json!("Lab only")), Some("Lab only".to_owned()));
+        assert_eq!(
+            title_text(&json!({ "fi": "Vain", "en": "Only" })),
+            Some("Only".to_owned())
+        );
+        assert_eq!(
+            title_text(&json!({ "fi": "Vain" })),
+            Some("Vain".to_owned())
+        );
+        assert_eq!(title_text(&json!("  ")), None);
+        assert_eq!(title_text(&serde_json::Value::Null), None);
+    }
 
     #[test]
     fn every_entry_round_trips_plural_kind_plural() {

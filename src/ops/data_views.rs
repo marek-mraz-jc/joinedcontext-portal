@@ -16,7 +16,7 @@ use sqlx::Row;
 use tokio::sync::RwLock;
 use utoipa::ToSchema;
 
-use crate::ops::drafts::{chrono_to_odt, odt_to_chrono};
+use crate::activity::{chrono_to_odt, odt_to_chrono};
 
 /// The view kinds; `map` places the rows by a GeoProperty (T-4884).
 pub const KINDS: [&str; 7] = [
@@ -151,7 +151,7 @@ pub enum DataViewError {
 }
 
 /// An NGSI-LD type name as the gateway accepts it.
-fn is_type_name(name: &str) -> bool {
+pub(crate) fn is_type_name(name: &str) -> bool {
     let mut chars = name.chars();
     name.len() <= MAX_ATTR
         && chars.next().is_some_and(|c| c.is_ascii_alphabetic())

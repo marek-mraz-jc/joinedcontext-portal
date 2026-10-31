@@ -129,6 +129,11 @@ pub fn spawn_periodic(state: AppState) {
         let mut tick: u64 = 0;
         loop {
             interval.tick().await;
+            // Each replica would end the same runs and ask the forge once per waiting run
+            // (F-R2POR1-011): the leader alone reaps.
+            if !state.leads() {
+                continue;
+            }
             reap_expired(&state).await;
             if tick.is_multiple_of(10) {
                 end_closed_publications(&state).await;

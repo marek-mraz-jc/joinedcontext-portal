@@ -437,6 +437,84 @@ async fn two_approvals_at_once_open_one_change() {
     assert_eq!(opened, 1, "one approval, one Change");
 }
 
+/// F-R2POR1-007 (T-6225): two owners revoking at once: one revoke Change, and the other gets the
+/// 409 before it proposes anything; the request keeps the revoker who won.
+#[tokio::test]
+async fn two_revokes_at_once_open_one_change() {
+    let Some(pool) = pool().await else { return };
+    let pipeline = unique("air");
+    let state = state(pool, &pipeline, true).await;
+    let filed = send(
+        &state,
+        "jana",
+        "POST",
+        &format!("/api/v1/projects/{KPIS}/pipelines/{pipeline}/access-requests"),
+        Some(ask()),
+    )
+    .await;
+    assert_eq!(filed.status, StatusCode::CREATED, "{}", filed.text);
+    let id = serde_json::from_str::<Value>(&filed.text).expect("json")["id"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    let approved = send(
+        &state,
+        "olli",
+        "POST",
+        &format!("/api/v1/projects/{HELSINKI}/access-requests/{id}/approve"),
+        None,
+    )
+    .await;
+    assert_eq!(approved.status, StatusCode::ACCEPTED, "{}", approved.text);
+    // The grant merged.
+    let request =
+        joinedcontext_portal::access_requests::get(state.db.as_ref().expect("db"), HELSINKI, &id)
+            .await
+            .expect("read")
+            .expect("there");
+    let endpoint =
+        json!({ "spec": { "audience": "project-list", "allowedProjects": ["traffic"] } });
+    let policy =
+        joinedcontext_portal::access_requests::grant_bundle(&request, &endpoint)[1].clone();
+    state
+        .mirror
+        .upsert(serde_json::from_value(policy).expect("an envelope"));
+    let uri = format!("/api/v1/projects/{HELSINKI}/access-requests/{id}/revoke");
+    let reason = json!({ "reason": "the KPI project ended" });
+    let (one, two) = tokio::join!(
+        send(&state, "olli", "POST", &uri, Some(reason.clone())),
+        send(&state, "olli", "POST", &uri, Some(reason))
+    );
+    let mut statuses = [one.status, two.status];
+    statuses.sort();
+    assert_eq!(
+        statuses,
+        [StatusCode::ACCEPTED, StatusCode::CONFLICT],
+        "{} / {}",
+        one.text,
+        two.text
+    );
+    let forge = FORGES
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .remove(&pipeline)
+        .expect("the world's forge");
+    let opened = forge
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == "POST" && r.url.path().ends_with("/pulls"))
+        .count();
+    assert_eq!(opened, 2, "one approval and one revoke, one Change each");
+    let revoked =
+        joinedcontext_portal::access_requests::get(state.db.as_ref().expect("db"), HELSINKI, &id)
+            .await
+            .expect("read")
+            .expect("there");
+    assert_eq!(revoked.state, "revoked");
+}
+
 /// PL-91: the requester never approves their own request, even holding the owner's rights.
 #[tokio::test]
 async fn the_requester_does_not_approve_their_own_request() {

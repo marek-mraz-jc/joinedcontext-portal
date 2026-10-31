@@ -136,7 +136,7 @@ pub fn confine_linkml_path(linkml: &str) -> Result<String, ApiError> {
 pub(crate) fn model_folder(namespace: &str, spec: &Value, name: &str) -> String {
     let space = spec
         .get("contextSpaceRef")
-        .and_then(Value::as_str)
+        .and_then(crate::resource::reference_name)
         .unwrap_or_default();
     let manifest = jc_core::registry::by_kind("DataModel")
         .map(|info| info.repo_path(namespace, space, name))

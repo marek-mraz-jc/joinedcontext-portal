@@ -563,6 +563,75 @@ impl Asker<'_> {
 mod tests {
     use super::*;
 
+    /// A person bound to space `a` reads Endpoints there, and helsinki has one Endpoint in
+    /// space `a` and one in space `b`.
+    fn space_a_reader() -> AppState {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let put = |kind: &str, name: &str, namespace: &str, spec: Value| {
+            state.mirror.upsert(ResourceEnvelope {
+                api_version: API_VERSION.to_owned(),
+                kind: kind.to_owned(),
+                metadata: ObjectMeta::new(name, namespace),
+                spec,
+                status: None,
+            });
+        };
+        let org = crate::permissions::ORG_NAMESPACE;
+        put(
+            "Role",
+            "endpoint-reader",
+            org,
+            json!({ "rules": [{ "kinds": ["Endpoint", "ContextSpace"], "verbs": ["read"] }] }),
+        );
+        put(
+            "RoleBinding",
+            "dev-space-a",
+            org,
+            json!({ "role": "endpoint-reader", "subjects": [{ "user": "dev@hel.fi" }],
+                    "scope": { "contextSpace": "a" } }),
+        );
+        for space in ["a", "b"] {
+            put(
+                "ContextSpace",
+                space,
+                "helsinki",
+                json!({ "projectRef": "helsinki" }),
+            );
+            put(
+                "Endpoint",
+                &format!("ep-{space}"),
+                "helsinki",
+                json!({ "contextSpaceRef": space, "description": format!("secret of {space}") }),
+            );
+        }
+        state
+    }
+
+    /// F-R2POR1-001/-003 (T-6225, W-R2POR1-001): an editor opens on a kind only for a grant that
+    /// reads it in the whole project; a space-bound reader's grant passes no check without a
+    /// target, so neither a manifest nor a name of any space reaches the model or the prefill.
+    #[test]
+    fn a_space_reader_opens_no_editor_and_reads_no_name() {
+        let state = space_a_reader();
+        let identity = crate::permissions::named_person(&state.mirror, "dev@hel.fi");
+        let asker = Asker {
+            state: &state,
+            identity: &identity,
+            project: "helsinki",
+            connector: None,
+        };
+        for name in ["ep-a", "ep-b"] {
+            let refused = asker
+                .open_form(&json!({ "kind": "Endpoint", "name": name }))
+                .expect_err("a space-bound reader opens no editor");
+            assert!(
+                !refused.contains("secret") && !refused.contains("ep-"),
+                "{refused}"
+            );
+        }
+    }
+
     #[test]
     fn a_field_is_named_by_its_manifest_path() {
         let (_, schema) = kind_schema("Pipeline").expect("Pipeline");

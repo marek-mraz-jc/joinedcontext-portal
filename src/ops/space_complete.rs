@@ -583,7 +583,7 @@ pub async fn run(
                     .items
                     .into_iter()
                     .find(|ep| {
-                        ep.spec.get("contextSpaceRef").and_then(Value::as_str) == Some(&space_name)
+                        ep.spec.get("contextSpaceRef").and_then(crate::resource::reference_name) == Some(&space_name)
                     })
                     .map(|ep| ep.metadata.name)
             })
@@ -658,7 +658,12 @@ pub async fn run(
         .list(project, "Endpoint", &crate::store::ListOptions::default())
         .items
         .iter()
-        .any(|ep| ep.spec.get("contextSpaceRef").and_then(Value::as_str) == Some(&space_name));
+        .any(|ep| {
+            ep.spec
+                .get("contextSpaceRef")
+                .and_then(crate::resource::reference_name)
+                == Some(&space_name)
+        });
     if input.upload && sample_bytes.is_some() && endpoint_manifest.is_none() && !space_has_endpoint
     {
         endpoint_manifest = Some(json!({
@@ -693,7 +698,12 @@ pub async fn run(
             .list(project, "Endpoint", &crate::store::ListOptions::default())
             .items
             .iter()
-            .any(|ep| ep.spec.get("contextSpaceRef").and_then(Value::as_str) == Some(&space_name))
+            .any(|ep| {
+                ep.spec
+                    .get("contextSpaceRef")
+                    .and_then(crate::resource::reference_name)
+                    == Some(&space_name)
+            })
     {
         endpoint_manifest = Some(json!({
             "apiVersion": API_VERSION,
