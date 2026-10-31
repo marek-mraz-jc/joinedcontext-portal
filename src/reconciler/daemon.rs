@@ -4104,6 +4104,8 @@ output_error{stream="kpi"} 6
         assert!(!is_candidate_manifest("users/groups/README.md"));
         assert!(is_candidate_manifest("users/roles/steward.yaml"));
         assert!(is_candidate_manifest("users/assignments/stewards.yaml"));
+        assert!(is_candidate_manifest("users/delegation/stewards.yaml"));
+        assert!(!is_candidate_manifest("users/delegation/README.md"));
         assert!(is_candidate_manifest("agentprofiles/app-builder.yaml"));
         assert!(!is_candidate_manifest("agentprofiles/README.md"));
         assert!(!is_candidate_manifest("platform-settings.yaml"));
