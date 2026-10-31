@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { ManifestGrid } from "../../components/grid/ManifestGrid";
 import type { TFunction } from "i18next";
 import { usePermissions } from "../../api/permissions";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
@@ -18,12 +19,6 @@ import { CodeBlock,
   PageHeader,
   Select,
   Switch,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
 } from "../../components/ui";
 import { reasonOf } from "./KnowledgePage";
 import { UsageSummary } from "./UsageSummary";
@@ -171,46 +166,69 @@ export function ConversationsPage({
         <EmptyState title={t("conversations.empty")} description={t("conversations.emptyHint")} icon="search" />
       ) : null}
       {items.length > 0 ? (
-        <Table caption={t("conversations.title")}>
-          <TableHead>
-            <TableHeaderCell>{t("conversations.column.question")}</TableHeaderCell>
-            <TableHeaderCell>{t("conversations.column.lastAt")}</TableHeaderCell>
-            <TableHeaderCell>{t("conversations.column.turns")}</TableHeaderCell>
-            <TableHeaderCell>{t("conversations.column.route")}</TableHeaderCell>
-            <TableHeaderCell>{t("conversations.column.firstToken")}</TableHeaderCell>
-            <TableHeaderCell>{t("conversations.column.slowest")}</TableHeaderCell>
-            <TableHeaderCell>{t("conversations.column.tokens")}</TableHeaderCell>
-            <TableHeaderCell>{t("conversations.column.cost")}</TableHeaderCell>
-            <TableHeaderCell>{t("conversations.column.status")}</TableHeaderCell>
-          </TableHead>
-          <TableBody>
-            {items.map((row) => (
-              <TableRow key={row.id}>
-                {/* The question first: on a phone the first column stays in view while the rest scrolls. */}
-                <TableCell>
-                  <Button variant="ghost" size="sm" className="h-auto text-left underline" onClick={() => setOpen(row.id)}>
-                    {visible(row.firstQuestion)}
-                  </Button>
-                  <div className="text-caption text-fg-muted">{row.deployment}</div>
-                </TableCell>
-                <TableCell>{timeText(row.lastAt, i18n.language)}</TableCell>
-                <TableCell>{row.turns}</TableCell>
-                <TableCell>{row.routes.join(", ")}</TableCell>
-                <TableCell>{msText(row.firstTokenMs)}</TableCell>
-                <TableCell>{msText(row.totalMs)}</TableCell>
-                <TableCell>
+        <ManifestGrid<(typeof items)[number]>
+          caption={t("conversations.title")}
+          storageKey="conversations"
+          searchLabel={t("grid.searchIn", { list: t("conversations.title") })}
+          rows={items}
+          rowKey={(row) => row.id}
+          query={list}
+          name={{
+            id: "question",
+            label: t("conversations.column.question"),
+            text: (row) => `${visible(row.firstQuestion)} ${row.deployment}`,
+            // The question first: on a phone the first column stays in view while the rest scrolls.
+            cell: (row) => (
+              <>
+                <Button variant="ghost" size="sm" className="h-auto text-left underline" onClick={() => setOpen(row.id)}>
+                  {visible(row.firstQuestion)}
+                </Button>
+                <div className="text-caption text-fg-muted">{row.deployment}</div>
+              </>
+            ),
+          }}
+          columns={[
+            { id: "lastAt", label: t("conversations.column.lastAt"), text: (row) => row.lastAt, cell: (row) => timeText(row.lastAt, i18n.language) },
+            { id: "turns", label: t("conversations.column.turns"), numeric: true, align: "right", text: (row) => String(row.turns) },
+            { id: "route", label: t("conversations.column.route"), filter: true, text: (row) => row.routes.join(", ") },
+            { id: "firstToken", label: t("conversations.column.firstToken"), numeric: true, align: "right", text: (row) => String(row.firstTokenMs ?? ""), cell: (row) => msText(row.firstTokenMs) },
+            { id: "slowest", label: t("conversations.column.slowest"), numeric: true, align: "right", text: (row) => String(row.totalMs ?? ""), cell: (row) => msText(row.totalMs) },
+            {
+              id: "tokens",
+              label: t("conversations.column.tokens"),
+              numeric: true,
+              align: "right",
+              text: (row) => String((row.tokensIn ?? 0) + (row.tokensOut ?? 0)),
+              cell: (row) => (
+                <>
                   {tokensText(row.tokensIn, i18n.language)} / {tokensText(row.tokensOut, i18n.language)}
-                  {row.models && row.models.length > 0 ? (
-                    <div className="text-caption text-fg-muted">{row.models.join(", ")}</div>
-                  ) : null}
-                </TableCell>
-                <TableCell>
+                  {row.models && row.models.length > 0 ? <div className="text-caption text-fg-muted">{row.models.join(", ")}</div> : null}
+                </>
+              ),
+            },
+            {
+              id: "cost",
+              label: t("conversations.column.cost"),
+              numeric: true,
+              align: "right",
+              text: (row) => String(row.costUsd),
+              cell: (row) => (
+                <>
                   {costText(row.costUsd, row.uncosted, t("conversations.unknownPrice"))}
                   {row.uncosted > 0 && row.costUsd > 0 ? (
                     <span className="text-caption text-fg-muted"> {t("conversations.uncosted", { count: row.uncosted })}</span>
                   ) : null}
-                </TableCell>
-                <TableCell>
+                </>
+              ),
+            },
+            {
+              id: "status",
+              label: t("conversations.column.status"),
+              filter: true,
+              text: (row) => (row.errors > 0 ? "erred" : row.timeouts > 0 ? "timeout" : "ok"),
+              valueLabel: (status) => t(`conversations.status.${status}`),
+              cell: (row) => (
+                <>
                   {row.timeouts > 0 ? <Badge tone="warning">{t("conversations.status.timeout")}</Badge> : null}
                   {row.errors > 0 ? <Badge tone="danger">{t("conversations.status.erred")}</Badge> : null}
                   {row.lastError ? (
@@ -218,11 +236,12 @@ export function ConversationsPage({
                   ) : null}
                   {row.thumbsDown > 0 ? <Badge tone="danger">{t("conversations.feedback.down")}</Badge> : null}
                   {row.thumbsUp > 0 ? <Badge tone="success">{t("conversations.feedback.up")}</Badge> : null}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                </>
+              ),
+            },
+          ]}
+          empty={<EmptyState bare title={t("conversations.empty")} description={t("conversations.emptyHint")} icon="search" />}
+        />
       ) : null}
       {list.data?.nextCursor ? (
         <Button onClick={() => setFilter((now) => ({ ...now, cursor: list.data?.nextCursor ?? undefined }))}>

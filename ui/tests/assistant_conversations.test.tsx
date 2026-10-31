@@ -5,6 +5,7 @@
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { narrowsAndOrders } from "./grid_checks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -287,7 +288,7 @@ describe("Asistent → Konverzácie", () => {
     expect(within(table).getByText("Aké je PM10?")).toBeInTheDocument();
     expect(within(table).getByText("$0.0046")).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText(i18n.t("conversations.filter.status")), "timeout");
+    await user.selectOptions(screen.getByRole("combobox", { name: i18n.t("conversations.filter.status") }), "timeout");
     await waitFor(() => {
       expect(calls.some((c) => c.url.searchParams.get("status") === "timeout")).toBe(true);
     });
@@ -306,6 +307,18 @@ describe("Asistent → Konverzácie", () => {
     await user.click(screen.getByRole("button", { name: i18n.t("conversations.copyAsTest") }));
     expect(writeText).toHaveBeenCalledOnce();
     expect(JSON.parse((writeText.mock.calls[0] as unknown as [string])[0]).q).toBe("Aké je PM10?");
+  });
+
+  // T-6206: the page's rows are on the shared grid: search, sort by tokens, filter by status.
+  it("searches, sorts by tokens and filters by status on the shared grid", async () => {
+    renderAs(["read", "approve"]);
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Kto je starosta?");
+    await narrowsAndOrders(table, {
+      search: { label: `Search ${i18n.t("conversations.title")}`, text: "starosta", kept: ["Kto je starosta?"] },
+      sort: { column: i18n.t("conversations.column.tokens"), ascending: ["Kto je starosta?", "Aké je PM10?"] },
+      filter: { value: new RegExp(`^${i18n.t("conversations.status.timeout")}`), kept: ["Kto je starosta?"] },
+    });
   });
 
   it("shows the usage summary, the rows' tokens and times, sorts by tokens and downloads the CSV (T-4728)", async () => {
