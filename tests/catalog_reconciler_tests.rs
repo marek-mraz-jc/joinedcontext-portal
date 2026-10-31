@@ -925,6 +925,18 @@ async fn a_project_catalogue_is_its_slice_of_the_installations() {
         .respond_with(ResponseTemplate::new(204))
         .mount(&gateway.server)
         .await;
+    // Each mint answers a token of its own, so the writes say which one they carried.
+    let minted = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let mint = Arc::clone(&minted);
+    Mock::given(method("POST"))
+        .and(path("/realms/city/protocol/openid-connect/token"))
+        .respond_with(move |_: &wiremock::Request| {
+            let n = mint.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            ResponseTemplate::new(200).set_body_json(json!({ "access_token": format!("t{n}") }))
+        })
+        .with_priority(1)
+        .mount(&gateway.server)
+        .await;
     let run = gateway.sync().converge(&repo).await.expect("the wave");
     assert_eq!(
         run,
@@ -948,6 +960,22 @@ async fn a_project_catalogue_is_its_slice_of_the_installations() {
     assert!(ids(WHOLE).contains(&rivers) && ids(WHOLE).len() == 8);
     assert!(!ids(CATALOG_SLUG).contains(&rivers) && ids(CATALOG_SLUG).len() == 6);
     assert!(!ids(CATALOG_SLUG).contains(&format!("urn:ngsi-ld:Dataset:{RIVERS}")));
+    // R2POR5-012: a token per catalogue, so a long run's later catalogues never write with
+    // one minted for the first.
+    let bearer = |slug: &str| -> std::collections::BTreeSet<String> {
+        requests
+            .iter()
+            .filter(|r| r.url.path().starts_with(&format!("/api/endpoint/{slug}/")))
+            .filter_map(|r| r.headers.get("authorization"))
+            .filter_map(|v| v.to_str().ok().map(str::to_owned))
+            .collect()
+    };
+    assert!(
+        bearer(WHOLE).is_disjoint(&bearer(CATALOG_SLUG)),
+        "{:?} {:?}",
+        bearer(WHOLE),
+        bearer(CATALOG_SLUG)
+    );
 }
 
 #[test]

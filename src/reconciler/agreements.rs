@@ -98,8 +98,12 @@ pub fn compile(
             if granted.operations.is_empty() {
                 continue;
             }
-            granted.q = conjunction(policy.q.as_deref(), wanted.q.as_deref());
-            granted.scope_q = conjunction(policy.scope_q.as_deref(), wanted.scope_q.as_deref());
+            granted.q = conjunction("q", policy.q.as_deref(), wanted.q.as_deref())?;
+            granted.scope_q = conjunction(
+                "scopeQ",
+                policy.scope_q.as_deref(),
+                wanted.scope_q.as_deref(),
+            )?;
             granted.geo_q = fence("geoQ", policy.geo_q.as_deref(), wanted.geo_q.as_deref())?;
             granted.temporal_q = fence(
                 "temporalQ",
@@ -166,13 +170,45 @@ pub fn offer_actions(policy: &Value) -> Result<Vec<Operation>, CompileError> {
 }
 
 /// Both filters at once (NGSI-LD `;` is AND), the offer's alone when the agreement adds none.
-fn conjunction(offer: Option<&str>, agreement: Option<&str>) -> Option<String> {
+/// The agreement's text comes from the other participant: one that closes the parenthesis it is
+/// wrapped in (`b==2)|(c==3`) would turn the AND into an OR past the offer, so it is refused.
+fn conjunction(
+    dimension: &'static str,
+    offer: Option<&str>,
+    agreement: Option<&str>,
+) -> Result<Option<String>, CompileError> {
     match (offer, agreement) {
         (Some(offer), Some(agreement)) if offer != agreement => {
-            Some(format!("({offer});({agreement})"))
+            if !one_group(agreement) {
+                return Err(CompileError::Widens {
+                    dimension,
+                    asked: agreement.to_owned(),
+                });
+            }
+            Ok(Some(format!("({offer});({agreement})")))
         }
-        (offer, agreement) => offer.or(agreement).map(str::to_owned),
+        (offer, agreement) => Ok(offer.or(agreement).map(str::to_owned)),
     }
+}
+
+/// Whether `text`'s parentheses balance outside its quoted strings, so wrapping it in one pair
+/// keeps it one term.
+fn one_group(text: &str) -> bool {
+    let (mut depth, mut quoted, mut escaped) = (0usize, false, false);
+    for c in text.chars() {
+        match (quoted, escaped, c) {
+            (true, true, _) => escaped = false,
+            (true, false, '\\') => escaped = true,
+            (_, _, '"') => quoted = !quoted,
+            (false, _, '(') => depth += 1,
+            (false, _, ')') => match depth.checked_sub(1) {
+                Some(less) => depth = less,
+                None => return false,
+            },
+            _ => {}
+        }
+    }
+    depth == 0 && !quoted
 }
 
 /// A fence the agreement may add where the offer has none, and never move.
@@ -302,6 +338,32 @@ mod tests {
             "constraints": constraints
         }))
         .expect("an agreement")
+    }
+
+    #[test]
+    fn an_agreement_filter_that_closes_its_parenthesis_is_refused() {
+        for q in ["district==\"x\")|(pm10>0", ")|(", "a==1)", "(a==1"] {
+            let refused = compile_read(
+                "partner",
+                &agreement("accepted", json!({ "q": q })),
+                &offered(),
+            );
+            assert!(
+                matches!(&refused, Err(CompileError::Widens { dimension: "q", asked }) if asked == q),
+                "{q}: {refused:?}"
+            );
+        }
+        // A parenthesis inside a quoted value is text, not grouping.
+        let kept = compile_read(
+            "partner",
+            &agreement("accepted", json!({ "q": "name==\"a)|(b\";(x==1|y==2)" })),
+            &offered(),
+        )
+        .expect("compiles");
+        assert_eq!(
+            kept[0].1.q.as_deref(),
+            Some("(pm10<500);(name==\"a)|(b\";(x==1|y==2))")
+        );
     }
 
     #[test]
