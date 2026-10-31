@@ -2337,7 +2337,16 @@
       "shared": "Geteilt von {project}"
     },
     "calls": {
-      "label": "Aufrufe, 7 Tage"
+      "label": "Aufrufe, 7 Tage",
+      "bySurface": "Nach Schnittstelle",
+      "byCaller": "Nach Aufrufer",
+      "caller": {
+        "person": "Personen",
+        "workload": "Apps und Dienste",
+        "agent": "Agenten und MCP-Clients",
+        "anonymous": "Nicht angemeldet",
+        "unknown": "Noch nicht unterschieden"
+      }
     }
   },
   "datasources": {
@@ -10840,6 +10849,7 @@
       "odata": "OData",
       "sta": "Sensor-API (STA)",
       "ical": "Kalender (iCal)",
+      "feed": "Neuigkeiten-Feeds",
       "mcp": "Assistenten (MCP)",
       "websocket": "Live-Aktualisierungen",
       "download": "Herunterladen (CSV)"

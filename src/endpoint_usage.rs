@@ -3,8 +3,9 @@
 //! Every gateway replica posts what each Endpoint's surfaces answered since its last post, every
 //! five minutes (`POST /internal/usage`); the Portal adds the counts into one row per project,
 //! Endpoint, surface and UTC day and keeps them 400 days, long enough for a year of monthly
-//! exports. A row is a name and a number: the gateway sends no address, token, person or query,
-//! and nothing here could store one.
+//! exports. A row is a name, a kind of caller (person, workload, agent, anonymous; T-6186) and a
+//! number: the gateway sends no address, token, subject, client id or query, and nothing here
+//! could store one.
 
 use std::collections::BTreeMap;
 use std::sync::RwLock;
@@ -20,10 +21,14 @@ pub const SURFACES: &[&str] = &[
     "odata",
     "sta",
     "ical",
+    "feed",
     "mcp",
     "websocket",
     "download",
 ];
+/// The kinds of caller a row names, in the order the grid shows them; `unknown` is what was
+/// counted before the gateway told them apart, or by a gateway that does not.
+pub const CALLERS: &[&str] = &["person", "workload", "agent", "anonymous", "unknown"];
 /// How long a day's row is kept.
 pub const KEEP_DAYS: i64 = 400;
 /// The longest window the Usage tab asks for.
@@ -33,8 +38,8 @@ pub const MAX_LINES: usize = 5000;
 /// One line's count: 33,000 answers a second for five minutes on one replica.
 pub const MAX_COUNT: u64 = 10_000_000;
 
-/// One project, Endpoint name, surface and day.
-type Key = (String, String, String, NaiveDate);
+/// One project, Endpoint name, surface, day and kind of caller.
+type Key = (String, String, String, NaiveDate, String);
 
 /// One line of a gateway's post.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
@@ -43,6 +48,9 @@ pub struct Line {
     /// The Endpoint's slug, as in `/api/endpoint/{slug}`.
     pub endpoint: String,
     pub surface: String,
+    /// One of [`CALLERS`]; absent from an older gateway, which is `unknown`.
+    #[serde(default)]
+    pub caller: Option<String>,
     pub count: u64,
 }
 
@@ -76,6 +84,13 @@ pub fn check(post: &Post) -> Result<(), String> {
                 SURFACES.join(", ")
             ));
         }
+        if line
+            .caller
+            .as_deref()
+            .is_some_and(|caller| !CALLERS.contains(&caller))
+        {
+            return Err(format!("counts[{i}].caller: one of {}", CALLERS.join(", ")));
+        }
         if line.count > MAX_COUNT {
             return Err(format!("counts[{i}].count: at most {MAX_COUNT}"));
         }
@@ -96,7 +111,13 @@ pub fn rows(
             continue;
         };
         let held = rows
-            .entry((project, name, line.surface.clone(), day))
+            .entry((
+                project,
+                name,
+                line.surface.clone(),
+                day,
+                line.caller.clone().unwrap_or_else(|| "unknown".to_owned()),
+            ))
             .or_insert(0_u64);
         *held = held.saturating_add(line.count);
     }
@@ -123,6 +144,9 @@ pub struct EndpointUsage {
     pub days: Vec<Day>,
     /// The window's calls by surface.
     pub totals: BTreeMap<String, u64>,
+    /// The window's calls by kind of caller, one of person, workload, agent, anonymous or
+    /// unknown (counted before the gateway told them apart; T-6186).
+    pub callers: BTreeMap<String, u64>,
     pub total: u64,
 }
 
@@ -132,6 +156,8 @@ pub struct Stored {
     pub name: String,
     pub surface: String,
     pub day: NaiveDate,
+    /// One of [`CALLERS`].
+    pub caller: String,
     pub calls: u64,
 }
 
@@ -166,6 +192,7 @@ pub fn usage(name: &str, from: NaiveDate, to: NaiveDate, rows: &[Stored]) -> End
         })
         .collect();
     let mut totals = BTreeMap::new();
+    let mut callers = BTreeMap::new();
     let mut total = 0_u64;
     for row in rows.iter().filter(|row| row.name == name) {
         let Some(day) = usize::try_from((row.day - from).num_days())
@@ -177,6 +204,7 @@ pub fn usage(name: &str, from: NaiveDate, to: NaiveDate, rows: &[Stored]) -> End
         *day.calls.entry(row.surface.clone()).or_insert(0) += row.calls;
         day.total = day.total.saturating_add(row.calls);
         *totals.entry(row.surface.clone()).or_insert(0_u64) += row.calls;
+        *callers.entry(row.caller.clone()).or_insert(0_u64) += row.calls;
         total = total.saturating_add(row.calls);
     }
     EndpointUsage {
@@ -185,21 +213,23 @@ pub fn usage(name: &str, from: NaiveDate, to: NaiveDate, rows: &[Stored]) -> End
         to: to.to_string(),
         days,
         totals,
+        callers,
         total,
     }
 }
 
-/// The monthly export: one line per day, Endpoint and surface that had calls.
+/// The monthly export: one line per day, Endpoint and surface that had calls, every kind of
+/// caller summed, so the published columns stay as they were.
 pub fn csv(rows: &[Stored]) -> String {
-    let mut sorted: Vec<&Stored> = rows.iter().filter(|row| row.calls > 0).collect();
-    sorted.sort_by(|a, b| (a.day, &a.name, &a.surface).cmp(&(b.day, &b.name, &b.surface)));
+    let mut lines: BTreeMap<(NaiveDate, &str, &str), u64> = BTreeMap::new();
+    for row in rows.iter().filter(|row| row.calls > 0) {
+        let held = lines.entry((row.day, &row.name, &row.surface)).or_insert(0);
+        *held = held.saturating_add(row.calls);
+    }
     let mut out = String::from("day,endpoint,surface,calls\n");
-    for row in sorted {
+    for ((day, name, surface), calls) in lines {
         // Names are DNS-1123 and surfaces come from SURFACES: nothing to quote.
-        out.push_str(&format!(
-            "{},{},{},{}\n",
-            row.day, row.name, row.surface, row.calls
-        ));
+        out.push_str(&format!("{day},{name},{surface},{calls}\n"));
     }
     out
 }
@@ -246,15 +276,17 @@ impl UsageStore {
             .collect();
         let mut tx = pool.begin().await?;
         sqlx::query(
-            "INSERT INTO endpoint_usage_daily AS u (project, endpoint, surface, day, calls) \
-             SELECT p, e, s, d::date, c FROM UNNEST($1::text[], $2::text[], $3::text[], \
-             $4::text[], $5::bigint[]) AS t(p, e, s, d, c) \
-             ON CONFLICT (project, endpoint, day, surface) DO UPDATE SET calls = u.calls + EXCLUDED.calls",
+            "INSERT INTO endpoint_usage_daily AS u (project, endpoint, surface, day, caller, calls) \
+             SELECT p, e, s, d::date, k, c FROM UNNEST($1::text[], $2::text[], $3::text[], \
+             $4::text[], $5::text[], $6::bigint[]) AS t(p, e, s, d, k, c) \
+             ON CONFLICT (project, endpoint, day, surface, caller) \
+             DO UPDATE SET calls = u.calls + EXCLUDED.calls",
         )
         .bind(column(|k| k.0.clone()))
         .bind(column(|k| k.1.clone()))
         .bind(column(|k| k.2.clone()))
         .bind(column(|k| k.3.to_string()))
+        .bind(column(|k| k.4.clone()))
         .bind(calls)
         .execute(&mut *tx)
         .await?;
@@ -282,14 +314,16 @@ impl UsageStore {
                         name: k.1.clone(),
                         surface: k.2.clone(),
                         day: k.3,
+                        caller: k.4.clone(),
                         calls: *calls,
                     })
                     .collect());
             }
             Inner::Postgres(pool) => pool,
         };
-        let rows: Vec<(String, String, String, i64)> = sqlx::query_as(
-            "SELECT endpoint, surface, to_char(day, 'YYYY-MM-DD'), calls FROM endpoint_usage_daily \
+        let rows: Vec<(String, String, String, String, i64)> = sqlx::query_as(
+            "SELECT endpoint, surface, to_char(day, 'YYYY-MM-DD'), caller, calls \
+             FROM endpoint_usage_daily \
              WHERE project = $1 AND day BETWEEN $2::date AND $3::date",
         )
         .bind(project)
@@ -299,11 +333,12 @@ impl UsageStore {
         .await?;
         Ok(rows
             .into_iter()
-            .filter_map(|(name, surface, day, calls)| {
+            .filter_map(|(name, surface, day, caller, calls)| {
                 Some(Stored {
                     name,
                     surface,
                     day: day.parse().ok()?,
+                    caller,
                     calls: u64::try_from(calls).unwrap_or(0),
                 })
             })
@@ -326,6 +361,7 @@ mod tests {
                 .map(|(endpoint, surface, count)| Line {
                     endpoint: (*endpoint).to_owned(),
                     surface: (*surface).to_owned(),
+                    caller: None,
                     count: *count,
                 })
                 .collect(),
@@ -366,8 +402,29 @@ mod tests {
             "air-quality".to_owned(),
             "ngsi-ld".to_owned(),
             day,
+            "unknown".to_owned(),
         );
         assert_eq!(rows, BTreeMap::from([(key, 7)]));
+    }
+
+    /// A line names its kind of caller, and the kinds are rows of their own (T-6186).
+    #[test]
+    fn a_caller_kind_is_checked_and_kept_apart() {
+        let read = parse(
+            br#"{"counts":[{"endpoint":"air","surface":"feed","caller":"agent","count":2},
+                {"endpoint":"air","surface":"feed","caller":"person","count":3}]}"#,
+        );
+        let day = date("2026-10-22");
+        let rows = rows(&read.unwrap_or(Post { counts: vec![] }), day, |_| {
+            Some(("city".to_owned(), "air".to_owned()))
+        });
+        let calls: Vec<(&str, u64)> = rows.iter().map(|(k, n)| (k.4.as_str(), *n)).collect();
+        assert_eq!(calls, vec![("agent", 2), ("person", 3)]);
+        assert_eq!(
+            parse(br#"{"counts":[{"endpoint":"air","surface":"ogc","caller":"ana@city.sk","count":1}]}"#)
+                .err(),
+            Some(format!("counts[0].caller: one of {}", CALLERS.join(", ")))
+        );
     }
 
     #[test]
@@ -378,6 +435,7 @@ mod tests {
             name: "air".to_owned(),
             surface: surface.to_owned(),
             day: date(day),
+            caller: if surface == "ogc" { "agent" } else { "person" }.to_owned(),
             calls,
         };
         let rows = [
@@ -403,6 +461,10 @@ mod tests {
         assert_eq!(usage.days[2].calls.get("download"), Some(&2));
         assert_eq!(usage.total, 7);
         assert_eq!(usage.totals.get("ogc"), Some(&1));
+        assert_eq!(
+            usage.callers,
+            BTreeMap::from([("agent".to_owned(), 1), ("person".to_owned(), 6)])
+        );
         assert_eq!(window(date("2026-10-22"), 500).0, date("2026-07-25"));
     }
 
@@ -429,24 +491,34 @@ mod tests {
                 name: "b".to_owned(),
                 surface: "ogc".to_owned(),
                 day: date("2026-10-02"),
+                caller: "person".to_owned(),
                 calls: 3,
             },
             Stored {
                 name: "a".to_owned(),
                 surface: "mcp".to_owned(),
                 day: date("2026-10-02"),
+                caller: "agent".to_owned(),
                 calls: 1,
+            },
+            Stored {
+                name: "a".to_owned(),
+                surface: "mcp".to_owned(),
+                day: date("2026-10-02"),
+                caller: "anonymous".to_owned(),
+                calls: 4,
             },
             Stored {
                 name: "a".to_owned(),
                 surface: "ogc".to_owned(),
                 day: date("2026-10-01"),
+                caller: "person".to_owned(),
                 calls: 0,
             },
         ];
         assert_eq!(
             csv(&rows),
-            "day,endpoint,surface,calls\n2026-10-02,a,mcp,1\n2026-10-02,b,ogc,3\n"
+            "day,endpoint,surface,calls\n2026-10-02,a,mcp,5\n2026-10-02,b,ogc,3\n"
         );
     }
 
@@ -467,7 +539,15 @@ mod tests {
     async fn the_memory_store_adds_reads_and_forgets_after_its_keep() {
         let store = UsageStore::new(None);
         let today = date("2026-10-22");
-        let key = |day| ("city".to_owned(), "air".to_owned(), "ogc".to_owned(), day);
+        let key = |day| {
+            (
+                "city".to_owned(),
+                "air".to_owned(),
+                "ogc".to_owned(),
+                day,
+                "person".to_owned(),
+            )
+        };
         let old = today - Duration::days(KEEP_DAYS + 1);
         store
             .add(BTreeMap::from([(key(today), 2), (key(old), 9)]), today)
@@ -484,6 +564,7 @@ mod tests {
                 name: "air".to_owned(),
                 surface: "ogc".to_owned(),
                 day: today,
+                caller: "person".to_owned(),
                 calls: 5
             }]
         );

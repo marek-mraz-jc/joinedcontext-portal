@@ -51,6 +51,8 @@ export interface GridColumn<T> {
   text: (row: T) => string;
   /** What the cell draws; the text when absent. */
   cell?: (row: T) => ReactNode;
+  /** What the cell panel draws, with room for more than one line; the cell when absent. */
+  detail?: (row: T) => ReactNode;
   /** The `spec` path (`audience`, `notification.format`) the cell panel edits for this column. */
   field?: string;  /** How a stored value reads to a person (`project-list` -> "Selected projects"), in the filter, the chips and the panel's choices. */
   valueLabel?: (value: string) => string;
@@ -573,7 +575,7 @@ function CellPanel<T>({
               ) : (
                 <dl className="flex flex-col gap-1">
                   <dt className="text-caption font-semibold text-fg-muted">{column.label}</dt>
-                  <dd className="text-body text-fg">{column.cell ? column.cell(row) : column.text(row) || "—"}</dd>
+                  <dd className="text-body text-fg">{column.detail ? column.detail(row) : column.cell ? column.cell(row) : column.text(row) || "—"}</dd>
                 </dl>
               )}
             </div>

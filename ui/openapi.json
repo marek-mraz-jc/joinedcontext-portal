@@ -11232,7 +11232,7 @@
           "resources"
         ],
         "summary": "Read Endpoint Usage",
-        "description": "The Endpoint's answered calls per UTC day and surface (ngsi-ld, ogc, odata, sta, ical, mcp, websocket, download) over the last `days` days, every day present, as the gateways count them (T-5118). No address, person or query is kept. Whoever may read the Endpoint may read its usage; anyone else gets 404.",
+        "description": "The Endpoint's answered calls per UTC day and surface (ngsi-ld, ogc, odata, sta, ical, feed, mcp, websocket, download) over the last `days` days, every day present, as the gateways count them (T-5118), and the window's calls by kind of caller (person, workload, agent, anonymous; unknown before the gateway told them apart, T-6186). No address, person or query is kept. Whoever may read the Endpoint may read its usage; anyone else gets 404.",
         "operationId": "get_endpoint_usage",
         "parameters": [
           {
@@ -33564,7 +33564,7 @@
           "resources"
         ],
         "summary": "List Endpoint Usage",
-        "description": "Every Endpoint of the project the caller may read, with its calls over the last `days` days: the total, the total per surface and one number per day (T-5118). An Endpoint nobody called is listed with zeros.",
+        "description": "Every Endpoint of the project the caller may read, with its calls over the last `days` days: the total, the total per surface, the total per kind of caller (person, workload, agent, anonymous, unknown; T-6186) and one number per day (T-5118). An Endpoint nobody called is listed with zeros.",
         "operationId": "list_project_usage",
         "parameters": [
           {
@@ -41646,9 +41646,22 @@
           "slug",
           "total",
           "totals",
+          "callers",
           "daily"
         ],
         "properties": {
+          "callers": {
+            "type": "object",
+            "description": "The window's calls by kind of caller: person, workload, agent, anonymous, unknown (T-6186).",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
           "daily": {
             "type": "array",
             "items": {
@@ -41691,9 +41704,22 @@
           "to",
           "days",
           "totals",
+          "callers",
           "total"
         ],
         "properties": {
+          "callers": {
+            "type": "object",
+            "description": "The window's calls by kind of caller, one of person, workload, agent, anonymous or\nunknown (counted before the gateway told them apart; T-6186).",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
           "days": {
             "type": "array",
             "items": {

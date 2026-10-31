@@ -42,6 +42,8 @@ pub struct EndpointTotal {
     pub slug: String,
     pub total: u64,
     pub totals: BTreeMap<String, u64>,
+    /// The window's calls by kind of caller: person, workload, agent, anonymous, unknown (T-6186).
+    pub callers: BTreeMap<String, u64>,
     /// Calls per day, oldest first, one number for every day of the window.
     pub daily: Vec<u64>,
 }
@@ -111,7 +113,7 @@ async fn stored(
     get,
     path = "/api/v1/projects/{project}/endpoints/{name}/usage",
     summary = "Read Endpoint Usage",
-    description = "The Endpoint's answered calls per UTC day and surface (ngsi-ld, ogc, odata, sta, ical, mcp, websocket, download) over the last `days` days, every day present, as the gateways count them (T-5118). No address, person or query is kept. Whoever may read the Endpoint may read its usage; anyone else gets 404.",
+    description = "The Endpoint's answered calls per UTC day and surface (ngsi-ld, ogc, odata, sta, ical, feed, mcp, websocket, download) over the last `days` days, every day present, as the gateways count them (T-5118), and the window's calls by kind of caller (person, workload, agent, anonymous; unknown before the gateway told them apart, T-6186). No address, person or query is kept. Whoever may read the Endpoint may read its usage; anyone else gets 404.",
     tag = "resources",
     params(("project" = String, Path, description = "Project name"), ("name" = String, Path, description = "Endpoint name"), Days),
     responses(
@@ -146,7 +148,7 @@ pub async fn get_endpoint_usage(
     get,
     path = "/api/v1/projects/{project}/usage/endpoints",
     summary = "List Endpoint Usage",
-    description = "Every Endpoint of the project the caller may read, with its calls over the last `days` days: the total, the total per surface and one number per day (T-5118). An Endpoint nobody called is listed with zeros.",
+    description = "Every Endpoint of the project the caller may read, with its calls over the last `days` days: the total, the total per surface, the total per kind of caller (person, workload, agent, anonymous, unknown; T-6186) and one number per day (T-5118). An Endpoint nobody called is listed with zeros.",
     tag = "resources",
     params(("project" = String, Path, description = "Project name"), Days),
     responses(
@@ -189,6 +191,7 @@ fn line(env: &ResourceEnvelope, from: NaiveDate, to: NaiveDate, rows: &[Stored])
         name: one.name,
         total: one.total,
         totals: one.totals,
+        callers: one.callers,
         daily: one.days.iter().map(|day| day.total).collect(),
     }
 }

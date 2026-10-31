@@ -227,6 +227,50 @@ async fn a_reader_sees_the_counts_of_the_endpoints_they_may_read_and_no_other() 
     );
 }
 
+/// T-6186: the calls of each kind of caller add up per Endpoint, an older gateway's line without a
+/// kind is `unknown`, and a kind the Portal does not know refuses the post whole.
+#[tokio::test]
+async fn the_usage_splits_by_kind_of_caller() {
+    let state = state().await;
+    let gateway = common::REALM.workload(GATEWAY_CLIENT);
+    let line = |caller: &str, count: u64| json!({ "endpoint": "air-slug", "surface": "mcp", "caller": caller, "count": count });
+    let lines = json!({ "counts": [
+        line("person", 2),
+        line("agent", 5),
+        line("anonymous", 1),
+        { "endpoint": "air-slug", "surface": "feed", "count": 3 },
+    ] });
+    assert_eq!(
+        post(&state, Some(&gateway), lines).await,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        post(
+            &state,
+            Some(&gateway),
+            json!({ "counts": [line("robot", 1)] })
+        )
+        .await,
+        StatusCode::BAD_REQUEST
+    );
+    let one = get(&state, "jana", "/api/v1/projects/mesto/endpoints/air/usage").await;
+    assert_eq!(one.status, StatusCode::OK, "{}", one.text);
+    let one = json_of(&one.text);
+    assert_eq!(one["total"], 11);
+    assert_eq!(
+        one["callers"],
+        json!({ "agent": 5, "anonymous": 1, "person": 2, "unknown": 3 })
+    );
+    let list = get(
+        &state,
+        "jana",
+        "/api/v1/projects/mesto/usage/endpoints?days=7",
+    )
+    .await;
+    let list = json_of(&list.text);
+    assert_eq!(list["endpoints"][0]["callers"]["agent"], 5, "{list}");
+}
+
 /// What leaves the store is a day, an Endpoint, a surface and a number: the caller's address and
 /// identity reached the Portal with the post and are in no row.
 #[tokio::test]
@@ -282,7 +326,15 @@ async fn the_postgres_rows_add_up_and_age_out() {
     let store = UsageStore::new(Some(pool));
     let today: chrono::NaiveDate = "2026-10-22".parse().expect("a day");
     let old = today - chrono::Duration::days(KEEP_DAYS + 1);
-    let key = |project: &str, day| (project.to_owned(), "air".to_owned(), "ogc".to_owned(), day);
+    let key = |project: &str, day| {
+        (
+            project.to_owned(),
+            "air".to_owned(),
+            "ogc".to_owned(),
+            day,
+            "person".to_owned(),
+        )
+    };
     let rows = std::collections::BTreeMap::from([
         (key("t5118", today), 2),
         (key("t5118", old), 9),
@@ -303,6 +355,7 @@ async fn the_postgres_rows_add_up_and_age_out() {
             name: "air".to_owned(),
             surface: "ogc".to_owned(),
             day: today,
+            caller: "person".to_owned(),
             calls: 5
         }]
     );

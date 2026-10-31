@@ -22,7 +22,7 @@ import { ManifestGrid } from "../components/grid/ManifestGrid";
 import { ManifestYamlDialog } from "../components/grid/ManifestYamlDialog";
 import { endpointRows, SharedRowActions } from "../pages/endpoints/endpointRows";
 import type { EndpointRow } from "../pages/endpoints/endpointRows";
-import { projectUsageQuery, SURFACES } from "../api/endpointUsage";
+import { CALLERS, projectUsageQuery, SURFACES } from "../api/endpointUsage";
 import type { ProjectUsage } from "../api/endpointUsage";
 import { DeleteResourceAction } from "../components/DeleteResourceDialog";
 import { EditResourceDialog } from "../components/EditResourceDialog";
@@ -483,26 +483,66 @@ function EndpointRowActions({
   );
 }
 
-/**
- * An Endpoint's calls in the last 7 days and, beside the total, the surfaces they came through
- * (T-6169). The gateways count per surface only, never per caller (T-5118). Exported for its test.
- */
-export function CallsCell({ calls, known }: { calls: ProjectUsage["endpoints"][number] | undefined; known: boolean }): JSX.Element {
+type Calls = ProjectUsage["endpoints"][number];
+
+/** The calls by surface and by kind of caller, each a label and its number, the empty ones left out. */
+function useCallSplit(calls: Calls | undefined) {
   const { t, i18n } = useTranslation();
   const numbers = new Intl.NumberFormat(i18n.resolvedLanguage ?? i18n.language ?? "en");
+  const surfaces = SURFACES.filter((surface) => (calls?.totals[surface] ?? 0) > 0).map(
+    (surface) => `${t(`endpointUsage.surface.${surface}`)} ${numbers.format(calls?.totals[surface] ?? 0)}`,
+  );
+  const callers = CALLERS.filter((caller) => (calls?.callers?.[caller] ?? 0) > 0).map(
+    (caller) => `${t(`endpoints.calls.caller.${caller}`)} ${numbers.format(calls?.callers?.[caller] ?? 0)}`,
+  );
+  const groups = [
+    { label: t("endpoints.calls.bySurface"), parts: surfaces },
+    { label: t("endpoints.calls.byCaller"), parts: callers },
+  ].filter((group) => group.parts.length > 0);
+  return { total: numbers.format(calls?.total ?? 0), groups };
+}
+
+/**
+ * An Endpoint's calls in the last 7 days and, beside the total, the surfaces they came through
+ * (T-6169) and the kinds of caller that made them: people, workloads, agents, nobody signed in
+ * (T-6186). The gateways count kinds, never who called (T-5118). Exported for its test.
+ */
+export function CallsCell({ calls, known }: { calls: Calls | undefined; known: boolean }): JSX.Element {
+  const { total, groups } = useCallSplit(calls);
   if (!known) {
     return <span className="text-fg-subtle">—</span>;
   }
-  const total = calls?.total ?? 0;
-  const parts = SURFACES.filter((surface) => (calls?.totals[surface] ?? 0) > 0).map(
-    (surface) => `${t(`spaces.api.surface.${surface}`, { defaultValue: surface })} ${numbers.format(calls?.totals[surface] ?? 0)}`,
-  );
-  // One line per row (T-4989): the split by surface is the cell's tooltip and is read out with it.
+  const said = groups.map((group) => `${group.label}: ${group.parts.join(" · ")}`);
+  // One line per row (T-4989): the split is the cell's tooltip, a line per grouping, and is read
+  // out with the number.
   return (
-    <span className="whitespace-nowrap tabular-nums" title={parts.join(" · ") || undefined}>
-      {numbers.format(total)}
-      {parts.length > 0 ? <span className="sr-only"> ({parts.join(", ")})</span> : null}
+    <span className="whitespace-nowrap tabular-nums" title={said.join("\n") || undefined}>
+      {total}
+      {said.length > 0 ? <span className="sr-only"> ({said.join("; ").replaceAll(" · ", ", ")})</span> : null}
     </span>
+  );
+}
+
+/** The same calls in the cell panel, the split shown rather than hovered (T-6186). Exported for its test. */
+export function CallsDetail({ calls, known }: { calls: Calls | undefined; known: boolean }): JSX.Element {
+  const { total, groups } = useCallSplit(calls);
+  if (!known) {
+    return <span className="text-fg-subtle">—</span>;
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="tabular-nums">{total}</span>
+      {groups.map((group) => (
+        <div key={group.label} className="flex flex-col gap-1">
+          <span className="text-caption text-fg-muted">{group.label}</span>
+          <ul className="flex flex-wrap gap-x-4 gap-y-1 tabular-nums" aria-label={group.label}>
+            {group.parts.map((part) => (
+              <li key={part}>{part}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -1423,6 +1463,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
             // Counted per publishing project: a shared Endpoint's calls are its owner's to read.
             text: (row) => (row.own && row.endpoint ? String(callsByName.get(row.endpoint.metadata.name)?.total ?? 0) : ""),
             cell: (row) => <CallsCell calls={row.own && row.endpoint ? callsByName.get(row.endpoint.metadata.name) : undefined} known={row.own && usage7d.isSuccess} />,
+            detail: (row) => <CallsDetail calls={row.own && row.endpoint ? callsByName.get(row.endpoint.metadata.name) : undefined} known={row.own && usage7d.isSuccess} />,
           },
           {
             id: "phase",

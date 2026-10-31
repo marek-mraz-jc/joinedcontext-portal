@@ -2337,7 +2337,16 @@
       "shared": "Sdílí {project}"
     },
     "calls": {
-      "label": "Volání, 7 dní"
+      "label": "Volání, 7 dní",
+      "bySurface": "Podle rozhraní",
+      "byCaller": "Podle volajícího",
+      "caller": {
+        "person": "Lidé",
+        "workload": "Aplikace a služby",
+        "agent": "Agenti a MCP klienti",
+        "anonymous": "Nepřihlášení",
+        "unknown": "Zatím nerozlišeno"
+      }
     }
   },
   "datasources": {
@@ -10840,6 +10849,7 @@
       "odata": "OData",
       "sta": "Senzorové API (STA)",
       "ical": "Kalendář (iCal)",
+      "feed": "Kanály novinek",
       "mcp": "Asistenti (MCP)",
       "websocket": "Živé aktualizace",
       "download": "Stažení (CSV)"

@@ -5,7 +5,7 @@ import i18n from "../src/i18n";
 import type { Manifest } from "../src/api/manifest";
 import { endpointRows } from "../src/pages/endpoints/endpointRows";
 import { MASK, manifestYaml } from "../src/components/grid/ManifestYamlDialog";
-import { CallsCell } from "../src/routes/EndpointsPage";
+import { CallsCell, CallsDetail } from "../src/routes/EndpointsPage";
 
 const API = "joinedcontext.com/v1alpha1";
 
@@ -69,21 +69,49 @@ describe("the one Endpoints grid (T-6169)", () => {
     expect(text).toContain(`password: "${MASK}"`);
   });
 
-  it("says the 7-day calls with the surfaces they came through, and a dash while unknown", () => {
+  it("says the 7-day calls with the surfaces and the kinds of caller, and a dash while unknown", () => {
     const { rerender } = render(
       <I18nextProvider i18n={i18n}>
-        <CallsCell known calls={{ name: "mine", slug: "x", total: 1234, daily: [], totals: { "ngsi-ld": 1200, mcp: 34, ogc: 0 } }} />
+        <CallsCell
+          known
+          calls={{
+            name: "mine",
+            slug: "x",
+            total: 1234,
+            daily: [],
+            totals: { "ngsi-ld": 1200, mcp: 34, ogc: 0 },
+            callers: { person: 1000, agent: 34, anonymous: 200, workload: 0 },
+          }}
+        />
       </I18nextProvider>,
     );
     const cell = screen.getByText(/^1,234/);
-    expect(cell).toHaveAttribute("title", expect.stringMatching(/NGSI-LD 1,200 · MCP 34/));
-    expect(cell).toHaveTextContent(/NGSI-LD 1,200, MCP 34/);
-    expect(cell.title).not.toMatch(/OGC/);
+    expect(cell).toHaveAttribute("title", expect.stringMatching(/By surface: NGSI-LD API 1,200 · Assistants \(MCP\) 34/));
+    expect(cell.title).toContain("By caller: People 1,000 · Agents and MCP clients 34 · Not signed in 200");
+    expect(cell).toHaveTextContent(/NGSI-LD API 1,200, Assistants \(MCP\) 34; By caller: People 1,000, Agents and MCP clients 34/);
+    expect(cell.title).not.toMatch(/OGC|Apps/);
     rerender(
       <I18nextProvider i18n={i18n}>
         <CallsCell known={false} calls={undefined} />
       </I18nextProvider>,
     );
     expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("shows the split in the cell panel as two labelled lists, and nothing for a kind nobody used", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CallsDetail
+          known
+          calls={{ name: "mine", slug: "x", total: 40, daily: [], totals: { mcp: 40 }, callers: { agent: 30, unknown: 10, person: 0 } }}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText("40")).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "By surface" })).toHaveTextContent("Assistants (MCP) 40");
+    const callers = screen.getByRole("list", { name: "By caller" });
+    expect(callers).toHaveTextContent("Agents and MCP clients 30");
+    expect(callers).toHaveTextContent("Not told apart yet 10");
+    expect(callers).not.toHaveTextContent("People");
   });
 });
