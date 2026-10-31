@@ -7014,8 +7014,7 @@
         "action": "The NGSI-LD operation the call would make."
       },
       "pickFirst": "Pick the Endpoint and who to try first."
-    },
-    "rulesInYaml": "This Policy holds several rules: change whom it grants which operations in the YAML view. The fields here change its name, space and validity."
+    }
   },
   "subscriptions": {
     "title": "Subscriptions",

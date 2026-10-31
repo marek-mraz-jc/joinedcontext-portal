@@ -1832,11 +1832,11 @@ export function policySchema(
   if (!ruled) return schema;
   // A `rules[]` Policy holds its grants in its rules, which the form has no field for: a grantee
   // or an operation typed beside them would be dropped on save, so the form offers none and the
-  // rules are changed in the YAML view (ADR-N-057, F-R2UI4-003).
+  // rules are changed in the YAML view, as the Policy's summary above the form says (ADR-N-057,
+  // F-R2UI4-003).
   const properties = schema.properties as Record<string, JsonSchema>;
   return {
     ...schema,
-    description: t("policies.rulesInYaml"),
     required: ["name", "contextSpaceRef"],
     properties: Object.fromEntries(Object.entries(properties).filter(([key]) => !POLICY_RULE_MEMBERS.includes(key))),
   };

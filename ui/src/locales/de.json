@@ -7014,8 +7014,7 @@
         "action": "Die NGSI-LD-Operation, die der Aufruf ausführen würde."
       },
       "pickFirst": "Wählen Sie zuerst den Endpoint und wen Sie ausprobieren."
-    },
-    "rulesInYaml": "Diese Richtlinie enthält mehrere Regeln. Wem sie welche Operationen erlaubt, ändern Sie in der YAML-Ansicht; die Felder hier ändern Name, Bereich und Gültigkeit."
+    }
   },
   "subscriptions": {
     "title": "Abonnements",

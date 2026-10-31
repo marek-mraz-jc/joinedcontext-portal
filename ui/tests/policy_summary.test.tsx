@@ -146,7 +146,8 @@ describe("editing a Policy with rules[] (F-R2UI4-003)", () => {
       path: "/projects/helsinki/policies/parking-grants/edit?lang=en",
       answer: answering(ruled, () => jsonResponse({ ...list([]), next: null })),
     });
-    const form = (await screen.findByText(i18n.t("policies.rulesInYaml"))).closest("form") as HTMLElement;
+    await screen.findByTestId("policy-summary-rules");
+    const form = (await screen.findByRole("button", { name: /Propose change/ })).closest("form") as HTMLElement;
     expect(within(form).queryByText(i18n.t("policies.field.assignee"))).toBeNull();
     expect(within(form).queryByText(i18n.t("policies.field.operations"))).toBeNull();
     const schema = policySchema(i18n.t, [], [], [], true) as { required: string[]; properties: Record<string, unknown> };

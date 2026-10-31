@@ -7014,8 +7014,7 @@
         "action": "Operace NGSI-LD, kterou by volání provedlo."
       },
       "pickFirst": "Nejprve vyberte Endpoint a koho chcete vyzkoušet."
-    },
-    "rulesInYaml": "Tato politika má několik pravidel. Komu a které operace povoluje, změníte v zobrazení YAML; pole zde mění její název, prostor a platnost."
+    }
   },
   "subscriptions": {
     "title": "Odběry",
