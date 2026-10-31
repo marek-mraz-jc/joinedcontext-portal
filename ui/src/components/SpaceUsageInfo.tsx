@@ -123,7 +123,8 @@ export function SpaceUsageInfo({ project, space, usage, locale }: { project: str
               {recalculate.isPending ? t("spaces.usage.recalculating") : t("spaces.usage.recalculate")}
             </Button>
           </div>
-          <p role="status" className="text-caption text-fg-muted empty:hidden">
+          <p role="status" className={clsx("flex items-start gap-1.5 text-caption empty:hidden", recalculate.isSuccess ? "font-medium text-success" : "text-fg-muted")}>
+            {recalculate.isSuccess ? <Icon name="check" className="mt-0.5 size-3.5 shrink-0" /> : null}
             {recalculate.isPending ? t("spaces.usage.waiting") : recalculate.isSuccess ? t("spaces.usage.done") : ""}
           </p>
           {recalculate.isError ? <InlineError>{t("spaces.usage.failed", { reason: usageRefusal(recalculate.error) })}</InlineError> : null}
