@@ -3,7 +3,7 @@ import type { JSX, MouseEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CodeBlock, Button, ExternalLink, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
 import { Icon } from "../../components/ui/icons";
-import { safeHref } from "../../components/ui/safeHref";
+import { hostToShow, safeHref } from "../../components/ui/safeHref";
 
 /**
  * The Markdown an answer is written in, as the blocks the transcript draws (T-2773, UI-84).
@@ -175,17 +175,6 @@ export function PortalLink({ href, children, onOpenLink }: { href: string; child
   );
 }
 
-/** The host a link leaves the Portal for, or none for a link inside it or one never drawn. */
-function externalHost(href: string): string | undefined {
-  const safe = safeHref(href);
-  if (safe === undefined || safe.startsWith("/")) return undefined;
-  try {
-    return new URL(safe).host || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 const INLINE =
   /`([^`\n]+)`|\[([^\]\n]+)\]\(([^)\s]+)\)|\*\*([^*\n]+)\*\*|(?<![\w*])\*([^*\n]+)\*(?![\w*])|(urn:ngsi-ld:[^\s)\]`|,;<>]+)|(https?:\/\/[^\s)\]<>`]+)/g;
 
@@ -221,8 +210,8 @@ export function inline(text: string, onOpenLink?: OpenLink): ReactNode[] {
       );
       // A label is the model's words, and text the model read can write them: a link that
       // leaves the Portal says where it goes beside them (F-R2UI2-004).
-      const host = externalHost(href);
-      if (host && !label.toLowerCase().includes(host)) {
+      const host = hostToShow(label, href);
+      if (host) {
         nodes.push(
           <span key={key++} className="text-fg-muted">
             {` (${host})`}

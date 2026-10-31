@@ -63,3 +63,23 @@ export function withoutUserinfo(one: string): string {
   }
   return one;
 }
+
+/**
+ * The host to print beside a link's label, or none: a link inside the Portal, one never drawn, or
+ * a label that names its own host as a whole word. Model or data text writes the label, so the
+ * label may only stand for the target when one of its host-shaped words is the host itself;
+ * `[hel.fi](https://el.fi/login)` contains "el.fi" and still prints it (F-R2UI2-004).
+ */
+export function hostToShow(label: string, href: string): string | undefined {
+  const safe = safeHref(href);
+  if (safe === undefined || safe.startsWith("/")) return undefined;
+  let url: URL;
+  try {
+    url = new URL(safe);
+  } catch {
+    return undefined;
+  }
+  if (!url.host) return undefined;
+  const words = label.toLowerCase().match(/[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?/g) ?? [];
+  return words.some((word) => word === url.host || word === url.hostname) ? undefined : url.host;
+}

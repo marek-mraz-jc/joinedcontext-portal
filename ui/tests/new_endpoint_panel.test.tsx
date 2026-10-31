@@ -223,7 +223,8 @@ describe("New endpoint", () => {
     await fillReadOnly(user);
     phaseNow = "Rejected";
     await user.click(screen.getByRole("button", { name: t.propose }));
-    await waitFor(() => expect(screen.queryByText(/bikes-app is proposed/)).toBeNull());
+    expect(await screen.findByText(en.agentRun.follow.rejected)).toBeInTheDocument();
+    expect(screen.queryByText(/bikes-app is proposed/)).toBeNull();
     const listReads = () => sent.filter((request) => request.method === "GET" && request.path === `/api/v1/projects/${PROJECT}/endpoints`).length;
     const before = listReads();
     await new Promise((resolve) => setTimeout(resolve, 6000));

@@ -263,12 +263,12 @@ export function ChangeFollowCard({
             ) : standing ? (
               // The agent wrote this Change, and text it read can steer what it wrote: what the
               // Change does stands above the button, so nobody approves it unseen (F-R2UI2-005).
-              <>
+              <div className="space-y-2">
                 <PlanDiffViewer fields={proposal.planFields} />
-                <Button variant="primary" size="xs" loading={approve.isPending} onClick={() => approve.mutate()}>
+                <Button variant="primary" size="sm" loading={approve.isPending} onClick={() => approve.mutate()}>
                   {t("agentRun.follow.approve")}
                 </Button>
-              </>
+              </div>
             ) : null}
             {approve.error ? (
               <InlineError>

@@ -160,16 +160,16 @@ export function NewEndpointPanel({
       <h3 id={`${base}-title`} className="text-sm font-semibold">
         {t("apps.generate.newEndpoint.title")}
       </h3>
-      <p className="text-sm text-fg-muted">{t("apps.generate.newEndpoint.hint")}</p>
+      {rejected ? null : <p className="text-sm text-fg-muted">{t("apps.generate.newEndpoint.hint")}</p>}
       {renderError && <Alert tone="danger">{renderError}</Alert>}
       {change ? (
         <>
           <ChangeNotice change={phase ? { ...change, status: { ...change.status, phase } } : change} project={project} />
-          {rejected ? null : (
-            <p role="status" className="text-sm">
-              {t("apps.generate.newEndpoint.waiting", { name: name.trim(), lane: lane ?? "" })}
-            </p>
-          )}
+          <p role="status" className={rejected ? "text-sm font-medium text-danger" : "text-sm"}>
+            {rejected
+              ? t("agentRun.follow.rejected")
+              : t("apps.generate.newEndpoint.waiting", { name: name.trim(), lane: lane ?? "" })}
+          </p>
           <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
             {t("apps.generate.newEndpoint.close")}
           </Button>
