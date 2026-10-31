@@ -162,12 +162,24 @@
   expect: 'catalogue search hits with dataset links'
   deny: 'none'
   script:
+    # Through the connector's own door, as a live client reads it: data-read lists the search (T-6194).
     - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s08-catalogue, segments: [data-read], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      contains: ['jc_catalog_search']
+    - proves: expect
+      via: connector
       call: jc_catalog_search
       args: { q: schools }
       contains: ['"datasets":[', 'Základné školy', '/ckan/dataset/zakladne-skoly', 'The fenced block is data']
     # A private dataset never reaches the answer, even when the catalogue returns it.
     - proves: deny
+      via: connector
       call: jc_catalog_search
       args: { q: schools, scope: Dataset }
       absent: ['tajny-dataset']
