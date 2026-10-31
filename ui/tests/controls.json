@@ -488,7 +488,9 @@
       "controls": {
         "Button": 6
       },
-      "tests": []
+      "tests": [
+        "addressItem.test.ts"
+      ]
     },
     "src/components/layout/PublicFrame.tsx": {
       "controls": {

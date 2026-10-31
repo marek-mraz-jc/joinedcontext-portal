@@ -429,19 +429,33 @@ function useSafeMatchRoute(): ReturnType<typeof useMatchRoute> {
   }) as ReturnType<typeof useMatchRoute>;
 }
 
-/** One segment of the address as a person reads it; a broken escape stays as typed (F-UI1-002). */
 /** The static pages under `/projects/{project}/spaces/`, by their crumb's words. */
 const SPACE_PAGES: Partial<Record<string, string>> = {
   complete: "spaces.complete.title",
   upload: "spaces.upload.title",
 };
 
+/** One segment of the address as a person reads it; a broken escape stays as typed (F-UI1-002). */
 function decodedSegment(segment: string): string {
   try {
     return decodeURIComponent(segment);
   } catch {
     return segment;
   }
+}
+
+/**
+ * The one thing the page is about, from the address (T-3239): any item of a section at
+ * `/projects/{project}/{plural}/{name}…`, whose own address opens it. A page of its own under
+ * Context Spaces is named in words (`spacePage`, an i18n key): `/spaces/complete` is no space
+ * called "complete" in a monospace crumb.
+ */
+export function addressItem(pathname: string): { itemName?: string; spacePage?: string } {
+  const segments = pathname.split("/").filter(Boolean).map(decodedSegment);
+  if (segments[0] !== "projects" || segments.length < 4) return {};
+  const spacePage = segments[2] === "spaces" && segments.length === 4 ? SPACE_PAGES[segments[3] ?? ""] : undefined;
+  if (spacePage) return { spacePage };
+  return segments[3] === "new" ? {} : { itemName: segments[3] };
 }
 
 export function Shell({
@@ -520,17 +534,8 @@ export function Shell({
     matchRoute({ to: "/projects/$project/workspaces/$name/compare" }) ||
     matchRoute({ to: "/projects/$project/workspaces/$name/bring-back" }) ||
     matchRoute({ to: "/projects/$project/workspaces/$name/try-it" });
-  // The one thing the page is about, from the address (T-3239): an approval, a copy, or any
-  // item of a section at `/projects/{project}/{plural}/{name}…`, whose own address opens it.
-  const segments = pathname.split("/").filter(Boolean).map(decodedSegment);
-  // A page of its own under Context Spaces is named in words: `/spaces/complete` is no space
-  // called "complete" in a monospace crumb.
-  const spacePage =
-    segments[0] === "projects" && segments[2] === "spaces" && segments.length === 4
-      ? SPACE_PAGES[segments[3] ?? ""]
-      : undefined;
-  const itemName =
-    segments[0] === "projects" && segments.length >= 4 && segments[3] !== "new" && !spacePage ? segments[3] : undefined;
+  // The one thing the page is about: an approval, a copy, or an item named by the address.
+  const { itemName, spacePage } = addressItem(pathname);
   const detail = approvalDetail
     ? { to: "/projects/$project/approvals" as const, name: approvalDetail.id }
     : copyDetail
