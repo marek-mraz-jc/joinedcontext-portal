@@ -13,7 +13,10 @@ export const WINDOWS = [7, 30, 90] as const;
 export type UsageWindow = (typeof WINDOWS)[number];
 
 /** The surfaces in the order the gateway names them (src/endpoint_usage.rs SURFACES). */
-export const SURFACES = ["ngsi-ld", "ogc", "odata", "sta", "ical", "mcp", "websocket", "download"] as const;
+export const SURFACES = ["ngsi-ld", "ogc", "odata", "sta", "ical", "feed", "mcp", "websocket", "download"] as const;
+
+/** The kinds of caller a count names (src/endpoint_usage.rs CALLERS, T-6186); never who called. */
+export const CALLERS = ["person", "workload", "agent", "anonymous", "unknown"] as const;
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 

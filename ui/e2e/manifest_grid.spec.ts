@@ -73,7 +73,7 @@ const brokers = [
 const usage = {
   from: "2026-10-24",
   to: "2026-10-30",
-  endpoints: [{ name: "air-quality", slug: "x", total: 18342, daily: [], totals: { "ngsi-ld": 15000, mcp: 3000, "ogc": 342 } }],
+  endpoints: [{ name: "air-quality", slug: "x", total: 18342, daily: [], totals: { "ngsi-ld": 15000, mcp: 3000, "ogc": 342 }, callers: { person: 4200, workload: 11000, agent: 3000, anonymous: 142 } }],
 };
 const spaces = ["air", "mobility", "works"].map((name) => ({ apiVersion: V, kind: "ContextSpace", metadata: { name, namespace: "helsinki" }, spec: {}, status: { phase: "Live" } }));
 
@@ -172,7 +172,29 @@ for (const width of [1440, 400]) {
       const panel = page.getByRole("dialog", { name: "Air quality" });
       await expect(panel.getByRole("combobox", { name: "Audience" })).toHaveValue("public");
       await expect(panel.getByRole("group", { name: "Representations" })).toBeVisible();
+      // T-6186: the 7-day calls split by kind of caller, shown in the panel, never who called.
+      await expect(panel.getByRole("list", { name: "By caller" })).toContainText("Apps and workloads 11,000");
+      await panel.getByRole("list", { name: "By caller" }).scrollIntoViewIfNeeded();
+      await page.screenshot({ path: info.outputPath(`endpoints-panel-calls-${width}.png`) });
       await page.screenshot({ path: info.outputPath(`endpoints-panel-${width}.png`) });
+      expect(await axeViolations(page)).toEqual([]);
+    });
+
+    test("the panel says in words when an Endpoint had no calls or is counted elsewhere (T-6186)", async ({ page }, info) => {
+      await stub(page);
+      await page.goto("/projects/helsinki/endpoints?lang=en");
+      await page.getByRole("button", { name: "Details of Parking occupancy" }).click();
+      const zero = page.getByRole("dialog", { name: "Parking occupancy" });
+      await zero.getByText("No answered calls in the last 7 days").scrollIntoViewIfNeeded();
+      await expect(zero.getByText("No answered calls in the last 7 days")).toBeVisible();
+      await page.screenshot({ path: info.outputPath(`endpoints-panel-calls-zero-${width}.png`) });
+      await page.keyboard.press("Escape");
+      await page.getByRole("button", { name: "Details of City bikes in Espoo" }).click();
+      const shared = page.getByRole("dialog", { name: "City bikes in Espoo" });
+      const reason = shared.getByText("Usage is counted by the project that publishes this Endpoint.");
+      await reason.scrollIntoViewIfNeeded();
+      await expect(reason).toBeVisible();
+      await page.screenshot({ path: info.outputPath(`endpoints-panel-calls-shared-${width}.png`) });
       expect(await axeViolations(page)).toEqual([]);
     });
 

@@ -2727,7 +2727,7 @@ export interface paths {
         };
         /**
          * Read Endpoint Usage
-         * @description The Endpoint's answered calls per UTC day and surface (ngsi-ld, ogc, odata, sta, ical, mcp, websocket, download) over the last `days` days, every day present, as the gateways count them (T-5118). No address, person or query is kept. Whoever may read the Endpoint may read its usage; anyone else gets 404.
+         * @description The Endpoint's answered calls per UTC day and surface (ngsi-ld, ogc, odata, sta, ical, feed, mcp, websocket, download) over the last `days` days, every day present, as the gateways count them (T-5118), and the window's calls by kind of caller (person, workload, agent, anonymous; unknown before the gateway told them apart, T-6186). No address, person or query is kept. Whoever may read the Endpoint may read its usage; anyone else gets 404.
          */
         get: operations["get_endpoint_usage"];
         put?: never;
@@ -6051,7 +6051,7 @@ export interface paths {
         };
         /**
          * List Endpoint Usage
-         * @description Every Endpoint of the project the caller may read, with its calls over the last `days` days: the total, the total per surface and one number per day (T-5118). An Endpoint nobody called is listed with zeros.
+         * @description Every Endpoint of the project the caller may read, with its calls over the last `days` days: the total, the total per surface, the total per kind of caller (person, workload, agent, anonymous, unknown; T-6186) and one number per day (T-5118). An Endpoint nobody called is listed with zeros.
          */
         get: operations["list_project_usage"];
         put?: never;
@@ -8513,6 +8513,10 @@ export interface components {
         };
         /** @description One Endpoint's line in the project's usage. */
         EndpointTotal: {
+            /** @description The window's calls by kind of caller: person, workload, agent, anonymous, unknown (T-6186). */
+            callers: {
+                [key: string]: number;
+            };
             /** @description Calls per day, oldest first, one number for every day of the window. */
             daily: number[];
             name: string;
@@ -8525,6 +8529,13 @@ export interface components {
         };
         /** @description One Endpoint's usage over a window, a row for every day, empty days included. */
         EndpointUsage: {
+            /**
+             * @description The window's calls by kind of caller, one of person, workload, agent, anonymous or
+             *     unknown (counted before the gateway told them apart; T-6186).
+             */
+            callers: {
+                [key: string]: number;
+            };
             days: components["schemas"]["Day"][];
             from: string;
             /** @description The Endpoint's manifest name. */

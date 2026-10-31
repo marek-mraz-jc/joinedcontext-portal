@@ -2337,7 +2337,22 @@
       "shared": "Zdieľa {project}"
     },
     "calls": {
-      "label": "Volania, 7 dní"
+      "label": "Volania, 7 dní",
+      "bySurface": "Podľa spôsobu čítania",
+      "notCounted": {
+        "shared": "Využitie počíta projekt, ktorý tento endpoint zverejňuje.",
+        "loading": "Načítava sa využitie…",
+        "failed": "Využitie sa nepodarilo načítať; o minútu obnovte stránku."
+      },
+      "none": "Za posledných 7 dní žiadne zodpovedané volania",
+      "byCaller": "Podľa volajúceho",
+      "caller": {
+        "person": "Ľudia",
+        "workload": "Aplikácie a služby",
+        "agent": "Agenti a MCP klienti",
+        "anonymous": "Neprihlásení",
+        "unknown": "Zatiaľ nerozlíšené"
+      }
     }
   },
   "datasources": {
@@ -10840,6 +10855,7 @@
       "odata": "OData",
       "sta": "Senzorové API (STA)",
       "ical": "Kalendár (iCal)",
+      "feed": "Odbery noviniek",
       "mcp": "Asistenti (MCP)",
       "websocket": "Živé aktualizácie",
       "download": "Stiahnutia (CSV)"

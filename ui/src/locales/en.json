@@ -2337,7 +2337,22 @@
       "shared": "Shared by {project}"
     },
     "calls": {
-      "label": "Calls, 7 days"
+      "label": "Calls, 7 days",
+      "bySurface": "By surface",
+      "notCounted": {
+        "shared": "Usage is counted by the project that publishes this Endpoint.",
+        "loading": "Loading the usage…",
+        "failed": "The usage could not be read; reload the page in a minute."
+      },
+      "none": "No answered calls in the last 7 days",
+      "byCaller": "By caller",
+      "caller": {
+        "person": "People",
+        "workload": "Apps and workloads",
+        "agent": "Agents and MCP clients",
+        "anonymous": "Not signed in",
+        "unknown": "Not told apart yet"
+      }
     }
   },
   "datasources": {
@@ -10840,6 +10855,7 @@
       "odata": "OData",
       "sta": "Sensor API (STA)",
       "ical": "Calendar (iCal)",
+      "feed": "Feeds",
       "mcp": "Assistants (MCP)",
       "websocket": "Live updates",
       "download": "Downloads (CSV)"

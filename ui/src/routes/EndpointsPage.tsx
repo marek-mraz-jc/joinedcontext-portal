@@ -22,7 +22,7 @@ import { ManifestGrid } from "../components/grid/ManifestGrid";
 import { ManifestYamlDialog } from "../components/grid/ManifestYamlDialog";
 import { endpointRows, SharedRowActions } from "../pages/endpoints/endpointRows";
 import type { EndpointRow } from "../pages/endpoints/endpointRows";
-import { projectUsageQuery, SURFACES } from "../api/endpointUsage";
+import { CALLERS, projectUsageQuery, SURFACES } from "../api/endpointUsage";
 import type { ProjectUsage } from "../api/endpointUsage";
 import { DeleteResourceAction } from "../components/DeleteResourceDialog";
 import { EditResourceDialog } from "../components/EditResourceDialog";
@@ -483,26 +483,90 @@ function EndpointRowActions({
   );
 }
 
-/**
- * An Endpoint's calls in the last 7 days and, beside the total, the surfaces they came through
- * (T-6169). The gateways count per surface only, never per caller (T-5118). Exported for its test.
- */
-export function CallsCell({ calls, known }: { calls: ProjectUsage["endpoints"][number] | undefined; known: boolean }): JSX.Element {
+type Calls = ProjectUsage["endpoints"][number];
+
+/** The calls by surface and by kind of caller, each a label and its number, most calls first, the empty ones left out. */
+function useCallSplit(calls: Calls | undefined) {
   const { t, i18n } = useTranslation();
   const numbers = new Intl.NumberFormat(i18n.resolvedLanguage ?? i18n.language ?? "en");
-  if (!known) {
-    return <span className="text-fg-subtle">—</span>;
+  const split = (counts: Record<string, number> | undefined, names: readonly string[], key: string) =>
+    names
+      .map((name) => ({ label: t(`${key}.${name}`), count: counts?.[name] ?? 0 }))
+      .filter((part) => part.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .map((part) => ({ label: part.label, count: numbers.format(part.count) }));
+  const groups = [
+    { label: t("endpoints.calls.bySurface"), parts: split(calls?.totals, SURFACES, "endpointUsage.surface") },
+    { label: t("endpoints.calls.byCaller"), parts: split(calls?.callers, CALLERS, "endpoints.calls.caller") },
+  ].filter((group) => group.parts.length > 0);
+  return { total: numbers.format(calls?.total ?? 0), groups };
+}
+
+/** Why a row has no count: another project publishes it, or the usage is loading or failed. */
+export type NotCounted = "shared" | "loading" | "failed";
+
+/**
+ * An Endpoint's calls in the last 7 days and, beside the total, the surfaces they came through
+ * (T-6169) and the kinds of caller that made them: people, workloads, agents, nobody signed in
+ * (T-6186). The gateways count kinds, never who called (T-5118). Exported for its test.
+ */
+export function CallsCell({ calls, notCounted }: { calls: Calls | undefined; notCounted?: NotCounted }): JSX.Element {
+  const { t } = useTranslation();
+  const { total, groups } = useCallSplit(calls);
+  if (notCounted) {
+    const reason = t(`endpoints.calls.notCounted.${notCounted}`);
+    return (
+      <span className="text-fg-subtle" title={reason}>
+        —<span className="sr-only"> {reason}</span>
+      </span>
+    );
   }
-  const total = calls?.total ?? 0;
-  const parts = SURFACES.filter((surface) => (calls?.totals[surface] ?? 0) > 0).map(
-    (surface) => `${t(`spaces.api.surface.${surface}`, { defaultValue: surface })} ${numbers.format(calls?.totals[surface] ?? 0)}`,
-  );
-  // One line per row (T-4989): the split by surface is the cell's tooltip and is read out with it.
+  const said = groups.map((group) => `${group.label}: ${group.parts.map((part) => `${part.label} ${part.count}`).join(" · ")}`);
+  // One line per row (T-4989): the split is the cell's tooltip, a line per grouping, read out with
+  // the number; where a pointer can hover, a dotted underline says there is one. The row's Details
+  // panel shows it whole, on a phone too.
   return (
-    <span className="whitespace-nowrap tabular-nums" title={parts.join(" · ") || undefined}>
-      {numbers.format(total)}
-      {parts.length > 0 ? <span className="sr-only"> ({parts.join(", ")})</span> : null}
+    <span
+      className={`whitespace-nowrap tabular-nums${said.length > 0 ? " [@media(hover:hover)]:cursor-help [@media(hover:hover)]:underline [@media(hover:hover)]:decoration-dotted [@media(hover:hover)]:underline-offset-4" : " text-fg-muted"}`}
+      title={said.join("\n") || t("endpoints.calls.none")}
+    >
+      {total}
+      <span className="sr-only"> ({said.length > 0 ? said.join("; ").replaceAll(" · ", ", ") : t("endpoints.calls.none")})</span>
     </span>
+  );
+}
+
+/**
+ * The same calls in the cell panel, read-only and shown rather than hovered (T-6186): the total,
+ * the split, or in words why there is none. Exported for its test.
+ */
+export function CallsDetail({ calls, notCounted }: { calls: Calls | undefined; notCounted?: NotCounted }): JSX.Element {
+  const { t } = useTranslation();
+  const { total, groups } = useCallSplit(calls);
+  return (
+    <div className="flex flex-col gap-3 rounded-md bg-surface-subtle px-3 py-2" data-read-only>
+      {notCounted ? (
+        <p className="text-fg-muted">{t(`endpoints.calls.notCounted.${notCounted}`)}</p>
+      ) : (
+        <>
+          <span className="font-semibold tabular-nums">{total}</span>
+          {groups.length === 0 ? <p className="text-caption text-fg-muted">{t("endpoints.calls.none")}</p> : null}
+          {groups.map((group) => (
+            <div key={group.label} className="flex flex-col gap-1">
+              <span className="text-caption font-semibold text-fg-muted">{group.label}</span>
+              <ul className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-8 gap-y-1" aria-label={group.label}>
+                {group.parts.map((part) => (
+                  <li key={part.label} className="contents">
+                    <span className="text-fg-muted">{part.label}</span>{" "}
+                    <span className="text-right font-semibold tabular-nums">{part.count}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -1140,6 +1204,8 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
     : rows;
   const sharedPending =
     projects.isPending || referencesQuery.isPending || otherLists.some((other) => other.isPending);
+  const notCounted = (own: boolean): NotCounted | undefined =>
+    !own ? "shared" : usage7d.isError ? "failed" : usage7d.isSuccess ? undefined : "loading";
   const callsByName = new Map((usage7d.data?.endpoints ?? []).map((each) => [each.name, each]));
   const rowLabel = (row: EndpointRow) =>
     row.endpoint
@@ -1422,7 +1488,8 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
             align: "right",
             // Counted per publishing project: a shared Endpoint's calls are its owner's to read.
             text: (row) => (row.own && row.endpoint ? String(callsByName.get(row.endpoint.metadata.name)?.total ?? 0) : ""),
-            cell: (row) => <CallsCell calls={row.own && row.endpoint ? callsByName.get(row.endpoint.metadata.name) : undefined} known={row.own && usage7d.isSuccess} />,
+            cell: (row) => <CallsCell calls={row.own && row.endpoint ? callsByName.get(row.endpoint.metadata.name) : undefined} notCounted={notCounted(row.own)} />,
+            detail: (row) => <CallsDetail calls={row.own && row.endpoint ? callsByName.get(row.endpoint.metadata.name) : undefined} notCounted={notCounted(row.own)} />,
           },
           {
             id: "phase",
