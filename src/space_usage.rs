@@ -142,8 +142,17 @@ impl Counter {
                 body["counts"]["attrInstances"].as_u64(),
             ),
             // The broker creates a tenant on its first write: no tenant is an empty space. Any
-            // other 404 is an address that reaches no broker, never an empty space.
-            StatusCode::NOT_FOUND if body["type"] == NO_TENANT => (0, None, Some(0)),
+            // other 404 is an address that reaches no broker, never an empty space. An empty
+            // space stores nothing: its size is zero, never unknown (T-6204).
+            StatusCode::NOT_FOUND if body["type"] == NO_TENANT => (
+                0,
+                Some(SpaceBytes {
+                    entities: 0,
+                    attr_instances: 0,
+                    by_type: BTreeMap::new(),
+                }),
+                Some(0),
+            ),
             status => {
                 tracing::warn!(tenant, %status, "the broker refused a space's counts");
                 return self
@@ -532,6 +541,31 @@ mod tests {
         // a broker before T-6085 answers neither: no history count, never a made-up 0
         let old = counter.usage("main", "old").await.expect("old");
         assert_eq!((old.attr_instances, old.estimated), (None, false));
+    }
+
+    /// T-6204: a space whose tenant the broker never created is empty, size included.
+    #[tokio::test]
+    async fn a_space_without_a_tenant_answers_zero_bytes() {
+        use wiremock::matchers::path;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let broker = MockServer::start().await;
+        Mock::given(path("/q/tenants/fresh"))
+            .respond_with(
+                ResponseTemplate::new(404).set_body_json(json!({"type": NO_TENANT})),
+            )
+            .mount(&broker)
+            .await;
+        let counter = Counter::new(Some(broker.uri()), Some(token_file("fresh")));
+        let fresh = counter.usage("main", "fresh").await.expect("fresh");
+        assert_eq!((fresh.entities, fresh.attr_instances), (0, Some(0)));
+        assert_eq!(
+            fresh.bytes,
+            Some(SpaceBytes {
+                entities: 0,
+                attr_instances: 0,
+                by_type: BTreeMap::new(),
+            })
+        );
     }
 
     #[tokio::test]
