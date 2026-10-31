@@ -16,7 +16,7 @@ import {
   toMqttBrokerManifest,
 } from "../../schemas/mqttbroker";
 import type { MqttRoleForm } from "../../schemas/mqttbroker";
-import { accountChanges, blockers, draftOf, formOf, holdersOf, modeOf, sourceProblem, topicProblem } from "./brokerDraft";
+import { accountChanges, blockers, draftOf, formOf, holdersOf, modeOf, sourceProblem, topicProblem, withRole } from "./brokerDraft";
 import type { Draft, Holder } from "./brokerDraft";
 
 type Measured = components["schemas"]["Measured"];
@@ -107,8 +107,7 @@ export function BrokerEditor({
     return [...now, ...granted.filter((g) => !now.some((h) => h.account === g.account))];
   };
   const set = (form: Partial<Draft["form"]>) => setDraft((d) => ({ ...d, form: { ...d.form, ...form } }));
-  const setRole = (index: number, role: MqttRoleForm) =>
-    set({ roles: (draft.form.roles ?? []).map((r, i) => (i === index ? role : r)) });
+  const setRole = (index: number, role: MqttRoleForm) => setDraft((d) => withRole(d, index, role));
 
   const words = changeWords(stored, draft, t);
   const dirty: SectionId[] = [

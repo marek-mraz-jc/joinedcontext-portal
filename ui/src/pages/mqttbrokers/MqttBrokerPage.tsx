@@ -37,7 +37,7 @@ import {
   publishTopic,
 } from "./MqttBrokersPage";
 import { TestPublishDialog } from "./TestPublish";
-import { holdersOf } from "./brokerDraft";
+import { holdersOf, rolesHeldBy } from "./brokerDraft";
 import { BrokerEditor, LIMIT_DEFAULTS, Section, SECTIONS } from "./BrokerEditor";
 import type { SectionId } from "./BrokerEditor";
 
@@ -160,6 +160,8 @@ export function MqttBrokerPage({
         </nav>
         <div className="flex min-w-0 flex-col gap-4">
           <LiveNow
+            project={project}
+            name={name}
             spec={spec}
             measured={measured.data}
             failed={measured.isError}
@@ -437,11 +439,15 @@ function LiveStrip({
 }
 
 function LiveNow({
+  project,
+  name,
   spec,
   measured,
   failed,
   refusals,
 }: {
+  project: string;
+  name: string;
   spec: BrokerSpec;
   measured?: Measured;
   failed: boolean;
@@ -519,7 +525,7 @@ function LiveNow({
             />
           </dl>
           <RateChart rates={measured.rates} />
-          <Devices spec={spec} measured={measured} />
+          <Devices project={project} name={name} spec={spec} measured={measured} />
         </>
       ) : null}
     </Section>
@@ -641,9 +647,13 @@ export function RateChart({
 
 /** Each account of the broker's roles: its roles and its connected clients now; no client id or address. */
 function Devices({
+  project,
+  name,
   spec,
   measured,
 }: {
+  project: string;
+  name: string;
   spec: BrokerSpec;
   measured: Measured;
 }): JSX.Element {
@@ -651,6 +661,9 @@ function Devices({
   const time = new Intl.DateTimeFormat(
     i18n.resolvedLanguage ?? i18n.language ?? "en",
     { dateStyle: "short", timeStyle: "short" },
+  );
+  const accounts = asManifests(
+    useReadableList(project, "serviceaccounts", "ServiceAccount").data?.items ?? [],
   );
   if (measured.accounts.length === 0) {
     return (
@@ -660,9 +673,7 @@ function Devices({
     );
   }
   const rolesOf = (account: string) =>
-    (spec.roles ?? [])
-      .filter((role) => (role.serviceAccounts ?? []).includes(account))
-      .map((role) => role.name ?? "");
+    rolesHeldBy(account, spec.roles ?? [], accounts, name, project).map((role) => role.name ?? "");
   return (
     <Table stack caption={t("mqttbrokers.page.devices")}>
       <TableHead>
@@ -726,6 +737,8 @@ function ConnectFacts({
       ),
     ),
   ];
+  // The example's topic is one the first device's own roles may publish to.
+  const exampleTopic = publishTopic(rolesHeldBy(devices[0] ?? "", roles, accounts, name, project));
   const platformHost = brokerAddress(
     name,
     project,
@@ -785,14 +798,14 @@ function ConnectFacts({
               {publishExample(
                 address,
                 `${project}-${devices[0]}`,
-                publishTopic(roles),
+                exampleTopic,
               )}
             </CodeBlock>
             <CopyUrlButton
               url={publishExample(
                 address,
                 `${project}-${devices[0]}`,
-                publishTopic(roles),
+                exampleTopic,
               )}
               label={t("mqttbrokers.connect.copyExample")}
             />
