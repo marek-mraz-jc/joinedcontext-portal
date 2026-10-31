@@ -306,7 +306,10 @@ export function toBloblang(formula: Formula): string {
     case "number":
       return String(formula.value);
     case "text":
-      return JSON.stringify(formula.value);
+      // The runner fills `${NAME}` from its environment in the whole stream text before Bloblang
+      // reads it, and `${JC_CLIENT_SECRET}` passes the server's check as the project's own: `$`
+      // goes in as Bloblang's `\u0024`, which only Bloblang turns back into `$` (T-6230).
+      return JSON.stringify(formula.value).replaceAll("$", "\\u0024");
     case "ref":
       return `$v_${formula.name}`;
     case "unary":
@@ -326,7 +329,8 @@ export function toBloblang(formula: Formula): string {
 
 /** The pipeline's name for a class: `formulas-{class}` in lower case, a DNS-1123 label. */
 export function pipelineName(type: string): string {
-  return `formulas-${type.toLowerCase().replace(/[^a-z0-9-]/g, "-")}`.slice(0, 63).replace(/-+$/, "");
+  // Room for the longest suffix its Policies add (`-write`), so every name stays within 63.
+  return `formulas-${type.toLowerCase().replace(/[^a-z0-9-]/g, "-")}`.slice(0, 63 - "-write".length).replace(/-+$/, "");
 }
 
 /**

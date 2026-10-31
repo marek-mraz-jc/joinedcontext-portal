@@ -698,8 +698,11 @@ pub fn sweep_with(
                         && extra["value"] == jcctl::publish::ckan::GENERATOR
                 })
             });
+            // The search is by text: only a dataset the catalogue itself files under this
+            // organization is this sweep's to withdraw.
+            let here = dataset["organization"]["name"].as_str() == Some(organization);
             match dataset["name"].as_str() {
-                Some(name) if ours && !kept.contains(name) => stray.push(name.to_owned()),
+                Some(name) if ours && here && !kept.contains(name) => stray.push(name.to_owned()),
                 _ => {}
             }
         }

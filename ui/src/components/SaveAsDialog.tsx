@@ -3,10 +3,9 @@ import type { JSX } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, unwrap } from "../api/client";
-import type { ProblemDetails } from "../api/client";
 import type { Change, Manifest } from "../api/manifest";
 import { asManifests, isChange } from "../api/manifest";
-import { proposeChecked } from "../api/proposal";
+import { importBody, proposeChecked } from "../api/proposal";
 import { usePermissions } from "../api/permissions";
 import { useProjects } from "../api/projects";
 import type { components } from "../api/schema";
@@ -121,23 +120,6 @@ export function saveAsBundle(input: {
   };
 }
 
-async function importInto(
-  project: string,
-  body: components["schemas"]["ImportOptions"],
-  dryRun: boolean,
-): Promise<unknown> {
-  // Through the typed client (UI-07): the route, the dry run and the csrf token are the client's.
-  const { data, error, response } = await api.POST("/api/v1/projects/{project}/import", {
-    params: { path: { project }, query: dryRun ? { dryRun: "All" } : {} },
-    body,
-  });
-  if (data === undefined) {
-    const problem = (error ?? {}) as Partial<ProblemDetails>;
-    throw new Error(problem.detail ?? problem.title ?? `HTTP ${response.status}`);
-  }
-  return data;
-}
-
 async function list(project: string, plural: string): Promise<Manifest[]> {
   const page = await unwrap(
     await api.GET("/api/v1/projects/{project}/{plural}", {
@@ -236,7 +218,7 @@ export function SaveAsDialog({
   };
 
   const check = useMutation({
-    mutationFn: async () => importInto(into, await body(), true),
+    mutationFn: async () => importBody(into, await body(), true),
     onMutate: reset,
     onSuccess: (answered) => setReport(answered as ImportReport),
     onError: (error: Error) => setProblem(error.message),
@@ -252,7 +234,7 @@ export function SaveAsDialog({
           true,
         );
       }
-      return importInto(into, await body(), false);
+      return importBody(into, await body(), false);
     },
     onMutate: () => setProblem(null),
     onSuccess: (answered) => {

@@ -252,9 +252,20 @@ export interface Client extends DataClient {
 
 const FILES = "/api/services/files";
 
-/** A key's route, each segment encoded so a `?`, `#` or `%` in a name stays in the key. */
+/**
+ * A key's route, each segment encoded so a `?`, `#` or `%` in a name stays in the key. An empty,
+ * `.` or `..` segment is refused here: fetch resolves dot segments before the request leaves, so
+ * `../../endpoint/…` would reach another route of the App's host with the person's session.
+ */
 function filePath(path: string): string {
-  return `${FILES}/${path.split("/").map(encodeURIComponent).join("/")}`;
+  const segments = path.split("/");
+  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) {
+    throw new ProblemError(0, {
+      title: "Refused file key",
+      detail: `The file key '${path}' has an empty, '.' or '..' segment: a key is relative, such as reports/2026-10.csv.`,
+    });
+  }
+  return `${FILES}/${segments.map(encodeURIComponent).join("/")}`;
 }
 
 export const FUNCTION_NAME = /^[a-z][a-z0-9-]{0,39}$/;

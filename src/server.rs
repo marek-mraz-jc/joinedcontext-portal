@@ -66,7 +66,7 @@ pub fn app(state: AppState) -> Router {
     let portal = Router::new()
         .nest("/api/v1", api::router())
         .merge(openapi::router())
-        // The API and User Guide pages, public like the SPA shell; the edge decides who reaches them.
+        // The API and User Guide pages, for a signed-in person only (T-6200).
         .merge(crate::public_docs::router())
         .route("/", axum::routing::get(assets::home))
         .fallback(assets::static_handler)

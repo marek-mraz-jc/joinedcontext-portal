@@ -380,6 +380,7 @@
         "RadioGroup": 1
       },
       "tests": [
+        "export_filename.test.ts",
         "export_modal.test.tsx"
       ]
     },

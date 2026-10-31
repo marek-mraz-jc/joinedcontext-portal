@@ -91,7 +91,7 @@ describe("a tile read", () => {
 
   it("never leaves the Endpoint: another host, another path or a climb out is not fetched", async () => {
     const fetchImpl = vi.fn();
-    for (const url of ["jc-tile:////evil.example/api/endpoint/a/1/0/0", "jc-tile:///api/v1/projects/p/endpoints", "jc-tile:///api/endpoint/a/../../api/me", "https:///api/endpoint/a/1/0/0"]) {
+    for (const url of ["jc-tile:////evil.example/api/endpoint/a/1/0/0", "jc-tile:///api/v1/projects/p/endpoints", "jc-tile:///api/endpoint/a/../../api/me", "https:///api/endpoint/a/1/0/0", "jc-tile:///api/endpoint/%2e%2e/v1/x", "jc-tile:///api/endpoint/a/.%2E/.%2e/me"]) {
       await expect(loadTile(url, undefined, fetchImpl as unknown as typeof fetch)).rejects.toThrow("outside the Endpoint");
     }
     expect(fetchImpl).not.toHaveBeenCalled();

@@ -16,7 +16,7 @@ import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { Alert, Badge, Button, PageHeader, SourceLink } from "../../components/ui";
 import { TypeLink } from "../models/ModelLinks";
-import { ago } from "../apps/CatalogCards";
+import { ago } from "../../components/ago";
 import { nextRuns, parseCron, scheduleWords } from "./cron";
 import { endpointUrn } from "./PipelineEditor";
 import { PipelineRejectedDialog } from "./PipelineRejected";

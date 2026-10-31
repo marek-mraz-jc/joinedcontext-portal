@@ -7,7 +7,7 @@ import type { Change } from "../api/manifest";
 import { ORG_NAMESPACE } from "../api/manifest";
 import { usePermissions } from "../api/permissions";
 import { ChangeNotice } from "./ChangeNotice";
-import { ParameterFields, parameterValues } from "./ImportProjectDialog";
+import { numberProblems, ParameterFields, parameterValues } from "./ImportProjectDialog";
 import type { Declaration } from "./ImportProjectDialog";
 import { Alert, Button, Dialog, Field, PageFailed, Select } from "./ui";
 
@@ -57,13 +57,18 @@ function PinReleaseDialog({
   const refs = [entry.ref, ...entry.tags.map((tag) => tag.name).filter((name) => name !== entry.ref)];
 
   const pin = useMutation({
-    mutationFn: async () =>
-      unwrap(
+    mutationFn: async () => {
+      const wrong = numberProblems(entry.declarations, typed);
+      if (wrong.length > 0) {
+        throw new Error(t("projectImport.notNumber", { names: wrong.join(", ") }));
+      }
+      return unwrap(
         await api.PUT("/api/v1/projects/{project}/registry", {
           params: { path: { project } },
           body: { ref, parameters: parameterValues(entry.declarations, typed) },
         }),
-      ),
+      );
+    },
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: registryKey(project) });
       setChange(result);
