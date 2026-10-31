@@ -104,7 +104,9 @@ impl Driver {
             .await
             .map_err(|err| format!("the platform could not be reached ({err})"))?;
         let status = response.status();
-        let body = response.json::<Value>().await.unwrap_or(Value::Null);
+        let body = crate::capped::json::<Value>(response, crate::capped::ANSWER_BYTES)
+            .await
+            .unwrap_or(Value::Null);
         if !status.is_success() {
             let detail = body["detail"].as_str().unwrap_or_default();
             return Err(format!("the platform answered {status} {detail}")
