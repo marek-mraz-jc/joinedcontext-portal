@@ -156,16 +156,12 @@ export function inTurn<T>(slug: string, read: () => Promise<T>): Promise<T> {
 
 /** What the gateway holds under one type: the live count and a few keyValues samples. */
 async function fetchTypeInside(slug: string, type: string): Promise<TypeInside> {
-  const counted = await gatewayGet(
-    slug,
-    new URLSearchParams({ type, limit: "1", count: "true" }),
-  );
-  const count = parseResultsCount(counted.headers);
-
+  // One read answers both: the count rides in its header beside the samples (F-R2UI4-014).
   const sampled = await gatewayGet(
     slug,
-    new URLSearchParams({ type, limit: String(SAMPLE_LIMIT), options: "keyValues" }),
+    new URLSearchParams({ type, limit: String(SAMPLE_LIMIT), count: "true", options: "keyValues" }),
   );
+  const count = parseResultsCount(sampled.headers);
   const body: unknown = await sampled.json();
   const samples = (Array.isArray(body) ? body : [])
     .filter(

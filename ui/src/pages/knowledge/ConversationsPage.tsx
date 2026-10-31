@@ -5,6 +5,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { usePermissions } from "../../api/permissions";
+import { useDebounced } from "../../components/pickers/organizationModels";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 import { CodeBlock,
   Alert,
@@ -68,9 +69,12 @@ export function ConversationsPage({
   const [filter, setFilter] = useState<ConversationFilter>({});
   const [open, setOpen] = useState<string | null>(opened ?? null);
   const allowed = can("AssistantDeployment", "approve");
+  // Every list read is recorded: the search asks once the person stops typing, not per key.
+  const [typed, setTyped] = useState("");
+  const shown: ConversationFilter = { ...filter, q: useDebounced(typed) || undefined };
   const list = useQuery({
-    queryKey: conversationKeys.list(project, filter),
-    queryFn: () => listConversations(project, filter),
+    queryKey: conversationKeys.list(project, shown),
+    queryFn: () => listConversations(project, shown),
     enabled: allowed,
     placeholderData: keepPreviousData,
   });
@@ -92,7 +96,10 @@ export function ConversationsPage({
       <PageHeader title={t("conversations.title")} description={t("conversations.intro")} />
       <div className="flex flex-wrap items-end gap-3">
         <Field id="conv-q" label={t("conversations.filter.q")} className="w-64">
-          <Input id="conv-q" type="search" value={filter.q ?? ""} onChange={(e) => set({ q: e.target.value })} />
+          <Input id="conv-q" type="search" value={typed} onChange={(e) => {
+            setTyped(e.target.value);
+            set({});
+          }} />
         </Field>
         <Field id="conv-status" label={t("conversations.filter.status")} className="w-44">
           <Select
@@ -160,7 +167,7 @@ export function ConversationsPage({
           className="mb-2"
         />
       </div>
-      <UsageSummary project={project} filter={filter} />
+      <UsageSummary project={project} filter={shown} />
       {list.isError ? (
         <PageFailed error={list.error} onRetry={() => void list.refetch()}>
           {reasonOf(list.error, t("app.error.generic"))}

@@ -66,4 +66,21 @@ test.describe("the secret form", () => {
     await oneHeading(page);
     await shot(page, "form");
   });
+
+  test("a key typed twice or left blank is named at its field and nothing is sent (F-R2UI4-017)", async ({ page }) => {
+    await stubApi(page, false);
+    const posted: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && request.url().endsWith("/secrets")) posted.push(request.url());
+    });
+    await page.goto("/projects/helsinki/secrets/new?name=counters-api&key=apiKey&lang=en");
+    await page.getByRole("button", { name: "Add a key" }).click();
+    await page.getByRole("button", { name: "Add a key" }).click();
+    await page.getByRole("textbox", { name: /^Key/ }).nth(1).fill("apiKey");
+    await page.getByRole("button", { name: "Encrypt and propose" }).click();
+    await expect(page.getByText("The key apiKey is already above: give each value its own key.")).toBeVisible();
+    await expect(page.getByText("Name this value, e.g. apiKey.")).toBeVisible();
+    expect(posted).toEqual([]);
+    await shot(page, "key-twice");
+  });
 });

@@ -187,10 +187,8 @@ function renderInside(
       if (gateway.status !== 200) {
         return json({ title: "Forbidden" }, gateway.status);
       }
-      if (url.searchParams.get("count") === "true") {
-        return json([SAMPLES[0]], 200, { "NGSILD-Results-Count": String(gateway.count ?? 0) });
-      }
-      return json(SAMPLES);
+      const limit = Number(url.searchParams.get("limit") ?? SAMPLES.length);
+      return json(SAMPLES.slice(0, limit), 200, url.searchParams.get("count") === "true" ? { "NGSILD-Results-Count": String(gateway.count ?? 0) } : {});
     }
     // The space's own surface: the whole space, by the caller's grants (T-1434).
     if (path.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities")) {
@@ -364,8 +362,11 @@ describe("space inside view", () => {
     const gatewayCalls = fetchMock.mock.calls
       .map((call) => urlOf(call[0]))
       .filter((url) => url.pathname.startsWith("/api/endpoint/"));
-    expect(gatewayCalls.some((url) => url.searchParams.get("count") === "true" && url.searchParams.get("limit") === "1")).toBe(true);
-    expect(gatewayCalls.some((url) => url.searchParams.get("options") === "keyValues" && url.searchParams.get("limit") === "3")).toBe(true);
+    // One read per type: the count and the samples come in the same answer (F-R2UI4-014).
+    const typeReads = gatewayCalls.filter((url) => url.searchParams.get("type") === "AirQualityObserved");
+    expect(typeReads.map((url) => [url.searchParams.get("count"), url.searchParams.get("limit"), url.searchParams.get("options")])).toEqual([
+      ["true", "3", "keyValues"],
+    ]);
     expect(gatewayCalls.every((url) => url.origin === window.location.origin)).toBe(true);
   });
 

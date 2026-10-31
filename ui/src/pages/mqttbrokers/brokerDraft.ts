@@ -88,6 +88,11 @@ export function holdersOf(role: MqttRoleForm, accounts: Manifest[], broker: stri
   return holders;
 }
 
+/** The roles of `roles` that `account` holds: on the role's own list or through a RoleBinding (T-5872). */
+export function rolesHeldBy<R extends MqttRoleForm>(account: string, roles: R[], accounts: Manifest[], broker: string, project: string): R[] {
+  return roles.filter((role) => holdersOf(role, accounts, broker, project).some((holder) => holder.account === account));
+}
+
 /** The draft: the broker form plus who the page binds to which role and the "keep" switch. */
 export interface Draft {
   form: MqttBrokerForm;
@@ -95,6 +100,24 @@ export interface Draft {
   /** Bindings the draft adds or drops: `account/role` keys. */
   grant: string[];
   revoke: string[];
+}
+
+/** The draft with role `index` replaced: a renamed role takes its pending grants and revokes along. */
+export function withRole(draft: Draft, index: number, role: MqttRoleForm): Draft {
+  const from = draft.form.roles?.[index]?.name;
+  const rekey = (keys: string[]) =>
+    from === role.name
+      ? keys
+      : keys.map((key) => {
+          const at = key.indexOf("/");
+          return key.slice(at + 1) === from ? `${key.slice(0, at)}/${role.name ?? ""}` : key;
+        });
+  return {
+    ...draft,
+    form: { ...draft.form, roles: (draft.form.roles ?? []).map((r, i) => (i === index ? role : r)) },
+    grant: rekey(draft.grant),
+    revoke: rekey(draft.revoke),
+  };
 }
 
 export function draftOf(form: MqttBrokerForm): Draft {

@@ -364,8 +364,8 @@ function classSlots(document: Document, name: string): string[] {
 }
 
 /** Renames a key of a top-level section in place, so its value, its comments and its position stay. */
-function renameKey(document: Document, section: string, name: string, to: string): void {
-  const entries = document.get(section, true);
+function renameKey(document: Document, section: string | string[], name: string, to: string): void {
+  const entries = document.getIn(typeof section === "string" ? [section] : section, true);
   const pair = isMap(entries)
     ? entries.items.find((item) => (isScalar(item.key) ? item.key.value : item.key) === name)
     : undefined;
@@ -509,6 +509,10 @@ function mutate(document: Document, model: LinkmlModel, operation: Operation): v
       }
       document.deleteIn(["slots", operation.name]);
       for (const klass of model.classes) {
+        // A narrowing of a slot that is gone narrows nothing.
+        if (klass.slot_usage?.[operation.name] !== undefined) {
+          document.deleteIn(["classes", klass.name, "slot_usage", operation.name]);
+        }
         if (klass.slots.includes(operation.name)) {
           document.setIn(
             ["classes", klass.name, "slots"],
@@ -525,6 +529,10 @@ function mutate(document: Document, model: LinkmlModel, operation: Operation): v
       }
       renameKey(document, "slots", operation.name, operation.to);
       for (const klass of model.classes) {
+        // A class's narrowing of the slot keeps following it.
+        if (klass.slot_usage?.[operation.name] !== undefined) {
+          renameKey(document, ["classes", klass.name, "slot_usage"], operation.name, operation.to);
+        }
         if (klass.slots.includes(operation.name)) {
           document.setIn(
             ["classes", klass.name, "slots"],

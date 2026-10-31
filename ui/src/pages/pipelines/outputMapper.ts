@@ -93,9 +93,14 @@ function expiresLines(expires: Expires): string[] {
 /** The first line of a generated step: the map, so the editor can read it back. */
 export const HEADER = "# jc-mapper ";
 
-/** A record field as a Bloblang path: a plain name as it is, any other one quoted. */
+/** One member name as a Bloblang path segment: a plain name as it is, any other one quoted. */
+export function pathSegment(field: string): string {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(field) ? field : JSON.stringify(field);
+}
+
+/** A record field as a Bloblang path. */
 export function fieldPath(field: string): string {
-  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(field) ? `this.${field}` : `this.${JSON.stringify(field)}`;
+  return `this.${pathSegment(field)}`;
 }
 
 /** The member of an NGSI-LD attribute that carries its value, by kind. */

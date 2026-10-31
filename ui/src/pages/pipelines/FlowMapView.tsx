@@ -8,7 +8,7 @@ import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { isChange } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
 import { handPrefill } from "../../assistant/state";
-import { useBranding } from "../../branding";
+import { useOrgDomain } from "../../api/projects";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { Alert, Badge, Button, Card, EmptyState, Field, PageFailed, PageLoading, PermissionGuard, Select } from "../../components/ui";
@@ -564,7 +564,7 @@ export function SendToSpace({
 }): JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { orgDomain } = useBranding();
+  const orgDomain = useOrgDomain(project);
   const endpoints = targets(map);
   const [target, setTarget] = useState(endpoints[0]?.id ?? "");
   const source =
