@@ -1494,7 +1494,15 @@
       "placeBy": "Pole s místem, které dá každý řádek na mapu, např. location."
     },
     "sizeMissing": "Broker velikost neuvedl: tento prostor nestihl změřit",
-    "historyEstimated": "Odhad ze statistik databáze"
+    "historyEstimated": "Odhad ze statistik databáze",
+    "usage": {
+      "info": "Kdy byla změřena velikost prostoru {space}",
+      "measured": "Změřeno {when}",
+      "hint": "Velké prostory se měří jednou za hodinu, malé každých pět minut. Broker si změřenou velikost pamatuje pět minut.",
+      "recalculate": "Přepočítat",
+      "recalculating": "Měří se…",
+      "failed": "Prostor se nepodařilo změřit: {reason}"
+    }
   },
   "endpoints": {
     "surfaceFit": {

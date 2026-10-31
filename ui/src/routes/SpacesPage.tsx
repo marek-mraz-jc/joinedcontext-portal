@@ -21,6 +21,7 @@ import { ProjectQuota, useProjectUsage } from "../components/ProjectQuota";
 import type { ResourceTarget } from "../components/DeleteResourceDialog";
 import { ResourceRowActions } from "../components/ResourceRowActions";
 import { contextSpaceSchema } from "../schemas/kinds";
+import { UsageInfo } from "../components/SpaceUsageInfo";
 import { modelsOfSpace } from "../pages/spaces/spaceFacts";
 import {
   Alert,
@@ -436,7 +437,10 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
             text: (space) => String(usageOf(space.metadata.name)?.data?.entities ?? ""),
             cell: (space) => (
               <span className="inline-flex flex-col items-start tabular-nums sm:items-end">
-                <EntityCount usage={usageOf(space.metadata.name)} numbers={numbers} />
+                <span className="inline-flex items-center gap-0.5">
+                  <EntityCount usage={usageOf(space.metadata.name)} numbers={numbers} />
+                  <UsageInfo project={project} space={space.metadata.name} usage={usageOf(space.metadata.name)?.data} locale={locale} />
+                </span>
                 <SizeLine
                   bytes={usageOf(space.metadata.name)?.data?.bytes?.entities ?? (usageOf(space.metadata.name)?.data?.entities === 0 ? 0 : undefined)}
                   known={usageOf(space.metadata.name)?.data !== undefined}

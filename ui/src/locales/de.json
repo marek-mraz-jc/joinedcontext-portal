@@ -1494,7 +1494,15 @@
       "placeBy": "Das Ortsfeld, das jede Zeile auf die Karte setzt, z. B. location."
     },
     "sizeMissing": "Vom Broker nicht gemeldet: er konnte diesen Bereich nicht rechtzeitig messen",
-    "historyEstimated": "Aus den Datenbankstatistiken geschätzt"
+    "historyEstimated": "Aus den Datenbankstatistiken geschätzt",
+    "usage": {
+      "info": "Wann die Größe von {space} gemessen wurde",
+      "measured": "Gemessen {when}",
+      "hint": "Große Bereiche werden einmal pro Stunde gemessen, kleine alle fünf Minuten. Der Broker behält eine gemessene Größe fünf Minuten.",
+      "recalculate": "Neu berechnen",
+      "recalculating": "Wird gemessen…",
+      "failed": "Der Bereich konnte nicht gemessen werden: {reason}"
+    }
   },
   "endpoints": {
     "surfaceFit": {

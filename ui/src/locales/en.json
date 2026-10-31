@@ -1494,7 +1494,15 @@
       "placeBy": "The place field that puts each row on the map, e.g. location."
     },
     "sizeMissing": "Not reported by the broker: it could not measure this space in time",
-    "historyEstimated": "Estimated from the database statistics"
+    "historyEstimated": "Estimated from the database statistics",
+    "usage": {
+      "info": "When the size of {space} was measured",
+      "measured": "Measured {when}",
+      "hint": "Large spaces are measured once an hour, small ones every five minutes. The broker keeps a measured size for five minutes.",
+      "recalculate": "Recalculate",
+      "recalculating": "Measuring…",
+      "failed": "The space could not be measured: {reason}"
+    }
   },
   "endpoints": {
     "surfaceFit": {

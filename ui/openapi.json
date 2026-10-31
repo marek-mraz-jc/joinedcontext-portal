@@ -32789,7 +32789,7 @@
           "spaces"
         ],
         "summary": "Read Space Usage",
-        "description": "The entity count and the storage in bytes of one space, read from the broker that holds it and kept for five minutes. `0` entities and no `bytes` for a space the broker has no tenant for yet. The same count for everyone who reads the space.",
+        "description": "The entity count and the storage in bytes of one space, read from the broker that holds it and kept: five minutes for a space under 10 000 rows, an hour for a larger one, which the Portal measures once an hour. `measuredAt` says when the size was measured. `0` entities and no `bytes` for a space the broker has no tenant for yet. The same count for everyone who reads the space.",
         "operationId": "get_usage",
         "parameters": [
           {
@@ -32824,6 +32824,88 @@
           },
           "401": {
             "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such space the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No broker or admin token is configured, or the broker did not answer or refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/spaces/{space}/usage/recalculate": {
+      "post": {
+        "tags": [
+          "spaces"
+        ],
+        "summary": "Recalculate Space Usage",
+        "description": "Measures one space's entity count and size again on its broker, for anyone who may read the space. Concurrent asks share one broker read, and an answer under 30 s old stands. The broker keeps a size it measured for five minutes, so `measuredAt` can be older than the ask.",
+        "operationId": "recalculate_usage",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "space",
+            "in": "path",
+            "description": "Context Space name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The space's usage, measured now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceUsage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No CSRF token",
             "content": {
               "application/json": {
                 "schema": {
@@ -48620,6 +48702,7 @@
           "entities",
           "broker",
           "observedAt",
+          "measuredAt",
           "estimated"
         ],
         "properties": {
@@ -48656,6 +48739,11 @@
           "estimated": {
             "type": "boolean",
             "description": "True when the broker took the history count and size from its database's statistics,\nbecause the history was too long to count within its bound (T-6085)."
+          },
+          "measuredAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the broker measured the size: its own `measuredAt` (it keeps a size five minutes),\nelse when it answered (T-6208)."
           },
           "observedAt": {
             "type": "string",
