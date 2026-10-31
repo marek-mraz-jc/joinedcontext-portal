@@ -727,20 +727,33 @@ pub(crate) async fn decide(
     Ok(done.rows_affected() == 1)
 }
 
-/// Takes back an approval `by` claimed whose grant was never proposed: pending again, undecided.
-pub(crate) async fn reopen(pool: &PgPool, id: &str, by: &str) -> Result<(), sqlx::Error> {
+/// Takes back a decision `by` claimed as `claimed` whose Change was never proposed: the request
+/// as it was before the claim, its earlier decider, time, reason and Change included.
+pub(crate) async fn take_back(
+    pool: &PgPool,
+    request: &AccessRequest,
+    claimed: &str,
+    by: &str,
+) -> Result<(), sqlx::Error> {
     sqlx::query(
-        "UPDATE access_requests SET state = 'pending', decided_by = NULL, decided_at = NULL \
-         WHERE id = $1 AND state = 'approved' AND decided_by = $2 AND change IS NULL",
+        "UPDATE access_requests SET state = $2, decided_by = $3, decided_at = $4, \
+           decision_reason = $5 \
+         WHERE id = $1 AND state = $6 AND decided_by = $7 AND change IS NOT DISTINCT FROM $8",
     )
-    .bind(id)
+    .bind(&request.id)
+    .bind(&request.state)
+    .bind(&request.decided_by)
+    .bind(request.decided_at)
+    .bind(&request.decision_reason)
+    .bind(claimed)
     .bind(by)
+    .bind(&request.change)
     .execute(pool)
     .await?;
     Ok(())
 }
 
-/// Records the Change that grants an approved request.
+/// Records the Change that grants or revokes a decided request.
 pub(crate) async fn record_change(
     pool: &PgPool,
     id: &str,
