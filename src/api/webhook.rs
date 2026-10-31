@@ -171,12 +171,15 @@ pub async fn gitea_webhook(
         return Ok(StatusCode::NO_CONTENT.into_response());
     }
 
-    // 4. Trigger mirror reconciliation; answers 202 even on sync error.
-    // Sync errors must not cause Gitea to retry merges, but are recorded in SyncStatus.
-    if let Some(syncer) = state.syncer.as_ref() {
-        if let Err(err) = syncer.sync_once().await {
-            tracing::warn!(error = %err, "gitea webhook triggered sync failed");
-        }
+    // 4. Start the mirror reconciliation and answer 202 at once: a full sync takes a minute on
+    // dev, longer than the forge waits for a delivery, and a request the forge gives up on would
+    // drop the sync with it (F-R2POR3-017). An error is recorded in SyncStatus.
+    if let Some(syncer) = state.syncer.clone() {
+        tokio::spawn(async move {
+            if let Err(err) = syncer.sync_once().await {
+                tracing::warn!(error = %err, "gitea webhook triggered sync failed");
+            }
+        });
     }
 
     Ok(StatusCode::ACCEPTED.into_response())
@@ -663,6 +666,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::ACCEPTED);
+        settled(&syncer, |status| status.revision.is_some()).await;
         assert_eq!(mirror.len(), 1);
         assert!(mirror.get("ovzdusie", "ContextSpace", "mobility").is_some());
 
@@ -690,10 +694,14 @@ mod tests {
             .with_syncer(Arc::clone(&syncer));
         let app = server::app(state);
 
-        // Forge returns 500
+        // Forge returns 500, slower than the forge waits for a delivery.
         Mock::given(method("GET"))
             .and(path("/api/v1/repos/test-owner/test-repo"))
-            .respond_with(ResponseTemplate::new(500).set_body_string("gitea db down"))
+            .respond_with(
+                ResponseTemplate::new(500)
+                    .set_body_string("gitea db down")
+                    .set_delay(std::time::Duration::from_secs(2)),
+            )
             .mount(&server)
             .await;
 
@@ -704,6 +712,7 @@ mod tests {
         let body = serde_json::to_vec(&push_main).unwrap();
         let sig = compute_signature(secret, &body);
 
+        let started = std::time::Instant::now();
         let response = app
             .oneshot(
                 Request::builder()
@@ -719,9 +728,25 @@ mod tests {
 
         // Crucial requirement: must return 202 so Gitea does not retry merge webhook!
         assert_eq!(response.status(), StatusCode::ACCEPTED);
+        // F-R2POR3-017: the answer does not wait for the sync.
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(1),
+            "the webhook waited {:?} for the sync",
+            started.elapsed()
+        );
 
         // Error is recorded in syncer status
-        let status = syncer.status();
-        assert!(status.last_error.is_some());
+        settled(&syncer, |status| status.last_error.is_some()).await;
+    }
+
+    /// Waits up to ten seconds for the sync the webhook started to reach `done`.
+    async fn settled(syncer: &Syncer, done: impl Fn(&crate::reconciler::SyncStatus) -> bool) {
+        for _ in 0..200 {
+            if done(&syncer.status()) {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        panic!("the sync did not finish: {:?}", syncer.status());
     }
 }

@@ -1485,6 +1485,7 @@ impl Harness {
             None => (json!(audience), String::new()),
         };
         self.signed(json!({
+            "typ": "Bearer",
             "iss": self.issuer,
             "aud": audience,
             "scope": scope,
@@ -1859,7 +1860,7 @@ impl Harness {
                     .ok_or("runner: no internal path")?..];
                 let now = joinedcontext_portal::auth::session::now_unix();
                 let token = self.signed(json!({
-                    "iss": self.issuer, "aud": "portal-internal", "azp": RUNNER_CLIENT,
+                    "typ": "Bearer", "iss": self.issuer, "aud": "portal-internal", "azp": RUNNER_CLIENT,
                     "sub": "service-account-scn-pipelines", "exp": now + 600, "iat": now,
                 }));
                 for message in messages {
@@ -2221,7 +2222,7 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
     let now = joinedcontext_portal::auth::session::now_unix();
     let forged = |aud: &str, scope: String| {
         Some(harness.signed(json!({
-            "iss": harness.issuer, "aud": aud, "azp": CLIENT, "sub": "sub-scn-viewer",
+            "typ": "Bearer", "iss": harness.issuer, "aud": aud, "azp": CLIENT, "sub": "sub-scn-viewer",
             "preferred_username": user_of("viewer"), "scope": scope, "exp": now + 600, "iat": now,
         })))
     };

@@ -99,6 +99,25 @@ pub enum SecretError {
 /// One pipeline's references, resolved.
 type Environment = BTreeMap<String, String>;
 
+/// `projects/{project}/secrets` of the staged tree, where [`crate::secret_files`] writes a
+/// project's secrets (CC-06): the only files a reference of that project resolves against.
+fn secrets_folder(
+    repository: &Path,
+    project: &str,
+    references: &[SecretRef],
+) -> Result<PathBuf, SecretError> {
+    if jc_core::names::validate_dns1123_label(project).is_err() {
+        return Err(SecretError::Refused {
+            name: references
+                .first()
+                .map(|r| r.name.clone())
+                .unwrap_or_default(),
+            reason: format!("'{project}' is not a project name, so it has no secrets folder"),
+        });
+    }
+    Ok(repository.join("projects").join(project).join("secrets"))
+}
+
 /// Resolves references against the configured backend.
 #[derive(Debug, Clone)]
 pub struct Resolver {
@@ -113,20 +132,22 @@ impl Resolver {
 
     /// The `{envVar: value}` map of one pipeline's references, resolved off the runtime.
     ///
-    /// `repository` is the staged tree of this sync, which is where the SOPS backend reads; the
-    /// OpenBao backend ignores it. Both backends are blocking — one decrypts a file, the other
-    /// speaks HTTP with a blocking client — so the work goes to a blocking thread rather than
-    /// stalling the reconciler's runtime, which panics when such a client is dropped inside it.
+    /// `repository` is the staged tree of this sync; the SOPS backend reads only `project`'s own
+    /// secrets folder in it, so a manifest of one project never resolves another project's
+    /// credential by naming it; the OpenBao backend ignores it. Both backends are blocking — one
+    /// decrypts a file, the other speaks HTTP with a blocking client — so the work goes to a
+    /// blocking thread rather than stalling the reconciler's runtime, which panics when such a
+    /// client is dropped inside it.
     pub async fn resolve(
         &self,
         repository: &Path,
+        project: &str,
         references: &[SecretRef],
     ) -> Result<Environment, SecretError> {
         let resolver = self.clone();
-        let repository = repository.to_path_buf();
+        let folder = secrets_folder(repository, project, references)?;
         let references = references.to_vec();
-        match tokio::task::spawn_blocking(move || resolver.environment(&repository, &references))
-            .await
+        match tokio::task::spawn_blocking(move || resolver.environment(&folder, &references)).await
         {
             Ok(resolved) => resolved,
             Err(err) => Err(SecretError::Unresolved {
@@ -144,6 +165,7 @@ impl Resolver {
     pub async fn one(
         &self,
         repository: &Path,
+        project: &str,
         reference: &SecretRef,
     ) -> Result<String, SecretError> {
         const HELD: &str = "VALUE";
@@ -152,7 +174,7 @@ impl Resolver {
             ..reference.clone()
         };
         let resolved = self
-            .resolve(repository, std::slice::from_ref(&named))
+            .resolve(repository, project, std::slice::from_ref(&named))
             .await?;
         resolved
             .get(HELD)
@@ -163,10 +185,11 @@ impl Resolver {
             })
     }
 
-    /// [`resolve`](Self::resolve), on the caller's thread. Blocking: not for a runtime.
+    /// [`resolve`](Self::resolve), on the caller's thread, with `folder` the one project's
+    /// secrets folder the SOPS backend reads. Blocking: not for a runtime.
     pub fn environment(
         &self,
-        repository: &Path,
+        folder: &Path,
         references: &[SecretRef],
     ) -> Result<Environment, SecretError> {
         if references.is_empty() {
@@ -187,7 +210,7 @@ impl Resolver {
         }
         match &self.backend {
             Backend::Sops { age_key_file } => {
-                self.resolve_with_sops(age_key_file, repository, references)
+                self.resolve_with_sops(age_key_file, folder, references)
             }
             Backend::OpenBao {
                 address,
@@ -200,7 +223,7 @@ impl Resolver {
     fn resolve_with_sops(
         &self,
         age_key_file: &Path,
-        repository: &Path,
+        folder: &Path,
         references: &[SecretRef],
     ) -> Result<Environment, SecretError> {
         let identities =
@@ -208,12 +231,15 @@ impl Resolver {
                 name: references[0].name.clone(),
                 reason: format!("the age identity is unreadable: {err}"),
             })?;
-        let store = SecretStore::load_dir(repository, &identities).map_err(|err| {
-            SecretError::Unresolved {
+        // A project with no secrets folder holds no secret: every reference is not found.
+        let store = if folder.is_dir() {
+            SecretStore::load_dir(folder, &identities).map_err(|err| SecretError::Unresolved {
                 name: references[0].name.clone(),
                 reason: err.to_string(),
-            }
-        })?;
+            })?
+        } else {
+            SecretStore::default()
+        };
         let mut environment = Environment::new();
         for reference in references {
             let value = store
@@ -510,6 +536,60 @@ mod tests {
             matches!(&error, SecretError::Refused { name, reason } if name == "mqtt-mesto" && reason.contains("secretRef.envVar")),
             "{error}"
         );
+    }
+
+    /// F-R2POR3-002: one project's reference never resolves another project's secret of the
+    /// same staged tree, which in layout 1 is the whole organization repository.
+    #[tokio::test]
+    async fn a_reference_resolves_only_its_own_projects_secrets() {
+        use age::secrecy::ExposeSecret as _;
+        let identity = age::x25519::Identity::generate();
+        let tree = std::env::temp_dir().join(format!(
+            "t6227-secrets-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let folder = tree.join("projects/helsinki/secrets");
+        std::fs::create_dir_all(&folder).expect("folder");
+        let text = crate::secret_files::encrypt(
+            "feed",
+            &BTreeMap::from([(
+                "password".to_owned(),
+                zeroize::Zeroizing::new("helsinki-only".to_owned()),
+            )]),
+            &[identity.to_public().to_string()],
+            "2026-10-31T00:00:00Z",
+        )
+        .expect("encrypted");
+        std::fs::write(folder.join("feed.enc.yaml"), text).expect("file");
+        let key = tree.join("age.key");
+        std::fs::write(&key, identity.to_string().expose_secret()).expect("key");
+        let resolver = Resolver::new(Backend::Sops { age_key_file: key });
+        let reference = SecretRef {
+            name: "feed".to_owned(),
+            key: Some("password".to_owned()),
+            env_var: Some("FEED_PASSWORD".to_owned()),
+        };
+
+        let own = resolver
+            .resolve(&tree, "helsinki", std::slice::from_ref(&reference))
+            .await
+            .expect("its own secret");
+        assert_eq!(own["FEED_PASSWORD"], "helsinki-only");
+        let other = resolver
+            .resolve(&tree, "oulu", std::slice::from_ref(&reference))
+            .await
+            .expect_err("another project's secret");
+        assert!(
+            matches!(&other, SecretError::Unresolved { name, .. } if name == "feed"),
+            "{other}"
+        );
+        assert!(!other.to_string().contains("helsinki-only"));
+        assert!(resolver
+            .resolve(&tree, "../helsinki", std::slice::from_ref(&reference))
+            .await
+            .is_err());
+        std::fs::remove_dir_all(&tree).ok();
     }
 
     #[test]
