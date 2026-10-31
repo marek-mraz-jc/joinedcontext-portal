@@ -508,9 +508,10 @@ function useCallSplit(calls: Calls | undefined) {
  * (T-6186). The gateways count kinds, never who called (T-5118). Exported for its test.
  */
 export function CallsCell({ calls, known }: { calls: Calls | undefined; known: boolean }): JSX.Element {
+  const { t } = useTranslation();
   const { total, groups } = useCallSplit(calls);
   if (!known) {
-    return <span className="text-fg-subtle">—</span>;
+    return <Unknown />;
   }
   const said = groups.map((group) => `${group.label}: ${group.parts.map((part) => `${part.label} ${part.count}`).join(" · ")}`);
   // One line per row (T-4989): the split is the cell's tooltip, a line per grouping, read out with
@@ -519,7 +520,7 @@ export function CallsCell({ calls, known }: { calls: Calls | undefined; known: b
   return (
     <span
       className={`whitespace-nowrap tabular-nums${said.length > 0 ? " [@media(hover:hover)]:cursor-help [@media(hover:hover)]:underline [@media(hover:hover)]:decoration-dotted [@media(hover:hover)]:underline-offset-4" : ""}`}
-      title={said.join("\n") || undefined}
+      title={said.join("\n") || t("endpoints.calls.none")}
     >
       {total}
       {said.length > 0 ? <span className="sr-only"> ({said.join("; ").replaceAll(" · ", ", ")})</span> : null}
@@ -527,19 +528,31 @@ export function CallsCell({ calls, known }: { calls: Calls | undefined; known: b
   );
 }
 
+/** The dash of calls this page cannot speak for, with the reason as its tooltip and spoken text. */
+function Unknown(): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <span className="text-fg-subtle" title={t("endpoints.calls.unknown")}>
+      —<span className="sr-only"> {t("endpoints.calls.unknown")}</span>
+    </span>
+  );
+}
+
 /** The same calls in the cell panel, the split shown rather than hovered (T-6186). Exported for its test. */
 export function CallsDetail({ calls, known }: { calls: Calls | undefined; known: boolean }): JSX.Element {
+  const { t } = useTranslation();
   const { total, groups } = useCallSplit(calls);
   if (!known) {
-    return <span className="text-fg-subtle">—</span>;
+    return <Unknown />;
   }
   return (
     <div className="flex flex-col gap-3">
       <span className="font-semibold tabular-nums">{total}</span>
+      {groups.length === 0 ? <span className="text-caption text-fg-muted">{t("endpoints.calls.none")}</span> : null}
       {groups.map((group) => (
         <div key={group.label} className="flex flex-col gap-1">
           <span className="text-caption font-semibold text-fg-muted">{group.label}</span>
-          <ul className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-8 gap-y-1 sm:w-fit sm:grid-cols-[auto_auto]" aria-label={group.label}>
+          <ul className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-8 gap-y-1 sm:w-[22rem]" aria-label={group.label}>
             {group.parts.map((part) => (
               <li key={part.label} className="contents">
                 <span className="text-fg-muted">{part.label}</span>{" "}

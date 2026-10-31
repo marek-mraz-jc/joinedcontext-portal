@@ -2339,6 +2339,8 @@
     "calls": {
       "label": "Volání, 7 dní",
       "bySurface": "Podle způsobu čtení",
+      "unknown": "Počítá se pro projekt, který endpoint zveřejňuje, jakmile se využití načte",
+      "none": "Za posledních 7 dní žádná zodpovězená volání",
       "byCaller": "Podle volajícího",
       "caller": {
         "person": "Lidé",

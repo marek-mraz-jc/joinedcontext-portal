@@ -2339,6 +2339,8 @@
     "calls": {
       "label": "Aufrufe, 7 Tage",
       "bySurface": "Nach Schnittstelle",
+      "unknown": "Gezählt für das Projekt, das diesen Endpoint veröffentlicht, sobald die Nutzung geladen ist",
+      "none": "Keine beantworteten Aufrufe in den letzten 7 Tagen",
       "byCaller": "Nach Aufrufer",
       "caller": {
         "person": "Personen",

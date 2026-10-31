@@ -95,7 +95,7 @@ describe("the one Endpoints grid (T-6169)", () => {
         <CallsCell known={false} calls={undefined} />
       </I18nextProvider>,
     );
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText(/^—/)).toHaveAttribute("title", expect.stringMatching(/publishes this Endpoint/));
   });
 
   it("shows the split in the cell panel as two labelled lists, and nothing for a kind nobody used", () => {

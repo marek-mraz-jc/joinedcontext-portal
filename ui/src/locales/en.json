@@ -2339,6 +2339,8 @@
     "calls": {
       "label": "Calls, 7 days",
       "bySurface": "By surface",
+      "unknown": "Counted for the project that publishes this Endpoint, once the usage has loaded",
+      "none": "No answered calls in the last 7 days",
       "byCaller": "By caller",
       "caller": {
         "person": "People",
