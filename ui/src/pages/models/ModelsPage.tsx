@@ -519,16 +519,16 @@ export function ModelsPage({
                   {t("models.source.save", { version: nextVersion })}
                 </Button>
               </PermissionGuard>
+              {published ? (
+                <DeleteResourceAction
+                  target={{ project, kind: "DataModel", plural: "datamodels", name: published.name }}
+                />
+              ) : null}
               {/* The reason a disabled Propose gives, in the open as the row menu shows it: a pale
                   button alone read as broken (T-6254 judge). */}
               {/* Only the reasons not already shown elsewhere: errors have their list, a taken name its alert. */}
               {proposeBlocked && !saving && !checking && !taken && blocking === 0 ? (
                 <p className="basis-full text-right text-caption text-fg-muted max-sm:text-left">{proposeBlocked}</p>
-              ) : null}
-              {published ? (
-                <DeleteResourceAction
-                  target={{ project, kind: "DataModel", plural: "datamodels", name: published.name }}
-                />
               ) : null}
             </>
           ) : null}

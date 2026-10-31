@@ -433,7 +433,7 @@ test.describe("the model editor's name line (T-6162)", () => {
       await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
       await stubKpi(page, ["read", "propose"]);
       await page.goto("/projects/helsinki/models?new=blank&lang=en");
-      await expect(page.getByRole("heading", { level: 1, name: "Data model editor" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "New data model" })).toBeVisible();
       await expect(page.getByText("no id until the model has a name")).toBeVisible();
       await page.getByRole("textbox", { name: "Name", exact: true }).fill("Street trees");
       await expect(page.getByText("street-trees.linkml.yaml")).toBeVisible();
@@ -451,6 +451,8 @@ test.describe("the model editor's name line (T-6162)", () => {
       await name.fill("City indicators");
       await name.press("Enter");
       await expect(page.getByText("City indicators", { exact: true })).toBeVisible();
+      // The file sits under Details since T-6254, out of the title row.
+      await page.getByText("Details", { exact: true }).click();
       await expect(page.getByText("helsinki-kpi.linkml.yaml")).toBeVisible();
       await expect(page.getByRole("button", { name: /^Propose v/ })).not.toHaveAttribute("aria-disabled", "true");
       const overflow = await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth);
@@ -958,6 +960,128 @@ test.describe("the model Overview (T-6146)", () => {
       await expect(page.getByRole("heading", { level: 1 }).locator("xpath=following-sibling::p")).not.toContainText("Context space");
       await expect(page.getByRole("button", { name: "Edit model" })).toHaveAttribute("aria-disabled", "true");
       await shot(page, `overview-viewer-${width}`);
+    });
+  }
+});
+
+// T-6254 (UI judge on T-6207): the catalogue diagram opens fitted and centred, the editor shows one
+// Title row and the id and file under Details, a disabled Propose says why in the open, the list caps
+// Types at six names, the LinkML wraps inside its box, and a new model offers fields only after a type.
+const CATALOG_SLOTS: Record<string, string[]> = {
+  Dataset: ["title", "description", "name", "identifier", "url", "keyword", "theme", "spatial", "temporal", "frequency", "license", "issued", "modified", "source", "nextQuery", "searchText", "refPublisher", "refDataService"],
+  DataService: ["title", "description", "identifier", "endpointURL", "accessURL", "accessRights", "license", "accessLevel", "visibleBecause", "entityTypes", "nextQuery", "refDataset"],
+  Organization: ["name", "identifier", "url", "datasetCount", "publishedDatasets", "searchText"],
+};
+const CATALOG_LINKML = [
+  "id: https://hel.fi/models/helsinki/catalog",
+  "name: catalog",
+  "title: { en: Open data catalogue }",
+  "description: >-",
+  "  One dataset of the catalogue: a public CKAN dataset by its CKAN name, or a public Endpoint no CKAN dataset names, with its publisher, its access service and the search text the assistant reads.",
+  "prefixes:",
+  "  jc: https://hel.fi/terms/",
+  "  linkml: https://w3id.org/linkml/",
+  "default_prefix: jc",
+  "default_range: string",
+  "classes:",
+  ...Object.entries(CATALOG_SLOTS).flatMap(([name, slots]) => [`  ${name}:`, `    class_uri: jc:${name}`, `    slots: [${slots.join(", ")}]`]),
+  "slots:",
+  ...[...new Set(Object.values(CATALOG_SLOTS).flat())].map((slot) =>
+    slot === "refPublisher" || slot === "publishedDatasets"
+      ? `  ${slot}: { slot_uri: jc:${slot}, range: ${slot === "refPublisher" ? "Organization" : "Dataset"}, inverse: ${slot === "refPublisher" ? "publishedDatasets" : "refPublisher"}, multivalued: ${slot === "publishedDatasets"}, annotations: { ngsi_ld_kind: Relationship } }`
+      : slot === "refDataService" || slot === "refDataset"
+        ? `  ${slot}: { slot_uri: jc:${slot}, range: ${slot === "refDataService" ? "DataService" : "Dataset"}, inverse: ${slot === "refDataService" ? "refDataset" : "refDataService"}, multivalued: ${slot === "refDataset"}, annotations: { ngsi_ld_kind: Relationship } }`
+        : `  ${slot}: { slot_uri: jc:${slot}, range: string }`,
+  ),
+  "",
+].join("\n");
+const CITY_TYPES = Array.from({ length: 27 }, (_, index) => `CityType${index + 1}`);
+
+async function stubCatalog(page: Page): Promise<void> {
+  const model = (name: string, title: string, classes: string[], linkml: string) => ({
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "DataModel",
+    metadata: { name, namespace: "helsinki", title },
+    spec: { contextSpaceRef: name, version: "1.14.0", lifecycle: "published", classes, linkml },
+  });
+  await page.route("**/api/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const json = (body: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+    if (path.endsWith("/auth/me")) return json(IDENTITY);
+    if (path === "/api/v1/projects") return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "helsinki" }] });
+    if (path.endsWith("/permissions/me")) return json({ project: "helsinki", grants: [{ rule: { kinds: ["DataModel", "ContextSpace", "Endpoint"], verbs: ["read", "propose"] } }] });
+    if (path.endsWith("/datamodels/catalog/source") && route.request().method() === "GET") {
+      return route.fulfill({ status: 200, contentType: "text/yaml", body: CATALOG_LINKML });
+    }
+    if (path.endsWith("/datamodels")) {
+      return json(list([
+        model("catalog", "Open data catalogue", Object.keys(CATALOG_SLOTS), CATALOG_LINKML),
+        model("helsinki", "Helsinki city context", CITY_TYPES, "./helsinki.linkml.yaml"),
+      ]));
+    }
+    if (path === "/api/v1/tools/generate") return json(ARTIFACTS);
+    if (path === "/api/v1/tools/sdm-catalog") return json({ subjects: [] });
+    if (path.endsWith("/organizations")) {
+      return json(list([{ apiVersion: "joinedcontext.com/v1alpha1", kind: "Organization", metadata: { name: "hel" }, spec: { domain: "hel.fi", locales: ["en", "fi", "sk"], defaultLocale: "en" } }]));
+    }
+    return json(list([]));
+  });
+}
+
+test.describe("the model pages after the T-6207 judge (T-6254)", () => {
+  for (const width of [1440, 400]) {
+    test(`list, diagram, LinkML, editor and new model read cleanly at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubCatalog(page);
+      const noSideScroll = async () =>
+        expect(await page.evaluate(() => (document.scrollingElement?.scrollWidth ?? 0) - window.innerWidth)).toBeLessThanOrEqual(0);
+
+      await page.goto("/projects/helsinki/models?lang=en");
+      await expect(page.getByRole("link", { name: "21 more types of Helsinki city context" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "CityType7", exact: true })).toHaveCount(0);
+      await noSideScroll();
+      await shot(page, `models-list-${width}`, false);
+
+      await page.goto("/projects/helsinki/models/catalog?lang=en");
+      const drawing = page.getByRole("group", { name: "The model's classes and what joins them" });
+      await expect(drawing).toBeVisible();
+      if (width > 600) {
+        // Fitted: the whole drawing inside its frame, the lowest class not cut, and centred.
+        const fits = await drawing.evaluate((svg) => {
+          const frame = svg.parentElement!;
+          const box = svg.getBoundingClientRect();
+          const around = frame.getBoundingClientRect();
+          return {
+            inside: box.bottom <= around.bottom && box.top >= around.top && box.right <= around.right,
+            centred: Math.abs(box.left - around.left - (around.right - box.right)) < 24,
+          };
+        });
+        expect(fits).toEqual({ inside: true, centred: true });
+      }
+      await shot(page, `model-catalog-${width}`, false);
+
+      await page.goto("/projects/helsinki/models/catalog?tab=yaml&lang=en");
+      const source = page.getByRole("group", { name: "The model's source (LinkML YAML)" });
+      await expect(source).toContainText("public Endpoint no CKAN dataset names");
+      // The long description line wraps inside the box: nothing scrolls sideways.
+      expect(await source.evaluate((pre) => pre.scrollWidth - pre.clientWidth)).toBeLessThanOrEqual(0);
+      await shot(page, `model-linkml-${width}`, false);
+
+      await page.goto("/projects/helsinki/models?edit=catalog&lang=en");
+      await expect(page.getByRole("heading", { level: 1, name: "Open data catalogue" })).toBeVisible();
+      await expect(page.getByRole("textbox", { name: "Title (en)" })).toBeVisible();
+      await expect(page.getByRole("textbox", { name: "Title (fi)" })).toBeHidden();
+      await expect(page.getByText("catalog.linkml.yaml")).toBeHidden();
+      await expect(page.getByText("v1.14.0", { exact: true })).toBeVisible();
+      await expect(page.getByText("Nothing to propose: edit the model first.", { exact: true }).first()).toBeVisible();
+      await noSideScroll();
+      await shot(page, `model-editor-${width}`, false);
+
+      await page.goto("/projects/helsinki/models?new=blank&lang=en");
+      await expect(page.getByText("Fields belong to a type: add the first type under Types, then its fields here.")).toBeVisible();
+      await expect(page.getByRole("textbox", { name: "New field" })).toHaveCount(0);
+      await noSideScroll();
+      await shot(page, `model-new-${width}`, false);
     });
   }
 });
