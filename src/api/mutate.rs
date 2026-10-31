@@ -881,13 +881,11 @@ async fn propose_engine(
         .map(serde_json::to_value)
         .transpose()
         .map_err(|e| ApiError::Internal(e.to_string()))?;
-    crate::permissions::within_own_rights(
-        state,
-        identity,
-        &body_val,
-        replaced.as_ref(),
-        "proposer",
-    )?;
+    //     Judged in the namespace the envelope filled in: a project Role sent without one is the
+    //     project's, never the organization's (T-6266, PF-68).
+    let mut judged = body_val.clone();
+    judged["metadata"]["namespace"] = Value::from(envelope.metadata.namespace.clone());
+    crate::permissions::within_own_rights(state, identity, &judged, replaced.as_ref(), "proposer")?;
     // 4e. A pipeline reaches only what its proposer reads and writes (PL-94).
     if operation != Operation::Delete {
         crate::pipeline_rights::check(
