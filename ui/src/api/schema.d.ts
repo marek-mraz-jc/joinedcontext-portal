@@ -35079,8 +35079,7 @@ export interface operations {
                  *         "enabledRepresentations": [
                  *           "ngsi-ld",
                  *           "csv"
-                 *         ],
-                 *         "slug": "mluyob4nz52lok3ssk7pgn5vwt"
+                 *         ]
                  *       }
                  *     }
                  */

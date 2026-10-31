@@ -486,10 +486,16 @@ fn compact(kind: &str, schema: &Value) -> Value {
     let defs = defs_of(schema);
     let lines = field_lines(&defs, schema);
     let (shown, cut) = fitting(&lines);
-    let text: String = shown.iter().map(|l| format!("{}\n", l.text)).collect();
+    let text: String = shown
+        .iter()
+        .map(|l| match minted(kind, &l.path) {
+            true => format!("{} (minted by the platform: leave it out)\n", l.text),
+            false => format!("{}\n", l.text),
+        })
+        .collect();
     let required: Vec<&str> = lines
         .iter()
-        .filter(|l| l.required)
+        .filter(|l| l.required && !minted(kind, &l.path))
         .map(|l| l.path.as_str())
         .collect();
     // An object whose fields are not listed: the pointer the hint offers.
@@ -532,6 +538,11 @@ fn compact(kind: &str, schema: &Value) -> Value {
     })
 }
 
+/// A field the platform writes and a caller leaves out: an Endpoint's slug (EP-75).
+fn minted(kind: &str, path: &str) -> bool {
+    kind == "Endpoint" && path == "spec.slug"
+}
+
 /// What the schema cannot say: rules jc-core's validation holds (a semantic version, a slug's
 /// entropy, a reference that names something), as a JSON merge patch onto the generated manifest.
 /// Every value names a placeholder, never a real project's object.
@@ -556,10 +567,7 @@ const EXAMPLES: &[(&str, &str)] = &[
         "ScopeDefinition",
         r#"{"spec":{"scopeString":"/domain/example","isRoot":false,"isChildOf":"/domain"}}"#,
     ),
-    (
-        "Endpoint",
-        r#"{"spec":{"slug":"examplea2b3c4d5e6f7g2h3i4j5k6","audience":"public"}}"#,
-    ),
+    ("Endpoint", r#"{"spec":{"slug":null,"audience":"public"}}"#),
     (
         "ModelProjection",
         r#"{"spec":{"dataModelRef":{"version":"1"},"classes":[{"name":"Example"}]}}"#,
@@ -891,6 +899,20 @@ mod tests {
             schema_of("NoSuchKind", None),
             Err(OpError::Api(ApiError::NotFound(_)))
         ));
+    }
+
+    #[test]
+    fn an_endpoints_slug_is_shown_as_minted_and_left_out_of_the_example() {
+        let answer = schema_of("Endpoint", None).expect("a kind");
+        assert!(answer["example"]["spec"].get("slug").is_none(), "{answer}");
+        assert!(!answer["required"]
+            .as_array()
+            .expect("a list")
+            .contains(&json!("spec.slug")));
+        assert!(answer["fields"]
+            .as_str()
+            .expect("text")
+            .contains("minted by the platform"));
     }
 
     #[test]

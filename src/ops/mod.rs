@@ -112,6 +112,13 @@ impl std::fmt::Debug for Bearer {
 }
 
 impl Caller {
+    /// A person at the Portal's own form, which mints a new Endpoint's slug in the browser and
+    /// shows its address before the change is proposed (EP-75); every other caller leaves the
+    /// slug to the platform.
+    pub fn brings_its_own_slug(&self) -> bool {
+        self.via == Via::Session && self.identity.client.is_none() && self.access.is_none()
+    }
+
     pub fn new(identity: Identity, via: Via) -> Self {
         Self {
             identity,

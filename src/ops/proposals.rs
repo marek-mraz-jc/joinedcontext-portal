@@ -273,6 +273,32 @@ async fn resolve_manifest_input(
     project: &str,
     input: &ManifestInput,
 ) -> Result<(Value, Option<DraftRef>), OpError> {
+    let (mut manifest, draft) = given_manifest(caller, state, project, input).await?;
+    settle_slug(caller, state, project, &mut manifest).await?;
+    Ok((manifest, draft))
+}
+
+/// The Endpoint slug of a manifest a caller sent, filled in or refused (EP-75).
+pub(crate) async fn settle_slug(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    manifest: &mut Value,
+) -> Result<(), OpError> {
+    crate::endpoint_slug::settle_in(state, project, None, caller.brings_its_own_slug(), manifest)
+        .await
+        .map_err(|message| OpError::InvalidInput {
+            path: format!("/manifest{}", crate::endpoint_slug::PATH),
+            message,
+        })
+}
+
+async fn given_manifest(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    input: &ManifestInput,
+) -> Result<(Value, Option<DraftRef>), OpError> {
     if let Some(d) = &input.draft {
         if let Some(m) = &input.manifest {
             same_draft(m, d)?;
@@ -731,10 +757,11 @@ pub(crate) async fn propose_with_optional_draft(
         }
         return Ok(out);
     }
-    let manifest = input.manifest.ok_or_else(|| OpError::InvalidInput {
+    let mut manifest = input.manifest.ok_or_else(|| OpError::InvalidInput {
         path: "/manifest".into(),
         message: "either manifest or draft is required".into(),
     })?;
+    settle_slug(caller, state, project, &mut manifest).await?;
     propose_bare(caller, state, project, plural, manifest).await
 }
 
