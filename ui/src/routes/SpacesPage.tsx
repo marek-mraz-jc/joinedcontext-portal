@@ -215,7 +215,7 @@ function HistoryCount({ usage, numbers, locale }: { usage: SpaceUsage | undefine
       <span data-testid="space-history" title={usage.estimated ? t("spaces.historyEstimated") : undefined}>
         {records === undefined || records === null ? "—" : `${usage.estimated ? "≈ " : ""}${numbers.format(records)}`}
       </span>
-      <SizeLine bytes={usage.bytes?.attrInstances} known locale={locale} label={t("spaces.field.historySize")} testId="space-history-size" />
+      <SizeLine bytes={usage.bytes?.attrInstances ?? (records === 0 ? 0 : undefined)} known locale={locale} label={t("spaces.field.historySize")} testId="space-history-size" />
     </>
   );
 }
@@ -438,7 +438,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
               <span className="inline-flex flex-col items-start tabular-nums sm:items-end">
                 <EntityCount usage={usageOf(space.metadata.name)} numbers={numbers} />
                 <SizeLine
-                  bytes={usageOf(space.metadata.name)?.data?.bytes?.entities}
+                  bytes={usageOf(space.metadata.name)?.data?.bytes?.entities ?? (usageOf(space.metadata.name)?.data?.entities === 0 ? 0 : undefined)}
                   known={usageOf(space.metadata.name)?.data !== undefined}
                   locale={locale}
                   label={t("spaces.field.size")}
