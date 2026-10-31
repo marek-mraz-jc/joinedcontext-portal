@@ -73,7 +73,9 @@ impl std::fmt::Debug for SecretWrite {
     }
 }
 
-/// The names and keys of every encrypted file in the project's repository, by name.
+/// The names and keys of every encrypted file in the project's own secrets folder, by name: in
+/// layout 1 the repository holds every project, and another project's secrets are not this
+/// one's to list or to collide with, as the reconciler resolves only this folder (CC-06).
 pub async fn stored(
     state: &AppState,
     project: &str,
@@ -82,9 +84,12 @@ pub async fn stored(
         .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("this Portal has no forge".into()))?;
     let base = gitea.default_branch().await?;
+    let folder = format!("projects/{project}/secrets/");
     let mut found = BTreeMap::new();
     for (path, _) in gitea.list_tree_blobs(&base).await? {
-        if !jcctl::secrets::sops::is_encrypted_file(path.rsplit('/').next().unwrap_or_default()) {
+        if !path.starts_with(&folder)
+            || !jcctl::secrets::sops::is_encrypted_file(path.rsplit('/').next().unwrap_or_default())
+        {
             continue;
         }
         let Some(file) = gitea.get_file(&path, &base).await? else {

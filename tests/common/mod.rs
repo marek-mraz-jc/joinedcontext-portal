@@ -448,6 +448,7 @@ impl Realm {
         let now = joinedcontext_portal::auth::session::now_unix();
         let claims = json!({
             "iss": self.issuer,
+            "typ": "Bearer",
             "aud": audience,
             "sub": format!("service-account-{client}"),
             "azp": client,
@@ -477,6 +478,7 @@ impl Realm {
         let now = joinedcontext_portal::auth::session::now_unix();
         let claims = json!({
             "iss": self.issuer,
+            "typ": "Bearer",
             "aud": audience,
             "sub": format!("sub-{who}"),
             "azp": client,

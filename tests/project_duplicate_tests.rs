@@ -102,6 +102,11 @@ async fn world(exists: bool) -> (MockServer, AppState) {
             ("project.yaml", PROJECT.to_owned()),
             ("CODEOWNERS", "* @test-owner/ovzdusie-writers\n".to_owned()),
             ("spaces/ovzdusie/endpoints/air.yaml", endpoint()),
+            // The origin's credential, encrypted for the Portal (CC-06).
+            (
+                "secrets/feed.enc.yaml",
+                "feed:\n  password: ENC[AES256_GCM,data:x]\nsops: {}\n".to_owned(),
+            ),
         ],
     )
     .await;
@@ -207,10 +212,20 @@ async fn a_project_is_duplicated_into_a_repository_of_its_own() {
     let commits = received(&server, "POST", &format!("{COPY}/contents")).await;
     assert_eq!(commits.len(), 1, "one remount commit");
     assert_eq!(commits[0]["branch"], "main");
-    let written: BTreeMap<String, String> = commits[0]["files"]
-        .as_array()
-        .expect("files")
+    let files = commits[0]["files"].as_array().expect("files");
+    let deleted: Vec<&str> = files
         .iter()
+        .filter(|file| file["operation"] == "delete")
+        .filter_map(|file| file["path"].as_str())
+        .collect();
+    assert_eq!(
+        deleted,
+        ["secrets/feed.enc.yaml"],
+        "the origin's secrets stay behind (F-R2POR3-001)"
+    );
+    let written: BTreeMap<String, String> = files
+        .iter()
+        .filter(|file| file["operation"] == "upload")
         .map(|file| {
             let content = STANDARD
                 .decode(file["content"].as_str().unwrap_or_default())

@@ -50,22 +50,32 @@ pub async fn restore_change(
     Ok((StatusCode::ACCEPTED, Json(change)))
 }
 
-/// Restores what the merged change `id` removed, as `identity` (T-3247).
-pub async fn restore_change_for(
+/// The merged change `id` of `project` as `identity` may see it, with the caller's rights there
+/// (T-3247, T-3274, T-3975): `404` unless they read the project and it is a Portal or workspace
+/// change of it, `409` saying `unmerged` while it is not merged. A project's own changes only: an
+/// organization change (`chg-org-`) is not one.
+async fn merged_change(
     state: &AppState,
     identity: &Identity,
     project: &str,
     id: &str,
-) -> Result<Change, ApiError> {
+    unmerged: &str,
+) -> Result<
+    (
+        crate::permissions::Effective,
+        std::sync::Arc<crate::git::GiteaClient>,
+        u64,
+        crate::git::PullRequest,
+    ),
+    ApiError,
+> {
     let missing = || ApiError::NotFound(format!("change '{id}' not found in project '{project}'"));
     let effective = crate::permissions::for_request(state, identity, project);
     if !effective.may_read_project() {
         return Err(missing());
     }
-    // A project's own changes only: an organization change (`chg-org-`) removes no project file.
     parse_change_id(id)?;
     let (gitea, number) = resolve_change(state, project, id)?;
-    let gitea: &crate::git::GiteaClient = &gitea;
     let pr = gitea.pull_request(number).await?;
     let branch = pr
         .head_branch
@@ -76,9 +86,28 @@ pub async fn restore_change_for(
     }
     if !pr.merged {
         return Err(ApiError::Conflict(format!(
-            "change {id} is not merged, so it removed nothing yet; reject it instead"
+            "change {id} is not merged, so {unmerged}"
         )));
     }
+    Ok((effective, gitea, number, pr))
+}
+
+/// Restores what the merged change `id` removed, as `identity` (T-3247).
+pub async fn restore_change_for(
+    state: &AppState,
+    identity: &Identity,
+    project: &str,
+    id: &str,
+) -> Result<Change, ApiError> {
+    let (effective, forge, number, pr) = merged_change(
+        state,
+        identity,
+        project,
+        id,
+        "it removed nothing yet; reject it instead",
+    )
+    .await?;
+    let gitea: &crate::git::GiteaClient = &forge;
     let home = format!("projects/{project}/");
     let removed: Vec<String> = gitea
         .pull_request_files(number)
@@ -232,27 +261,15 @@ pub async fn undo_change_for(
     project: &str,
     id: &str,
 ) -> Result<Change, ApiError> {
-    let missing = || ApiError::NotFound(format!("change '{id}' not found in project '{project}'"));
-    let effective = crate::permissions::for_request(state, identity, project);
-    if !effective.may_read_project() {
-        return Err(missing());
-    }
-    parse_change_id(id)?;
-    let (gitea, number) = resolve_change(state, project, id)?;
-    let gitea: &crate::git::GiteaClient = &gitea;
-    let pr = gitea.pull_request(number).await?;
-    let branch = pr
-        .head_branch
-        .strip_prefix("refs/heads/")
-        .unwrap_or(&pr.head_branch);
-    if !branch.starts_with("portal/") && !branch.starts_with("workspace/") {
-        return Err(missing());
-    }
-    if !pr.merged {
-        return Err(ApiError::Conflict(format!(
-            "change {id} is not merged, so it altered nothing yet; reject it instead"
-        )));
-    }
+    let (effective, forge, number, pr) = merged_change(
+        state,
+        identity,
+        project,
+        id,
+        "it altered nothing yet; reject it instead",
+    )
+    .await?;
+    let gitea: &crate::git::GiteaClient = &forge;
     let home = format!("projects/{project}/");
     let modified: Vec<String> = gitea
         .pull_request_files(number)
@@ -404,27 +421,15 @@ pub async fn change_manifests_for(
     project: &str,
     id: &str,
 ) -> Result<ResourceList, ApiError> {
-    let missing = || ApiError::NotFound(format!("change '{id}' not found in project '{project}'"));
-    let effective = crate::permissions::for_request(state, identity, project);
-    if !effective.may_read_project() {
-        return Err(missing());
-    }
-    parse_change_id(id)?;
-    let (gitea, number) = resolve_change(state, project, id)?;
-    let gitea: &crate::git::GiteaClient = &gitea;
-    let pr = gitea.pull_request(number).await?;
-    let branch = pr
-        .head_branch
-        .strip_prefix("refs/heads/")
-        .unwrap_or(&pr.head_branch);
-    if !branch.starts_with("portal/") && !branch.starts_with("workspace/") {
-        return Err(missing());
-    }
-    if !pr.merged {
-        return Err(ApiError::Conflict(format!(
-            "change {id} is not merged, so what it proposed never was a version"
-        )));
-    }
+    let (effective, forge, number, pr) = merged_change(
+        state,
+        identity,
+        project,
+        id,
+        "what it proposed never was a version",
+    )
+    .await?;
+    let gitea: &crate::git::GiteaClient = &forge;
     if pr.head_sha.is_empty() {
         return Err(ApiError::Unavailable(format!(
             "the forge did not say which commit change {id} ended on; try again"

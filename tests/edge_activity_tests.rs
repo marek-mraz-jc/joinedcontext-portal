@@ -768,6 +768,7 @@ fn workload_token(signer: &jsonwebtoken::EncodingKey, issuer: &str, client: &str
     let now = session::now_unix();
     let claims = json!({
         "iss": issuer,
+        "typ": "Bearer",
         "aud": PORTAL_AUDIENCE,
         "sub": format!("service-account-{client}"),
         "azp": client,

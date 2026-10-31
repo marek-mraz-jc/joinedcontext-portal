@@ -9,29 +9,24 @@
 use serde_json::Value;
 
 use crate::domain_verification::State;
-use crate::permissions::ORG_NAMESPACE;
 use crate::store::Mirror;
 
-/// The Organization's `spec.domain`, while it is verified (PF-41).
-pub fn verified_domain(mirror: &Mirror) -> Option<String> {
-    mirror
-        .matching(|envelope| {
-            envelope.kind == "Organization"
-                && envelope.metadata.namespace.as_deref() == Some(ORG_NAMESPACE)
-        })
-        .into_iter()
-        .find(|org| {
-            org.status
-                .as_ref()
-                .and_then(|status| status.domain_verification.as_ref())
-                .is_some_and(|verification| verification.state == State::Verified)
-        })
-        .and_then(|org| {
-            org.spec
-                .get("domain")
-                .and_then(Value::as_str)
-                .map(str::to_owned)
-        })
+/// The `spec.domain` of the Organization that owns `project`, while it is verified (PF-41): an
+/// App names hosts of its own Organization's domain, never of another one's (ADR-N-058).
+pub fn verified_domain(mirror: &Mirror, project: &str) -> Option<String> {
+    let org = crate::permissions::organization_manifest_of(mirror, project)?;
+    let verified = org
+        .status
+        .as_ref()
+        .and_then(|status| status.domain_verification.as_ref())
+        .is_some_and(|verification| verification.state == State::Verified);
+    if !verified {
+        return None;
+    }
+    org.spec
+        .get("domain")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
 }
 
 /// `name` is `zone` or a name under it.
@@ -51,7 +46,7 @@ pub fn refusal(
     hostname: &str,
     apex: Option<&str>,
 ) -> Option<String> {
-    let Some(domain) = verified_domain(mirror) else {
+    let Some(domain) = verified_domain(mirror, project) else {
         return Some(format!(
             "hostname '{hostname}' needs the organization's domain verified first: publish the \
              TXT record Organization settings shows, then list it again (AP-172, PF-41)"
@@ -117,6 +112,7 @@ pub fn check(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::permissions::ORG_NAMESPACE;
     use crate::resource::{ObjectMeta, ResourceEnvelope, Status};
     use serde_json::json;
 
@@ -157,6 +153,35 @@ mod tests {
         mirror.upsert(organization(state));
         mirror.upsert(app("helsinki", "bikes", json!(["bikes.hel.fi"])));
         mirror
+    }
+
+    /// F-R2POR3-003: with two Organizations an App names hosts of its own Organization's
+    /// verified domain, never of the other's.
+    #[test]
+    fn an_app_of_another_organization_never_claims_this_ones_domain() {
+        let mirror = mirror("verified");
+        let mut other = organization("pending");
+        other.metadata.name = "oulu".into();
+        other.spec = json!({ "domain": "ouka.fi" });
+        mirror.upsert(other);
+        for (project, organization) in [("helsinki", "hel"), ("ouluproj", "oulu")] {
+            mirror.upsert(ResourceEnvelope {
+                api_version: "joinedcontext.com/v1alpha1".into(),
+                kind: "Project".into(),
+                metadata: ObjectMeta {
+                    name: project.into(),
+                    namespace: Some(ORG_NAMESPACE.into()),
+                    ..Default::default()
+                },
+                spec: json!({ "organizationRef": organization }),
+                status: None,
+            });
+        }
+        assert_eq!(
+            refusal(&mirror, "helsinki", "events", "events.hel.fi", None),
+            None
+        );
+        assert!(refusal(&mirror, "ouluproj", "events", "events.hel.fi", None).is_some());
     }
 
     #[test]
