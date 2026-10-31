@@ -93,6 +93,8 @@ fn fields(kind: &str) -> &'static [(&'static str, &'static str)] {
             ("spec.contextSpaceRef", "ContextSpace"),
             ("spec.projectionRef", "ModelProjection"),
             ("spec.viewMappingRef", "Mapping"),
+            // T-6292: an instance that is not there failed the project's whole CKAN pass later.
+            ("spec.publish.ckan.instanceRef", "CkanInstance"),
         ],
         "Mapping" => &[("spec.contextSpaceRef", "ContextSpace")],
         // Both shapes of a pipeline (PL-54): the door rewrites `source`/`compute` into
@@ -523,6 +525,36 @@ mod tests {
             &json!({ "class": "auto", "source": { "dataSourceRef": "gbfs" } }),
         )
         .expect("a data source that is there resolves");
+    }
+
+    /// T-6292: an Endpoint publishing through a CkanInstance the project does not hold is
+    /// refused by that field, in both spellings; one the project holds resolves.
+    #[test]
+    fn an_endpoint_publishing_to_an_instance_that_is_not_there_is_refused_by_its_field() {
+        let mirror = mirror_with("CkanInstance", "open-data");
+        for instance_ref in [
+            json!("no-such-instance"),
+            json!({ "kind": "CkanInstance", "name": "no-such-instance" }),
+            json!({ "kind": "CkanInstance", "name": "no-such-instance", "namespace": "helsinki" }),
+        ] {
+            let (detail, errors) = refusal(
+                &mirror,
+                "Endpoint",
+                json!({ "publish": { "ckan": { "instanceRef": instance_ref } } }),
+            );
+            assert_eq!(errors, vec!["spec.publish.ckan.instanceRef".to_owned()]);
+            assert!(
+                detail.contains("CkanInstance 'no-such-instance'"),
+                "{detail}"
+            );
+        }
+        check(
+            &mirror,
+            "helsinki",
+            "Endpoint",
+            &json!({ "publish": { "ckan": { "instanceRef": "open-data" } } }),
+        )
+        .expect("an instance the project holds resolves");
     }
 
     /// The second shape (PL-54) is the one the door stores, and a pipeline may have several inputs:
