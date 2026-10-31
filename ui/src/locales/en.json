@@ -464,9 +464,6 @@
   "changes": {
     "accepted": "Proposed as a change:",
     "review": "Review it in Approvals",
-    "approvedOnPropose": "Approved as soon as you propose it: you may approve and remove {kind}.",
-    "approveNotDelete": "Waits for an approver: you may approve {kind} but not remove them.",
-    "secondApprover": "Waits for a second administrator: you cannot approve your own change to {kind}; another person who may approve them does.",
     "approvedAsProposed": "Approved as you proposed it, applying:",
     "open": "Open the change"
   },

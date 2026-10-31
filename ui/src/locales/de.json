@@ -464,9 +464,6 @@
   "changes": {
     "accepted": "Als Änderung vorgeschlagen:",
     "review": "In Freigaben öffnen",
-    "approvedOnPropose": "Wird beim Vorschlagen genehmigt: Sie dürfen {kind} genehmigen und löschen.",
-    "approveNotDelete": "Wartet auf eine Genehmigung: Sie dürfen {kind} genehmigen, aber nicht löschen.",
-    "secondApprover": "Wartet auf eine zweite Administratorin oder einen zweiten Administrator: Ihre eigene Änderung an {kind} genehmigt eine andere berechtigte Person.",
     "approvedAsProposed": "Beim Vorschlagen genehmigt, wird angewendet:",
     "open": "Änderung öffnen"
   },
