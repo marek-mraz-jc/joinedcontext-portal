@@ -1722,8 +1722,9 @@ export function policySchema(
   spaces: string[] = [],
   types: string[] = [],
   granted: string[] = [],
+  ruled = false,
 ): JsonSchema {
-  return {
+  const schema: JsonSchema = {
     type: "object",
     required: ["name", "contextSpaceRef", "assignee", "operations"],
     properties: {
@@ -1828,6 +1829,25 @@ export function policySchema(
       },
     },
   };
+  if (!ruled) return schema;
+  // A `rules[]` Policy holds its grants in its rules, which the form has no field for: a grantee
+  // or an operation typed beside them would be dropped on save, so the form offers none and the
+  // rules are changed in the YAML view, as the Policy's summary above the form says (ADR-N-057,
+  // F-R2UI4-003).
+  const properties = schema.properties as Record<string, JsonSchema>;
+  return {
+    ...schema,
+    required: ["name", "contextSpaceRef"],
+    properties: Object.fromEntries(Object.entries(properties).filter(([key]) => !POLICY_RULE_MEMBERS.includes(key))),
+  };
+}
+
+/** The members a rule of `rules[]` carries, which the Policy then holds in no other place (ADR-N-057). */
+export const POLICY_RULE_MEMBERS = ["effect", "assignee", "operations", "actions", "information", "q", "scopeQ", "geoQ", "temporalQ"];
+
+/** Whether a Policy's spec holds its grants in `rules[]`. */
+export function hasPolicyRules(spec: Record<string, unknown> | undefined): boolean {
+  return Array.isArray(spec?.rules) && spec.rules.length > 0;
 }
 
 /**

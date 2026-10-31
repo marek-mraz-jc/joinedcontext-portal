@@ -62,8 +62,26 @@ describe("an answer's Markdown", () => {
     expect(markdown("[city](https://hel.fi/x) [bad](javascript:alert(1)) <script>alert(1)</script>")).toEqual([
       {
         tag: "p",
-        children: [{ tag: "a", href: "https://hel.fi/x", children: ["city"] }, " [bad](javascript:alert(1)) <script>alert(1)</script>"],
+        children: [{ tag: "a", href: "https://hel.fi/x", children: ["city"] }, " (hel.fi)", " [bad](javascript:alert(1)) <script>alert(1)</script>"],
       },
+    ]);
+  });
+
+  it("shows where a link leads beside words that do not say it (F-R2UI3-002)", () => {
+    expect(markdown("see [hel.fi](https://evil.example/login)")).toEqual([
+      { tag: "p", children: ["see ", { tag: "a", href: "https://evil.example/login", children: ["hel.fi"] }, " (evil.example)"] },
+    ]);
+    expect(markdown("[hel.fi](https://el.fi/login)")).toEqual([
+      { tag: "p", children: [{ tag: "a", href: "https://el.fi/login", children: ["hel.fi"] }, " (el.fi)"] },
+    ]);
+    expect(markdown("[Pay at mybank.com.example](https://bank.com)")).toEqual([
+      { tag: "p", children: [{ tag: "a", href: "https://bank.com", children: ["Pay at mybank.com.example"] }, " (bank.com)"] },
+    ]);
+    expect(markdown("[Open HEL.FI events](https://hel.fi/x)")).toEqual([
+      { tag: "p", children: [{ tag: "a", href: "https://hel.fi/x", children: ["Open HEL.FI events"] }] },
+    ]);
+    expect(markdown("[www.hel.fi](https://www.hel.fi/x)")).toEqual([
+      { tag: "p", children: [{ tag: "a", href: "https://www.hel.fi/x", children: ["www.hel.fi"] }] },
     ]);
   });
 

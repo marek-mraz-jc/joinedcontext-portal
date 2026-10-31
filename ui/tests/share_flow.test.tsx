@@ -152,6 +152,17 @@ describe("the share flow on an Endpoint's page (T-3275)", () => {
     expect((grant.spec as { validity: { to: string } }).validity.to).toMatch(/^2026-12-31T|^2027-01-01T/);
   });
 
+  it("proposes no Group over one the person cannot see (F-R2UI3-005)", async () => {
+    show({ allowedProjects: [] }, [], { grants: [{ rule: { kinds: ["Endpoint", "Policy"], verbs: ["read", "propose"] } }] });
+    const pick = await screen.findByLabelText(en.endpoints.shareFlow.project);
+    await within(pick).findByRole("option", { name: "bbsk" });
+    await userEvent.selectOptions(pick, "bbsk");
+    await userEvent.click(screen.getByRole("button", { name: en.endpoints.shareFlow.propose }));
+    await waitFor(() => expect(imports).toHaveLength(2));
+    expect(imports[1].manifests.map((manifest) => manifest.kind)).not.toContain("Group");
+    expect(screen.queryByText(/does not exist yet/)).toBeNull();
+  });
+
   it("asks for no group list the person does not read (T-3852)", async () => {
     show({ allowedProjects: [] }, [], { grants: [{ rule: { kinds: ["Endpoint"], verbs: ["read"] } }] });
     const pick = await screen.findByLabelText(en.endpoints.shareFlow.project);

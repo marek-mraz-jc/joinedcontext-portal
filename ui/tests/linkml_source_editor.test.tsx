@@ -16,6 +16,8 @@ const monaco = vi.hoisted(() => ({
   dispose: vi.fn(),
 }));
 
+const OWN_MODEL = { uri: "inmemory://model" };
+
 function MockEditor({
   value,
   onChange,
@@ -29,7 +31,7 @@ function MockEditor({
 }) {
     useEffect(() => {
       onMount?.(
-        { getModel: () => ({ uri: "inmemory://model" }) },
+        { getModel: () => OWN_MODEL },
         {
           editor: { setModelMarkers: monaco.setModelMarkers },
           languages: {
@@ -157,6 +159,21 @@ describe("LinkML source editor", () => {
     );
     const markers = monaco.setModelMarkers.mock.calls.at(-1)?.[2] as { message: string }[];
     expect(markers.some((marker) => marker.message.includes("class_uri"))).toBe(true);
+  });
+
+  it("offers its completions only in its own editor, not another YAML editor of the page (F-R2UI3-014)", async () => {
+    renderEditor(SOURCE);
+    await waitFor(() => expect(monaco.registerCompletionItemProvider).toHaveBeenCalled());
+    const provider = monaco.registerCompletionItemProvider.mock.calls.at(-1)?.[1] as {
+      provideCompletionItems: (model: unknown, position: unknown) => { suggestions: unknown[] };
+    };
+    const model = (line: string) => ({
+      getValueInRange: () => line,
+      getWordUntilPosition: () => ({ startColumn: 1, endColumn: 1 }),
+    });
+    const position = { lineNumber: 1, column: 5 };
+    expect(provider.provideCompletionItems(model("  "), position).suggestions).toEqual([]);
+    expect(provider.provideCompletionItems(Object.assign(OWN_MODEL, model("  ")), position).suggestions.length).toBeGreaterThan(0);
   });
 
   it("withdraws its completions when it closes, so a reopened editor offers each once", async () => {

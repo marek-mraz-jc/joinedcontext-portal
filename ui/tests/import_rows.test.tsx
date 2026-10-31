@@ -29,6 +29,7 @@ import {
   toEntities,
   unreadableText,
   FileTooLarge,
+  MAX_BYTES,
 } from "../src/pages/spaces/importRows";
 import type { ImportSlot, Send } from "../src/pages/spaces/importRows";
 import type { Manifest } from "../src/api/manifest";
@@ -159,6 +160,14 @@ describe("reading a file", () => {
     await expect(parseXlsx(new TextEncoder().encode("not a zip"))).rejects.toThrow("not a ZIP");
   });
 
+  it("stops a sheet that unpacks past the file limit, a few kilobytes of ZIP or not (F-R2UI4-008)", async () => {
+    const bomb = await deflated(" ".repeat(MAX_BYTES + 1));
+    expect(bomb.length).toBeLessThan(MAX_BYTES / 100);
+    await expect(parseXlsx(zip({ "xl/worksheets/sheet1.xml": bomb }, { "xl/worksheets/sheet1.xml": 0 }))).rejects.toThrow(
+      "unpacks to more than 50 MB",
+    );
+  });
+
   it("refuses a file over the limit by its size, before a byte is read", async () => {
     const big = new File(["x"], "big.csv");
     Object.defineProperty(big, "size", { value: 53_000_000 });
@@ -268,7 +277,7 @@ describe("mapping and checking", () => {
     const table = parseCsv(
       "id,name,bikes,status\n" +
         ",,-1,broken\n" +
-        "urn:ngsi-ld:BikeHireDockingStation:hel.fi:espoo:s9,Tapiola,1,working\n" +
+        "urn:ngsi-ld:Street:hel.fi:helsinki:s9,Tapiola,1,working\n" +
         "s2,Kallio,2.5,working\n" +
         "s3,Töölö,0,working\n" +
         "s3,Again,0,working\n" +
@@ -279,11 +288,27 @@ describe("mapping and checking", () => {
     expect(entities.map((e) => e.entity.id)).toEqual([urn("s3")]);
     expect(rejected).toEqual([
       { row: 2, id: urn("fresh"), reason: "availableBikeNumber: -1 is below 0; status: `broken` is not one of working, outOfService; name is required" },
-      { row: 3, reason: "`urn:ngsi-ld:BikeHireDockingStation:hel.fi:espoo:s9` names another type, organization or space than this one" },
+      { row: 3, reason: "`urn:ngsi-ld:Street:hel.fi:helsinki:s9` names another type than BikeHireDockingStation" },
       { row: 4, id: urn("s2"), reason: "availableBikeNumber: `2.5` is not a whole number" },
       { row: 6, id: urn("s3"), reason: "the file names this id twice" },
       { row: 7, reason: "`bad id` cannot be the last part of an id" },
     ]);
+  });
+
+  it("takes any URN of the type as it is: no segment of it says which space an entity is in (ADR-N-041, F-R2UI4-004)", () => {
+    const table = parseCsv(
+      "id,name,bikes,status\n" +
+        "urn:ngsi-ld:BikeHireDockingStation:abc,Kamppi,1,working\n" +
+        "urn:ngsi-ld:BikeHireDockingStation:hel.fi:espoo:s9,Tapiola,1,working\n" +
+        "urn:ngsi-ld:BikeHireDockingStation:,Empty,1,working\n",
+    );
+    const mapping = { id: "id", name: "name", bikes: "availableBikeNumber", status: "status" };
+    const { entities, rejected } = toEntities(table, mapping, SLOTS, TARGET, () => "fresh");
+    expect(entities.map((e) => e.entity.id)).toEqual([
+      "urn:ngsi-ld:BikeHireDockingStation:abc",
+      "urn:ngsi-ld:BikeHireDockingStation:hel.fi:espoo:s9",
+    ]);
+    expect(rejected).toEqual([{ row: 4, reason: "`urn:ngsi-ld:BikeHireDockingStation:` is not an NGSI-LD URN" }]);
   });
 
   it("writes the refused rows as CSV a spreadsheet opens", () => {

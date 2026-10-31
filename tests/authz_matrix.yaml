@@ -395,9 +395,9 @@ routes:
     expect: [403, 404, 404, 404, 404, 404, 404, 403]
     note: "the fixture holds no connector: every person's 404 is the unknown id; a workload holds none (403)"
   - route: DELETE /connectors/{id}
-    rule: "signed-in, own connectors only"
-    expect: [403, 404, 404, 404, 404, 404, 404, 404]
-    note: "the fixture holds no connector: every person's 404 is the unknown id"
+    rule: "signed-in person in the Portal, own connectors only (AG-151)"
+    expect: [403, 404, 404, 404, 404, 404, 404, 403]
+    note: "the fixture holds no connector: every person's 404 is the unknown id; a client's token revokes none (403, T-6226)"
   - route: GET /connectors/{id}/activity
     rule: "signed-in, own connectors only"
     expect: [401, 404, 404, 404, 404, 404, 404, 404]

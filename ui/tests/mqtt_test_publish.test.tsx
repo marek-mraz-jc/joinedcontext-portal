@@ -6,6 +6,7 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../src/locales/en.json";
+import type { Manifest } from "../src/api/manifest";
 import { MqttBrokerPage } from "../src/pages/mqttbrokers/MqttBrokerPage";
 import { publishers, sampleTopic, Watching } from "../src/pages/mqttbrokers/TestPublish";
 import { json, problem, renderPage } from "./page_contract";
@@ -30,10 +31,44 @@ afterEach(() => {
 
 describe("the test message's defaults", () => {
   it("offers only accounts that publish, and a topic their filter allows", () => {
-    expect(publishers(ROLES)).toEqual(["cam-1", "cam-2"]);
-    expect(sampleTopic(ROLES, PROJECT, "cam-1")).toBe("cameras/espoo-cam-1/reading");
-    expect(sampleTopic([{ name: "r", serviceAccounts: ["a"], publish: ["+/x/#"] }], PROJECT, "a")).toBe("sensor-1/x/reading");
-    expect(sampleTopic(ROLES, PROJECT, "dashboard")).toBe("");
+    expect(publishers(ROLES, [], "cameras", PROJECT)).toEqual(["cam-1", "cam-2"]);
+    expect(sampleTopic(ROLES, [], "cameras", PROJECT, "cam-1")).toBe("cameras/espoo-cam-1/reading");
+    expect(sampleTopic([{ name: "r", serviceAccounts: ["a"], publish: ["+/x/#"] }], [], "cameras", PROJECT, "a")).toBe("sensor-1/x/reading");
+    expect(sampleTopic(ROLES, [], "cameras", PROJECT, "dashboard")).toBe("");
+  });
+
+  it("offers an account a RoleBinding grants the role, not only the role's own list (F-R2UI3-003)", () => {
+    const bound = {
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "ServiceAccount",
+      metadata: { name: "cam-9", namespace: PROJECT },
+      spec: { purpose: "x", roles: [{ role: "mqtt/cameras/cams", scope: { project: PROJECT } }] },
+    } as Manifest;
+    expect(publishers(ROLES, [bound], "cameras", PROJECT)).toEqual(["cam-1", "cam-2", "cam-9"]);
+    expect(sampleTopic(ROLES, [bound], "cameras", PROJECT, "cam-9")).toBe("cameras/espoo-cam-9/reading");
+  });
+});
+
+describe("the broker's connect example (F-R2UI3-016)", () => {
+  it("publishes to a topic the example's own device may use", async () => {
+    const broker = {
+      ...BROKER,
+      spec: {
+        hostname: "mqtt.espoo.fi",
+        roles: [
+          { name: "telemetry", serviceAccounts: [], publish: ["telemetry/${clientid}/#"] },
+          { name: "cams", serviceAccounts: ["cam-1"], publish: ["cameras/${clientid}/#"] },
+        ],
+      },
+    };
+    renderPage(<MqttBrokerPage project={PROJECT} name="cameras" />, {
+      path: `/projects/${PROJECT}/mqttbrokers/cameras`,
+      answer: async (url) => (url.pathname.endsWith("/mqttbrokers/cameras") ? json(broker) : undefined),
+    });
+    const examples = await screen.findAllByText(/mosquitto_pub/);
+    expect(examples[0].textContent).toContain("espoo-cam-1");
+    expect(examples[0].textContent).toContain("cameras/");
+    expect(examples[0].textContent).not.toContain("telemetry/");
   });
 });
 

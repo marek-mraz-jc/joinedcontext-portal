@@ -18,7 +18,7 @@ import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { ResourceFormDialog } from "../components/ResourceFormDialog";
 import { ResourceList } from "../components/ResourceList";
 import { ResourceRowActions } from "../components/ResourceRowActions";
-import { policySchema, policyUiSchema } from "../schemas/kinds";
+import { hasPolicyRules, POLICY_RULE_MEMBERS, policySchema, policyUiSchema } from "../schemas/kinds";
 import {
   Badge,
   Button,
@@ -89,9 +89,9 @@ export function toPolicyEnvelope(
     ...((kept.labels as Record<string, string> | undefined) ?? {}),
     ...(form.contextSpaceRef ? { [SPACE_LABEL]: form.contextSpaceRef } : {}),
   };
-  const ruled = hasRules(rest as Record<string, unknown>);
+  const ruled = hasPolicyRules(rest as Record<string, unknown>);
   const own = ruled
-    ? Object.fromEntries(Object.entries(rest).filter(([key]) => !RULE_MEMBERS.includes(key)))
+    ? Object.fromEntries(Object.entries(rest).filter(([key]) => !POLICY_RULE_MEMBERS.includes(key)))
     : rest;
   return {
     apiVersion: "joinedcontext.com/v1alpha1",
@@ -115,13 +115,6 @@ export function toPolicyEnvelope(
 }
 
 /** The stored manifest back as the form: the same pair, so the YAML view and the fields agree. */
-/** The members a rule of `rules[]` carries, which the Policy then holds in no other place (ADR-N-057). */
-const RULE_MEMBERS = ["effect", "assignee", "operations", "actions", "information", "q", "scopeQ", "geoQ", "temporalQ"];
-
-function hasRules(spec: Record<string, unknown>): boolean {
-  return Array.isArray(spec.rules) && spec.rules.length > 0;
-}
-
 export function fromPolicyEnvelope(manifest: unknown): PolicyForm {
   const envelope = (manifest ?? {}) as {
     metadata?: { name?: string };
@@ -136,7 +129,7 @@ export function fromPolicyEnvelope(manifest: unknown): PolicyForm {
       (typeof reference === "string" ? reference : reference?.name) ?? "",
     // A `rules[]` Policy holds its grants in its rules: nothing is added beside them, or the
     // saved manifest holds both shapes, which jc-core refuses (ADR-N-057, F-UI3-015).
-    ...(hasRules(spec)
+    ...(hasPolicyRules(spec)
       ? {}
       : {
           assignee: (spec.assignee as PolicyForm["assignee"]) ?? { kind: "role", id: "" },
@@ -191,7 +184,7 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
 
   // The schema carries what the form holds, so a policy granting an operation this build
   // does not name still opens in the form rather than only in the YAML view.
-  const schema = policySchema(t, spaceNames, [], form?.operations ?? []);
+  const schema = policySchema(t, spaceNames, [], form?.operations ?? [], hasPolicyRules(form as Record<string, unknown> | undefined));
 
   const create = useMutation({
     mutationFn: async (form: PolicyForm) => {
@@ -362,7 +355,7 @@ export function PoliciesPage({ project, edit }: { project: string; edit?: string
                   project={project}
                   target={target}
                   form={{
-                    schema: policySchema(t, spaceNames, [], shape.operations),
+                    schema: policySchema(t, spaceNames, [], shape.operations, hasPolicyRules(policy.spec as Record<string, unknown>)),
                     uiSchema: policyUiSchema,
                     fromManifest: (manifest) =>
                       fromPolicyEnvelope(manifest) as unknown as Record<string, unknown>,

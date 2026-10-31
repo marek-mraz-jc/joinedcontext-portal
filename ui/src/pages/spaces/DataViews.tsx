@@ -57,6 +57,13 @@ export function linkAttributes(rows: RichRow[]): string[] {
 }
 
 /**
+ * The paths of this origin that serve a picture: an Endpoint's files. An `<img>`
+ * fetches with the viewer's cookies, so any other path a value names (the edge's `/logout`) stays
+ * a link the person chooses to open (F-R2UI4-006).
+ */
+const IMAGE_PATH = /^\/api\/endpoint\/[^/]+\/files\//;
+
+/**
  * Where a card's image comes from. The Portal's CSP loads images from its own origin only
  * (`img-src 'self'`), and widening it would let any value in a space call any host from the page,
  * so a picture elsewhere stays a link the person opens (`external`), never an `<img>`.
@@ -74,7 +81,7 @@ export function imageOf(
   if (!href) return undefined;
   try {
     const url = new URL(href, origin);
-    return url.origin === origin ? { src: url.toString() } : { external: url.toString() };
+    return url.origin === origin && IMAGE_PATH.test(url.pathname) ? { src: url.toString() } : { external: url.toString() };
   } catch {
     return undefined;
   }

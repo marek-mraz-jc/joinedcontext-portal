@@ -137,6 +137,20 @@ pub(crate) fn stored_zip(entries: &[(String, Vec<u8>)]) -> Result<Vec<u8>, ApiEr
     Ok(cursor.into_inner())
 }
 
+/// `total` plus `more` bytes, refused past what an import takes: an export no import reads back
+/// is refused while it is assembled, before every bundle sits in memory at once (F-R2POR2-023).
+fn within_import(total: usize, more: usize) -> Result<usize, ApiError> {
+    let total = total.saturating_add(more);
+    if total > crate::api::import::MAX_UPLOAD_BYTES {
+        return Err(ApiError::TooLarge(format!(
+            "the project's repositories bundle to more than {} bytes, the most an import reads \
+             back; move large files out of the application repositories (MF-45)",
+            crate::api::import::MAX_UPLOAD_BYTES
+        )));
+    }
+    Ok(total)
+}
+
 /// The export of `project`, whose own repository `forge` speaks to (MF-45).
 pub async fn archive(
     state: &AppState,
@@ -156,8 +170,10 @@ pub async fn archive(
 
     let mut entries: Vec<(String, Vec<u8>)> = Vec::new();
     let mut repositories = Vec::new();
+    let mut total = 0usize;
     for (name, repository, role) in sources {
         let (bundle, head, tags) = take(&name, &repository).await?;
+        total = within_import(total, bundle.len())?;
         let file = format!("{name}.bundle");
         entries.push((file.clone(), bundle));
         // The project's own file at that head, where an import reads the parameters it declares
@@ -264,7 +280,21 @@ pub async fn archive(
 
 #[cfg(test)]
 mod tests {
-    use super::bundle_head;
+    use super::{bundle_head, within_import};
+
+    /// F-R2POR2-023 (T-6226): an export is refused once its bundles add up past what an import
+    /// reads back, naming the limit, and passes below it.
+    #[test]
+    fn an_export_past_what_an_import_reads_is_refused() {
+        let max = crate::api::import::MAX_UPLOAD_BYTES;
+        assert_eq!(within_import(0, max).expect("at the limit"), max);
+        let refused = within_import(max, 1).expect_err("past the limit");
+        assert!(
+            matches!(&refused, crate::error::ApiError::TooLarge(why) if why.contains(&max.to_string())),
+            "{refused:?}"
+        );
+        assert!(within_import(usize::MAX, 1).is_err());
+    }
 
     const HEAD: &str = "2c245c6bb1efa7a20938c5b11b70379be6838eec";
 

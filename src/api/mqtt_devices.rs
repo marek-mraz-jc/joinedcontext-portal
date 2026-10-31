@@ -120,18 +120,6 @@ fn as_value(env: &ResourceEnvelope) -> Result<Value, ApiError> {
     serde_json::to_value(env).map_err(|e| ApiError::Internal(e.to_string()))
 }
 
-/// Whether the caller may add a device: a person (an agent proposes the manifests itself, AG-11)
-/// who may propose a ServiceAccount and this broker.
-fn may_add(
-    identity: &crate::auth::session::Identity,
-    effective: &crate::permissions::Effective,
-    broker: &Value,
-) -> bool {
-    identity.client.is_none()
-        && effective.check(ACCOUNT, Verb::Propose, None).is_ok()
-        && effective.check(BROKER, Verb::Propose, Some(broker)).is_ok()
-}
-
 fn issuer(state: &AppState) -> Option<String> {
     state
         .config
@@ -164,7 +152,7 @@ pub async fn device_options(
     let identity = &user.0.identity;
     let effective = crate::permissions::for_request(&state, identity, &project);
     let (env, spec) = broker(&state, &effective, &project, &name)?;
-    let may_add = may_add(identity, &effective, &as_value(&env)?);
+    let may_add = may_add_here(identity, &effective, &env).is_ok();
     Ok(Json(options(spec, may_add, issuer(&state))))
 }
 

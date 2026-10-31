@@ -11037,7 +11037,9 @@
     "addKey": "Schlüssel hinzufügen",
     "addKept": "Bleibende Schlüssel hinzufügen",
     "submit": "Verschlüsseln und vorschlagen",
-    "sending": "Das Geheimnis wird gesendet…"
+    "sending": "Das Geheimnis wird gesendet…",
+    "keyMissing": "Benennen Sie diesen Wert, z. B. apiKey.",
+    "keyTwice": "Der Schlüssel {key} steht schon weiter oben: Geben Sie jedem Wert einen eigenen Schlüssel."
   },
   "pairedTab": {
     "region": "Mit einem Konnektor verbundener Tab",
