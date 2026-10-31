@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../src/locales/en.json";
 import { jsonResponse, list, renderRoute } from "./pageHarness";
+import { narrowsAndOrders } from "./grid_checks";
 import { usesOfModel } from "../src/pages/models/modelUsage";
 import { yamlParts } from "../src/pages/models/ModelViews";
 import { lastChangeOf } from "../src/pages/models/ModelsList";
@@ -113,7 +114,8 @@ describe("the list of data models", () => {
     expect(within(table).getAllByRole("link").map((link) => link.textContent)).toEqual(["bikes", "mobility", "BikeHireDockingStation"]);
     await userEvent.clear(screen.getByLabelText(en.models.page.search));
     // The space is a filter chip of the shared grid (T-6115).
-    await userEvent.click(screen.getByText(en.grid.filter));
+    const projectGrid = table.closest<HTMLElement>("[data-manifest-grid]")!;
+    await userEvent.click(within(projectGrid).getByText(en.grid.filter));
     await userEvent.click(screen.getByRole("checkbox", { name: /^culture/ }));
     expect(within(table).getAllByRole("link").map((link) => link.textContent)).toEqual(["events", "culture"]);
   });
@@ -175,12 +177,14 @@ describe("organization models beside the project's (T-2883, DM-75, DM-79)", () =
     expect(await screen.findByRole("region", { name: en.models.page.projectSection })).toBeInTheDocument();
     const section = await screen.findByRole("region", { name: en.models.page.organizationSection });
     const table = await within(section).findByRole("table", { name: en.models.page.organizationCaption });
+    await within(table).findByText("stations");
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toHaveTextContent("stations");
     expect(rows[0]).toHaveTextContent("Station, Dock");
     expect(rows[0]).toHaveTextContent("org.stations.v2");
-    expect(within(section).queryByRole("button")).toBeNull();
+    // Read-only: the shared grid's search, sort and details, never a write.
+    expect(within(section).queryByRole("button", { name: /propose|edit|delete/i })).toBeNull();
     expect(within(section).getByRole("link", { name: en.models.page.organizationOpen })).toHaveAttribute(
       "href",
       "/organization/models",
@@ -208,6 +212,22 @@ describe("organization models beside the project's (T-2883, DM-75, DM-79)", () =
     expect(await screen.findByRole("table", { name: en.models.page.listCaption })).toBeInTheDocument();
   });
 
+  it("searches, sorts by the number of types and filters by lifecycle on the shared grid (T-6205)", async () => {
+    const items = [
+      ORGANIZATION.items[0],
+      { name: "parks", level: "organization", project: "org", version: "0.2.0", lifecycle: "draft", classes: ["Park"] },
+      { name: "transit", level: "organization", project: "org", version: "1.0.0", lifecycle: "published", classes: ["Stop", "Line", "Trip"] },
+    ];
+    await renderRoute({ path: "/organization/models", answer: withOrganization({ ...ORGANIZATION, items }) });
+    const table = await screen.findByRole("table", { name: en.models.page.organizationCaption });
+    await within(table).findByText("parks");
+    await narrowsAndOrders(table, {
+      search: { label: `Search ${en.models.page.organizationSection}`, text: "trip", kept: ["transit"] },
+      sort: { column: en.models.page.classCount, ascending: ["parks", "stations", "transit"] },
+      filter: { value: /^Draft/, kept: ["parks"] },
+    });
+  });
+
   it("names the import by the major version alone", () => {
     expect(organizationImportName("stations", "2.1.0")).toBe("org.stations.v2");
     expect(organizationImportName("air", "0.3.1")).toBe("org.air.v0");
@@ -217,7 +237,7 @@ describe("organization models beside the project's (T-2883, DM-75, DM-79)", () =
     await renderRoute({ path: "/organization/models", answer: withOrganization(ORGANIZATION) });
     expect(await screen.findByRole("link", { name: en.organization.tab.models, current: "page" })).toBeInTheDocument();
     const table = await screen.findByRole("table", { name: en.models.page.organizationCaption });
-    expect(table).toHaveTextContent("org.stations.v2");
+    expect(await within(table).findByText("org.stations.v2")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: en.models.page.organizationOpen })).toBeNull();
   });
 });

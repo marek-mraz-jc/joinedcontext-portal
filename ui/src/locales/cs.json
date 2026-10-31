@@ -4638,7 +4638,8 @@
       "typeCaption": "Pole typu {type}",
       "noFields": "Zatím žádné pole.",
       "addType": "Přidat typ",
-      "classesMore": "+{count} dalších"
+      "classesMore": "+{count} dalších",
+      "classCount": "Počet typů"
     },
     "hints": {
       "title": "Tento model zatím nemá třídu. Tři kroky na začátek:",
@@ -5212,7 +5213,8 @@
       },
       "inARow": "{count, plural, one {# neúspěšný běh za sebou} few {# neúspěšné běhy za sebou} other {# neúspěšných běhů za sebou}}",
       "ms": "{count} ms",
-      "note": "Úloha běží pod vlastní identitou aplikace a zapisuje jen přes její Endpoint. Seznam ukazuje běhy od posledního spuštění hostitele."
+      "note": "Úloha běží pod vlastní identitou aplikace a zapisuje jen přes její Endpoint. Seznam ukazuje běhy od posledního spuštění hostitele.",
+      "failuresInARow": "Selhání za sebou"
     },
     "editWithAssistant": "Upravit pomocí asistenta",
     "share": {
@@ -7800,7 +7802,8 @@
         "up": "Běží",
         "down": "Nedostupný",
         "unknown": "Bez adresy"
-      }
+      },
+      "none": "Organizace zatím nemá žádný broker. Deklarujte ho v repozitáři organizace."
     },
     "costs": {
       "title": "Náklady podle projektů",
@@ -8013,7 +8016,7 @@
       "lead": "AI konektory všech lidí: kam každý dosáhne, kterým klientům odpovídá a kolik volání měl a kolik bylo odmítnuto za poslední den. Volání se zde zobrazují jen jako počty, jejich obsah nikdy.",
       "hidden": "Konektory všech lidí vidí jen administrátor organizace. Vaše vlastní jsou v Moje konektory.",
       "caption": "Konektory všech lidí",
-      "filter": "Filtr",
+      "filter": "Hledat konektory",
       "filterHelp": "Název konektoru, jeho vlastník nebo klient, např. jana nebo claude.ai",
       "state": "Stav",
       "stateHelp": "Aktivní konektory odpovídají na volání; Odvolaný ukazuje, co ukončil administrátor nebo odchod člověka",
@@ -8046,7 +8049,9 @@
       "empty": "Zatím nikdo nemá konektor",
       "emptyHint": "Člověk si jej vytvoří v Moje konektory, aby používal platformu z Claude, ChatGPT nebo Claude Code; pak se zde zobrazí s rozsahem a používáním.",
       "noMatch": "Filtru neodpovídá žádný konektor",
-      "noMatchHint": "Vymažte filtr nebo zvolte Každý stav a uvidíte i odvolané a vypršelé konektory."
+      "noMatchHint": "Vymažte filtr nebo zvolte Každý stav a uvidíte i odvolané a vypršelé konektory.",
+      "callsPerDay": "Volání za 24 hodin",
+      "denialsPerDay": "Odmítnuté za 24 hodin"
     }
   },
   "projectDelete": {

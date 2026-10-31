@@ -8,9 +8,10 @@
 import type { JSX } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
+import { ManifestGrid } from "../../components/grid/ManifestGrid";
 import { useOrganizationModels } from "../../components/pickers/organizationModels";
-import { Badge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import type { OrganizationModel } from "../../components/pickers/organizationModels";
+import { Badge } from "../../components/ui";
 
 /** The name a project's model imports an organization model by (DM-76): `org.{name}.v{major}`. */
 export function organizationImportName(name: string, version: string): string {
@@ -21,6 +22,7 @@ export function OrganizationModels({ inProject = false }: { inProject?: boolean 
   const { t } = useTranslation();
   const query = useOrganizationModels();
   const models = (query.data?.items ?? []).filter((model) => model.level === "organization");
+  const lifecycle = (value: string) => t(`models.lifecycleOption.${value}`, { defaultValue: value });
   return (
     <section aria-labelledby="models-organization" className="flex flex-col gap-3">
       <div>
@@ -38,47 +40,35 @@ export function OrganizationModels({ inProject = false }: { inProject?: boolean 
           </Link>
         ) : null}
       </div>
-      {query.isError ? (
-        <ListFailed
-          what={t("models.page.organizationSection")}
-          reason={reasonOf(query.error, t("app.error.generic"))}
-          onRetry={() => void query.refetch()}
-        />
-      ) : query.isPending ? (
-        <p role="status" className="text-body text-fg-muted">
-          {t("app.loading")}
-        </p>
-      ) : models.length === 0 ? (
-        <p className="text-body text-fg-muted">{t("models.page.organizationEmpty")}</p>
-      ) : (
-        <Table caption={t("models.page.organizationCaption")}>
-          <TableHead>
-            <TableHeaderCell>{t("models.field.name")}</TableHeaderCell>
-            <TableHeaderCell>{t("models.field.version")}</TableHeaderCell>
-            <TableHeaderCell>{t("models.classes")}</TableHeaderCell>
-            <TableHeaderCell>{t("models.page.importAs")}</TableHeaderCell>
-          </TableHead>
-          <TableBody>
-            {models.map((model) => (
-              <TableRow key={model.name}>
-                <TableCell primary>{model.name}</TableCell>
-                <TableCell>
-                  <span className="font-mono">{model.version}</span>
-                  {model.lifecycle !== "published" ? (
-                    <Badge className="ml-2">
-                      {t(`models.lifecycleOption.${model.lifecycle}`, { defaultValue: model.lifecycle })}
-                    </Badge>
-                  ) : null}
-                </TableCell>
-                <TableCell>{model.classes.join(", ") || "—"}</TableCell>
-                <TableCell>
-                  <code className="font-mono text-caption">{organizationImportName(model.name, model.version)}</code>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+      <ManifestGrid<OrganizationModel>
+        caption={t("models.page.organizationCaption")}
+        storageKey="organization-models"
+        searchLabel={t("grid.searchIn", { list: t("models.page.organizationSection") })}
+        rows={models}
+        rowKey={(model) => model.name}
+        query={query}
+        name={{ id: "name", label: t("models.field.name"), text: (model) => model.name }}
+        columns={[
+          { id: "version", label: t("models.field.version"), text: (model) => model.version, cell: (model) => <span className="font-mono">{model.version}</span> },
+          {
+            id: "lifecycle",
+            label: t("models.field.lifecycle"),
+            filter: true,
+            text: (model) => model.lifecycle,
+            valueLabel: lifecycle,
+            cell: (model) => <Badge tone={model.lifecycle === "published" ? "success" : "neutral"}>{lifecycle(model.lifecycle)}</Badge>,
+          },
+          { id: "classCount", label: t("models.page.classCount"), numeric: true, align: "right", text: (model) => String(model.classes.length) },
+          { id: "classes", label: t("models.classes"), text: (model) => model.classes.join(", ") || "—" },
+          {
+            id: "importAs",
+            label: t("models.page.importAs"),
+            text: (model) => organizationImportName(model.name, model.version),
+            cell: (model) => <code className="font-mono text-caption">{organizationImportName(model.name, model.version)}</code>,
+          },
+        ]}
+        empty={<p className="text-body text-fg-muted">{t("models.page.organizationEmpty")}</p>}
+      />
     </section>
   );
 }

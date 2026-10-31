@@ -4638,7 +4638,8 @@
       "typeCaption": "Fields of {type}",
       "noFields": "No field yet.",
       "addType": "Add type",
-      "classesMore": "+{count} more"
+      "classesMore": "+{count} more",
+      "classCount": "Number of types"
     },
     "hints": {
       "title": "This model has no type yet. Three steps to start:",
@@ -5212,7 +5213,8 @@
       },
       "inARow": "{count, plural, one {# failed run in a row} other {# failed runs in a row}}",
       "ms": "{count} ms",
-      "note": "A job runs as the App's own identity and writes only through the App's Endpoint. The list shows runs since the host last started."
+      "note": "A job runs as the App's own identity and writes only through the App's Endpoint. The list shows runs since the host last started.",
+      "failuresInARow": "Failures in a row"
     },
     "editWithAssistant": "Edit with the assistant",
     "share": {
@@ -7800,7 +7802,8 @@
         "up": "Up",
         "down": "Down",
         "unknown": "No address"
-      }
+      },
+      "none": "The organization has no broker yet. Declare one in the organization repository."
     },
     "costs": {
       "title": "Costs per project",
@@ -8013,7 +8016,7 @@
       "lead": "Every person's AI connectors: what each may reach, which clients it answers, and how much it was used and refused in the last day. Calls show here only as counts; what a call carried never does.",
       "hidden": "Only an organization administrator sees every person's connectors. Your own are on My connectors.",
       "caption": "Every person's connectors",
-      "filter": "Filter",
+      "filter": "Search connectors",
       "filterHelp": "A connector's name, its owner or a client, e.g. jana or claude.ai",
       "state": "State",
       "stateHelp": "Active connectors answer calls; Revoked shows what an administrator or offboarding ended",
@@ -8046,7 +8049,9 @@
       "empty": "Nobody holds a connector yet",
       "emptyHint": "A person creates one on My connectors to use the platform from Claude, ChatGPT or Claude Code; it shows here with its scope and usage.",
       "noMatch": "No connector matches the filter",
-      "noMatchHint": "Clear the filter or pick Every state to see revoked and expired connectors."
+      "noMatchHint": "Clear the filter or pick Every state to see revoked and expired connectors.",
+      "callsPerDay": "Calls, last 24 hours",
+      "denialsPerDay": "Refused, last 24 hours"
     }
   },
   "projectDelete": {
