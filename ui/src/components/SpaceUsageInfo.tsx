@@ -109,7 +109,7 @@ export function SpaceUsageInfo({ project, space, usage, locale }: { project: str
         <div
           ref={panel}
           id={panelId}
-          role="dialog"
+          role="group"
           aria-label={label}
           className={clsx("fixed z-50 flex flex-col gap-2 rounded-lg border border-border bg-surface-raised p-3 text-left text-body font-normal shadow-2", place ? undefined : "invisible")}
           // measured from the button: no class holds a viewport position (as ProjectQuota's bar width)
@@ -118,7 +118,7 @@ export function SpaceUsageInfo({ project, space, usage, locale }: { project: str
           <p data-testid="space-measured">{t("spaces.usage.measured", { when })}</p>
           <p className="text-caption text-fg-muted">{t("spaces.usage.hint")}</p>
           <div>
-            <Button size="sm" onClick={() => recalculate.mutate()} disabled={recalculate.isPending}>
+            <Button size="sm" onClick={() => recalculate.mutate()} disabled={recalculate.isPending} disabledReason={recalculate.isPending ? t("spaces.usage.waiting") : undefined}>
               <Icon name="refresh" className="size-3.5" />
               {recalculate.isPending ? t("spaces.usage.recalculating") : t("spaces.usage.recalculate")}
             </Button>

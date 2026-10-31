@@ -2417,7 +2417,7 @@
     },
     "src/components/SpaceUsageInfo.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "space_usage_info.test.tsx"

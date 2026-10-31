@@ -68,7 +68,7 @@ for (const width of [1440, 400]) {
       await stub(page, "slow");
       await openInfo(page);
       await page.getByRole("button", { name: "Recalculate" }).click();
-      await expect(page.getByRole("button", { name: "Measuring…" })).toBeDisabled();
+      await expect(page.getByRole("button", { name: "Measuring…" })).toHaveAttribute("aria-disabled", "true");
       await page.screenshot({ path: info.outputPath(`spaces-measuring-${width}.png`) });
     });
 

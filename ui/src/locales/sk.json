@@ -1501,7 +1501,7 @@
       "hint": "Veľké priestory sa merajú raz za hodinu, malé každých päť minút. Broker si zmeranú veľkosť pamätá päť minút.",
       "recalculate": "Prepočítať",
       "recalculating": "Meria sa…",
-      "failed": "Priestor sa nepodarilo zmerať: {reason}",
+      "failed": "Priestor sa nepodarilo zmerať: {reason}. Zostáva zobrazená posledná veľkosť.",
       "waiting": "Broker počíta priestor; môže to trvať až 20 sekúnd.",
       "done": "Znova zmerané."
     }
