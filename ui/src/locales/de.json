@@ -1888,7 +1888,6 @@
       "firstCallOpen": "Im Browser öffnen",
       "firstCallCopy": "Befehl kopieren",
       "firstCallPublic": "Jeder kann ihn aufrufen, kein Token nötig.",
-      "firstCallToken": "Im Browser genügt Ihre Portal-Sitzung. Ein Programm sendet ein Service-Account-Token als $TOKEN.",
       "filterUntouched": "Ändern Sie zuerst den Filter: Er ist derselbe wie der gespeicherte.",
       "filterFaulty": "Korrigieren Sie zuerst die markierten Felder."
     },
@@ -1980,28 +1979,6 @@
       "vscode": "Zu VS Code hinzufügen",
       "cursor": "Zu Cursor hinzufügen",
       "button": "KI verbinden"
-    },
-    "playground": {
-      "title": "Ausprobieren",
-      "reading": "Lese, was Sie aufrufen dürfen…",
-      "nothing": "Ihr Zugriff erlaubt über diesen Endpunkt keinen Aufruf. Zum Lesen fragen Sie seine Eigentümer unten unter Zugriff anfragen.",
-      "operation": "Was lesen",
-      "operations": {
-        "list": "Entitäten eines Typs",
-        "count": "Wie viele eines Typs",
-        "one": "Eine Entität nach ID",
-        "types": "Die enthaltenen Typen"
-      },
-      "type": "Entitätstyp",
-      "q": "Filterausdruck (q)",
-      "qHint": "Optional, NGSI-LD-Abfragesprache, zum Beispiel temperature>20;status==\"open\".",
-      "limit": "Wie viele (1 bis 100)",
-      "id": "Entitäts-ID (URN)",
-      "send": "Senden",
-      "fill": "Füllen Sie zuerst die Felder aus, die der Aufruf braucht.",
-      "answered": "Der Endpunkt antwortete {status}.",
-      "code": "Derselbe Aufruf als Code",
-      "noType": "Noch kein Entitätstyp: Sobald eine Pipeline oder eine Person Entitäten über diesen Endpoint schreibt, werden ihre Typen hier aufgeführt."
     },
     "docs": {
       "title": "API-Dokumentation",

@@ -1888,7 +1888,6 @@
       "firstCallOpen": "Otevřít v prohlížeči",
       "firstCallCopy": "Kopírovat příkaz",
       "firstCallPublic": "Volat ho může kdokoli, token není potřeba.",
-      "firstCallToken": "V prohlížeči stačí vaše přihlášení do Portálu. Program posílá token servisního účtu jako $TOKEN.",
       "filterUntouched": "Nejprve změňte filtr: je stejný jako uložený.",
       "filterFaulty": "Nejprve opravte označená pole."
     },
@@ -1980,28 +1979,6 @@
       "vscode": "Přidat do VS Code",
       "cursor": "Přidat do Cursor",
       "button": "Připojit AI"
-    },
-    "playground": {
-      "title": "Vyzkoušet",
-      "reading": "Zjišťuji, co smíte volat…",
-      "nothing": "Váš přístup vám přes tento endpoint nedovoluje nic volat. Ke čtení požádejte jeho vlastníky v části Požádat o přístup níže.",
-      "operation": "Co číst",
-      "operations": {
-        "list": "Entity typu",
-        "count": "Kolik je entit typu",
-        "one": "Jedna entita podle id",
-        "types": "Typy, které obsahuje"
-      },
-      "type": "Typ entity",
-      "q": "Filtr (q)",
-      "qHint": "Nepovinné, dotazovací jazyk NGSI-LD, například temperature>20;status==\"open\".",
-      "limit": "Kolik (1 až 100)",
-      "id": "Id entity (URN)",
-      "send": "Odeslat",
-      "fill": "Nejprve vyplňte pole, která volání potřebuje.",
-      "answered": "Endpoint odpověděl {status}.",
-      "code": "Totéž volání jako kód",
-      "noType": "Zatím žádný typ entity: jakmile pipeline nebo osoba zapíše entity přes tento Endpoint, jejich typy se zobrazí zde."
     },
     "docs": {
       "title": "Dokumentace API",
