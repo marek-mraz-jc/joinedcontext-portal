@@ -1,7 +1,7 @@
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, unwrap } from "../api/client";
+import { projectDetailQuery } from "../api/projects";
 import { Card } from "./ui";
 
 /** One dimension as the API answers it: what the project holds, and what it may. */
@@ -13,11 +13,8 @@ interface Dimension {
 /** What the project holds of each quota, as the API counts it (PF-75). */
 export function useProjectUsage(project: string) {
   return useQuery({
-    queryKey: ["projectUsage", project],
-    queryFn: async () =>
-      unwrap(await api.GET("/api/v1/projects/{project}", { params: { path: { project } } })),
+    ...projectDetailQuery(project),
     enabled: project !== "",
-    retry: false,
     select: (detail) => (detail.status?.usage ?? {}) as Record<string, Dimension>,
   });
 }

@@ -9,7 +9,7 @@ import type { Cell, Column, RelationshipObject } from "./ngsi";
 import { isRelationshipObject } from "./ngsi";
 import { enumOptions } from "./enums";
 import type { EnumOption } from "./enums";
-import { bridgeTransport } from "./sdk/transport";
+import { bridgeTransport, originTransport } from "./sdk/transport";
 
 /** One attribute as the endpoint's schema describes it: a JSON Schema property, trimmed. */
 export interface FieldSchema {
@@ -137,8 +137,6 @@ export interface Write {
   patch?: Record<string, Cell | RelationshipObject>;
 }
 
-export const CSRF_COOKIE = "__Host-jc_csrf";
-export const CSRF_HEADER = "x-csrf-token";
 /** How long a preview waits for its host page to answer a write. */
 export const BRIDGE_TIMEOUT_MS = 15000;
 
@@ -158,20 +156,11 @@ function detailOf(body: unknown, status: number): string | undefined {
   return status >= 400 ? `The endpoint answered ${status}.` : undefined;
 }
 
-function csrfToken(): string {
-  const found = document.cookie.split("; ").find((c) => c.startsWith(`${CSRF_COOKIE}=`));
-  return found ? decodeURIComponent(found.slice(CSRF_COOKIE.length + 1)) : "";
-}
-
 async function direct(request: ReturnType<typeof requestOf>): Promise<WriteResult> {
-  const response = await fetch(request.path, {
-    method: request.method,
-    credentials: "same-origin",
-    headers: { "content-type": "application/json", [CSRF_HEADER]: csrfToken() },
-    body: JSON.stringify(request.body),
-  });
-  const body: unknown = await response.json().catch(() => null);
-  return { ok: response.ok, status: response.status, detail: response.ok ? undefined : detailOf(body, response.status) };
+  // The SDK's own origin transport: the session, the csrf header and the answer's parsing are its.
+  const { status, body } = await originTransport()(request);
+  const ok = status >= 200 && status < 300;
+  return { ok, status, detail: ok ? undefined : detailOf(body, status) };
 }
 
 /** The SDK's bridge: a `jc-request` to the page that framed the preview (SDK-18). */

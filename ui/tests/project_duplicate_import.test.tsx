@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
 import { DuplicateProjectAction } from "../src/components/DuplicateProjectDialog";
-import { parameterValues } from "../src/components/ImportProjectDialog";
+import { numberProblems, parameterValues } from "../src/components/ImportProjectDialog";
 import { expectDenied, expectOpen } from "./checks";
 
 const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", name: "Jana Kováčová", roles: [] };
@@ -270,5 +270,12 @@ describe("parameterValues", () => {
       ),
     ).toEqual({ n: 2.5, b: true, s: "db-password" });
     expect(parameterValues({}, { stray: "x" })).toEqual({});
+  });
+
+  it("names the number parameters whose value is no number, which would go out as null (T-6230)", () => {
+    const declarations = { n: { type: "number" }, i: { type: "integer" }, a: { type: "string" } } as const;
+    expect(numberProblems(declarations, { n: "abc", i: "2.5", a: "abc" })).toEqual(["n", "i"]);
+    expect(numberProblems(declarations, { n: "-2.5", i: "30", a: "" })).toEqual([]);
+    expect(numberProblems(declarations, { n: "", i: " " })).toEqual([]);
   });
 });

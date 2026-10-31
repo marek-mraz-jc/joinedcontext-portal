@@ -6266,6 +6266,7 @@
     "close": "Zavrieť asistenta",
     "title": "Asistent",
     "open": "Otvoriť asistenta",
+    "openBusy": "Otvoriť asistenta, ešte pracuje na vašej otázke",
     "hide": "Skryť asistenta",
     "fullScreen": "Na celú obrazovku",
     "sideView": "Vedľa stránky",
@@ -8159,6 +8160,9 @@
     "propose": "Navrhnúť"
   },
   "projectImport": {
+    "number": "Zadajte číslo.",
+    "wholeNumber": "Zadajte celé číslo.",
+    "notNumber": "{names}: zadajte číslo, napríklad 30, alebo pole nechajte prázdne pre predvolenú hodnotu.",
     "title": "Importovať projekt",
     "lead": "Vytvorí repozitáre projektu z git exportu a potom navrhne jeho záznam v registri.",
     "button": "Importovať projekt",

@@ -6266,6 +6266,7 @@
     "close": "Assistent schließen",
     "title": "Assistent",
     "open": "Assistent öffnen",
+    "openBusy": "Assistent öffnen, arbeitet noch an Ihrer Frage",
     "hide": "Assistent ausblenden",
     "fullScreen": "Vollbild",
     "sideView": "Neben der Seite",
@@ -8159,6 +8160,9 @@
     "propose": "Vorschlagen"
   },
   "projectImport": {
+    "number": "Geben Sie eine Zahl ein.",
+    "wholeNumber": "Geben Sie eine ganze Zahl ein.",
+    "notNumber": "{names}: Geben Sie eine Zahl ein, zum Beispiel 30, oder lassen Sie das Feld für den Standardwert leer.",
     "title": "Projekt importieren",
     "lead": "Legt die Repositories des Projekts aus einem Git-Export an und schlägt dann seinen Registereintrag vor.",
     "button": "Projekt importieren",
