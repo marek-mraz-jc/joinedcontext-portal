@@ -22,6 +22,7 @@ import {
   renderRoute,
   VIEWER,
 } from "./pageHarness";
+import { narrowsAndOrders } from "./grid_checks";
 
 const PATH = "/projects/helsinki/workspaces";
 
@@ -105,6 +106,25 @@ describe("the workspaces page", () => {
     expect(screen.getAllByRole("button", { name: en.workspaces.discard })).toHaveLength(1);
   });
 
+  // T-6206: the copies are on the shared grid: search, sort by expiry, filter by preview state.
+  it("searches_sorts_by_expiry_and_filters_by_preview_state", async () => {
+    await renderRoute({
+      path: PATH,
+      answer: answering([
+        workspace(),
+        workspace({ name: "ws-noise", title: "Noise", expiresAt: "2026-03-01T00:00:00Z", previewState: "error" }),
+        workspace({ name: "ws-parking", title: "Parking", expiresAt: "2026-05-01T00:00:00Z" }),
+      ]),
+    });
+    const table = await screen.findByRole("table");
+    await screen.findByText("Parking");
+    await narrowsAndOrders(table, {
+      search: { label: en.grid.searchIn.replace("{list}", en.workspaces.tableCaption), text: "noise", kept: ["Noise"] },
+      sort: { column: en.workspaces.expiresColumn, ascending: ["Noise", "Air quality rework", "Parking"] },
+      filter: { value: new RegExp(`^${en.workspaces.previewStates.error}`), kept: ["Noise"] },
+    });
+  });
+
   it("discarding_names_the_copy_asks_first_and_is_driven_from_the_keyboard", async () => {
     const { calls } = await renderRoute({ path: PATH, answer: answering([workspace()]) });
     const discard = await screen.findByRole("button", { name: en.workspaces.discard });
@@ -130,7 +150,7 @@ describe("the workspaces page", () => {
         expect(await screen.findByText(en.workspaces.empty)).toBeInTheDocument();
       } else {
         const table = await screen.findByRole("table");
-        await waitFor(() => expect(within(table).getAllByRole("row").length).toBe(count + 1));
+        await waitFor(() => expect(within(table).getAllByRole("row").length).toBe(Math.min(count, 50) + 1));
       }
       unmount();
       vi.restoreAllMocks();

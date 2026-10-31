@@ -17,7 +17,6 @@ import { OrganizationPage } from "../src/pages/organization/OrganizationPage";
 import { narrowsAndOrders } from "./grid_checks";
 import { AllEndpointsPage, ENDPOINTS_PER_PAGE } from "../src/routes/AllEndpointsPage";
 import userEvent from "@testing-library/user-event";
-import { expectDenied } from "./checks";
 import {
   expectHeadingOutline,
   expectNoAxeViolations,
