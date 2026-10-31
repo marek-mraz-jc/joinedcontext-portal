@@ -487,7 +487,8 @@
         "Button": 6
       },
       "tests": [
-        "addressItem.test.ts"
+        "addressItem.test.ts",
+        "otherPageCrumb.test.tsx"
       ]
     },
     "src/components/layout/PublicFrame.tsx": {

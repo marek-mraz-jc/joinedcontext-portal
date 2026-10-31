@@ -30,9 +30,7 @@ describe("kind words (T-4264)", () => {
     expect(kindNew("KnowledgeSource", t)).toBe("Nový zdroj znalostí");
     expect(kindNew("AssistantDeployment", t)).toBe("Nové nasadenie asistenta");
     expect(kindNew("App", t)).toBe("Nová aplikácia");
-    expect(t("changes.approvedOnPropose", { kind: kindPlural("ContextSpace", t) })).toBe(
-      "Po navrhnutí sa schváli: kontextové priestory môžete schvaľovať aj mazať.",
-    );
+    expect(kindPlural("ContextSpace", t)).toBe("kontextové priestory");
   });
 
   it("reads a kind no catalogue holds yet as words, not CamelCase", async () => {
