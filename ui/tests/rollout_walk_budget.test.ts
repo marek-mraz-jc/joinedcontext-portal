@@ -104,3 +104,82 @@ describe("rollout-walk settle gate", () => {
     expect(walk(root).status).toBe(1);
   });
 });
+
+// T-6174, T-6179: an apply during the walk (the next Portal commit, or a deployment apply under the
+// same Portal commit: 8 /api reads answered 502 on /projects/helsinki/policies at 07:31:48Z while
+// deployment 6215c731 was applied) judged dev mid-apply: its findings are not filed.
+describe("rollout-walk apply during the walk", () => {
+  const sha = "d8f3d2456906c85d4270b8ef0471ff7d1e4f1542";
+  const next = "ab44055a8d9a8f7c1b1e8f0e1d6b0c4a2f3e5d71";
+  const tool = (dir: string, name: string, body: string) => {
+    writeFileSync(join(dir, name), `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 });
+  };
+  // git, pnpm, npx and kubectl stand in for the worktree, the install, Playwright and the cluster:
+  // npx writes an empty walker report and, with ROLL_TO or APPLY_TO set, moves the Portal commit or
+  // the jc-release record from then on; kubectl prints the jc-release record.
+  const setup = () => {
+    const root = mkdtempSync(join(tmpdir(), "rollout-walk-"));
+    const bin = join(root, "bin");
+    mkdirSync(join(root, "portal/api/v1"), { recursive: true });
+    mkdirSync(join(root, "evidence"));
+    mkdirSync(bin);
+    writeFileSync(join(root, "portal/api/v1/version"), JSON.stringify({ portal: { commit: sha } }));
+    writeFileSync(join(root, "release"), "6215c73196995e4acd6fc1f32ba1d0409e7a62c0 2026-10-30T07:05:52Z");
+    writeFileSync(join(root, "kubeconfig"), "");
+    writeFileSync(join(root, "meminfo"), "MemAvailable: 12000000 kB\n");
+    writeFileSync(join(root, "users"), "demo.steward@hel.fi s-pass 123456\ndemo.viewer@hel.fi v-pass\n");
+    tool(bin, "git", `[ "$3" = worktree ] && [ "$4" = add ] && mkdir -p "$7/ui/e2e/live" && echo WALK_REPORT_DIR >"$7/ui/e2e/live/walker.spec.ts"; exit 0`);
+    tool(bin, "pnpm", "exit 0");
+    tool(bin, "kubectl", 'cat "$RELEASE_FILE"');
+    tool(bin, "npx", [
+      'person=$(printf "%s\\n" "$@" | sed -n "s/^for the \\(.*\\)\\$$/\\1/p")',
+      'echo "[]" >"$WALK_REPORT_DIR/walker-$person.json"',
+      '[ -n "${ROLL_TO:-}" ] && printf \'{"portal":{"commit":"%s"}}\' "$ROLL_TO" >"$VERSION_FILE"',
+      '[ -n "${APPLY_TO:-}" ] && printf "%s" "$APPLY_TO" >"$RELEASE_FILE"',
+      "exit 0",
+    ].join("\n"));
+    return root;
+  };
+  const walk = (root: string, env: Record<string, string> = {}) =>
+    spawnSync("bash", ["e2e/live/rollout-walk.sh"], {
+      env: {
+        ...process.env, PATH: `${join(root, "bin")}:${process.env.PATH}`, PORTAL_URL: `file://${root}/portal`,
+        VERSION_FILE: join(root, "portal/api/v1/version"), RELEASE_FILE: join(root, "release"),
+        WALK_EVIDENCE: join(root, "evidence"), WALK_MEMINFO: join(root, "meminfo"), DEMO_USERS: join(root, "users"),
+        WALK_SETTLE_S: "0", WALK_KUBECONFIG: join(root, "kubeconfig"), WALK_JOURNEYS: "0", TASKS_DIR: "", ...env,
+      },
+      encoding: "utf8",
+    });
+  const notFiled = (root: string) => {
+    expect(existsSync(join(root, "evidence", sha, "walker-viewer.json"))).toBe(true);
+    expect(existsSync(join(root, "evidence", sha, "summary.json"))).toBe(false);
+    expect(existsSync(join(root, "evidence/last-summary.json"))).toBe(false);
+    expect(readFileSync(join(root, "evidence/first-seen"), "utf8")).toMatch(new RegExp(`^${sha} [0-9]+\n$`));
+  };
+
+  it("files nothing when dev serves another Portal commit after the walk", () => {
+    const root = setup();
+    const moved = walk(root, { ROLL_TO: next });
+    expect(moved.stderr).toContain(`dev moved from ${sha} to ${next} during the walk`);
+    expect(moved.status).toBe(1);
+    notFiled(root);
+  });
+
+  it("files nothing when dev was applied during the walk under the same Portal commit", () => {
+    const root = setup();
+    const applied = walk(root, { APPLY_TO: "6215c73196995e4acd6fc1f32ba1d0409e7a62c0 2026-10-30T07:29:59Z" });
+    expect(applied.stderr).toContain("dev was applied during the walk");
+    expect(applied.status).toBe(1);
+    notFiled(root);
+  });
+
+  it("judges a walk when dev stayed as it was, or its apply record cannot be read", () => {
+    const kept = walk(setup());
+    expect(kept.stderr).not.toContain("during the walk");
+    expect(kept.stdout).toContain("journeys skipped");
+    const unread = setup();
+    const blind = walk(unread, { WALK_KUBECONFIG: join(unread, "none"), APPLY_TO: "x y" });
+    expect(blind.stderr).not.toContain("during the walk");
+    expect(blind.stdout).toContain("journeys skipped");
+  });
+});
