@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { PipelineRunsDialog, runFacts } from "../src/pages/pipelines/PipelineRuns";
+import { names, narrowsAndOrders } from "./grid_checks";
 import { expectAxeClean, jsonResponse, list, problem, renderRoute } from "./pageHarness";
 
 const PATH = "/projects/helsinki/pipelines";
@@ -109,13 +110,36 @@ describe("a pipeline's runs and log", () => {
 
     const log = await within(dialog).findByRole("region", { name: /^Log of the run / });
     expect(await within(log).findByText("capacity is not an integer")).toBeInTheDocument();
-    expect(within(log).getByText("In step 2")).toBeInTheDocument();
-    expect(within(log).getByText("Ended with an error")).toBeInTheDocument();
-    expect(within(log).getByText("Rejected")).toBeInTheDocument();
-    const [newest, older] = within(runs).getAllByRole("button");
+    // The log's own rows; the grid's Filter panel names the outcomes too.
+    const lines = within(log).getByRole("table");
+    expect(within(lines).getByText("In step 2")).toBeInTheDocument();
+    expect(within(lines).getByText("Ended with an error")).toBeInTheDocument();
+    expect(within(lines).getByText("Rejected")).toBeInTheDocument();
+    const [newest, older] = within(runs).getAllByRole("button", { name: /^Show the log of / });
     expect(newest).toHaveAttribute("aria-pressed", "true");
     expect(older).toHaveAttribute("aria-pressed", "false");
     await expectAxeClean(container);
+  });
+
+  // T-6206: the runs are on the shared grid: search, sort by records sent, filter by outcome.
+  it("searches_sorts_by_sent_and_filters_the_runs_by_outcome", async () => {
+    const at = (hour: string, sent: number, failed: number) => ({
+      run: `2026-09-25T${hour}:00:00Z`,
+      firstAt: `2026-09-25T${hour}:00:01Z`,
+      lastAt: `2026-09-25T${hour}:00:02Z`,
+      sent,
+      rejected: 0,
+      failed,
+    });
+    await renderRoute({ path: PATH, answer: answering({ items: [at("10", 5, 0), at("09", 1, 2), at("08", 3, 0)] }, {}) });
+    const dialog = await openRuns();
+    const table = await within(dialog).findByRole("table", { name: en.pipelines.runs.caption });
+    const [ten, nine, eight] = names(table);
+    await narrowsAndOrders(table, {
+      search: { label: `Search ${en.pipelines.runs.caption}`, text: "T09:", kept: [nine] },
+      sort: { column: en.pipelines.runs.sent, ascending: [nine, eight, ten] },
+      filter: { value: new RegExp(`^${en.pipelines.runs.states.failed}`), kept: [nine] },
+    });
   });
 
   it("leaves_out_the_message_column_when_no_line_of_the_page_has_one", async () => {
@@ -126,7 +150,8 @@ describe("a pipeline's runs and log", () => {
     const dialog = await openRuns();
     const log = await within(dialog).findByRole("region", { name: /^Log of the run / });
     const table = await within(log).findByRole("table");
-    expect(within(table).getAllByRole("columnheader")).toHaveLength(3);
+    // At, record, outcome and the grid's actions column; Message waits under Columns.
+    expect(within(table).getAllByRole("columnheader")).toHaveLength(4);
     expect(within(table).queryByRole("columnheader", { name: en.pipelines.runs.message })).toBeNull();
   });
 
@@ -190,7 +215,7 @@ describe("a pipeline's runs and log", () => {
     expect(within(dialog).getByText("s-9")).toHaveAttribute("aria-hidden");
     expect(within(dialog).getByTitle("urn:ngsi-ld:BikeStation:hel.fi:helsinki:s-9")).toBeInTheDocument();
     const runs = within(dialog).getByRole("table", { name: en.pipelines.runs.caption });
-    await userEvent.click(within(runs).getAllByRole("button")[1]);
+    await userEvent.click(within(runs).getAllByRole("button", { name: /^Show the log of / })[1]);
     expect(await within(dialog).findByText("urn:hour-8")).toBeInTheDocument();
     expect(within(dialog).queryByText("urn:ngsi-ld:BikeStation:hel.fi:helsinki:s-9")).toBeNull();
 

@@ -2864,6 +2864,7 @@
       "outcome": "Výsledek",
       "message": "Zpráva",
       "noId": "(bez id)",
+      "states": {"clean": "Bez chyb", "rejected": "Odmítnuté řádky", "failed": "Selhané řádky", "silent": "Nezapsal nic"},
       "outcomes": {
         "sent": "Zapsán",
         "rejected": "Odmítnut",

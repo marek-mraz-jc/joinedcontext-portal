@@ -2864,6 +2864,7 @@
       "outcome": "Ergebnis",
       "message": "Meldung",
       "noId": "(ohne ID)",
+      "states": {"clean": "Fehlerfrei", "rejected": "Abgelehnte Zeilen", "failed": "Fehlgeschlagene Zeilen", "silent": "Nichts geschrieben"},
       "outcomes": {
         "sent": "Geschrieben",
         "rejected": "Abgelehnt",

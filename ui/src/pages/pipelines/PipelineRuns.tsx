@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { ManifestGrid } from "../../components/grid/ManifestGrid";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { usePermissions } from "../../api/permissions";
 import type { components } from "../../api/schema";
@@ -15,11 +16,6 @@ import {
   Dialog,
   EmptyState,
   Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
   TableSkeleton,
 } from "../../components/ui";
 
@@ -216,80 +212,109 @@ export function PipelineRunsView({
               {t("pipelines.runs.silent", { before: items[1].sent.toLocaleString(locale) })}
             </Alert>
           ) : null}
-          <Table caption={t("pipelines.runs.caption")} maxHeight="max-h-64">
-            <TableHead>
-              <TableHeaderCell>{t("pipelines.runs.run")}</TableHeaderCell>
-              <TableHeaderCell>{t("pipelines.runs.sent")}</TableHeaderCell>
-              <TableHeaderCell>{t("pipelines.runs.rejected")}</TableHeaderCell>
-              <TableHeaderCell>{t("pipelines.runs.failed")}</TableHeaderCell>
-              <TableHeaderCell>{t("pipelines.runs.took")}</TableHeaderCell>
-              <TableHeaderCell>{t("pipelines.runs.delta")}</TableHeaderCell>
-              <TableHeaderCell>
-                <span className="sr-only">{t("pipelines.runs.log")}</span>
-              </TableHeaderCell>
-            </TableHead>
-            <TableBody>
-              {items.map((run, at) => (
-                <TableRow key={run.run}>
-                  <TableCell>
-                    <time dateTime={run.lastAt} className="whitespace-nowrap tabular-nums">
-                      {label(run.run)}
-                    </time>
-                  </TableCell>
-                  <TableCell>
+          <ManifestGrid<(typeof items)[number] & { fact: (typeof facts)[number] }>
+            caption={t("pipelines.runs.caption")}
+            storageKey="pipeline-runs"
+            searchLabel={t("grid.searchIn", { list: t("pipelines.runs.caption") })}
+            rows={items.map((run, at) => ({ ...run, fact: facts[at] }))}
+            rowKey={(run) => run.run}
+            query={runs}
+            pageSize={20}
+            name={{
+              id: "run",
+              label: t("pipelines.runs.run"),
+              text: (run) => run.lastAt,
+              cell: (run) => (
+                <time dateTime={run.lastAt} className="whitespace-nowrap tabular-nums">
+                  {label(run.run)}
+                </time>
+              ),
+            }}
+            columns={[
+              {
+                id: "sent",
+                label: t("pipelines.runs.sent"),
+                numeric: true,
+                align: "right",
+                text: (run) => String(run.sent),
+                cell: (run) => (
+                  <>
                     <span className="tabular-nums">{run.sent.toLocaleString(locale)}</span>
                     {run.created != null && run.updated != null && run.unchanged != null ? (
                       // What the written records did (T-3304); unknown for an older stream.
                       <span className="block text-caption text-fg-muted">
-                        {t("pipelines.runs.split", {
-                          created: run.created,
-                          updated: run.updated,
-                          unchanged: run.unchanged,
-                        })}
+                        {t("pipelines.runs.split", { created: run.created, updated: run.updated, unchanged: run.unchanged })}
                       </span>
                     ) : null}
-                  </TableCell>
-                  <TableCell>
-                    <span className={run.rejected > 0 ? "tabular-nums text-warning" : "tabular-nums"}>
-                      {run.rejected.toLocaleString(locale)}
+                  </>
+                ),
+              },
+              {
+                id: "rejected",
+                label: t("pipelines.runs.rejected"),
+                numeric: true,
+                align: "right",
+                text: (run) => String(run.rejected),
+                cell: (run) => <span className={run.rejected > 0 ? "tabular-nums text-warning" : "tabular-nums"}>{run.rejected.toLocaleString(locale)}</span>,
+              },
+              {
+                id: "failed",
+                label: t("pipelines.runs.failed"),
+                numeric: true,
+                align: "right",
+                text: (run) => String(run.failed),
+                cell: (run) => <span className={run.failed > 0 ? "tabular-nums text-danger" : "tabular-nums"}>{run.failed.toLocaleString(locale)}</span>,
+              },
+              {
+                id: "took",
+                label: t("pipelines.runs.took"),
+                numeric: true,
+                align: "right",
+                text: (run) => String(run.fact.seconds ?? ""),
+                cell: (run) => <span className="whitespace-nowrap tabular-nums">{took(run.fact.seconds)}</span>,
+              },
+              {
+                id: "delta",
+                label: t("pipelines.runs.delta"),
+                numeric: true,
+                align: "right",
+                text: (run) => String(run.fact.delta ?? ""),
+                cell: (run) =>
+                  run.fact.silent ? (
+                    <Badge tone="warning">{t("pipelines.runs.silentBadge")}</Badge>
+                  ) : run.fact.delta === undefined ? (
+                    "—"
+                  ) : (
+                    <span className="tabular-nums">
+                      {run.fact.delta === 0
+                        ? t("pipelines.runs.same")
+                        : `${run.fact.delta > 0 ? "+" : "−"}${Math.abs(run.fact.delta).toLocaleString(locale)}`}
                     </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className={run.failed > 0 ? "tabular-nums text-danger" : "tabular-nums"}>
-                      {run.failed.toLocaleString(locale)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="whitespace-nowrap tabular-nums">{took(facts[at].seconds)}</span>
-                  </TableCell>
-                  <TableCell>
-                    {facts[at].silent ? (
-                      <Badge tone="warning">{t("pipelines.runs.silentBadge")}</Badge>
-                    ) : facts[at].delta === undefined ? (
-                      "—"
-                    ) : (
-                      <span className="tabular-nums">
-                        {facts[at].delta === 0
-                          ? t("pipelines.runs.same")
-                          : `${(facts[at].delta as number) > 0 ? "+" : "−"}${Math.abs(facts[at].delta as number).toLocaleString(locale)}`}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      size="sm"
-                      aria-pressed={open === run.run}
-                      // One word in the cell; the run it opens is in the name a screen reader says.
-                      aria-label={t("pipelines.runs.show", { run: label(run.run) })}
-                      onClick={() => setPicked(run.run)}
-                    >
-                      {t("pipelines.runs.log")}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  ),
+              },
+              {
+                id: "outcome",
+                label: t("pipelines.runs.outcome"),
+                filter: true,
+                // A run's state for the filter: wrote nothing although the one before did, failed lines, rejected lines, or clean.
+                text: (run) => (run.fact.silent ? "silent" : run.failed > 0 ? "failed" : run.rejected > 0 ? "rejected" : "clean"),
+                valueLabel: (state) => t(`pipelines.runs.states.${state}`),
+                cell: (run) => t(`pipelines.runs.states.${run.fact.silent ? "silent" : run.failed > 0 ? "failed" : run.rejected > 0 ? "rejected" : "clean"}`),
+              },
+            ]}
+            actions={(run) => (
+              <Button
+                size="sm"
+                aria-pressed={open === run.run}
+                // One word in the cell; the run it opens is in the name a screen reader says.
+                aria-label={t("pipelines.runs.show", { run: label(run.run) })}
+                onClick={() => setPicked(run.run)}
+              >
+                {t("pipelines.runs.log")}
+              </Button>
+            )}
+            empty={<EmptyState bare icon="pipelines" title={t("pipelines.runs.empty")} description={t("pipelines.runs.emptyHint")} />}
+          />
           {open !== null ? (
             <RunLog
               key={open}
@@ -356,48 +381,54 @@ function RunLog({
         </p>
       ) : (
         <>
-          <Table caption={caption} maxHeight="max-h-96">
-            <TableHead>
-              <TableHeaderCell>{t("pipelines.runs.at")}</TableHeaderCell>
-              <TableHeaderCell>{t("pipelines.runs.record")}</TableHeaderCell>
-              <TableHeaderCell>{t("pipelines.runs.outcome")}</TableHeaderCell>
-              {/* A page of plain writes says nothing per line: no empty Message column. */}
-              {withMessages ? <TableHeaderCell>{t("pipelines.runs.message")}</TableHeaderCell> : null}
-            </TableHead>
-            <TableBody>
-              {lines.map((line) => (
-                <TableRow key={line.id}>
-                  <TableCell>
-                    <time dateTime={line.at} className="whitespace-nowrap tabular-nums">
-                      {time.format(new Date(line.at))}
-                    </time>
-                  </TableCell>
-                  <TableCell>
-                    {line.recordId ? (
-                      <RecordId id={line.recordId} />
-                    ) : (
-                      <span className="text-caption text-fg-subtle">{t("pipelines.runs.noId")}</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col items-start gap-1">
-                      <Badge tone={TONE[line.outcome]}>{t(`pipelines.runs.outcomes.${line.outcome}`)}</Badge>
-                      {line.step != null ? (
-                        <span className="text-caption text-fg-subtle">
-                          {t("pipelines.rejected.step", { step: line.step + 1 })}
-                        </span>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                  {withMessages ? (
-                    <TableCell>
-                      <p className="text-body text-fg">{line.message}</p>
-                    </TableCell>
-                  ) : null}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <ManifestGrid<LogLine>
+            // A page whose lines carry messages starts with the Message column shown.
+            key={String(withMessages)}
+            caption={caption}
+            storageKey="pipeline-run-log"
+            searchLabel={t("grid.searchIn", { list: caption })}
+            rows={lines}
+            rowKey={(line) => String(line.id)}
+            query={page}
+            pageSize={PAGE}
+            name={{
+              id: "at",
+              label: t("pipelines.runs.at"),
+              text: (line) => line.at,
+              cell: (line) => (
+                <time dateTime={line.at} className="whitespace-nowrap tabular-nums">
+                  {time.format(new Date(line.at))}
+                </time>
+              ),
+            }}
+            columns={[
+              {
+                id: "record",
+                label: t("pipelines.runs.record"),
+                text: (line) => line.recordId ?? "",
+                cell: (line) =>
+                  line.recordId ? <RecordId id={line.recordId} /> : <span className="text-caption text-fg-subtle">{t("pipelines.runs.noId")}</span>,
+              },
+              {
+                id: "outcome",
+                label: t("pipelines.runs.outcome"),
+                filter: true,
+                text: (line) => line.outcome,
+                valueLabel: (outcome) => t(`pipelines.runs.outcomes.${outcome}`),
+                cell: (line) => (
+                  <div className="flex flex-col items-start gap-1">
+                    <Badge tone={TONE[line.outcome]}>{t(`pipelines.runs.outcomes.${line.outcome}`)}</Badge>
+                    {line.step != null ? (
+                      <span className="text-caption text-fg-subtle">{t("pipelines.rejected.step", { step: line.step + 1 })}</span>
+                    ) : null}
+                  </div>
+                ),
+              },
+              // A page of plain writes says nothing per line: the Message column waits under Columns.
+              { id: "message", label: t("pipelines.runs.message"), hidden: !withMessages, text: (line) => line.message ?? "" },
+            ]}
+            empty={<p className="text-caption text-fg-subtle">{t(empty ? "pipelines.runs.nothingWritten" : "pipelines.runs.noLines")}</p>}
+          />
           <div className="flex flex-wrap items-center gap-2">
             {cursors.length > 1 ? (
               <Button size="sm" onClick={() => setCursors([undefined])}>
