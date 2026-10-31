@@ -34,7 +34,7 @@ describe("the space usage (i) (T-6208)", () => {
     const { container } = show(() => json(KEPT));
     const open = await screen.findByTitle("When the size of air was measured");
     await userEvent.click(open);
-    expect(screen.getByTestId("space-measured").textContent).toMatch(/^Measured Oct 31, 2026/);
+    expect(screen.getByTestId("space-measured").textContent).toMatch(/^Measured Oct 31, 2026, .* ago\)$/);
     expect(screen.getByText(/measured once an hour/)).toBeTruthy();
     await expectNoAxeViolations(container);
   });
@@ -44,7 +44,7 @@ describe("the space usage (i) (T-6208)", () => {
     await userEvent.click(await screen.findByTitle("When the size of air was measured"));
     await userEvent.click(screen.getByRole("button", { name: "Recalculate" }));
     await waitFor(() => expect(asked).toEqual(["POST /api/v1/projects/helsinki/spaces/air/usage/recalculate"]));
-    expect(screen.getByRole("button", { name: "Recalculate" })).toBeTruthy();
+    expect(await screen.findByText("Measured again.")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -63,9 +63,20 @@ describe("where the (i)'s panel goes (T-6208)", () => {
     const { panelPlace } = await import("../src/components/SpaceUsageInfo");
     expect(panelPlace(rect(1100, 250), 150, { width: 1440, height: 900 })).toEqual({ top: 274, left: 832, width: 288 });
     // a phone: the panel is narrower than the screen and starts at the gutter
-    expect(panelPlace(rect(150, 330), 150, { width: 400, height: 900 })).toEqual({ top: 354, left: 16, width: 288 });
+    expect(panelPlace(rect(150, 330), 150, { width: 400, height: 900 })).toEqual({ top: 354, left: 96, width: 288 });
     expect(panelPlace(rect(380, 330), 150, { width: 360, height: 900 }).left).toBe(56);
     // no room below: above the button
     expect(panelPlace(rect(1100, 800), 150, { width: 1440, height: 900 }).top).toBe(646);
+  });
+});
+
+describe("how old a measurement is (T-6208)", () => {
+  it("reads in minutes, hours, then days", async () => {
+    const { ageText } = await import("../src/components/SpaceUsageInfo");
+    const now = new Date("2026-10-31T18:00:00Z");
+    expect(ageText(new Date("2026-10-31T17:55:00Z"), now, "en")).toBe("5 minutes ago");
+    expect(ageText(new Date("2026-10-31T16:00:00Z"), now, "en")).toBe("2 hours ago");
+    expect(ageText(new Date("2026-10-28T18:00:00Z"), now, "en")).toBe("3 days ago");
+    expect(ageText(new Date("2026-10-31T18:00:30Z"), now, "en")).toBe("this minute");
   });
 });

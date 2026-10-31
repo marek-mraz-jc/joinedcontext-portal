@@ -1501,7 +1501,9 @@
       "hint": "Große Bereiche werden einmal pro Stunde gemessen, kleine alle fünf Minuten. Der Broker behält eine gemessene Größe fünf Minuten.",
       "recalculate": "Neu berechnen",
       "recalculating": "Wird gemessen…",
-      "failed": "Der Bereich konnte nicht gemessen werden: {reason}"
+      "failed": "Der Bereich konnte nicht gemessen werden: {reason}",
+      "waiting": "Der Broker zählt den Bereich; das kann bis zu 20 Sekunden dauern.",
+      "done": "Neu gemessen."
     }
   },
   "endpoints": {

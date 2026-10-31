@@ -1501,7 +1501,9 @@
       "hint": "Large spaces are measured once an hour, small ones every five minutes. The broker keeps a measured size for five minutes.",
       "recalculate": "Recalculate",
       "recalculating": "Measuring…",
-      "failed": "The space could not be measured: {reason}"
+      "failed": "The space could not be measured: {reason}",
+      "waiting": "The broker is counting the space; this can take up to 20 seconds.",
+      "done": "Measured again."
     }
   },
   "endpoints": {
