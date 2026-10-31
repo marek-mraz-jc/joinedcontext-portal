@@ -41,24 +41,27 @@ indicators and their history, and the App's server keeps the forecasts (below).
 
 The App's server is a WebAssembly component on the platform's shared host (`server/`):
 
-- the day's first visit asks it to record the day's forecasts for the period on screen: it reads
-  every indicator's history from the App's own Endpoint, forecasts each with the page's own crate
-  (`../wasm`) and keeps each forecast with the day it was made in the App's schema
-  (`migrations/`); a later visit that day reads and records nothing. The Endpoint is public and its
-  policies are its own role, so every visitor reads the same history;
+- its daily job `record-forecasts` (03:20 UTC) reads the last 90 days of every indicator's history
+  from the App's own Endpoint once, 100 indicators a page with `timerel=after`, forecasts each for
+  every period with the page's own crate (`../wasm`) and keeps each forecast with the day it was
+  made in the App's schema (`migrations/`). No request reads the history: at 6,719 indicators it
+  takes longer than a request's 5 s (T-6197). The Endpoint is public and its policies are its own
+  role, so every visitor reads the same history;
 - **Earlier forecasts against what came**, under the chosen indicator: its kept forecasts whose
   time has come, each with the reading at that time (within half the model's step) and whether it
   fell within the 95 % band, the latest ten;
 - **Monthly report**: for this month or one of the two before, every kept forecast point of the
   month against the reading, as CSV under the App's own prefix, `reports/{YYYY-MM}.csv`, downloaded
-  through a URL valid for two minutes. A month that is over is written once more after it ends and
-  then kept as it is; a month older than the 90 days of history the App may read is refused.
+  through a URL valid for two minutes. The daily job writes this month's report and last month's
+  until a run after its end wrote it, then keeps it as it is; until the job wrote a month's report
+  the page says when it will. A month older than the 90 days of history the App may read is
+  refused.
 
 | Route | What it does |
 |---|---|
-| `POST /api/forecasts` `{days}` | the day's forecasts of the period recorded, once a day |
+| `POST /api/forecasts` `{days}` | 200 when the job recorded today's forecasts of the period, 202 until it does |
 | `GET /api/forecasts?kpi=&days=` | an indicator's kept forecasts, newest first |
-| `POST /api/reports` `{month}` | a month's forecasts against the readings as CSV; a URL it downloads from |
+| `POST /api/reports` `{month}` | the URL the job's report of the month downloads from; 409 until the job wrote it |
 
 ## Roles and history
 

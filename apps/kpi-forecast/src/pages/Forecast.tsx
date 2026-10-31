@@ -68,8 +68,9 @@ export function Forecast({ lang, server }: { lang: Lang; server?: KpiApi }) {
   }, [view]);
 
   const history = useHistory(view.days, rows.length > 0);
-  // The day's first visit has the server record the day's forecasts, which later visits set
-  // against what came (T-3350). Bookkeeping no reader acts on: a refusal changes nothing here.
+  // Asks whether the server's daily job recorded the day's forecasts, which later visits set
+  // against what came (T-3350, T-6197: the job records them, a visit reads no history).
+  // Bookkeeping no reader acts on: a refusal or a 202 changes nothing here.
   useEffect(() => {
     api.record(view.days).catch(() => undefined);
   }, [api, view.days]);

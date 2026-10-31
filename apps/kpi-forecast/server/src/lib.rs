@@ -1,16 +1,18 @@
 //! The server of kpi-forecast (T-3350): every indicator's forecast kept with the day it was made,
 //! so a later visit can set it against what was measured, and a monthly report of the forecasts
 //! against the readings as CSV under the App's own prefix. The page still forecasts in the
-//! browser for the period on screen; the day's first visit asks the server to record the day's
-//! forecasts, made from the history the server reads itself.
+//! browser for the period on screen; the server's daily job records the day's forecasts from the
+//! history it reads itself, page by page, and writes the month's report (T-6197: reading every
+//! indicator's history takes longer than a request's 5 s, so no request reads it).
 //!
 //! | Route | What it does |
 //! |---|---|
-//! | `POST /api/forecasts` `{days}` | the day's forecasts recorded, once a day per period |
+//! | `POST /api/forecasts` `{days}` | whether the day's forecasts of the period are recorded (200), or 202 until the job runs |
 //! | `GET /api/forecasts?kpi=&days=` | the forecasts kept for an indicator, newest first |
-//! | `POST /api/reports` `{month}` | a month's forecasts (this month's by default) against the readings as CSV; a URL it downloads from |
+//! | `POST /api/reports` `{month}` | the URL of the month's report (this month's by default) the job wrote; 409 until it wrote one |
 //!
-//! The job `record-forecasts` records every period's forecasts once a day at 03:20 UTC (app.yaml).
+//! The job `record-forecasts` records every period's forecasts once a day at 03:20 UTC (app.yaml)
+//! and writes this month's report, and last month's until a run after its end wrote it.
 //!
 //! Roles and edits (T-3827, API/07), decided from `identity::caller()` alone:
 //!
@@ -42,6 +44,14 @@ const DAY: i64 = 24 * HOUR;
 const READABLE: i64 = 90 * DAY;
 /// The readings one temporal read asks for per indicator, as the page does (src/kpis.ts).
 const LAST_N: usize = 2000;
+/// Indicators one temporal read asks for, and the most pages one history read walks.
+const PAGE: usize = 100;
+const MOST_PAGES: usize = 70;
+/// How long the job reads history before it gives up, inside its 60 s wall time (wasm-host
+/// limits.rs): a page asked for later than this is not asked for.
+const JOB_READ_MS: i64 = 40_000;
+/// When the job runs (app.yaml), as the answers that wait for it say.
+const JOB_AT: &str = "03:20 UTC";
 /// Forecasts listed for one indicator.
 const LISTED: i64 = 60;
 /// How long a report's download URL lives; the host allows at most 300 seconds.
@@ -212,25 +222,58 @@ pub fn series_of(entities: &[Json]) -> Vec<Series> {
         .collect()
 }
 
-/// The readings of every indicator from `from` on (to `to` when given), from the App's own Endpoint.
-fn history(from: i64, to: Option<i64>) -> Result<Vec<Series>, Response> {
-    history_of(from, to).map_err(Response::from)
+/// One page of the temporal read of `currentValue` from `from` on, the indicators from `offset`;
+/// of `kpi` alone when given. `timerel=after`, never `between`: on dev (6,719 indicators,
+/// 2026-10-31) `between` timed out at the gateway's 30 s on every try while `after` answered in
+/// 1 to 23 s (T-6197). The temporal read lists only the indicators with readings in the window.
+pub fn history_path(from: i64, kpi: Option<&str>, offset: usize) -> String {
+    let only = kpi.map_or_else(String::new, |id| format!("&id={}", gateway::encode(id)));
+    format!(
+        "/ngsi-ld/v1/temporal/entities?type=KeyPerformanceIndicator{only}&attrs=currentValue&timerel=after&timeAt={}&lastN={LAST_N}&options=temporalValues&limit={PAGE}&offset={offset}",
+        gateway::encode(&iso(from))
+    )
 }
 
-fn history_of(from: i64, to: Option<i64>) -> Result<Vec<Series>, gateway::Error> {
-    let window = match to {
-        Some(to) => format!(
-            "timerel=between&timeAt={}&endTimeAt={}",
-            gateway::encode(&iso(from)),
-            gateway::encode(&iso(to))
-        ),
-        None => format!("timerel=after&timeAt={}", gateway::encode(&iso(from))),
-    };
-    let path = format!(
-        "/ngsi-ld/v1/temporal/entities?type=KeyPerformanceIndicator&attrs=currentValue&{window}&lastN={LAST_N}&options=temporalValues"
-    );
-    let entities: Vec<Json> = gateway::get_json(&path)?;
+/// The readings from `from` on, read page by page through `fetch` until a page comes back short;
+/// `in_time` is asked before each later page, and the read stops naming how far it came when the
+/// time is up.
+pub fn read_pages(
+    from: i64,
+    kpi: Option<&str>,
+    mut fetch: impl FnMut(&str) -> Result<Vec<Json>, gateway::Error>,
+    mut in_time: impl FnMut() -> bool,
+) -> Result<Vec<Series>, Failure> {
+    let mut entities = Vec::new();
+    // ponytail: at most MOST_PAGES pages, the first 7,000 indicators with readings; a cursor kept
+    // across runs when more than that report a value.
+    for page in 0..MOST_PAGES {
+        if page > 0 && !in_time() {
+            return Err(Failure::Late(entities.len()));
+        }
+        let got = fetch(&history_path(from, kpi, page * PAGE)).map_err(Failure::Gateway)?;
+        let short = got.len() < PAGE;
+        entities.extend(got);
+        if short {
+            break;
+        }
+    }
     Ok(series_of(&entities))
+}
+
+/// Each indicator's readings from `from` on.
+pub fn since(series: &[Series], from: i64) -> Vec<Series> {
+    series
+        .iter()
+        .map(|s| Series {
+            id: s.id.clone(),
+            points: s
+                .points
+                .iter()
+                .filter(|p| p.t >= from as f64)
+                .map(|p| Point { t: p.t, v: p.v })
+                .collect(),
+        })
+        .collect()
 }
 
 fn now() -> i64 {
@@ -269,10 +312,13 @@ pub fn forecasts_of(series: &[Series]) -> Vec<Json> {
         .collect()
 }
 
-/// Why recording stopped: the App's schema or its Endpoint said no.
-enum Failure {
+/// Why recording or a report stopped: the App's schema, its Endpoint, its store or the time.
+pub enum Failure {
     Sql(sql::Error),
     Gateway(gateway::Error),
+    Blob(blob::Error),
+    /// The history read ran out of time after this many indicators.
+    Late(usize),
 }
 
 impl Failure {
@@ -280,12 +326,14 @@ impl Failure {
         match self {
             Self::Sql(err) => Response::from_sql(err),
             Self::Gateway(err) => Response::from(err),
+            Self::Blob(err) => Response::from_blob(err),
+            Self::Late(_) => Response::problem(504, "Gateway Timeout", &self.why()),
         }
     }
 
-    /// The sentence a job run ends with (AP-155): what failed, never a body or a credential.
-    fn sentence(&self, days: i64) -> String {
-        let why = match self {
+    /// What failed, never a body or a credential (AP-155).
+    fn why(&self) -> String {
+        match self {
             Self::Sql(
                 sql::Error::Refused(why)
                 | sql::Error::Invalid(why)
@@ -296,24 +344,35 @@ impl Failure {
             }
             Self::Sql(sql::Error::Timeout) => "the App's database took too long".to_owned(),
             Self::Gateway(err) => format!("the indicators' history could not be read: {err}"),
-        };
-        format!("the {days}-day forecasts were not recorded: {why}")
+            Self::Blob(err) => format!("the App's store said: {err}"),
+            Self::Late(read) => format!(
+                "the indicators' history took longer than the job may wait, after {read} indicators"
+            ),
+        }
+    }
+
+    /// The sentence a job run ends with for a period.
+    fn sentence(&self, days: i64) -> String {
+        format!("the {days}-day forecasts were not recorded: {}", self.why())
     }
 }
 
-/// Records today's forecasts for one period, once a day: how many rows, and whether today's were
-/// there already.
-fn record_period(days: i64) -> Result<(u64, bool), Failure> {
-    let done = sql::query(
+/// Whether today's forecasts of the period are recorded.
+fn recorded_today(days: i64) -> Result<bool, sql::Error> {
+    sql::query(
         "select 1 as one from forecasts where made_on = current_date and days = $1 limit 1",
         &[Value::from(days)],
     )
-    .map_err(Failure::Sql)?;
-    if !done.values.is_empty() {
+    .map(|done| !done.values.is_empty())
+}
+
+/// Records today's forecasts for one period from `series`, once a day: how many rows, and whether
+/// today's were there already.
+fn record_period(days: i64, series: &[Series]) -> Result<(u64, bool), Failure> {
+    if recorded_today(days).map_err(Failure::Sql)? {
         return Ok((0, true));
     }
-    let series = history_of(now() - days * DAY, None).map_err(Failure::Gateway)?;
-    let rows = forecasts_of(&series);
+    let rows = forecasts_of(series);
     if rows.is_empty() {
         return Ok((0, false));
     }
@@ -329,6 +388,8 @@ fn record_period(days: i64) -> Result<(u64, bool), Failure> {
     Ok((n, false))
 }
 
+/// Whether today's forecasts of the period are recorded. The job records them (`JOB_AT`): reading
+/// every indicator's history takes longer than a request may (5 s), so a visit never reads it.
 fn record(request: &Request, _: &Params) -> Response {
     let wanted: Record = match request.json() {
         Ok(wanted) => wanted,
@@ -338,30 +399,112 @@ fn record(request: &Request, _: &Params) -> Response {
         Ok(days) => days,
         Err(why) => return bad(&why),
     };
-    // Once a day per period: a later visit that day reads nothing and records nothing.
-    match record_period(days) {
-        Ok((_, true)) => Response::json(200, &json!({"recorded": 0, "already": true})),
-        Ok((0, false)) => Response::json(200, &json!({"recorded": 0, "already": false})),
-        Ok((n, false)) => Response::json(201, &json!({"recorded": n, "already": false})),
-        Err(failure) => failure.response(),
+    match recorded_today(days) {
+        Ok(true) => Response::json(200, &json!({"recorded": 0, "already": true})),
+        Ok(false) => Response::json(
+            202,
+            &json!({"recorded": 0, "already": false, "detail": format!("the daily job records today's forecasts at {JOB_AT}")}),
+        ),
+        Err(err) => Response::from_sql(err),
     }
 }
 
 /// The periods the page offers, which the daily job records (AP-154).
 pub const PERIODS: [i64; 3] = [7, 30, 90];
 
-/// The daily job `record-forecasts` (app.yaml `spec.server.jobs`, T-3372): every period's forecasts
-/// of the day, whether or not anybody opens the page. A period already recorded today is left as
-/// it is; the run fails naming every period that could not be recorded.
+/// The months whose reports the job writes at `now`: this month, then the last one, which stays
+/// open until a run after its end wrote it.
+pub fn report_months(now: i64) -> [String; 2] {
+    let (y, m, _) = civil_from_days(now.div_euclid(DAY));
+    let (py, pm) = if m == 1 { (y - 1, 12) } else { (y, m - 1) };
+    [format!("{y:04}-{m:02}"), format!("{py:04}-{pm:02}")]
+}
+
+/// Whether the month's stored report is final, written after the month ended; `None` when none is
+/// stored.
+fn stored_report(month: &str, end: i64) -> Result<Option<bool>, sql::Error> {
+    let rows = sql::query(
+        "select written_at >= to_timestamp($2::double precision / 1000) as final from reports where month = $1",
+        &[Value::from(month), Value::from(end as f64)],
+    )?;
+    Ok(sql::objects(&rows)
+        .first()
+        .map(|row| row.get("final").and_then(Json::as_bool).unwrap_or(false)))
+}
+
+/// Writes the month's report from the kept forecasts and `readings` under `reports/{month}.csv`.
+fn write_report(month: &str, readings: &[Series]) -> Result<(), Failure> {
+    let (start, end) = month_bounds(month).unwrap_or((0, 0));
+    let forecasts = sql::query(
+        "select kpi, made_on::text as \"madeOn\", days, step, points from forecasts \
+         where made_on >= to_timestamp($1::double precision / 1000)::date - 90 and made_on < to_timestamp($2::double precision / 1000)::date \
+         order by kpi, made_on, days limit 1000",
+        &[Value::from(start as f64), Value::from(end as f64)],
+    )
+    .map_err(Failure::Sql)?;
+    let forecasts: Vec<Json> = sql::objects(&forecasts)
+        .into_iter()
+        .map(Json::Object)
+        .collect();
+    blob::put(
+        &report_key(month),
+        report(month, &forecasts, readings).as_bytes(),
+        Some("text/csv; charset=utf-8"),
+    )
+    .map_err(Failure::Blob)?;
+    sql::execute(
+        "insert into reports (month) values ($1) on conflict (month) do update set written_at = now()",
+        &[Value::from(month)],
+    )
+    .map_err(Failure::Sql)?;
+    Ok(())
+}
+
+fn report_key(month: &str) -> String {
+    format!("reports/{month}.csv")
+}
+
+/// The daily job `record-forecasts` (app.yaml `spec.server.jobs`, T-3372): reads the last 90
+/// days of every indicator once, page by page (T-6197), records every period's forecasts of the
+/// day and writes this month's report and last month's until it is final. A period already
+/// recorded today is left as it is; the run fails naming everything it could not do.
 pub fn record_forecasts() -> Result<(), String> {
-    let failed: Vec<String> = PERIODS
+    let started = now();
+    let series = read_pages(started - READABLE + MINUTE, None, gateway::get_json, || {
+        now() < started + JOB_READ_MS
+    })
+    .map_err(|failure| format!("nothing was recorded: {}", failure.why()))?;
+    let mut failed: Vec<String> = PERIODS
         .iter()
         .filter_map(|&days| {
-            record_period(days)
+            record_period(days, &since(&series, started - days * DAY))
                 .err()
                 .map(|failure| failure.sentence(days))
         })
         .collect();
+    let [this, last] = report_months(started);
+    let last_final = month_bounds(&last)
+        .ok()
+        .map(|(_, end)| stored_report(&last, end));
+    let months = match last_final {
+        Some(Ok(Some(true))) => vec![this],
+        Some(Err(err)) => {
+            failed.push(format!(
+                "the report of {last} was not written: {}",
+                Failure::Sql(err).why()
+            ));
+            vec![this]
+        }
+        _ => vec![this, last],
+    };
+    for month in months {
+        if let Err(failure) = write_report(&month, &series) {
+            failed.push(format!(
+                "the report of {month} was not written: {}",
+                failure.why()
+            ));
+        }
+    }
     if failed.is_empty() {
         Ok(())
     } else {
@@ -496,44 +639,22 @@ fn monthly(request: &Request, _: &Params) -> Response {
     if end <= now - READABLE {
         return bad("a report covers a month of the last 90 days, the history the App may read");
     }
-    let key = format!("reports/{month}.csv");
-    // A month that is over and written after it ended is final: it is not written again.
-    let final_report = match sql::query("select 1 as one from reports where month = $1 and written_at >= to_timestamp($2::double precision / 1000)", &[Value::from(month), Value::from(end as f64)]) {
-        Ok(rows) => !rows.values.is_empty(),
+    // The job writes the report (`record_forecasts`): the readings take longer than a request may.
+    let final_report = match stored_report(month, end) {
+        Ok(Some(final_report)) => final_report,
+        Ok(None) => {
+            return Response::problem(
+                409,
+                "Conflict",
+                &format!("the report of {month} is not written yet: the daily job writes this month's report at {JOB_AT}, and last month's until it is final"),
+            )
+        }
         Err(err) => return Response::from_sql(err),
     };
-    if !final_report {
-        let forecasts = match sql::query(
-            "select kpi, made_on::text as \"madeOn\", days, step, points from forecasts \
-             where made_on >= to_timestamp($1::double precision / 1000)::date - 90 and made_on < to_timestamp($2::double precision / 1000)::date \
-             order by kpi, made_on, days limit 1000",
-            &[Value::from(start as f64), Value::from(end as f64)],
-        ) {
-            Ok(rows) => sql::objects(&rows).into_iter().map(Json::Object).collect::<Vec<_>>(),
-            Err(err) => return Response::from_sql(err),
-        };
-        let readings = match history(start.max(now - READABLE + MINUTE), Some(end.min(now))) {
-            Ok(series) => series,
-            Err(answer) => return answer,
-        };
-        if let Err(err) = blob::put(
-            &key,
-            report(month, &forecasts, &readings).as_bytes(),
-            Some("text/csv; charset=utf-8"),
-        ) {
-            return Response::from_blob(err);
-        }
-        if let Err(err) = sql::execute(
-            "insert into reports (month) values ($1) on conflict (month) do update set written_at = now()",
-            &[Value::from(month)],
-        ) {
-            return Response::from_sql(err);
-        }
-    }
-    match blob::presign(&key, Method::Get, URL_SECONDS) {
+    match blob::presign(&report_key(month), Method::Get, URL_SECONDS) {
         Ok(url) => Response::json(
             201,
-            &json!({"month": month, "url": url, "expiresIn": URL_SECONDS, "final": final_report || end <= now}),
+            &json!({"month": month, "url": url, "expiresIn": URL_SECONDS, "final": final_report}),
         ),
         Err(err) => Response::from_blob(err),
     }
@@ -624,9 +745,15 @@ fn publish(request: &Request, _: &Params) -> Response {
         Ok(checked) => checked,
         Err(why) => return bad(&why),
     };
-    let series = match history(now() - wanted.days * DAY, None) {
+    // One indicator's history: one page, inside a request's time.
+    let series = match read_pages(
+        now() - wanted.days * DAY,
+        Some(&wanted.kpi),
+        gateway::get_json,
+        || false,
+    ) {
         Ok(series) => series,
-        Err(answer) => return answer,
+        Err(failure) => return failure.response(),
     };
     let Some((step, points)) = forecast_of(&series, &wanted.kpi, horizon) else {
         return Response::problem(
@@ -923,6 +1050,121 @@ mod tests {
     }
 
     const KPI: &str = "urn:ngsi-ld:KeyPerformanceIndicator:helsinki:bikes-in-use";
+
+    fn entity(i: usize) -> Json {
+        json!({"id": format!("urn:ngsi-ld:KeyPerformanceIndicator:k{i}"), "currentValue": {"values": [[1.0, "2026-10-01T10:00:00Z"]]}})
+    }
+
+    /// T-6197: the history is read page by page from the App's Endpoint with `after`, until a page
+    /// comes back short; one indicator alone when named; a later page the time no longer allows is
+    /// not asked for, and the job says how far it came.
+    #[test]
+    fn the_history_is_read_page_by_page_until_a_short_page() {
+        let from = instant("2026-10-01T00:00:00Z").expect("t");
+        let mut asked = Vec::new();
+        let series = read_pages(
+            from,
+            None,
+            |path| {
+                asked.push(path.to_owned());
+                let n = if asked.len() < 3 { PAGE } else { 7 };
+                Ok((0..n).map(entity).collect())
+            },
+            || true,
+        )
+        .unwrap_or_default();
+        assert_eq!(series.len(), 2 * PAGE + 7);
+        assert_eq!(asked.len(), 3);
+        assert_eq!(
+            asked[2],
+            "/ngsi-ld/v1/temporal/entities?type=KeyPerformanceIndicator&attrs=currentValue&timerel=after&timeAt=2026-10-01T00%3A00%3A00Z&lastN=2000&options=temporalValues&limit=100&offset=200"
+        );
+        assert!(asked.iter().all(|p| !p.contains("between")));
+
+        assert!(history_path(from, Some(KPI), 0)
+            .contains("&id=urn%3Angsi-ld%3AKeyPerformanceIndicator%3Ahelsinki%3Abikes-in-use&"));
+
+        let mut pages = 0;
+        let late = read_pages(
+            from,
+            None,
+            |_| {
+                pages += 1;
+                Ok((0..PAGE).map(entity).collect())
+            },
+            || false,
+        );
+        assert_eq!(pages, 1);
+        let Err(failure) = late else {
+            panic!("the read went on past its time")
+        };
+        assert_eq!(
+            failure.why(),
+            "the indicators' history took longer than the job may wait, after 100 indicators"
+        );
+
+        let refused = read_pages(
+            from,
+            None,
+            |_| Err(gateway::Error::Status(504, String::new())),
+            || true,
+        );
+        assert!(matches!(
+            refused,
+            Err(Failure::Gateway(gateway::Error::Status(504, _)))
+        ));
+
+        let mut endless = 0;
+        let bounded = read_pages(
+            from,
+            None,
+            |_| {
+                endless += 1;
+                Ok((0..PAGE).map(entity).collect())
+            },
+            || true,
+        );
+        assert_eq!(endless, MOST_PAGES);
+        assert_eq!(
+            bounded.map(|s| s.len()).unwrap_or_default(),
+            MOST_PAGES * PAGE
+        );
+    }
+
+    /// Each period's forecast is made from the readings of the period only.
+    #[test]
+    fn a_period_keeps_the_readings_from_its_start() {
+        let series = vec![Series {
+            id: KPI.into(),
+            points: (0..10)
+                .map(|i| Point {
+                    t: f64::from(i) * DAY as f64,
+                    v: f64::from(i),
+                })
+                .collect(),
+        }];
+        let kept = since(&series, 7 * DAY);
+        assert_eq!(kept[0].id, KPI);
+        assert_eq!(
+            kept[0].points.iter().map(|p| p.v).collect::<Vec<_>>(),
+            vec![7.0, 8.0, 9.0]
+        );
+    }
+
+    /// The job writes this month's report and last month's, across a year's end too.
+    #[test]
+    fn the_job_writes_this_months_report_and_the_last_ones() {
+        let at = |text: &str| instant(text).expect("t");
+        assert_eq!(
+            report_months(at("2026-10-31T03:20:00Z")),
+            ["2026-10", "2026-09"]
+        );
+        assert_eq!(
+            report_months(at("2027-01-01T03:20:00Z")),
+            ["2027-01", "2026-12"]
+        );
+        assert_eq!(report_key("2026-10"), "reports/2026-10.csv");
+    }
 
     #[test]
     fn an_indicator_is_a_kpi_urn_and_a_period_one_the_page_offers() {
