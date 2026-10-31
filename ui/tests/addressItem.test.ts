@@ -20,8 +20,8 @@ describe("addressItem", () => {
     expect(addressItem("/projects/p/endpoints/upload")).toEqual({ itemName: "upload" });
   });
 
-  it("names nothing on a create form, a section list or outside a project", () => {
-    expect(addressItem("/projects/p/endpoints/new")).toEqual({});
+  it("marks a create form, and names nothing on a section list or outside a project", () => {
+    expect(addressItem("/projects/p/endpoints/new")).toEqual({ creating: true });
     expect(addressItem("/projects/p/endpoints")).toEqual({});
     expect(addressItem("/organization/people/x")).toEqual({});
   });

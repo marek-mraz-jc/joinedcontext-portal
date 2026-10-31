@@ -187,7 +187,7 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
           // One row: the title, the list's search and tools, and one New button (owner 2026-10-31).
           header={(toolbar) => (
             <>
-              <PageHeader compact title={t("nav.models")} aside={toolbar} actions={create} />
+              <PageHeader compact title={t("nav.models")} description={t("models.page.listLead")} aside={toolbar} actions={create} />
               {change ? <ChangeNotice change={change} project={project} /> : null}
             </>
           )}

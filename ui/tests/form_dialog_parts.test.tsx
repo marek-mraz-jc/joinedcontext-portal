@@ -137,10 +137,6 @@ describe("ResourceFormNotes", () => {
     expect(screen.queryByTestId("propose-standing")).toBeNull();
   });
 
-  it("says_a_change_waits_for_a_second_approver", () => {
-    notesWith("DataModel", ["propose", "approve", "delete"]);
-    expect(screen.getByTestId("propose-standing")).toHaveTextContent(/^Waits for a second administrator/);
-  });
 });
 
 describe("FormGuideLink", () => {

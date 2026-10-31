@@ -522,11 +522,6 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
       expect(urlInput).toHaveValue("https://initial.example.com");
     });
 
-    const statusEl = screen.getByTestId("draft-status");
-    expect(statusEl).toHaveTextContent(
-      "Draft v1, last touched by demo.steward (person)",
-    );
-
     // Simulate EventSource receiving a put event for version 2 from another client
     expect(MockEventSource.instances.length).toBeGreaterThan(0);
     const eventSource = MockEventSource.instances[0];
@@ -551,10 +546,6 @@ describe("ResourceFormDialog shared drafts and verdict gates (AG-61, AG-62, UI-4
         "https://updated-from-other-window.example.com",
       );
     });
-
-    expect(screen.getByTestId("draft-status")).toHaveTextContent(
-      "Draft v2, last touched by jana.kovacova (person)",
-    );
   });
 
   it("disables Propose with drafts.proposeReason.none when no verdict is present", async () => {

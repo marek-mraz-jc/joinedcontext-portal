@@ -555,8 +555,6 @@
       "historySize": "Größe des Verlaufs"
     },
     "inside": {
-      "more": "Mehr",
-      "less": "Weniger",
       "total": "Der Raum enthält {count, plural, one {# Entität} other {# Entitäten}}.",
       "history": "Sein Verlauf enthält {count, plural, one {# Eintrag} other {# Einträge}}.",
       "open": "Inhalt ansehen",
@@ -4560,6 +4558,7 @@
     },
     "page": {
       "listLead": "Jedes Datenmodell dieses Projekts: eines je Context Space, und was darauf aufbaut.",
+      "modelLead": "Was dieses Modell beschreibt und was darauf aufbaut.",
       "listCaption": "Die Datenmodelle des Projekts",
       "new": {
         "menu": "Neues Datenmodell",

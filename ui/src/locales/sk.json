@@ -555,8 +555,6 @@
       "historySize": "Veľkosť histórie"
     },
     "inside": {
-      "more": "Viac",
-      "less": "Menej",
       "total": "Priestor obsahuje {count, plural, one {# entitu} few {# entity} other {# entít}}.",
       "history": "Jeho história obsahuje {count, plural, one {# záznam} few {# záznamy} other {# záznamov}}.",
       "open": "Pozrieť obsah",
@@ -4560,6 +4558,7 @@
     },
     "page": {
       "listLead": "Všetky dátové modely tohto projektu: jeden pre každý kontextový priestor a čo je na ňom postavené.",
+      "modelLead": "Čo tento model opisuje a čo na ňom stavia.",
       "listCaption": "Dátové modely projektu",
       "new": {
         "menu": "Nový dátový model",

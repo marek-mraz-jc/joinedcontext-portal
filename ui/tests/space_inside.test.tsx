@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -721,29 +721,15 @@ describe("the space's own data", () => {
     expect(reads.some((url) => url.searchParams.get("limit") === "500")).toBe(true);
   });
 
-  it("keeps the header on one line: the name as a copy chip, the description on one line until More (T-6092)", async () => {
+  it("keeps the header on one row: the name, its purpose behind the info mark, no copy chip (owner 2026-10-31)", async () => {
     const description = "Air quality stations of the city and what they measured every hour, kept for five years.";
     renderInside({ status: 200, count: 1 }, { status: 200 }, {
       space: { ...SPACE, metadata: { ...SPACE.metadata, description: { en: description } } },
     });
-    expect(await screen.findByRole("button", { name: "ovzdusie" })).toHaveAttribute("title", "ovzdusie");
-    expect(screen.getByText(description)).toHaveClass("line-clamp-1");
-    // jsdom lays nothing out: the line cuts nothing, so there is nothing to open (T-6138).
-    expect(screen.queryByRole("button", { name: en.spaces.inside.more })).toBeNull();
-    cleanup();
-    // A line the clamp cuts offers More.
-    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(40);
-    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(20);
-    renderInside({ status: 200, count: 1 }, { status: 200 }, {
-      space: { ...SPACE, metadata: { ...SPACE.metadata, description: { en: description } } },
-    });
-    const more = await screen.findByRole("button", { name: en.spaces.inside.more });
-    expect(more).toHaveAttribute("aria-expanded", "false");
-    await userEvent.click(more);
-    expect(screen.getByText(description, { exact: false })).not.toHaveClass("line-clamp-1");
-    expect(screen.getByRole("button", { name: en.spaces.inside.less })).toHaveAttribute("aria-expanded", "true");
-    // The walker reads the purpose line as the h1's next sibling <p> (T-6138).
-    expect(screen.getByRole("heading", { level: 1 }).nextElementSibling?.tagName).toBe("P");
+    await screen.findByRole("heading", { level: 1 });
+    expect(screen.queryByRole("button", { name: "ovzdusie" })).toBeNull();
+    expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent(description);
+    // The walker still finds the purpose line, now behind the mark as on the list pages (T-6095).
     expect(pageFindings({ namespaces: [], layout: false }).filter((f) => f.startsWith("purpose-line"))).toEqual([]);
   });
 

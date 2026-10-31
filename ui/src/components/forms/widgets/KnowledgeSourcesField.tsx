@@ -9,7 +9,7 @@ import { asManifests, localized } from "../../../api/manifest";
 import { Badge, Checkbox } from "../../ui";
 import { useShownErrors } from "../touched";
 import { FormDataContext } from "./EntitySelectorField";
-import { LIST_BODY, LIST_FIELDSET, ListLegend, pathOf } from "../theme";
+import { LIST_BODY, LIST_FIELDSET, ListLegend } from "../theme";
 import { ListFailed, reasonOf } from "./ListFailed";
 import { FormProjectContext } from "./ModelWidgets";
 
@@ -93,7 +93,7 @@ export function KnowledgeSourcesField(props: FieldProps): JSX.Element {
 
   return (
     <fieldset id={id} data-testid="knowledge-sources" className={LIST_FIELDSET}>
-      <ListLegend heading={schema.title ?? ""} required={props.required} path={pathOf(fieldPathId)} />
+      <ListLegend heading={schema.title ?? ""} required={props.required} />
       <div className={LIST_BODY}>
       {help ? <p id={`${id}__help`} className="text-caption text-fg-muted">{help}</p> : null}
       {anonymous ? <p id={`${id}-hint`} className="text-caption text-fg-muted">{t("knowledge.sourcesPicker.publicOnly")}</p> : null}

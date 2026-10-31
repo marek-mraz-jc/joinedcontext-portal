@@ -56,7 +56,7 @@ function answer(path: string, request: Request): Response | undefined {
 const open = (path: string) => renderRoute({ path, answer });
 
 /** The back control of the open form page. */
-const back = (page: HTMLElement) => within(page).getByRole("button", { name: en.form.backToList });
+const back = (page: HTMLElement) => within(page).getByRole("button", { name: en.form.cancel });
 
 afterEach(() => {
   vi.restoreAllMocks();

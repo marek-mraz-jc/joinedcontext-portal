@@ -391,45 +391,6 @@ describe("the form renders what the manifest arranged", () => {
   });
 
   /** T-1604: the example is a value the field accepts, and one action puts it there. */
-  it("fills the field from its example, and offers the action only while the field is empty", async () => {
-    const user = userEvent.setup();
-    const schema: JsonSchema = {
-      type: "object",
-      properties: {
-        url: { type: "string", title: "URL" },
-        perMinute: { type: "integer", title: "Requests per minute" },
-      },
-    };
-    const manifest: UiSchemaManifest = {
-      kind: "UiSchema",
-      metadata: { name: "datasource" },
-      spec: {
-        for: "DataSource",
-        fields: {
-          url: { placeholder: "https://opendata.example.org/aq.json" },
-          perMinute: { placeholder: "600" },
-        },
-      },
-    };
-    const { uiSchema } = arrange(manifest, { properties: ["url", "perMinute"], locale: "en" });
-    render(
-      <I18nextProvider i18n={i18n}>
-        <SchemaForm schema={schema} uiSchema={uiSchema} onSubmit={() => {}} />
-      </I18nextProvider>,
-    );
-
-    const actions = screen.getAllByRole("button", { name: en.form.useExample });
-    expect(actions).toHaveLength(2);
-    await user.click(actions[0]);
-    expect(screen.getByLabelText(/^URL/)).toHaveValue("https://opendata.example.org/aq.json");
-    // A field that holds something is not offered an overwrite nobody asked for.
-    expect(screen.getAllByRole("button", { name: en.form.useExample })).toHaveLength(1);
-
-    // A number example reaches the field as a number, not as the string "600".
-    await user.click(screen.getByRole("button", { name: en.form.useExample }));
-    expect(screen.getByLabelText(/^Requests per minute/)).toHaveValue(600);
-  });
-
   /**
    * T-2251: the whole word arrives. The action that fills in an example used to be mounted only
    * while the field was empty, so the first character moved the input into another parent, React

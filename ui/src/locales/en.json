@@ -555,8 +555,6 @@
       "historySize": "History size"
     },
     "inside": {
-      "more": "More",
-      "less": "Less",
       "total": "The space holds {count, plural, one {# entity} other {# entities}}.",
       "history": "Its history holds {count, plural, one {# record} other {# records}}.",
       "open": "Look inside",
@@ -4560,6 +4558,7 @@
     },
     "page": {
       "listLead": "Every data model of this project: one per Context Space, and what builds on it.",
+      "modelLead": "What this model describes, and what builds on it.",
       "listCaption": "The project's data models",
       "new": {
         "menu": "New data model",

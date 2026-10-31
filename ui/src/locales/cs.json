@@ -555,8 +555,6 @@
       "historySize": "Velikost historie"
     },
     "inside": {
-      "more": "Více",
-      "less": "Méně",
       "total": "Prostor obsahuje {count, plural, one {# entitu} few {# entity} other {# entit}}.",
       "history": "Jeho historie obsahuje {count, plural, one {# záznam} few {# záznamy} other {# záznamů}}.",
       "open": "Prohlédnout obsah",
@@ -4560,6 +4558,7 @@
     },
     "page": {
       "listLead": "Všechny datové modely tohoto projektu: jeden pro každý kontextový prostor a co je na něm postaveno.",
+      "modelLead": "Co tento model popisuje a co na něm staví.",
       "listCaption": "Datové modely projektu",
       "new": {
         "menu": "Nový datový model",

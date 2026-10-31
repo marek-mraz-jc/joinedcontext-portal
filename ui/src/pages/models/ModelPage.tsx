@@ -302,7 +302,9 @@ export function ModelPage({
     <div className="flex flex-col gap-4">
       {/* One row: the title, what it is in brackets, and the model's actions; the breadcrumb leads back to the list (owner 2026-10-31). */}
       <PageHeader
+        compact
         title={localized(model.metadata.title, i18n.language, name)}
+        description={localized(model.metadata.description, i18n.language, "") || t("models.page.modelLead")}
         titleAction={
           <span className="ms-2 flex flex-wrap items-center gap-2 text-body text-fg-muted">
             <span className="font-mono">

@@ -385,7 +385,7 @@
     },
     "src/components/forms/FormRoute.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 1
       },
       "tests": [
         "form_route.test.tsx"
@@ -417,11 +417,11 @@
     },
     "src/components/forms/theme.tsx": {
       "controls": {
-        "Button": 5,
+        "Button": 3,
         "Checkbox": 2
       },
       "tests": [
-        "form_examples_fill.test.tsx"
+        "part_theme.test.tsx"
       ]
     },
     "src/components/forms/widgets/AccessPresetChoice.tsx": {
@@ -2093,7 +2093,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 20,
+        "Button": 19,
         "RadioGroup": 1
       },
       "tests": [
