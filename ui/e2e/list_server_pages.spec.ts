@@ -51,7 +51,7 @@ async function shot(page: Page, state: string): Promise<void> {
   mkdirSync(SHOTS, { recursive: true });
   for (const width of [1440, 400]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.screenshot({ path: `${SHOTS}/${state}-${width}.png`, fullPage: width === 400 ? false : true });
+    await page.screenshot({ path: `${SHOTS}/${state}-${width}.png`, fullPage: true });
   }
   await page.setViewportSize({ width: 1440, height: 900 });
 }
@@ -85,6 +85,7 @@ test.describe("a kind's list pages on the server", () => {
   test("an empty kind says what would fill it", async ({ page }) => {
     await stubApi(page, []);
     await page.goto(`/projects/${PROJECT}/blueprints?lang=en`);
+    await expect(page.getByText("Nothing here yet.")).toBeVisible();
     await expect(page.getByRole("table")).toHaveCount(0);
     await shot(page, "empty");
   });
