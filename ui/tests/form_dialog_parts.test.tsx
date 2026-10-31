@@ -168,32 +168,17 @@ describe("ResourceYamlPanel", () => {
     fromManifest: (manifest) => ({ name: (manifest as { metadata: { name: string } }).metadata.name }),
   };
 
-  it("refuses_a_file_with_a_literal_secret_and_reads_a_clean_one_into_the_form", async () => {
-    const onChange = vi.fn();
-    const { result } = renderHook(() => useYamlEditor<Form>(SOURCE, "p1", onChange), { wrapper });
-    const { rerender } = render(
-      <ResourceYamlPanel editor={result.current} viewsId="v" disabled={false} downloadName="air" footer={null} />,
-      { wrapper },
-    );
-    const leaked = new File(["kind: DataSource\nspec:\n  password: hunter2hunter2\n"], "leak.yaml");
-    await act(async () => {
-      await result.current.upload(leaked);
-    });
-    rerender(<ResourceYamlPanel editor={result.current} viewsId="v" disabled={false} downloadName="air" footer={null} />);
-    expect(screen.getByRole("alert")).toBeVisible();
-    expect(onChange).not.toHaveBeenCalled();
-
-    const moved = new File(["kind: DataSource\nmetadata:\n  name: air\n  namespace: other\n"], "air.yaml");
-    await act(async () => {
-      await result.current.upload(moved);
-    });
-    rerender(<ResourceYamlPanel editor={result.current} viewsId="v" disabled={false} downloadName="air" footer={null} />);
-    expect(onChange).toHaveBeenCalledWith({ name: "air" });
-    expect(screen.getByTestId("yaml-upload-note")).toBeVisible();
-    expect(screen.getByRole("textbox", { name: "YAML" })).toHaveValue(
-      "kind: DataSource\nmetadata:\n  name: air\n  namespace: p1\n",
-    );
-    expect(screen.getByRole("button", { name: en.form.yamlDownload })).toBeVisible();
+  it("copies what the view holds and offers no file upload or download (owner 2026-10-31)", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    const { result } = renderHook(() => useYamlEditor<Form>(SOURCE), { wrapper });
+    act(() => result.current.setText("kind: DataSource\nmetadata:\n  name: air\n"));
+    render(<ResourceYamlPanel editor={result.current} viewsId="v" footer={null} />, { wrapper });
+    await userEvent.click(screen.getByRole("button", { name: en.form.yamlCopy }));
+    expect(writeText).toHaveBeenCalledWith("kind: DataSource\nmetadata:\n  name: air\n");
+    expect(await screen.findByRole("button", { name: en.form.yamlCopied })).toBeVisible();
+    expect(screen.queryByText(/upload/i)).toBeNull();
+    expect(screen.queryByText(/download/i)).toBeNull();
   });
 });
 
