@@ -48,7 +48,8 @@ export function ModelIdentity({ name, id, creating, version, readOnly, onRename 
   };
 
   return (
-    <div className="mt-2 flex flex-col gap-1 text-body">
+    // One row: the name and Rename, then id, file and version (owner 2026-10-31).
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-body">
       {creating && !readOnly ? (
         // A new model is named as it is typed: the id below follows, and Save waits for it.
         <Field id={inputId} label={t("models.identity.name")} help={t("models.create.nameHint")}>
@@ -62,9 +63,10 @@ export function ModelIdentity({ name, id, creating, version, readOnly, onRename 
       ) : draft === undefined ? (
         <span className="flex items-center gap-1">
           {/* A model without a title says so, rather than repeating its id (T-6162 judge). */}
-          <span className={name ? "text-title font-semibold" : "text-title text-fg-muted"}>
+          {/* The page's heading: the editor names the model, not itself. */}
+          <h1 className={name ? "text-display font-semibold tracking-tight text-fg" : "text-display text-fg-muted"}>
             {name || t("models.identity.unnamed")}
-          </span>
+          </h1>
           {readOnly ? null : (
             <Button
               size="sm"

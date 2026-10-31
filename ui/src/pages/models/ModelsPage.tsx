@@ -16,13 +16,12 @@ import {
   Checkbox,
   Dialog,
   InlineError,
-  PageHeader,
 } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { usePermissions } from "../../api/permissions";
 import { takePrefill } from "../../assistant/state";
 import { getDraft, putDraft } from "../../api/drafts";
-import { Link } from "@tanstack/react-router";
+import { setPageTitle } from "../../documentTitle";
 import { LinkmlEditor } from "./LinkmlEditor";
 import { replaceOwnSearch } from "../../assistant/HandOff";
 import { ModelFileDrop } from "./ModelFileDrop";
@@ -456,29 +455,26 @@ export function ModelsPage({
     }
   };
 
+  // The tab names the model the editor holds; the visible heading is the model's name (ModelIdentity).
+  useEffect(() => {
+    setPageTitle([displayName || t("models.editor.title"), project]);
+  }, [displayName, project, t]);
+
   return (
     <div className="flex flex-col gap-4">
-      <Link
-        to="/projects/$project/models"
-        params={{ project }}
-        className="focus-ring w-fit text-body text-primary-soft-fg underline hover:no-underline"
-      >
-        {t("models.page.back")}
-      </Link>
-      <PageHeader
-        title={t("models.editor.title")}
-        description={t("models.editor.lead")}
-        note={
-          <ModelIdentity
-            name={displayName}
-            id={targetName}
-            creating={creating}
-            version={published?.version}
-            readOnly={!mayPropose}
-            onRename={rename}
-          />
-        }
-        actions={
+      {/* One row: the model's name, Rename, id, file and version, then Check, Propose and Remove;
+          the breadcrumb leads back to the list (owner 2026-10-31). */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ModelIdentity
+          name={displayName}
+          id={targetName}
+          creating={creating}
+          version={published?.version}
+          readOnly={!mayPropose}
+          onRename={rename}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          {
           targetName && !spaceTakenBy ? (
             <>
               {/* Refused where they stand for a person who may not propose (UI-44, T-2848). */}
@@ -529,9 +525,9 @@ export function ModelsPage({
                 />
               ) : null}
             </>
-          ) : null
-        }
-      />
+          ) : null}
+        </div>
+      </div>
 
       {loadingSource ? (
         <p role="status" className="text-body text-fg-muted">
@@ -570,7 +566,8 @@ export function ModelsPage({
         </Alert>
       ) : null}
 
-      {published ? (
+      {/* Nothing to say until the text moved: no "No change" box (owner 2026-10-31). */}
+      {published && (moved || changes.length > 0 || refusal) ? (
         <section
           aria-labelledby="models-changes"
           className={

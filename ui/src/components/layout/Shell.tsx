@@ -496,6 +496,13 @@ export function Shell({
   // Which page is in hand, so a panel left by a page that threw is cleared by walking away
   // from it (T-2426).
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  // The model editor lives at /models?edit=<id> or ?new=…: its crumb leads back to the list too.
+  const editingModel = useRouterState({
+    select: (state) => {
+      const search = state.location.search as { edit?: unknown; new?: unknown };
+      return typeof search.edit === "string" ? search.edit : search.new !== undefined ? "" : undefined;
+    },
+  });
   // The sidebar is a drawer on a phone; a navigation closes it.
   const [navOpen, setNavOpen] = useState(false);
   // Where the closed assistant's button goes on a phone; the dock renders after the header.
@@ -972,7 +979,7 @@ export function Shell({
                     <li className="flex items-center gap-1">
                       <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
                       {/* One model's page: Data models leads back to the list (owner 2026-10-31). */}
-                      {modelsActive && itemName ? (
+                      {modelsActive && (itemName || editingModel !== undefined) ? (
                         <>
                           <Link
                             to="/projects/$project/models"
@@ -981,10 +988,14 @@ export function Shell({
                           >
                             {t(otherPage)}
                           </Link>
-                          <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
-                          <span aria-current="page" className="font-mono font-medium text-fg">
-                            {itemName}
-                          </span>
+                          {itemName || editingModel ? (
+                            <>
+                              <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
+                              <span aria-current="page" className="font-mono font-medium text-fg">
+                                {itemName || editingModel}
+                              </span>
+                            </>
+                          ) : null}
                         </>
                       ) : (
                         <span aria-current="page" className="font-medium text-fg">
