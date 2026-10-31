@@ -51,6 +51,21 @@ export function parameterValues(
   return values;
 }
 
+/** Whether a typed value is one a number parameter refuses: `Number("abc")` is NaN, sent as null. */
+function notANumber(declaration: Declaration, raw: string): boolean {
+  const value = raw.trim();
+  if (value === "" || (declaration.type !== "integer" && declaration.type !== "number")) return false;
+  const number = Number(value);
+  return !Number.isFinite(number) || (declaration.type === "integer" && !Number.isInteger(number));
+}
+
+/** The number parameters whose typed value is not a number of their kind, refused before the import (T-6230). */
+export function numberProblems(declarations: Record<string, Declaration>, typed: Record<string, string>): string[] {
+  return Object.entries(declarations)
+    .filter(([name, declaration]) => notANumber(declaration, typed[name] ?? ""))
+    .map(([name]) => name);
+}
+
 /**
  * One field per declared parameter (CC-88): a select for an enum or a boolean, a text field
  * otherwise, each with its description, its default and, for a secret, that it takes a name.
@@ -86,7 +101,13 @@ export function ParameterFields({
             ? ["true", "false"]
             : (declaration.enum ?? []).map((value) => String(value));
         return (
-          <Field key={parameter} id={id} label={parameter} help={help || undefined}>
+          <Field
+            key={parameter}
+            id={id}
+            label={parameter}
+            help={help || undefined}
+            errors={notANumber(declaration, typed[parameter] ?? "") ? [t(declaration.type === "integer" ? "projectImport.wholeNumber" : "projectImport.number")] : undefined}
+          >
             {choices.length > 0 ? (
               <Select
                 id={id}
@@ -179,6 +200,10 @@ export function ImportProjectDialog({
     mutationFn: async () => {
       if (!file || !plan) {
         throw new Error(t("projectImport.noFile"));
+      }
+      const wrong = numberProblems(plan.parameters, typed);
+      if (wrong.length > 0) {
+        throw new Error(t("projectImport.notNumber", { names: wrong.join(", ") }));
       }
       const values = parameterValues(plan.parameters, typed);
       // The dry run is the check the import is held to, over these very values (PF-57).

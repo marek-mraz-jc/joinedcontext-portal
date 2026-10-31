@@ -6266,6 +6266,7 @@
     "close": "Close the assistant",
     "title": "Assistant",
     "open": "Open the assistant",
+    "openBusy": "Open the assistant, still working on your question",
     "hide": "Hide the assistant",
     "fullScreen": "Full screen",
     "sideView": "Beside the page",
@@ -8159,6 +8160,9 @@
     "propose": "Propose"
   },
   "projectImport": {
+    "number": "Type a number.",
+    "wholeNumber": "Type a whole number.",
+    "notNumber": "{names}: type a number, such as 30, or leave the field empty for its default.",
     "title": "Import a project",
     "lead": "Creates the project's repositories from a git export, then proposes its registry entry.",
     "button": "Import project",

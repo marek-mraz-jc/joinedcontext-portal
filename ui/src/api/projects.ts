@@ -13,6 +13,18 @@ export const projectsQuery = queryOptions({
   queryFn: async () => unwrap(await api.GET("/api/v1/projects")),
 });
 
+/**
+ * The one `GET /api/v1/projects/{project}` query (its usage, its repository): the quota card, the
+ * delete dialog and the export each `select` from it rather than read it under keys of their own.
+ * A caller who may not read the project is answered 404, which is not asked again.
+ */
+export const projectDetailQuery = (project: string) =>
+  queryOptions({
+    queryKey: [...queryKeys.projects(), project, "detail"],
+    retry: false,
+    queryFn: async () => unwrap(await api.GET("/api/v1/projects/{project}", { params: { path: { project } } })),
+  });
+
 /** The projects the configuration repository holds, as `GET /api/v1/projects` lists them (PF-05). */
 export function useProjects() {
   return useQuery({

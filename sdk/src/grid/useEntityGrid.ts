@@ -838,10 +838,15 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   /**
    * What applying the pending cells would send: the value before, the unit it was measured in and
    * whether the attribute is a Relationship all come from the row the person edited, so the
-   * review reads what they saw and the write keeps what it must not lose.
+   * review reads what they saw and the write keeps what it must not lose. An edit outlives its
+   * page, so the row it was made on is kept until the edit is applied or cleared: read from the
+   * page shown now, a geometry edited on page 1 went out from page 2 as a plain Property (T-6230).
    */
+  const editedRows = useRef(new Map<string, RichRow>());
   const pendingChanges = useMemo((): EntityChange[] => {
-    const byId = new Map(rows.map((row) => [row.id, row]));
+    const byId = editedRows.current;
+    for (const id of byId.keys()) if (!(id in edits)) byId.delete(id);
+    for (const row of rows) byId.set(row.id, row);
     return Object.entries(edits).map(([id, attrs]) => {
       const row = byId.get(id);
       const changes: AttributeChange[] = Object.entries(attrs).map(([attribute, after]) => {

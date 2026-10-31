@@ -323,8 +323,10 @@ export function GeoEditor({
               latest.current(drawn.geometry);
             }
           };
+          // `finish` ends every edit (a drawn shape, a dragged vertex or shape, a vertex added or
+          // deleted). `change` fires on each frame of a drag, and the crossing check over up to
+          // MAX_VERTICES points on every frame froze the tab (T-6230).
           drawing.on("finish", took);
-          drawing.on("change", took);
         });
       });
     });
@@ -494,7 +496,8 @@ export function GeoEditor({
           const file = event.target.files?.[0];
           if (file) {
             // The same cap before the read, so a huge file is never pulled into memory either.
-            take(file.size > MAX_GEOJSON_BYTES ? " ".repeat(MAX_GEOJSON_BYTES + 1) : await file.text());
+            if (file.size > MAX_GEOJSON_BYTES) setFindings([{ path: "", message: say.tooLarge }]);
+            else take(await file.text());
           }
         }}
       />

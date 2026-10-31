@@ -230,11 +230,22 @@ impl Watch {
         crate::capped::json(response, crate::capped::ANSWER_BYTES).await
     }
 
+    /// The entity's address in the space, the id one path segment: an id holding `#` or `?`
+    /// would otherwise read another resource and be reported as missing.
+    fn entity_url(&self, space: &str, id: &str) -> Result<url::Url, String> {
+        let mut url = url::Url::parse(&format!("{}/cs/{space}/ngsi-ld/v1/entities", self.base))
+            .map_err(|err| err.to_string())?;
+        url.path_segments_mut()
+            .map_err(|()| "the space surface has no path".to_owned())?
+            .push(id);
+        Ok(url)
+    }
+
     /// The entity the space holds under this id, or `None` when it holds none.
     pub async fn live(&self, token: &str, space: &str, id: &str) -> Result<Option<Value>, String> {
         let response = self
             .http
-            .get(format!("{}/cs/{space}/ngsi-ld/v1/entities/{id}", self.base))
+            .get(self.entity_url(space, id)?)
             .bearer_auth(token)
             // Normalized JSON without the `@context` document: what the repository declares.
             .header("Accept", "application/json")
@@ -516,6 +527,32 @@ mod tests {
             .await
             .expect("the history");
         assert_eq!(history["id"], "urn:ngsi-ld:A:1");
+    }
+
+    #[tokio::test]
+    async fn an_id_holding_a_hash_reads_its_own_entity() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/cs/ovzdusie/ngsi-ld/v1/entities/urn:ngsi-ld:T:a%23b"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"id": "urn:ngsi-ld:T:a#b"})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let watch = Watch::new(
+            server.uri(),
+            &format!("{}/realms/city", server.uri()),
+            "portal".to_owned(),
+            ClientAuth::Secret("s".into()),
+        );
+        let live = watch
+            .live("t", "ovzdusie", "urn:ngsi-ld:T:a#b")
+            .await
+            .expect("the read");
+        assert_eq!(live.expect("held")["id"], "urn:ngsi-ld:T:a#b");
     }
 
     /// T-5098: a space surface that refuses the Portal (404) is an error, never "no Entity names

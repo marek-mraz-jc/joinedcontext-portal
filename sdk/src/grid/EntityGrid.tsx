@@ -1044,7 +1044,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         }
       }
       const control = activeCellId
-        ? document.getElementById(activeCellId)?.querySelector<HTMLElement>("input, select, textarea, button")
+        ? document.getElementById(activeCellId)?.querySelector<HTMLElement>(".jc-grid-cell input, .jc-grid-cell select, .jc-grid-cell textarea, .jc-grid-cell button")
         : null;
       if (onGrid && (e.key === "Enter" || e.key === "F2") && control) {
         e.preventDefault();

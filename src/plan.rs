@@ -65,11 +65,10 @@ pub struct FieldChange {
 /// away or brings it back, which the person toggling it already knows, so it warns about nothing.
 pub fn restarts_stream(kind: &str, diff: &PlanDiff) -> bool {
     kind == "Pipeline"
-        && diff
-            .fields
-            .iter()
-            .any(|field| field.path == "spec" || field.path.starts_with("spec."))
-        && diff.fields.iter().any(|field| field.path != "spec.enabled")
+        && diff.fields.iter().any(|field| {
+            (field.path == "spec" || field.path.starts_with("spec."))
+                && field.path != "spec.enabled"
+        })
 }
 
 /// Computes the structural diff between current and desired resource envelopes.
@@ -603,6 +602,11 @@ mod restart_tests {
         assert!(!restarts_stream("Pipeline", &changed(&["specification"])));
         // Turning a pipeline off takes its stream away; nobody needs to be told that as a surprise.
         assert!(!restarts_stream("Pipeline", &changed(&["spec.enabled"])));
+        // R2POR5-016: a label edit beside the toggle restarts nothing either.
+        assert!(!restarts_stream(
+            "Pipeline",
+            &changed(&["spec.enabled", "metadata.labels.x"])
+        ));
         // But a spec change riding along with the toggle still restarts what stays.
         assert!(restarts_stream(
             "Pipeline",

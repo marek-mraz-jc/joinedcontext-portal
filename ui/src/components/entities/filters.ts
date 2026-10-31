@@ -7,6 +7,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { EnumOption, RelationEnd, ValueRule } from "@joinedcontext/sdk";
 import { ApiError, readCsrfToken } from "../../api/client";
+import { readModelSource } from "../../api/datamodelSource";
 import { localized } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { endpointUrl } from "../endpoints/links";
@@ -72,17 +73,8 @@ export function useModelSource(project: string, model: Manifest | undefined): st
   const loaded = useQuery({
     queryKey: ["datamodel-source", project, name],
     enabled: Boolean(name) && inline === undefined,
-    queryFn: async () => {
-      // A `Request` on this origin, as the gateway reads below: the user's session travels with it.
-      const path = `/api/v1/projects/${encodeURIComponent(project)}/datamodels/${encodeURIComponent(name ?? "")}/source`;
-      const response = await globalThis.fetch(
-        new Request(`${window.location.origin}${path}`, { headers: { Accept: "text/yaml, text/plain, */*" } }),
-      );
-      if (!response.ok) {
-        throw new ApiError(response.status, response.statusText || `HTTP ${response.status}`);
-      }
-      return response.text();
-    },
+    // Through the typed client, as the model editor reads it under the same key (UI-07).
+    queryFn: () => readModelSource(project, name ?? ""),
   });
   return inline ?? loaded.data;
 }

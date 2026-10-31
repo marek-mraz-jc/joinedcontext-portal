@@ -5,7 +5,7 @@
  * Every decision is the server's `access/attributes` answer; the grid only renders it.
  */
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { EntityGrid } from "../src/grid/EntityGrid";
 import { parseGridConfig } from "../src/grid/config";
 import { fixtureSource } from "../src/grid/source";
@@ -77,6 +77,22 @@ function recorded() {
 }
 
 describe("the permission-aware grid", () => {
+  it("puts the keyboard into the cell's editor, not the cell's info button before it (T-6230)", async () => {
+    const { source } = recorded();
+    render(<EntityGrid config={configOf()} source={source} access={ACCESS} />);
+    const grid = screen.getByRole("grid");
+    const kamppi = await screen.findByDisplayValue("Kamppi");
+    expect(kamppi.closest("td")?.querySelector(".jc-grid-info")).not.toBeNull();
+    act(() => kamppi.focus());
+    fireEvent.keyDown(kamppi, { key: "Escape" });
+    expect(grid).toHaveFocus();
+    for (const key of ["F2", "Enter"]) {
+      fireEvent.keyDown(grid, { key });
+      expect(kamppi).toHaveFocus();
+      fireEvent.keyDown(kamppi, { key: "Escape" });
+    }
+  });
+
   it("marks each column the person cannot change with a lock named by its reason", async () => {
     const { source } = recorded();
     render(<EntityGrid config={configOf()} source={source} access={ACCESS} />);
