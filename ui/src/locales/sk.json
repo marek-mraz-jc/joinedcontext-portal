@@ -8018,7 +8018,7 @@
       "lead": "AI konektory všetkých ľudí: kam každý dosiahne, ktorým klientom odpovedá a koľko volaní mal a koľko bolo odmietnutých za posledný deň. Volania sa tu zobrazujú len ako počty, ich obsah nikdy.",
       "hidden": "Konektory všetkých ľudí vidí len administrátor organizácie. Vaše vlastné sú v Moje konektory.",
       "caption": "Konektory všetkých ľudí",
-      "filter": "Filter",
+      "filter": "Hľadať konektory",
       "filterHelp": "Názov konektora, jeho vlastník alebo klient, napr. jana alebo claude.ai",
       "state": "Stav",
       "stateHelp": "Aktívne konektory odpovedajú na volania; Odvolaný ukazuje, čo ukončil administrátor alebo odchod človeka",
@@ -8051,7 +8051,9 @@
       "empty": "Zatiaľ nikto nemá konektor",
       "emptyHint": "Človek si ho vytvorí v Moje konektory, aby používal platformu z Claude, ChatGPT alebo Claude Code; potom sa tu zobrazí s rozsahom a používaním.",
       "noMatch": "Filtru nezodpovedá žiadny konektor",
-      "noMatchHint": "Vymažte filter alebo zvoľte Každý stav a uvidíte aj odvolané a vypršané konektory."
+      "noMatchHint": "Vymažte filter alebo zvoľte Každý stav a uvidíte aj odvolané a vypršané konektory.",
+      "callsPerDay": "Volania za 24 hodín",
+      "denialsPerDay": "Odmietnuté za 24 hodín"
     }
   },
   "projectDelete": {

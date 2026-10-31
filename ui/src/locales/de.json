@@ -8018,7 +8018,7 @@
       "lead": "Die KI-Konnektoren aller Personen: was jeder erreicht, welchen Clients er antwortet und wie oft er am letzten Tag genutzt und abgewiesen wurde. Aufrufe erscheinen hier nur als Zahlen, ihr Inhalt nie.",
       "hidden": "Nur eine Administration der Organisation sieht die Konnektoren aller Personen. Ihre eigenen stehen unter Meine Konnektoren.",
       "caption": "Die Konnektoren aller Personen",
-      "filter": "Filter",
+      "filter": "Konnektoren suchen",
       "filterHelp": "Name eines Konnektors, seine Inhaberin oder ein Client, z. B. jana oder claude.ai",
       "state": "Status",
       "stateHelp": "Aktive Konnektoren beantworten Aufrufe; Widerrufen zeigt, was eine Administration oder ein Austritt beendet hat",
@@ -8051,7 +8051,9 @@
       "empty": "Noch niemand hat einen Konnektor",
       "emptyHint": "Eine Person legt ihn unter Meine Konnektoren an, um die Plattform aus Claude, ChatGPT oder Claude Code zu nutzen; dann erscheint er hier mit Umfang und Nutzung.",
       "noMatch": "Kein Konnektor passt zum Filter",
-      "noMatchHint": "Leeren Sie den Filter oder wählen Sie Jeder Status, um auch widerrufene und abgelaufene Konnektoren zu sehen."
+      "noMatchHint": "Leeren Sie den Filter oder wählen Sie Jeder Status, um auch widerrufene und abgelaufene Konnektoren zu sehen.",
+      "callsPerDay": "Aufrufe, letzte 24 Stunden",
+      "denialsPerDay": "Abgelehnt, letzte 24 Stunden"
     }
   },
   "projectDelete": {

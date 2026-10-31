@@ -8018,7 +8018,7 @@
       "lead": "Every person's AI connectors: what each may reach, which clients it answers, and how much it was used and refused in the last day. Calls show here only as counts; what a call carried never does.",
       "hidden": "Only an organization administrator sees every person's connectors. Your own are on My connectors.",
       "caption": "Every person's connectors",
-      "filter": "Filter",
+      "filter": "Search connectors",
       "filterHelp": "A connector's name, its owner or a client, e.g. jana or claude.ai",
       "state": "State",
       "stateHelp": "Active connectors answer calls; Revoked shows what an administrator or offboarding ended",
@@ -8051,7 +8051,9 @@
       "empty": "Nobody holds a connector yet",
       "emptyHint": "A person creates one on My connectors to use the platform from Claude, ChatGPT or Claude Code; it shows here with its scope and usage.",
       "noMatch": "No connector matches the filter",
-      "noMatchHint": "Clear the filter or pick Every state to see revoked and expired connectors."
+      "noMatchHint": "Clear the filter or pick Every state to see revoked and expired connectors.",
+      "callsPerDay": "Calls, last 24 hours",
+      "denialsPerDay": "Refused, last 24 hours"
     }
   },
   "projectDelete": {
