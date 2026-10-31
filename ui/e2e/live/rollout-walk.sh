@@ -55,6 +55,25 @@ if [ $(( now - seen_at )) -lt "$settle" ]; then
   exit 1
 fi
 
+# dev's last apply as the jc-release ConfigMap records it (deployment commit and appliedAt); empty
+# without a readable kubeconfig.
+kubeconfig=${WALK_KUBECONFIG:-/workspace/.secrets/kubeconfig-dev.yaml}
+release() {
+  [ -r "$kubeconfig" ] && KUBECONFIG=$kubeconfig kubectl get configmap jc-release -n "${WALK_NAMESPACE:-dev}" \
+    -o jsonpath='{.data.commit} {.data.appliedAt}' 2>/dev/null
+}
+release_before=$(release) || release_before=
+# T-6263: an apply that keeps the Portal commit restarts no clock above. The 21:15Z walk of 5fb4aa4
+# began 1-3 min after the full sync of deployment dfa8139a recorded jc-release, and one document load
+# of /projects/helsinki/settings/roles answered 502 (0 B, 31 ms), fine on retry. dev is walked once
+# its last apply is WALK_SETTLE_S old too; an unreadable record leaves the commit clock alone.
+read -r _ applied_at <<<"$release_before"
+applied_s=$(date -u -d "$applied_at" +%s 2>/dev/null) || applied_s=
+if [ -n "$applied_at" ] && [[ $applied_s =~ ^[0-9]+$ ]] && [ $(( now - applied_s )) -lt "$settle" ]; then
+  echo "rollout-walk: dev was applied $(( now - applied_s )) s ago ($release_before), under $settle s: walk of $sha deferred until the apply settles" >&2
+  exit 1
+fi
+
 # T-5993: Chromium makes its renderers the kernel OOM killer's first victims, so on a host short of
 # memory (workers linking ~6 GB test binaries beside the walk) every try of a commit met "Page
 # crashed" within the same 15 minutes and filed "wrote no report" for a Portal that was fine. Under
@@ -75,7 +94,6 @@ VIEWER_PASSWORD=$(awk '$1=="demo.viewer@hel.fi"{print $2}' "$users")
 # The steward signs in with TOTP (deployment T-5120): its seed is a third column of the users file or,
 # without one, Secret keycloak-user-demo-steward, key totp, read through the dev kubeconfig.
 PORTAL_TOTP=$(awk '$1=="demo.steward@hel.fi"{print $3}' "$users")
-kubeconfig=${WALK_KUBECONFIG:-/workspace/.secrets/kubeconfig-dev.yaml}
 if [ -z "$PORTAL_TOTP" ] && [ -r "$kubeconfig" ]; then
   PORTAL_TOTP=$(KUBECONFIG=$kubeconfig kubectl get secret keycloak-user-demo-steward -n "${WALK_NAMESPACE:-dev}" \
     -o jsonpath='{.data.totp}' 2>/dev/null | base64 -d 2>/dev/null || true)
@@ -88,13 +106,6 @@ work=$(mktemp -d)
 trap 'git -C "$repo" worktree remove --force "${work:?}/portal" >/dev/null 2>&1; rm -rf "${work:?}"' EXIT
 git -C "$repo" worktree add -q --detach "$work/portal" "$sha" || { echo "rollout-walk: $sha is not in $repo" >&2; exit 2; }
 mkdir -p "$dir"
-# dev's last apply as the jc-release ConfigMap records it (deployment commit and appliedAt); empty
-# without a readable kubeconfig.
-release() {
-  [ -r "$kubeconfig" ] && KUBECONFIG=$kubeconfig kubectl get configmap jc-release -n "${WALK_NAMESPACE:-dev}" \
-    -o jsonpath='{.data.commit} {.data.appliedAt}' 2>/dev/null
-}
-release_before=$(release) || release_before=
 run=$(date -u +%Y-%m-%dT%H:%MZ)
 echo "rollout-walk: walking portal $sha on $PORTAL_URL ($run)"
 # The steward walks, then the viewer, each with the whole cap. Side by side they shared one address
