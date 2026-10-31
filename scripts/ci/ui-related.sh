@@ -4,9 +4,11 @@
 # test files, and every test that reads the tree itself (the gate inventories, the locale and
 # control registries), which no import graph names. A deleted or renamed file runs the whole
 # suite: what imported it is no longer in any graph. A language catalogue (src/locales/<xx>.json)
-# is imported by i18n.ts, which every page reaches, so it stands for the keys it moved instead:
-# the sources and tests that name such a key (or its parent before a `${`), and the tests that
-# quote a text it changed. ci-full runs the whole suite every day.
+# is imported by i18n.ts, which every page reaches, so it stands for the tests that name a key
+# it added, dropped or changed (or its parent before a `${`) or quote a text it changed. A text
+# breaks only a test that asserts it (the suite keeps no snapshots), and the tree readers above
+# (i18n_used_keys among them) refuse a key a source still names. ci-full runs the whole suite
+# every day.
 #
 #   UI_SHARD=1/4 sh scripts/ci/ui-related.sh <base>   run them, that shard of them (ui/ installed)
 #   sh scripts/ci/ui-related.sh --list <base> print the vitest arguments only
@@ -36,10 +38,10 @@ moved() {
     }' | sort -u
 }
 
-# The files under src/ and tests/ that hold one of the patterns in the file $1.
+# The test files that hold one of the patterns in the file $1.
 users() {
   [ -s "$1" ] || return 0
-  grep -rlF -f "$1" --include='*.ts' --include='*.tsx' src tests || true
+  grep -rlF -f "$1" --include='*.test.ts' --include='*.test.tsx' src tests || true
 }
 
 # The vitest arguments for the paths (relative to ui/) on stdin: `all` for the whole suite, or
@@ -64,7 +66,8 @@ selftest() {
   grep -qxF '"Gone"' "$p" || { echo "ui-related selftest: a test quoting the old text is missed" >&2; exit 1; }
   ! grep -q 'kept\|Same' "$p" || { echo "ui-related selftest: an unchanged key runs its users" >&2; exit 1; }
   printf 'spaces.sizeMissing\n' >"$p"
-  users "$p" | grep -qx 'src/routes/SpacesPage.tsx' || { echo "ui-related selftest: the page using a key is missed" >&2; exit 1; }
+  users "$p" | grep -qx 'tests/page_spaces_page.test.tsx' || { echo "ui-related selftest: the test naming a key is missed" >&2; exit 1; }
+  ! users "$p" | grep -qvE '\.test\.tsx?$' || { echo "ui-related selftest: a source went to vitest related" >&2; exit 1; }
   : >"$a"
   [ -z "$(moved "$a" "$b")" ] || { echo "ui-related selftest: a catalogue that is no JSON gave keys" >&2; exit 1; }
   rm -f "$a" "$b" "$p"
