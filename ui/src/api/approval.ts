@@ -127,25 +127,3 @@ export function changedKind(change: { summary: { params: unknown } }): string {
   return typeof kind === "string" && kind !== "" ? kind : "*";
 }
 
-/** What proposing a change of one kind leads to for the caller (PF-58, PF-70). */
-export type ProposeStanding = "approvedOnPropose" | "approveNotDelete" | "secondApprover" | null;
-
-/**
- * Whether the caller's change of `kind` is approved as they propose it: a binding grants them
- * `approve` and `delete` on it (PF-58). An approver without `delete`, a steward, proposes a change
- * that waits for another approver (PF-70); anyone without `approve` hears nothing new. The
- * bootstrap group is not a binding and counts for neither. An access kind or a DataModel always waits for a
- * second approver (PF-58, T-4833, T-4830). A convenience; the API decides.
- */
-export function proposeStanding(effective: Effective | undefined, kind: string): ProposeStanding {
-  if (!effective || !Array.isArray(effective.grants) || effective.bootstrap === true) {
-    return null;
-  }
-  if (!allows(effective, kind, "approve")) {
-    return null;
-  }
-  if (needsSecondPerson(kind)) {
-    return "secondApprover";
-  }
-  return allows(effective, kind, "delete") ? "approvedOnPropose" : "approveNotDelete";
-}

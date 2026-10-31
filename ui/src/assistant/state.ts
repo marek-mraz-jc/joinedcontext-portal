@@ -330,13 +330,6 @@ export function standingIn(form: FormContext | null): void {
   openForm = form;
 }
 
-/** Which field of the open form the person is in, as they move through it. */
-export function inField(field: string | undefined): void {
-  if (openForm) {
-    openForm = { ...openForm, field };
-  }
-}
-
 /** What to send with the next question, or `undefined` when no form is open. */
 export function formContext(): FormContext | undefined {
   if (!openForm || (!openForm.kind && !openForm.name && !openForm.field)) {

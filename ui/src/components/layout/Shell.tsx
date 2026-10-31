@@ -458,6 +458,39 @@ export function addressItem(pathname: string): { itemName?: string; spacePage?: 
   return segments[3] === "new" ? { creating: true } : { itemName: segments[3] };
 }
 
+/**
+ * The crumb of a page outside the sections; one model's page (or its editor) links back to Data
+ * models and names the model (owner 2026-10-31). `model` is "" for a new model, undefined elsewhere.
+ */
+export function OtherPageCrumb({ project, label, model }: { project: string; label: string; model: string | undefined }) {
+  if (model === undefined) {
+    return (
+      <span aria-current="page" className="font-medium text-fg">
+        {label}
+      </span>
+    );
+  }
+  return (
+    <>
+      <Link
+        to="/projects/$project/models"
+        params={{ project }}
+        className="focus-ring touch-target rounded-sm hover:text-fg hover:underline"
+      >
+        {label}
+      </Link>
+      {model ? (
+        <>
+          <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
+          <span aria-current="page" className="font-mono font-medium text-fg">
+            {model}
+          </span>
+        </>
+      ) : null}
+    </>
+  );
+}
+
 export function Shell({
   project,
   fill = false,
@@ -987,30 +1020,11 @@ export function Shell({
                   {!activeSection && otherPage ? (
                     <li className="flex items-center gap-1">
                       <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
-                      {/* One model's page: Data models leads back to the list (owner 2026-10-31). */}
-                      {modelsActive && (itemName || editingModel !== undefined) ? (
-                        <>
-                          <Link
-                            to="/projects/$project/models"
-                            params={{ project }}
-                            className="focus-ring touch-target rounded-sm hover:text-fg hover:underline"
-                          >
-                            {t(otherPage)}
-                          </Link>
-                          {itemName || editingModel ? (
-                            <>
-                              <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
-                              <span aria-current="page" className="font-mono font-medium text-fg">
-                                {itemName || editingModel}
-                              </span>
-                            </>
-                          ) : null}
-                        </>
-                      ) : (
-                        <span aria-current="page" className="font-medium text-fg">
-                          {t(otherPage)}
-                        </span>
-                      )}
+                      <OtherPageCrumb
+                        project={project}
+                        label={t(otherPage)}
+                        model={modelsActive && (itemName !== undefined || editingModel !== undefined) ? (itemName ?? editingModel ?? "") : undefined}
+                      />
                     </li>
                   ) : null}
                 </ol>

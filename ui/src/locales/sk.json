@@ -464,9 +464,6 @@
   "changes": {
     "accepted": "Navrhnuté ako zmena:",
     "review": "Otvoriť v Schvaľovaní",
-    "approvedOnPropose": "Po navrhnutí sa schváli: {kind} môžete schvaľovať aj mazať.",
-    "approveNotDelete": "Počká na schvaľovateľa: {kind} môžete schvaľovať, ale nie mazať.",
-    "secondApprover": "Počká na druhého administrátora: vlastnú zmenu {kind} neschválite, schváli ju iná osoba, ktorá ich smie schvaľovať.",
     "approvedAsProposed": "Schválené pri navrhnutí, nasadzuje sa:",
     "open": "Otvoriť zmenu"
   },
