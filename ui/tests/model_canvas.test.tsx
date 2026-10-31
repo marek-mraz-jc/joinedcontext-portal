@@ -374,3 +374,19 @@ describe("the canvas drawing (UI judge fixes)", () => {
     }
   });
 });
+
+describe("the overlay pick's how-to (T-6188)", () => {
+  it("opens on hover and closes on leave, with the text under the id the select reads", async () => {
+    const { OverlayHelp } = await import("../src/pages/models/ModelCanvas");
+    const { render } = await import("@testing-library/react");
+    render(<OverlayHelp id="overlay-hint" label="How the overlay works" hint="Pick an Endpoint" />);
+    const help = screen.getByRole("button", { name: "How the overlay works" });
+    const tip = screen.getByRole("tooltip", { hidden: true });
+    expect(tip).toHaveAttribute("id", "overlay-hint");
+    expect(help).toHaveAttribute("aria-describedby", "overlay-hint");
+    await userEvent.hover(help);
+    expect(tip).not.toHaveClass("sr-only");
+    await userEvent.unhover(help);
+    expect(tip).toHaveClass("sr-only");
+  });
+});

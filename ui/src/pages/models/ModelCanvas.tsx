@@ -111,10 +111,8 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
   const [selected, setSelected] = useState<string>();
   const [area, setArea] = useState<string>(MAIN_AREA);
   const [diagramOnPhone, setDiagramOnPhone] = useState(false);
-  const [hintOpen, setHintOpen] = useState(false);
   const hintId = useId();
-  const details = useRef<HTMLHeadingElement>(null);
-  const diagram = useRef<HTMLElement>(null);
+  const { details, diagram, open, backToDiagram } = useDetailsInView(setSelected);
 
   const parsed = useMemo(() => {
     const own = parseModel(source.data ?? "");
@@ -165,17 +163,6 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
   const resetLayout = () => {
     savePositions(key, {});
     setPositions({});
-  };
-
-  // Where the details sit under the drawing or the list (below lg), a pressed class brings them into view
-  // and takes the focus there: on the phone canvas a press changed a panel a screen's height away (T-6164).
-  const open = (klass: string) => {
-    setSelected(klass);
-    if (typeof window === "undefined" || window.matchMedia?.("(min-width: 1024px)").matches !== false) return;
-    window.requestAnimationFrame(() => {
-      details.current?.scrollIntoView?.({ block: "start" });
-      details.current?.focus({ preventScroll: true });
-    });
   };
 
   const back = (
@@ -231,41 +218,7 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
                 one line. The text stays in the document for the select's aria-describedby. An empty pick
                 keeps its next step in sight below. */}
             {ofSpace.length > 0 ? (
-              <>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  data-testid="model-canvas-overlay-help"
-                  aria-label={t("models.canvas.overlayHelp")}
-                  title={t("models.canvas.overlayHelp")}
-                  aria-describedby={hintId}
-                  aria-expanded={hintOpen}
-                  className="px-1 text-fg-muted"
-                  onClick={() => setHintOpen(true)}
-                  onMouseEnter={() => setHintOpen(true)}
-                  onMouseLeave={() => setHintOpen(false)}
-                  onBlur={() => setHintOpen(false)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape" && hintOpen) {
-                      event.stopPropagation();
-                      setHintOpen(false);
-                    }
-                  }}
-                >
-                  <Icon name="help" className="size-4" aria-hidden="true" />
-                </Button>
-                <span
-                  id={hintId}
-                  role="tooltip"
-                  className={
-                    hintOpen
-                      ? "absolute left-0 top-full z-50 mt-1 w-72 rounded-md border border-border bg-surface p-2 text-caption font-normal text-fg shadow-2"
-                      : "sr-only"
-                  }
-                >
-                  {t("models.canvas.overlayHint")}
-                </span>
-              </>
+              <OverlayHelp id={hintId} label={t("models.canvas.overlayHelp")} hint={t("models.canvas.overlayHint")} />
             ) : null}
           </div>
           <div className="w-full sm:w-72">
@@ -371,7 +324,7 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
           </h2>
           {picked && diagramOnPhone ? (
             // The press scrolled the drawing away: one press takes the phone back to it (T-6164 UI judge).
-            <Button size="sm" variant="secondary" className="self-start sm:hidden" onClick={() => diagram.current?.scrollIntoView?.({ block: "start" })}>
+            <Button size="sm" variant="secondary" className="self-start sm:hidden" onClick={backToDiagram}>
               {t("models.canvas.backToDiagram")}
             </Button>
           ) : null}
@@ -576,4 +529,70 @@ function ClassDetails({
       </section>
     </>
   );
+}
+
+/**
+ * The how-to of the overlay pick: a "?" beside the label that shows `hint` on hover, press or
+ * keyboard focus, and Escape closes. The text stays in the document under `id`, so the select's
+ * aria-describedby reads it while it is closed (T-6164).
+ */
+export function OverlayHelp({ id, label, hint }: { id: string; label: string; hint: string }): JSX.Element {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="xs"
+        data-testid="model-canvas-overlay-help"
+        aria-label={label}
+        title={label}
+        aria-describedby={id}
+        aria-expanded={open}
+        className="px-1 text-fg-muted"
+        onClick={() => setOpen(true)}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && open) {
+            event.stopPropagation();
+            setOpen(false);
+          }
+        }}
+      >
+        <Icon name="help" className="size-4" aria-hidden="true" />
+      </Button>
+      <span
+        id={id}
+        role="tooltip"
+        className={
+          open
+            ? "absolute left-0 top-full z-50 mt-1 w-72 rounded-md border border-border bg-surface p-2 text-caption font-normal text-fg shadow-2"
+            : "sr-only"
+        }
+      >
+        {hint}
+      </span>
+    </>
+  );
+}
+
+/**
+ * Where the details sit under the drawing or the list (below lg), a pressed class brings them into
+ * view and takes the focus there: on the phone canvas a press changed a panel a screen's height away.
+ * `backToDiagram` is the one press that takes the phone back to the drawing (T-6164).
+ */
+export function useDetailsInView(select: (klass: string) => void) {
+  const details = useRef<HTMLHeadingElement>(null);
+  const diagram = useRef<HTMLElement>(null);
+  const open = (klass: string) => {
+    select(klass);
+    if (typeof window === "undefined" || window.matchMedia?.("(min-width: 1024px)").matches !== false) return;
+    window.requestAnimationFrame(() => {
+      details.current?.scrollIntoView?.({ block: "start" });
+      details.current?.focus({ preventScroll: true });
+    });
+  };
+  const backToDiagram = () => diagram.current?.scrollIntoView?.({ block: "start" });
+  return { details, diagram, open, backToDiagram };
 }
