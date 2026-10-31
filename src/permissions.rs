@@ -364,7 +364,9 @@ impl Effective {
         let mut violation: Option<String> = None;
         for grant in &self.grants {
             let rule = &grant.rule;
-            if !rule.kinds.iter().any(|k| k == kind) || !rule.verbs.contains(&verb) {
+            // `Rule::grants`, so `propose` holds `read` here as `may` says it does: org-admin
+            // lists no `read` on RoleBinding and still reads a project's members (T-6266, PF-59).
+            if !rule.grants(kind, verb) {
                 continue;
             }
             // The build lane's rule writes `status.build` and authorizes no other proposal: its
@@ -2018,5 +2020,38 @@ mod tests {
             serde_json::from_value(serde_json::json!([{ "group": "nobody" }, { "user": "  " }]))
                 .expect("subjects");
         assert!(people_of(&groups, &subjects).is_empty());
+    }
+
+    #[test]
+    fn a_project_scoped_administrator_reads_what_its_role_proposes_and_nothing_elsewhere() {
+        let mirror = Mirror::new();
+        mirror.upsert(org(
+            "Role",
+            "org-admin",
+            serde_json::json!({ "rules": [{ "kinds": ["RoleBinding", "Pipeline"],
+                                            "verbs": ["propose", "approve", "delete"] }] }),
+        ));
+        mirror.upsert(org(
+            "RoleBinding",
+            "owner",
+            serde_json::json!({ "subjects": [{ "user": "owner@hel.fi" }], "role": "org-admin",
+                                "scope": { "project": "t-full" } }),
+        ));
+        let owner = Identity {
+            client: None,
+            subject: "sub-owner".to_owned(),
+            username: "owner".to_owned(),
+            email: Some("owner@hel.fi".to_owned()),
+            name: None,
+            roles: Vec::new(),
+            groups: Vec::new(),
+            second_factor: false,
+        };
+        let at = |project: &str| effective(&mirror, "no-bootstrap", &owner, project, Utc::now());
+        // `jc_member_list` asks read on RoleBinding: propose implies it, as `may` already says.
+        assert!(at("t-full").check("RoleBinding", Verb::Read, None).is_ok());
+        assert!(at("t-full").check("Pipeline", Verb::Propose, None).is_ok());
+        assert!(at("t-full").check("Endpoint", Verb::Read, None).is_err());
+        assert!(at("espoo").check("RoleBinding", Verb::Read, None).is_err());
     }
 }

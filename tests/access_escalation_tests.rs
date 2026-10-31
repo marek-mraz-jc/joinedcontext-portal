@@ -876,3 +876,49 @@ async fn a_project_role_is_read_through_the_operations_beside_the_organizations(
     assert!(!names.contains(&"air-analyst"), "{answer}");
     assert!(names.contains(&"org-admin"), "{answer}");
 }
+
+#[tokio::test]
+async fn a_project_role_sent_without_a_namespace_is_judged_in_its_project() {
+    let gitea = forge().await;
+    let state = state_with(&gitea);
+    // T-6266: org-admin scoped to the helsinki project, as a project's opener holds it.
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "owner-org-admin",
+        ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": "owner@hel.fi" }], "role": "org-admin",
+                "scope": project("helsinki") }),
+    ));
+    let mut analyst = role(
+        "analyst",
+        json!([
+            { "kinds": ["Endpoint"], "verbs": ["read"] },
+            { "kinds": ["Pipeline"], "verbs": ["read", "propose", "approve"] }
+        ]),
+    );
+    analyst["metadata"]
+        .as_object_mut()
+        .expect("metadata")
+        .remove("namespace");
+    let roles = "/api/v1/projects/helsinki/roles?dryRun=All";
+    let answer = send(
+        &state,
+        person("owner"),
+        "POST",
+        roles,
+        Some(analyst.clone()),
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+
+    // The same administrator holds nothing in espoo, so a role there is still refused.
+    let answer = send(
+        &state,
+        person("owner"),
+        "POST",
+        "/api/v1/projects/espoo/roles?dryRun=All",
+        Some(analyst),
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text);
+}
