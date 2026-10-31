@@ -806,7 +806,10 @@ mod tests {
                 "{kind}: {fields}"
             );
             assert_eq!(answer["required"][0], "apiVersion", "{kind}");
-            let example = answer["example"].to_string();
+            // An Endpoint's example leaves its slug out: every write door mints it (EP-75).
+            let mut example = answer["example"].clone();
+            crate::endpoint_slug::settle(None, None, false, &mut example).expect("minted");
+            let example = example.to_string();
             let checked = jc_core::registry::validate_yaml(kind, &example).expect("registered");
             assert!(checked.is_ok(), "{kind}: {checked:?} for {example}");
         }
