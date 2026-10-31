@@ -2121,7 +2121,7 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
     };
     let portal = |persona: &str| harness.token_for(persona, AUDIENCE, AUDIENCE);
     let (status, a) = harness
-        .send(
+        .send_edge(
             "POST",
             "/api/v1/connectors",
             portal("viewer"),
@@ -2130,7 +2130,7 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
         .await;
     assert_eq!(status, StatusCode::CREATED, "{a}");
     let (_, b) = harness
-        .send(
+        .send_edge(
             "POST",
             "/api/v1/connectors",
             portal("viewer"),
@@ -2149,7 +2149,7 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
     let (status, body) = harness
-        .send(
+        .send_edge(
             "POST",
             "/api/v1/connectors?dryRun=All",
             portal("viewer"),
@@ -2376,7 +2376,7 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     let (status, _) = harness
-        .send(
+        .send_edge(
             "DELETE",
             &format!("/api/v1/connectors/{a}"),
             portal("steward"),
@@ -2505,7 +2505,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
     let mut refusals = Vec::new();
     for endpoint in [format!("{own}-counters"), "no-such-endpoint".to_owned()] {
         let (status, body) = harness
-            .send(
+            .send_edge(
                 "POST",
                 "/api/v1/connectors",
                 portal.clone(),
@@ -2525,7 +2525,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
         "an unreadable Endpoint reads like a missing one"
     );
     let (status, body) = harness
-        .send(
+        .send_edge(
             "POST",
             "/api/v1/connectors",
             portal.clone(),
@@ -2539,7 +2539,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
     // An edit is checked as a create is: another space's Endpoint is refused naming the field,
     // a whole project the owner reads and a later expiry pass; the name stays.
     let (status, refused) = harness
-        .send(
+        .send_edge(
             "PATCH",
             &door,
             portal.clone(),
@@ -2549,7 +2549,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{refused}");
     assert_eq!(refused["errors"][0]["path"], json!("scope[0].endpoint"));
     let (status, refused) = harness
-        .send(
+        .send_edge(
             "PATCH",
             &door,
             portal.clone(),
@@ -2558,7 +2558,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "{refused}");
     let (status, refused) = harness
-        .send(
+        .send_edge(
             "PATCH",
             &door,
             portal.clone(),
@@ -2568,7 +2568,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
     assert_eq!(status, StatusCode::BAD_REQUEST, "{refused}");
     let later = (chrono::Utc::now() + chrono::Duration::days(20)).to_rfc3339();
     let (status, edited) = harness
-        .send(
+        .send_edge(
             "PATCH",
             &door,
             portal.clone(),
@@ -2585,7 +2585,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
     );
     // Another person's connector is the same 404 as none; a revoked one is not edited.
     let (status, _) = harness
-        .send(
+        .send_edge(
             "PATCH",
             &door,
             harness.token_for("steward", AUDIENCE, AUDIENCE),
@@ -2593,10 +2593,12 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
         )
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
-    let (status, _) = harness.send("DELETE", &door, portal.clone(), None).await;
+    let (status, _) = harness
+        .send_edge("DELETE", &door, portal.clone(), None)
+        .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     let (status, _) = harness
-        .send(
+        .send_edge(
             "PATCH",
             &door,
             portal.clone(),
@@ -2897,7 +2899,7 @@ async fn an_apply_through_a_connector_signs_its_commit_and_the_activity_filters_
     let ask = json!({ "name": "doprava-in-claude", "segments": ["context"], "writes": true,
                       "scope": [{ "project": own, "access": "write" }], "expiresAt": expires });
     let (status, made) = harness
-        .send("POST", "/api/v1/connectors", portal.clone(), Some(ask))
+        .send_edge("POST", "/api/v1/connectors", portal.clone(), Some(ask))
         .await;
     assert_eq!(status, StatusCode::CREATED, "{made}");
     let id = made["id"].as_str().expect("id").to_owned();
@@ -3012,7 +3014,7 @@ async fn a_flood_hits_429_at_the_connector_and_then_the_person_limit() {
         let ask = json!({ "name": name, "segments": ["data-read"],
                           "scope": [{ "project": own, "access": "read" }], "expiresAt": expires });
         let (status, made) = harness
-            .send("POST", "/api/v1/connectors", portal.clone(), Some(ask))
+            .send_edge("POST", "/api/v1/connectors", portal.clone(), Some(ask))
             .await;
         assert_eq!(status, StatusCode::CREATED, "{made}");
         assert_eq!(
@@ -3210,7 +3212,7 @@ async fn the_overview_flags_a_refused_connector_and_an_administrator_alone_revok
     let portal = |persona: &str| harness.token_for(persona, AUDIENCE, AUDIENCE);
     let expires = (chrono::Utc::now() + chrono::Duration::days(7)).to_rfc3339();
     let (status, made) = harness
-        .send(
+        .send_edge(
             "POST",
             "/api/v1/connectors",
             portal("viewer"),
