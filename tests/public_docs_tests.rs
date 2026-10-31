@@ -148,7 +148,10 @@ async fn a_visitor_without_a_session_reads_no_page() {
         "/login?redirect_to=%2Fdocs%2FUser-Guide%2F01-getting-started%3Fx%3D1"
     );
     assert_eq!(
-        response.headers().get(header::CACHE_CONTROL).expect("cache"),
+        response
+            .headers()
+            .get(header::CACHE_CONTROL)
+            .expect("cache"),
         "no-store"
     );
 
@@ -168,7 +171,11 @@ async fn a_visitor_without_a_session_reads_no_page() {
         .body(Body::empty())
         .expect("request");
     let (status, _, _) = answer(Config::for_tests(), forged).await;
-    assert_eq!(status, StatusCode::UNAUTHORIZED, "a bad token is no session");
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "a bad token is no session"
+    );
 }
 
 /// The page depends on the session now: no shared cache may keep it for the next visitor.
@@ -187,7 +194,10 @@ async fn a_page_is_cached_privately_only() {
         .expect("response");
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
-        response.headers().get(header::CACHE_CONTROL).expect("cache"),
+        response
+            .headers()
+            .get(header::CACHE_CONTROL)
+            .expect("cache"),
         "private, max-age=300"
     );
 }
