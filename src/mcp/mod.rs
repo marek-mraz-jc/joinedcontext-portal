@@ -681,6 +681,34 @@ async fn tools_call(
     envelope
 }
 
+/// The project a call is about, from its arguments or its params. It goes into the question's
+/// page address and text, so it is a project name, also for an operation that ignores it
+/// (jc_project_create, F-R2POR4-012).
+fn called_project<'a>(
+    arguments: &'a Value,
+    params: &'a Value,
+) -> Result<&'a str, crate::ops::OpError> {
+    let project = arguments
+        .get("project")
+        .and_then(Value::as_str)
+        .or_else(|| params.get("project").and_then(Value::as_str))
+        .filter(|p| !p.trim().is_empty())
+        .ok_or_else(|| {
+            crate::ops::OpError::Api(ApiError::Invalid {
+                detail: "missing required argument: project".to_owned(),
+                errors: vec!["project: name the project the call is about".to_owned()],
+            })
+        })?;
+    if !crate::resource::is_dns1123(project) {
+        return Err(crate::ops::OpError::InvalidInput {
+            path: "/project".to_owned(),
+            message: "a project name is lower-case letters, digits and '-', such as doprava"
+                .to_owned(),
+        });
+    }
+    Ok(project)
+}
+
 async fn answer_call(
     state: &AppState,
     caller: crate::ops::Caller,
@@ -694,32 +722,10 @@ async fn answer_call(
         .get("arguments")
         .cloned()
         .unwrap_or_else(|| json!({}));
-    let project = arguments
-        .get("project")
-        .and_then(Value::as_str)
-        .or_else(|| params.get("project").and_then(Value::as_str));
-
-    let Some(project) = project.filter(|p| !p.trim().is_empty()) else {
-        return result(
-            id,
-            problem_result(crate::ops::OpError::Api(ApiError::Invalid {
-                detail: "missing required argument: project".to_owned(),
-                errors: vec!["project: name the project the call is about".to_owned()],
-            })),
-        );
+    let project = match called_project(&arguments, params) {
+        Ok(project) => project,
+        Err(refused) => return result(id, problem_result(refused)),
     };
-    // The project goes into the question's page address and text (F-R2POR4-012), and an
-    // operation that ignores it (jc_project_create) would carry any text there.
-    if !crate::resource::is_dns1123(project) {
-        return result(
-            id,
-            problem_result(crate::ops::OpError::InvalidInput {
-                path: "/project".to_owned(),
-                message: "a project name is lower-case letters, digits and '-', such as doprava"
-                    .to_owned(),
-            }),
-        );
-    }
 
     let Some(op) = crate::ops::find(name) else {
         return error(id, -32602, "unknown tool");

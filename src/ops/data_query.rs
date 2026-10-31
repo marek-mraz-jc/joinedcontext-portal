@@ -424,7 +424,7 @@ async fn run(
         .get("ngsild-results-count")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<u64>().ok());
-    let bytes = page_of(answer).await?;
+    let bytes = capped_page(answer).await?;
     let body: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
     refusal_of(status, input.temporal.is_some(), name, &slug, &body)?;
     answer_of(&input, body, total)
@@ -432,7 +432,7 @@ async fn run(
 
 /// The gateway's page, read to [`MAX_BODY`]: a larger one is refused at the first byte past the
 /// cap, never held whole first (F-R2POR4-009).
-async fn page_of(answer: reqwest::Response) -> Result<Vec<u8>, OpError> {
+async fn capped_page(answer: reqwest::Response) -> Result<Vec<u8>, OpError> {
     jc_core::outbound::read_capped(answer, MAX_BODY)
         .await
         .map_err(|err| match err {
@@ -478,13 +478,15 @@ mod tests {
     async fn a_page_past_the_cap_is_refused_at_limit() {
         let page =
             |size: usize| reqwest::Response::from(axum::http::Response::new(vec![b' '; size]));
-        let refused = page_of(page(MAX_BODY + 1)).await.expect_err("past the cap");
+        let refused = capped_page(page(MAX_BODY + 1))
+            .await
+            .expect_err("past the cap");
         assert!(
             matches!(&refused, OpError::InvalidInput { path, .. } if path == "/limit"),
             "{refused}"
         );
         assert_eq!(
-            page_of(page(MAX_BODY)).await.expect("at the cap").len(),
+            capped_page(page(MAX_BODY)).await.expect("at the cap").len(),
             MAX_BODY
         );
     }
