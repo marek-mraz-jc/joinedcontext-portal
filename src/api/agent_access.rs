@@ -317,11 +317,7 @@ pub fn spawn_grant_reaper(state: AppState) {
         let mut tried = std::collections::HashMap::new();
         loop {
             every_minute.tick().await;
-            if state
-                .syncer
-                .as_ref()
-                .is_some_and(|syncer| !syncer.is_leader())
-            {
+            if !state.leads() {
                 continue;
             }
             reap_expired_grants(&state, chrono::Utc::now(), &mut tried).await;

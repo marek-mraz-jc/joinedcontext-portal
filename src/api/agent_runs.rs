@@ -33,7 +33,7 @@ use crate::agents::run::{
 };
 use crate::agents::store::{now_rfc3339, StatusChangeError, StoreError};
 use crate::agents::{kit, oneshot, preview, repository, transpile};
-use crate::auth::session::{Front, EDGE_TOKEN_HEADER};
+use crate::auth::session::Front;
 use crate::auth::CurrentUser;
 use crate::config::AgentSettings;
 use crate::error::{ApiError, ProblemDetails};
@@ -1584,17 +1584,10 @@ pub(crate) fn is_function_name(name: &str) -> bool {
 
 /// The access token the request was authenticated with: a bearer or the edge's. A Portal cookie
 /// session keeps none, so its function calls reach the endpoint anonymously (API/04 §5).
+/// Read as [`crate::agents::identity::persons_token`] reads it (F-R2POR1-015).
 pub(crate) fn caller_token(state: &AppState, headers: &HeaderMap) -> Option<String> {
-    let token = match Front::of(headers, state.config.trust_edge_token) {
-        Front::Bearer => headers
-            .get(header::AUTHORIZATION)?
-            .to_str()
-            .ok()?
-            .strip_prefix("Bearer ")?,
-        Front::Edge => headers.get(&EDGE_TOKEN_HEADER)?.to_str().ok()?,
-        Front::Portal => return None,
-    };
-    Some(token.to_owned())
+    crate::agents::identity::persons_token(headers, state.config.trust_edge_token)
+        .map(str::to_owned)
 }
 
 #[utoipa::path(
@@ -3141,6 +3134,11 @@ mod tests {
         );
         assert_eq!(
             caller_token(&state, &edge(&[("authorization", "Basic abc")])),
+            None
+        );
+        // F-R2POR1-015 (T-6225): read as persons_token reads it, an empty bearer is no token.
+        assert_eq!(
+            caller_token(&state, &edge(&[("authorization", "Bearer    ")])),
             None
         );
         config.trust_edge_token = true;

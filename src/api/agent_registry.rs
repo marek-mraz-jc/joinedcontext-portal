@@ -226,7 +226,7 @@ fn manifest_item(state: &AppState, env: &ResourceEnvelope, runs: &[AgentRun]) ->
     AgentItem {
         kind: env.kind.clone(),
         name: env.metadata.name.clone(),
-        title: title_of(spec),
+        title: crate::resource::title_text(&spec["title"]),
         owner: manifest_owner(spec, &project),
         acts_as: manifest_acts_as(&env.kind, spec),
         spaces: spaces.into_iter().collect(),
@@ -364,18 +364,6 @@ fn role_spaces(spec: &Value) -> Vec<String> {
         .collect()
 }
 
-fn title_of(spec: &Value) -> Option<String> {
-    match &spec["title"] {
-        Value::String(text) => Some(text.clone()),
-        Value::Object(by_language) => by_language
-            .get("en")
-            .or_else(|| by_language.values().next())
-            .and_then(Value::as_str)
-            .map(str::to_owned),
-        _ => None,
-    }
-}
-
 fn manifest_owner(spec: &Value, project: &str) -> Owner {
     match spec.pointer("/owner/user").and_then(Value::as_str) {
         Some(user) => Owner {
@@ -481,20 +469,6 @@ mod tests {
                 name: "helsinki".into()
             }
         );
-    }
-
-    #[test]
-    fn a_title_is_read_plain_or_by_language() {
-        assert_eq!(title_of(&json!({"title": "Chat"})), Some("Chat".into()));
-        assert_eq!(
-            title_of(&json!({"title": {"sk": "Čet", "en": "Chat"}})),
-            Some("Chat".into())
-        );
-        assert_eq!(
-            title_of(&json!({"title": {"sk": "Čet"}})),
-            Some("Čet".into())
-        );
-        assert_eq!(title_of(&json!({})), None);
     }
 
     #[test]

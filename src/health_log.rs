@@ -17,7 +17,8 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::alerts::{chrono_of, rfc3339, stamp_of, Event, Signal};
+use crate::activity::{chrono_to_odt, odt_to_chrono};
+use crate::alerts::{rfc3339, Event, Signal};
 use crate::resource::{Condition, Phase, ResourceEnvelope};
 use crate::store::Mirror;
 
@@ -735,7 +736,7 @@ impl HealthStore {
             Inner::Postgres(pool) => pool,
         };
         let column = |f: fn(&Finding) -> String| findings.iter().map(f).collect::<Vec<_>>();
-        let at = stamp_of(now);
+        let at = chrono_to_odt(now);
         let mut tx = pool.begin().await?;
         sqlx::query(
             "INSERT INTO health_check AS h (project, kind, name, \"check\", status, since, last_ok, \
@@ -835,7 +836,7 @@ impl HealthStore {
                      WHERE $1::text IS NULL OR h.project = $1",
                 )
                 .bind(project)
-                .bind(stamp_of(from))
+                .bind(chrono_to_odt(from))
                 .fetch_all(pool)
                 .await?;
                 rows.into_iter()
@@ -846,9 +847,9 @@ impl HealthStore {
                             name: row.2,
                             check: row.3,
                             status: Status::parse(&row.4),
-                            since: rfc3339(chrono_of(row.5)),
-                            last_ok: row.6.map(|at| rfc3339(chrono_of(at))),
-                            checked_at: rfc3339(chrono_of(row.7)),
+                            since: rfc3339(odt_to_chrono(row.5)),
+                            last_ok: row.6.map(|at| rfc3339(odt_to_chrono(at))),
+                            checked_at: rfc3339(odt_to_chrono(row.7)),
                             detail: Text::from_columns(row.8, &row.13),
                             fix: Text::from_columns(row.9, &row.14),
                             evidence_url: row.10,
@@ -857,7 +858,7 @@ impl HealthStore {
                                 .into_iter()
                                 .zip(row.12)
                                 .map(|(at, status)| Point {
-                                    at: rfc3339(chrono_of(at)),
+                                    at: rfc3339(odt_to_chrono(at)),
                                     status: Status::parse(&status),
                                 })
                                 .collect(),
