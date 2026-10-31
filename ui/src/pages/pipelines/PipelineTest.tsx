@@ -201,6 +201,16 @@ export function draftFromRecord(
   }
   const idColumn = idColumnOf(columns);
   const path = (column: string) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(column) ? `this.${column}` : `this.${JSON.stringify(column)}`);
+  // Two columns that fold to one property name (`a-b`, `a b`) each keep their own: `a_b`, `a_b_2`
+  // (F-R2UI4-016).
+  const taken = new Set<string>();
+  const propertyOf = (column: string) => {
+    const base = column.replace(/[^A-Za-z0-9_]/g, "_");
+    let property = base;
+    for (let n = 2; taken.has(property); n += 1) property = `${base}_${n}`;
+    taken.add(property);
+    return property;
+  };
   const lines = [
     `# drafted from ${name}: ${columns.length} columns, id from ${idColumn} (PL-44)`,
     `let domain = env("JC_ORG_DOMAIN")`,
@@ -210,7 +220,7 @@ export function draftFromRecord(
       .filter((column) => column !== idColumn && column !== "type")
       .map((column) => {
         const value = isNumeric(record[column]) ? `${path(column)}.number().catch(${path(column)})` : path(column);
-        const property = column.replace(/[^A-Za-z0-9_]/g, "_");
+        const property = propertyOf(column);
         return `root.${property} = { "type": "Property", "value": ${value} }`;
       }),
     "",

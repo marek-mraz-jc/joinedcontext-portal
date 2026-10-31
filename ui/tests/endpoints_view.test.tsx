@@ -287,6 +287,17 @@ describe("endpoints view", () => {
     expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/api/endpoint/${SLUG}`);
   });
 
+  it("reads what only the form needs when the form opens, not on the list (F-R2UI4-012)", async () => {
+    const fetchMock = renderEndpoints();
+    await screen.findByText("public-air");
+    const formOnly = /\/(organizations|pipelines|ckaninstances|datamodels)$/;
+    const asked = () => fetchMock.mock.calls.map((call) => callOf(call[0], call[1]).url.pathname).filter((path) => formOnly.test(path));
+    expect(asked()).toEqual([]);
+    await userEvent.click(await screen.findByRole("button", { name: en.endpoints.add }));
+    await findFormPage();
+    await waitFor(() => expect(new Set(asked().map((path) => path.split("/").pop()))).toEqual(new Set(["organizations", "pipelines", "ckaninstances", "datamodels"])));
+  });
+
   it("shows read-only slug and public URL for a new endpoint", async () => {
     renderEndpoints();
 
@@ -295,7 +306,8 @@ describe("endpoints view", () => {
     const slugCode = within(dialog).getByTestId("endpoint-slug");
     expect(slugCode.textContent).toMatch(new RegExp(SLUG_PATTERN));
     const urlCode = within(dialog).getByTestId("endpoint-url");
-    expect(urlCode.textContent).toContain(slugCode.textContent!);
+    // The shown address is the copied one, built once (F-R2UI4-015).
+    expect(urlCode.textContent).toBe(`${window.location.origin}/api/endpoint/${slugCode.textContent!}`);
   });
 
   it("proposes an added representation on an existing endpoint (DEMO step 7)", async () => {

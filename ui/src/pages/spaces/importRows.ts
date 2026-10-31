@@ -10,6 +10,7 @@
  */
 import { classSlots, importName, parseModel } from "../models/linkml";
 import type { LinkmlClass, NgsiLdKind } from "../models/linkml";
+import { ENTITY_ID } from "./formView";
 
 /** A file read into rows of text, numbers and flags, keyed by its column names. */
 export interface Table {
@@ -349,6 +350,9 @@ export function parseXml(text: string): Table {
   };
 }
 
+/** The entries a sheet is read from: its shared strings and its worksheets. */
+const WORKBOOK_PARTS = /^xl\/(sharedStrings|worksheets\/sheet\d+)\.xml$/;
+
 /** The entries of a ZIP archive by name, read from its central directory (stored or deflated). */
 async function unzip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -376,17 +380,41 @@ async function unzip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
     const name = names.decode(bytes.subarray(at + 46, at + 46 + nameLength));
     const dataAt = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
     const data = bytes.subarray(dataAt, dataAt + compressed);
-    if (method === 0) entries.set(name, data);
-    else if (method === 8) entries.set(name, await inflate(data));
+    // Only what the first sheet is read from: a workbook's pictures and styles stay packed.
+    if (WORKBOOK_PARTS.test(name)) {
+      if (method === 0) entries.set(name, data);
+      else if (method === 8) entries.set(name, await inflate(data));
+    }
     at += 46 + nameLength + extraLength + commentLength;
   }
   return entries;
 }
 
+/**
+ * One deflated entry, stopped at `MAX_BYTES` unpacked: a few kilobytes of ZIP can unpack to
+ * gigabytes, which would take the tab down before a row is read (F-R2UI4-008).
+ */
 async function inflate(data: Uint8Array): Promise<Uint8Array> {
   const body = new Response(new Uint8Array(data)).body;
   if (!body) throw new Error("the workbook cannot be unpacked here");
-  return new Uint8Array(await new Response(body.pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer());
+  const reader = body.pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (let read = await reader.read(); !read.done; read = await reader.read()) {
+    size += read.value.byteLength;
+    if (size > MAX_BYTES) {
+      await reader.cancel();
+      throw new Error(`the workbook unpacks to more than ${MAX_BYTES / 1024 / 1024} MB`);
+    }
+    chunks.push(read.value);
+  }
+  const whole = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    whole.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return whole;
 }
 
 /** A column's letters as its index: `A` is 0, `AA` is 26. */
@@ -502,18 +530,18 @@ export interface Rejected {
 }
 
 const LOCAL_ID = /^[A-Za-z0-9._~-]{1,128}$/;
-const URN = /^urn:ngsi-ld:[A-Za-z][A-Za-z0-9_-]*:[^\s:]+:[^\s:]+:[^\s]+$/;
 
-/** The entity a row names: a URN of this type and space as it is, a local id completed. */
+/**
+ * The entity a row names: a URN of this type as it is, a local id completed. An entity is this
+ * space's by where it is written, never by its URN's segments, so any `urn:ngsi-ld:{type}:{nss}`
+ * is taken (ADR-N-041, F-R2UI4-004); the space prefix is only minted for a local id.
+ */
 function idOf(value: string, target: Target, fallback: string): string | Error {
   const text = value.trim();
   if (!text) return `urn:ngsi-ld:${target.type}:${target.orgDomain}:${target.space}:${fallback}`;
   if (text.startsWith("urn:")) {
-    if (!URN.test(text)) return new Error(`\`${text}\` is not an NGSI-LD URN`);
-    const [, , type, domain, space] = text.split(":");
-    if (type !== target.type || domain !== target.orgDomain || space !== target.space) {
-      return new Error(`\`${text}\` names another type, organization or space than this one`);
-    }
+    if (!ENTITY_ID.test(text)) return new Error(`\`${text}\` is not an NGSI-LD URN`);
+    if (text.split(":")[2] !== target.type) return new Error(`\`${text}\` names another type than ${target.type}`);
     return text;
   }
   if (!LOCAL_ID.test(text)) return new Error(`\`${text}\` cannot be the last part of an id`);

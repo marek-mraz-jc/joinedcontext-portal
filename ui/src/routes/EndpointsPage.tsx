@@ -784,10 +784,16 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       ),
   });
 
+  const formRoute = useFormRoute();
+  const routedNew = formRoute?.form?.mode === "new";
+  // What only the form reads waits for the form: the list shows none of it (F-R2UI4-012). A form
+  // address (`/endpoints/new`, `?edit=`) counts as open, so its prefill and pickers load at once.
+  const formOpen = editing !== null || Boolean(formRoute?.form) || edit !== undefined;
   // The Organization, whose name, domain and open-data desk a new endpoint's catalogue starts
   // from (EP-78, EP-80), and the pipelines a catalogue may name as the data's origin.
   const organizationsQuery = useQuery({
     queryKey: queryKeys.list(ORG_NAMESPACE, "organizations"),
+    enabled: formOpen,
     queryFn: async () =>
       unwrap(
         await api.GET("/api/v1/projects/{project}/{plural}", {
@@ -801,6 +807,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   );
   const pipelinesQuery = useQuery({
     queryKey: queryKeys.list(project, "pipelines"),
+    enabled: formOpen,
     queryFn: async () =>
       unwrap(
         await api.GET("/api/v1/projects/{project}/{plural}", {
@@ -813,6 +820,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   // field free text, which is what a manifest written before the catalogue carries anyway.
   const cataloguesQuery = useQuery({
     queryKey: queryKeys.list(project, "ckaninstances"),
+    enabled: formOpen,
     queryFn: async () =>
       unwrap(
         await api.GET("/api/v1/projects/{project}/{plural}", {
@@ -823,6 +831,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
 
   const modelsQuery = useQuery({
     queryKey: queryKeys.list(project, "datamodels"),
+    enabled: formOpen,
     queryFn: async () =>
       unwrap(
         await api.GET("/api/v1/projects/{project}/{plural}", {
@@ -1150,8 +1159,6 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
 
   // `/endpoints/new`: the blank form once, after the spaces have answered, so the first space is
   // preselected as the button does it.
-  const formRoute = useFormRoute();
-  const routedNew = formRoute?.form?.mode === "new";
   const openedNew = useRef(false);
   useEffect(() => {
     if (!routedNew) {
@@ -1300,7 +1307,8 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-caption font-medium text-fg">{t("endpoints.field.publicUrl")}</span>
         <code data-testid="endpoint-url" className="min-w-0 break-all font-mono text-caption text-fg-muted">
-          {`${window.location.origin}/api/endpoint/`}
+          {/* The copied address with the slug picked out: one builder for both (F-R2UI4-015). */}
+          {endpointUrl("", "")}
           <span data-testid="endpoint-slug" className="font-semibold text-fg">
             {activeSlug}
           </span>
