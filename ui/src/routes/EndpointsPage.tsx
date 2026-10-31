@@ -485,19 +485,19 @@ function EndpointRowActions({
 
 type Calls = ProjectUsage["endpoints"][number];
 
-/** The calls by surface and by kind of caller, each a label and its number, the empty ones left out. */
+/** The calls by surface and by kind of caller, each a label and its number, most calls first, the empty ones left out. */
 function useCallSplit(calls: Calls | undefined) {
   const { t, i18n } = useTranslation();
   const numbers = new Intl.NumberFormat(i18n.resolvedLanguage ?? i18n.language ?? "en");
-  const surfaces = SURFACES.filter((surface) => (calls?.totals[surface] ?? 0) > 0).map(
-    (surface) => `${t(`endpointUsage.surface.${surface}`)} ${numbers.format(calls?.totals[surface] ?? 0)}`,
-  );
-  const callers = CALLERS.filter((caller) => (calls?.callers?.[caller] ?? 0) > 0).map(
-    (caller) => `${t(`endpoints.calls.caller.${caller}`)} ${numbers.format(calls?.callers?.[caller] ?? 0)}`,
-  );
+  const split = (counts: Record<string, number> | undefined, names: readonly string[], key: string) =>
+    names
+      .map((name) => ({ label: t(`${key}.${name}`), count: counts?.[name] ?? 0 }))
+      .filter((part) => part.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .map((part) => ({ label: part.label, count: numbers.format(part.count) }));
   const groups = [
-    { label: t("endpoints.calls.bySurface"), parts: surfaces },
-    { label: t("endpoints.calls.byCaller"), parts: callers },
+    { label: t("endpoints.calls.bySurface"), parts: split(calls?.totals, SURFACES, "endpointUsage.surface") },
+    { label: t("endpoints.calls.byCaller"), parts: split(calls?.callers, CALLERS, "endpoints.calls.caller") },
   ].filter((group) => group.parts.length > 0);
   return { total: numbers.format(calls?.total ?? 0), groups };
 }
@@ -512,11 +512,15 @@ export function CallsCell({ calls, known }: { calls: Calls | undefined; known: b
   if (!known) {
     return <span className="text-fg-subtle">—</span>;
   }
-  const said = groups.map((group) => `${group.label}: ${group.parts.join(" · ")}`);
-  // One line per row (T-4989): the split is the cell's tooltip, a line per grouping, and is read
-  // out with the number.
+  const said = groups.map((group) => `${group.label}: ${group.parts.map((part) => `${part.label} ${part.count}`).join(" · ")}`);
+  // One line per row (T-4989): the split is the cell's tooltip, a line per grouping, read out with
+  // the number; where a pointer can hover, a dotted underline says there is one. The row's Details
+  // panel shows it whole, on a phone too.
   return (
-    <span className="whitespace-nowrap tabular-nums" title={said.join("\n") || undefined}>
+    <span
+      className={`whitespace-nowrap tabular-nums${said.length > 0 ? " [@media(hover:hover)]:cursor-help [@media(hover:hover)]:underline [@media(hover:hover)]:decoration-dotted [@media(hover:hover)]:underline-offset-4" : ""}`}
+      title={said.join("\n") || undefined}
+    >
       {total}
       {said.length > 0 ? <span className="sr-only"> ({said.join("; ").replaceAll(" · ", ", ")})</span> : null}
     </span>
@@ -530,14 +534,17 @@ export function CallsDetail({ calls, known }: { calls: Calls | undefined; known:
     return <span className="text-fg-subtle">—</span>;
   }
   return (
-    <div className="flex flex-col gap-2">
-      <span className="tabular-nums">{total}</span>
+    <div className="flex flex-col gap-3">
+      <span className="font-semibold tabular-nums">{total}</span>
       {groups.map((group) => (
         <div key={group.label} className="flex flex-col gap-1">
-          <span className="text-caption text-fg-muted">{group.label}</span>
-          <ul className="flex flex-wrap gap-x-4 gap-y-1 tabular-nums" aria-label={group.label}>
+          <span className="text-caption font-semibold text-fg-muted">{group.label}</span>
+          <ul className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-8 gap-y-1 sm:w-fit sm:grid-cols-[auto_auto]" aria-label={group.label}>
             {group.parts.map((part) => (
-              <li key={part}>{part}</li>
+              <li key={part.label} className="contents">
+                <span className="text-fg-muted">{part.label}</span>{" "}
+                <span className="text-right font-semibold tabular-nums">{part.count}</span>
+              </li>
             ))}
           </ul>
         </div>

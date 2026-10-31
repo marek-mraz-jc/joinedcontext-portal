@@ -87,8 +87,8 @@ describe("the one Endpoints grid (T-6169)", () => {
     );
     const cell = screen.getByText(/^1,234/);
     expect(cell).toHaveAttribute("title", expect.stringMatching(/By surface: NGSI-LD API 1,200 · Assistants \(MCP\) 34/));
-    expect(cell.title).toContain("By caller: People 1,000 · Agents and MCP clients 34 · Not signed in 200");
-    expect(cell).toHaveTextContent(/NGSI-LD API 1,200, Assistants \(MCP\) 34; By caller: People 1,000, Agents and MCP clients 34/);
+    expect(cell.title).toContain("By caller: People 1,000 · Not signed in 200 · Agents and MCP clients 34");
+    expect(cell).toHaveTextContent(/NGSI-LD API 1,200, Assistants \(MCP\) 34; By caller: People 1,000, Not signed in 200, Agents and MCP clients 34/);
     expect(cell.title).not.toMatch(/OGC|Apps/);
     rerender(
       <I18nextProvider i18n={i18n}>
@@ -107,7 +107,7 @@ describe("the one Endpoints grid (T-6169)", () => {
         />
       </I18nextProvider>,
     );
-    expect(screen.getByText("40")).toBeInTheDocument();
+    expect(screen.getAllByText("40")).toHaveLength(2);
     expect(screen.getByRole("list", { name: "By surface" })).toHaveTextContent("Assistants (MCP) 40");
     const callers = screen.getByRole("list", { name: "By caller" });
     expect(callers).toHaveTextContent("Agents and MCP clients 30");

@@ -2338,7 +2338,7 @@
     },
     "calls": {
       "label": "Volania, 7 dní",
-      "bySurface": "Podľa rozhrania",
+      "bySurface": "Podľa spôsobu čítania",
       "byCaller": "Podľa volajúceho",
       "caller": {
         "person": "Ľudia",
@@ -10849,7 +10849,7 @@
       "odata": "OData",
       "sta": "Senzorové API (STA)",
       "ical": "Kalendár (iCal)",
-      "feed": "Kanály noviniek",
+      "feed": "Odbery noviniek",
       "mcp": "Asistenti (MCP)",
       "websocket": "Živé aktualizácie",
       "download": "Stiahnutia (CSV)"

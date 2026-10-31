@@ -2338,7 +2338,7 @@
     },
     "calls": {
       "label": "Volání, 7 dní",
-      "bySurface": "Podle rozhraní",
+      "bySurface": "Podle způsobu čtení",
       "byCaller": "Podle volajícího",
       "caller": {
         "person": "Lidé",
@@ -10849,7 +10849,7 @@
       "odata": "OData",
       "sta": "Senzorové API (STA)",
       "ical": "Kalendář (iCal)",
-      "feed": "Kanály novinek",
+      "feed": "Odběry novinek",
       "mcp": "Asistenti (MCP)",
       "websocket": "Živé aktualizace",
       "download": "Stažení (CSV)"
