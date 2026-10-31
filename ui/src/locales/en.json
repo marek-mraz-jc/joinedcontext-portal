@@ -149,6 +149,8 @@
     "chooseVariant": "{label}: given as",
     "useExample": "Use the example",
     "noResults": "No results",
+    "noSpaces": "This project has no context space you can read yet. Create one under Context Spaces, then pick it here.",
+    "noneYet": "This project holds none you can read yet. Create one on its own page, then pick it here.",
     "entityPickerPending": "Choose the space and the entity type first, and this lists their entities; an entity id can also be pasted here.",
     "listFailed": "The list could not be loaded, try again: {reason}",
     "listRetry": "Try again",
@@ -517,7 +519,7 @@
     },
     "lead": "Everything of this kind the project holds. Each row opens what it names.",
     "new": "New {kind}",
-    "newHint": "Fill the form, check it, then propose it; an approver reviews the change.",
+    "newHint": "Check it, then propose it to an approver.",
     "propose": "Propose change",
     "emptyHintCreate": "Nothing of this kind is in the project yet. {new} opens the form.",
     "askAssistant": "Ask the assistant for one",
@@ -1508,7 +1510,7 @@
     "searchNoMatchHint": "Check the spelling or clear the search to see every endpoint.",
     "add": "New endpoint",
     "edit": "Edit",
-    "addHint": "Saving proposes a change; the endpoint answers once the change is approved.",
+    "addHint": "It answers once the change is approved.",
     "propose": "Propose change",
     "generateSlug": "Generate slug",
     "copyUrl": "Copy URL",
@@ -2600,7 +2602,7 @@
     "dialog": {
       "create": "New pipeline",
       "edit": "Edit pipeline",
-      "lead": "A form and the manifest it writes: both describe the same pipeline, and the proposal goes to Approvals like every other change."
+      "lead": "Proposed to Approvals like every other change."
     },
     "bloblangHint": "The Bloblang mapping is edited here and lands in the manifest; left empty, it stays in bento.yaml beside this manifest in the forge.",
     "bloblangFile": "Open bento.yaml",
@@ -6432,8 +6434,6 @@
     },
     "laxWarning": "Lax validation: check has not run or passed.",
     "findings": "Findings",
-    "strict": "strict validation",
-    "strictHelp": "Nothing is proposed until the check is green.",
     "saveRefused": "The draft was not saved: {reason}",
     "elsewhere": {
       "title": "No draft called “{name}” on this page",

@@ -149,6 +149,8 @@
     "chooseVariant": "{label}: zadáno jako",
     "useExample": "Použít příklad",
     "noResults": "Žádné výsledky",
+    "noSpaces": "Tento projekt zatím nemá kontextový prostor, který můžete číst. Vytvořte ho v části Kontextové prostory a pak ho vyberte zde.",
+    "noneYet": "Tento projekt zatím nemá žádný, který můžete číst. Vytvořte ho na jeho vlastní stránce a pak ho vyberte zde.",
     "entityPickerPending": "Nejprve vyberte prostor a typ entity a zde se zobrazí jejich entity; identifikátor entity sem můžete také vložit.",
     "listFailed": "Seznam se nepodařilo načíst, zkuste znovu: {reason}",
     "listRetry": "Zkusit znovu",
@@ -517,7 +519,7 @@
     },
     "lead": "Vše tohoto druhu, co projekt obsahuje. Každý řádek otevře to, co pojmenovává.",
     "new": "Nový {kind}",
-    "newHint": "Vyplňte formulář, zkontrolujte jej a navrhněte; změnu posoudí schvalovatel.",
+    "newHint": "Zkontrolujte jej a navrhněte schvalovateli.",
     "propose": "Navrhnout změnu",
     "emptyHintCreate": "V projektu zatím nic tohoto druhu není. {new} otevře formulář.",
     "askAssistant": "Požádat asistenta o návrh",
@@ -1508,7 +1510,7 @@
     "searchNoMatchHint": "Zkontrolujte pravopis nebo vymažte hledání a uvidíte všechna rozhraní.",
     "add": "Nové rozhraní",
     "edit": "Upravit",
-    "addHint": "Uložením vznikne návrh změny; rozhraní začne odpovídat po jeho schválení.",
+    "addHint": "Odpovídá po schválení změny.",
     "propose": "Navrhnout změnu",
     "generateSlug": "Vygenerovat slug",
     "copyUrl": "Kopírovat URL",
@@ -2600,7 +2602,7 @@
     "dialog": {
       "create": "Nová pipelina",
       "edit": "Úprava pipeliny",
-      "lead": "Formulář a manifest, který zapisuje: obě podoby popisují tutéž pipelinu a návrh jde do Schvalování jako každá jiná změna."
+      "lead": "Návrh jde do Schvalování jako každá jiná změna."
     },
     "bloblangHint": "Bloblang mapování se upravuje zde a ukládá do manifestu; prázdné zůstává v bento.yaml vedle tohoto manifestu ve forge.",
     "bloblangFile": "Otevřít bento.yaml",
@@ -6432,8 +6434,6 @@
     },
     "laxWarning": "Mírné ověření: kontrola neproběhla nebo neuspěla.",
     "findings": "Nálezy",
-    "strict": "přísné ověření",
-    "strictHelp": "Nic se nenavrhne, dokud kontrola není zelená.",
     "saveRefused": "Koncept se neuložil: {reason}",
     "elsewhere": {
       "title": "Na této stránce není koncept „{name}“",

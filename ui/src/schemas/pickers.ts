@@ -18,15 +18,17 @@ const TYPE: Entry = { "ui:widget": "typePicker", "ui:options": { spaceField: "co
 const MODEL: Entry = { "ui:widget": "dataModelPicker" };
 const PERSON: Entry = { "ui:widget": "personPicker" };
 const project = (plural: string): Entry => ({ "ui:widget": "resourcePicker", "ui:options": { plural } });
+/** A space: an empty list names where one is created (T-6163), instead of a bare "No results". */
+const SPACE: Entry = { "ui:widget": "resourcePicker", "ui:options": { plural: "spaces", empty: "form.noSpaces" } };
 
 export const REFERENCE_PICKERS: Record<string, Record<string, Entry>> = {
   ContextSpace: { dataModelRef: MODEL },
   Endpoint: {
-    contextSpaceRef: project("spaces"),
+    contextSpaceRef: SPACE,
     "publish.ckan.instanceRef": project("ckaninstances"),
     "catalog.pipelineRef": project("pipelines"),
   },
-  DataModel: { contextSpaceRef: project("spaces") },
+  DataModel: { contextSpaceRef: SPACE },
   Pipeline: {
     "source.dataSourceRef": project("datasources"),
     "source.endpointRef": project("endpoints"),
@@ -42,7 +44,7 @@ export const REFERENCE_PICKERS: Record<string, Record<string, Entry>> = {
   },
   Layer: { sourceEndpointRef: project("endpoints"), entityType: TYPE },
   Policy: {
-    contextSpaceRef: project("spaces"),
+    contextSpaceRef: SPACE,
     "information[].entities[].type": TYPE,
     // T-3217: who it is granted to, offered by kind; the attributes of the types it covers.
     "assignee.id": { "ui:widget": "assigneePicker" },
@@ -50,14 +52,14 @@ export const REFERENCE_PICKERS: Record<string, Record<string, Entry>> = {
     "information[].relationshipNames[]": { "ui:widget": "attributeSuggest", "ui:options": { kind: "Relationship" } },
   },
   Subscription: {
-    contextSpaceRef: project("spaces"),
+    contextSpaceRef: SPACE,
     "entities[].type": TYPE,
     // T-3291: the attributes of the watched types, from the space's models.
     "watchedAttributes[]": { "ui:widget": "attributeSuggest", "ui:options": { kind: "any", typesFrom: "entities" } },
     "notification.attributes[]": { "ui:widget": "attributeSuggest", "ui:options": { kind: "any", typesFrom: "entities" } },
   },
   ContextSourceRegistration: {
-    contextSpaceRef: project("spaces"),
+    contextSpaceRef: SPACE,
     endpointRef: project("endpoints"),
     "federation.serviceAccountRef": project("serviceaccounts"),
     "information[].entities[].type": TYPE,
@@ -65,8 +67,8 @@ export const REFERENCE_PICKERS: Record<string, Record<string, Entry>> = {
   // T-4947: a person is one of the people the caller may list, or a full e-mail.
   Group: { "members[].user": PERSON },
   ServiceAccount: { "roles[].types[]": TYPE, "owner.user": PERSON },
-  App: { "dataNeeds[].contextSpaceRef": project("spaces"), "dataNeeds[].types[]": TYPE },
-  Mapping: { contextSpaceRef: project("spaces"), "source.name": MODEL, "target.name": MODEL },
+  App: { "dataNeeds[].contextSpaceRef": SPACE, "dataNeeds[].types[]": TYPE },
+  Mapping: { contextSpaceRef: SPACE, "source.name": MODEL, "target.name": MODEL },
   // The knowledge assistant's kinds (T-3057): a catalogue, the project's own sources and the
   // Endpoints whose MCP surface a connector reads.
   KnowledgeSource: { ckanInstanceRef: project("ckaninstances") },

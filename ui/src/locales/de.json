@@ -149,6 +149,8 @@
     "chooseVariant": "{label}: angegeben als",
     "useExample": "Beispiel übernehmen",
     "noResults": "Keine Ergebnisse",
+    "noSpaces": "Dieses Projekt hat noch keinen Kontextraum, den Sie lesen dürfen. Legen Sie einen unter Kontexträume an und wählen Sie ihn dann hier.",
+    "noneYet": "Dieses Projekt enthält noch keinen Eintrag, den Sie lesen dürfen. Legen Sie ihn auf seiner eigenen Seite an und wählen Sie ihn dann hier.",
     "entityPickerPending": "Wählen Sie zuerst den Raum und den Entitätstyp, dann listet dieses Feld deren Entitäten; eine Entitäts-ID können Sie auch einfügen.",
     "listFailed": "Die Liste konnte nicht geladen werden, versuchen Sie es erneut: {reason}",
     "listRetry": "Erneut versuchen",
@@ -517,7 +519,7 @@
     },
     "lead": "Alles dieser Art, was das Projekt enthält. Jede Zeile öffnet, was sie benennt.",
     "new": "Neu: {kind}",
-    "newHint": "Füllen Sie das Formular aus, prüfen Sie es und schlagen Sie es vor; eine freigebende Person prüft die Änderung.",
+    "newHint": "Prüfen und zur Freigabe vorschlagen.",
     "propose": "Änderung vorschlagen",
     "emptyHintCreate": "Von dieser Art ist noch nichts im Projekt. {new} öffnet das Formular.",
     "askAssistant": "Den Assistenten um einen Vorschlag bitten",
@@ -1508,7 +1510,7 @@
     "searchNoMatchHint": "Prüfen Sie die Schreibweise oder leeren Sie die Suche, um alle Endpunkte zu sehen.",
     "add": "Neuer Endpunkt",
     "edit": "Bearbeiten",
-    "addHint": "Das Speichern schlägt eine Änderung vor; der Endpunkt antwortet nach der Freigabe.",
+    "addHint": "Antwortet nach der Freigabe.",
     "propose": "Änderung vorschlagen",
     "generateSlug": "Slug erzeugen",
     "copyUrl": "URL kopieren",
@@ -2600,7 +2602,7 @@
     "dialog": {
       "create": "Neue Pipeline",
       "edit": "Pipeline bearbeiten",
-      "lead": "Ein Formular und das Manifest, das es schreibt: beide beschreiben dieselbe Pipeline, und der Vorschlag geht wie jede andere Änderung in die Freigaben."
+      "lead": "Der Vorschlag geht wie jede andere Änderung in die Freigaben."
     },
     "bloblangHint": "Das Bloblang-Mapping wird hier bearbeitet und landet im Manifest; leer bleibt es in bento.yaml neben diesem Manifest im Forge.",
     "bloblangFile": "bento.yaml öffnen",
@@ -6432,8 +6434,6 @@
     },
     "laxWarning": "Verhaltene Validierung: Prüfung wurde nicht ausgeführt oder ist fehlgeschlagen.",
     "findings": "Befunde",
-    "strict": "strikte Validierung",
-    "strictHelp": "Nichts wird vorgeschlagen, bevor die Prüfung grün ist.",
     "saveRefused": "Der Entwurf wurde nicht gespeichert: {reason}",
     "elsewhere": {
       "title": "Auf dieser Seite gibt es keinen Entwurf „{name}“",

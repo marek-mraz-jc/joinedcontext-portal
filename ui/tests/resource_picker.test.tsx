@@ -103,7 +103,7 @@ describe("the resource picker", () => {
     await i18n.changeLanguage("en");
   });
 
-  it("says no results for a project that really has none, and nothing more", async () => {
+  it("says no results for a project that really has none, and what to do next (T-6163)", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => list([])));
 
     show();
@@ -111,7 +111,17 @@ describe("the resource picker", () => {
     await waitFor(() =>
       expect(screen.getByRole("combobox")).toHaveTextContent(en.form.noResults),
     );
+    expect(screen.getByRole("combobox")).toHaveAccessibleDescription(en.form.noneYet);
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("names where a context space is created when the project holds none (T-6163)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => list([])));
+
+    show({ options: { plural: "spaces", project: "helsinki", empty: "form.noSpaces" } });
+
+    await waitFor(() => expect(screen.getByText(en.form.noSpaces)).toBeInTheDocument());
+    expect(screen.getByRole("combobox")).toHaveAccessibleDescription(en.form.noSpaces);
   });
 
   it("lists what the project has", async () => {
