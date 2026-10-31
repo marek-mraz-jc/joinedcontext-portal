@@ -617,7 +617,7 @@
       "broker": "It lives on the context broker {broker}.",
       "size": "Size",
       "totalSize": "It takes {size} in the broker's store: {entities} current state, {history} history.",
-      "estimated": "The history is estimated from the database's statistics: it is too long to count at once.",
+      "estimated": "The sizes and the history count are estimated from the database's statistics: the space is too large to measure at once.",
       "sections": "Parts of the space",
       "counting": "Counting the space's entities…",
       "allRows": "All rows",
