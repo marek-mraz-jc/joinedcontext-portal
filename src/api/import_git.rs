@@ -546,6 +546,7 @@ async fn land<'a>(
             name: project,
             fresh_slug: &fresh,
             applications: &applications,
+            keep_secrets: true,
             message: format!("Import {origin} as {project} (MF-45)"),
         },
     )

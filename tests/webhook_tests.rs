@@ -126,6 +126,13 @@ async fn pr_merged_event_accepted_and_triggers_sync() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::ACCEPTED);
+    // The answer does not wait for the sync it starts (F-R2POR3-017).
+    for _ in 0..200 {
+        if mirror.len() == 1 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
 
     let requests = server.received_requests().await.unwrap();
     let default_branch_calls = requests
