@@ -2414,6 +2414,14 @@
         "pipeline_history.test.tsx",
         "workbench_target.test.tsx"
       ]
+    },
+    "src/components/SpaceUsageInfo.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "space_usage_info.test.tsx"
+      ]
     }
   }
 }

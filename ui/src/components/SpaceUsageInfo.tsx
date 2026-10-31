@@ -1,47 +1,123 @@
 /**
  * The (i) beside a space's size on the Spaces list (T-6208): when the broker measured it, how
  * often it is measured, and a Recalculate for anyone who may read the space.
+ *
+ * The panel is fixed to the viewport under its button, kept on the screen: the list's table
+ * scrolls sideways and would clip a panel positioned inside its cell.
  */
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { clsx } from "clsx";
 import { recalculateSpaceUsage, spaceUsageQuery, usageRefusal } from "../api/spaceUsage";
 import type { SpaceUsage } from "../api/spaceUsage";
-import { ToolbarPopover } from "./entities/GridToolbar";
-import { Button, InlineError } from "./ui";
+import { Button, Icon, InlineError } from "./ui";
 
 /** The (i) once the space's usage has come; nothing while it is on its way or refused. */
 export function UsageInfo({ usage, ...rest }: { project: string; space: string; usage: SpaceUsage | undefined; locale: string }): JSX.Element | null {
   return usage ? <SpaceUsageInfo usage={usage} {...rest} /> : null;
 }
 
+const GAP = 16;
+const WIDTH = 288;
+
+/** Where the panel goes: under `anchor`, its right edge on the anchor's, inside the viewport; above it when there is no room below. */
+export function panelPlace(anchor: DOMRect, height: number, viewport: { width: number; height: number }) {
+  const width = Math.min(WIDTH, viewport.width - 2 * GAP);
+  const left = Math.max(GAP, Math.min(anchor.right - width, viewport.width - width - GAP));
+  const below = anchor.bottom + 4;
+  const top = below + height > viewport.height - GAP && anchor.top - 4 - height >= GAP ? anchor.top - 4 - height : below;
+  return { top, left, width };
+}
+
 export function SpaceUsageInfo({ project, space, usage, locale }: { project: string; space: string; usage: SpaceUsage; locale: string }): JSX.Element {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [place, setPlace] = useState<{ top: number; left: number; width: number }>();
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const panelId = useId();
   const recalculate = useMutation({
     mutationFn: () => recalculateSpaceUsage(project, space),
     onSuccess: (fresh) => queryClient.setQueryData(spaceUsageQuery(project, space).queryKey, fresh),
   });
+
+  useLayoutEffect(() => {
+    if (!open || !button.current) return;
+    setPlace(panelPlace(button.current.getBoundingClientRect(), panel.current?.offsetHeight ?? 0, { width: window.innerWidth, height: window.innerHeight }));
+  }, [open, recalculate.status]);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    const onDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!panel.current?.contains(target) && !button.current?.contains(target)) close();
+    };
+    document.addEventListener("pointerdown", onDown);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [open]);
+
   // a Portal before T-6208 answers no measuredAt: the time it answered is the best there is
   const at = new Date(usage.measuredAt ?? usage.observedAt);
   const when = Number.isNaN(at.getTime()) ? "—" : new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(at);
+  const label = t("spaces.usage.info", { space });
   return (
-    <ToolbarPopover label={t("spaces.usage.info", { space })} icon="info" anchored end>
-      <div className="flex flex-col gap-2 text-left">
-        <p data-testid="space-measured">{t("spaces.usage.measured", { when })}</p>
-        <p className="text-caption text-fg-muted">{t("spaces.usage.hint")}</p>
-        <div>
-          <Button size="sm" onClick={() => recalculate.mutate()} disabled={recalculate.isPending}>
-            {recalculate.isPending ? t("spaces.usage.recalculating") : t("spaces.usage.recalculate")}
-          </Button>
+    <span
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && open) {
+          setOpen(false);
+          button.current?.focus();
+        }
+      }}
+    >
+      <Button
+        ref={button}
+        variant="ghost"
+        size="xs"
+        title={label}
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        className="px-1 text-fg-subtle"
+        onClick={() => setOpen((was) => !was)}
+      >
+        <Icon name="info" className="size-3.5" />
+        <span className="sr-only">{label}</span>
+      </Button>
+      {open ? (
+        <div
+          ref={panel}
+          id={panelId}
+          role="dialog"
+          aria-label={label}
+          className={clsx("fixed z-50 flex flex-col gap-2 rounded-lg border border-border bg-surface-raised p-3 text-left text-body font-normal shadow-2", place ? undefined : "invisible")}
+          // measured from the button: no class holds a viewport position (as ProjectQuota's bar width)
+          style={place}
+        >
+          <p data-testid="space-measured">{t("spaces.usage.measured", { when })}</p>
+          <p className="text-caption text-fg-muted">{t("spaces.usage.hint")}</p>
+          <div>
+            <Button size="sm" onClick={() => recalculate.mutate()} disabled={recalculate.isPending}>
+              <Icon name="refresh" className="size-3.5" />
+              {recalculate.isPending ? t("spaces.usage.recalculating") : t("spaces.usage.recalculate")}
+            </Button>
+          </div>
+          {recalculate.isPending ? (
+            <p role="status" className="sr-only">
+              {t("spaces.usage.recalculating")}
+            </p>
+          ) : null}
+          {recalculate.isError ? <InlineError>{t("spaces.usage.failed", { reason: usageRefusal(recalculate.error) })}</InlineError> : null}
         </div>
-        {recalculate.isPending ? (
-          <p role="status" className="sr-only">
-            {t("spaces.usage.recalculating")}
-          </p>
-        ) : null}
-        {recalculate.isError ? <InlineError>{t("spaces.usage.failed", { reason: usageRefusal(recalculate.error) })}</InlineError> : null}
-      </div>
-    </ToolbarPopover>
+      ) : null}
+    </span>
   );
 }

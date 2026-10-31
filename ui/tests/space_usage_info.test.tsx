@@ -56,3 +56,16 @@ describe("the space usage (i) (T-6208)", () => {
     expect(within(alert).getByText(/could not be measured: the broker answered 503/)).toBeTruthy();
   });
 });
+
+describe("where the (i)'s panel goes (T-6208)", () => {
+  const rect = (left: number, top: number) => ({ left, top, right: left + 20, bottom: top + 20, width: 20, height: 20, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
+  it("sits under its button and never leaves the screen", async () => {
+    const { panelPlace } = await import("../src/components/SpaceUsageInfo");
+    expect(panelPlace(rect(1100, 250), 150, { width: 1440, height: 900 })).toEqual({ top: 274, left: 832, width: 288 });
+    // a phone: the panel is narrower than the screen and starts at the gutter
+    expect(panelPlace(rect(150, 330), 150, { width: 400, height: 900 })).toEqual({ top: 354, left: 16, width: 288 });
+    expect(panelPlace(rect(380, 330), 150, { width: 360, height: 900 }).left).toBe(56);
+    // no room below: above the button
+    expect(panelPlace(rect(1100, 800), 150, { width: 1440, height: 900 }).top).toBe(646);
+  });
+});

@@ -10,8 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { clsx } from "clsx";
 import { andQ, cellText } from "@joinedcontext/sdk";
 import type { EntitySource, RichCell } from "@joinedcontext/sdk";
-import { Button, buttonClass, Icon, Select } from "../ui";
-import type { IconName } from "../ui";
+import { Button, buttonClass, Select } from "../ui";
 
 export const ROW_SIZES = ["small", "medium", "large"] as const;
 export type RowSize = (typeof ROW_SIZES)[number];
@@ -59,12 +58,9 @@ export function ToolbarPopover({
   outlined,
   tall,
   anchored,
-  icon,
   children,
 }: {
   label: string;
-  /** Drawn as this icon alone, the label for screen readers and the pointer's tooltip (T-6208). */
-  icon?: IconName;
   /** Under its button on a phone too, for a row's first control: no bottom sheet over the toolbar. */
   anchored?: boolean;
   /** Drawn as a button even with nothing set: outside a toolbar row a ghost summary reads as text. */
@@ -99,21 +95,13 @@ export function ToolbarPopover({
       }}
     >
       <summary
-        title={icon ? label : undefined}
         className={buttonClass(
           count || outlined ? "secondary" : "ghost",
-          icon ? "xs" : "sm",
-          clsx("cursor-pointer list-none [&::-webkit-details-marker]:hidden", count ? "border-primary text-primary-soft-fg" : undefined, icon ? "px-1 text-fg-subtle" : undefined),
+          "sm",
+          clsx("cursor-pointer list-none [&::-webkit-details-marker]:hidden", count ? "border-primary text-primary-soft-fg" : undefined),
         )}
       >
-        {icon ? (
-          <>
-            <Icon name={icon} className="size-3.5" />
-            <span className="sr-only">{label}</span>
-          </>
-        ) : (
-          label
-        )}
+        {label}
         {count ? <span className="ml-1 rounded-full bg-primary-soft px-1.5 text-caption">{count}</span> : null}
       </summary>
       <div
