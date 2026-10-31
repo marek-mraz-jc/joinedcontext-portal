@@ -248,6 +248,30 @@ describe("reading it without the picture", () => {
     }
   });
 
+  // T-6254 judge: the page's overview cut its bottom row by the frame's own padding and sat in the
+  // frame's left third. It now fits the whole drawing inside the padding, centred.
+  it("opens fitted to the frame's height inside its padding, centred", () => {
+    const wide = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    const high = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
+    try {
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 100000 });
+      const natural = renderPart(<LinkmlGraphView source={SCHOOLS} />);
+      const naturalHeight = Number(natural.container.querySelector("svg[role='group']")?.getAttribute("height"));
+      natural.unmount();
+      // A frame 80 % as high as the drawing, above the 60 % floor: the drawing takes the frame's inner height.
+      const frame = Math.round(naturalHeight * 0.8) + 16;
+      Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get: () => frame });
+      const view = renderPart(<LinkmlGraphView source={SCHOOLS} />);
+      const svg = view.container.querySelector("svg[role='group']") as SVGSVGElement;
+      expect(Number(svg.getAttribute("height"))).toBeCloseTo(frame - 16, 0);
+      expect(svg).toHaveClass("mx-auto", "block");
+      view.unmount();
+    } finally {
+      if (wide) Object.defineProperty(HTMLElement.prototype, "clientWidth", wide);
+      if (high) Object.defineProperty(HTMLElement.prototype, "clientHeight", high);
+    }
+  });
+
   // T-6090 review: at the floor a phone frame opened on the empty corner beside a cut box; it now
   // opens scrolled to the first class. A drawing that fits is not scrolled.
   it("opens a drawing wider than its frame on its first class", () => {

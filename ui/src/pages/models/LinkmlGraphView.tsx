@@ -419,9 +419,12 @@ export function LinkmlGraphView({
     // A phone-narrow canvas opens at one box's width, readable, and is panned; the whole model at
     // a phone's width was a quarter size nobody could read (T-6094 UI judge).
     const narrow = canvas && available < 2 * BOX.width;
-    // The page's diagram fits its height too, so a model opens as an overview (owner 2026-10-31: "smaller").
-    const tall = Math.max(...placed.map((node) => node.y + node.height)) + 8;
-    const high = canvas ? Infinity : (frame.current?.clientHeight ?? 0) / tall || Infinity;
+    // The page's diagram fits its height too, so a model opens as an overview (owner 2026-10-31: "smaller"):
+    // the drawing's whole height (as the svg below sizes it) inside the frame's padding, or the
+    // bottom row was cut by the frame's own padding (T-6254 judge: DataService cut).
+    const tall = Math.max(...placed.map((node) => node.y + node.height)) + BOX.padding + 8;
+    const inner = (frame.current?.clientHeight ?? 0) - 16;
+    const high = canvas || inner <= 0 ? Infinity : inner / tall;
     const fits = Math.min(canvas ? CANVAS_FIT_MAX : ZOOM.natural, available / (narrow ? BOX.width + 16 : wide), high);
     const start = Math.max(canvas && !narrow ? READABLE : ZOOM.readable, fits);
     // A drawing wider than its frame at the readable floor opens on its first class, the top-left
@@ -795,7 +798,8 @@ export function LinkmlGraphView({
             viewBox={`-4 -4 ${width + 8} ${height + 8}`}
             width={(width + 8) * zoom}
             height={(height + 8) * zoom}
-            className="min-h-48"
+            // Centred in a wider frame: an overview opened in the left third with the rest empty (T-6254).
+            className="mx-auto block min-h-48"
             onPointerMove={(event) => {
               if (connecting) setConnecting({ from: connecting.from, to: toDrawing(event) });
               const pointer = moving ? toDrawing(event) : undefined;

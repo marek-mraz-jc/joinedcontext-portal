@@ -26,7 +26,7 @@ describe("ModelIdentity", () => {
     const { onRename, user, container } = renderIdentity();
     expect(screen.getByText("air-quality")).toBeInTheDocument();
     expect(screen.getByText("air-quality.linkml.yaml")).toBeInTheDocument();
-    expect(screen.getByText("1.2.0")).toBeInTheDocument();
+    expect(screen.getByText("v1.2.0")).toBeInTheDocument();
     // Neither the id nor the file name is a control a person can change.
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 

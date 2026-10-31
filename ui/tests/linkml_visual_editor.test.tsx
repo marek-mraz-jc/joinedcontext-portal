@@ -310,6 +310,27 @@ describe("LinkML visual editor", () => {
     expect(parseModel(source()).slots[0].slot_uri).toBe("sdm:pm10");
   });
 
+  // T-6254 judge: three empty Title inputs filled a phone's first screen.
+  it("shows one Title row in the reader's language and the other locales behind Translations", async () => {
+    const { source, user } = renderEditor();
+    expect(screen.getByRole("textbox", { name: "Title (en)" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Title (en)" })).toHaveAccessibleDescription(en.models.titleHint);
+    const translations = screen.getByText(en.models.titleTranslations.replace("{languages}", "sk"));
+    const disclosure = translations.closest("details") as HTMLDetailsElement;
+    expect(disclosure.open).toBe(false);
+    expect(disclosure).toContainElement(screen.getByLabelText("Title (sk)"));
+    await user.click(translations);
+    expect(disclosure.open).toBe(true);
+    await user.type(screen.getByLabelText("Title (sk)"), "Ovzdušie");
+    expect(parseModel(source()).classes[0].title).toEqual({ sk: "Ovzdušie" });
+  });
+
+  it("offers no New field before the model has a type, and says to add one first (T-6254)", () => {
+    renderEditor("id: https://example.org/m\nname: m\nclasses: {}\nslots: {}\n");
+    expect(screen.getByText(en.models.fieldsNeedType)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: en.models.newSlot })).not.toBeInTheDocument();
+  });
+
   it("writes a title per configured locale, and warns while one is missing", async () => {
     const { source, user } = renderEditor();
 
