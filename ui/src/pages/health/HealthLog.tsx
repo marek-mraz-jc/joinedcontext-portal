@@ -161,7 +161,7 @@ export function HealthLog({ project }: { project?: string }): JSX.Element {
             name={{
               id: "resource",
               label: t("health.resource"),
-              text: (item) => `${item.name} ${item.project}`,
+              text: (item) => `${item.name} (${item.project})`,
               cell: (item) => <Resource item={item} project={project} />,
             }}
             columns={[

@@ -326,7 +326,7 @@ export function Roles({
           name={{
             id: "role",
             label: t("access.projectRoles.role"),
-            text: (row) => `${row.title || row.name} ${row.name}`,
+            text: (row) => (row.title ? `${row.title} (${row.name})` : row.name),
             cell: (row) => (
               <span className="inline-flex items-center gap-2">
                 <span className="flex flex-col">

@@ -176,7 +176,7 @@ export function ConversationsPage({
           name={{
             id: "question",
             label: t("conversations.column.question"),
-            text: (row) => `${visible(row.firstQuestion)} ${row.deployment}`,
+            text: (row) => `${visible(row.firstQuestion)} (${row.deployment})`,
             // The question first: on a phone the first column stays in view while the rest scrolls.
             cell: (row) => (
               <>
@@ -236,6 +236,7 @@ export function ConversationsPage({
                   ) : null}
                   {row.thumbsDown > 0 ? <Badge tone="danger">{t("conversations.feedback.down")}</Badge> : null}
                   {row.thumbsUp > 0 ? <Badge tone="success">{t("conversations.feedback.up")}</Badge> : null}
+                  {row.errors + row.timeouts + row.thumbsDown + row.thumbsUp === 0 ? <Badge tone="neutral">{t("conversations.status.ok")}</Badge> : null}
                 </>
               ),
             },

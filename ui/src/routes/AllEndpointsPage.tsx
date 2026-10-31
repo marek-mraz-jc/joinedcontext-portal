@@ -106,7 +106,7 @@ export function AllEndpointsPage(): JSX.Element {
           id: "name",
           label: t("endpoints.field.name"),
           // The name is searched beside the title: a person often knows only one of the two.
-          text: (row) => `${titleOf(row)} ${row.endpoint.metadata.name}`,
+          text: (row) => (row.endpoint.metadata.title ? `${titleOf(row)} (${row.endpoint.metadata.name})` : row.endpoint.metadata.name),
           cell: ({ project, endpoint }) => (
             // The whole row opens the endpoint's page, where its surface links are (T-4989).
             <>

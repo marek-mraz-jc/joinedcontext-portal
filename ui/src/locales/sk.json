@@ -2864,7 +2864,7 @@
       "outcome": "Výsledok",
       "message": "Správa",
       "noId": "(bez id)",
-      "states": {"clean": "Bez chýb", "rejected": "Odmietnuté riadky", "failed": "Zlyhané riadky", "silent": "Nezapísal nič"},
+      "states": {"clean": "Bez chýb", "rejected": "Odmietnuté riadky", "failing": "Zlyhané riadky", "silent": "Nezapísal nič"},
       "outcomes": {
         "sent": "Zapísaný",
         "rejected": "Odmietnutý",

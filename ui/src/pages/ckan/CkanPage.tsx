@@ -308,7 +308,8 @@ function Instances({
         </Alert>
       ) : (
         <form
-          className="max-w-4xl space-y-2"
+          aria-labelledby="ckan-instance-new"
+          className="max-w-4xl space-y-2 border-t border-border pt-4"
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
@@ -326,6 +327,9 @@ function Instances({
             onSubmit(draft);
           }}
         >
+          <h3 id="ckan-instance-new" className="text-body font-semibold text-fg">
+            {t("ckan.instances.propose")}
+          </h3>
           <Field
             id="ckan-instance-name"
             label={t("ckan.instances.name")}

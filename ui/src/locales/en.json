@@ -2864,7 +2864,7 @@
       "outcome": "Outcome",
       "message": "Message",
       "noId": "(no id)",
-      "states": {"clean": "Clean", "rejected": "Rejected lines", "failed": "Failed lines", "silent": "Wrote nothing"},
+      "states": {"clean": "Clean", "rejected": "Rejected lines", "failing": "Failed lines", "silent": "Wrote nothing"},
       "outcomes": {
         "sent": "Written",
         "rejected": "Rejected",

@@ -297,9 +297,9 @@ export function PipelineRunsView({
                 label: t("pipelines.runs.outcome"),
                 filter: true,
                 // A run's state for the filter: wrote nothing although the one before did, failed lines, rejected lines, or clean.
-                text: (run) => (run.fact.silent ? "silent" : run.failed > 0 ? "failed" : run.rejected > 0 ? "rejected" : "clean"),
+                text: (run) => (run.fact.silent ? "silent" : run.failed > 0 ? "failing" : run.rejected > 0 ? "rejected" : "clean"),
                 valueLabel: (state) => t(`pipelines.runs.states.${state}`),
-                cell: (run) => t(`pipelines.runs.states.${run.fact.silent ? "silent" : run.failed > 0 ? "failed" : run.rejected > 0 ? "rejected" : "clean"}`),
+                cell: (run) => t(`pipelines.runs.states.${run.fact.silent ? "silent" : run.failed > 0 ? "failing" : run.rejected > 0 ? "rejected" : "clean"}`),
               },
             ]}
             actions={(run) => (

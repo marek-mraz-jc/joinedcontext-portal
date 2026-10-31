@@ -232,7 +232,7 @@ function WorkspaceTable({
       name={{
         id: "name",
         label: t("workspaces.name"),
-        text: (ws) => `${ws.title ?? ws.name} ${ws.name}`,
+        text: (ws) => (ws.title ? `${ws.title} (${ws.name})` : ws.name),
         cell: (ws) => (
           <>
             {/* The copy's record link, the same place Open goes: a click on the row opens it (T-2875). */}
@@ -274,7 +274,7 @@ function WorkspaceTable({
         },
       ]}
       actions={(ws) => (
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex justify-end gap-2 whitespace-nowrap">
           <Button size="sm" onClick={() => onOpen(ws.name)}>
             {t("workspaces.openAction")}
           </Button>

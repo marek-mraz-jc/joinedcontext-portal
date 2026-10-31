@@ -138,7 +138,7 @@ describe("a pipeline's runs and log", () => {
     await narrowsAndOrders(table, {
       search: { label: `Search ${en.pipelines.runs.caption}`, text: "T09:", kept: [nine] },
       sort: { column: en.pipelines.runs.sent, ascending: [nine, eight, ten] },
-      filter: { value: new RegExp(`^${en.pipelines.runs.states.failed}`), kept: [nine] },
+      filter: { value: new RegExp(`^${en.pipelines.runs.states.failing}`), kept: [nine] },
     });
   });
 
