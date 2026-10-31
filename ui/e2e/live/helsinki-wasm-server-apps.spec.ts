@@ -19,9 +19,10 @@ test.setTimeout(300_000);
 async function expectPublishedAsWasm(page: Page, app: string) {
   const answer = await page.request.get(`/api/v1/projects/${PROJECT}/apps/${app}`);
   expect(answer.status(), `${app} is in the project`).toBe(200);
-  const manifest = (await answer.json()) as { spec: { kind?: string }; status?: { shard?: string; build?: { component?: string } } };
+  const manifest = (await answer.json()) as { spec: { kind?: string }; status?: { shard?: number; build?: { component?: string } } };
   expect(manifest.spec.kind).toBe("wasm");
-  expect(manifest.status?.shard, `${app} has its shard`).toMatch(/^[a-z0-9_]+$/);
+  // AP-149, AP-157: the shard is the decimal number the host's JC_WASM_SHARD holds.
+  expect(Number.isInteger(manifest.status?.shard) && (manifest.status?.shard ?? -1) >= 0, `${app} has its shard`).toBe(true);
   expect(manifest.status?.build?.component, `${app} runs a component by digest`).toMatch(/^sha256:[0-9a-f]{64}$/);
 }
 
@@ -151,11 +152,19 @@ test("transit-reach keeps the areas from a start stop on the server, the same fo
   await reached.getByRole("button", { name: /: start from here$/ }).first().click();
   await expect(page.getByText(/^Start stop: /)).toBeVisible();
 
-  const kept = page.waitForResponse((response) => response.url().includes("/apps/transit-reach/api/reach?stop="), { timeout: 120_000 });
+  // The App asks for the areas, and when the server has not read HSL's network yet (409) it reads it
+  // and asks again; then it sends the tab to the file, which drops the answer's body from the page.
+  // So the answer is read as it passes, unchanged.
+  type Reach = { url: string; stop: string; bands: { minutes: number }[] };
+  let resolveKept: (answer: Reach) => void = () => undefined;
+  const kept = new Promise<Reach>((resolve) => (resolveKept = resolve));
+  await page.route(/\/api\/reach\?stop=/, async (route) => {
+    const response = await route.fetch();
+    if (response.status() === 200) resolveKept((await response.json()) as Reach);
+    await route.fulfill({ response });
+  });
   await page.getByRole("button", { name: "Download the areas from the start stop (GeoJSON)" }).click();
-  const first = await kept;
-  expect(first.status()).toBe(200);
-  const answer = (await first.json()) as { url: string; stop: string; bands: { minutes: number }[] };
+  const answer = await kept;
   expect(answer.bands.map((b) => b.minutes)).toEqual([10, 20, 30]);
   const file = await page.request.get(answer.url);
   expect(file.status()).toBe(200);
