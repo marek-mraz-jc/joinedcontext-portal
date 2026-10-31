@@ -112,7 +112,7 @@ export function AppJobRuns({ project, name }: { project: string; name: string })
                   <Badge tone={TONES[row.outcome]}>{t(`apps.jobs.outcomes.${row.outcome}`)}</Badge>
                   {row.run?.message ? <span className="block text-caption text-fg-muted">{row.run.message}</span> : null}
                   {row.run && row.run.failuresInARow >= 3 ? (
-                    <span className="block text-caption text-danger-fg">{t("apps.jobs.inARow", { count: row.run.failuresInARow })}</span>
+                    <span className="block text-caption text-danger">{t("apps.jobs.inARow", { count: row.run.failuresInARow })}</span>
                   ) : null}
                 </span>
               ) : (

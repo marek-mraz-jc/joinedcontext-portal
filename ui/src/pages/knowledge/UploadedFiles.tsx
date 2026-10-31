@@ -110,7 +110,7 @@ export function UploadedFiles({ project, source }: { project: string; source: st
           storageKey="knowledge-files"
           searchLabel={t("grid.searchIn", { list: t("knowledge.files.title") })}
           rows={rows}
-          rowKey={(file) => file.id}
+          rowKey={(file) => String(file.id)}
           query={files}
           name={{
             id: "name",
