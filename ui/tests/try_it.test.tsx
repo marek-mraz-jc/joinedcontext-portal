@@ -13,7 +13,7 @@ import { TryItPage } from "../src/pages/workspaces/TryItPage";
 import { copyIntoPreview, PER_TYPE } from "../src/pages/workspaces/copyIntoPreview";
 
 let me = { email: "jana@hel.fi", username: "jana" };
-vi.mock("../src/auth/AuthProvider", () => ({ useAuth: () => ({ identity: me, status: "authenticated" }) }));
+vi.mock("../src/auth/AuthProvider", () => ({ useAuthStatus: () => "authenticated", useAuth: () => ({ identity: me, status: "authenticated" }) }));
 
 type Handler = (request: Request, url: URL) => Response | Promise<Response> | undefined;
 let handler: Handler;

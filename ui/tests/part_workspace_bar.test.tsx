@@ -30,7 +30,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 let me: { email: string; username: string } = { email: "jana@hel.fi", username: "jana" };
-vi.mock("../src/auth/AuthProvider", () => ({
+vi.mock("../src/auth/AuthProvider", () => ({ useAuthStatus: () => "authenticated",
   useAuth: () => ({ identity: me, status: "authenticated" }),
 }));
 

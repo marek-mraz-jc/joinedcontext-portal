@@ -32,7 +32,7 @@ vi.mock("@tanstack/react-router", () => ({
     select({ location: { search: {} } }),
 }));
 
-vi.mock("../src/auth/AuthProvider", () => ({
+vi.mock("../src/auth/AuthProvider", () => ({ useAuthStatus: () => "authenticated",
   useAuth: () => ({ identity: { email: "jana@hel.fi", username: "jana" }, status: "authenticated" }),
 }));
 

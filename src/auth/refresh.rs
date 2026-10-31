@@ -25,8 +25,13 @@ fn is_exempt(path: &str) -> bool {
 
 /// A top-level browser navigation, as opposed to a `fetch` from the SPA.
 fn is_navigation(request: &Request) -> bool {
-    request
-        .headers()
+    accepts_html(request.headers())
+}
+
+/// Whether the caller asked for a page (`Accept: text/html`): a browser navigating, which a
+/// refusal sends to the login page, rather than a script, which gets a 401.
+pub(crate) fn accepts_html(headers: &axum::http::HeaderMap) -> bool {
+    headers
         .get(header::ACCEPT)
         .and_then(|v| v.to_str().ok())
         .is_some_and(|accept| accept.contains("text/html"))

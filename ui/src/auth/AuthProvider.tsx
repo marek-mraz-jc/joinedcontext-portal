@@ -117,6 +117,11 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
   return <AuthContext value={value}>{children}</AuthContext>;
 }
 
+/** The session's status, or `undefined` outside an AuthProvider (a component rendered on its own). */
+export function useAuthStatus(): AuthStatus | undefined {
+  return useContext(AuthContext)?.status;
+}
+
 export function useAuth(): AuthState {
   const value = useContext(AuthContext);
   if (!value) {

@@ -29,7 +29,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 let me = { email: "jana@hel.fi", username: "jana" };
-vi.mock("../src/auth/AuthProvider", () => ({ useAuth: () => ({ identity: me, status: "authenticated" }) }));
+vi.mock("../src/auth/AuthProvider", () => ({ useAuthStatus: () => "authenticated", useAuth: () => ({ identity: me, status: "authenticated" }) }));
 
 type Handler = (request: Request, url: URL) => Response | Promise<Response> | undefined;
 let handler: Handler;

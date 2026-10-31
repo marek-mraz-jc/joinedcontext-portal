@@ -1,5 +1,7 @@
-//! T-4063: the API and User Guide pages answer anyone, with no session, through the running
-//! router; no other chapter does.
+//! T-4063, T-6200: the API and User Guide pages answer a signed-in person through the running
+//! router; no other chapter does, and a visitor without a session reads none of them.
+
+mod common;
 
 use axum::body::{to_bytes, Body};
 use axum::http::{header, Request, StatusCode};
@@ -8,14 +10,21 @@ use joinedcontext_portal::server;
 use joinedcontext_portal::state::AppState;
 use tower::ServiceExt;
 
+/// `path` as a signed-in person's browser asks for it.
 async fn get(path: &str) -> (StatusCode, Option<String>, String) {
-    let response = server::app(AppState::new(Config::for_tests(), None))
-        .oneshot(
-            Request::builder()
-                .uri(path)
-                .body(Body::empty())
-                .expect("request"),
-        )
+    let config = Config::for_tests();
+    let cookie = common::cookie(&config, common::person("reader"));
+    let request = Request::builder()
+        .uri(path)
+        .header(header::COOKIE, cookie)
+        .body(Body::empty())
+        .expect("request");
+    answer(config, request).await
+}
+
+async fn answer(config: Config, request: Request<Body>) -> (StatusCode, Option<String>, String) {
+    let response = server::app(AppState::new(config, None))
+        .oneshot(request)
         .await
         .expect("response");
     let status = response.status();
@@ -28,7 +37,7 @@ async fn get(path: &str) -> (StatusCode, Option<String>, String) {
 }
 
 #[tokio::test]
-async fn the_websocket_guide_answers_without_a_session() {
+async fn the_websocket_guide_answers_a_signed_in_person() {
     let (status, policy, body) = get("/docs/API/07-websocket").await;
     assert_eq!(status, StatusCode::OK);
     assert!(
@@ -107,18 +116,80 @@ async fn representations(health: Option<serde_json::Value>) -> String {
         }
         None => config.broker_url = Some("http://127.0.0.1:9".to_owned()),
     }
+    let cookie = common::cookie(&config, common::person("reader"));
+    let request = Request::builder()
+        .uri("/docs/API/02-endpoint-representations")
+        .header(header::COOKIE, cookie)
+        .body(Body::empty())
+        .expect("request");
+    let (status, _, body) = answer(config, request).await;
+    assert_eq!(status, StatusCode::OK);
+    body
+}
+
+/// T-6200: a browser without a session is sent to the login page and back to the page it asked
+/// for; a script without a token gets 401; neither sees a word of the page.
+#[tokio::test]
+async fn a_visitor_without_a_session_reads_no_page() {
+    let page = "/docs/User-Guide/01-getting-started?x=1";
+    let browser = Request::builder()
+        .uri(page)
+        .header(header::ACCEPT, "text/html,application/xhtml+xml")
+        .body(Body::empty())
+        .expect("request");
+    let response = server::app(AppState::new(Config::for_tests(), None))
+        .oneshot(browser)
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    let location = response.headers().get(header::LOCATION).expect("location");
+    assert_eq!(
+        location,
+        "/login?redirect_to=%2Fdocs%2FUser-Guide%2F01-getting-started%3Fx%3D1"
+    );
+    assert_eq!(
+        response.headers().get(header::CACHE_CONTROL).expect("cache"),
+        "no-store"
+    );
+
+    for path in ["/docs/API/07-websocket", "/docs/API/no-such-page"] {
+        let script = Request::builder()
+            .uri(path)
+            .body(Body::empty())
+            .expect("request");
+        let (status, _, body) = answer(Config::for_tests(), script).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{path}");
+        assert!(!body.contains("WebSocket"), "{path}: {body:.200}");
+    }
+
+    let forged = Request::builder()
+        .uri("/docs/API/07-websocket")
+        .header(header::AUTHORIZATION, "Bearer not-a-token")
+        .body(Body::empty())
+        .expect("request");
+    let (status, _, _) = answer(Config::for_tests(), forged).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "a bad token is no session");
+}
+
+/// The page depends on the session now: no shared cache may keep it for the next visitor.
+#[tokio::test]
+async fn a_page_is_cached_privately_only() {
+    let config = Config::for_tests();
+    let cookie = common::cookie(&config, common::person("reader"));
+    let request = Request::builder()
+        .uri("/docs/API/07-websocket")
+        .header(header::COOKIE, cookie)
+        .body(Body::empty())
+        .expect("request");
     let response = server::app(AppState::new(config, None))
-        .oneshot(
-            Request::builder()
-                .uri("/docs/API/02-endpoint-representations")
-                .body(Body::empty())
-                .expect("request"),
-        )
+        .oneshot(request)
         .await
         .expect("response");
     assert_eq!(response.status(), StatusCode::OK);
-    let body = to_bytes(response.into_body(), 4 << 20).await.expect("body");
-    String::from_utf8_lossy(&body).into_owned()
+    assert_eq!(
+        response.headers().get(header::CACHE_CONTROL).expect("cache"),
+        "private, max-age=300"
+    );
 }
 
 const STA: &str = "id=\"7-ogc-sensorthings-api-sta-v11\"";
