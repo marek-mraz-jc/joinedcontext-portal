@@ -588,9 +588,10 @@ describe("the files of an upload source (T-4185)", () => {
     renderAt("/projects/banskabystrica/knowledge/bb-files", { sources: { code: 200, body: FILES }, files: { code: 200, body: files } });
     const table = await screen.findByRole("table", { name: "Files" });
     await within(table).findByText("zapisnica.pdf");
+    const fewestFirst = [1, 0, 2].map((at) => files.items[at].name);
     await narrowsAndOrders(table, {
       search: { label: "Search Files", text: "uznes", kept: ["uznesenia.docx"] },
-      sort: { column: "Passages", ascending: ["zapisnica.pdf", "rozpocet-2026.xlsx", "uznesenia.docx"] },
+      sort: { column: "Passages", ascending: fewestFirst },
       filter: { value: /^Could not be read/, kept: ["zapisnica.pdf"] },
     });
   });
