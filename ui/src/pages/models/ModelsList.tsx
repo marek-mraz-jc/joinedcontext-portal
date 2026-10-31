@@ -35,8 +35,12 @@ import {
 import type { ButtonVariant } from "../../components/ui";
 import { OrganizationModels } from "./OrganizationModels";
 import { entityTypesOf } from "../spaces/spaceFacts";
+
 import { spaceOfModel, usageCounts, usesOfModel } from "./modelUsage";
 import type { ProjectManifests, UsingKind } from "./modelUsage";
+
+/** Types a row names before "+N": a model of 27 classes was a four-line wall (T-6254). */
+export const TYPES_SHOWN = 6;
 
 /** A list's manifests; a module function, so `select` keeps its answer while the list stands still. */
 function manifestsOf(list: { items?: Parameters<typeof asManifests>[0] }): Manifest[] {
@@ -200,11 +204,12 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
             text: (row) => row.title,
             cell: (row) => (
               <>
+                {/* A floor under the name, so "Open data catalogue" keeps one line beside a long Types cell (T-6254). */}
                 <Link
                   data-row-link=""
                   to="/projects/$project/models/$name"
                   params={{ project, name: row.model.metadata.name }}
-                  className="focus-ring text-primary-soft-fg underline-offset-2 hover:underline"
+                  className="focus-ring inline-block text-primary-soft-fg underline-offset-2 hover:underline sm:min-w-48"
                 >
                   {row.title}
                 </Link>
@@ -257,7 +262,7 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
                   <span className="font-medium">{row.classes.length}</span>
                   {row.classes.length > 0 ? (
                     <span className="block text-caption text-fg-muted">
-                      {row.classes.map((klass, index) => (
+                      {row.classes.slice(0, TYPES_SHOWN).map((klass, index) => (
                         <Fragment key={klass}>
                           {index === 0 ? null : ", "}
                           <Link
@@ -270,6 +275,19 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
                           </Link>
                         </Fragment>
                       ))}
+                      {row.classes.length > TYPES_SHOWN ? (
+                        <>
+                          {", "}
+                          <Link
+                            to="/projects/$project/models/$name"
+                            params={{ project, name: row.model.metadata.name }}
+                            aria-label={t("models.page.moreTypes", { count: row.classes.length - TYPES_SHOWN, model: row.title })}
+                            className="focus-ring font-medium underline-offset-2 hover:underline"
+                          >
+                            +{row.classes.length - TYPES_SHOWN}
+                          </Link>
+                        </>
+                      ) : null}
                     </span>
                   ) : null}
                 </>

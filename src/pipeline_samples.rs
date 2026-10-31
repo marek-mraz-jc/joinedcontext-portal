@@ -195,7 +195,7 @@ fn mask(value: &mut Value) {
     match value {
         Value::Object(fields) => {
             for (key, inner) in fields.iter_mut() {
-                if crate::api::mutate::SECRET_KEYS.contains(&key.as_str()) && !inner.is_object() {
+                if crate::secret_scan::secret_name(key) && !inner.is_object() {
                     *inner = json!("•••");
                 } else {
                     mask(inner);

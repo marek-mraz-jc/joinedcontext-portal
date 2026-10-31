@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -274,24 +274,7 @@ pub fn may_open(
     state: &AppState,
     identity: &crate::auth::session::Identity,
 ) -> Result<(), ApiError> {
-    let creation = state
-        .mirror
-        .list(
-            crate::permissions::ORG_NAMESPACE,
-            "Organization",
-            &crate::store::ListOptions::default(),
-        )
-        .items
-        .into_iter()
-        .find_map(|env| {
-            env.spec
-                .pointer("/projects/creation")
-                .and_then(Value::as_str)
-                .map(str::to_owned)
-        })
-        .unwrap_or_else(|| "org-admin".to_owned());
-
-    match creation.as_str() {
+    match creation(state).as_str() {
         "anyone" => Ok(()),
         group if group.starts_with("group:") => {
             let name = group.trim_start_matches("group:");
@@ -353,12 +336,7 @@ fn in_group(state: &AppState, identity: &crate::auth::session::Identity, name: &
                 .and_then(Value::as_str)
                 .or_else(|| member.as_str())
                 .unwrap_or_default();
-            !named.is_empty()
-                && (named.eq_ignore_ascii_case(&identity.username)
-                    || identity
-                        .email
-                        .as_deref()
-                        .is_some_and(|email| named.eq_ignore_ascii_case(email)))
+            !named.is_empty() && crate::permissions::names_user(identity, named)
         });
     }
     identity.groups.iter().any(|held| held == name)
@@ -542,21 +520,21 @@ pub(crate) async fn new_project_name(
 }
 
 fn lets_anyone_open(state: &AppState) -> bool {
-    state
-        .mirror
-        .list(
-            crate::permissions::ORG_NAMESPACE,
-            "Organization",
-            &crate::store::ListOptions::default(),
-        )
-        .items
-        .iter()
-        .any(|env| {
-            env.spec
+    creation(state) == "anyone"
+}
+
+/// Who may open a project: the installation Organization's `projects.creation`, which a new
+/// project belongs to (ADR-N-058 section 2.2); another Organization's setting opens nothing
+/// here. `org-admin` when it sets none.
+fn creation(state: &AppState) -> String {
+    crate::permissions::installation_organization_manifest(&state.mirror)
+        .and_then(|org| {
+            org.spec
                 .pointer("/projects/creation")
                 .and_then(Value::as_str)
-                == Some("anyone")
+                .map(str::to_owned)
         })
+        .unwrap_or_else(|| "org-admin".to_owned())
 }
 
 /// The two files a new project is: its manifest, and the binding that makes its opener the
@@ -843,6 +821,7 @@ pub async fn duplicate_project(
                 name: &name,
                 fresh_slug: &|_| true,
                 applications: &BTreeMap::new(),
+                keep_secrets: false,
                 message: format!("Duplicate {origin} as {name} (PF-89)"),
             },
         )
@@ -1267,6 +1246,10 @@ pub(crate) struct Remount<'a> {
     /// Application repositories by the name the origin gave them, to the clone URL each one
     /// lands at: an App's `source.git.url` follows its repository (AP-75).
     pub applications: &'a BTreeMap<String, String>,
+    /// Whether the encrypted secrets files go with it. A copy beside its origin leaves them
+    /// behind: they hold the origin's credentials, which a reader of the origin who opens the
+    /// copy must not get to use (CC-06); an import carries the bundle its owner brought.
+    pub keep_secrets: bool,
     pub message: String,
 }
 
@@ -1284,7 +1267,14 @@ pub(crate) async fn remount_copy(
     let name = remount.name;
     let owners = format!("* @{}/{name}-writers\n", copy.owner);
     let mut uploads = Vec::new();
-    for (path, _) in copy.list_tree_blobs("main").await? {
+    let mut deletes = Vec::new();
+    for (path, sha) in copy.list_tree_blobs("main").await? {
+        if !remount.keep_secrets
+            && jcctl::secrets::sops::is_encrypted_file(path.rsplit('/').next().unwrap_or_default())
+        {
+            deletes.push((path, sha));
+            continue;
+        }
         let yaml = path.ends_with(".yaml") || path.ends_with(".yml");
         let codeowners = path == format!("projects/{name}/CODEOWNERS");
         if !yaml && !codeowners {
@@ -1306,7 +1296,7 @@ pub(crate) async fn remount_copy(
         };
         uploads.push((path, text));
     }
-    if uploads.is_empty() {
+    if uploads.is_empty() && deletes.is_empty() {
         return Ok(None);
     }
     let (author_name, author_email) = crate::api::mutate::author_credentials(identity, name);
@@ -1319,7 +1309,7 @@ pub(crate) async fn remount_copy(
                 email: &author_email,
             },
             &uploads,
-            &[],
+            &deletes,
         )
         .await?;
     Ok(Some(commit))
@@ -1649,21 +1639,27 @@ pub async fn delete_project_for(
     }
     let branch = crate::api::mutate::create_or_reuse_branch(gitea, &held, &default_branch).await?;
     let (author_name, author_email) = crate::api::mutate::author_credentials(identity, project);
-    for path in &files {
-        let Some(file) = gitea.get_file(path, &branch).await? else {
-            continue;
-        };
+    // One commit for every file, not a read and a commit per file (F-R2POR3-019). The blob
+    // shas are the base's: the forge refuses the commit if the branch holds another version.
+    let planned: BTreeSet<&str> = files.iter().map(String::as_str).collect();
+    let deletes: Vec<(String, String)> = gitea
+        .list_tree_blobs(&default_branch)
+        .await?
+        .into_iter()
+        .filter(|(path, _)| planned.contains(path.as_str()))
+        .collect();
+    if !deletes.is_empty() {
         gitea
-            .delete_file(&crate::git::FileDelete {
-                path,
-                branch: &branch,
-                message: &format!("delete {path}"),
-                sha: &file.sha,
-                author: crate::git::Author {
+            .change_files(
+                &branch,
+                &format!("delete project {project} (PF-77)"),
+                crate::git::Author {
                     name: &author_name,
                     email: &author_email,
                 },
-            })
+                &[],
+                &deletes,
+            )
             .await?;
     }
 
@@ -1697,4 +1693,73 @@ pub async fn delete_project_for(
         .proposed_through(&pull.body)
         .with_merge_request(pull.url),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::permissions::ORG_NAMESPACE;
+    use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+
+    fn envelope(kind: &str, name: &str, spec: Value) -> ResourceEnvelope {
+        ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: kind.to_owned(),
+            metadata: ObjectMeta::new(name, ORG_NAMESPACE),
+            spec,
+            status: None,
+        }
+    }
+
+    fn person(subject: &str) -> crate::auth::session::Identity {
+        crate::auth::session::Identity {
+            client: None,
+            subject: subject.into(),
+            username: "jana".into(),
+            email: Some("jana@hel.fi".into()),
+            name: None,
+            roles: vec![],
+            groups: vec![],
+            second_factor: false,
+        }
+    }
+
+    /// F-R2POR3-004: who opens a project is the installation Organization's to say; a second
+    /// Organization's `anyone` opens nothing and merges nothing.
+    #[test]
+    fn only_the_installation_organization_says_who_opens_a_project() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        state.mirror.upsert(envelope(
+            "Organization",
+            "aa",
+            json!({ "domain": "aa.sk", "projects": { "creation": "anyone" } }),
+        ));
+        state.mirror.upsert(envelope(
+            "Organization",
+            "bb",
+            json!({ "domain": "bb.sk", "installation": true, "projects": { "creation": "org-admin" } }),
+        ));
+        assert_eq!(creation(&state), "org-admin");
+        assert!(!lets_anyone_open(&state));
+        assert!(may_open(&state, &person("sub-jana")).is_err());
+    }
+
+    /// F-R2POR3-007: a `group:` member written as a Keycloak id (ADR-N-061) is its person.
+    #[test]
+    fn a_group_member_written_as_an_id_may_open_a_project() {
+        const ID: &str = "0b6f0e4c-1d2e-4f00-9a7b-3c4d5e6f7a8b";
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        state.mirror.upsert(envelope(
+            "Organization",
+            "bb",
+            json!({ "domain": "bb.sk", "projects": { "creation": "group:openers" } }),
+        ));
+        state.mirror.upsert(envelope(
+            "Group",
+            "openers",
+            json!({ "members": [{ "user": ID }] }),
+        ));
+        assert!(in_group(&state, &person(ID), "openers"));
+        assert!(!in_group(&state, &person("sub-other"), "openers"));
+    }
 }

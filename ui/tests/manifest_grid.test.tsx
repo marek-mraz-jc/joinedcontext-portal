@@ -141,9 +141,12 @@ function grid(onChange = vi.fn()) {
   );
 }
 
-function harness(put: (body: unknown, dryRun: boolean) => Response, mayPropose = true) {
-  const sent: { dryRun: boolean; body: unknown }[] = [];
+function harness(put: (body: unknown, dryRun: boolean) => Response, mayPropose = true, stored: Manifest = endpoint) {
+  const sent: { dryRun: boolean; body: unknown; ifMatch: string | null }[] = [];
   const answer = async (url: URL, request: Request) => {
+    if (url.pathname === "/api/v1/projects/helsinki/endpoints/air-quality" && request.method === "GET") {
+      return new Response(JSON.stringify(stored), { headers: { "Content-Type": "application/json", ETag: '"v2"' } });
+    }
     if (url.pathname === "/api/v1/kinds/Endpoint/schema") return json(endpointSchema);
     if (url.pathname.endsWith("/permissions/me")) {
       return json({ project: "helsinki", bootstrap: false, grants: [{ scope: "project:helsinki", rule: { kinds: ["Endpoint"], verbs: mayPropose ? ["read", "propose"] : ["read"] } }] });
@@ -152,7 +155,7 @@ function harness(put: (body: unknown, dryRun: boolean) => Response, mayPropose =
     if (url.pathname === "/api/v1/projects/helsinki/endpoints/air-quality" && request.method === "PUT") {
       const body = (await request.json()) as unknown;
       const dryRun = url.searchParams.get("dryRun") === "All";
-      sent.push({ dryRun, body });
+      sent.push({ dryRun, body, ifMatch: request.headers.get("If-Match") });
       return put(body, dryRun);
     }
     return undefined;
@@ -199,6 +202,27 @@ describe("ManifestGrid", () => {
     const body = sent[1].body as { spec: Record<string, unknown>; status?: unknown };
     expect(body.spec).toEqual({ contextSpaceRef: "air", audience: "public", slug: "airqualityhelsinkiaaaaaaaaaa" });
     expect(body.status).toBeUndefined();
+  });
+
+  // F-R2UI2-007: a Change merged after the list was read must survive a cell edit.
+  it("edits the manifest as it is now, not the row the list cached, and sends its ETag", async () => {
+    const merged = { ...endpoint, spec: { ...(endpoint.spec as object), title: "merged since" } } as unknown as Manifest;
+    const change = { apiVersion: "joinedcontext.com/v1alpha1", kind: "Change", metadata: { name: "c-2", namespace: "helsinki" }, status: { state: "Pending" } };
+    const { sent, answer } = harness((_body, dryRun) => json(dryRun ? { valid: true } : change, dryRun ? 200 : 202), true, merged);
+    const onChange = vi.fn();
+    renderPage(grid(onChange), { answer });
+    await openDetails("air-quality");
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.selectOptions(await within(dialog).findByRole("combobox", { name: "Audience" }), "public");
+    await userEvent.click(within(dialog).getByRole("button", { name: en.grid.propose }));
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    expect((sent[1].body as { spec: Record<string, unknown> }).spec).toEqual({
+      contextSpaceRef: "air",
+      audience: "public",
+      slug: "airqualityhelsinkiaaaaaaaaaa",
+      title: "merged since",
+    });
+    expect(sent.map((each) => each.ifMatch)).toEqual(['"v2"', '"v2"']);
   });
 
   it("shows the server's 403 on the field it was for", async () => {

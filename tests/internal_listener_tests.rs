@@ -44,6 +44,7 @@ fn token(signer: &EncodingKey, issuer: &str, audience: &str, client: &str) -> St
     header.kid = Some("key-internal-test".to_owned());
     let now = joinedcontext_portal::auth::session::now_unix();
     let claims = json!({
+        "typ": "Bearer",
         "iss": issuer,
         "aud": audience,
         "sub": format!("service-account-{client}"),

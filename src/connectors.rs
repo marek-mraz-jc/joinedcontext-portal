@@ -271,13 +271,7 @@ impl Ceiling {
     /// or a `Group` subject names a group of its token or a `Group` manifest listing the person.
     pub fn of(mirror: &crate::store::Mirror, identity: &crate::auth::session::Identity) -> Self {
         let options = crate::store::ListOptions::default();
-        let person = |user: &str| {
-            user.eq_ignore_ascii_case(&identity.username)
-                || identity
-                    .email
-                    .as_deref()
-                    .is_some_and(|e| user.eq_ignore_ascii_case(e))
-        };
+        let person = |user: &str| crate::permissions::names_user(identity, user);
         let mut groups: Vec<String> = identity.groups.clone();
         for env in mirror.list(ORG_NAMESPACE, "Group", &options).items {
             if serde_json::from_value::<jc_core::kinds::GroupSpec>(env.spec)
@@ -2408,6 +2402,28 @@ pub(crate) mod tests {
         ask.scope = vec![item("doprava", endpoint)];
         ask.allowed_clients = vec![CLAUDE.into()];
         ask
+    }
+
+    /// F-R2POR3-005: a Group member written as a Keycloak id (ADR-N-061) is the person whose
+    /// `sub` it is, so the group's narrower policy binds them, not the wider default.
+    #[test]
+    fn a_group_member_written_as_an_id_binds_its_person() {
+        const ID: &str = "0b6f0e4c-1d2e-4f00-9a7b-3c4d5e6f7a8b";
+        let (mirror, mut jana) = analysts("refuse");
+        mirror.upsert(crate::resource::ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.to_owned(),
+            kind: "Group".into(),
+            metadata: crate::resource::ObjectMeta::new("analysts", ORG_NAMESPACE),
+            spec: json!({ "members": [{ "user": ID }] }),
+            status: None,
+        });
+        jana.subject = ID.into();
+        let ceiling = Ceiling::of(&mirror, &jana);
+        assert!(
+            ceiling.named().contains("analysts-doprava"),
+            "{}",
+            ceiling.named()
+        );
     }
 
     #[test]

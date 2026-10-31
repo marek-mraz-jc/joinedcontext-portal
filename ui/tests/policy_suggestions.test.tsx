@@ -11,6 +11,7 @@ import i18n from "../src/i18n";
 import { FormDataContext } from "../src/components/forms/widgets/EntitySelectorField";
 import { FormProjectContext } from "../src/components/forms/widgets/ModelWidgets";
 import { AssigneePicker, AttributeSuggest } from "../src/components/forms/widgets/SuggestWidgets";
+import { isPersonId } from "../src/api/personNames";
 
 const list = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
 const named = (kind: string, name: string, namespace: string) => ({
@@ -47,6 +48,8 @@ const MODEL = {
   },
 };
 
+const JANA = "00000000-0000-4000-8000-000000000001";
+
 function stub(peopleStatus = 200) {
   vi.stubGlobal(
     "fetch",
@@ -58,9 +61,12 @@ function stub(peopleStatus = 200) {
       if (url.pathname === "/api/v1/projects/org/roles") return json(list([named("Role", "viewer", "org"), named("Role", "air-reader", "org")]));
       if (url.pathname === "/api/v1/projects/org/groups") return json(list([named("Group", "air-team", "org")]));
       if (url.pathname === "/api/v1/projects/helsinki/serviceaccounts") return json(list([named("ServiceAccount", "sensor-feed", "helsinki")]));
+      if (url.pathname.endsWith("/permissions/me")) {
+        return json({ project: "org", bootstrap: true, grants: [] });
+      }
       if (url.pathname === "/api/v1/organization/people") {
         return peopleStatus === 200
-          ? json({ items: [{ username: "jana", email: "jana@hel.fi" }] })
+          ? json({ items: [{ id: JANA, username: "jana", email: "jana@hel.fi", firstName: "Jana", lastName: "K", enabled: true }] })
           : json({ title: "Forbidden", status: 403 }, 403);
       }
       if (url.pathname === "/api/v1/projects/helsinki/datamodels") return json(list([MODEL]));
@@ -140,15 +146,15 @@ describe("the Policy form's suggestions (T-3217)", () => {
     await waitFor(() => expect(offered(screen.getByRole("combobox"))).toEqual(["sensor-feed"]));
   });
 
-  it("offers people to an administrator and tells anyone else to type the e-mail", async () => {
+  it("picks a person by their Keycloak id, never the e-mail jc-core refuses (ADR-N-061)", async () => {
     stub(200);
-    const { unmount } = wrap({ assignee: { kind: "user" } }, <AssigneePicker {...props("root_assignee_id")} />);
-    await waitFor(() => expect(offered(screen.getByRole("combobox"))).toEqual(["jana@hel.fi"]));
-    unmount();
-    stub(403);
-    wrap({ assignee: { kind: "user" } }, <AssigneePicker {...props("root_assignee_id")} />);
-    expect(await screen.findByText(/Only an administrator of the organization sees the list of people/)).toBeInTheDocument();
-    expect(screen.getByRole("textbox")).toBeEnabled();
+    const onChange = vi.fn();
+    wrap({ assignee: { kind: "user" } }, <AssigneePicker {...props("root_assignee_id", { onChange })} />);
+    const { default: userEvent } = await import("@testing-library/user-event");
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(await screen.findByRole("option", { name: /Jana/ }));
+    expect(onChange).toHaveBeenCalledWith(JANA);
+    expect(isPersonId(onChange.mock.calls[0][0] as string)).toBe(true);
   });
 
   it("says a DID is typed, with an example", () => {

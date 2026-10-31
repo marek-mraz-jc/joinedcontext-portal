@@ -176,7 +176,10 @@ impl SubscriptionSync {
                 .entry(space.clone())
                 .or_default()
                 .insert(id.clone());
-            let body = match self.body(&id, &spec, repository, secrets).await {
+            let body = match self
+                .body(&id, &spec, (repository, &namespace), secrets)
+                .await
+            {
                 Ok(body) => body,
                 Err(reason) => {
                     outcomes.push((namespace, name, SubscriptionOutcome::Error(reason)));
@@ -219,7 +222,7 @@ impl SubscriptionSync {
         &self,
         id: &str,
         spec: &SubscriptionSpec,
-        repository: &Path,
+        (repository, project): (&Path, &str),
         secrets: Option<&Resolver>,
     ) -> Result<Value, String> {
         let mut endpoint = Map::new();
@@ -243,7 +246,7 @@ impl SubscriptionSync {
                 )
             })?;
             let value = resolver
-                .one(repository, reference)
+                .one(repository, project, reference)
                 .await
                 .map_err(|err| err.to_string())?;
             receiver_info.push(json!({ "key": CREDENTIAL_HEADER, "value": value }));

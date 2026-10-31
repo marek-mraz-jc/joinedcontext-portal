@@ -10,7 +10,7 @@ import { jsonResponse, list, renderRoute } from "./pageHarness";
 import { narrowsAndOrders } from "./grid_checks";
 import { usesOfModel } from "../src/pages/models/modelUsage";
 import { yamlParts } from "../src/pages/models/ModelViews";
-import { lastChangeOf } from "../src/pages/models/ModelsList";
+import { lastChangeOf, TYPES_SHOWN } from "../src/pages/models/ModelsList";
 import { organizationImportName } from "../src/pages/models/OrganizationModels";
 import type { Manifest } from "../src/api/manifest";
 
@@ -104,6 +104,22 @@ describe("the list of data models", () => {
     const events = within(table).getByRole("link", { name: "events" }).closest("tr") as HTMLElement;
     expect(events).toHaveTextContent(en.models.page.unused);
     expect(within(table).getAllByRole("row")).toHaveLength(4);
+  });
+
+  // T-6254 judge: a model of 27 classes filled its Types cell with a four-line wall.
+  it("names at most TYPES_SHOWN types in a row and links the rest as +N", async () => {
+    const many = Array.from({ length: TYPES_SHOWN + 3 }, (_, index) => `Type${index + 1}`);
+    const wide = manifest("DataModel", "city", { contextSpaceRef: "ilma", linkml: "./city.linkml.yaml", version: "1.0.0", classes: many });
+    await renderRoute({
+      path: "/projects/helsinki/models",
+      answer: (path) => (path === "/api/v1/projects/helsinki/datamodels" ? jsonResponse(list([wide])) : answer(path)),
+    });
+    const table = await screen.findByRole("table", { name: en.models.page.listCaption });
+    const row = (await within(table).findByRole("link", { name: "city" })).closest("tr") as HTMLElement;
+    expect(row).toHaveTextContent(`${many.slice(0, TYPES_SHOWN).join(", ")}, +3`);
+    expect(within(row).queryByRole("link", { name: many[TYPES_SHOWN] })).not.toBeInTheDocument();
+    const more = within(row).getByRole("link", { name: en.models.page.moreTypes.replace("{count}", "3").replace("{model}", "city") });
+    expect(more).toHaveAttribute("href", "/projects/helsinki/models/city");
   });
 
   it("narrows by the search and by the space", async () => {

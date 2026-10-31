@@ -702,8 +702,20 @@ pub async fn callback(
     let client = oidc(&state)?;
 
     if let Some(error) = query.error {
-        // The description is provider text, not a token; safe to echo back.
-        let detail = query.error_description.unwrap_or_else(|| error.clone());
+        // The provider's text is echoed only to the login it answers: the state of the flow
+        // this browser started. Anyone else's link would make the Portal's origin say what the
+        // link's author wrote (F-R2POR3-014).
+        let ours = jar
+            .get(FLOW_COOKIE)
+            .and_then(|cookie| serde_json::from_str::<FlowState>(cookie.value()).ok())
+            .is_some_and(|flow| query.state.as_deref() == Some(flow.csrf_state.as_str()));
+        if !ours {
+            return Err(ApiError::BadRequest(
+                "the identity provider refused a login this browser did not start; sign in again"
+                    .into(),
+            ));
+        }
+        let detail = query.error_description.unwrap_or(error);
         return Err(ApiError::BadRequest(format!(
             "identity provider rejected the login: {detail}"
         )));
@@ -1054,9 +1066,8 @@ pub async fn backchannel_logout(
         // is in front at all.
         Err(e) => match (state.config.trust_edge_token, state.bearer.as_ref()) {
             (true, Some(bearer)) => bearer
-                .verify_for_audience(&form.logout_token, EDGE_CLIENT)
+                .verify_logout_token(&form.logout_token, EDGE_CLIENT)
                 .await
-                .map(|(session, _)| session.identity.subject)
                 .map_err(|_| {
                     tracing::warn!(error = %e, "logout token verification failed");
                     ApiError::BadRequest("the logout token did not verify".into())

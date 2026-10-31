@@ -1,3 +1,4 @@
+import { reasonOf } from "../../api/client";
 import { useMemo } from "react";
 import type { JSX } from "react";
 import { useQueries } from "@tanstack/react-query";
@@ -6,7 +7,7 @@ import { parse } from "yaml";
 import { readModelSource } from "../../api/datamodelSource";
 import { Combobox } from "./Combobox";
 import type { PickerOption } from "./Combobox";
-import { reasonOf, useOrganizationModels } from "./organizationModels";
+import { useOrganizationModels } from "./organizationModels";
 import type { OrganizationModel } from "./organizationModels";
 
 export interface TypePickerProps {

@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { api, queryKeys, unwrap, reasonOf } from "../../api/client";
 import { startJob } from "../../jobs";
 import { RecordLink } from "../../components/RecordLink";
 import { usePermissions } from "../../api/permissions";
@@ -31,11 +31,6 @@ import { duplicateDeployment, knowledgeKeys, listSources, topLanguages, listUsag
 import type { KnowledgeSourceRow } from "./knowledge";
 import { AssistantChat, EmbedSnippet } from "./AssistantChat";
 import { sum } from "./IndexStatus";
-
-/** The sentence an `ApiError` carries, or the generic one. */
-export function reasonOf(error: unknown, fallback: string): string {
-  return error instanceof ApiError ? (error.problem?.detail ?? error.message) : fallback;
-}
 
 /** How a source stands: never crawled, waiting, being read, read, or failed with its reason. */
 export function standing(row: KnowledgeSourceRow): { key: string; tone: BadgeTone } {

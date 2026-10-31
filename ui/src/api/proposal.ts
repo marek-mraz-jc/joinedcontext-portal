@@ -23,6 +23,8 @@ export async function proposeChecked(
   plural: string,
   body: ResourceProposal,
   create: boolean,
+  /** The ETag the manifest was read with: an update the server holds a newer one of is a 412. */
+  ifMatch?: string,
 ): Promise<unknown> {
   const send = (dryRun: boolean) => {
     const query = dryRun ? { dryRun: "All" } : undefined;
@@ -32,7 +34,7 @@ export async function proposeChecked(
           body,
         })
       : api.PUT("/api/v1/projects/{project}/{plural}/{name}", {
-          params: { path: { project, plural, name: body.metadata.name }, query },
+          params: { path: { project, plural, name: body.metadata.name }, query, header: ifMatch ? { "If-Match": ifMatch } : undefined },
           body,
         });
   };

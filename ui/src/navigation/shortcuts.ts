@@ -32,11 +32,17 @@ export function isTyping(target: EventTarget | null): boolean {
   );
 }
 
-/** The form Ctrl+S saves: the one the focus is in, else the one of an open dialog or the page. */
+/**
+ * The form Ctrl+S saves: the one the focus is in, else the open dialog's, else the page's. An open
+ * dialog without a form saves nothing behind it: a selector list would answer in document order,
+ * and the page's `main form` comes before the dialog portaled to the end of the body.
+ */
 function formToSave(doc: Document): HTMLFormElement | null {
   const active = doc.activeElement;
   const around = active instanceof HTMLElement ? active.closest("form") : null;
-  return around ?? doc.querySelector<HTMLFormElement>("[role=dialog] form, main form");
+  if (around) return around;
+  const dialog = doc.querySelector("[role=dialog]");
+  return dialog ? dialog.querySelector("form") : doc.querySelector<HTMLFormElement>("main form");
 }
 
 function marked(doc: Document, id: "save" | "new" | "test"): HTMLElement | null {

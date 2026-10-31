@@ -1487,7 +1487,9 @@ async fn listed(
     Ok(Listed::Change(Box::new(proposal)))
 }
 
-pub async fn list_changes_for(state: &AppState, project: &str) -> Result<ChangeList, ApiError> {
+/// Every open change of `project`, unfiltered: a caller reads it through
+/// [`list_changes_readable`], which keeps what its rights read (F-R2POR4-011).
+async fn list_changes_for(state: &AppState, project: &str) -> Result<ChangeList, ApiError> {
     let gitea = state
         .forge_for(project)
         .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;

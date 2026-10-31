@@ -1,3 +1,4 @@
+import { reasonOf } from "../../api/client";
 import { PageFailed } from "../../components/ui/PageState";
 import { useDeferredValue, useState } from "react";
 import type { FormEvent } from "react";
@@ -26,7 +27,6 @@ import {
   Tabs,
   tabPanelProps,
 } from "../../components/ui";
-import { reasonOf } from "./KnowledgePage";
 import {
   bytesText,
   findPages,

@@ -420,6 +420,21 @@ describe("the endpoint's own settings page", () => {
     expect(reads.map((url) => url.searchParams.get("q"))).toEqual([null, "pm10>30"]);
   });
 
+  // F-R2UI2-008: every keystroke in the query box was two counted reads through the gateway.
+  it("counts a typed filter once the typing pauses, and the whole type only once", async () => {
+    const fetchMock = renderPage();
+    const user = userEvent.setup();
+    await screen.findByText("1 of 3 entities match this filter");
+    await user.type(screen.getByLabelText(en.endpoints.filter.q), ";pm10<90");
+    await waitFor(() => {
+      const asked = fetchMock.mock.calls
+        .map(([input]) => new URL(input instanceof Request ? input.url : String(input), window.location.origin))
+        .filter((url) => url.pathname.startsWith(`/api/endpoint/${SLUG}/ngsi-ld/v1/entities`))
+        .map((url) => url.searchParams.get("q"));
+      expect(asked).toEqual([null, "pm10>30", "pm10>30;pm10<90"]);
+    });
+  });
+
   it("warns before it is proposed that a filter matching nothing publishes nothing", async () => {
     renderPage({ counts: { all: 3, matching: 0 } });
 

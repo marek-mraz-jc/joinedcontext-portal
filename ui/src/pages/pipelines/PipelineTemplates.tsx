@@ -8,7 +8,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { api, queryKeys, unwrap, reasonOf } from "../../api/client";
 import type { Manifest } from "../../api/manifest";
 import { usePermissions } from "../../api/permissions";
 import { Alert, Button, Field, Input } from "../../components/ui";
@@ -16,10 +16,6 @@ import { toForm } from "./PipelineEditor";
 import type { PipelineForm } from "./PipelineEditor";
 
 const key = (project: string) => [...queryKeys.resource(project, "pipelines", ""), "templates"] as const;
-
-function reasonOf(error: unknown, fallback: string): string {
-  return error instanceof ApiError ? (error.problem?.detail ?? error.message) : fallback;
-}
 
 /** A template's spec as the form holds it: no name, the source and target left to pick. */
 export function formOfTemplate(spec: Record<string, unknown>): PipelineForm {

@@ -1,3 +1,4 @@
+import { reasonOf } from "../../api/client";
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, JSX, KeyboardEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -5,7 +6,6 @@ import { CodeBlock, Alert, Button, Checkbox, ExternalLink, Field, Table, Textare
 import { useBranding } from "../../branding";
 import { askAssistant, cellText, dataChart, embedSnippet, launcherSnippet } from "./knowledge";
 import type { ChatEvent, ChatTurn, Citation, DataChart, DataTable } from "./knowledge";
-import { reasonOf } from "../../components/forms/widgets/ListFailed";
 import { label, markdown, sources } from "./answerFormat";
 import type { Block, Inline } from "./answerFormat";
 

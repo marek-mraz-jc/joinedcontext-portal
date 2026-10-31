@@ -1,9 +1,9 @@
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
+import { ListFailed } from "../../components/forms/widgets/ListFailed";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { api, ApiError, queryKeys, unwrap, reasonOf } from "../../api/client";
 import { prune } from "../../api/manifest";
 import type { Change } from "../../api/manifest";
 import { useProposal } from "../../api/proposal";

@@ -1,5 +1,6 @@
 import { useFormRoute, useOpenFromAddress } from "../../components/forms/FormRoute";
 import { RecordLink } from "../../components/RecordLink";
+import { withoutUserinfo } from "../../components/ui/safeHref";
 import { useMemo, useState } from "react";
 import { ResourceList } from "../../components/ResourceList";
 import type { JSX } from "react";
@@ -223,23 +224,6 @@ export function endpointOf(spec: Record<string, unknown>): string {
 }
 
 const TEMPLATE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
-
-/**
- * The address without its `user:password@` part, also when the password holds a raw `@`, `/`, `?` or
- * `#` (T-4991 review). The userinfo ends at the first `@` whose following host part has no `@`; an
- * `@` only in the path (`https://host/users/@me`) is left alone.
- */
-function withoutUserinfo(one: string): string {
-  const scheme = /^[a-z][a-z0-9+.-]*:\/\//i.exec(one)?.[0];
-  if (!scheme) return one;
-  const rest = one.slice(scheme.length);
-  const authority = (rest.split(/[/?#]/)[0] ?? "").replace(/\[[^\]]*\]/, "");
-  if (!authority.includes("@") && !/:(?!\d*$)/.test(authority)) return one;
-  for (let at = rest.indexOf("@"); at >= 0; at = rest.indexOf("@", at + 1)) {
-    if (!(rest.slice(at + 1).split(/[/?#]/)[0] ?? "").includes("@")) return scheme + rest.slice(at + 1);
-  }
-  return one;
-}
 
 /**
  * An address as the table shows it (T-4991): host and path, the scheme left to the Type column,
