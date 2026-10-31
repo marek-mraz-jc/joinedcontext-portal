@@ -465,12 +465,12 @@ export function GridRow<T>({
           fires (T-6169). */}
       <TableCell
         align="right"
-        className={clsx("align-middle", STICKY)}
+        className={clsx("align-middle sm:w-px sm:whitespace-nowrap", STICKY)}
         onClick={(event) => (event.currentTarget.contains(event.target as Node) ? event.preventDefault() : undefined)}
       >
         <div className="flex items-center justify-end gap-1">
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             aria-label={t("grid.openDetails", { name: name.text(row) })}
             title={t("grid.details")}
