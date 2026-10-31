@@ -10702,6 +10702,8 @@ export interface components {
             metadata: components["schemas"]["ListMeta"];
             /** @description The `cursor` of the next page; absent on the last one (API/13 section 2). */
             nextCursor?: string | null;
+            /** @description How many rows the whole listing holds, every page together; only with `count=true`. */
+            totalCount?: number | null;
         };
         /**
          * @description What a proposal of one resource sends: the manifest, and beside it the draft the form holds
@@ -13289,7 +13291,18 @@ export interface operations {
     };
     list_endpoints_everywhere: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description One Endpoint field, `-` in front for descending, e.g. -metadata.name; default project, then name */
+                sort?: string;
+                /** @description Text searched case-insensitively in each Endpoint's name, title, labels and spec, e.g. air */
+                q?: string;
+                /** @description true adds totalCount, the rows of every page together */
+                count?: boolean;
+                /** @description The nextCursor of the previous page */
+                cursor?: string;
+                /** @description Rows per page, 1 to 1000; the whole list without it */
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -13305,6 +13318,15 @@ export interface operations {
                     "application/json": components["schemas"]["ResourceList"];
                 };
             };
+            /** @description A bad sort, q, count, cursor or limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Unauthorized */
             401: {
                 headers: {
@@ -13316,6 +13338,15 @@ export interface operations {
             };
             /** @description Not an administrator of the organization */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A sort field an Endpoint does not have */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -34922,15 +34953,21 @@ export interface operations {
             query?: {
                 /** @description AIP-160 subset over manifest fields, e.g. labels.team = "air" AND spec.schedule:* */
                 filter?: string;
-                /** @description One field, optionally followed by desc; default metadata.name */
+                /** @description One field of the kind, `-` in front for descending, e.g. -metadata.name; default metadata.name */
+                sort?: string;
+                /** @description Old name of sort: one field, optionally followed by desc */
                 orderBy?: string;
+                /** @description Text searched case-insensitively in each manifest's name, title, labels and spec, e.g. air */
+                q?: string;
+                /** @description true adds totalCount, the rows of every page together */
+                count?: boolean;
                 /** @description The nextCursor of the previous page */
                 cursor?: string;
                 /** @description Label selector */
                 labelSelector?: string;
                 /** @description Field selector */
                 fieldSelector?: string;
-                /** @description Page limit */
+                /** @description Rows per page, 1 to 1000; the whole list without it */
                 limit?: number;
                 /** @description Pagination continue token */
                 continue?: string;
@@ -34959,7 +34996,7 @@ export interface operations {
                     "application/json": components["schemas"]["ResourceList"];
                 };
             };
-            /** @description A bad filter, orderBy, cursor, selector or limit, a revision that is not a commit id, or one beside a workspace */
+            /** @description A bad filter, sort, q, count, cursor, selector or limit, a revision that is not a commit id, or one beside a workspace */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -34979,6 +35016,15 @@ export interface operations {
             };
             /** @description Resource not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A sort field the kind does not have */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

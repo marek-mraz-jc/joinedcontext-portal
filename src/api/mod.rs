@@ -60,6 +60,7 @@ pub mod internal;
 pub mod knowledge;
 pub mod knowledge_usage;
 pub mod kpi_check;
+pub mod list_query;
 pub mod live;
 pub mod mcp_confirmations;
 pub mod mcp_elicitations;
