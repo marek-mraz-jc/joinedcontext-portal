@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ApiError, api, unwrap } from "../../api/client";
+import { api, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
 
 export type OrganizationModel = components["schemas"]["OrganizationModel"];
@@ -37,13 +37,6 @@ export function useDebounced(text: string, ms = 250): string {
   return settled;
 }
 
-/** Why a list could not be read, in the server's own words when it gave some. */
-export function reasonOf(error: unknown): string {
-  if (error instanceof ApiError) {
-    return error.problem?.detail ?? error.message;
-  }
-  return error instanceof Error ? error.message : "";
-}
 
 /** Every model the caller may read; the search only adds catalogue entries. */
 export function useOrganizationModels(search = "") {

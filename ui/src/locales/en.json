@@ -6932,7 +6932,6 @@
     },
     "assignee": {
       "didHint": "Type the decentralised identifier, such as did:web:example.org; there is no list of them to pick from.",
-      "peopleHidden": "Only an administrator of the organization sees the list of people; type the person's e-mail as they sign in with it.",
       "noneYet": "Nothing of this kind to pick from yet ({kind}); type the name as the identity provider spells it."
     },
     "summary": {

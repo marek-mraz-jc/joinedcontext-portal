@@ -1,3 +1,4 @@
+import { useDebounced } from "../../components/pickers/organizationModels";
 import { useCallback, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
@@ -948,33 +949,39 @@ function MatchCount({
   live: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
-  const asked = q.trim();
-  const counted = useQuery({
-    queryKey: ["endpoint", slug, "matches", type ?? "", asked],
-    enabled: live && slug !== "" && type !== undefined,
+  // Counted once the typing pauses, and the whole type once: a keystroke is no read (F-R2UI2-008).
+  const asked = useDebounced(q.trim(), 400);
+  const base = { type: type ?? "", limit: "1", count: "true" };
+  const enabled = live && slug !== "" && type !== undefined;
+  const total = useQuery({
+    queryKey: ["endpoint", slug, "matches", type ?? "", ""],
+    enabled,
     retry: false,
-    queryFn: async () => {
-      const base = { type: type as string, limit: "1", count: "true" };
-      const all = await countThrough(slug, new URLSearchParams(base));
-      const matching = asked === "" ? all : await countThrough(slug, new URLSearchParams({ ...base, q: asked }));
-      return { all, matching };
-    },
+    queryFn: () => countThrough(slug, new URLSearchParams(base)),
   });
+  const filtered = useQuery({
+    queryKey: ["endpoint", slug, "matches", type ?? "", asked],
+    enabled: enabled && asked !== "",
+    retry: false,
+    queryFn: () => countThrough(slug, new URLSearchParams({ ...base, q: asked })),
+  });
+  const counted = asked === "" ? total : filtered;
 
   if (!live || type === undefined) {
     return <p className="text-caption text-fg-muted">{t("endpoints.count.unavailable")}</p>;
   }
-  if (counted.isPending) {
+  if (total.isPending || counted.isPending) {
     return (
       <p role="status" className="text-caption text-fg-muted">
         {t("endpoints.count.counting")}
       </p>
     );
   }
-  if (counted.isError) {
+  const failure = total.error ?? counted.error;
+  if (failure) {
     const message =
-      counted.error instanceof ApiError
-        ? (counted.error.problem?.detail ?? counted.error.message)
+      failure instanceof ApiError
+        ? (failure.problem?.detail ?? failure.message)
         : t("app.error.generic");
     return (
       <p role="status" className="text-caption text-fg-muted">
@@ -982,7 +989,8 @@ function MatchCount({
       </p>
     );
   }
-  const { all, matching } = counted.data;
+  const all = total.data;
+  const matching = counted.data;
   return (
     <p role="status" className={matching === 0 ? "text-caption text-danger" : "text-caption text-fg-muted"}>
       {t("endpoints.count.matches", { matching, all })}

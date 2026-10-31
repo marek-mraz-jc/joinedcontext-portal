@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, isChange, localized, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
 import { useReadableList } from "../../api/permissions";
+import { personLabel, usePersonNames } from "../../api/personNames";
 import { useIdentity } from "../../auth/AuthProvider";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { FormRecordLink } from "../../components/RecordLink";
@@ -216,11 +217,12 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
   const [dialogOpen, setDialogOpen] = useCreateForm();
   // A new account starts owned by the person creating it, which is who answers for it until
   // somebody else is named (PF-34); a grant on this project is the usual first one. The form
-  // opened by its address (`/access/new`, T-2577) starts from the same.
+  // opened by its address (`/access/new`, T-2577) starts from the same. The owner is their
+  // Keycloak id, the `sub` of their session, as the owner picker writes it (ADR-N-061).
   const newAccount = (): ServiceAccountForm => ({
     name: "",
     purpose: "",
-    owner: { user: identity?.email ?? identity?.username ?? "" },
+    owner: { user: identity?.subject ?? "" },
     roles: [
       {
         role: "",
@@ -312,6 +314,9 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
       }
     }
   }
+  const ownerNames = usePersonNames(
+    asManifests(list.data?.items ?? []).map((account) => (account.spec as ServiceAccountSpec).owner?.user ?? ""),
+  );
   const schema = serviceAccountSchema(
     t,
     [project],
@@ -398,7 +403,7 @@ export function ServiceAccounts({ project }: { project: string }): JSX.Element {
                   <dl className="mt-2 grid gap-x-6 gap-y-1 text-body sm:grid-cols-2">
                     <div className="flex gap-2">
                       <dt className="text-fg-muted">{t("access.accounts.owner")}</dt>
-                      <dd className="font-medium text-fg">{spec.owner?.user ?? ""}</dd>
+                      <dd className="font-medium text-fg">{personLabel(spec.owner?.user ?? "", ownerNames)}</dd>
                     </div>
                     <div className="flex gap-2">
                       <dt className="text-fg-muted">{t("access.accounts.roles")}</dt>

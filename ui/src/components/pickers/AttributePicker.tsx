@@ -1,3 +1,4 @@
+import { reasonOf } from "../../api/client";
 import { useMemo } from "react";
 import type { JSX } from "react";
 import { useQueries } from "@tanstack/react-query";
@@ -9,7 +10,7 @@ import { filterSlotsOf } from "../entities/filters";
 import type { FilterSlot } from "../entities/filters";
 import { Combobox } from "./Combobox";
 import type { PickerOption } from "./Combobox";
-import { reasonOf, useOrganizationModels } from "./organizationModels";
+import { useOrganizationModels } from "./organizationModels";
 
 /** The LinkML ranges a KPI or an aggregate can count with. */
 const NUMBER_RANGES = new Set(["integer", "float", "double", "decimal", "number"]);

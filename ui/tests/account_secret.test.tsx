@@ -37,14 +37,16 @@ function stub(access: Record<string, unknown>, issue: { status: number; body: un
   return sent;
 }
 
-function show() {
+function show(): QueryClient {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
         <AccountSecret project="helsinki" account="vendor" />
       </I18nextProvider>
     </QueryClientProvider>,
   );
+  return client;
 }
 
 beforeEach(async () => {
@@ -57,7 +59,7 @@ afterEach(() => {
 describe("AccountSecret (PF-37, T-5626)", () => {
   it("issues a secret after the confirmation, shows it once and forgets it on Done", async () => {
     const sent = stub({ noSecret: null, mayIssueSecret: true });
-    show();
+    const client = show();
     expect(await screen.findByText(/signs in as client helsinki-vendor/)).toBeInTheDocument();
     expect(screen.queryByDisplayValue(ISSUED.clientSecret)).toBeNull();
 
@@ -75,6 +77,12 @@ describe("AccountSecret (PF-37, T-5626)", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Hide the secret" }));
     await waitFor(() => expect(screen.queryByDisplayValue(ISSUED.clientSecret)).toBeNull());
+    // F-R2UI2-012: forgotten in the mutation cache too, not only off the screen.
+    await waitFor(() =>
+      expect(JSON.stringify(client.getMutationCache().getAll().map((mutation) => mutation.state.data))).not.toContain(
+        ISSUED.clientSecret,
+      ),
+    );
   });
 
   it("says what failed when the Portal refuses, and shows no secret", async () => {

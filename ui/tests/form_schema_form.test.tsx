@@ -107,6 +107,18 @@ describe("what a field refuses is on the field (UI-04, UI-44)", () => {
     );
   });
 
+  // F-R2UI2-006: a draft restored or YAML applied replaces the data from outside the form.
+  it("new_form_data_from_outside_replaces_what_the_form_held", () => {
+    const { rerender } = show({ formData: {} });
+    expect(screen.getByTestId("required-count")).toHaveTextContent("0 of 1");
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <SchemaForm<Space> schema={SCHEMA} onSubmit={vi.fn()} onChange={vi.fn()} formData={{ name: "air" }} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId("required-count")).toHaveTextContent("1 of 1");
+  });
+
   it("a_required_field_is_announced_as_required_not_only_starred", () => {
     show();
     expect(screen.getByLabelText(/Name/)).toBeRequired();

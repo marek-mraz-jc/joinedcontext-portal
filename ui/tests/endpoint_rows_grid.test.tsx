@@ -69,6 +69,17 @@ describe("the one Endpoints grid (T-6169)", () => {
     expect(text).toContain(`password: "${MASK}"`);
   });
 
+  // F-R2UI2-011: a credential inside an address sits under a key that names no secret.
+  it("masks the password inside an address under any key, and leaves a plain address alone", () => {
+    const text = manifestYaml({
+      ...endpoint("espoo", "mine"),
+      spec: { input: { dsn: "postgres://u:p4ss@db.example/air", url: "https://api.example:8443/v1" } },
+    } as Manifest);
+    expect(text).not.toContain("p4ss");
+    expect(text).toContain(`dsn: postgres://${MASK}@db.example/air`);
+    expect(text).toContain("url: https://api.example:8443/v1");
+  });
+
   it("says the 7-day calls with the surfaces and the kinds of caller, and a dash while unknown", () => {
     const { rerender } = render(
       <I18nextProvider i18n={i18n}>

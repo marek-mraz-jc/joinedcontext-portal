@@ -1,9 +1,10 @@
+import { reasonOf } from "../../api/client";
 import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { Combobox } from "./Combobox";
 import type { PickerOption } from "./Combobox";
-import { catalogueValue, modelValue, reasonOf, useDebounced, useOrganizationModels } from "./organizationModels";
+import { catalogueValue, modelValue, useDebounced, useOrganizationModels } from "./organizationModels";
 import type { CatalogueEntry, OrganizationModel } from "./organizationModels";
 
 /** What a person picked: a model of the organization, or a Smart Data Models catalogue entry. */

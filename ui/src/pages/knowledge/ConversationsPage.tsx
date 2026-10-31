@@ -1,3 +1,4 @@
+import { reasonOf } from "../../api/client";
 import { useState } from "react";
 import type { JSX } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -25,7 +26,6 @@ import { CodeBlock,
   TableHeaderCell,
   TableRow,
 } from "../../components/ui";
-import { reasonOf } from "./KnowledgePage";
 import { UsageSummary } from "./UsageSummary";
 import { timeText } from "./knowledge";
 import {
