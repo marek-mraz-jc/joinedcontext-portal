@@ -49,7 +49,8 @@ test("bike-rebalancing saves a plan on the server, and it is there after a reloa
 
     await page.getByLabel("Van or crew").fill(operator);
     await page.getByRole("button", { name: "Save this plan" }).click();
-    await expect(page.getByRole("status")).toHaveText(new RegExp(`Plan saved: \\d+ stops for ${operator}`), { timeout: 60_000 });
+    // The page holds several status regions (levels, saved plans, loading): pick the one with the answer.
+    await expect(page.getByRole("status").filter({ hasText: new RegExp(`Plan saved: \\d+ stops for ${operator}`) })).toBeVisible({ timeout: 60_000 });
 
     await page.reload({ waitUntil: "load" });
     const saved = page.getByRole("list", { name: "Saved plans" }).getByRole("listitem").filter({ hasText: operator });
@@ -64,7 +65,7 @@ test("bike-rebalancing saves a plan on the server, and it is there after a reloa
     expect(await csv.text()).toMatch(/^# e2e T-3346 \d+\nstop,station,name,action,bikes,load_after,leg_km\n/);
 
     await saved.getByRole("button", { name: /^Mark as driven:/ }).click();
-    await expect(page.getByRole("status")).toHaveText("The drive is recorded.");
+    await expect(page.getByRole("status").filter({ hasText: "The drive is recorded." })).toBeVisible();
     await saved.getByRole("button", { name: /^Delete:/ }).click();
     await page.getByRole("button", { name: "Delete for good" }).click();
     await expect(page.getByText(`No plan is saved for ${operator}.`)).toBeVisible();
