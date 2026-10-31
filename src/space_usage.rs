@@ -550,9 +550,7 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
         let broker = MockServer::start().await;
         Mock::given(path("/q/tenants/fresh"))
-            .respond_with(
-                ResponseTemplate::new(404).set_body_json(json!({"type": NO_TENANT})),
-            )
+            .respond_with(ResponseTemplate::new(404).set_body_json(json!({"type": NO_TENANT})))
             .mount(&broker)
             .await;
         let counter = Counter::new(Some(broker.uri()), Some(token_file("fresh")));
