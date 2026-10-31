@@ -120,12 +120,25 @@ export function NewEndpointPanel({
     }
   };
 
-  // Served once the endpoint is on the project's list: the mirror holds what main holds.
+  // Served once the endpoint is on the project's list: the mirror holds what main holds. The
+  // Change is followed too, so a rejection ends the wait instead of polling for ever (F-R2UI2-014).
   const waiting = change !== null;
+  const changeId = change?.metadata.name ?? "";
+  const followed = useQuery({
+    queryKey: queryKeys.change(project, changeId),
+    enabled: waiting,
+    refetchInterval: (query) => (query.state.data?.status.phase === "Rejected" ? false : LIVE_POLL_MS),
+    queryFn: async () =>
+      unwrap(await api.GET("/api/v1/projects/{project}/changes/{id}", { params: { path: { project, id: changeId } } })),
+  });
+  const phase = followed.data?.status.phase ?? change?.status.phase;
+  const holds = (answer: { items?: Parameters<typeof asManifests>[0] } | undefined) =>
+    asManifests(answer?.items ?? []).some((endpoint) => endpoint.metadata.name === name.trim());
+  const rejected = phase === "Rejected";
   const endpoints = useQuery({
     queryKey: queryKeys.list(project, "endpoints"),
-    enabled: waiting,
-    refetchInterval: waiting ? LIVE_POLL_MS : false,
+    enabled: waiting && !rejected,
+    refetchInterval: (query) => (holds(query.state.data) ? false : LIVE_POLL_MS),
     queryFn: async () =>
       unwrap(
         await api.GET("/api/v1/projects/{project}/{plural}", {
@@ -133,8 +146,7 @@ export function NewEndpointPanel({
         }),
       ),
   });
-  const served =
-    waiting && asManifests(endpoints.data?.items ?? []).some((endpoint) => endpoint.metadata.name === name.trim());
+  const served = waiting && holds(endpoints.data);
   const handedOver = useRef(false);
   useEffect(() => {
     if (served && !handedOver.current) {
@@ -148,13 +160,15 @@ export function NewEndpointPanel({
       <h3 id={`${base}-title`} className="text-sm font-semibold">
         {t("apps.generate.newEndpoint.title")}
       </h3>
-      <p className="text-sm text-fg-muted">{t("apps.generate.newEndpoint.hint")}</p>
+      {rejected ? null : <p className="text-sm text-fg-muted">{t("apps.generate.newEndpoint.hint")}</p>}
       {renderError && <Alert tone="danger">{renderError}</Alert>}
       {change ? (
         <>
-          <ChangeNotice change={change} project={project} />
-          <p role="status" className="text-sm">
-            {t("apps.generate.newEndpoint.waiting", { name: name.trim(), lane: lane ?? "" })}
+          <ChangeNotice change={phase ? { ...change, status: { ...change.status, phase } } : change} project={project} />
+          <p role="status" className={rejected ? "text-sm font-medium text-danger" : "text-sm"}>
+            {rejected
+              ? t("agentRun.follow.rejected")
+              : t("apps.generate.newEndpoint.waiting", { name: name.trim(), lane: lane ?? "" })}
           </p>
           <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
             {t("apps.generate.newEndpoint.close")}

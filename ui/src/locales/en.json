@@ -4248,6 +4248,9 @@
     "classUri": "Class IRI",
     "description": "Description",
     "titleIn": "Title ({locale})",
+    "fieldsNeedType": "Fields belong to a type: add the first type under Types, then its fields here.",
+    "titleHint": "The name people read for this type in this language; the type keeps its own name.",
+    "titleTranslations": "Translations: {languages}",
     "slotUri": "Slot IRI",
     "slotUriHint": "Under the organisation's own prefix; an upstream term is cited, never minted",
     "required": "Required",
@@ -4306,6 +4309,7 @@
       },
       "willBecome": "Saves as version {version}",
       "refused": "The change was refused: {reason}",
+      "confirmFirst": "Tick the breaking-change box first: version {version} breaks the Endpoints that read this model.",
       "fixErrors": "Fix the errors the editor lists before saving. Left: {count}.",
       "confirmBreaking": "Save it as version {version}, a breaking change",
       "handOffRefused": "The assistant's change could not be applied to this model:",
@@ -4567,6 +4571,7 @@
       "emptyLead": "Create one for a space: start blank, infer it from a file, or import a Smart Data Model.",
       "search": "Search by name, title or class",
       "everySpace": "Every space",
+      "moreTypes": "{count} more types of {model}",
       "lastChange": "Last change",
       "usedBy": "Used by",
       "noMatch": "No model matches the search and the space chosen.",
@@ -4778,6 +4783,7 @@
       "idFixed": "The id is fixed: Endpoints, spaces and imports name the model by it.",
       "file": "File",
       "fileFixed": "The file name is fixed: a rename changes only the name people read.",
+      "details": "Details",
       "version": "Version",
       "renameShort": "Rename",
       "renamed": "Renamed. The id {id} and its file stay as they are; Propose saves the new name."
@@ -6266,6 +6272,7 @@
     "close": "Close the assistant",
     "title": "Assistant",
     "open": "Open the assistant",
+    "openBusy": "Open the assistant, still working on your question",
     "hide": "Hide the assistant",
     "fullScreen": "Full screen",
     "sideView": "Beside the page",
@@ -6931,7 +6938,6 @@
     },
     "assignee": {
       "didHint": "Type the decentralised identifier, such as did:web:example.org; there is no list of them to pick from.",
-      "peopleHidden": "Only an administrator of the organization sees the list of people; type the person's e-mail as they sign in with it.",
       "noneYet": "Nothing of this kind to pick from yet ({kind}); type the name as the identity provider spells it."
     },
     "summary": {
@@ -8159,6 +8165,9 @@
     "propose": "Propose"
   },
   "projectImport": {
+    "number": "Type a number.",
+    "wholeNumber": "Type a whole number.",
+    "notNumber": "{names}: type a number, such as 30, or leave the field empty for its default.",
     "title": "Import a project",
     "lead": "Creates the project's repositories from a git export, then proposes its registry entry.",
     "button": "Import project",

@@ -9,7 +9,7 @@
  * kept per project and per type. Every Portal place that shows entities renders this, so a change
  * to the grid reaches all of them and none of them forks it.
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { EntityGrid, DEFAULT_LABELS, originTransport, SourceError, sourceFor } from "@joinedcontext/sdk";
@@ -394,10 +394,16 @@ export function PortalEntityGrid({ project, config, source, view, onGridState, e
     }
     return sourceFor(where, originTransport(), i18n.language);
   }, [source, sourceKey, i18n.language]);
+  // The host's callback is read when a refusal is seen, not built into the source: a callback
+  // written inline is new on each render, and a new source asks the endpoint again (T-6230).
+  const refusedTo = useRef(onRefused);
+  useEffect(() => {
+    refusedTo.current = onRefused;
+  }, [onRefused]);
   const watched = useMemo(() => {
     const seen = (now: boolean) => {
       setRefused(now);
-      onRefused?.(now);
+      refusedTo.current?.(now);
     };
     const wrapped: typeof built = Object.create(built);
     wrapped.query = (query, options) =>
@@ -412,7 +418,7 @@ export function PortalEntityGrid({ project, config, source, view, onGridState, e
         },
       );
     return wrapped;
-  }, [built, onRefused]);
+  }, [built]);
 
   const [layout, setLayout] = useState<Layout>(
     () => readLayout(project, config.type) ?? { shown: {}, sort: null },

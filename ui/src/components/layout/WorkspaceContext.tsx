@@ -23,11 +23,12 @@ export function setActiveWorkspace(name: string | null): void {
 /**
  * Middleware that appends `?workspace=<name>` to resource-list/read/write requests when a
  * workspace is active. It matches paths under `/api/v1/projects/{project}/` for the resource
- * kinds listed in the task, and never touches ops, drafts, changes, workspaces or other
- * non-resource routes.
+ * kinds jc-core defines (every `PLURAL` of its kinds that lives in a project), and never touches
+ * ops, drafts, changes, workspaces, import or other non-resource routes: the import door takes no
+ * workspace, so a bundle is proposed on the project.
  */
 const RESOURCE_PATH_RE =
-  /^\/api\/v1\/projects\/[^/]+\/(spaces|endpoints|datasources|mqttbrokers|pipelines|dashboards|apps|syncsources|datamodels|mappings|policies|subscriptions|csrs|shared|serviceaccounts|layers|uischemas|projections|scopedefinitions|dataoffers|dataagreements|dataspaceparticipants|ckaninstances|blueprints|agentprofiles|bundles|roles|rolebindings|groups|environments)(\/[^/]+)?$/;
+  /^\/api\/v1\/projects\/[^/]+\/(spaces|endpoints|datasources|mqttbrokers|pipelines|dashboards|apps|syncsources|datamodels|mappings|policies|subscriptions|csrs|shared|serviceaccounts|layers|uischemas|projections|scopedefinitions|dataoffers|dataagreements|dataspaceparticipants|ckaninstances|blueprints|agentprofiles|bundles|roles|rolebindings|groups|environments|knowledgesources|assistantdeployments|mcpservers|contextbrokers|delegationpolicies)(\/[^/]+)?$/;
 
 /**
  * The shared drafts of a copy (T-2267): unproposed work made inside a copy belongs to that copy,
@@ -58,6 +59,8 @@ export const workspaceMiddleware: Middleware = {
       mode: request.mode,
       referrer: request.referrer,
       redirect: request.redirect,
+      // A superseded search or an unmounted page still cancels the read inside a copy.
+      signal: request.signal,
     });
   },
 };

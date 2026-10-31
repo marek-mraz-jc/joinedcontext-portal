@@ -661,9 +661,16 @@ function FieldEditor({
   const changed = JSON.stringify(held) !== JSON.stringify(controlValue(widget, before));
   const propose = useMutation({
     mutationFn: async () => {
-      const next = withSpecValue(manifest, path, storedValue(widget, held, before));
+      // The row is the list as it was read: a Change merged since then would be undone by a
+      // manifest rebuilt from it (F-R2UI2-007). The edit goes onto the manifest as it is now, and
+      // its ETag makes the server refuse it with 412 if it moves again before the write.
+      const read = await api.GET("/api/v1/projects/{project}/{plural}/{name}", {
+        params: { path: { project: edit.project, plural: edit.plural, name: manifest.metadata.name } },
+      });
+      const current = (await unwrap(read)) as unknown as Manifest;
+      const next = withSpecValue(current, path, storedValue(widget, held, specValue(current, path)));
       const { status: _status, ...body } = next as Manifest & { status?: unknown };
-      return proposeChecked(edit.project, edit.plural, body as unknown as ResourceProposal, false);
+      return proposeChecked(edit.project, edit.plural, body as unknown as ResourceProposal, false, read.response.headers.get("ETag") ?? undefined);
     },
     onSuccess: (result) => {
       if (isChange(result)) edit.onChange(result);

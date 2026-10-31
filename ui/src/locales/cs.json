@@ -4248,6 +4248,9 @@
     "classUri": "IRI třídy",
     "description": "Popis",
     "titleIn": "Název ({locale})",
+    "fieldsNeedType": "Pole patří typu: nejprve přidejte typ v části Typy, potom zde jeho pole.",
+    "titleHint": "Název, který lidé čtou pro tento typ v tomto jazyce; typ si ponechá vlastní název.",
+    "titleTranslations": "Překlady: {languages}",
     "slotUri": "IRI atributu",
     "slotUriHint": "Pod vlastní předponou organizace; převzatý pojem se cituje, nikdy nevytváří",
     "required": "Povinný",
@@ -4409,6 +4412,7 @@
       },
       "willBecome": "Uloží se jako verze {version}",
       "refused": "Změna byla odmítnuta: {reason}",
+      "confirmFirst": "Nejprve zaškrtněte „zásadní změna“: verze {version} rozbije Endpointy, které čtou tento model.",
       "fixErrors": "Před uložením opravte chyby, které editor uvádí. Zbývá: {count}.",
       "confirmBreaking": "Uložit jako verzi {version}, nekompatibilní změna",
       "handOffRefused": "Změnu od asistenta se do tohoto modelu nepodařilo použít:",
@@ -4567,6 +4571,7 @@
       "emptyLead": "Vytvořte ho pro prostor: začněte prázdný, odvoďte ho ze souboru nebo importujte Smart Data Model.",
       "search": "Hledat podle názvu, titulku nebo třídy",
       "everySpace": "Všechny prostory",
+      "moreTypes": "Další typy modelu {model}: {count}",
       "lastChange": "Poslední změna",
       "usedBy": "Používá ho",
       "noMatch": "Hledání a zvolenému prostoru neodpovídá žádný model.",
@@ -4778,6 +4783,7 @@
       "idFixed": "Identifikátor je pevný: endpointy, prostory a importy podle něj model jmenují.",
       "file": "Soubor",
       "fileFixed": "Název souboru je pevný: přejmenování mění jen název, který lidé čtou.",
+      "details": "Podrobnosti",
       "version": "Verze",
       "renameShort": "Přejmenovat",
       "renamed": "Přejmenováno. Identifikátor {id} a jeho soubor zůstávají; Navrhnout uloží nový název."
@@ -6266,6 +6272,7 @@
     "close": "Zavřít asistenta",
     "title": "Asistent",
     "open": "Otevřít asistenta",
+    "openBusy": "Otevřít asistenta, ještě pracuje na vaší otázce",
     "hide": "Skrýt asistenta",
     "fullScreen": "Na celou obrazovku",
     "sideView": "Vedle stránky",
@@ -6931,7 +6938,6 @@
     },
     "assignee": {
       "didHint": "Napište decentralizovaný identifikátor, například did:web:example.org; seznam k výběru neexistuje.",
-      "peopleHidden": "Seznam osob vidí jen správce organizace; napište e-mail, kterým se osoba přihlašuje.",
       "noneYet": "Zatím tu není nic tohoto druhu k výběru ({kind}); napište název tak, jak jej píše poskytovatel identity."
     },
     "summary": {
@@ -8159,6 +8165,9 @@
     "propose": "Navrhnout"
   },
   "projectImport": {
+    "number": "Zadejte číslo.",
+    "wholeNumber": "Zadejte celé číslo.",
+    "notNumber": "{names}: zadejte číslo, například 30, nebo pole nechte prázdné pro výchozí hodnotu.",
     "title": "Importovat projekt",
     "lead": "Vytvoří repozitáře projektu z git exportu a poté navrhne jeho záznam v registru.",
     "button": "Importovat projekt",

@@ -4,7 +4,8 @@ import { I18nextProvider } from "react-i18next";
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import i18n from "../src/i18n";
-import { ListFailed, reasonOf } from "../src/components/forms/widgets/ListFailed";
+import { ListFailed } from "../src/components/forms/widgets/ListFailed";
+import { reasonOf } from "../src/api/client";
 import { ExplorePage } from "../src/pages/explore/ExplorePage";
 
 /**

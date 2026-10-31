@@ -12,8 +12,8 @@ use sqlx::Row;
 use tokio::sync::RwLock;
 use utoipa::ToSchema;
 
+use crate::activity::{chrono_to_odt, odt_to_chrono};
 use crate::ops::data_views::new_id;
-use crate::ops::drafts::{chrono_to_odt, odt_to_chrono};
 
 /// Templates one project may hold.
 pub const MAX_PER_PROJECT: usize = 50;

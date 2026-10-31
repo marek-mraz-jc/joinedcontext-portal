@@ -927,19 +927,6 @@ fn describe_option(state: &AppState, project: &str, kind: &str, item: &Value) ->
     (!parts.is_empty()).then(|| parts.join(" · "))
 }
 
-/// A title as a listing row carries it: a string, or a text per language.
-fn title_of(item: &Value) -> Option<String> {
-    match item.get("title")? {
-        Value::String(title) if !title.trim().is_empty() => Some(title.clone()),
-        Value::Object(texts) => texts
-            .get("en")
-            .or_else(|| texts.values().next())
-            .and_then(Value::as_str)
-            .map(str::to_owned),
-        _ => None,
-    }
-}
-
 impl Driver {
     /// Opens a page for the person (UI-59). The route is this table's, never the model's text.
     pub(super) async fn open_page(&self, call: &NavigateCall) -> Result<String, String> {
@@ -1044,7 +1031,10 @@ impl Driver {
                     }
                     Some(AskOption {
                         value: name.to_owned(),
-                        title: title_of(item).unwrap_or_else(|| name.to_owned()),
+                        title: item
+                            .get("title")
+                            .and_then(crate::resource::title_text)
+                            .unwrap_or_else(|| name.to_owned()),
                         description: describe_option(&self.state, &self.project, kind, item),
                         disabled: None,
                     })

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { unitTitle } from "@joinedcontext/sdk";
+import { MAX_POINTS, unitTitle } from "@joinedcontext/sdk";
 import { Button, Card, Icon, InlineError, Skeleton } from "../ui";
 import { readerTimeZone, unitCodeOf } from "./typeCharts";
 
@@ -83,7 +83,9 @@ export function TemporalChart({
     staleTime: 60_000,
     queryFn: async () => {
       // The instances whole, not `temporalValues`: each carries its unit, which the axis states.
-      const url = `/api/endpoint/${slug}/ngsi-ld/v1/temporal/entities/${encodeURIComponent(entityId)}?attrs=${encodeURIComponent(property)}`;
+      // The newest MAX_POINTS, as the entity's history reads them: without lastN the broker
+      // answers its first page, the oldest readings, and the chart ends wherever that page did.
+      const url = `/api/endpoint/${encodeURIComponent(slug)}/ngsi-ld/v1/temporal/entities/${encodeURIComponent(entityId)}?attrs=${encodeURIComponent(property)}&lastN=${MAX_POINTS}`;
       const response = await globalThis.fetch(
         new Request(`${window.location.origin}${url}`, { headers: { Accept: "application/ld+json" } }),
       );

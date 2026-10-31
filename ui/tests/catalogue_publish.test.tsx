@@ -94,7 +94,9 @@ describe("publish a dataset in one step (EP-83)", () => {
     vi.restoreAllMocks();
   });
 
+  let readBesideDraft = false;
   function stub() {
+    readBesideDraft = false;
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const request = input as Request;
       const url = new URL(request.url);
@@ -110,7 +112,12 @@ describe("publish a dataset in one step (EP-83)", () => {
       if (path === "/api/v1/projects") return json({ apiVersion: LIST, kind: "List", items: [{ name: "bbsk" }] });
       if (path.endsWith("/permissions/me")) return json({ project: "bbsk", bootstrap: true, grants: [] });
       if (path === "/api/v1/catalogue") return json(PAGE);
-      if (path === "/api/v1/projects/bbsk/catalogue/drafts") return json(draftAnswer.body, draftAnswer.status);
+      if (path === "/api/v1/projects/bbsk/catalogue/drafts") {
+        // F-R2UI2-018: the endpoint is read beside the draft, not after its answer.
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        readBesideDraft = sent.some((s) => s.method === "GET" && s.url.pathname === "/api/v1/projects/bbsk/endpoints/bbsk-kpi");
+        return json(draftAnswer.body, draftAnswer.status);
+      }
       if (path === "/api/v1/projects/bbsk/endpoints" && request.method === "GET") {
         return json({ apiVersion: LIST, kind: "List", items: [ENDPOINT] });
       }
@@ -148,6 +155,7 @@ describe("publish a dataset in one step (EP-83)", () => {
     expect(await within(dialog).findByDisplayValue("Banskobystrický samosprávny kraj")).toBeInTheDocument();
     const drafts = sent.find((s) => s.url.pathname.endsWith("/catalogue/drafts"));
     expect(drafts?.body).toEqual({ endpoint: "bbsk-kpi" });
+    expect(readBesideDraft).toBe(true);
     expect(within(dialog).getAllByText(/not public yet/).length).toBeGreaterThan(0);
     expect(within(dialog).getByText(/area, period, update frequency/)).toBeInTheDocument();
     expect(within(dialog).getByRole("checkbox", { name: "Economy and finance" })).toBeChecked();

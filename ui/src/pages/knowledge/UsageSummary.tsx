@@ -1,10 +1,10 @@
+import { reasonOf } from "../../api/client";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Alert, Button, Card } from "../../components/ui";
 import { download } from "../models/diagramExport";
-import { reasonOf } from "./KnowledgePage";
 import {
   conversationKeys,
   conversationUsage,

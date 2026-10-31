@@ -378,7 +378,7 @@ pub async fn run(
     }
 
     if let Some(files) = &input.files {
-        for file in files {
+        for (n, file) in files.iter().enumerate() {
             let name = file.name.as_str();
             if name.ends_with(".yaml") || name.ends_with(".yml") {
                 if name.ends_with(".linkml.yaml") {
@@ -405,9 +405,11 @@ pub async fn run(
             {
                 if described_source_spec.is_none() {
                     described_source_spec = source_in_readme(&file.content);
+                    no_credential_in(described_source_spec.as_ref(), n)?;
                 }
             } else if name == ".env" || name.ends_with(".env") {
                 if let Some(described) = source_in_env(&file.content, &space_name) {
+                    no_credential_in(Some(&described), n)?;
                     described_source_spec = Some(described);
                 }
             }
@@ -581,7 +583,7 @@ pub async fn run(
                     .items
                     .into_iter()
                     .find(|ep| {
-                        ep.spec.get("contextSpaceRef").and_then(Value::as_str) == Some(&space_name)
+                        ep.spec.get("contextSpaceRef").and_then(crate::resource::reference_name) == Some(&space_name)
                     })
                     .map(|ep| ep.metadata.name)
             })
@@ -656,7 +658,12 @@ pub async fn run(
         .list(project, "Endpoint", &crate::store::ListOptions::default())
         .items
         .iter()
-        .any(|ep| ep.spec.get("contextSpaceRef").and_then(Value::as_str) == Some(&space_name));
+        .any(|ep| {
+            ep.spec
+                .get("contextSpaceRef")
+                .and_then(crate::resource::reference_name)
+                == Some(&space_name)
+        });
     if input.upload && sample_bytes.is_some() && endpoint_manifest.is_none() && !space_has_endpoint
     {
         endpoint_manifest = Some(json!({
@@ -691,7 +698,12 @@ pub async fn run(
             .list(project, "Endpoint", &crate::store::ListOptions::default())
             .items
             .iter()
-            .any(|ep| ep.spec.get("contextSpaceRef").and_then(Value::as_str) == Some(&space_name))
+            .any(|ep| {
+                ep.spec
+                    .get("contextSpaceRef")
+                    .and_then(crate::resource::reference_name)
+                    == Some(&space_name)
+            })
     {
         endpoint_manifest = Some(json!({
             "apiVersion": API_VERSION,
@@ -1287,6 +1299,25 @@ fn http_source(url: &str) -> (String, Value, Vec<Finding>) {
     )
 }
 
+/// A source address read out of file `n` goes into the drafted DataSource and so into Git: one
+/// carrying a credential (`user:pass@`, `?apikey=`) is refused, as the operations door refuses
+/// it in an argument (F-R2POR4-001). The message never repeats the address.
+fn no_credential_in(
+    described: Option<&(String, Value, Vec<Finding>)>,
+    n: usize,
+) -> Result<(), OpError> {
+    let address = described.and_then(|(_, spec, _)| spec.pointer("/http/url")?.as_str());
+    if address.is_some_and(crate::secret_scan::secret_text) {
+        return Err(OpError::InvalidInput {
+            path: format!("/files/{n}/content"),
+            message: "the source address in this file carries a user name and password or a key; \
+                      write it without, and keep the credential as a secret the DataSource names"
+                .into(),
+        });
+    }
+    Ok(())
+}
+
 /// The first http(s) address a README names, as the source it describes.
 fn source_in_readme(content: &str) -> Option<(String, Value, Vec<Finding>)> {
     content
@@ -1772,6 +1803,41 @@ mod tests {
             "rows"
         );
         assert_eq!(name(json!({ "space": "  " })), "space");
+    }
+
+    /// F-R2POR4-001: an address a README or a `.env` names with a credential in it is refused
+    /// at that file, before anything is drafted; one without, or naming a `${VAR}`, is kept.
+    #[test]
+    fn a_source_address_with_a_credential_in_a_file_is_refused() {
+        let user = ["sc", "ott"].concat();
+        let pass = ["tig", "er7"].concat();
+        let key = ["abcdef", "0123456789"].concat();
+        for (readme, env) in [
+            (
+                format!("Data at https://{user}:{pass}@x.example/feed"),
+                format!("URL=https://{user}:{pass}@x.example/feed\n"),
+            ),
+            (
+                format!("Data at https://x.example/feed?apikey={key}"),
+                format!("URL=\"https://x.example/feed?api_key={key}\"\n"),
+            ),
+        ] {
+            let refused = super::no_credential_in(super::source_in_readme(&readme).as_ref(), 2)
+                .expect_err("README");
+            assert!(
+                matches!(&refused, crate::ops::OpError::InvalidInput { path, message }
+                    if path == "/files/2/content" && !message.contains("x.example")),
+                "{refused}"
+            );
+            assert!(super::no_credential_in(super::source_in_env(&env, "b").as_ref(), 0).is_err());
+        }
+        for kept in [
+            "https://x.example/feed",
+            "https://x.example/feed?key=${FEED_KEY}",
+        ] {
+            assert!(super::no_credential_in(super::source_in_readme(kept).as_ref(), 0).is_ok());
+        }
+        assert!(super::no_credential_in(None, 0).is_ok());
     }
 
     #[test]

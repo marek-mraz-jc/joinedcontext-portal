@@ -21,6 +21,15 @@ import type { ActivityEvent } from "../src/api/activity";
 import en from "../src/locales/en.json";
 import { expectNoRawKeys, expectNoViolations, expectTabOrder } from "./checks";
 
+// The links are the router's; its address is what a test reads (T-6230).
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ to, params, children, ...rest }: { to: string; params: Record<string, string>; children: React.ReactNode }) => (
+    <a href={to.replace(/\$(\w+)/g, (_, key: string) => params[key])} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
 const PROJECT = "helsinki";
 const LOCALES = ["en", "sk", "cs", "de"] as const;
 
@@ -114,7 +123,9 @@ describe("the object an activity row links to (PF-50, UI-16)", () => {
     const shown = await rows();
     expect(
       within(shown[0]).getByRole("link", { name: "context-spaces/air-quality" }),
-    ).toHaveAttribute("href", "/projects/helsinki/context-spaces/air-quality");
+      // The record's own page, as RecordLink opens it everywhere: a kind without a detail page
+      // opens on its edit form, where the router's redirect took the bare address anyway.
+    ).toHaveAttribute("href", "/projects/helsinki/context-spaces/air-quality/edit");
   });
 
   it("a_row_whose_object_is_refused_still_shows_its_summary_without_a_link", async () => {

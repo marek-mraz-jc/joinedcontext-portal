@@ -650,6 +650,13 @@ async fn forge_with_a_tree(commits: Value) -> MockServer {
         .respond_with(ResponseTemplate::new(200).set_body_json(commits))
         .mount(&gitea)
         .await;
+    Mock::given(http_method("POST"))
+        .and(url_path(format!("{REPO}/contents")))
+        .respond_with(
+            ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "c1" } })),
+        )
+        .mount(&gitea)
+        .await;
     gitea
 }
 
@@ -727,20 +734,26 @@ async fn delete_project(state: &AppState, who: Identity, project: &str) -> (Stat
     (status, String::from_utf8_lossy(&bytes).into_owned())
 }
 
-/// The paths the merge request removed.
+/// The paths the merge request removed, in its one commit (F-R2POR3-019).
 async fn removed(gitea: &MockServer) -> Vec<String> {
-    let mut paths: Vec<String> = gitea
+    let commits: Vec<Value> = gitea
         .received_requests()
         .await
         .unwrap_or_default()
         .iter()
-        .filter(|r| r.method.as_str() == "DELETE" && r.url.path().contains("/contents/"))
-        .filter_map(|r| {
-            r.url
-                .path()
-                .split_once("/contents/")
-                .map(|(_, path)| path.to_owned())
-        })
+        .filter(|r| r.method.as_str() == "POST" && r.url.path() == format!("{REPO}/contents"))
+        .filter_map(|r| serde_json::from_slice(&r.body).ok())
+        .collect();
+    if commits.is_empty() {
+        return Vec::new();
+    }
+    assert_eq!(commits.len(), 1, "one commit removes every file");
+    let mut paths: Vec<String> = commits[0]["files"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|file| file["operation"] == "delete")
+        .filter_map(|file| file["path"].as_str().map(str::to_owned))
         .collect();
     paths.sort();
     paths

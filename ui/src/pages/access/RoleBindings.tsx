@@ -2,7 +2,7 @@ import { useId, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ApiError, queryKeys } from "../../api/client";
+import { ApiError, queryKeys, reasonOf } from "../../api/client";
 import { useChosenOrganizationName } from "../../api/projects";
 import { proposeChecked } from "../../api/proposal";
 import { asManifests, isChange, localized, ORG_NAMESPACE } from "../../api/manifest";
@@ -138,11 +138,6 @@ export function roleSummary(role: Manifest, locale: string, t: (key: string, opt
     .map((rule) => `${(rule.verbs ?? []).join(", ")} ${t("access.projectRoles.on")} ${(rule.kinds ?? []).join(", ")}`)
     .join("; ");
   return rights ? t("access.roles.grants", { rights }) : t("access.roles.grantsNothing");
-}
-
-/** What a failed request says, in the words the server used when it gave any. */
-function reasonOf(error: unknown, fallback: string): string {
-  return error instanceof ApiError ? (error.problem?.detail ?? error.message) : fallback;
 }
 
 /**

@@ -122,6 +122,19 @@ describe("compiling", () => {
     expect(toBloblang(parseFormula(`'say "hi"'`))).toBe('"say \\"hi\\""');
   });
 
+  it("writes `$` so the runner fills no variable of its environment into a text (T-6230)", () => {
+    // `${JC_CLIENT_SECRET}` passes the server's check as the project's own credential, and Bento
+    // fills it in the stream text before Bloblang reads it (bento 1.2.0, evidence/T-6230).
+    const slots: ClassSlot[] = [
+      { name: "label", kind: "Property" },
+      { name: "leak", kind: "Property", equals_expression: "{label} + '${JC_CLIENT_SECRET}' + \"${!hostname()}\"" },
+    ];
+    const mapping = formulaMapping(checkFormulas(slots), "Station");
+    expect(mapping).not.toContain("${");
+    expect(mapping).toContain('"\\u0024{JC_CLIENT_SECRET}"');
+    expect(evaluate(parseFormula("'${JC_CLIENT_SECRET}'"), {})).toBe("${JC_CLIENT_SECRET}");
+  });
+
   it("maps each entity of the type into its formula attributes with computedBy", () => {
     const mapping = formulaMapping(checkFormulas(SLOTS), "Station");
     expect(mapping).toContain('let pipeline = "urn:ngsi-ld:Pipeline:%v:%v:formulas-station".format(env("JC_ORG_DOMAIN"), env("JC_SPACE"))');
@@ -156,6 +169,12 @@ describe("the manifests the formulas run by", () => {
       checkFormulas(SLOTS),
     );
     expect(pipelineName("Station")).toBe("formulas-station");
+    // Every name, the Policies' suffixed ones too, stays a DNS-1123 label of at most 63 (T-6230).
+    const long = formulaManifests(
+      { project: "helsinki", space: "bikes", type: "A".repeat(60), orgDomain: "hel.fi", endpoint: "bikes-all" },
+      checkFormulas(SLOTS),
+    );
+    for (const manifest of long) expect(manifest.metadata.name.length).toBeLessThanOrEqual(63);
     expect(pipeline).toMatchObject({
       kind: "Pipeline",
       metadata: { name: "formulas-station", namespace: "helsinki" },

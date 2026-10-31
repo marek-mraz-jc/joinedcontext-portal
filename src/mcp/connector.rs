@@ -311,7 +311,10 @@ async fn judge(
             "the request is {} bytes; this route reads at most {MAX_REQUEST_BYTES}",
             body.len()
         );
-        return (too_large(&why), "refused: too large".to_owned());
+        return (
+            too_large(&why, &Value::Null),
+            "refused: too large".to_owned(),
+        );
     }
     // The person's window first: it is the one their other connectors and `/api/v1/mcp` share.
     let (person, own, limits) = (

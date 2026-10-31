@@ -290,12 +290,12 @@ describe("endpoints view", () => {
   it("reads what only the form needs when the form opens, not on the list (F-R2UI4-012)", async () => {
     const fetchMock = renderEndpoints();
     await screen.findByText("public-air");
-    const formOnly = /\/(organizations|pipelines|ckaninstances|datamodels)$/;
+    const formOnly = /\/(pipelines|ckaninstances|datamodels)$/;
     const asked = () => fetchMock.mock.calls.map((call) => callOf(call[0], call[1]).url.pathname).filter((path) => formOnly.test(path));
     expect(asked()).toEqual([]);
     await userEvent.click(await screen.findByRole("button", { name: en.endpoints.add }));
     await findFormPage();
-    await waitFor(() => expect(new Set(asked().map((path) => path.split("/").pop()))).toEqual(new Set(["organizations", "pipelines", "ckaninstances", "datamodels"])));
+    await waitFor(() => expect(new Set(asked().map((path) => path.split("/").pop()))).toEqual(new Set(["pipelines", "ckaninstances", "datamodels"])));
   });
 
   it("shows read-only slug and public URL for a new endpoint", async () => {

@@ -8,10 +8,10 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { importManifests, proposeChecked } from "../api/proposal";
-import { asManifests, isChange, localized, ORG_NAMESPACE, overlay, plainTitle, refName } from "../api/manifest";
+import { asManifests, isChange, localized, overlay, plainTitle, refName } from "../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import type { Verdict } from "../api/drafts";
-import { useProjects } from "../api/projects";
+import { useProjectOrganization, useProjects } from "../api/projects";
 import { takePrefill } from "../assistant/state";
 import { useProjectUsage } from "../components/ProjectQuota";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
@@ -791,19 +791,11 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   const formOpen = editing !== null || Boolean(formRoute?.form) || edit !== undefined;
   // The Organization, whose name, domain and open-data desk a new endpoint's catalogue starts
   // from (EP-78, EP-80), and the pipelines a catalogue may name as the data's origin.
-  const organizationsQuery = useQuery({
-    queryKey: queryKeys.list(ORG_NAMESPACE, "organizations"),
-    enabled: formOpen,
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/{plural}", {
-          params: { path: { project: ORG_NAMESPACE, plural: "organizations" } },
-        }),
-      ),
-  });
+  // The project's own Organization: with several, the first of the list is another body's.
+  const organization = useProjectOrganization(project);
   const catalogPrefill = useMemo(
-    () => prefillFromOrganization(asManifests(organizationsQuery.data?.items ?? [])[0]),
-    [organizationsQuery.data],
+    () => prefillFromOrganization(organization.organization),
+    [organization.organization],
   );
   const pipelinesQuery = useQuery({
     queryKey: queryKeys.list(project, "pipelines"),
@@ -1165,12 +1157,12 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       openedNew.current = false;
       return;
     }
-    if (openedNew.current || spacesQuery.isPending || organizationsQuery.isPending) {
+    if (openedNew.current || spacesQuery.isPending || !organization.settled) {
       return;
     }
     openedNew.current = true;
     startNew(asManifests(spacesQuery.data?.items ?? [])[0]?.metadata.name ?? "", catalogPrefill);
-  }, [routedNew, spacesQuery.isPending, organizationsQuery.isPending, spacesQuery.data, startNew, catalogPrefill]);
+  }, [routedNew, spacesQuery.isPending, organization.settled, spacesQuery.data, startNew, catalogPrefill]);
 
   // `?edit=<name>` from the endpoint's own settings page: the editor opens once, on the endpoint the
   // URL names, and only when the list has it — a name nobody publishes opens nothing rather than an

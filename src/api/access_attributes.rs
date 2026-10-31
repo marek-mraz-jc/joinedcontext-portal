@@ -11,7 +11,7 @@ use axum::extract::{Path, Query, State};
 use axum::routing::get;
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::json;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::api::access_simulate::{ask_gateway, Resolved};
@@ -190,21 +190,13 @@ pub(crate) async fn explain_attribute(
         match readable {
             Some(manifest) => {
                 explained.policy = Some(policy.to_owned());
-                explained.policy_title = title_of(&manifest["metadata"]["title"]);
+                explained.policy_title =
+                    crate::resource::title_text(&manifest["metadata"]["title"]);
             }
             None => explained.policy_hidden = true,
         }
     }
     Ok(Json(explained))
-}
-
-/// A manifest title: one string, or the legacy map per locale, English first.
-fn title_of(title: &Value) -> Option<String> {
-    title
-        .as_str()
-        .or_else(|| title["en"].as_str())
-        .or_else(|| title.as_object()?.values().find_map(Value::as_str))
-        .map(str::to_owned)
 }
 
 pub fn router() -> Router<AppState> {
@@ -230,16 +222,5 @@ mod tests {
             Some(("delete", "deleteAttrs"))
         );
         assert!(operation_of(Some("purge")).is_err());
-    }
-
-    #[test]
-    fn a_title_is_the_plain_string_or_the_english_one() {
-        assert_eq!(title_of(&json!("Lab only")), Some("Lab only".to_owned()));
-        assert_eq!(
-            title_of(&json!({ "fi": "Vain", "en": "Only" })),
-            Some("Only".to_owned())
-        );
-        assert_eq!(title_of(&json!({ "fi": "Vain" })), Some("Vain".to_owned()));
-        assert_eq!(title_of(&Value::Null), None);
     }
 }

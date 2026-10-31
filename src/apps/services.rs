@@ -19,7 +19,7 @@ use crate::auth::session::EDGE_TOKEN_HEADER;
 use crate::error::ApiError;
 use crate::permissions::ORG_NAMESPACE;
 use crate::state::AppState;
-use crate::store::{ListOptions, Mirror};
+use crate::store::Mirror;
 
 /// What every service route checks before its own work, in this order: the call comes from the
 /// App's own host, the App is published and the caller may open it, a person is signed in (a
@@ -93,13 +93,10 @@ impl Quota {
     }
 }
 
-fn organization(mirror: &Mirror) -> Option<Value> {
-    mirror
-        .list(ORG_NAMESPACE, "Organization", &ListOptions::default())
-        .items
-        .into_iter()
-        .next()
-        .map(|envelope| envelope.spec)
+/// The spec of the Organization that owns `project`: its switches and quotas hold for its own
+/// Apps alone (ADR-N-058).
+fn organization(mirror: &Mirror, project: &str) -> Option<Value> {
+    crate::permissions::organization_manifest_of(mirror, project).map(|envelope| envelope.spec)
 }
 
 fn project(mirror: &Mirror, project: &str) -> Option<Value> {
@@ -125,7 +122,7 @@ pub fn off_at(
     if matches!(service, AppService::Identity | AppService::Data) {
         return None;
     }
-    let organization = organization(mirror);
+    let organization = organization(mirror, project_name);
     let allowed = services_at(organization.as_ref(), "/policies/apps/services")
         .unwrap_or_else(|| DEFAULT_ORGANIZATION_SERVICES.to_vec());
     if !allowed.contains(&service) {
@@ -150,7 +147,7 @@ pub fn quota(mirror: &Mirror, project_name: &str, spec: &AppSpec, quota: Quota) 
     };
     let member = quota.member();
     let organization = read(
-        organization(mirror).as_ref(),
+        organization(mirror, project_name).as_ref(),
         format!("/limits/apps/{member}"),
     )
     .or_else(|| entry_at(&format!("spec.limits.apps.{member}")).and_then(|entry| entry.default))
@@ -411,6 +408,22 @@ mod tests {
         );
         let on = layers(json!(["identity", "data", "email"]));
         assert_eq!(off_at(&on, "roads", &spec, AppService::Email), None);
+    }
+
+    /// F-R2POR3-011: another Organization's switches and quotas never hold for this one's App.
+    #[test]
+    fn only_the_apps_own_organization_sets_its_services_and_quotas() {
+        let spec = app(json!({}));
+        let mirror = layers(json!(["identity", "data", "email"]));
+        mirror.upsert(envelope(
+            "Organization",
+            "aa",
+            json!({ "domain": "aa.sk", "locales": ["sk"], "defaultLocale": "sk",
+                    "policies": { "apps": { "services": ["identity", "data"] } },
+                    "limits": { "apps": { "emailsPerDay": 1 } } }),
+        ));
+        assert_eq!(off_at(&mirror, "roads", &spec, AppService::Email), None);
+        assert_eq!(quota(&mirror, "roads", &spec, Quota::EmailsPerDay), 3);
     }
 
     #[test]

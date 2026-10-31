@@ -101,7 +101,7 @@ impl HttpRemote {
     fn git_revision(&self, url: &str, git_ref: &str) -> Result<String, RemoteError> {
         // A ref that is already a commit is its own answer, and it is how a pinned source is
         // written. Answered before the request, because a pinned source needs no round trip.
-        if (7..=40).contains(&git_ref.len()) && git_ref.chars().all(|c| c.is_ascii_hexdigit()) {
+        if is_commit(git_ref) {
             return Ok(git_ref.to_owned());
         }
         let base = url.trim_end_matches('/').trim_end_matches(".git");
@@ -136,19 +136,12 @@ impl SyncRemote for HttpRemote {
             let list: serde_json::Value = serde_json::from_slice(&body).map_err(|err| {
                 RemoteError::Refused(format!("{url} is not a revision list: {err}"))
             })?;
-            return list
-                .get("items")
-                .and_then(serde_json::Value::as_array)
-                .and_then(|items| items.first())
-                .and_then(|item| item.get("sha"))
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_owned)
-                .ok_or_else(|| {
-                    RemoteError::Refused(format!(
-                        "{url} lists no revision, so project `{}` has nothing to sync from",
-                        api.project
-                    ))
-                });
+            return latest(&list).map(str::to_owned).ok_or_else(|| {
+                RemoteError::Refused(format!(
+                    "{url} lists no revision, so project `{}` has nothing to sync from",
+                    api.project
+                ))
+            });
         }
         Err(RemoteError::Refused(
             "the source names no origin".to_owned(),
@@ -252,6 +245,19 @@ fn object_name(field: &str) -> Option<String> {
     };
     (candidate.len() == 40 && candidate.chars().all(|c| c.is_ascii_hexdigit()))
         .then(|| candidate.to_owned())
+}
+
+/// Whether `text` is a commit id: 7 to 64 hex digits (abbreviated, SHA-1 or SHA-256).
+fn is_commit(text: &str) -> bool {
+    (7..=64).contains(&text.len()) && text.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// The newest revision a platform origin lists. The origin is another party: its answer goes
+/// into the export URL and the branch name, so anything but a commit id is no revision.
+fn latest(list: &serde_json::Value) -> Option<&str> {
+    list.pointer("/items/0/sha")
+        .and_then(serde_json::Value::as_str)
+        .filter(|sha| is_commit(sha))
 }
 
 /// Where a forge serves the tree of one commit as a zip.
@@ -469,6 +475,16 @@ fn reason(err: reqwest::Error) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_platform_origin_lists_a_commit_or_no_revision() {
+        let list = |sha: &str| serde_json::json!({ "items": [{ "sha": sha }] });
+        assert_eq!(latest(&list("0a1b2c3d4e5f")), Some("0a1b2c3d4e5f"));
+        for hostile in ["x&y/../z", "main", "0a1b2c3?format=tar", ""] {
+            assert_eq!(latest(&list(hostile)), None, "{hostile}");
+        }
+        assert_eq!(latest(&serde_json::json!({ "items": [] })), None);
+    }
     use jc_core::envelope::SecretRef;
     use jc_core::kinds::GitOrigin;
 

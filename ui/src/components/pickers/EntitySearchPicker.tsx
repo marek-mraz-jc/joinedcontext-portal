@@ -1,10 +1,11 @@
+import { reasonOf } from "../../api/client";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { searchEntities } from "../../api/gateway";
 import { Combobox } from "./Combobox";
-import { reasonOf, useDebounced } from "./organizationModels";
+import { useDebounced } from "./organizationModels";
 
 export interface EntitySearchPickerProps {
   id?: string;

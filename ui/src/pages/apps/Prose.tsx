@@ -3,7 +3,7 @@ import type { JSX, MouseEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CodeBlock, Button, ExternalLink, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
 import { Icon } from "../../components/ui/icons";
-import { safeHref } from "../../components/ui/safeHref";
+import { hostToShow, safeHref } from "../../components/ui/safeHref";
 
 /**
  * The Markdown an answer is written in, as the blocks the transcript draws (T-2773, UI-84).
@@ -208,6 +208,16 @@ export function inline(text: string, onOpenLink?: OpenLink): ReactNode[] {
           {inline(label, onOpenLink)}
         </PortalLink>,
       );
+      // A label is the model's words, and text the model read can write them: a link that
+      // leaves the Portal says where it goes beside them (F-R2UI2-004).
+      const host = hostToShow(label, href);
+      if (host) {
+        nodes.push(
+          <span key={key++} className="text-fg-muted">
+            {` (${host})`}
+          </span>,
+        );
+      }
     } else if (bold !== undefined) {
       nodes.push(<strong key={key++}>{inline(bold, onOpenLink)}</strong>);
     } else if (italic !== undefined) {

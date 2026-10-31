@@ -538,6 +538,31 @@ pub fn organization_of(mirror: &Mirror, project: &str) -> Option<String> {
         .or_else(|| installation_organization(mirror))
 }
 
+/// The `Organization` manifest that owns `project` ([`organization_of`]): its policies, limits and
+/// domain are the ones that hold there, never another Organization's (ADR-N-058 section 2.3).
+pub fn organization_manifest_of(
+    mirror: &Mirror,
+    project: &str,
+) -> Option<crate::resource::ResourceEnvelope> {
+    mirror.get(
+        ORG_NAMESPACE,
+        "Organization",
+        &organization_of(mirror, project)?,
+    )
+}
+
+/// The installation's `Organization` manifest ([`installation_organization`]), whose settings
+/// hold for what belongs to no project yet, such as opening one (ADR-N-058 section 2.2).
+pub fn installation_organization_manifest(
+    mirror: &Mirror,
+) -> Option<crate::resource::ResourceEnvelope> {
+    mirror.get(
+        ORG_NAMESPACE,
+        "Organization",
+        &installation_organization(mirror)?,
+    )
+}
+
 /// Whether a binding scoped to `organization` applies in `project` (PF-123, ADR-N-058 section
 /// 2.4). With one Organization it applies everywhere, as before several existed. With several, the
 /// organization's own namespace ([`ORG_NAMESPACE`]: bindings, groups, brokers, platform settings)
@@ -1634,6 +1659,13 @@ pub fn is_person_id(value: &str) -> bool {
 
 fn is_subject(identity: &Identity, subject: &jc_core::kinds::Subject) -> bool {
     names(identity, subject.user.as_deref(), subject.group.as_deref())
+}
+
+/// Whether a `user` a manifest writes (a `Group` member, a binding subject) is `identity`: by
+/// Keycloak id (ADR-N-061), or by the e-mail or username an older manifest wrote. The one
+/// matcher for a person everywhere a manifest names one.
+pub fn names_user(identity: &Identity, user: &str) -> bool {
+    names(identity, Some(user), None)
 }
 
 /// [`is_subject`] over a subject's `user` and `group`.

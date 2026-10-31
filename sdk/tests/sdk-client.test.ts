@@ -433,6 +433,23 @@ describe("files", () => {
     expect(full).toMatchObject({ service: "files", quota: "filesMiB" });
     expect((calls[5].raw as { contentType: string }).contentType).toBe("text/plain;charset=utf-8");
   });
+
+  it("refuses a file key that climbs out of the files service before anything is sent (T-6230)", async () => {
+    const calls: JcRequest[] = [];
+    const transport: Transport = async (req) => {
+      calls.push(req);
+      return { status: 204, body: null };
+    };
+    const client = createClient({ ...CONFIG, transport: "origin" }, transport);
+    for (const key of ["../../endpoint/x/ngsi-ld/v1/entities/u", "a/./b", "a//b", "/a", ".."]) {
+      await expect(client.files.remove(key)).rejects.toBeInstanceOf(ProblemError);
+      await expect(client.files.get(key)).rejects.toThrow("segment");
+    }
+    expect(calls).toEqual([]);
+    // A dot inside a name is a name.
+    await client.files.remove("reports/2026.10..csv");
+    expect(calls[0].path).toBe("/api/services/files/reports/2026.10..csv");
+  });
 });
 
 describe("ai", () => {

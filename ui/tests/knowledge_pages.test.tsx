@@ -14,12 +14,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
 import { bytesText, dataChart, embedSnippet, readEvents, timeText, topLanguages } from "../src/pages/knowledge/knowledge";
-import { reasonOf } from "../src/pages/knowledge/KnowledgePage";
 import { InclusionBadge } from "../src/pages/knowledge/SourcePage";
 import { UploadedFiles } from "../src/pages/knowledge/UploadedFiles";
 import { sum } from "../src/pages/knowledge/IndexStatus";
 import { EmbedSnippet } from "../src/pages/knowledge/AssistantChat";
-import { ApiError } from "../src/api/client";
+import { ApiError, reasonOf } from "../src/api/client";
+import { standing } from "../src/pages/knowledge/KnowledgePage";
 import { assistantDeploymentSchema, fromKindManifest, knowledgeSourceSchema, toKindManifest } from "../src/schemas/knowledge";
 
 const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", name: "Jana Kováčová", roles: [] };
@@ -969,9 +969,14 @@ describe("the knowledge helpers", () => {
   });
 
   it("reads the reason of a refusal, and falls back to the generic sentence", () => {
-    expect(reasonOf(new Error("x"), "generic")).toBe("generic");
+    expect(reasonOf(new Error(""), "generic")).toBe("generic");
     const refused = new ApiError(409, "Conflict", { type: "about:blank", status: 409, title: "Conflict", detail: "already queued" });
     expect(reasonOf(refused, "generic")).toBe("already queued");
+  });
+
+  it("says an upload source without files holds none, and one with files waiting is indexing", () => {
+    expect(standing({ type: "upload" } as Parameters<typeof standing>[0]).key).toBe("knowledge.files.none");
+    expect(standing({ type: "upload", documents: 2, pending: 1 } as Parameters<typeof standing>[0]).key).toBe("knowledge.state.indexing");
   });
 
   it("formats sizes and times in the person's locale, a dash for none", () => {
