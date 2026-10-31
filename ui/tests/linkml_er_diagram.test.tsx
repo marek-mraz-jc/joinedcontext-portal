@@ -239,6 +239,10 @@ describe("reading it without the picture", () => {
       // A frame a little narrower than the drawing: it fits the frame's width.
       const frame = Math.round(natural.width * 0.9);
       expect(widthAt(frame).width).toBeCloseTo(frame - 16, 0);
+      // A frame just under the 60 % floor: the page's diagram shrinks to the frame's width, down to
+      // 50 %, rather than cut a box (T-6254 judge, model-catalog-400).
+      const snug = Math.round((natural.width * 0.55) + 16);
+      expect(widthAt(snug).width).toBeCloseTo(snug - 16, 0);
       // A frame far narrower: the drawing stays at 60 %, the overview floor (owner 2026-10-31), and scrolls.
       const narrow = widthAt(216);
       expect(narrow.level).toBe("Zoom 60 %");

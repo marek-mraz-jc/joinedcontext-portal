@@ -4249,7 +4249,7 @@
     "description": "Popis",
     "titleIn": "Názov ({locale})",
     "fieldsNeedType": "Polia patria typu: najprv pridajte typ v časti Typy, potom tu jeho polia.",
-    "titleHint": "Názov typu, ktorý ľudia čítajú, napríklad Sčítač bicyklov.",
+    "titleHint": "Názov, ktorý ľudia čítajú pre tento typ v tomto jazyku; typ si ponechá vlastný názov.",
     "titleTranslations": "Preklady: {languages}",
     "slotUri": "IRI atribútu",
     "slotUriHint": "Pod vlastnou predponou organizácie; prevzatý pojem sa cituje, nikdy nevytvára",

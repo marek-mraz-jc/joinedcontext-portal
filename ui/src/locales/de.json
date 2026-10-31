@@ -4249,7 +4249,7 @@
     "description": "Beschreibung",
     "titleIn": "Titel ({locale})",
     "fieldsNeedType": "Felder gehören zu einem Typ: legen Sie zuerst unter Typen einen Typ an, dann hier seine Felder.",
-    "titleHint": "Der Name, den Menschen für diesen Typ lesen, zum Beispiel Fahrradzähler.",
+    "titleHint": "Der Name, den Menschen für diesen Typ in dieser Sprache lesen; der Typ behält seinen eigenen Namen.",
     "titleTranslations": "Übersetzungen: {languages}",
     "slotUri": "Attribut-IRI",
     "slotUriHint": "Unter dem eigenen Präfix der Organisation; ein fremder Begriff wird zitiert, nie geprägt",

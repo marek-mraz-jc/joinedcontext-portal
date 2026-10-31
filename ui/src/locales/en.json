@@ -4249,7 +4249,7 @@
     "description": "Description",
     "titleIn": "Title ({locale})",
     "fieldsNeedType": "Fields belong to a type: add the first type under Types, then its fields here.",
-    "titleHint": "The name people read for this type, for example Bike counter.",
+    "titleHint": "The name people read for this type in this language; the type keeps its own name.",
     "titleTranslations": "Translations: {languages}",
     "slotUri": "Slot IRI",
     "slotUriHint": "Under the organisation's own prefix; an upstream term is cited, never minted",

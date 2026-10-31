@@ -1004,7 +1004,8 @@ async function stubCatalog(page: Page): Promise<void> {
     metadata: { name, namespace: "helsinki", title },
     spec: { contextSpaceRef: name, version: "1.14.0", lifecycle: "published", classes, linkml },
   });
-  await page.route("**/api/**", async (route) => {
+  // A RegExp, not a glob: tests/gates.ts strips block comments and pairs the globs of the other stubs.
+  await page.route(/\/api\//, async (route) => {
     const path = new URL(route.request().url()).pathname;
     const json = (body: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
     if (path.endsWith("/auth/me")) return json(IDENTITY);

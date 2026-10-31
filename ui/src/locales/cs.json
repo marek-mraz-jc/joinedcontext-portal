@@ -4249,7 +4249,7 @@
     "description": "Popis",
     "titleIn": "Název ({locale})",
     "fieldsNeedType": "Pole patří typu: nejprve přidejte typ v části Typy, potom zde jeho pole.",
-    "titleHint": "Název typu, který lidé čtou, například Sčítač kol.",
+    "titleHint": "Název, který lidé čtou pro tento typ v tomto jazyce; typ si ponechá vlastní název.",
     "titleTranslations": "Překlady: {languages}",
     "slotUri": "IRI atributu",
     "slotUriHint": "Pod vlastní předponou organizace; převzatý pojem se cituje, nikdy nevytváří",
