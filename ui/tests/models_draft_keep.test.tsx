@@ -38,8 +38,7 @@ describe("a new model kept as a draft", () => {
         return undefined;
       },
     });
-    const region = await screen.findByRole("region", { name: en.models.create.title });
-    await user.type(within(region).getByLabelText(en.models.create.name, { exact: true }), "stations");
+    await user.type(await screen.findByRole("textbox", { name: en.models.identity.name }), "stations");
     // A first edit is what makes the page keep the model.
     await user.type(screen.getByLabelText("New type"), "Station");
     await user.click(screen.getByRole("button", { name: "Add type" }));

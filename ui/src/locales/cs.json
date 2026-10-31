@@ -4222,7 +4222,6 @@
       "copyFailed": "Kopii organizace se nepodařilo načíst: {reason}. Obnovte stránku a zkuste to znovu."
     },
     "title": "Editor modelů",
-    "version": "Verze {version}",
     "add": "Přidat",
     "classes": "Typy",
     "enums": "Číselníky",
@@ -4254,7 +4253,6 @@
     "newClass": "Nový typ",
     "newSlot": "Nové pole",
     "newEnum": "Nový číselník",
-    "newEnumValue": "Nová hodnota číselníku {name}",
     "removeEnumValue": "Odebrat hodnotu {value}",
     "classUri": "IRI třídy",
     "description": "Popis",
@@ -4329,8 +4327,6 @@
       "requiredAttribute": "povinný",
       "showMore": "Zobrazit dalších {count}",
       "noAttribute": "Žádný atribut tohoto modelu neodpovídá.",
-      "space": "Prostor pro tento model",
-      "spaceLater": "Vybrat později, v editoru",
       "catalogueLoading": "Načítá se katalog…",
       "count": "{count, plural, one {# model} few {# modely} other {# modelů}}",
       "allAttributes": "Všechny",
@@ -4373,18 +4369,11 @@
     },
     "create": {
       "title": "Nový model",
-      "name": "Název",
-      "space": "Prostor",
-      "chooseSpace": "Vyberte prostor",
-      "file": "Uloží se jako {name}.linkml.yaml",
       "taken": "Projekt už má model s názvem {name}. Zvolte jiný název.",
       "held": "Uloženo jako sdílený koncept {name}; po obnovení stránky je stále zde, dokud model neuložíte.",
       "heldConflict": "Tento koncept mezitím uložil někdo jiný. Obnovte stránku, abyste viděli jeho verzi; do té doby se vaše neukládá.",
-      "spaceHas": "{space} (už má {model})",
       "spaceTaken": "Prostor {space} už má model {model} a prostor má jeden model. Zvolte jiný prostor nebo otevřete {model} a přidejte do něj své třídy.",
-      "noSpace": "Model patří jednomu kontextovému prostoru a projekt zatím žádný nemá.",
-      "noFreeSpace": "Každý prostor projektu už má svůj model; nový model potřebuje nový prostor, nebo přidejte třídy do modelu prostoru.",
-      "newSpace": "Vytvořit kontextový prostor"
+      "nameHint": "Pojmenujte model, například Kvalita ovzduší; identifikátor se vytvoří z něj."
     },
     "infer": {
       "title": "Model ze souboru",
@@ -4777,6 +4766,42 @@
       "editing": "Upravujete zdroj modelu. Každý pohled ukazuje, co sem napíšete.",
       "edit": "Upravit zdroj",
       "done": "Hotovo"
+    },
+    "editor": {
+      "title": "Editor datového modelu",
+      "lead": "Typy, pole a číselníky jednoho modelu; uložení navrhne novou verzi."
+    },
+    "identity": {
+      "name": "Název",
+      "nameHint": "Co lidé čtou; identifikátor a soubor si ponechají svá jména.",
+      "nameEmpty": "Napište název: model ho potřebuje.",
+      "rename": "Přejmenovat {name}",
+      "done": "Použít název",
+      "unnamed": "Model bez názvu",
+      "id": "Identifikátor",
+      "noId": "bez identifikátoru, dokud model nemá název",
+      "idNew": "Identifikátor se řídí názvem až do prvního uložení modelu; pak je pevný.",
+      "idFixed": "Identifikátor je pevný: endpointy, prostory a importy podle něj model jmenují.",
+      "file": "Soubor",
+      "fileFixed": "Název souboru je pevný: přejmenování mění jen název, který lidé čtou.",
+      "version": "Verze",
+      "renameShort": "Přejmenovat",
+      "renamed": "Přejmenováno. Identifikátor {id} a jeho soubor zůstávají; Navrhnout uloží nový název."
+    },
+    "findType": "Najít typ",
+    "enumValues": {
+      "caption": "Hodnoty {name}",
+      "stored": "Uložená hodnota",
+      "label": "Popisek",
+      "labelOf": "Popisek hodnoty {value}",
+      "actions": "Akce",
+      "translations": "Překlady a popis",
+      "empty": "Zatím žádné hodnoty: přidejte první níže.",
+      "none": "Zatím žádné číselníky: pojmenujte jeden níže.",
+      "new": "Nová hodnota",
+      "newHint": "Hodnota, kterou entity ukládají, po přidání pevná, například active.",
+      "unused": "Tento číselník zatím nepoužívá žádné pole: vyberte ho jako typ hodnoty pole.",
+      "usedBy": "Používá {fields}"
     }
   },
   "apps": {

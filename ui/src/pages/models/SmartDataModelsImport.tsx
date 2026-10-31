@@ -38,13 +38,8 @@ export interface Catalogue {
 }
 
 export interface SmartDataModelsImportProps {
-  /**
-   * Hands the adapted LinkML source to the editor, with the model it came from and the space
-   * the person chose for it, when they chose one (DM-57).
-   */
-  onImport: (source: string, model: CatalogueModel, space?: string) => void;
-  /** The project's Context Spaces, so the model can be placed before it is imported (T-1108). */
-  spaces?: string[];
+  /** Hands the adapted LinkML source to the editor, with the model it came from (DM-57). */
+  onImport: (source: string, model: CatalogueModel) => void;
 }
 
 /** How many attributes the panel shows before "show the rest": a list, not a scroll box. */
@@ -127,10 +122,6 @@ export function withAttributes(source: string, className: string, added: AddedAt
 }
 
 /**
- * The upstream model the import came from, pinned to its commit (DM-08): the repository, path and
- * commit the importer writes as the model's annotations, as an address a person can open.
- */
-/**
  * On a phone the preview sits under the catalogue, below the dialog's fold: a refusal that
  * appears there scrolls into view, or the person sees nothing happen (T-6106). A stable
  * callback ref runs once per mount.
@@ -139,6 +130,10 @@ function revealOnMount(node: HTMLDivElement | null): void {
   node?.scrollIntoView?.({ block: "start" });
 }
 
+/**
+ * The upstream model the import came from, pinned to its commit (DM-08): the repository, path and
+ * commit the importer writes as the model's annotations, as an address a person can open.
+ */
 export function originOf(source: string): { href: string; commit: string } | undefined {
   const document = parseDocument(source);
   const annotation = (key: string): string | undefined => {
@@ -155,7 +150,6 @@ export function originOf(source: string): { href: string; commit: string } | und
 
 export function SmartDataModelsImport({
   onImport,
-  spaces = [],
 }: SmartDataModelsImportProps): JSX.Element {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
@@ -167,7 +161,6 @@ export function SmartDataModelsImport({
   const [attribute, setAttribute] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [showAllModels, setShowAllModels] = useState(false);
-  const [space, setSpace] = useState("");
   // Adopt the model as it is, or adapt it: drop attributes, add the person's own (T-3251).
   const [mode, setMode] = useState<"asIs" | "adapt">("asIs");
   const [added, setAdded] = useState<AddedAttribute[]>([]);
@@ -266,7 +259,7 @@ export function SmartDataModelsImport({
       mode === "asIs"
         ? imported
         : withAttributes(deprecateUnused(imported, chosen), className, added);
-    onImport(adopted, selected, space || undefined);
+    onImport(adopted, selected);
   };
 
   return (
@@ -597,19 +590,6 @@ export function SmartDataModelsImport({
               </div>
             </fieldset>
             </>
-            ) : null}
-            {spaces.length > 0 ? (
-              <label className="flex flex-col gap-1 text-body">
-                {t("models.sdm.space")}
-                <Select value={space} onChange={(event) => setSpace(event.target.value)}>
-                  <option value="">{t("models.sdm.spaceLater")}</option>
-                  {spaces.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </Select>
-              </label>
             ) : null}
             <CodeBlock label={t("codeBlock.code")} className="max-h-56 rounded border border-border bg-surface-subtle p-3 font-mono text-xs text-fg">
               {imported}

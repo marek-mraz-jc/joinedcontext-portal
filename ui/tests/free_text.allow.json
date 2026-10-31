@@ -109,6 +109,10 @@
       "class": "FREE",
       "reason": "a search box: the text filters a list on the page, the list itself is the choice"
     },
+    "src/pages/models/LinkmlVisualEditor.tsx :: Find a type": {
+      "class": "FREE",
+      "reason": "a search box: the text filters the model's own type list in the rail, nothing is written"
+    },
     "src/pages/models/LinkmlVisualEditor.tsx :: New type": {
       "class": "FREE",
       "reason": "the name of a new class"

@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
-import { localized } from "../../api/manifest";
 import {
   Alert,
   Button,
@@ -37,6 +36,7 @@ import { unitSymbol } from "../../units";
 import { dropsUnit, rangeForUnit, unitNotice } from "./unitRule";
 import type { UnitNotice } from "./unitRule";
 import type { Operation, SlotField } from "./operations";
+import { EnumValues } from "./EnumValues";
 import { RelationshipEditor } from "./RelationshipEditor";
 import { fieldWord, FIELD_RANGE, useFieldWords } from "../../components/entities/fieldTypes";
 
@@ -76,18 +76,20 @@ export function LinkmlVisualEditor({
   onImport,
   initialClass,
 }: LinkmlVisualEditorProps): JSX.Element {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const word = useFieldWords();
   const model = useMemo(() => parseModel(source), [source]);
   const newClassInput = useRef<HTMLInputElement>(null);
 
   const [selectedClass, setSelectedClass] = useState<string | null>(initialClass ?? null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  // An enumeration opens its values table in place of the type (T-6162).
+  const [selectedEnum, setSelectedEnum] = useState<string | null>(null);
+  const [typeSearch, setTypeSearch] = useState("");
   const [newClass, setNewClass] = useState("");
   const [newSlot, setNewSlot] = useState("");
   const [newEnum, setNewEnum] = useState("");
   // One box per enum: a shared one filled every enum's box with what was typed in one (T-2706).
-  const [newValues, setNewValues] = useState<Record<string, string>>({});
   const [iriError, setIriError] = useState<string | null>(null);
   // The IRI field keeps what was typed even while it is refused: a controlled input that
   // drops the keystroke would fight the person editing it.
@@ -99,6 +101,7 @@ export function LinkmlVisualEditor({
   const activeClass =
     model.classes.find((klass) => klass.name === selectedClass) ?? model.classes[0];
   const activeSlot = model.slots.find((slot) => slot.name === selectedSlot);
+  const enumOpen = model.enums.find((entry) => entry.name === selectedEnum);
   const origins = activeClass ? slotOrigins(model, activeClass) : new Map<string, string>();
   // A field inherited from a parent is shared by every type below it: it opens read-only here.
   const activeSlotOwner = activeSlot ? origins.get(activeSlot.name) : undefined;
@@ -225,16 +228,7 @@ export function LinkmlVisualEditor({
     }
     if (run({ op: "addEnum", name })) {
       setNewEnum("");
-    }
-  };
-
-  const addEnumValue = (enumName: string) => {
-    const value = (newValues[enumName] ?? "").trim();
-    if (!value) {
-      return;
-    }
-    if (run({ op: "addEnumValue", enum: enumName, value })) {
-      setNewValues((all) => ({ ...all, [enumName]: "" }));
+      setSelectedEnum(name);
     }
   };
 
@@ -283,16 +277,31 @@ export function LinkmlVisualEditor({
           <h2 id="models-classes" className="mb-2 text-sm font-semibold uppercase tracking-wide">
             {t("models.classes")}
           </h2>
+          {model.classes.length > 5 ? (
+            <Input
+              type="search"
+              className="mb-2"
+              aria-label={t("models.findType")}
+              placeholder={t("models.findType")}
+              value={typeSearch}
+              onChange={(event) => setTypeSearch(event.target.value)}
+            />
+          ) : null}
           <ul className="flex flex-col gap-1">
-            {model.classes.map((klass) => (
+            {model.classes
+              .filter((klass) => klass.name.toLowerCase().includes(typeSearch.trim().toLowerCase()))
+              .map((klass) => (
               <li key={klass.name}>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setSelectedClass(klass.name)}
-                  aria-current={klass.name === activeClass?.name ? "true" : undefined}
+                  onClick={() => {
+                    setSelectedClass(klass.name);
+                    setSelectedEnum(null);
+                  }}
+                  aria-current={!enumOpen && klass.name === activeClass?.name ? "true" : undefined}
                   className={
-                    klass.name === activeClass?.name
+                    !enumOpen && klass.name === activeClass?.name
                       ? "w-full justify-start bg-primary-soft font-semibold text-primary-soft-fg border-l-4 border-primary"
                       : "w-full justify-start"
                   }
@@ -330,93 +339,30 @@ export function LinkmlVisualEditor({
           <h2 id="models-enums" className="mb-2 text-sm font-semibold uppercase tracking-wide">
             {t("models.enums")}
           </h2>
-          <ul className="flex flex-col gap-2">
-            {model.enums.map((entry) => (
-              <li key={entry.name} className="rounded border border-border p-2">
-                <p className="text-sm font-medium">{entry.name}</p>
-                {/* Each value with what a person reads for it (UI-86): the grid, the forms and
-                    the filter show these titles, so they are written here, beside the value. */}
-                <ul className="mt-1 flex flex-col gap-1">
-                  {entry.permissible_values.map((value) => (
-                    <li key={value.name}>
-                      <details>
-                        <summary className="cursor-pointer text-xs">
-                          <span className="font-mono">{value.name}</span>
-                          {value.title ? ` · ${localized(value.title, i18n.language, value.name)}` : ""}
-                        </summary>
-                        <div className="mt-1 flex flex-col gap-1 pl-3">
-                          {locales.map((locale) => (
-                            <Field
-                              key={locale}
-                              id={`enum-${entry.name}-${value.name}-title-${locale}`}
-                              label={t("models.titleIn", { locale })}
-                            >
-                              <Input
-                                id={`enum-${entry.name}-${value.name}-title-${locale}`}
-                                value={value.title?.[locale] ?? ""}
-                                onChange={(event) =>
-                                  run({
-                                    op: "setEnumValue",
-                                    enum: entry.name,
-                                    value: value.name,
-                                    field: "title",
-                                    locale,
-                                    text: event.target.value,
-                                  })
-                                }
-                              />
-                            </Field>
-                          ))}
-                          <Field
-                            id={`enum-${entry.name}-${value.name}-description`}
-                            label={t("models.description")}
-                          >
-                            <Input
-                              id={`enum-${entry.name}-${value.name}-description`}
-                              value={value.description ?? ""}
-                              onChange={(event) =>
-                                run({
-                                  op: "setEnumValue",
-                                  enum: entry.name,
-                                  value: value.name,
-                                  field: "description",
-                                  text: event.target.value,
-                                })
-                              }
-                            />
-                          </Field>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="w-fit"
-                            onClick={() => run({ op: "removeEnumValue", enum: entry.name, value: value.name })}
-                          >
-                            {t("models.removeEnumValue", { value: value.name })}
-                          </Button>
-                        </div>
-                      </details>
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-1 flex gap-1">
-                  <Input
-                    aria-label={t("models.newEnumValue", { name: entry.name })}
-                    value={newValues[entry.name] ?? ""}
-                    onChange={(event) =>
-                      setNewValues((all) => ({ ...all, [entry.name]: event.target.value }))
-                    }
-                  />
+          {model.enums.length === 0 ? (
+            <p className="text-caption text-fg-muted">{t("models.enumValues.none")}</p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {model.enums.map((entry) => (
+                <li key={entry.name}>
                   <Button
+                    variant="ghost"
                     size="sm"
-                    aria-label={t("models.addValue", { name: entry.name })}
-                    onClick={() => addEnumValue(entry.name)}
+                    onClick={() => setSelectedEnum(entry.name)}
+                    aria-current={entry.name === enumOpen?.name ? "true" : undefined}
+                    className={
+                      entry.name === enumOpen?.name
+                        ? "w-full justify-start bg-primary-soft font-semibold text-primary-soft-fg border-l-4 border-primary"
+                        : "w-full justify-start"
+                    }
                   >
-                    {t("models.add")}
+                    {entry.name}
+                    <span className="ms-auto text-caption font-normal text-fg-muted">{entry.permissible_values.length}</span>
                   </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="mt-2 flex gap-1">
             <Input
               aria-label={t("models.newEnum")}
@@ -436,6 +382,10 @@ export function LinkmlVisualEditor({
       </div>
 
       <div className="flex flex-col gap-6">
+        {enumOpen ? (
+          <EnumValues key={enumOpen.name} model={model} entry={enumOpen} locales={locales} run={run} />
+        ) : (
+        <>
         {model.classes.length > 1 ? (
           <Field
             id="class-phone-picker"
@@ -845,6 +795,8 @@ export function LinkmlVisualEditor({
             prefill={prefill}
           />
         ) : null}
+        </>
+        )}
       </div>
     </div>
   );

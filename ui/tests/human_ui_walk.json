@@ -1494,6 +1494,22 @@
       "date": "2026-10-20",
       "screenshots": []
     },
+    "src/pages/models/EnumValues.tsx": {
+      "walkedBy": "worker-t6162",
+      "date": "2026-10-30",
+      "screenshots": [
+        "evidence/T-6162/enum-values-1440.png",
+        "evidence/T-6162/enum-values-400.png"
+      ]
+    },
+    "src/pages/models/ModelIdentity.tsx": {
+      "walkedBy": "worker-t6162",
+      "date": "2026-10-30",
+      "screenshots": [
+        "evidence/T-6162/new-model-named-1440.png",
+        "evidence/T-6162/renamed-400.png"
+      ]
+    },
     "src/pages/models/ModelPage.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
