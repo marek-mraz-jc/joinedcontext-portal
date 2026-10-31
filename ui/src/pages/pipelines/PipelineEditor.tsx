@@ -10,7 +10,7 @@ import { asManifests, knownSecretNames, overlay, plainTitle, prune, refName } fr
 import type { Manifest } from "../../api/manifest";
 import { allowsIn, usePermissions } from "../../api/permissions";
 import type { Effective } from "../../api/permissions";
-import { useBranding } from "../../branding";
+import { useOrgDomain } from "../../api/projects";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
 import type { ManifestSource } from "../../components/ResourceFormDialog";
 import { Alert, buttonClass, Icon, safeHref } from "../../components/ui";
@@ -154,7 +154,7 @@ export function reachableEndpoints(effective: Effective | undefined, endpoints: 
   return endpoints.filter((endpoint) => {
     const spec = endpoint.spec as { audience?: unknown; contextSpaceRef?: unknown };
     const space = refName(spec.contextSpaceRef);
-    return (spec.audience ?? "public") === "public" || (space !== "" && allowsIn(effective, "Entity", "read", space));
+    return spec.audience === "public" || (space !== "" && allowsIn(effective, "Entity", "read", space));
   });
 }
 
@@ -520,7 +520,7 @@ export function PipelineEditorDialog({
   onSeveralSources,
 }: PipelineEditorDialogProps): JSX.Element {
   const { t } = useTranslation();
-  const { orgDomain } = useBranding();
+  const orgDomain = useOrgDomain(project);
   const [draft, setDraft] = useState<PipelineForm | undefined>(() =>
     editing ? toForm(editing) : initial,
   );
