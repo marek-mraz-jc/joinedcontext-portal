@@ -47,8 +47,25 @@ export function ModelIdentity({ name, id, creating, version, readOnly, onRename 
     setEmpty(false);
   };
 
+  const locked = (
+    <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-fg-muted">
+      <div className="flex items-center gap-1" title={t(creating ? "models.identity.idNew" : "models.identity.idFixed")}>
+        <Icon name="lock" className="size-3.5" />
+        <dt>{t("models.identity.id")}</dt>
+        <dd className="font-mono text-fg">{id ?? t("models.identity.noId")}</dd>
+      </div>
+      {id ? (
+        <div className="flex items-center gap-1" title={t("models.identity.fileFixed")}>
+          <Icon name="lock" className="size-3.5" />
+          <dt>{t("models.identity.file")}</dt>
+          <dd className="font-mono text-fg">{id}.linkml.yaml</dd>
+        </div>
+      ) : null}
+    </dl>
+  );
+
   return (
-    // One row: the name and Rename, then id, file and version (owner 2026-10-31).
+    // One row: the name, Rename and the version; the id and the file under Details (T-6254).
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-body">
       {creating && !readOnly ? (
         // A new model is named as it is typed: the id below follows, and Save waits for it.
@@ -128,26 +145,21 @@ export function ModelIdentity({ name, id, creating, version, readOnly, onRename 
           {t("models.identity.renamed", { id })}
         </p>
       ) : null}
-      <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-fg-muted">
-        <div className="flex items-center gap-1" title={t(creating ? "models.identity.idNew" : "models.identity.idFixed")}>
-          <Icon name="lock" className="size-3.5" />
-          <dt>{t("models.identity.id")}</dt>
-          <dd className="font-mono text-fg">{id ?? t("models.identity.noId")}</dd>
-        </div>
-        {id ? (
-          <div className="flex items-center gap-1" title={t("models.identity.fileFixed")}>
-            <Icon name="lock" className="size-3.5" />
-            <dt>{t("models.identity.file")}</dt>
-            <dd className="font-mono text-fg">{id}.linkml.yaml</dd>
-          </div>
-        ) : null}
-        {version ? (
-          <div className="flex items-center gap-1">
-            <dt>{t("models.identity.version")}</dt>
-            <dd className="font-mono text-fg">{version}</dd>
-          </div>
-        ) : null}
-      </dl>
+      {version ? (
+        <span className="font-mono text-caption text-fg-muted" title={t("models.identity.version")}>
+          v{version}
+        </span>
+      ) : null}
+      {/* A new model's id follows its name as it is typed, so it shows; a saved model's id and
+          file are fixed and sit under Details, out of the title row (T-6254, owner pass 3). */}
+      {creating ? (
+        locked
+      ) : (
+        <details className="text-caption text-fg-muted open:basis-full">
+          <summary className="cursor-pointer">{t("models.identity.details")}</summary>
+          <div className="mt-1">{locked}</div>
+        </details>
+      )}
     </div>
   );
 }

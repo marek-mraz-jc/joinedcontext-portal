@@ -272,7 +272,8 @@ export function LinkmlVisualEditor({
         </Alert>
       ) : null}
       {/* On a phone the rail goes under the type it opens; a picker above takes its place (UI judge, T-6106). */}
-      <div className="order-last flex flex-col gap-6 lg:order-none">
+      {/* A model with no type yet keeps the rail first: its Add type is the only next step (T-6254). */}
+      <div className={`${model.classes.length > 0 ? "order-last" : ""} flex flex-col gap-6 lg:order-none`}>
         <section aria-labelledby="models-classes">
           <h2 id="models-classes" className="mb-2 text-sm font-semibold uppercase tracking-wide">
             {t("models.classes")}
@@ -488,19 +489,11 @@ export function LinkmlVisualEditor({
               </div>
             </details>
             {locales.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {locales.map((locale) => (
-                  <Field key={locale} id={`class-title-${locale}`} label={t("models.titleIn", { locale })}>
-                    <Input
-                      id={`class-title-${locale}`}
-                      value={activeClass.title?.[locale] ?? ""}
-                      onChange={(event) =>
-                        setTitle("class", activeClass.name, locale, event.target.value)
-                      }
-                    />
-                  </Field>
-                ))}
-              </div>
+              <TitleRow
+                locales={locales}
+                title={activeClass.title}
+                onChange={(locale, value) => setTitle("class", activeClass.name, locale, value)}
+              />
             ) : null}
             {messagesFor(`classes.${activeClass.name}`).map((diagnostic) => (
               <p
@@ -514,104 +507,109 @@ export function LinkmlVisualEditor({
           </section>
         ) : null}
 
-        <section aria-labelledby="models-slots">
-          <h2 id="models-slots" className="mb-2 text-sm font-semibold uppercase tracking-wide">
-            {t("models.slots")}
-          </h2>
-          {/* No zebra: the row tint already means "inherited", a stripe would read as one more. */}
-          <Table caption={t("models.slots")} zebra={false}>
-            <TableHead>
-              <TableHeaderCell>{t("models.slot")}</TableHeaderCell>
-              <TableHeaderCell>{t("models.range")}</TableHeaderCell>
-              <TableHeaderCell>
-                <Term name="ngsiLd">{t("models.kind")}</Term>
-              </TableHeaderCell>
-              <TableHeaderCell secondary>{t("models.unit")}</TableHeaderCell>
-              <TableHeaderCell secondary>{t("models.affordanceLabel")}</TableHeaderCell>
-              <TableHeaderCell secondary>{t("models.from")}</TableHeaderCell>
-            </TableHead>
-            <TableBody>
-              {/* Inherited fields too, greyed, with the type they come from (T-6106). */}
-              {[...origins].map(([name, from]) => {
-                const slot: LinkmlSlot | undefined = model.slots.find(
-                  (candidate) => candidate.name === name,
-                );
-                const inherited = from !== activeClass?.name;
-                return (
-                  <TableRow key={name} className={
-                      // The open row: a tint plus an accent bar on its first cell. An inherited row:
-                      // a tint on every cell and a grey bar; the text keeps full contrast and "From <type>" says why.
-                      name === selectedSlot
-                        ? "[&>td]:bg-primary-soft [&>td:first-child]:border-l-4 [&>td:first-child]:border-primary"
-                        : inherited
-                          ? "[&>td]:bg-surface-muted [&>td:first-child]:border-l-4 [&>td:first-child]:border-border-strong"
-                          : undefined
-                    }
-                    aria-current={name === selectedSlot ? "true" : undefined}>
-                    {/* Below lg the Table paints the sticky name cell opaque in its own colour, which
-                        beats the row tint: the cell takes the row's tint itself or it reads as a column. */}
-                    <TableCell
-                      primary
-                      className={
-                        name === selectedSlot ? "max-lg:bg-primary-soft!" : inherited ? "max-lg:bg-surface-muted!" : undefined
+        {activeClass ? (
+          <section aria-labelledby="models-slots">
+            <h2 id="models-slots" className="mb-2 text-sm font-semibold uppercase tracking-wide">
+              {t("models.slots")}
+            </h2>
+            {/* No zebra: the row tint already means "inherited", a stripe would read as one more. */}
+            <Table caption={t("models.slots")} zebra={false}>
+              <TableHead>
+                <TableHeaderCell>{t("models.slot")}</TableHeaderCell>
+                <TableHeaderCell>{t("models.range")}</TableHeaderCell>
+                <TableHeaderCell>
+                  <Term name="ngsiLd">{t("models.kind")}</Term>
+                </TableHeaderCell>
+                <TableHeaderCell secondary>{t("models.unit")}</TableHeaderCell>
+                <TableHeaderCell secondary>{t("models.affordanceLabel")}</TableHeaderCell>
+                <TableHeaderCell secondary>{t("models.from")}</TableHeaderCell>
+              </TableHead>
+              <TableBody>
+                {/* Inherited fields too, greyed, with the type they come from (T-6106). */}
+                {[...origins].map(([name, from]) => {
+                  const slot: LinkmlSlot | undefined = model.slots.find(
+                    (candidate) => candidate.name === name,
+                  );
+                  const inherited = from !== activeClass?.name;
+                  return (
+                    <TableRow key={name} className={
+                        // The open row: a tint plus an accent bar on its first cell. An inherited row:
+                        // a tint on every cell and a grey bar; the text keeps full contrast and "From <type>" says why.
+                        name === selectedSlot
+                          ? "[&>td]:bg-primary-soft [&>td:first-child]:border-l-4 [&>td:first-child]:border-primary"
+                          : inherited
+                            ? "[&>td]:bg-surface-muted [&>td:first-child]:border-l-4 [&>td:first-child]:border-border-strong"
+                            : undefined
                       }
-                    >
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="-mx-2.5 -my-1 h-auto! py-1 text-body! underline-offset-2 hover:underline"
-                        onClick={() => openSlot(name)}
+                      aria-current={name === selectedSlot ? "true" : undefined}>
+                      {/* Below lg the Table paints the sticky name cell opaque in its own colour, which
+                          beats the row tint: the cell takes the row's tint itself or it reads as a column. */}
+                      <TableCell
+                        primary
+                        className={
+                          name === selectedSlot ? "max-lg:bg-primary-soft!" : inherited ? "max-lg:bg-surface-muted!" : undefined
+                        }
                       >
-                        {name}
-                        {slot?.deprecated ? ` (${t("models.deprecated")})` : ""}
-                      </Button>
-                      {/* A phone hides the From column, so the origin rides under the name. */}
-                      {inherited ? (
-                        <span className="block px-2 text-body font-normal text-fg-muted sm:hidden">
-                          {t("models.inheritedFrom", { type: from })}
-                        </span>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>{slot ? word(fieldWord(slot, model)) : "—"}</TableCell>
-                    <TableCell>{slot?.kind ?? DEFAULT_KIND}</TableCell>
-                    <TableCell secondary>{unitSymbol(unitCode(slot?.unit)) || slot?.unit?.ucum_code || "—"}</TableCell>
-                    <TableCell secondary>{slot ? t(`models.affordance.${slotAffordance(slot, model.enums.map((one) => one.name))}`) : "—"}</TableCell>
-                    <TableCell secondary>
-                      {inherited ? (
                         <Button
                           variant="ghost"
                           size="sm"
                           className="-mx-2.5 -my-1 h-auto! py-1 text-body! underline-offset-2 hover:underline"
-                          onClick={() => setSelectedClass(from)}
+                          onClick={() => openSlot(name)}
                         >
-                          {t("models.inheritedFrom", { type: from })}
+                          {name}
+                          {slot?.deprecated ? ` (${t("models.deprecated")})` : ""}
                         </Button>
-                      ) : (
-                        t("models.ownField")
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-          {/* Input is w-full, so the row's width caps it: across the page its Add sat under the chat button. */}
-          <div className="mt-2 flex max-w-md gap-1">
-            <Input
-              aria-label={t("models.newSlot")}
-              placeholder={t("models.newSlot")}
-              value={newSlot}
-              onChange={(event) => setNewSlot(event.target.value)}
-            />
-            <Button
-              size="sm"
-              aria-label={t("models.addSlot")}
-              onClick={addSlot}
-            >
-              {t("models.add")}
-            </Button>
-          </div>
-        </section>
+                        {/* A phone hides the From column, so the origin rides under the name. */}
+                        {inherited ? (
+                          <span className="block px-2 text-body font-normal text-fg-muted sm:hidden">
+                            {t("models.inheritedFrom", { type: from })}
+                          </span>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>{slot ? word(fieldWord(slot, model)) : "—"}</TableCell>
+                      <TableCell>{slot?.kind ?? DEFAULT_KIND}</TableCell>
+                      <TableCell secondary>{unitSymbol(unitCode(slot?.unit)) || slot?.unit?.ucum_code || "—"}</TableCell>
+                      <TableCell secondary>{slot ? t(`models.affordance.${slotAffordance(slot, model.enums.map((one) => one.name))}`) : "—"}</TableCell>
+                      <TableCell secondary>
+                        {inherited ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="-mx-2.5 -my-1 h-auto! py-1 text-body! underline-offset-2 hover:underline"
+                            onClick={() => setSelectedClass(from)}
+                          >
+                            {t("models.inheritedFrom", { type: from })}
+                          </Button>
+                        ) : (
+                          t("models.ownField")
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            {/* Input is w-full, so the row's width caps it: across the page its Add sat under the chat button. */}
+            <div className="mt-2 flex max-w-md gap-1">
+              <Input
+                aria-label={t("models.newSlot")}
+                placeholder={t("models.newSlot")}
+                value={newSlot}
+                onChange={(event) => setNewSlot(event.target.value)}
+              />
+              <Button
+                size="sm"
+                aria-label={t("models.addSlot")}
+                onClick={addSlot}
+              >
+                {t("models.add")}
+              </Button>
+            </div>
+          </section>
+        ) : (
+          // Fields belong to a type: offering "New field" before one exists led nowhere (T-6254 judge).
+          <p className="text-body text-fg-muted">{t("models.fieldsNeedType")}</p>
+        )}
 
         {activeSlot && activeSlotInheritedFrom ? (
           <section aria-labelledby="models-slot-detail" className="flex flex-col gap-2">
@@ -803,3 +801,39 @@ export function LinkmlVisualEditor({
 }
 
 export { UPSTREAM_ANNOTATION };
+
+/**
+ * A class's title in each of the organisation's locales (DM-15): one row in the reader's language,
+ * the others behind "Translations". Three empty Title inputs filled a phone's first screen (T-6254).
+ */
+export function TitleRow({
+  locales,
+  title,
+  onChange,
+}: {
+  locales: string[];
+  title?: Record<string, string>;
+  onChange: (locale: string, value: string) => void;
+}): JSX.Element {
+  const { t, i18n } = useTranslation();
+  const first = locales.find((locale) => locale === i18n.language) ?? locales[0] ?? "en";
+  const others = locales.filter((locale) => locale !== first);
+  const input = (locale: string) => (
+    <Field key={locale} id={`class-title-${locale}`} label={t("models.titleIn", { locale })} help={locale === first ? t("models.titleHint") : undefined}>
+      <Input id={`class-title-${locale}`} value={title?.[locale] ?? ""} onChange={(event) => onChange(locale, event.target.value)} />
+    </Field>
+  );
+  return (
+    <div className="flex flex-col gap-2">
+      {input(first)}
+      {others.length > 0 ? (
+        <details>
+          <summary className="cursor-pointer text-caption text-fg-muted">
+            {t("models.titleTranslations", { languages: others.join(", ") })}
+          </summary>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">{others.map(input)}</div>
+        </details>
+      ) : null}
+    </div>
+  );
+}
