@@ -1890,7 +1890,6 @@
       "firstCallOpen": "Open in the browser",
       "firstCallCopy": "Copy the command",
       "firstCallPublic": "Anyone can call it; no token needed.",
-      "firstCallToken": "In the browser your Portal session is enough. A program sends a service account token as $TOKEN.",
       "filterUntouched": "Change the filter first: it is the same as the one saved.",
       "filterFaulty": "Fix the marked fields first."
     },
@@ -1982,28 +1981,6 @@
       "vscode": "Add to VS Code",
       "cursor": "Add to Cursor",
       "button": "Connect AI"
-    },
-    "playground": {
-      "title": "Try it",
-      "reading": "Reading what you may call…",
-      "nothing": "Your access lets you call nothing through this endpoint. To read it, ask its owners under Request access below.",
-      "operation": "What to read",
-      "operations": {
-        "list": "Entities of a type",
-        "count": "How many of a type",
-        "one": "One entity by its id",
-        "types": "The types it holds"
-      },
-      "type": "Entity type",
-      "q": "Filter (q)",
-      "qHint": "Optional, NGSI-LD query language, for example temperature>20;status==\"open\".",
-      "limit": "How many (1 to 100)",
-      "id": "Entity id (URN)",
-      "send": "Send",
-      "fill": "Fill in the fields the call needs first.",
-      "answered": "The endpoint answered {status}.",
-      "code": "The same call as code",
-      "noType": "No entity type yet: once a pipeline or a person writes entities through this Endpoint, their types are listed here."
     },
     "docs": {
       "title": "API documentation",
