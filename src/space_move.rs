@@ -545,6 +545,8 @@ mod tests {
         let source = format!("http://{}", listener.local_addr().expect("an address"));
         tokio::spawn(async move {
             let (mut socket, _) = listener.accept().await.expect("the export");
+            let mut request = [0u8; 4096];
+            let _ = tokio::io::AsyncReadExt::read(&mut socket, &mut request).await;
             let _ = socket
                 .write_all(b"HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\n\r\n3\r\n{}\n\r\n")
                 .await;
