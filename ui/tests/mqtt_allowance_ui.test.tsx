@@ -121,9 +121,10 @@ describe("the project's MQTT page (T-4860)", () => {
   it("closes New MQTT broker while MQTT is off, and the empty list says who can turn it on", async () => {
     showPage(OFF, []);
     const reason = `${en.mqttAllowance.project.offTitle}. An organization administrator can turn it on in Administration › Projects › helsinki › MQTT.`;
-    await waitFor(() => expect(newBrokers()[0]).toHaveAttribute("aria-disabled", "true"));
+    // "Checking your access…" closes it too while the permissions load: wait for the reason.
+    await waitFor(() => expect(newBrokers()[0]).toHaveAccessibleDescription(reason));
+    expect(newBrokers()[0]).toHaveAttribute("aria-disabled", "true");
     expect(newBrokers()).toHaveLength(1);
-    expect(newBrokers()[0]).toHaveAccessibleDescription(reason);
     const said = (await screen.findAllByText(reason)).filter((element) => !element.classList.contains("sr-only"));
     expect(said).toHaveLength(1);
     expect(document.body.textContent).not.toMatch(/opens the form/);
@@ -131,10 +132,12 @@ describe("the project's MQTT page (T-4860)", () => {
 
   it("closes New MQTT broker when every allowed broker is in use", async () => {
     showPage({ ...ON, brokers: meter(2, 2) });
-    await waitFor(() => expect(newBrokers()[0]).toHaveAttribute("aria-disabled", "true"));
-    expect(newBrokers()[0]).toHaveAccessibleDescription(
-      "All 2 brokers are in use: a new one is refused. An organization administrator can raise the limit in Administration › Projects.",
+    await waitFor(() =>
+      expect(newBrokers()[0]).toHaveAccessibleDescription(
+        "All 2 brokers are in use: a new one is refused. An organization administrator can raise the limit in Administration › Projects.",
+      ),
     );
+    expect(newBrokers()[0]).toHaveAttribute("aria-disabled", "true");
   });
 
   it("offers New MQTT broker while a broker is left", async () => {
