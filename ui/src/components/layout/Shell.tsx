@@ -462,7 +462,7 @@ export function addressItem(pathname: string): { itemName?: string; spacePage?: 
  * The crumb of a page outside the sections; one model's page (or its editor) links back to Data
  * models and names the model (owner 2026-10-31). `model` is "" for a new model, undefined elsewhere.
  */
-function OtherPageCrumb({ project, label, model }: { project: string; label: string; model: string | undefined }) {
+export function OtherPageCrumb({ project, label, model }: { project: string; label: string; model: string | undefined }) {
   if (model === undefined) {
     return (
       <span aria-current="page" className="font-medium text-fg">
