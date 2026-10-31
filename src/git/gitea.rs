@@ -888,18 +888,25 @@ impl GiteaClient {
         pull
     }
 
+    /// The API address of `path` under this repository, each segment percent-encoded. A `.` or
+    /// `..` segment (a file path or ref someone typed) is refused: the URL parser would resolve
+    /// it into another forge route, called with the Portal's token, so it names nothing here
+    /// (F-R2POR4-004).
     fn repo_url(&self, path: &str) -> Result<Url, GitError> {
-        let clean_base = self.base.as_str().trim_end_matches('/');
-        let path = path.trim_start_matches('/');
-        let full = if path.is_empty() {
-            format!("{clean_base}/api/v1/repos/{}/{}", self.owner, self.repo)
-        } else {
-            format!(
-                "{clean_base}/api/v1/repos/{}/{}/{path}",
-                self.owner, self.repo
-            )
-        };
-        Url::parse(&full).map_err(|e| GitError::Config(format!("invalid url '{full}': {e}")))
+        let segments: Vec<&str> = path.trim_start_matches('/').split('/').collect();
+        if segments
+            .iter()
+            .any(|segment| matches!(*segment, "." | ".."))
+        {
+            return Err(GitError::NotFound);
+        }
+        let mut url = self.base.clone();
+        url.path_segments_mut()
+            .map_err(|()| GitError::Config(format!("'{}' cannot be a base", self.base)))?
+            .pop_if_empty()
+            .extend(["api", "v1", "repos", &self.owner, &self.repo])
+            .extend(segments.into_iter().filter(|segment| !segment.is_empty()));
+        Ok(url)
     }
 
     async fn send(&self, builder: reqwest::RequestBuilder) -> Result<reqwest::Response, GitError> {
@@ -2640,6 +2647,27 @@ mod project_repository_tests {
             .await
             .expect_err("write_files refuses org.yaml in the project repository too");
         assert!(refused.to_string().contains("org.yaml"), "{refused}");
+
+        // F-R2POR4-004: a `..` in a path or ref would climb out of the repository into another
+        // forge route; refused before any request. What a segment carries stays in its segment.
+        for climbing in [
+            "contents/../../../user",
+            "contents/projects/ovzdusie/../../../other/repo/contents/x",
+            "git/trees/..",
+        ] {
+            assert!(client.repo_url(climbing).is_err(), "{climbing}");
+        }
+        assert!(client
+            .get_file("projects/ovzdusie/../../../user", "main")
+            .await
+            .is_err());
+        assert_eq!(
+            client
+                .repo_url("contents/spaces/a b?x#y.yaml")
+                .expect("a file name")
+                .as_str(),
+            "http://127.0.0.1:9/api/v1/repos/joinedcontext/ovzdusie-repo/contents/spaces/a%20b%3Fx%23y.yaml"
+        );
 
         let organization = client.for_repository("configuration");
         assert!(!organization.is_project_repository());
