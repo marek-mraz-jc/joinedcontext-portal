@@ -4446,6 +4446,8 @@
       "open": "Im Vollbild öffnen",
       "overlay": "Zeigen, was die Klassen bereitstellt",
       "overlayNone": "Nichts hervorheben",
+      "backToDiagram": "Zurück zum Diagramm",
+      "overlayHelp": "So funktioniert die Hervorhebung",
       "overlayHint": "Wählen Sie einen Endpoint (z. B. helsinki-bikes), um die Klassen und Felder hervorzuheben, die er bereitstellt, oder eine Pipeline für das, was sie schreibt.",
       "endpoints": "Endpoints",
       "pipelines": "Pipelines, die eine Klasse schreiben",

@@ -7,7 +7,7 @@
  * form, where a change is a proposal behind propose rights. Every list here is the one the
  * Portal answered for the person, so an Endpoint they may not read never appears.
  */
-import { useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -111,6 +111,10 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
   const [selected, setSelected] = useState<string>();
   const [area, setArea] = useState<string>(MAIN_AREA);
   const [diagramOnPhone, setDiagramOnPhone] = useState(false);
+  const [hintOpen, setHintOpen] = useState(false);
+  const hintId = useId();
+  const details = useRef<HTMLHeadingElement>(null);
+  const diagram = useRef<HTMLElement>(null);
 
   const parsed = useMemo(() => {
     const own = parseModel(source.data ?? "");
@@ -163,6 +167,17 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
     setPositions({});
   };
 
+  // Where the details sit under the drawing or the list (below lg), a pressed class brings them into view
+  // and takes the focus there: on the phone canvas a press changed a panel a screen's height away (T-6164).
+  const open = (klass: string) => {
+    setSelected(klass);
+    if (typeof window === "undefined" || window.matchMedia?.("(min-width: 1024px)").matches !== false) return;
+    window.requestAnimationFrame(() => {
+      details.current?.scrollIntoView?.({ block: "start" });
+      details.current?.focus({ preventScroll: true });
+    });
+  };
+
   const back = (
     <Link to="/projects/$project/models/$name" params={{ project, name }} className="focus-ring inline-flex items-center gap-1 rounded text-body text-primary-soft-fg">
       <Icon name="chevronLeft" className="size-4" />
@@ -210,12 +225,54 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
           </h1>
         </div>
         <div className="flex min-w-0 flex-col gap-1 text-caption text-fg-muted max-sm:w-full">
-          <label htmlFor="model-canvas-overlay">{t("models.canvas.overlay")}</label>
+          <div className="relative flex items-center gap-1">
+            <label htmlFor="model-canvas-overlay">{t("models.canvas.overlay")}</label>
+            {/* The how-to is a "?" beside the label, not a paragraph under the pick (T-6164): the header keeps
+                one line. The text stays in the document for the select's aria-describedby. An empty pick
+                keeps its next step in sight below. */}
+            {ofSpace.length > 0 ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  data-testid="model-canvas-overlay-help"
+                  aria-label={t("models.canvas.overlayHelp")}
+                  title={t("models.canvas.overlayHelp")}
+                  aria-describedby={hintId}
+                  aria-expanded={hintOpen}
+                  className="px-1 text-fg-muted"
+                  onClick={() => setHintOpen(true)}
+                  onMouseEnter={() => setHintOpen(true)}
+                  onMouseLeave={() => setHintOpen(false)}
+                  onBlur={() => setHintOpen(false)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape" && hintOpen) {
+                      event.stopPropagation();
+                      setHintOpen(false);
+                    }
+                  }}
+                >
+                  <Icon name="help" className="size-4" aria-hidden="true" />
+                </Button>
+                <span
+                  id={hintId}
+                  role="tooltip"
+                  className={
+                    hintOpen
+                      ? "absolute left-0 top-full z-50 mt-1 w-72 rounded-md border border-border bg-surface p-2 text-caption font-normal text-fg shadow-2"
+                      : "sr-only"
+                  }
+                >
+                  {t("models.canvas.overlayHint")}
+                </span>
+              </>
+            ) : null}
+          </div>
           <div className="w-full sm:w-72">
           <Select
             id="model-canvas-overlay"
             value={overlay}
-            aria-describedby="model-canvas-overlay-hint"
+            aria-describedby={ofSpace.length === 0 ? "model-canvas-overlay-hint" : hintId}
             onChange={(event) => setOverlay(event.target.value as Overlay)}
           >
             <option value="">{t("models.canvas.overlayNone")}</option>
@@ -243,9 +300,11 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
             ) : null}
           </Select>
           </div>
-          <span id="model-canvas-overlay-hint" className="max-w-prose">
-            {ofSpace.length === 0 ? t("models.canvas.noEndpointsHint") : t("models.canvas.overlayHint")}
-          </span>
+          {ofSpace.length === 0 ? (
+            <span id="model-canvas-overlay-hint" className="max-w-prose">
+              {t("models.canvas.noEndpointsHint")}
+            </span>
+          ) : null}
           {/* Under the pick it answers, so the header keeps one top line and no ragged row (T-6094 UI judge). */}
           <p role="status" aria-live="polite" className="min-h-5 font-medium text-fg">
             {overlaySummary}
@@ -268,8 +327,8 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <section aria-label={t("models.canvas.diagram")} className={`${diagramOnPhone ? "" : "max-sm:hidden"} flex min-h-0 min-w-0 flex-1 flex-col p-2 max-sm:min-h-160`}>
+      <div className="flex min-h-0 flex-1 flex-col max-sm:flex-none lg:flex-row">
+        <section ref={diagram} aria-label={t("models.canvas.diagram")} className={`${diagramOnPhone ? "" : "max-sm:hidden"} flex min-h-0 min-w-0 flex-1 flex-col p-2 max-sm:min-h-160`}>
           {source.data === undefined ? (
             <p role="status" className="text-body text-fg-muted">
               {t("models.source.loading")}
@@ -286,7 +345,7 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
               areas={areas}
               only={only}
               selected={selected}
-              onOpenClass={setSelected}
+              onOpenClass={open}
             />
           )}
           <p className="pt-1 text-caption text-fg-muted max-sm:hidden">{t("models.canvas.moveHint")}</p>
@@ -299,17 +358,23 @@ export function ModelCanvas({ project, name }: { project: string; name: string }
           highlight={highlight}
           pick={overlay.split(":")[1]}
           selected={selected}
-          onSelect={setSelected}
+          onSelect={open}
           hidden={diagramOnPhone}
         />
 
         <aside
           aria-labelledby="model-canvas-details"
-          className="flex min-h-0 flex-col gap-3 overflow-auto border-border p-4 max-lg:border-t lg:w-88 lg:border-l"
+          className="flex min-h-0 flex-col gap-3 overflow-auto border-border p-4 max-lg:border-t max-sm:overflow-visible lg:w-88 lg:border-l"
         >
-          <h2 id="model-canvas-details" className="text-body font-semibold">
+          <h2 id="model-canvas-details" ref={details} tabIndex={-1} className="focus-ring scroll-mt-2 rounded-sm text-body font-semibold">
             {picked ? localized(picked.title, i18n.language, picked.name) : t("models.canvas.details")}
           </h2>
+          {picked && diagramOnPhone ? (
+            // The press scrolled the drawing away: one press takes the phone back to it (T-6164 UI judge).
+            <Button size="sm" variant="secondary" className="self-start sm:hidden" onClick={() => diagram.current?.scrollIntoView?.({ block: "start" })}>
+              {t("models.canvas.backToDiagram")}
+            </Button>
+          ) : null}
           {picked ? (
             <ClassDetails
               project={project}
@@ -382,7 +447,7 @@ function ClassList({
               variant="secondary"
               aria-pressed={klass.name === selected}
               onClick={() => onSelect(klass.name)}
-              className={`h-auto w-full flex-wrap justify-start p-3 text-left ${klass.name === selected ? "border-primary" : ""} ${highlight && !highlight.has(klass.name) ? "opacity-50" : ""}`}
+              className={`h-auto! w-full flex-wrap justify-start p-3 text-left ${klass.name === selected ? "border-primary" : ""} ${highlight && !highlight.has(klass.name) ? "opacity-50" : ""}`}
             >
               <span className="w-full min-w-0 font-mono text-body font-medium [overflow-wrap:anywhere]">{klass.name}</span>
               <Badge tone={areas.get(klass.name) === PERSONAL_AREA ? "danger" : "neutral"}>{areaLabel(areas.get(klass.name), t)}</Badge>

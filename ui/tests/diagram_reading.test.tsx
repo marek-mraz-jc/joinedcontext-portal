@@ -204,7 +204,7 @@ describe("reading the drawing", () => {
     expect(minimap).toHaveAttribute("aria-hidden", "true");
     expect(minimap.querySelectorAll("rect")).toHaveLength(6);
     await user.type(screen.getByRole("combobox", { name: en.models.graph.find }), "Park{Enter}");
-    const faint = [...minimap.querySelectorAll("rect")].filter((rect) => rect.getAttribute("opacity") === "0.2");
+    const faint = [...minimap.querySelectorAll("rect")].filter((rect) => rect.getAttribute("opacity") === "0.45");
     expect(faint).toHaveLength(5);
     // A press on the minimap scrolls the frame; jsdom has no layout, so it only must not throw.
     await user.click(minimap);
