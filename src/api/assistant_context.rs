@@ -100,7 +100,20 @@ pub async fn preview_context(
     authorize(&state, &user, &project)?;
     let spec = previewed(&query, manifest)?;
     let lang = language(&query);
-    Ok(Json(context_of(&state.mirror, &project, &spec, lang)))
+    // An unsaved manifest may name any project's source or MCP server: the preview tells only
+    // of those the caller reads (F-R2POR2-003). A saved one was approved to name them.
+    let identity = &user.0.identity;
+    let readable = |namespace: &str, kind: &str| {
+        namespace == project
+            || crate::permissions::for_request(&state, identity, namespace).may_read(kind)
+    };
+    Ok(Json(context_of(
+        &state.mirror,
+        &project,
+        &spec,
+        lang,
+        &readable,
+    )))
 }
 
 /// The spec of the manifest a preview reads: a dry run of an AssistantDeployment alone.
@@ -150,7 +163,13 @@ pub async fn deployment_context(
     authorize(&state, &user, &project)?;
     let spec = saved(&state.mirror, &project, &deployment)?;
     let lang = language(&query);
-    Ok(Json(context_of(&state.mirror, &project, &spec, lang)))
+    Ok(Json(context_of(
+        &state.mirror,
+        &project,
+        &spec,
+        lang,
+        &|_, _| true,
+    )))
 }
 
 /// The spec of saved deployment `deployment`; a name that is none is 404.
@@ -211,11 +230,14 @@ fn localised(text: &Localised, lang: &str) -> Option<String> {
 /// What deployment `spec` of `project` reads, from the mirrored repository (API/05 §1.9). A
 /// selector's projects are read from the deployment's own project and `scope.projects` alone,
 /// the resolver's candidates; the manifest's own rule findings ride along as `problems`.
+/// `readable(namespace, kind)` says whether a source or MCP server another project holds is told
+/// of; one it refuses reads as absent.
 pub fn context_of(
     mirror: &Mirror,
     project: &str,
     spec: &AssistantDeploymentSpec,
     lang: &str,
+    readable: &dyn Fn(&str, &str) -> bool,
 ) -> Value {
     let reach: Vec<&str> = std::iter::once(project)
         .chain(spec.scope_projects().iter().map(String::as_str))
@@ -256,6 +278,7 @@ pub fn context_of(
         let namespace = namespace.unwrap_or(project);
         mirror
             .get(namespace, "McpServer", name)
+            .filter(|_| readable(namespace, "McpServer"))
             .and_then(|env| serde_json::from_value::<McpServerSpec>(env.spec).ok())
             .or_else(|| (named == "org/all").then(|| org_all.clone()).flatten())
             .map(|server| (namespace.to_owned(), server))
@@ -296,7 +319,9 @@ pub fn context_of(
         .filter_map(|named| {
             let (namespace, name) = connector_target(named);
             let namespace = namespace.unwrap_or(project);
-            let env = mirror.get(namespace, "KnowledgeSource", name)?;
+            let env = mirror
+                .get(namespace, "KnowledgeSource", name)
+                .filter(|_| readable(namespace, "KnowledgeSource"))?;
             let source: KnowledgeSourceSpec = serde_json::from_value(env.spec).ok()?;
             let sites: std::collections::BTreeSet<String> = source
                 .start_urls

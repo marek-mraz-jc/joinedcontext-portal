@@ -165,6 +165,18 @@ fn person(state: &AppState, identity: &Identity) -> Result<(), ApiError> {
     Ok(())
 }
 
+/// A person in a Portal session: no client's token, an AI client's or a token-exchanged agent's,
+/// creates, widens, decides or revokes a connector (AG-151); a Portal session carries no client.
+fn in_the_portal(state: &AppState, identity: &Identity) -> Result<(), ApiError> {
+    person(state, identity)?;
+    if identity.client.is_some() {
+        return Err(ApiError::Denied(
+            "a client's token manages no connector; do it signed in to the Portal (AG-151)".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// The caller's connector `id`, or the one answer for every other case.
 async fn own(state: &AppState, identity: &Identity, id: &str) -> Result<Connector, ApiError> {
     if !connectors::is_id(id) {
@@ -359,7 +371,7 @@ pub async fn create_connector(
     body: Result<Json<NewConnector>, JsonRejection>,
 ) -> Result<Response, ApiError> {
     let identity = &user.0.identity;
-    person(&state, identity)?;
+    in_the_portal(&state, identity)?;
     let Json(new) = body.map_err(|e| ApiError::BadRequest(e.body_text()))?;
     let ceiling = Ceiling::of(&state.mirror, identity);
     let above = connectors::validate(&new, &ceiling, chrono::Utc::now())?;
@@ -440,7 +452,7 @@ pub async fn edit_connector(
     body: Result<Json<ConnectorPatch>, JsonRejection>,
 ) -> Result<Json<Connector>, ApiError> {
     let identity = &user.0.identity;
-    person(&state, identity)?;
+    in_the_portal(&state, identity)?;
     let current = own(&state, identity, &id).await?;
     let Json(patch) = body.map_err(|e| ApiError::BadRequest(e.body_text()))?;
     let new = NewConnector {
@@ -498,6 +510,7 @@ pub async fn revoke_connector(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let identity = &user.0.identity;
+    in_the_portal(&state, identity)?;
     own(&state, identity, &id).await?;
     state.paired_tabs.unpair(&id, &identity.subject);
     if state.connectors.revoke(&id, &identity.subject).await? {
@@ -533,15 +546,7 @@ pub async fn connector_activity(
 /// Only an administrator of the organization's ceiling, a person, sees or decides requests above
 /// it: whoever may approve a `DelegationPolicy` change (AG-150, AG-151).
 fn administrator(state: &AppState, identity: &Identity) -> Result<(), ApiError> {
-    person(state, identity)?;
-    // Any client's token, an AI client's or a token-exchanged agent's: only the person in the
-    // Portal decides (AG-151); a Portal session carries no client.
-    if identity.client.is_some() {
-        return Err(ApiError::Denied(
-            "a client's token decides no connector request; approve it signed in to the Portal (AG-151)"
-                .into(),
-        ));
-    }
+    in_the_portal(state, identity)?;
     let org = crate::permissions::for_request(state, identity, ORG_NAMESPACE);
     if !org.administers_organization()
         && !org.may("DelegationPolicy", jc_core::kinds::Verb::Approve)
@@ -1368,6 +1373,30 @@ mod tests {
             .is_empty());
         let created = create("ana", None, "a").await.expect("created");
         assert_eq!(created.status(), StatusCode::CREATED);
+        let mine = state
+            .connectors
+            .of_owner("f:1:ana", "")
+            .await
+            .expect("list");
+        assert_eq!(mine.len(), 1);
+
+        // AG-151 (T-6226, F-R2POR2-004): a token-exchanged agent's token, or any client's that
+        // is no configured connector client, manages no connector of the person it acts for.
+        let mut agent = user("ana");
+        agent.0.identity.client = Some("helsinki-jc-agent-proxy".into());
+        let minted =
+            create_connector(agent.clone(), State(state.clone()), dry(None), body("b")).await;
+        assert!(matches!(minted, Err(ApiError::Denied(why)) if why.contains("AG-151")));
+        let widened = edit_connector(
+            agent.clone(),
+            State(state.clone()),
+            Path(mine[0].id.clone()),
+            patch(json!({ "writes": true })),
+        )
+        .await;
+        assert!(matches!(widened, Err(ApiError::Denied(why)) if why.contains("AG-151")));
+        let revoked = revoke_connector(agent, State(state.clone()), Path(mine[0].id.clone())).await;
+        assert!(matches!(revoked, Err(ApiError::Denied(why)) if why.contains("AG-151")));
         assert_eq!(
             state
                 .connectors
@@ -1375,7 +1404,8 @@ mod tests {
                 .await
                 .expect("list")
                 .len(),
-            1
+            1,
+            "the agent minted or revoked a connector"
         );
     }
 

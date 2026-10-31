@@ -86,10 +86,14 @@ pub async fn list_brokers(
             .map(|(name, spec)| (name, Some(spec)))
             .collect(),
     };
-    let mut items = Vec::with_capacity(rows.len());
-    for (name, spec) in rows {
-        items.push(row(&state, name, spec).await);
-    }
+    // Asked eight at a time, in order: one broker that does not answer costs one timeout, not
+    // one per broker after it.
+    use futures_util::StreamExt;
+    let items = futures_util::stream::iter(rows)
+        .map(|(name, spec)| row(&state, name, spec))
+        .buffered(8)
+        .collect()
+        .await;
     Ok(Json(Brokers { items }))
 }
 

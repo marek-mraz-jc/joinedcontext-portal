@@ -1648,10 +1648,9 @@ pub async fn get_sample(
     if !response.status().is_success() {
         return Err(unavailable(format!("status {}", response.status())));
     }
-    let entities: Vec<Value> = response
-        .json()
+    let entities: Vec<Value> = crate::capped::json(response, crate::capped::ANSWER_BYTES)
         .await
-        .map_err(|e| unavailable(e.to_string()))?;
+        .map_err(unavailable)?;
     Ok(cached(&headers, table(&entity_type, &entities)))
 }
 
