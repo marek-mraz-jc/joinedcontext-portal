@@ -100,13 +100,26 @@ impl Default for Moves {
     }
 }
 
+/// The longest a broker may go silent mid-copy before the step fails and the hold is released.
+const IDLE: Duration = Duration::from_secs(120);
+
+/// No total timeout: an export streams for as long as the tenant is large. A broker that stops
+/// sending fails the copy after `idle` of silence instead of holding the space read-only for
+/// good.
+fn client(idle: Duration) -> reqwest::Client {
+    reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .read_timeout(idle)
+        .build()
+        .unwrap_or_default()
+}
+
 impl Moves {
     /// Reads the gateway every `poll` and waits for the hold at most `patience`.
     pub fn new(poll: Duration, patience: Duration) -> Self {
         Self {
             jobs: Mutex::default(),
-            // No timeout on the client: an export streams for as long as the tenant is large.
-            http: reqwest::Client::new(),
+            http: client(IDLE),
             poll,
             patience,
         }
@@ -521,6 +534,40 @@ mod tests {
             path: String::new(),
             by: "jana".into(),
         }
+    }
+
+    #[tokio::test]
+    async fn an_export_that_stops_sending_fails_the_copy() {
+        use tokio::io::AsyncWriteExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("a port");
+        let source = format!("http://{}", listener.local_addr().expect("an address"));
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.expect("the export");
+            let _ = socket
+                .write_all(b"HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\n\r\n3\r\n{}\n\r\n")
+                .await;
+            // and then nothing more, with the connection open
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            drop(socket);
+        });
+        let target = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&target)
+            .await;
+        let moves = Moves {
+            http: client(Duration::from_millis(200)),
+            ..Moves::new(Duration::from_millis(10), Duration::from_secs(1))
+        };
+        let mut plan = plan(&[]);
+        plan.source = source;
+        plan.target = target.uri();
+        let copied = tokio::time::timeout(Duration::from_secs(10), moves.copy(&plan))
+            .await
+            .expect("the copy ends instead of waiting for the broker forever");
+        assert!(copied.is_err(), "{copied:?}");
     }
 
     #[tokio::test]

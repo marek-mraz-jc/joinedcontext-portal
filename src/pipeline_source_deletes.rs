@@ -1249,13 +1249,8 @@ pub async fn launch(
     if state.config.pipeline_identity {
         crate::reconciler::streams::with_pipeline_identity(&mut config, project, pipeline);
     }
-    let stream = format!(
-        "{runner}/streams/{}.source-deletes",
-        crate::reconciler::streams::stream_id(project, pipeline)
-    );
+    let stream = delete_stream(&runner, project, pipeline);
     let http = crate::api::pipelines::http();
-    // A stream of an earlier run that is still listed is replaced, never run twice.
-    let _ = http.delete(&stream).send().await;
     match http.post(&stream).json(&config).send().await {
         Ok(answer) if answer.status().is_success() => {}
         Ok(answer) => return Err(format!("the runner answered {}", answer.status())),
@@ -1268,6 +1263,18 @@ pub async fn launch(
         }
     });
     Ok(ids.len())
+}
+
+/// The runner stream of one launch. Each launch has its own: a second launch inside the window
+/// of the first (a run end, then a release) neither deletes the first's stream mid-run nor has
+/// its own deleted by the first's timer, which would lose marks already taken from the ledger.
+fn delete_stream(runner: &str, project: &str, pipeline: &str) -> String {
+    use rand_core::RngCore;
+    format!(
+        "{runner}/streams/{}.source-deletes.{:016x}",
+        crate::reconciler::streams::stream_id(project, pipeline),
+        rand_core::OsRng.next_u64()
+    )
 }
 
 /// The reason a source delete names (PL-100): its cause, the pipeline and the run that decided it.
@@ -1891,6 +1898,17 @@ mod tests {
         assert_eq!(seen.next, vec!["urn:b"]);
         assert_eq!(seen.due, vec!["urn:c", "urn:d"]);
         assert_eq!(doomed(&rows, &rule(2, 10)), vec!["urn:c", "urn:d"]);
+    }
+
+    #[test]
+    fn every_launch_has_a_stream_of_its_own() {
+        let first = delete_stream("http://runner", "helsinki", "registry");
+        let second = delete_stream("http://runner", "helsinki", "registry");
+        assert!(
+            first.starts_with("http://runner/streams/helsinki.registry.source-deletes."),
+            "{first}"
+        );
+        assert_ne!(first, second);
     }
 
     #[tokio::test]

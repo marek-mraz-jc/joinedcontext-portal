@@ -684,6 +684,13 @@ fn a_dataset_the_platform_published_for_an_endpoint_that_is_gone_is_withdrawn_an
             dataset("susr-zo-krajiny", Some(jcctl::publish::ckan::GENERATOR)),
             dataset("harvested-from-nkod", None),
             dataset("someone-elses", Some("ckanext-harvest")),
+            // The platform's own dataset of another organization the text search let through
+            // is not this sweep's (R2POR5-006).
+            {
+                let mut other = dataset("other-org", Some(jcctl::publish::ckan::GENERATOR));
+                other["organization"]["name"] = json!("bratislava");
+                other
+            },
         ],
         deleted: Vec::new(),
     };

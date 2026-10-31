@@ -520,7 +520,14 @@ impl StreamDeployer {
                     ));
                     continue;
                 }
-                let spec: PipelineSpec = match serde_json::from_value(envelope.spec.clone()) {
+                // The kind's own checks run here again, not only at write time: a manifest pushed
+                // to the forge past the Portal is loaded with a warning (daemon.rs), and its
+                // steps, routes and mappings would reach the runner, which holds every
+                // project's credentials, unchecked (PL-16, PL-52).
+                let spec = serde_json::from_value::<PipelineSpec>(envelope.spec.clone())
+                    .map_err(|err| err.to_string())
+                    .and_then(|spec| spec.validate().map(|()| spec).map_err(|e| e.to_string()));
+                let spec = match spec {
                     Ok(s) => s,
                     Err(err) => {
                         outcomes.push((
@@ -3223,6 +3230,31 @@ output:
         assert!(outcomes
             .iter()
             .all(|(_, name, _)| !name.ends_with(".expiry")));
+    }
+
+    #[tokio::test]
+    async fn a_pipeline_failing_its_kinds_checks_never_reaches_the_runner() {
+        let server = runner().await;
+        wiremock::Mock::given(wiremock::matchers::method("PUT"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&server)
+            .await;
+        let mirror = helsinki_test_mirror();
+        let mut pipeline = mirror
+            .get("helsinki", "Pipeline", "citybikes-free")
+            .expect("the pipeline");
+        pipeline.spec["compute"]["bloblang"] =
+            serde_json::json!("root = env(\"JC_CLIENT_SECRET_OTHER\")");
+        mirror.upsert(pipeline);
+        let outcomes = StreamDeployer::new(server.uri())
+            .converge(&mirror, &Bentos::new(), &Default::default())
+            .await;
+        assert_eq!(outcomes.len(), 1);
+        assert!(
+            matches!(&outcomes[0].2, StreamOutcome::Error(said) if said.contains("JC_CLIENT_SECRET_OTHER")),
+            "{outcomes:?}"
+        );
     }
 
     #[tokio::test]
