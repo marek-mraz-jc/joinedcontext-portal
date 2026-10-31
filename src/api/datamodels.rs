@@ -743,10 +743,14 @@ pub(crate) async fn compile_artifacts(
         .ok_or_else(|| ApiError::Unavailable("no model tools service is configured".into()))?;
     let url = format!("{}/generate", base.trim_end_matches('/'));
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    // One client, its pool and TLS set up once: a model share compiles once per landed model.
+    static CLIENT: std::sync::LazyLock<reqwest::Client> = std::sync::LazyLock::new(|| {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .unwrap_or_default()
+    });
+    let client = &*CLIENT;
 
     // The imported sources are the Portal's to hand over, never the caller's (DM-76).
     let mut body = json!({ "source": source });

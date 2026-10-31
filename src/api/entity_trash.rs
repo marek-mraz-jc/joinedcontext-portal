@@ -13,7 +13,6 @@ use utoipa::ToSchema;
 use crate::auth::CurrentUser;
 use crate::entity_trash::{TrashItem, MAX_ENTITY_BYTES};
 use crate::error::ApiError;
-use crate::resource::is_dns1123;
 use crate::state::AppState;
 
 /// The copy of one entity about to be deleted.
@@ -32,19 +31,7 @@ pub(crate) fn readable(
     project: &str,
     space: &str,
 ) -> Result<(), ApiError> {
-    let effective = crate::permissions::for_request(state, &user.0.identity, project);
-    let ok = is_dns1123(project)
-        && is_dns1123(space)
-        && effective.may_read_project()
-        && effective.may_read_in("ContextSpace", Some(space))
-        && state.mirror.get(project, "ContextSpace", space).is_some();
-    if ok {
-        Ok(())
-    } else {
-        Err(ApiError::NotFound(format!(
-            "context space '{space}' not found in project '{project}'"
-        )))
-    }
+    crate::api::data_views::readable_space(state, &user.0.identity, project, space).map(|_| ())
 }
 
 fn stored(err: sqlx::Error) -> ApiError {

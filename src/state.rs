@@ -1259,11 +1259,17 @@ impl AppState {
     }
 
     pub fn is_revoked(&self, session: &Session) -> bool {
+        self.revoked_since(&session.identity.subject, session.issued_at)
+    }
+
+    /// Whether `subject` was logged out at or after `at` (unix seconds): what ends a session
+    /// issued then, and an agent run started then on that person's behalf (T-6226).
+    pub fn revoked_since(&self, subject: &str, at: i64) -> bool {
         self.revocations
             .read()
             .ok()
-            .and_then(|marks| marks.get(&session.identity.subject).copied())
-            .is_some_and(|mark| session.issued_at <= mark)
+            .and_then(|marks| marks.get(subject).copied())
+            .is_some_and(|mark| at <= mark)
     }
 
     /// The branding of this installation, loaded from `JC_BRANDING_FILE` or neutral defaults.

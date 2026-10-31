@@ -290,7 +290,7 @@ fn an_unknown_language_reads_the_english_labels() {
         json!({ "select": { "themes": ["TRAN"] }, "scope": { "projects": ["bbsk"] } }),
     ))
     .expect("a deployment");
-    let context = context_of(&state.mirror, "bb", &spec, "xx");
+    let context = context_of(&state.mirror, "bb", &spec, "xx", &|_, _| true);
     assert_eq!(
         context["categories"],
         json!([{ "code": "TRAN", "label": "Transport" }])
@@ -299,5 +299,47 @@ fn an_unknown_language_reads_the_english_labels() {
     assert_eq!(
         slugs(&context),
         ["aaaaaaaaaaaaaaaaaaaaaaaaaa", "cccccccccccccccccccccccccc"]
+    );
+}
+
+/// F-R2POR2-003 (T-6226): the preview tells of another project's KnowledgeSource only when the
+/// caller reads that project's sources; one it may not read reads as absent, its own always shows.
+#[test]
+fn a_source_of_a_project_the_caller_cannot_read_is_absent_from_the_preview() {
+    use joinedcontext_portal::api::assistant_context::context_of;
+    let state = state();
+    state.mirror.upsert(common::envelope(
+        "KnowledgeSource",
+        "roads-web",
+        "bbsk",
+        json!({ "source": "website", "startUrls": ["https://intranet.bbsk.sk/"], "visibility": "internal", "categories": ["TRAN"] }),
+    ));
+    let spec = serde_json::from_value(deployment(json!({
+        "sources": ["web", "bbsk/roads-web"],
+        "scope": { "projects": ["bbsk"] },
+    })))
+    .expect("a deployment");
+    let names = |context: &Value| -> Vec<String> {
+        context["sources"]
+            .as_array()
+            .expect("sources")
+            .iter()
+            .map(|source| {
+                format!(
+                    "{}/{}",
+                    source["project"].as_str().unwrap_or_default(),
+                    source["name"].as_str().unwrap_or_default()
+                )
+            })
+            .collect()
+    };
+    let own_only = |namespace: &str, _: &str| namespace == "bb";
+    assert_eq!(
+        names(&context_of(&state.mirror, "bb", &spec, "en", &own_only)),
+        ["bb/web"]
+    );
+    assert_eq!(
+        names(&context_of(&state.mirror, "bb", &spec, "en", &|_, _| true)),
+        ["bb/web", "bbsk/roads-web"]
     );
 }
