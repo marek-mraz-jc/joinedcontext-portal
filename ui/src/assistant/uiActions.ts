@@ -43,8 +43,12 @@ export function tableFilter(): HTMLInputElement | null {
 
 function point(control: HTMLElement, message: string): void {
   document.getElementById(NOTE_ID)?.remove();
+  // The control pointed at before is no longer described by the note it lost (T-6230).
   document.querySelectorAll("[data-assistant-highlight]").forEach((el) => {
     el.removeAttribute("data-assistant-highlight");
+    const rest = (el.getAttribute("aria-describedby") ?? "").split(/\s+/).filter((id) => id !== "" && id !== NOTE_ID);
+    if (rest.length > 0) el.setAttribute("aria-describedby", rest.join(" "));
+    else el.removeAttribute("aria-describedby");
   });
   const note = document.createElement("p");
   note.id = NOTE_ID;

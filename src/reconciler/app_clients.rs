@@ -214,6 +214,22 @@ impl std::fmt::Display for Holder {
     }
 }
 
+/// A role name as one admin path segment. The name comes from the App or from the realm, and
+/// `..`, `/`, `?` or `#` in it would reach another admin route (a DELETE of another client),
+/// so it is encoded, and a name that is only dots, which a URL resolves even encoded, refused.
+fn role_segment(name: &str) -> Result<String, String> {
+    if name.is_empty() || name.chars().all(|c| c == '.') {
+        return Err(format!("the role name {name:?} cannot name a realm role"));
+    }
+    Ok(super::groups::urlencoding(name))
+}
+
+/// An admin path as an error says it: without its query, which can carry a person's e-mail
+/// (`/users?email=…`), so a refusal in a log line or an App's status names nobody.
+fn shown(path: &str) -> &str {
+    path.split_once('?').map_or(path, |(path, _)| path)
+}
+
 /// Each role of the App with the subjects `spec.access` gives it (AP-113). A role nobody holds is
 /// still a role; an access entry naming a role the App does not declare grants nothing (jc-core
 /// refuses such a manifest, and this does not trust that alone).
@@ -490,7 +506,7 @@ impl Admin {
         .await?;
         if !response.status().is_success() {
             // The path names a client id at most, never a secret; the body is not echoed.
-            return Err(format!("{method} {path}: {}", response.status()));
+            return Err(format!("{method} {}: {}", shown(path), response.status()));
         }
         if method == reqwest::Method::GET {
             return response
@@ -514,12 +530,12 @@ impl Admin {
         })
         .await?;
         if !response.status().is_success() {
-            return Err(format!("POST {path}: {}", response.status()));
+            return Err(format!("POST {}: {}", shown(path), response.status()));
         }
         response
             .json()
             .await
-            .map_err(|_| format!("POST {path}: the realm's answer is not JSON"))
+            .map_err(|_| format!("POST {}: the realm's answer is not JSON", shown(path)))
     }
 
     pub(crate) async fn get<T: serde::de::DeserializeOwned>(
@@ -531,7 +547,7 @@ impl Admin {
             .send(token, reqwest::Method::GET, path, None)
             .await?
             .unwrap_or(Value::Null);
-        serde_json::from_value(value).map_err(|err| format!("GET {path}: {err}"))
+        serde_json::from_value(value).map_err(|err| format!("GET {}: {err}", shown(path)))
     }
 
     /// Whether `path` names something the realm holds: a 404 is `false`, any other refusal an
@@ -548,7 +564,7 @@ impl Admin {
         match response.status() {
             status if status.is_success() => Ok(true),
             reqwest::StatusCode::NOT_FOUND => Ok(false),
-            status => Err(format!("GET {path}: {status}")),
+            status => Err(format!("GET {}: {status}", shown(path))),
         }
     }
 
@@ -795,7 +811,7 @@ impl AppClientSync {
                 .send(
                     token,
                     Method::DELETE,
-                    &format!("{client}/roles/{}", role.name),
+                    &format!("{client}/roles/{}", role_segment(&role.name)?),
                     None,
                 )
                 .await?;
@@ -833,12 +849,18 @@ impl AppClientSync {
                 .admin
                 .get(
                     token,
-                    &format!("{client}/roles/{name}/groups?briefRepresentation=true&max=1000"),
+                    &format!(
+                        "{client}/roles/{}/groups?briefRepresentation=true&max=1000",
+                        role_segment(name)?
+                    ),
                 )
                 .await?;
             let users: Vec<KcUserRef> = self
                 .admin
-                .get(token, &format!("{client}/roles/{name}/users?max=1000"))
+                .get(
+                    token,
+                    &format!("{client}/roles/{}/users?max=1000", role_segment(name)?),
+                )
                 .await?;
             for group in &groups {
                 if !subjects.contains(&Holder::Group(group.name.clone())) {
@@ -1229,6 +1251,38 @@ mod tests {
             assert_eq!(admin.admin, "https://id.example.sk/admin/realms/bb");
         }
         assert!(Admin::new("https://id.example.sk/", "c".into(), auth()).is_none());
+    }
+
+    #[test]
+    fn a_role_name_stays_one_segment_under_its_client() {
+        assert_eq!(role_segment("reader").as_deref(), Ok("reader"));
+        assert_eq!(
+            role_segment("../../x?y#z").as_deref(),
+            Ok("..%2F..%2Fx%3Fy%23z")
+        );
+        for refused in ["", ".", ".."] {
+            assert!(role_segment(refused).is_err(), "{refused:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_refused_lookup_by_email_names_no_email() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(wiremock::ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+        let admin = Admin::new(
+            &format!("{}/realms/r", server.uri()),
+            "c".into(),
+            ClientAuth::Secret("s".into()),
+        )
+        .expect("a realm URL");
+        let said = admin
+            .get::<Value>("t", "/users?exact=true&email=ana%40example.sk")
+            .await
+            .expect_err("refused");
+        assert_eq!(said, "GET /users: 500 Internal Server Error");
     }
 
     #[test]

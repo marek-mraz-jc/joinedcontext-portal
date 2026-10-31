@@ -26,6 +26,7 @@ use super::Caller;
 use super::OpError;
 use super::Operation;
 use super::OperationAnnotations;
+use crate::activity::{chrono_to_odt, odt_to_chrono};
 use crate::change::Lane;
 use crate::error::ApiError;
 use crate::ops::verdict::Verdict;
@@ -782,17 +783,6 @@ fn row_to_draft(row: sqlx::postgres::PgRow) -> Result<Draft, DraftError> {
         version,
         updated_at: odt_to_chrono(updated_at_odt),
     })
-}
-
-pub(crate) fn odt_to_chrono(odt: time::OffsetDateTime) -> DateTime<Utc> {
-    let secs = odt.unix_timestamp();
-    let nsecs = odt.nanosecond();
-    DateTime::from_timestamp(secs, nsecs).unwrap_or_else(Utc::now)
-}
-
-pub(crate) fn chrono_to_odt(dt: DateTime<Utc>) -> time::OffsetDateTime {
-    time::OffsetDateTime::from_unix_timestamp(dt.timestamp())
-        .unwrap_or_else(|_| time::OffsetDateTime::now_utc())
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -159,6 +159,12 @@ pub async fn subscribe(
 ) -> Result<Json<Subscription>, ApiError> {
     let (scope, events, delivery) = checked(&new).map_err(ApiError::BadRequest)?;
     readable(&state, &user, &new.project, scope, &new.target)?;
+    let held = state
+        .alerts
+        .subscriptions_of(&subject(&user))
+        .await
+        .map_err(stored)?;
+    crate::alerts::room_for(&held, &new, scope).map_err(ApiError::BadRequest)?;
     state
         .alerts
         .upsert(

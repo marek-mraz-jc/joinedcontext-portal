@@ -25,18 +25,21 @@ export interface PdfInput {
   lines: string[];
 }
 
-function quoteCsv(val: string): string {
-  if (/[",\r\n]/.test(val)) {
-    return `"${val.replace(/"/g, '""')}"`;
-  }
-  return val;
+/**
+ * One CSV cell, RFC 4180 quoted. A text a spreadsheet would run as a formula (`=`, `+`, `-`, `@`,
+ * a tab or a carriage return first) gets a leading `'`: the data comes from other writers, and a
+ * cell such as `=HYPERLINK(…)` must open as text (T-6230). A number such as `-3.5` stays a number.
+ */
+export function csvCell(val: string): string {
+  const text = /^[=+\-@\t\r]/.test(val) && !Number.isFinite(Number(val)) ? `'${val}` : val;
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 /** Formats rows into RFC 4180 CSV text with UTF-8 BOM. */
 export function csvText(columns: string[], rows: Row[]): string {
-  const header = columns.map(quoteCsv).join(",");
+  const header = columns.map(csvCell).join(",");
   const dataLines = rows.map((row) =>
-    columns.map((col) => quoteCsv(format(row[col]))).join(","),
+    columns.map((col) => csvCell(format(row[col]))).join(","),
   );
   return `\uFEFF${[header, ...dataLines].join("\r\n")}`;
 }

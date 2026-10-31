@@ -605,6 +605,8 @@ describe("the assistant dock", () => {
     await waitFor(() => {
       expect(within(bubble).getByTestId("assistant-busy")).toBeInTheDocument();
     });
+    // A screen reader hears what the dot shows (T-6230).
+    expect(bubble).toHaveAccessibleName(en.assistant.openBusy);
 
     await emitToEveryStream("thought", {
       seq: 3,
@@ -615,5 +617,6 @@ describe("the assistant dock", () => {
     await waitFor(() => {
       expect(within(bubble).queryByTestId("assistant-busy")).toBeNull();
     });
+    expect(bubble).toHaveAccessibleName(en.assistant.open);
   });
 });

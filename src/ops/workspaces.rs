@@ -14,7 +14,7 @@ use sqlx::Row;
 use tokio::sync::RwLock;
 use utoipa::ToSchema;
 
-use crate::ops::drafts::{chrono_to_odt, odt_to_chrono};
+use crate::activity::{chrono_to_odt, odt_to_chrono};
 
 /// The longest a workspace lives: two weeks, like a sandbox (CC-67, PF-19).
 pub const MAX_TTL_HOURS: i64 = 14 * 24;
@@ -767,11 +767,7 @@ pub fn spawn_reaper(state: AppState) {
         every_minute.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             every_minute.tick().await;
-            if state
-                .syncer
-                .as_ref()
-                .is_some_and(|syncer| !syncer.is_leader())
-            {
+            if !state.leads() {
                 continue;
             }
             reap_expired(&state).await;

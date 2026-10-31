@@ -60,7 +60,9 @@ export function tileUrl(template: string): string {
  */
 export async function loadTile(url: string, signal?: AbortSignal, fetchImpl: typeof fetch = fetch): Promise<{ data: ArrayBuffer }> {
   const path = url.slice(`${TILE_PROTOCOL}://`.length);
-  if (!url.startsWith(`${TILE_PROTOCOL}://`) || !path.startsWith("/api/endpoint/") || path.startsWith("//") || path.includes("..")) {
+  // Judged as fetch will read it: the URL parser resolves `..` and its encoded `%2e%2e` alike.
+  const resolved = path.startsWith("/") && !path.startsWith("//") ? new URL(path, "https://own.host").pathname : "";
+  if (!url.startsWith(`${TILE_PROTOCOL}://`) || !resolved.startsWith("/api/endpoint/") || path.includes("..") || /%2e/i.test(path)) {
     throw new Error("kit: a tile outside the Endpoint is not read");
   }
   const response = await fetchImpl(path, { credentials: "same-origin", headers: { Accept: MVT }, signal });

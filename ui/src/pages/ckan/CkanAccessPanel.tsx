@@ -7,7 +7,7 @@ import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests, isChange, ORG_NAMESPACE } from "../../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 import { usePermissions } from "../../api/permissions";
-import { proposeChecked } from "../../api/proposal";
+import { importChecked, proposeChecked } from "../../api/proposal";
 import type { components } from "../../api/schema";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
@@ -42,15 +42,7 @@ async function proposeGrant(project: string, grant: ReturnType<typeof grantManif
     const body: components["schemas"]["ImportOptions"] = {
       manifests: [grant.role, grant.binding] as ResourceProposal[],
     };
-    unwrap<unknown>(
-      await api.POST("/api/v1/projects/{project}/import", {
-        params: { path: { project }, query: { dryRun: "All" } },
-        body,
-      }),
-    );
-    return unwrap<unknown>(
-      await api.POST("/api/v1/projects/{project}/import", { params: { path: { project } }, body }),
-    );
+    return importChecked(project, body);
   }
   if (grant.role) {
     await proposeChecked(ORG_NAMESPACE, "roles", grant.role as ResourceProposal, true);

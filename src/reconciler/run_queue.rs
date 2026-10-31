@@ -1017,7 +1017,7 @@ fn once(input: &mut Value, report: Option<&str>) {
     if let Some(url) = report {
         processors.push(crate::pipeline_log::source_failure(url));
     }
-    processors.push(serde_json::json!({ "mutation": "root = if errored() { deleted() }" }));
+    processors.push(serde_json::json!({ "mutation": super::streams::DROP_ERRORED }));
     if let Some(Value::Array(own)) = fields.remove("processors") {
         processors.extend(own);
     }

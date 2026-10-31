@@ -128,10 +128,12 @@ impl CatalogSync {
         let counted = self.counted(http, base, &wanted).await;
         with_types(&mut wanted, &counted);
 
-        let token = self.watch.scan_token().await?;
         let owners = owners(repo);
         let mut run = Run::default();
         for target in &targets {
+            // A token per catalogue: one minted for the whole run expires partway through a
+            // run of many catalogues and fails the rest of them.
+            let token = self.watch.scan_token().await?;
             let slice = match &target.project {
                 None => wanted.clone(),
                 Some(project) => slice(&wanted, project, &owners),
