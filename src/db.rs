@@ -15,11 +15,7 @@ use time::OffsetDateTime;
 /// Connects and brings the schema up to date. Migrations are embedded, so a fresh database
 /// needs no step outside the binary; running them twice is a no-op.
 pub async fn connect(url: &str) -> Result<PgPool, sqlx::Error> {
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .acquire_timeout(Duration::from_secs(5))
-        .connect(url)
-        .await?;
+    let pool = pool_options().connect(url).await?;
     let mut migrator = sqlx::migrate!("./migrations");
     let newest = migrator.iter().map(|m| m.version).max().unwrap_or(0);
     let newer = newer_migrations(&pool, newest).await?;
@@ -32,6 +28,16 @@ pub async fn connect(url: &str) -> Result<PgPool, sqlx::Error> {
     }
     migrator.run(&pool).await?;
     Ok(pool)
+}
+
+/// Idle connections close after 60 s (T-6201): the run queue and sweeps touch the pool more
+/// often than sqlx's 10 min default, so all five stayed open all day, ~19 MiB of Postgres each.
+fn pool_options() -> PgPoolOptions {
+    PgPoolOptions::new()
+        .max_connections(5)
+        .min_connections(0)
+        .idle_timeout(Duration::from_secs(60))
+        .acquire_timeout(Duration::from_secs(5))
 }
 
 /// Version and description of each applied migration above `newest`.
@@ -849,5 +855,20 @@ mod rollback_tests {
                 newest + 2
             ))
         );
+    }
+}
+
+#[cfg(test)]
+mod pool_tests {
+    use super::pool_options;
+    use std::time::Duration;
+
+    /// The pool gives idle backends back to Postgres after a minute (T-6201).
+    #[test]
+    fn the_pool_releases_idle_connections_after_a_minute() {
+        let options = pool_options();
+        assert_eq!(options.get_idle_timeout(), Some(Duration::from_secs(60)));
+        assert_eq!(options.get_min_connections(), 0);
+        assert_eq!(options.get_max_connections(), 5);
     }
 }
