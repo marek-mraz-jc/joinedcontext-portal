@@ -52,6 +52,32 @@ export async function proposeChecked(
 }
 
 /**
+ * One call of the import door (MF-23, PF-57): `dryRun` checks without proposing. Every caller
+ * of `/import` comes through here, so the route, the dry run and the refusal are said once.
+ */
+export async function importBody(
+  project: string,
+  body: components["schemas"]["ImportOptions"],
+  dryRun: boolean,
+): Promise<unknown> {
+  return unwrap<unknown>(
+    await api.POST("/api/v1/projects/{project}/import", {
+      params: { path: { project }, query: dryRun ? { dryRun: "All" } : undefined },
+      body,
+    }),
+  );
+}
+
+/**
+ * The import checked first and then proposed, as one Change (PF-57): a refused check stops it
+ * before anything is proposed.
+ */
+export async function importChecked(project: string, body: components["schemas"]["ImportOptions"]): Promise<unknown> {
+  await importBody(project, body, true);
+  return importBody(project, body, false);
+}
+
+/**
  * One import of manifests the form drew; `dryRun` checks without proposing. Every manifest still
  * lands as a Change. `replace` (the default) updates what an earlier proposal of the same form
  * already drew (MF-23, T-1227); `fail` refuses a name someone else holds.
@@ -62,12 +88,7 @@ export async function importManifests(
   dryRun: boolean,
   conflictPolicy: "replace" | "fail" = "replace",
 ): Promise<unknown> {
-  return unwrap<unknown>(
-    await api.POST("/api/v1/projects/{project}/import", {
-      params: { path: { project }, query: dryRun ? { dryRun: "All" } : undefined },
-      body: { manifests: manifests as ResourceProposal[], conflictPolicy },
-    }),
-  );
+  return importBody(project, { manifests: manifests as ResourceProposal[], conflictPolicy }, dryRun);
 }
 
 /**
@@ -76,8 +97,7 @@ export async function importManifests(
  * person, is refused with the import's detail instead of replaced (F-UI2-013).
  */
 export async function proposeBundle(project: string, manifests: unknown[]): Promise<unknown> {
-  await importManifests(project, manifests, true, "fail");
-  return importManifests(project, manifests, false, "fail");
+  return importChecked(project, { manifests: manifests as ResourceProposal[], conflictPolicy: "fail" });
 }
 
 /** One PUT or POST of a manifest, as the endpoints page does it; the result is a Change. */
@@ -101,22 +121,10 @@ export function useProposal(project: string, plural: string, onChange: (change: 
         // The dry run is the bundle's check, and the import needs it first (PF-57, T-1460).
         // An update proposed with its bundle replaces what the project has, as a lone update does;
         // a create keeps the import's refusal of anything that already exists (MF-23).
-        const manifests: components["schemas"]["ImportOptions"] = {
+        return importChecked(project, {
           manifests: [...bundle, body],
           ...(create ? {} : { conflictPolicy: "replace" as const }),
-        };
-        unwrap<unknown>(
-          await api.POST("/api/v1/projects/{project}/import", {
-            params: { path: { project }, query: { dryRun: "All" } },
-            body: manifests,
-          }),
-        );
-        return unwrap<unknown>(
-          await api.POST("/api/v1/projects/{project}/import", {
-            params: { path: { project } },
-            body: manifests,
-          }),
-        );
+        });
       }
       return proposeChecked(project, plural, body, create);
     },

@@ -19,6 +19,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { currentTokens } from "../sdk/tokens";
 import { SourceError } from "./source";
 import type { EntitySource, HistoryPoint, HistoryWindow } from "./source";
+import { csvCell } from "../artifact";
 // Its rules live beside the grid's: an application may show the history without the grid.
 import "./grid.css";
 
@@ -108,10 +109,7 @@ export function windowOf(
 
 /** The series as CSV, for a spreadsheet: the two columns a person came for, quoted. */
 export function asCsv(points: HistoryPoint[], attr: string): string {
-  const cell = (value: unknown): string => {
-    const text = value === null || value === undefined ? "" : String(value);
-    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-  };
+  const cell = (value: unknown): string => csvCell(value === null || value === undefined ? "" : String(value));
   return [`observedAt,${cell(attr)}`, ...points.map((point) => `${cell(point.at)},${cell(point.value)}`)].join("\n");
 }
 

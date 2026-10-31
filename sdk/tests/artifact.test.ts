@@ -1,3 +1,4 @@
+import { asCsv } from "../src/grid/EntityHistory";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import {
   csvText,
@@ -41,6 +42,16 @@ const SAMPLE_ROWS: Row[] = [
 const COLUMNS = ["name", "bikes", "notes"];
 
 describe("csv exports", () => {
+  it("opens a cell a spreadsheet would run as a formula as text, and keeps a negative number (T-6230)", () => {
+    const lines = csvText(["a", "b"], [
+      { id: "u1", type: "T", a: '=HYPERLINK("https://x.example","y")', b: -3.5 },
+      { id: "u2", type: "T", a: "@SUM(A1)", b: "+cmd|' /C calc'!A0" },
+    ]).slice(1).split("\r\n");
+    expect(lines[1]).toBe(`"'=HYPERLINK(""https://x.example"",""y"")",-3.5`);
+    expect(lines[2]).toBe("'@SUM(A1),'+cmd|' /C calc'!A0");
+    expect(asCsv([{ at: "t", value: "=1+1" }], "n")).toBe("observedAt,n\nt,'=1+1");
+  });
+
   it("generates CSV text starting with a UTF-8 BOM, header line, and RFC 4180 quoting", () => {
     const text = csvText(COLUMNS, SAMPLE_ROWS);
 

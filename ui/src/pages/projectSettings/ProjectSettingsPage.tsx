@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, queryKeys, unwrap } from "../../api/client";
-import { asManifests, localized, ORG_NAMESPACE, plainTitle } from "../../api/manifest";
+import { localized, ORG_NAMESPACE, plainTitle } from "../../api/manifest";
+import { useProjectOrganization } from "../../api/projects";
 import { administersOrganization, usePermissions } from "../../api/permissions";
 import type { Rule } from "../../api/permissions";
 import { RuleInWords, granteeName } from "../../components/AccessWords";
@@ -193,16 +194,8 @@ function General({ project }: { project: string }): JSX.Element {
         }),
       ),
   });
-  const organizations = useQuery({
-    queryKey: queryKeys.list(ORG_NAMESPACE, "organizations"),
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/{plural}", {
-          params: { path: { project: ORG_NAMESPACE, plural: "organizations" } },
-        }),
-      ),
-  });
-  const organization = asManifests(organizations.data?.items ?? [])[0];
+  // The project's own Organization: with several, the first of the list is another body's.
+  const { organization } = useProjectOrganization(project);
   const orgSpec = (organization?.spec ?? {}) as { domain?: string; projects?: { visibility?: string } };
   const stored = (manifest.data ?? {}) as ProjectManifest;
   const title = localized(stored.metadata?.title as string | Record<string, string> | undefined, locale, project);

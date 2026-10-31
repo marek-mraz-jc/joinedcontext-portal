@@ -3,6 +3,7 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
+import { projectDetailQuery } from "../../api/projects";
 import { Button, Dialog, DialogClose, Field, InlineError, RadioGroup, Select } from "../ui";
 
 /** `git` is one bundle per repository of a project in its own repository (MF-45). */
@@ -38,7 +39,7 @@ export function exportQuery(
 }
 
 /** The name the server gave the file, or the one this selection would have. */
-function filenameOf(
+export function filenameOf(
   answer: Response,
   project: string,
   format: ExportFormat,
@@ -47,7 +48,12 @@ function filenameOf(
   const disposition = answer.headers.get("content-disposition") ?? "";
   const quoted = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
   if (quoted?.[1]) {
-    return decodeURIComponent(quoted[1]);
+    // A malformed escape is the server's slip, not a failed export: the name stays as it came.
+    try {
+      return decodeURIComponent(quoted[1]);
+    } catch {
+      return quoted[1];
+    }
   }
   const extension = format === "zip" || format === "git" ? "zip" : format;
   return `${target.name ?? target.plural ?? project}.${extension}`;
@@ -126,13 +132,7 @@ export function ExportModal({
   const whole = !target.name && !target.plural;
   // A project in a repository of its own (its registry entry names one, CC-85) also exports as
   // git, the form a move or a copy imports (MF-45).
-  const detail = useQuery({
-    queryKey: ["project", project],
-    enabled: open && whole,
-    retry: false,
-    queryFn: async () =>
-      unwrap(await api.GET("/api/v1/projects/{project}", { params: { path: { project } } })),
-  });
+  const detail = useQuery({ ...projectDetailQuery(project), enabled: open && whole });
   const spec = detail.data?.spec as { repository?: unknown } | null | undefined;
   const ownRepository = whole && Boolean(spec?.repository);
   // The whole project reads best as one archive, a single resource as one file; either way all

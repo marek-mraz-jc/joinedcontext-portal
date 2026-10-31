@@ -564,6 +564,8 @@ export function AssistantDock({
       focusBox.current = true;
       setOpen(true);
     };
+    // The dot is for the eye; the name says it too, so a screen reader hears it (T-6230).
+    const bubbleName = t(isBusy ? "assistant.openBusy" : "assistant.open");
     const busyDot = isBusy ? (
       <span
         data-testid="assistant-busy"
@@ -580,8 +582,8 @@ export function AssistantDock({
           size="sm"
           className="relative"
           aria-expanded={false}
-          aria-label={t("assistant.open")}
-          title={t("assistant.open")}
+          aria-label={bubbleName}
+          title={bubbleName}
           data-assistant-bubble=""
           onClick={openPanel}
           icon={<Icon name="chat" className="size-5" />}
@@ -598,8 +600,8 @@ export function AssistantDock({
       <button
         type="button"
         aria-expanded={false}
-        aria-label={t("assistant.open")}
-        title={t("assistant.open")}
+        aria-label={bubbleName}
+        title={bubbleName}
         data-assistant-bubble=""
         onClick={openPanel}
         className="focus-ring fixed bottom-4 right-4 z-40 flex size-14 items-center justify-center rounded-full bg-primary text-primary-fg shadow-3 hover:bg-primary-hover"

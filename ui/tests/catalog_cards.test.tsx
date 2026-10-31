@@ -11,7 +11,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { expectDenied } from "./checks";
-import { CatalogCards, ago, catalogDatasetsOf, catalogItemsOf } from "../src/pages/apps/CatalogCards";
+import { CatalogCards, catalogDatasetsOf, catalogItemsOf } from "../src/pages/apps/CatalogCards";
+import { ago } from "../src/components/ago";
 import type { CatalogDataset, CatalogItem } from "../src/pages/apps/CatalogCards";
 
 const NOW = Date.parse("2026-09-13T08:00:12Z");
