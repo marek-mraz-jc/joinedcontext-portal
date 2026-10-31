@@ -153,6 +153,16 @@ describe("LinkML operations", () => {
     ).toEqual(["unknown slot 'pm25'", "class 'AirQualityObserved' already exists"]);
   });
 
+  it("moves a class's slot_usage with a renamed slot and drops it with a removed one (F-R2UI3-008)", () => {
+    const narrowed = SOURCE.replace("      - pm10\n", "      - pm10\n    slot_usage:\n      pm10:\n        required: true\n");
+    const renamed = applyOperations(narrowed, [{ op: "renameSlot", name: "pm10", to: "particles" }]);
+    expect(renamed.refused).toEqual([]);
+    expect(parseModel(renamed.source).classes[0].slot_usage).toEqual({ particles: expect.objectContaining({ required: true }) });
+    const removed = applyOperations(narrowed, [{ op: "removeSlot", name: "pm10" }]);
+    expect(removed.refused).toEqual([]);
+    expect(parseModel(removed.source).classes[0].slot_usage).toEqual({});
+  });
+
   it("adds a slot with its kind and an entity class in one operation each", () => {
     // T-0599: inference answers `addSlot` with a kind and `addClass` with `is_a`, so the two
     // must land in one operation, not need a second `setSlot`.

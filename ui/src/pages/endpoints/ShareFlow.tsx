@@ -126,9 +126,11 @@ export function ShareFlow({
   const hidden = spec.projection?.hiddenAttributes ?? [];
   const shared = spec.allowedProjects ?? [];
   const projects = (useProjects().data ?? []).filter((name) => name !== project && !shared.includes(name));
-  // A list the caller does not read counts as empty instead of being asked for (a 404, T-3852).
+  // A list the caller does not read is not asked for (T-3852). The organization's then counts as
+  // empty; the project's, where the Group would be proposed, is unknown: an empty Group proposed
+  // over one the person cannot see would drop its members, so the share proposes none.
   const groupLists = [useReadableList(ORG_NAMESPACE, "groups", "Group"), useReadableList(project, "groups", "Group")];
-  const groupNames = groupLists.every((list) => list.hidden || list.data !== undefined)
+  const groupNames = !groupLists[1].hidden && groupLists.every((list) => list.hidden || list.data !== undefined)
     ? new Set(
         groupLists.flatMap((list) =>
           asManifests((list.data as { items?: Manifest[] } | undefined)?.items ?? []).map((group) => group.metadata.name),

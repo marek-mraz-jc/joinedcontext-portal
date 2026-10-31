@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import type { Manifest } from "../src/api/manifest";
 import { changeWords } from "../src/pages/mqttbrokers/BrokerEditor";
-import { accountChanges, blockers, draftOf, holdersOf, modeOf, sourceProblem, topicProblem } from "../src/pages/mqttbrokers/brokerDraft";
+import { accountChanges, blockers, draftOf, holdersOf, modeOf, rolesHeldBy, sourceProblem, topicProblem, withRole } from "../src/pages/mqttbrokers/brokerDraft";
 import { fromMqttBrokerManifest, toMqttBrokerManifest } from "../src/schemas/mqttbroker";
 
 const account = (name: string, roles: unknown[] = []): Manifest =>
@@ -106,5 +106,23 @@ describe("the broker draft", () => {
     expect(back.spec.hostname).toBe("mqtt.espoo.example");
     expect(back.spec.deviceAuth).toEqual([{ kind: "token" }]);
     expect(back.spec.roles).toEqual(stored.spec.roles);
+  });
+});
+
+describe("a role's holders across the page (F-R2UI3-003, F-R2UI3-006)", () => {
+  const bound = account("cam-9", [{ role: "mqtt/cameras/cams", scope: { project: "espoo" } }]);
+
+  it("counts an account bound by a RoleBinding as holding the role", () => {
+    const roles = [{ name: "cams", serviceAccounts: [], publish: ["cameras/${clientid}/#"] }, { name: "ops", serviceAccounts: ["cam-9"] }];
+    expect(rolesHeldBy("cam-9", roles, [bound], "cameras", "espoo").map((role) => role.name)).toEqual(["cams", "ops"]);
+    expect(rolesHeldBy("cam-9", roles, [bound], "other", "espoo").map((role) => role.name)).toEqual(["ops"]);
+  });
+
+  it("takes a pending grant along when its role is renamed", () => {
+    const draft = { ...draftOf({ name: "cameras", roles: [{ name: "a", serviceAccounts: [] }] }), grant: ["cam-1/a"], revoke: ["cam-2/a"] };
+    const renamed = withRole(draft, 0, { name: "b", serviceAccounts: [] });
+    expect(renamed.form.roles?.[0].name).toBe("b");
+    expect(renamed.grant).toEqual(["cam-1/b"]);
+    expect(renamed.revoke).toEqual(["cam-2/b"]);
   });
 });

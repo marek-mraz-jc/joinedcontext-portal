@@ -38,6 +38,9 @@ function inline(text: string, known: (n: number) => boolean): Inline[] {
       out.push({ tag: "code", children: [match[3]] });
     } else if (match[4] !== undefined) {
       out.push({ tag: "a", href: match[5], children: inline(match[4], known) });
+      // The model chooses a link's words: where it leads stands beside them unless they say so.
+      const host = domain(match[5]);
+      if (!match[4].toLowerCase().includes(host.toLowerCase())) out.push(` (${host})`);
     } else if (match[6] !== undefined) {
       const numbers = match[6]
         .split(",")

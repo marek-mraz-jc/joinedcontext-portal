@@ -3,9 +3,13 @@ import type { JSX } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, unwrap } from "../../api/client";
+import { asManifests } from "../../api/manifest";
+import type { Manifest } from "../../api/manifest";
+import { useReadableList } from "../../api/permissions";
 import type { components } from "../../api/schema";
 import { Alert, Badge, Button, Dialog, Field, Input, Select, Switch, Textarea } from "../../components/ui";
 import type { BadgeTone } from "../../components/ui";
+import { holdersOf, rolesHeldBy } from "./brokerDraft";
 
 type Role = { name?: string; serviceAccounts?: string[]; publish?: string[] };
 type DryRun = components["schemas"]["DryRun"];
@@ -18,14 +22,15 @@ export const WATCH_EVERY_MS = 2_000;
 
 const TONE: Record<Step["outcome"], BadgeTone> = { ok: "success", refused: "danger", unchecked: "neutral" };
 
-/** The accounts of roles that may publish, sorted, once each: the only ones a device test makes sense for. */
-export function publishers(roles: Role[]): string[] {
-  return [...new Set(roles.filter((role) => (role.publish ?? []).length > 0).flatMap((role) => role.serviceAccounts ?? []))].sort();
+/** The accounts holding a role that may publish, sorted, once each: the only ones a device test makes sense for. */
+export function publishers(roles: Role[], accounts: Manifest[], broker: string, project: string): string[] {
+  const publishing = roles.filter((role) => (role.publish ?? []).length > 0);
+  return [...new Set(publishing.flatMap((role) => holdersOf(role, accounts, broker, project).map((holder) => holder.account)))].sort();
 }
 
 /** A topic the account's first publish filter allows, `${clientid}` bound and each wildcard given a sample level. */
-export function sampleTopic(roles: Role[], project: string, account: string): string {
-  const filter = roles.find((role) => (role.serviceAccounts ?? []).includes(account) && (role.publish ?? []).length > 0)?.publish?.[0];
+export function sampleTopic(roles: Role[], accounts: Manifest[], broker: string, project: string, account: string): string {
+  const filter = rolesHeldBy(account, roles, accounts, broker, project).find((role) => (role.publish ?? []).length > 0)?.publish?.[0];
   if (!filter) return "";
   return filter
     .replaceAll("${clientid}", `${project}-${account}`)
@@ -52,9 +57,13 @@ export function TestPublishDialog({
 }): JSX.Element {
   const { t } = useTranslation();
   const id = useId();
-  const accounts = publishers(roles);
-  const [account, setAccount] = useState(accounts[0] ?? "");
-  const [topic, setTopic] = useState(sampleTopic(roles, project, accounts[0] ?? ""));
+  const readable = asManifests(useReadableList(project, "serviceaccounts", "ServiceAccount").data?.items ?? []);
+  const accounts = publishers(roles, readable, broker, project);
+  // The accounts arrive with their list: until one is picked, the first that publishes is.
+  const [picked, setAccount] = useState("");
+  const account = accounts.includes(picked) ? picked : (accounts[0] ?? "");
+  const [typed, setTopic] = useState<string | null>(null);
+  const topic = typed ?? sampleTopic(roles, readable, broker, project, account);
   const [payload, setPayload] = useState('{"temperature": 21.5}');
   const run = useMutation({
     mutationFn: async (): Promise<DryRun> =>
@@ -67,7 +76,7 @@ export function TestPublishDialog({
   });
   const changeAccount = (next: string) => {
     setAccount(next);
-    setTopic(sampleTopic(roles, project, next));
+    setTopic(null);
     run.reset();
   };
   return (

@@ -8,7 +8,7 @@ import { asManifests, isChange, localized } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
 import { proposeChecked } from "../../api/proposal";
 import type { components } from "../../api/schema";
-import { useBranding } from "../../branding";
+import { useOrgDomain } from "../../api/projects";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { RecordLink } from "../../components/RecordLink";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
@@ -267,7 +267,7 @@ export function PipelineOverview({ project, name }: { project: string; name: str
   const time = new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "medium" });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { orgDomain } = useBranding();
+  const orgDomain = useOrgDomain(project);
   const [now] = useState(() => Date.now());
   const [change, setChange] = useState<Change | null>(null);
   const [error, setError] = useState<string | null>(null);
