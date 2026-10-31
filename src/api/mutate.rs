@@ -2544,6 +2544,7 @@ async fn propose_draft(
             "metadata": { "name": "helsinki-air", "namespace": "helsinki", "title": "Air quality" },
             "spec": {
                 "contextSpaceRef": "air",
+                "slug": "mluyob4nz52lok3ssk7pgn5vwt",
                 "audience": "organization",
                 "enabledRepresentations": ["ngsi-ld", "csv"]
             }
