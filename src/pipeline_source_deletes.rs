@@ -1269,11 +1269,11 @@ pub async fn launch(
 /// of the first (a run end, then a release) neither deletes the first's stream mid-run nor has
 /// its own deleted by the first's timer, which would lose marks already taken from the ledger.
 fn delete_stream(runner: &str, project: &str, pipeline: &str) -> String {
-    use rand_core::RngCore;
+    use argon2::password_hash::rand_core::{OsRng, RngCore};
     format!(
         "{runner}/streams/{}.source-deletes.{:016x}",
         crate::reconciler::streams::stream_id(project, pipeline),
-        rand_core::OsRng.next_u64()
+        OsRng.next_u64()
     )
 }
 
