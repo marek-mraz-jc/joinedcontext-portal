@@ -7,11 +7,20 @@
  * Every wait is on the thing the step needs, never on the network going idle (T-2452).
  */
 import { expect, test } from "@playwright/test";
-import type { Page } from "@playwright/test";
+import type { Page, Response } from "@playwright/test";
 import { STEWARD, goSignedIn, signIn } from "./portal";
 
 const PROJECT = "helsinki";
-const APPS_URL = process.env.APPS_URL ?? "https://dev.joinedcontext.com";
+const APPS_DOMAIN = process.env.APPS_DOMAIN ?? "apps.dev.joinedcontext.com";
+
+/** Each App answers on its own origin; `/apps/<app>/` on the Portal host only 308s there. */
+const appOrigin = (app: string) => `https://${app}.${APPS_DOMAIN}/`;
+
+/** An answer of the App's own API, whichever base the App's bundle calls it under (`/api/` or `/apps/<app>/api/`). */
+function isAppApi(response: Response, app: string, path: string) {
+  const url = new URL(response.url());
+  return url.host === `${app}.${APPS_DOMAIN}` && url.pathname.endsWith(`/api/${path}`);
+}
 
 test.setTimeout(300_000);
 
@@ -29,7 +38,7 @@ async function expectPublishedAsWasm(page: Page, app: string) {
 test("bike-rebalancing saves a plan on the server, and it is there after a reload with its route sheet", async ({ browser }) => {
   const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps?lang=en`);
   const page = steward.page;
-  const app = `${APPS_URL}/apps/bike-rebalancing/`;
+  const app = appOrigin("bike-rebalancing");
   const operator = `e2e T-3346 ${Date.now()}`;
   const api = `${app}api/plans`;
   try {
@@ -76,7 +85,7 @@ test("event-day-planner shares a picked day under a link that opens it again, wi
     await steward.context.close();
   }
   // A public App: an anonymous visitor shares the day.
-  const app = `${APPS_URL}/apps/event-day-planner/`;
+  const app = appOrigin("event-day-planner");
   await page.goto(`${app}?lang=en`, { waitUntil: "domcontentloaded" });
   const list = page.getByRole("list", { name: "Events of the day" });
   const boxes = list.getByRole("checkbox", { disabled: false });
@@ -112,14 +121,14 @@ test("air-weather-explorer answers from the hours its server keeps, and a saved 
     await steward.context.close();
   }
   // A public App: an anonymous visitor.
-  const app = `${APPS_URL}/apps/air-weather-explorer/`;
-  const series = page.waitForResponse((response) => response.url().includes("/apps/air-weather-explorer/api/series"), { timeout: 120_000 });
+  const app = appOrigin("air-weather-explorer");
+  const series = page.waitForResponse((response) => isAppApi(response, "air-weather-explorer", "series"), { timeout: 120_000 });
   await page.goto(`${app}?lang=en&days=3&window=6`, { waitUntil: "domcontentloaded" });
   expect((await series).status()).toBe(200);
   const answer = page.getByRole("region", { name: "The answer" });
   await expect(answer).toHaveText(/(rises|falls) as .* rises|hardly moves with|Too few common hours|No measurements in the chosen period/, { timeout: 120_000 });
 
-  const exported = page.waitForResponse((response) => response.url().endsWith("/apps/air-weather-explorer/api/exports"));
+  const exported = page.waitForResponse((response) => isAppApi(response, "air-weather-explorer", "exports"));
   await page.getByRole("button", { name: "Export the hours (CSV)" }).click();
   const csv = await page.request.get(((await (await exported).json()) as { url: string }).url);
   expect(csv.status()).toBe(200);
@@ -145,7 +154,7 @@ test("transit-reach keeps the areas from a start stop on the server, the same fo
   } finally {
     await steward.context.close();
   }
-  const app = `${APPS_URL}/apps/transit-reach/`;
+  const app = appOrigin("transit-reach");
   await page.goto(`${app}?lang=en`, { waitUntil: "domcontentloaded" });
   await expect(page.locator(".app-summary")).toHaveText(/^Reachable from this point/, { timeout: 120_000 });
   const reached = page.getByRole("list", { name: /^Stops within 30 minutes/ });
@@ -183,11 +192,11 @@ test("kpi-forecast has today's forecasts recorded on its server, and a month's r
   } finally {
     await steward.context.close();
   }
-  const app = `${APPS_URL}/apps/kpi-forecast/`;
-  const recorded = page.waitForResponse((response) => response.url().endsWith("/apps/kpi-forecast/api/forecasts") && response.request().method() === "POST", { timeout: 120_000 });
+  const app = appOrigin("kpi-forecast");
+  const recorded = page.waitForResponse((response) => isAppApi(response, "kpi-forecast", "forecasts") && response.request().method() === "POST", { timeout: 120_000 });
   await page.goto(`${app}?lang=en&days=30`, { waitUntil: "domcontentloaded" });
   expect([200, 201]).toContain((await recorded).status());
-  await expect(page.locator(".app-summary")).toHaveText(/^\d+ indicators over the last 30 days/, { timeout: 120_000 });
+  await expect(page.locator(".app-summary")).toHaveText(/^[\d,]+ indicators over the last 30 days/, { timeout: 120_000 });
   await expect(page.getByRole("region", { name: "Earlier forecasts against what came" })).toBeVisible();
 
   // Recorded once a day: a second ask the same day records nothing.
@@ -195,7 +204,7 @@ test("kpi-forecast has today's forecasts recorded on its server, and a month's r
   expect(again.status()).toBe(200);
   expect(((await again.json()) as { already: boolean }).already).toBe(true);
 
-  const report = page.waitForResponse((response) => response.url().endsWith("/apps/kpi-forecast/api/reports"));
+  const report = page.waitForResponse((response) => isAppApi(response, "kpi-forecast", "reports"));
   await page.getByRole("button", { name: "Download forecasts against readings (CSV)" }).click();
   const csv = await page.request.get(((await (await report).json()) as { url: string }).url);
   expect(csv.status()).toBe(200);
