@@ -7,6 +7,7 @@
 // making the module throw and watching this file go red.
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { narrowsAndOrders } from "./grid_checks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -564,7 +565,7 @@ describe("the files of an upload source (T-4185)", () => {
   it("lists the files, uploads the chosen ones as they are and removes one", async () => {
     const { writes } = renderAt("/projects/banskabystrica/knowledge/bb-files", { sources: { code: 200, body: FILES } });
     const table = await screen.findByRole("table", { name: "Files" });
-    expect(within(table).getByText("rozpocet-2026.xlsx")).toBeInTheDocument();
+    expect(await within(table).findByText("rozpocet-2026.xlsx")).toBeInTheDocument();
     expect(within(table).getByText("48 kB")).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Pages" })).toBeNull();
 
@@ -574,6 +575,25 @@ describe("the files of an upload source (T-4185)", () => {
 
     await userEvent.click(within(table).getByRole("button", { name: "Remove rozpocet-2026.xlsx" }));
     await waitFor(() => expect(writes.at(-1)).toEqual({ path: `${base}/7`, body: null }));
+  });
+
+  it("searches, sorts by passages and filters by state on the shared grid (T-6205)", async () => {
+    const files = {
+      items: [
+        { id: 7, name: "rozpocet-2026.xlsx", mime: "application/xlsx", bytes: 48_000, passages: 12, status: "fetched" },
+        { id: 8, name: "zapisnica.pdf", mime: "application/pdf", bytes: 9_000, passages: 0, status: "failed" },
+        { id: 9, name: "uznesenia.docx", mime: "application/docx", bytes: 20_000, passages: 40, status: "fetched" },
+      ],
+    };
+    renderAt("/projects/banskabystrica/knowledge/bb-files", { sources: { code: 200, body: FILES }, files: { code: 200, body: files } });
+    const table = await screen.findByRole("table", { name: "Files" });
+    await within(table).findByText("zapisnica.pdf");
+    const fewestFirst = [1, 0, 2].map((at) => files.items[at].name);
+    await narrowsAndOrders(table, {
+      search: { label: "Search Files", text: "uznes", kept: ["uznesenia.docx"] },
+      sort: { column: "Passages", ascending: fewestFirst },
+      filter: { value: /^Could not be read/, kept: ["zapisnica.pdf"] },
+    });
   });
 
   it("names the file a refusal is about, in the Portal's words", async () => {
