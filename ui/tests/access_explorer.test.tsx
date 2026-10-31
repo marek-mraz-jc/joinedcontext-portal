@@ -10,7 +10,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
-import { AccessExplorer } from "../src/pages/access/AccessExplorer";
+import { AccessExplorer, GeoPreview } from "../src/pages/access/AccessExplorer";
 
 const LIST = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
 const ROLE = (name: string, namespace: string) => ({
@@ -166,6 +166,17 @@ describe("Access explorer (T-3792)", () => {
     const details = screen.getByTestId("geoq-preview").closest("details") as HTMLElement;
     await user.click(within(details).getByRole("button", { name: "Copy ngsi-ld URL" }));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining("/api/endpoint/a-slug/ngsi-ld/v1/types"));
+  });
+
+  // F-R2UI2-019: Math.min(...xs) over a large polygon threw a RangeError and took the result down.
+  it("draws a geoQ polygon of 200 000 points", () => {
+    const ring = Array.from({ length: 200_000 }, (_, i) => [Math.cos(i), Math.sin(i)]);
+    render(
+      <I18nextProvider i18n={i18n}>
+        <GeoPreview geoQ={{ georel: "within", geometry: "Polygon", coordinates: [ring] }} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId("geoq-preview")).toBeInTheDocument();
   });
 
   it("revokes a person's consent only after the confirmation", async () => {

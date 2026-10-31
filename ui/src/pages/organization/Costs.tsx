@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, unwrap } from "../../api/client";
+import { api, unwrap, reasonOf } from "../../api/client";
 import { ORG_NAMESPACE } from "../../api/manifest";
 import { administersOrganization, usePermissions } from "../../api/permissions";
 import type { components } from "../../api/schema";
@@ -21,7 +21,6 @@ import {
 } from "../../components/ui";
 import { PageFailed } from "../../components/ui/PageState";
 import { download } from "../models/diagramExport";
-import { reasonOf } from "../knowledge/KnowledgePage";
 
 type ProjectCost = components["schemas"]["ProjectCost"];
 

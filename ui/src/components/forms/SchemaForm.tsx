@@ -2,7 +2,7 @@ import React from "react";
 import type { ReactNode } from "react";
 import Form from "@rjsf/core";
 import validator from "./validator";
-import { TranslatableString, englishStringTranslator } from "@rjsf/utils";
+import { TranslatableString, deepEquals, englishStringTranslator } from "@rjsf/utils";
 import type { ErrorSchema, RJSFSchema, RJSFValidationError } from "@rjsf/utils";
 import { useTranslation } from "react-i18next";
 import { requiredProgress } from "./uischema";
@@ -102,6 +102,14 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
   // What the form still wants, beside its buttons (T-1607): a long form with a folded group has to
   // say how much of the required work is done, or folding it away hides the reason Propose is off.
   const [held, setHeld] = React.useState<unknown>(shown);
+  // New data from outside (a draft restored, the YAML view applied) replaces what was held, or the
+  // pickers reading FormDataContext and the required count keep the old form (F-R2UI2-006). Equal
+  // data in a new object is no new data, as rjsf itself reads it.
+  const [heldFrom, setHeldFrom] = React.useState(shown);
+  if (heldFrom !== shown) {
+    setHeldFrom(shown);
+    if (!deepEquals(heldFrom, shown)) setHeld(shown);
+  }
   // What a person has reached (T-2757): a field shows its errors once changed or left, and every
   // field once the form was checked (the page's errors arrive) or a submit was refused.
   const [touchedIds, setTouchedIds] = React.useState<ReadonlySet<string>>(() => new Set());

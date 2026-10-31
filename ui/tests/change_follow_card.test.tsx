@@ -26,6 +26,7 @@ function change(phase: string, { lane = "yellow", author = "someone@hel.fi" } = 
     createdAt: "2026-09-25T08:00:00Z",
     summary: { key: "change.summary.create", params: { kind: "Endpoint", name: "sample-endpoint" } },
     status: { lane, phase, plan: { create: 1 } },
+    planFields: [{ path: "spec.audience", to: "public" }],
   };
 }
 
@@ -114,6 +115,10 @@ describe("a proposed change, followed to a working result", () => {
   it("says who approves and lets a person who may approve do it here", async () => {
     const { calls } = setup();
     expect(await within(card()).findByText(en.agentRun.follow.waiting.replace("{kind}", "Endpoint"))).toBeInTheDocument();
+    // F-R2UI2-005: what the agent's Change does is on the card before it can be approved.
+    const approveButton = await within(card()).findByRole("button", { name: en.agentRun.follow.approve });
+    expect(within(card()).getByRole("table")).toHaveTextContent("public");
+    expect(approveButton).toBeInTheDocument();
     await userEvent.click(await within(card()).findByRole("button", { name: en.agentRun.follow.approve }));
     await waitFor(() => {
       expect(calls.some((call) => call.method === "POST" && call.path.endsWith(`/changes/${ID}/approve`))).toBe(true);

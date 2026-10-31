@@ -247,7 +247,8 @@ export function EntityPicker(props: WidgetProps): JSX.Element {
         autoComplete="off"
         aria-autocomplete="list"
         aria-expanded={isOpen ? "true" : "false"}
-        aria-controls={`${id}__listbox`}
+        // Only while the list is there: an id nothing in the page carries is an invalid reference.
+        aria-controls={isOpen && !isLoading && !isError ? `${id}__listbox` : undefined}
         aria-activedescendant={activeOptionId}
         // The Field renders the description, the hint and the errors above and below; nothing
         // else points this control at them (T-2314, UI-04).

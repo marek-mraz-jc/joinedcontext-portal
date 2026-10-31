@@ -106,17 +106,13 @@ function Flow({
 
   const load = useMutation({
     mutationFn: async (name: string): Promise<Drafted> => {
-      const draft = await unwrap(
-        await api.POST("/api/v1/projects/{project}/catalogue/drafts", {
-          params: { path: { project } },
-          body: { endpoint: name },
-        }),
-      );
-      const { apiVersion, kind, metadata, spec } = await unwrap(
-        await api.GET("/api/v1/projects/{project}/{plural}/{name}", {
-          params: { path: { project, plural: "endpoints", name } },
-        }),
-      );
+      // Neither read waits for the other: one round trip before the form opens, not two.
+      const [draft, { apiVersion, kind, metadata, spec }] = await Promise.all([
+        api
+          .POST("/api/v1/projects/{project}/catalogue/drafts", { params: { path: { project } }, body: { endpoint: name } })
+          .then(unwrap),
+        api.GET("/api/v1/projects/{project}/{plural}/{name}", { params: { path: { project, plural: "endpoints", name } } }).then(unwrap),
+      ]);
       // What the Change carries back is the manifest, never the status the Portal computed.
       const manifest: ResourceProposal = { apiVersion, kind, metadata, spec };
       const language = i18n.resolvedLanguage ?? i18n.language ?? "en";

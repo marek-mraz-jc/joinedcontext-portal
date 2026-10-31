@@ -47,7 +47,6 @@ function CopyField({ id, label, value }: { id: string; label: string; value: str
 export function AccountSecret({ project, account }: { project: string; account: string }): JSX.Element | null {
   const { t } = useTranslation();
   const [asking, setAsking] = useState(false);
-  const [issued, setIssued] = useState<IssuedSecret | null>(null);
   // The same answer the Access section reads: one request for both.
   const access = useQuery({
     queryKey: [...queryKeys.list(project, "serviceaccounts"), account, "access"],
@@ -65,11 +64,12 @@ export function AccountSecret({ project, account }: { project: string; account: 
           params: { path: { project, name: account } },
         }),
       ),
-    onSuccess: (done) => {
-      setIssued(done);
-      setAsking(false);
-    },
+    // The secret lives only in this mutation: Done resets it, and an unmounted panel's copy is
+    // dropped from the cache at once rather than after react-query's five minutes.
+    gcTime: 0,
+    onSuccess: () => setAsking(false),
   });
+  const issued = issue.data;
 
   if (!access.data) return null;
   const { noSecret, mayIssueSecret } = access.data;
@@ -94,7 +94,7 @@ export function AccountSecret({ project, account }: { project: string; account: 
               tone="warning"
               title={t("access.secret.onceTitle")}
               actions={
-                <Button variant="secondary" size="sm" onClick={() => setIssued(null)}>
+                <Button variant="secondary" size="sm" onClick={() => issue.reset()}>
                   {t("access.secret.done")}
                 </Button>
               }

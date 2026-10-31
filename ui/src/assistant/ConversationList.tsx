@@ -2,9 +2,9 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, unwrap } from "../api/client";
+import { api, unwrap, reasonOf } from "../api/client";
 import { Button, Input } from "../components/ui";
-import { ListFailed, reasonOf } from "../components/forms/widgets/ListFailed";
+import { ListFailed } from "../components/forms/widgets/ListFailed";
 
 /** How many conversations the list shows before "Show more". */
 export const CONVERSATIONS_PER_PAGE = 15;

@@ -175,6 +175,17 @@ export function PortalLink({ href, children, onOpenLink }: { href: string; child
   );
 }
 
+/** The host a link leaves the Portal for, or none for a link inside it or one never drawn. */
+function externalHost(href: string): string | undefined {
+  const safe = safeHref(href);
+  if (safe === undefined || safe.startsWith("/")) return undefined;
+  try {
+    return new URL(safe).host || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const INLINE =
   /`([^`\n]+)`|\[([^\]\n]+)\]\(([^)\s]+)\)|\*\*([^*\n]+)\*\*|(?<![\w*])\*([^*\n]+)\*(?![\w*])|(urn:ngsi-ld:[^\s)\]`|,;<>]+)|(https?:\/\/[^\s)\]<>`]+)/g;
 
@@ -208,6 +219,16 @@ export function inline(text: string, onOpenLink?: OpenLink): ReactNode[] {
           {inline(label, onOpenLink)}
         </PortalLink>,
       );
+      // A label is the model's words, and text the model read can write them: a link that
+      // leaves the Portal says where it goes beside them (F-R2UI2-004).
+      const host = externalHost(href);
+      if (host && !label.toLowerCase().includes(host)) {
+        nodes.push(
+          <span key={key++} className="text-fg-muted">
+            {` (${host})`}
+          </span>,
+        );
+      }
     } else if (bold !== undefined) {
       nodes.push(<strong key={key++}>{inline(bold, onOpenLink)}</strong>);
     } else if (italic !== undefined) {

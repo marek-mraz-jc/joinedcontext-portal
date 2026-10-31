@@ -197,6 +197,17 @@ function OrganizationSwitcher({ active, inSidebar = false }: { active: string; i
   );
 }
 
+/** The sections with a route of their own: the generic `$plural` template would resolve to it anyway, with a router warning. */
+const OWN_ROUTES = {
+  home: "/projects/$project/home",
+  approvals: "/projects/$project/approvals",
+  assistant: "/projects/$project/assistant",
+} as const;
+
+function ownRoute(plural: string): (typeof OWN_ROUTES)[keyof typeof OWN_ROUTES] | undefined {
+  return Object.hasOwn(OWN_ROUTES, plural) ? OWN_ROUTES[plural as keyof typeof OWN_ROUTES] : undefined;
+}
+
 function UserMenu() {
   const { t } = useTranslation();
   const { identity, signOut } = useAuth();
@@ -847,41 +858,20 @@ export function Shell({
             {NAV_SECTIONS.filter((section) => !isHiddenSection(section.plural, hiddenSections)).map((section) => {
               const isActive = section === activeSection;
               const body = <NavLabel icon={section.icon} label={t(section.labelKey)} />;
+              const own = ownRoute(section.plural);
               return (
                 <Fragment key={section.plural}>
                 <li>
-                  {/* Approvals and Assistant have routes of their own; linking them through the generic
-                      template would resolve to that route anyway, with a router warning. */}
-                  {section.plural === "home" ? (
+                  {own ? (
                     <Link
-                      to="/projects/$project/home"
+                      to={own}
                       params={{ project }}
                       onClick={closeNav}
                       aria-current={isActive ? "page" : undefined}
                       className={navLinkClass(isActive)}
                     >
                       {body}
-                    </Link>
-                  ) : section.plural === "approvals" ? (
-                    <Link
-                      to="/projects/$project/approvals"
-                      params={{ project }}
-                      onClick={closeNav}
-                      aria-current={isActive ? "page" : undefined}
-                      className={navLinkClass(isActive)}
-                    >
-                      {body}
-                      <PendingBadge project={project} />
-                    </Link>
-                  ) : section.plural === "assistant" ? (
-                    <Link
-                      to="/projects/$project/assistant"
-                      params={{ project }}
-                      onClick={closeNav}
-                      aria-current={isActive ? "page" : undefined}
-                      className={navLinkClass(isActive)}
-                    >
-                      {body}
+                      {section.plural === "approvals" ? <PendingBadge project={project} /> : null}
                     </Link>
                   ) : (
                     <Link

@@ -78,6 +78,16 @@ describe("an answer's Markdown", () => {
     expect(outside).toHaveAttribute("target", "_blank");
   });
 
+  // F-R2UI2-004: text the model read (a dataset, a web page) can write a label that hides its target.
+  it("names the host beside a labelled link that leaves the Portal, and only there", () => {
+    const { container } = prose("See [the Portal's endpoint](https://evil.example/x), [hel.fi](https://hel.fi/a) and [Explore](/projects/p/entities).");
+    const after = (name: RegExp) => screen.getByRole("link", { name }).nextSibling?.textContent ?? "";
+    expect(after(/the Portal's endpoint/)).toBe(" (evil.example)");
+    expect(after(/^hel\.fi/)).toBe(" and ");
+    expect(after(/^Explore$/)).toBe(".");
+    expect(container.textContent).toContain("(evil.example)");
+  });
+
   it("shortens a long entity id, keeps it whole for a screen reader, and copies it whole", async () => {
     const writeText = vi.fn(async () => {});
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });

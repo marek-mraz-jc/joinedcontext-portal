@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, forPeople, unwrap } from "../../api/client";
+import { api, forPeople, unwrap, reasonOf } from "../../api/client";
 import { rememberRun, requestOpen } from "../../assistant/state";
 import {
   Badge,
@@ -19,7 +19,7 @@ import {
   TableHeaderCell,
   TableRow,
 } from "../../components/ui";
-import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
+import { ListFailed } from "../../components/forms/widgets/ListFailed";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { appDisplayName, useEndpointTitles } from "../apps/appTitle";
 import { TERMINAL_STATES } from "../apps/useAgentRun";
