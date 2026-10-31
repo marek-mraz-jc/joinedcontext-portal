@@ -11,6 +11,7 @@ import type { Effective } from "../src/api/permissions";
 import { OrganizationPage } from "../src/pages/organization/OrganizationPage";
 import { Brokers } from "../src/pages/organization/Brokers";
 import { expectNoAxeViolations, json, renderPage } from "./page_contract";
+import { narrowsAndOrders } from "./grid_checks";
 
 const ADMIN = {
   project: "org",
@@ -112,5 +113,17 @@ describe("Organization → Brokers", () => {
     const { requests } = renderBrokers(STEWARD, [MAIN], true);
     expect(await screen.findByText(en.organization.brokers.hidden)).toBeInTheDocument();
     expect(requests).not.toContain("/api/v1/organization/brokers");
+  });
+
+  it("searches, sorts by entities and filters by health on the shared grid (T-6205)", async () => {
+    const EDGE = { ...MAIN, name: "edge", default: false, version: "0.14.1", spaces: ["parking/lots"], entities: 100 };
+    renderBrokers(ADMIN, [MAIN, CANARY, EDGE]);
+    await screen.findByText("0.14.1");
+    const table = screen.getByRole("table", { name: en.organization.brokers.caption });
+    await narrowsAndOrders(table, {
+      search: { label: "Search Context brokers", text: "parking", kept: ["edge"] },
+      sort: { column: en.organization.brokers.entities, ascending: ["canary", "edge", "main"] },
+      filter: { value: /^Up/, kept: ["main", "edge"] },
+    });
   });
 });

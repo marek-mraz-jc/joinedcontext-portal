@@ -1,4 +1,3 @@
-import { PageFailed } from "../../components/ui/PageState";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,13 +10,8 @@ import {
   EmptyState,
   FilePicker,
   PermissionGuard,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
 } from "../../components/ui";
+import { ManifestGrid } from "../../components/grid/ManifestGrid";
 import { ApiError } from "../../api/client";
 import { usePermissions } from "../../api/permissions";
 import { reasonOf } from "./KnowledgePage";
@@ -106,58 +100,63 @@ export function UploadedFiles({ project, source }: { project: string; source: st
           })}
         </Alert>
       ) : null}
-      {files.isLoading ? (
-        <p role="status">{t("app.loading")}</p>
-      ) : waiting ? (
+      {waiting ? (
         <Alert role="status" tone="info">
           {t("knowledge.files.notTakenUp")}
         </Alert>
-      ) : files.isError ? (
-        <PageFailed error={files.error} onRetry={() => void files.refetch()} />
-      ) : rows.length === 0 ? (
-        <EmptyState title={t("knowledge.files.none")} description={t("knowledge.files.noneHint")} icon="search" />
       ) : (
-        <Table data-records="" caption={t("knowledge.files.title")}>
-          <TableHead>
-            <TableHeaderCell>{t("knowledge.files.name")}</TableHeaderCell>
-            <TableHeaderCell align="right" secondary>{t("knowledge.column.size")}</TableHeaderCell>
-            <TableHeaderCell>{t("knowledge.column.state")}</TableHeaderCell>
-            <TableHeaderCell align="right" secondary>{t("knowledge.column.passages")}</TableHeaderCell>
-            <TableHeaderCell align="right">
-              <span className="sr-only">{t("approvals.actions")}</span>
-            </TableHeaderCell>
-          </TableHead>
-          <TableBody>
-            {rows.map((file) => (
-              <TableRow key={file.id}>
-                <TableCell>
-                  <span className="font-mono [overflow-wrap:anywhere]">{file.name}</span>
-                </TableCell>
-                <TableCell align="right" secondary>{bytesText(file.bytes, i18n.language)}</TableCell>
-                <TableCell>
-                  <Badge tone={file.status === "failed" ? "danger" : file.status === "fetched" ? "success" : "neutral"}>
-                    {t(`knowledge.status.${file.status}`)}
-                  </Badge>
-                </TableCell>
-                <TableCell align="right" secondary>{file.passages}</TableCell>
-                <TableCell align="right">
-                  <PermissionGuard project={project} kind="KnowledgeSource" verb="propose">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label={t("knowledge.files.removeOf", { name: file.name })}
-                      disabled={remove.isPending}
-                      disabledReason={t("knowledge.source.sending")}
-                      onClick={() => remove.mutate(file)}
-                    >
-                      {t("knowledge.files.remove")}
-                    </Button>
-                  </PermissionGuard>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <ManifestGrid<UploadedFile>
+          caption={t("knowledge.files.title")}
+          storageKey="knowledge-files"
+          searchLabel={t("grid.searchIn", { list: t("knowledge.files.title") })}
+          rows={rows}
+          rowKey={(file) => file.id}
+          query={files}
+          name={{
+            id: "name",
+            label: t("knowledge.files.name"),
+            text: (file) => file.name,
+            cell: (file) => <span className="font-mono [overflow-wrap:anywhere]">{file.name}</span>,
+          }}
+          columns={[
+            {
+              id: "size",
+              label: t("knowledge.column.size"),
+              numeric: true,
+              align: "right",
+              text: (file) => String(file.bytes),
+              cell: (file) => bytesText(file.bytes, i18n.language),
+            },
+            {
+              id: "state",
+              label: t("knowledge.column.state"),
+              filter: true,
+              text: (file) => file.status,
+              valueLabel: (value) => t(`knowledge.status.${value}`, { defaultValue: value }),
+              cell: (file) => (
+                <Badge tone={file.status === "failed" ? "danger" : file.status === "fetched" ? "success" : "neutral"}>
+                  {t(`knowledge.status.${file.status}`)}
+                </Badge>
+              ),
+            },
+            { id: "passages", label: t("knowledge.column.passages"), numeric: true, align: "right", text: (file) => String(file.passages) },
+          ]}
+          actions={(file) => (
+            <PermissionGuard project={project} kind="KnowledgeSource" verb="propose">
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={t("knowledge.files.removeOf", { name: file.name })}
+                disabled={remove.isPending}
+                disabledReason={t("knowledge.source.sending")}
+                onClick={() => remove.mutate(file)}
+              >
+                {t("knowledge.files.remove")}
+              </Button>
+            </PermissionGuard>
+          )}
+          empty={<EmptyState title={t("knowledge.files.none")} description={t("knowledge.files.noneHint")} icon="search" />}
+        />
       )}
     </div>
   );

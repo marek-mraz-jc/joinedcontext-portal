@@ -17,15 +17,8 @@ import {
   Field,
   Input,
   Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableEmpty,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
-  TableSkeleton,
 } from "../../components/ui";
+import { ManifestGrid } from "../../components/grid/ManifestGrid";
 import type { BadgeTone } from "../../components/ui/Badge";
 import { PageFailed } from "../../components/ui/PageState";
 
@@ -148,98 +141,102 @@ export function OrganizationConnectors(): JSX.Element {
               onChange={(e) => setFlaggedOnly(e.target.checked)}
             />
           </div>
-          <Table caption={t("organization.connectors.caption")} status={overview.isPending ? t("app.loading") : undefined}>
-            <TableHead>
-              <TableHeaderCell>{t("organization.connectors.connector")}</TableHeaderCell>
-              <TableHeaderCell>{t("organization.connectors.owner")}</TableHeaderCell>
-              <TableHeaderCell>{t("organization.connectors.scope")}</TableHeaderCell>
-              <TableHeaderCell>{t("organization.connectors.clients")}</TableHeaderCell>
-              <TableHeaderCell>{t("organization.connectors.lastCall")}</TableHeaderCell>
-              <TableHeaderCell>{t("organization.connectors.usage")}</TableHeaderCell>
-              <TableHeaderCell>
-                <span className="sr-only">{t("organization.connectors.actions")}</span>
-              </TableHeaderCell>
-            </TableHead>
-            {overview.isPending ? (
-              <TableSkeleton columns={7} />
-            ) : (
-              <TableBody>
-                {shown.length === 0 ? (
-                  <TableEmpty columns={7}>
-                    <EmptyState
-                      bare
-                      title={t(items.length === 0 ? "organization.connectors.empty" : "organization.connectors.noMatch")}
-                      description={t(
-                        items.length === 0 ? "organization.connectors.emptyHint" : "organization.connectors.noMatchHint",
-                      )}
-                    />
-                  </TableEmpty>
-                ) : (
-                  shown.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell primary>
-                        <span className="font-medium">{row.name}</span>
-                        <span className="block">
-                          <Badge tone={TONE[row.state as State] ?? "neutral"}>
-                            {t(`organization.connectors.states.${row.state}`)}
-                          </Badge>
-                          {row.writes ? (
-                            <Badge tone="warning" className="ml-1">
-                              {t("organization.connectors.writes")}
-                            </Badge>
-                          ) : null}
-                        </span>
-                      </TableCell>
-                      <TableCell>{personLabel(row.owner, names)}</TableCell>
-                      <TableCell>
-                        <span className="block">{row.segments.join(", ")}</span>
-                        <span className="block text-caption text-fg-muted">
-                          {row.scope
-                            .map((item) =>
-                              [item.project, item.space ?? item.endpoint ?? item.pipeline].filter(Boolean).join("/"),
-                            )
-                            .join(", ")}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {row.allowedClients.length === 0
-                          ? t("organization.connectors.anyClient")
-                          : row.allowedClients.join(", ")}
-                      </TableCell>
-                      <TableCell>
-                        {row.lastUsedAt ? (
-                          <time dateTime={row.lastUsedAt}>{when(row.lastUsedAt)}</time>
-                        ) : (
-                          t("organization.connectors.never")
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <span className="block">
-                          {t("organization.connectors.calls", { count: row.callsPerDay })}
-                        </span>
-                        <span className="block text-caption text-fg-muted">
-                          {t("organization.connectors.denials", { count: row.denialsPerDay })}
-                        </span>
-                        {row.flagged ? <Badge tone="danger">{t("organization.connectors.flagged")}</Badge> : null}
-                      </TableCell>
-                      <TableCell>
-                        {row.state === "active" ? (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            aria-label={t("organization.connectors.revokeLabel", { name: row.name })}
-                            onClick={() => setRevoking(row)}
-                          >
-                            {t("organization.connectors.revoke")}
-                          </Button>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            )}
-          </Table>
+          <ManifestGrid<Usage>
+            caption={t("organization.connectors.caption")}
+            storageKey="organization-connectors"
+            searchLabel={t("organization.connectors.filter")}
+            search={text}
+            onSearchChange={setText}
+            total={items.length}
+            rows={shown}
+            rowKey={(row) => row.id}
+            query={overview}
+            name={{
+              id: "name",
+              label: t("organization.connectors.connector"),
+              text: (row) => row.name,
+              cell: (row) => (
+                <>
+                  <span className="font-medium">{row.name}</span>
+                  <span className="block">
+                    <Badge tone={TONE[row.state as State] ?? "neutral"}>{t(`organization.connectors.states.${row.state}`)}</Badge>
+                    {row.writes ? (
+                      <Badge tone="warning" className="ml-1">
+                        {t("organization.connectors.writes")}
+                      </Badge>
+                    ) : null}
+                  </span>
+                </>
+              ),
+            }}
+            columns={[
+              { id: "owner", label: t("organization.connectors.owner"), filter: true, text: (row) => personLabel(row.owner, names) },
+              {
+                id: "scope",
+                label: t("organization.connectors.scope"),
+                text: (row) => row.segments.join(", "),
+                cell: (row) => (
+                  <>
+                    <span className="block">{row.segments.join(", ")}</span>
+                    <span className="block text-caption text-fg-muted">
+                      {row.scope.map((item) => [item.project, item.space ?? item.endpoint ?? item.pipeline].filter(Boolean).join("/")).join(", ")}
+                    </span>
+                  </>
+                ),
+              },
+              {
+                id: "clients",
+                label: t("organization.connectors.clients"),
+                text: (row) => (row.allowedClients.length === 0 ? t("organization.connectors.anyClient") : row.allowedClients.join(", ")),
+              },
+              {
+                id: "lastCall",
+                label: t("organization.connectors.lastCall"),
+                text: (row) => row.lastUsedAt ?? "",
+                cell: (row) => (row.lastUsedAt ? <time dateTime={row.lastUsedAt}>{when(row.lastUsedAt)}</time> : t("organization.connectors.never")),
+              },
+              {
+                id: "calls",
+                label: t("organization.connectors.callsPerDay"),
+                numeric: true,
+                align: "right",
+                text: (row) => String(row.callsPerDay),
+                cell: (row) => t("organization.connectors.calls", { count: row.callsPerDay }),
+              },
+              {
+                id: "denials",
+                label: t("organization.connectors.denialsPerDay"),
+                numeric: true,
+                align: "right",
+                text: (row) => String(row.denialsPerDay),
+                cell: (row) => (
+                  <>
+                    <span className="block">{t("organization.connectors.denials", { count: row.denialsPerDay })}</span>
+                    {row.flagged ? <Badge tone="danger">{t("organization.connectors.flagged")}</Badge> : null}
+                  </>
+                ),
+              },
+            ]}
+            actions={(row) =>
+              row.state === "active" ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  aria-label={t("organization.connectors.revokeLabel", { name: row.name })}
+                  onClick={() => setRevoking(row)}
+                >
+                  {t("organization.connectors.revoke")}
+                </Button>
+              ) : null
+            }
+            empty={
+              <EmptyState
+                bare
+                title={t(items.length === 0 ? "organization.connectors.empty" : "organization.connectors.noMatch")}
+                description={t(items.length === 0 ? "organization.connectors.emptyHint" : "organization.connectors.noMatchHint")}
+              />
+            }
+          />
           <ConfirmDialog
             open={revoking !== null}
             onOpenChange={(open) => (open ? undefined : setRevoking(null))}
