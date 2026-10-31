@@ -25,9 +25,9 @@ const WORDS = {
   earlier: { fi: "Aiemmat ennusteet ja toteutuma", en: "Earlier forecasts against what came", sv: "Tidigare prognoser mot utfallet" },
   earlierLoading: { fi: "Luetaan säilytettyjä ennusteita…", en: "Reading the kept forecasts…", sv: "Läser sparade prognoser…" },
   earlierNone: {
-    fi: "Tämän mittarin aiempia ennusteita ei ole vielä erääntynyt. Palvelin säilyttää yhden ennusteen päivässä, päivän ensimmäiseltä käynniltä.",
-    en: "No earlier forecast of this indicator has come due yet. The server keeps one a day, from the day's first visit.",
-    sv: "Ingen tidigare prognos för den här mätaren har förfallit ännu. Servern sparar en om dagen, från dagens första besök.",
+    fi: "Tämän mittarin aiempia ennusteita ei ole vielä erääntynyt. Palvelin säilyttää yhden ennusteen päivässä, joka yö klo 03.20 UTC.",
+    en: "No earlier forecast of this indicator has come due yet. The server keeps one a day, made every night at 03:20 UTC.",
+    sv: "Ingen tidigare prognos för den här mätaren har förfallit ännu. Servern sparar en om dagen, varje natt kl. 03.20 UTC.",
   },
   earlierHits: { fi: "{inside} / {all} mitatusta osui 95 %:n välille.", en: "{inside} of {all} measured fell within the 95 % band.", sv: "{inside} av {all} uppmätta låg inom 95 %-intervallet." },
   earlierFor: { fi: "Ajankohta", en: "For", sv: "Tidpunkt" },
