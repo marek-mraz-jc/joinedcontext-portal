@@ -57,7 +57,8 @@ test.describe("at 768 px", () => {
     await expect(page.getByRole("button", { name: "Menu" })).toBeVisible();
     await expect(page.locator("#portal-sidebar")).toBeHidden();
     const frame = page.getByRole("group", { name: "Kontextové priestory" });
-    await expect(frame.getByRole("link", { name: "Pozrieť obsah" }).first()).toBeVisible();
+    // The row's name opens the space (T-6095: no "Look inside" button beside the menu).
+    await expect(frame.getByRole("link", { name: "Ukazovatele kraja" })).toBeVisible();
     expect(await frame.evaluate((el) => el.scrollWidth - el.clientWidth), "the table is wider than its frame").toBeLessThanOrEqual(1);
 
     // The menu button still opens the whole navigation.
@@ -105,11 +106,12 @@ test.describe("at 375 px", () => {
     await expect(rows).toHaveCount(SPACES.length);
     for (let i = 0; i < SPACES.length; i++) {
       const state = await rows.nth(i).getByText("Aktívne").boundingBox();
-      const open = await rows.nth(i).getByRole("link", { name: "Pozrieť obsah" }).boundingBox();
+      // The row's name is its way inside (T-6095).
+      const open = await rows.nth(i).locator("a[data-row-link]").boundingBox();
       expect(state && open, "the state and the link are laid out").toBeTruthy();
       if (!state || !open) return;
       const apart = state.x + state.width <= open.x || open.x + open.width <= state.x || state.y + state.height <= open.y || open.y + open.height <= state.y;
-      expect(apart, `row ${i + 1}: the state badge and 'Pozrieť obsah' overlap`).toBe(true);
+      expect(apart, `row ${i + 1}: the state badge and the space's name overlap`).toBe(true);
     }
     // The frame's edge carries a shadow while columns wait beyond it.
     const shadow = await frame.evaluate((el) => getComputedStyle(el).backgroundImage);
