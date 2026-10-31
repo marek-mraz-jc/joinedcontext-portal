@@ -658,11 +658,12 @@ mod tests {
     }
 
     /// F-POR3-018: under per-pipeline identity the stream deletes as `pl-{pipeline}` with its
-    /// derived Policies, so those are what the door judges: the expiry the derivation grants
-    /// passes with no shared grant, and the shared `pipelines` grant alone admits no source
-    /// delete the derived Policies do not hold.
+    /// derived Policies, so those are what the door judges. Since PL-96 the derivation grants
+    /// deleteBatch to the write Policy of a snapshot or events rule, and the delete always
+    /// lands in the pipeline's own write target, so the expiry and both source-delete modes
+    /// pass with no shared grant; no delete is left that the derived Policies do not hold.
     #[test]
-    fn under_pipeline_identity_the_derived_policies_are_judged() {
+    fn under_pipeline_identity_the_derived_policies_admit_expiry_and_source_deletes() {
         let state = AppState::new(
             Config {
                 pipeline_identity: true,
@@ -674,17 +675,15 @@ mod tests {
         let swept = pipeline_spec("ep-vehicles", expiry(&["Vehicle"]));
         assert_eq!(refusals(&state, "vehicles", swept), Vec::<String>::new());
 
-        state.mirror.upsert(grant(
-            "vehicles-pipelines-write",
-            "vehicles",
-            json!(["upsertBatch", "queryBatch", "deleteBatch"]),
-            json!([]),
-        ));
-        let mut deletes = pipeline_spec("ep-vehicles", None);
-        deletes["sourceDeletes"] = json!({ "mode": "snapshot" });
-        let found = refusals(&state, "vehicles", deletes);
-        assert_eq!(found.len(), 1, "{found:?}");
-        assert!(found.join(" ").contains("deleteBatch"), "{found:?}");
+        for deletes in [
+            json!({ "mode": "snapshot" }),
+            json!({ "mode": "events", "deletedWhen": "this.status == \"withdrawn\"" }),
+        ] {
+            let mut spec = pipeline_spec("ep-vehicles", None);
+            spec["sourceDeletes"] = deletes;
+            spec["outputs"][0]["type"] = json!("Vehicle");
+            assert_eq!(refusals(&state, "vehicles", spec), Vec::<String>::new());
+        }
     }
 
     #[test]
