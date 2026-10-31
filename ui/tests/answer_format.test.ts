@@ -71,6 +71,15 @@ describe("an answer's Markdown", () => {
     expect(markdown("see [hel.fi](https://evil.example/login)")).toEqual([
       { tag: "p", children: ["see ", { tag: "a", href: "https://evil.example/login", children: ["hel.fi"] }, " (evil.example)"] },
     ]);
+    expect(markdown("[hel.fi](https://el.fi/login)")).toEqual([
+      { tag: "p", children: [{ tag: "a", href: "https://el.fi/login", children: ["hel.fi"] }, " (el.fi)"] },
+    ]);
+    expect(markdown("[Pay at mybank.com.example](https://bank.com)")).toEqual([
+      { tag: "p", children: [{ tag: "a", href: "https://bank.com", children: ["Pay at mybank.com.example"] }, " (bank.com)"] },
+    ]);
+    expect(markdown("[Open HEL.FI events](https://hel.fi/x)")).toEqual([
+      { tag: "p", children: [{ tag: "a", href: "https://hel.fi/x", children: ["Open HEL.FI events"] }] },
+    ]);
     expect(markdown("[www.hel.fi](https://www.hel.fi/x)")).toEqual([
       { tag: "p", children: [{ tag: "a", href: "https://www.hel.fi/x", children: ["www.hel.fi"] }] },
     ]);

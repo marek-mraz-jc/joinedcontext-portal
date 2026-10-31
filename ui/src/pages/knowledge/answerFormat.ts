@@ -40,7 +40,7 @@ function inline(text: string, known: (n: number) => boolean): Inline[] {
       out.push({ tag: "a", href: match[5], children: inline(match[4], known) });
       // The model chooses a link's words: where it leads stands beside them unless they say so.
       const host = domain(match[5]);
-      if (!match[4].toLowerCase().includes(host.toLowerCase())) out.push(` (${host})`);
+      if (!namesHost(match[4], host)) out.push(` (${host})`);
     } else if (match[6] !== undefined) {
       const numbers = match[6]
         .split(",")
@@ -173,6 +173,13 @@ export interface Source {
   endpoint: string | null;
   domain: string;
   numbers: number[];
+}
+
+// Whether one host-shaped word of a link's text is the host itself: "hel.fi" does not name
+// el.fi, nor "mybank.com.example" bank.com (F-R2UI3-002 review).
+function namesHost(text: string, host: string): boolean {
+  const words = text.toLowerCase().match(/[a-z0-9-]+(?:\.[a-z0-9-]+)+/g) ?? [];
+  return words.some((word) => word.replace(/^www\./, "") === host.toLowerCase());
 }
 
 function domain(url: string): string {
