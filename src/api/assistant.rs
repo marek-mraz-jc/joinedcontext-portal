@@ -1015,6 +1015,11 @@ pub async fn get_access(
         return Err(ApiError::NotFound(format!("project '{project}' not found")));
     }
     let identity = &user.0.identity;
+    // The person's side of each operation is the same for every profile: asked once.
+    let permitted: Vec<Result<(), String>> = crate::ops::registry()
+        .iter()
+        .map(|op| crate::ops::permitted(op, identity, &state, &project).map_err(|e| e.to_string()))
+        .collect();
     let mut items: Vec<ProfileAccess> = state
         .mirror
         .list(
@@ -1028,11 +1033,11 @@ pub async fn get_access(
             let access = access::Access::from_spec(&env.spec);
             let operations = crate::ops::registry()
                 .iter()
-                .map(|op| {
+                .zip(&permitted)
+                .map(|(op, person)| {
                     let profile = access.names(op);
-                    let person = crate::ops::permitted(op, identity, &state, &project);
                     let reason = if profile {
-                        person.as_ref().err().map(ToString::to_string)
+                        person.as_ref().err().cloned()
                     } else {
                         Some(refusal(op.name))
                     };

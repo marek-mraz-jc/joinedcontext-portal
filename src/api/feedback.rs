@@ -148,8 +148,7 @@ fn admit(subject: &str, now: Instant) -> Result<(), u64> {
         .get_or_init(Mutex::default)
         .lock()
         .unwrap_or_else(|p| p.into_inner());
-    let times = sent.entry(subject.to_owned()).or_default();
-    times.retain(|at| now.duration_since(*at) < hour);
+    let times = crate::api::knowledge::within_span(&mut sent, subject, now, hour);
     if times.len() >= PER_HOUR {
         let oldest = times.first().copied().unwrap_or(now);
         return Err((hour - now.duration_since(oldest)).as_secs().max(1));

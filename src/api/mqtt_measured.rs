@@ -30,6 +30,9 @@ const API_PORT: u16 = 6060;
 const TIMEOUT: Duration = Duration::from_secs(5);
 /// The connected clients read at once; the chart's `max_row_limit` is 1000.
 const CLIENT_ROWS: u32 = 1000;
+/// The most one broker answer is read to: 1,000 clients of a few hundred bytes each fit well
+/// below it, and a broker that answers without end costs one refused read (F-R2POR2-024).
+const ANSWER_BYTES: usize = 4 * 1024 * 1024;
 
 /// What one broker measures now.
 #[derive(Debug, PartialEq, Serialize, ToSchema)]
@@ -197,8 +200,7 @@ async fn read<T: for<'de> Deserialize<'de>>(base: &str, path: &str) -> Result<T,
             answer.status().as_u16()
         ));
     }
-    answer
-        .json()
+    crate::capped::json(answer, ANSWER_BYTES)
         .await
         .map_err(|_| "the broker answered something other than its HTTP API".to_owned())
 }
@@ -307,6 +309,30 @@ pub fn router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// F-R2POR2-024 (T-6226): a broker answer past the cap is refused, not held.
+    #[tokio::test]
+    async fn a_broker_answer_past_the_cap_is_not_measured() {
+        use wiremock::{matchers::path, Mock, MockServer, ResponseTemplate};
+        let broker = MockServer::start().await;
+        let mut huge = b"[".to_vec();
+        huge.resize(ANSWER_BYTES + 1, b' ');
+        Mock::given(path("/big"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(huge))
+            .mount(&broker)
+            .await;
+        Mock::given(path("/small"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("[]"))
+            .mount(&broker)
+            .await;
+        let refused = read::<Vec<serde_json::Value>>(&broker.uri(), "/big").await;
+        assert!(refused.is_err(), "an answer past the cap was read");
+        let read_whole = read::<Vec<serde_json::Value>>(&broker.uri(), "/small").await;
+        assert_eq!(
+            read_whole.expect("a small answer is read"),
+            Vec::<serde_json::Value>::new()
+        );
+    }
 
     fn spec() -> MqttBrokerSpec {
         serde_json::from_value(serde_json::json!({

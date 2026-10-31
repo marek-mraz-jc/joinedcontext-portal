@@ -76,6 +76,11 @@ pub struct ChangeProposal {
     /// `error`; on the detail of one change, and absent while no check has reported.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ci: Option<String>,
+    /// The context space of the manifest the change proposes, as its head (else its base)
+    /// names it: what a reader bound to one space is judged by (PF-59, T-6226). Server-side
+    /// only, never on the wire.
+    #[serde(skip)]
+    pub space: Option<String>,
 }
 
 /// Who decided a closed change: the approver of a merge, the rejecter of a closed one.
@@ -1034,7 +1039,29 @@ fn build_proposal(
         decision: None,
         // Filled by the detail, which asks the forge (CC-90).
         ci: None,
+        space: space_of(data),
     }
+}
+
+/// The context space a change's headline manifest lives in: a ContextSpace is its own, any
+/// other kind names it in `spec.contextSpaceRef` of its head, else of its base.
+fn space_of(data: &ManifestData) -> Option<String> {
+    if data.kind == "ContextSpace" {
+        return Some(data.name.clone());
+    }
+    [&data.head_envelope, &data.base_envelope]
+        .into_iter()
+        .flatten()
+        .find_map(|envelope| crate::permissions::space_ref(&serde_json::to_value(envelope).ok()?))
+}
+
+/// Whether the caller reads this change: read on its kind and, for a grant bound to one context
+/// space, a manifest of that space (PF-59, T-6226). `may_read` alone is true for a grant bound
+/// to any space, so a steward of one space read the changes of every other one.
+fn may_read_change(effective: &crate::permissions::Effective, proposal: &ChangeProposal) -> bool {
+    kind_of(proposal).is_some_and(|kind| {
+        effective.may_read(kind) && effective.may_read_in(kind, proposal.space.as_deref())
+    })
 }
 
 #[utoipa::path(
@@ -1144,11 +1171,10 @@ pub async fn change_history_readable(
         let Some(data) = closed_headline(gitea, pr, project, &files).await? else {
             continue;
         };
-        if !effective.may_read(&data.kind)
-            || query
-                .kind
-                .as_deref()
-                .is_some_and(|kind| !kind.eq_ignore_ascii_case(&data.kind))
+        if query
+            .kind
+            .as_deref()
+            .is_some_and(|kind| !kind.eq_ignore_ascii_case(&data.kind))
             || name
                 .as_deref()
                 .is_some_and(|name| !data.name.to_lowercase().contains(name))
@@ -1157,6 +1183,9 @@ pub async fn change_history_readable(
         }
         let plan = plan::diff(None, None);
         let mut proposal = build_proposal(pr, project, &data, plan, None, lane_of_paths(&files));
+        if !may_read_change(&effective, &proposal) {
+            continue;
+        }
         proposal.metadata = change_meta(state, gitea, pr.number, project);
         proposal.author = human_author(gitea, pr).await;
         if let Some(author) = &author {
@@ -1227,7 +1256,7 @@ async fn closed_headline(
         // What the head holds names itself; a deleted file is gone from every ref a merge
         // leaves, so its path is all there is.
         let named = if file.deleted {
-            named_by_path(&file.path)
+            named_by_path(&file.path).map(|(kind, name)| (kind, name, None))
         } else {
             gitea
                 .get_file(&file.path, pr.head_ref())
@@ -1235,15 +1264,21 @@ async fn closed_headline(
                 .and_then(|content| {
                     serde_norway::from_str::<ResourceEnvelope>(&content.content).ok()
                 })
-                .map(|envelope| (envelope.kind, envelope.metadata.name))
+                .map(|envelope| {
+                    (
+                        envelope.kind.clone(),
+                        envelope.metadata.name.clone(),
+                        Some(envelope),
+                    )
+                })
         };
-        if let Some((kind, name)) = named {
+        if let Some((kind, name, head_envelope)) = named {
             return Ok(Some(ManifestData {
                 kind,
                 name,
                 operation,
                 base_envelope: None,
-                head_envelope: None,
+                head_envelope,
             }));
         }
     }
@@ -1364,11 +1399,8 @@ pub async fn list_changes_readable(
     let items = list
         .items
         .into_iter()
-        .filter(|proposal| match kind_of(proposal) {
-            Some(kind) => effective.may_read(kind),
-            // A change whose manifest names no kind is unreadable rather than open to all.
-            None => false,
-        })
+        // A change whose manifest names no kind is unreadable rather than open to all.
+        .filter(|proposal| may_read_change(&effective, proposal))
         .collect();
     Ok(ChangeList {
         outside,
@@ -1394,9 +1426,10 @@ pub async fn change_readable(
         return Err(missing());
     }
     let proposal = change_for(state, project, id).await?;
-    match kind_of(&proposal) {
-        Some(kind) if effective.may_read(kind) => Ok(proposal),
-        _ => Err(missing()),
+    if may_read_change(&effective, &proposal) {
+        Ok(proposal)
+    } else {
+        Err(missing())
     }
 }
 
@@ -2824,6 +2857,103 @@ mod tests {
 
     use crate::auth::session::{Identity, Session};
     use crate::config::Config;
+
+    /// PF-59 (T-6226, F-R2POR2-001): a reader bound to one context space reads the changes of
+    /// that space alone. `may_read(kind)` held for a grant bound to any space, so a steward of
+    /// `air` read the plan of every Endpoint change of `water`.
+    #[test]
+    fn a_reader_bound_to_one_space_reads_only_that_spaces_changes() {
+        use crate::resource::{ObjectMeta, API_VERSION};
+        let state = AppState::new(Config::for_tests(), None);
+        let envelope =
+            |kind: &str, name: &str, namespace: &str, spec: serde_json::Value| ResourceEnvelope {
+                api_version: API_VERSION.to_owned(),
+                kind: kind.to_owned(),
+                metadata: ObjectMeta::new(name, namespace),
+                spec,
+                status: None,
+            };
+        for space in ["air", "water"] {
+            state
+                .mirror
+                .upsert(envelope("ContextSpace", space, "p", json!({})));
+        }
+        state.mirror.upsert(envelope(
+            "Role",
+            "endpoint-reader",
+            crate::permissions::ORG_NAMESPACE,
+            json!({ "rules": [{ "kinds": ["Endpoint", "ContextSpace"], "verbs": ["read"] }] }),
+        ));
+        state.mirror.upsert(envelope(
+            "RoleBinding",
+            "jana-reads-air",
+            crate::permissions::ORG_NAMESPACE,
+            json!({
+                "subjects": [{ "user": "jana@hel.fi" }],
+                "role": "endpoint-reader",
+                "scope": { "contextSpace": "air" },
+            }),
+        ));
+        let jana = test_user("jana@hel.fi", vec![]).0.identity;
+        let jana = Identity {
+            username: "jana@hel.fi".into(),
+            ..jana
+        };
+        let effective = crate::permissions::for_request(&state, &jana, "p");
+        let change = |kind: &str, name: &str, space: &str| {
+            let data = ManifestData {
+                kind: kind.to_owned(),
+                name: name.to_owned(),
+                operation: Operation::Update,
+                base_envelope: None,
+                head_envelope: Some(envelope(
+                    kind,
+                    name,
+                    "p",
+                    json!({ "contextSpaceRef": space }),
+                )),
+            };
+            build_proposal(
+                &PullRequest::default(),
+                "p",
+                &data,
+                plan::diff(None, None),
+                None,
+                Lane::Green,
+            )
+        };
+        assert!(may_read_change(
+            &effective,
+            &change("Endpoint", "air-now", "air")
+        ));
+        assert!(
+            !may_read_change(&effective, &change("Endpoint", "water-level", "water")),
+            "a reader of air read a change of water"
+        );
+        assert!(may_read_change(
+            &effective,
+            &change("ContextSpace", "air", "air")
+        ));
+        assert!(!may_read_change(
+            &effective,
+            &change("ContextSpace", "water", "water")
+        ));
+        let unknown = ChangeProposal {
+            space: None,
+            ..change("Endpoint", "gone", "air")
+        };
+        assert!(
+            !may_read_change(&effective, &unknown),
+            "a change whose space is unknown is a project-wide reader's alone"
+        );
+        let bootstrap = crate::permissions::Effective {
+            project: "p".into(),
+            bootstrap: true,
+            grants: Vec::new(),
+            projects: None,
+        };
+        assert!(may_read_change(&bootstrap, &unknown));
+    }
 
     fn test_user(email: &str, roles: Vec<&str>) -> CurrentUser {
         CurrentUser(Session {
