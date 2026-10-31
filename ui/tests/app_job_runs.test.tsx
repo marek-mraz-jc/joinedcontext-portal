@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { AppJobRuns, jobsOf } from "../src/pages/apps/AppJobRuns";
 import { expectNoViolations } from "./checks";
 import { renderPage } from "./page_contract";
+import { narrowsAndOrders } from "./grid_checks";
 
 const APP = "/api/v1/projects/helsinki/apps/kpi";
 
@@ -55,7 +56,7 @@ describe("AppJobRuns", () => {
     );
     const table = await screen.findByRole("table", { name: "Scheduled jobs of kpi and their last runs" });
     const rows = within(table).getAllByRole("row");
-    expect(within(rows[1]).getByRole("rowheader", { name: "hourly" })).toBeInTheDocument();
+    expect(within(rows[1]).getByText("hourly")).toBeInTheDocument();
     expect(within(rows[1]).getByText("Succeeded")).toBeInTheDocument();
     expect(within(rows[1]).getByText("42 ms")).toBeInTheDocument();
     expect(within(rows[1]).getByText(/UTC$/)).toBeInTheDocument();
@@ -63,6 +64,26 @@ describe("AppJobRuns", () => {
     expect(within(rows[2]).getByText("403 from the Endpoint: the indicator type is not granted")).toBeInTheDocument();
     expect(within(rows[2]).getByText("3 failed runs in a row")).toBeInTheDocument();
     await expectNoViolations(container);
+  });
+
+  it("searches, sorts by duration and filters by outcome on the shared grid (T-6205)", async () => {
+    const WEEKLY = { name: "weekly", schedule: "0 3 * * 1", export: "archive" };
+    renderRuns(
+      manifest(
+        [HOURLY, NIGHTLY, WEEKLY],
+        [
+          { name: "hourly", lastRun: "2026-10-10T14:00:00Z", outcome: "succeeded", durationMs: 42, failuresInARow: 0 },
+          { name: "nightly", lastRun: "2026-10-10T02:15:00Z", outcome: "failed", durationMs: 120, failuresInARow: 1 },
+          { name: "weekly", lastRun: "2026-10-05T03:00:00Z", outcome: "succeeded", durationMs: 7, failuresInARow: 0 },
+        ],
+      ),
+    );
+    const table = await screen.findByRole("table", { name: "Scheduled jobs of kpi and their last runs" });
+    await narrowsAndOrders(table, {
+      search: { label: "Search Scheduled jobs", text: "night", kept: ["nightly"] },
+      sort: { column: "Duration", ascending: ["weekly", "hourly", "nightly"] },
+      filter: { value: /^Ended with an error/, kept: ["nightly"] },
+    });
   });
 
   it("says a job that has not run yet, rather than leaving a blank", async () => {

@@ -5,21 +5,13 @@ import { api, unwrap } from "../../api/client";
 import { ORG_NAMESPACE } from "../../api/manifest";
 import { administersOrganization, usePermissions } from "../../api/permissions";
 import type { components } from "../../api/schema";
-import {
-  Alert,
-  Badge,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
-  TableSkeleton,
-} from "../../components/ui";
+import { ManifestGrid } from "../../components/grid/ManifestGrid";
+import { Alert, Badge } from "../../components/ui";
 import type { BadgeTone } from "../../components/ui/Badge";
 import { PageFailed } from "../../components/ui/PageState";
 
 type Health = components["schemas"]["Health"];
+type Broker = components["schemas"]["Broker"];
 
 const TONE: Record<Health, BadgeTone> = { up: "success", down: "danger", unknown: "neutral" };
 
@@ -72,59 +64,74 @@ export function Brokers(): JSX.Element {
           {brokers.isSuccess && items.length === 1 && !items[0].declared ? (
             <Alert tone="info">{t("organization.brokers.implicit")}</Alert>
           ) : null}
-          <Table caption={t("organization.brokers.caption")} status={brokers.isPending ? t("app.loading") : undefined}>
-            <TableHead>
-              <TableHeaderCell>{t("organization.brokers.name")}</TableHeaderCell>
-              <TableHeaderCell>{t("organization.brokers.health")}</TableHeaderCell>
-              <TableHeaderCell>{t("organization.brokers.version")}</TableHeaderCell>
-              <TableHeaderCell>{t("organization.brokers.spaces")}</TableHeaderCell>
-              <TableHeaderCell align="right">{t("organization.brokers.entities")}</TableHeaderCell>
-            </TableHead>
-            {brokers.isPending ? (
-              <TableSkeleton columns={5} />
-            ) : (
-              <TableBody>
-                {items.map((broker) => (
-                  <TableRow key={broker.name}>
-                    <TableCell primary>
-                      <span className="font-mono">{broker.name}</span>
-                      {broker.default ? (
-                        <span className="ml-2">
-                          <Badge tone="info">{t("organization.brokers.default")}</Badge>
-                        </span>
-                      ) : null}
-                      {broker.size ? (
-                        <span className="block text-caption text-fg-muted">
-                          {t("organization.brokers.size", { size: broker.size })}
-                        </span>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>
-                      <Badge tone={TONE[broker.health]}>{t(`organization.brokers.states.${broker.health}`)}</Badge>
-                      {broker.reason ? <span className="block text-caption text-fg-muted">{broker.reason}</span> : null}
-                    </TableCell>
-                    <TableCell>{broker.version ?? "—"}</TableCell>
-                    <TableCell>
-                      {broker.spaces.length === 0 ? (
-                        t("organization.brokers.noSpaces")
-                      ) : (
-                        <ul className="space-y-1">
-                          {broker.spaces.map((space) => (
-                            <li key={space} className="font-mono text-caption">
-                              {space}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </TableCell>
-                    <TableCell align="right">
-                      {broker.health === "up" ? number.format(broker.entities) : "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            )}
-          </Table>
+          <ManifestGrid<Broker>
+            caption={t("organization.brokers.caption")}
+            storageKey="organization-brokers"
+            searchLabel={t("grid.searchIn", { list: t("organization.brokers.title") })}
+            rows={items}
+            rowKey={(broker) => broker.name}
+            query={brokers}
+            name={{
+              id: "name",
+              label: t("organization.brokers.name"),
+              text: (broker) => broker.name,
+              cell: (broker) => (
+                <>
+                  <span className="font-mono">{broker.name}</span>
+                  {broker.default ? (
+                    <span className="ml-2">
+                      <Badge tone="info">{t("organization.brokers.default")}</Badge>
+                    </span>
+                  ) : null}
+                  {broker.size ? (
+                    <span className="block text-caption text-fg-muted">{t("organization.brokers.size", { size: broker.size })}</span>
+                  ) : null}
+                </>
+              ),
+            }}
+            columns={[
+              {
+                id: "health",
+                label: t("organization.brokers.health"),
+                filter: true,
+                text: (broker) => broker.health,
+                valueLabel: (value) => t(`organization.brokers.states.${value}`, { defaultValue: value }),
+                cell: (broker) => (
+                  <>
+                    <Badge tone={TONE[broker.health]}>{t(`organization.brokers.states.${broker.health}`)}</Badge>
+                    {broker.reason ? <span className="block text-caption text-fg-muted">{broker.reason}</span> : null}
+                  </>
+                ),
+              },
+              { id: "version", label: t("organization.brokers.version"), text: (broker) => broker.version ?? "" },
+              {
+                id: "spaces",
+                label: t("organization.brokers.spaces"),
+                text: (broker) => broker.spaces.join(", "),
+                cell: (broker) =>
+                  broker.spaces.length === 0 ? (
+                    t("organization.brokers.noSpaces")
+                  ) : (
+                    <ul className="space-y-1">
+                      {broker.spaces.map((space) => (
+                        <li key={space} className="font-mono text-caption">
+                          {space}
+                        </li>
+                      ))}
+                    </ul>
+                  ),
+              },
+              {
+                id: "entities",
+                label: t("organization.brokers.entities"),
+                numeric: true,
+                align: "right",
+                text: (broker) => (broker.health === "up" ? String(broker.entities) : ""),
+                cell: (broker) => (broker.health === "up" ? number.format(broker.entities) : "—"),
+              },
+            ]}
+            empty={<p className="text-body text-fg-muted">{t("organization.brokers.none")}</p>}
+          />
         </>
       )}
     </section>

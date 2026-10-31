@@ -4640,7 +4640,8 @@
       "typeCaption": "Fields of {type}",
       "noFields": "No field yet.",
       "addType": "Add type",
-      "classesMore": "+{count} more"
+      "classesMore": "+{count} more",
+      "classCount": "Number of types"
     },
     "hints": {
       "title": "This model has no type yet. Three steps to start:",
@@ -5214,7 +5215,8 @@
       },
       "inARow": "{count, plural, one {# failed run in a row} other {# failed runs in a row}}",
       "ms": "{count} ms",
-      "note": "A job runs as the App's own identity and writes only through the App's Endpoint. The list shows runs since the host last started."
+      "note": "A job runs as the App's own identity and writes only through the App's Endpoint. The list shows runs since the host last started.",
+      "failuresInARow": "Failures in a row"
     },
     "editWithAssistant": "Edit with the assistant",
     "share": {
@@ -7802,7 +7804,8 @@
         "up": "Up",
         "down": "Down",
         "unknown": "No address"
-      }
+      },
+      "none": "The organization has no broker yet. Declare one in the organization repository."
     },
     "costs": {
       "title": "Costs per project",

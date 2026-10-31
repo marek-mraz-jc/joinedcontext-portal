@@ -4640,7 +4640,8 @@
       "typeCaption": "Polia typu {type}",
       "noFields": "Zatiaľ žiadne pole.",
       "addType": "Pridať typ",
-      "classesMore": "+{count} ďalších"
+      "classesMore": "+{count} ďalších",
+      "classCount": "Počet typov"
     },
     "hints": {
       "title": "Tento model zatiaľ nemá typ. Tri kroky na začiatok:",
@@ -5214,7 +5215,8 @@
       },
       "inARow": "{count, plural, one {# neúspešný beh za sebou} few {# neúspešné behy za sebou} other {# neúspešných behov za sebou}}",
       "ms": "{count} ms",
-      "note": "Úloha beží pod vlastnou identitou aplikácie a zapisuje len cez jej Endpoint. Zoznam ukazuje behy od posledného spustenia hostiteľa."
+      "note": "Úloha beží pod vlastnou identitou aplikácie a zapisuje len cez jej Endpoint. Zoznam ukazuje behy od posledného spustenia hostiteľa.",
+      "failuresInARow": "Zlyhania po sebe"
     },
     "editWithAssistant": "Upraviť pomocou asistenta",
     "share": {
@@ -7802,7 +7804,8 @@
         "up": "Beží",
         "down": "Nedostupný",
         "unknown": "Bez adresy"
-      }
+      },
+      "none": "Organizácia zatiaľ nemá žiadny broker. Deklarujte ho v repozitári organizácie."
     },
     "costs": {
       "title": "Náklady podľa projektov",
