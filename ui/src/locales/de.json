@@ -2339,7 +2339,11 @@
     "calls": {
       "label": "Aufrufe, 7 Tage",
       "bySurface": "Nach Schnittstelle",
-      "unknown": "Gezählt für das Projekt, das diesen Endpoint veröffentlicht, sobald die Nutzung geladen ist",
+      "notCounted": {
+        "shared": "Die Nutzung zählt das Projekt, das diesen Endpoint veröffentlicht.",
+        "loading": "Die Nutzung wird geladen…",
+        "failed": "Die Nutzung konnte nicht gelesen werden; laden Sie die Seite in einer Minute neu."
+      },
       "none": "Keine beantworteten Aufrufe in den letzten 7 Tagen",
       "byCaller": "Nach Aufrufer",
       "caller": {

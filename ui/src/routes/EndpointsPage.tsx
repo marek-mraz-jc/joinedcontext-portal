@@ -502,16 +502,24 @@ function useCallSplit(calls: Calls | undefined) {
   return { total: numbers.format(calls?.total ?? 0), groups };
 }
 
+/** Why a row has no count: another project publishes it, or the usage is loading or failed. */
+export type NotCounted = "shared" | "loading" | "failed";
+
 /**
  * An Endpoint's calls in the last 7 days and, beside the total, the surfaces they came through
  * (T-6169) and the kinds of caller that made them: people, workloads, agents, nobody signed in
  * (T-6186). The gateways count kinds, never who called (T-5118). Exported for its test.
  */
-export function CallsCell({ calls, known }: { calls: Calls | undefined; known: boolean }): JSX.Element {
+export function CallsCell({ calls, notCounted }: { calls: Calls | undefined; notCounted?: NotCounted }): JSX.Element {
   const { t } = useTranslation();
   const { total, groups } = useCallSplit(calls);
-  if (!known) {
-    return <Unknown />;
+  if (notCounted) {
+    const reason = t(`endpoints.calls.notCounted.${notCounted}`);
+    return (
+      <span className="text-fg-subtle" title={reason}>
+        —<span className="sr-only"> {reason}</span>
+      </span>
+    );
   }
   const said = groups.map((group) => `${group.label}: ${group.parts.map((part) => `${part.label} ${part.count}`).join(" · ")}`);
   // One line per row (T-4989): the split is the cell's tooltip, a line per grouping, read out with
@@ -519,49 +527,45 @@ export function CallsCell({ calls, known }: { calls: Calls | undefined; known: b
   // panel shows it whole, on a phone too.
   return (
     <span
-      className={`whitespace-nowrap tabular-nums${said.length > 0 ? " [@media(hover:hover)]:cursor-help [@media(hover:hover)]:underline [@media(hover:hover)]:decoration-dotted [@media(hover:hover)]:underline-offset-4" : ""}`}
+      className={`whitespace-nowrap tabular-nums${said.length > 0 ? " [@media(hover:hover)]:cursor-help [@media(hover:hover)]:underline [@media(hover:hover)]:decoration-dotted [@media(hover:hover)]:underline-offset-4" : " text-fg-muted"}`}
       title={said.join("\n") || t("endpoints.calls.none")}
     >
       {total}
-      {said.length > 0 ? <span className="sr-only"> ({said.join("; ").replaceAll(" · ", ", ")})</span> : null}
+      <span className="sr-only"> ({said.length > 0 ? said.join("; ").replaceAll(" · ", ", ") : t("endpoints.calls.none")})</span>
     </span>
   );
 }
 
-/** The dash of calls this page cannot speak for, with the reason as its tooltip and spoken text. */
-function Unknown(): JSX.Element {
-  const { t } = useTranslation();
-  return (
-    <span className="text-fg-subtle" title={t("endpoints.calls.unknown")}>
-      —<span className="sr-only"> {t("endpoints.calls.unknown")}</span>
-    </span>
-  );
-}
-
-/** The same calls in the cell panel, the split shown rather than hovered (T-6186). Exported for its test. */
-export function CallsDetail({ calls, known }: { calls: Calls | undefined; known: boolean }): JSX.Element {
+/**
+ * The same calls in the cell panel, read-only and shown rather than hovered (T-6186): the total,
+ * the split, or in words why there is none. Exported for its test.
+ */
+export function CallsDetail({ calls, notCounted }: { calls: Calls | undefined; notCounted?: NotCounted }): JSX.Element {
   const { t } = useTranslation();
   const { total, groups } = useCallSplit(calls);
-  if (!known) {
-    return <Unknown />;
-  }
   return (
-    <div className="flex flex-col gap-3">
-      <span className="font-semibold tabular-nums">{total}</span>
-      {groups.length === 0 ? <span className="text-caption text-fg-muted">{t("endpoints.calls.none")}</span> : null}
-      {groups.map((group) => (
-        <div key={group.label} className="flex flex-col gap-1">
-          <span className="text-caption font-semibold text-fg-muted">{group.label}</span>
-          <ul className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-8 gap-y-1 sm:w-[22rem]" aria-label={group.label}>
-            {group.parts.map((part) => (
-              <li key={part.label} className="contents">
-                <span className="text-fg-muted">{part.label}</span>{" "}
-                <span className="text-right font-semibold tabular-nums">{part.count}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+    <div className="flex flex-col gap-3 rounded-md bg-surface-subtle px-3 py-2" data-read-only>
+      {notCounted ? (
+        <p className="text-fg-muted">{t(`endpoints.calls.notCounted.${notCounted}`)}</p>
+      ) : (
+        <>
+          <span className="font-semibold tabular-nums">{total}</span>
+          {groups.length === 0 ? <p className="text-caption text-fg-muted">{t("endpoints.calls.none")}</p> : null}
+          {groups.map((group) => (
+            <div key={group.label} className="flex flex-col gap-1">
+              <span className="text-caption font-semibold text-fg-muted">{group.label}</span>
+              <ul className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-8 gap-y-1" aria-label={group.label}>
+                {group.parts.map((part) => (
+                  <li key={part.label} className="contents">
+                    <span className="text-fg-muted">{part.label}</span>{" "}
+                    <span className="text-right font-semibold tabular-nums">{part.count}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }
@@ -1200,6 +1204,8 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
     : rows;
   const sharedPending =
     projects.isPending || referencesQuery.isPending || otherLists.some((other) => other.isPending);
+  const notCounted = (own: boolean): NotCounted | undefined =>
+    !own ? "shared" : usage7d.isError ? "failed" : usage7d.isSuccess ? undefined : "loading";
   const callsByName = new Map((usage7d.data?.endpoints ?? []).map((each) => [each.name, each]));
   const rowLabel = (row: EndpointRow) =>
     row.endpoint
@@ -1482,8 +1488,8 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
             align: "right",
             // Counted per publishing project: a shared Endpoint's calls are its owner's to read.
             text: (row) => (row.own && row.endpoint ? String(callsByName.get(row.endpoint.metadata.name)?.total ?? 0) : ""),
-            cell: (row) => <CallsCell calls={row.own && row.endpoint ? callsByName.get(row.endpoint.metadata.name) : undefined} known={row.own && usage7d.isSuccess} />,
-            detail: (row) => <CallsDetail calls={row.own && row.endpoint ? callsByName.get(row.endpoint.metadata.name) : undefined} known={row.own && usage7d.isSuccess} />,
+            cell: (row) => <CallsCell calls={row.own && row.endpoint ? callsByName.get(row.endpoint.metadata.name) : undefined} notCounted={notCounted(row.own)} />,
+            detail: (row) => <CallsDetail calls={row.own && row.endpoint ? callsByName.get(row.endpoint.metadata.name) : undefined} notCounted={notCounted(row.own)} />,
           },
           {
             id: "phase",

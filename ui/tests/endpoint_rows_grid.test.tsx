@@ -73,7 +73,6 @@ describe("the one Endpoints grid (T-6169)", () => {
     const { rerender } = render(
       <I18nextProvider i18n={i18n}>
         <CallsCell
-          known
           calls={{
             name: "mine",
             slug: "x",
@@ -92,17 +91,16 @@ describe("the one Endpoints grid (T-6169)", () => {
     expect(cell.title).not.toMatch(/OGC|Apps/);
     rerender(
       <I18nextProvider i18n={i18n}>
-        <CallsCell known={false} calls={undefined} />
+        <CallsCell notCounted="shared" calls={undefined} />
       </I18nextProvider>,
     );
-    expect(screen.getByText(/^—/)).toHaveAttribute("title", expect.stringMatching(/publishes this Endpoint/));
+    expect(screen.getByText(/^—/)).toHaveAttribute("title", expect.stringMatching(/project that publishes this Endpoint/));
   });
 
   it("shows the split in the cell panel as two labelled lists, and nothing for a kind nobody used", () => {
     render(
       <I18nextProvider i18n={i18n}>
         <CallsDetail
-          known
           calls={{ name: "mine", slug: "x", total: 40, daily: [], totals: { mcp: 40 }, callers: { agent: 30, unknown: 10, person: 0 } }}
         />
       </I18nextProvider>,
@@ -113,5 +111,21 @@ describe("the one Endpoints grid (T-6169)", () => {
     expect(callers).toHaveTextContent("Agents and MCP clients 30");
     expect(callers).toHaveTextContent("Not told apart yet 10");
     expect(callers).not.toHaveTextContent("People");
+  });
+
+  it("says in the panel why a row has no count, and that a zero is no calls", () => {
+    const { rerender } = render(
+      <I18nextProvider i18n={i18n}>
+        <CallsDetail notCounted="failed" calls={undefined} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText(/could not be read/)).toBeVisible();
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <CallsDetail calls={{ name: "mine", slug: "x", total: 0, daily: [], totals: {}, callers: {} }} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText("No answered calls in the last 7 days")).toBeVisible();
+    expect(screen.queryByRole("list")).toBeNull();
   });
 });

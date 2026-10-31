@@ -2339,7 +2339,11 @@
     "calls": {
       "label": "Calls, 7 days",
       "bySurface": "By surface",
-      "unknown": "Counted for the project that publishes this Endpoint, once the usage has loaded",
+      "notCounted": {
+        "shared": "Usage is counted by the project that publishes this Endpoint.",
+        "loading": "Loading the usage…",
+        "failed": "The usage could not be read; reload the page in a minute."
+      },
       "none": "No answered calls in the last 7 days",
       "byCaller": "By caller",
       "caller": {

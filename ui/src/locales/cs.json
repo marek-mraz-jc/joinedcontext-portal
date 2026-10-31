@@ -2339,7 +2339,11 @@
     "calls": {
       "label": "Volání, 7 dní",
       "bySurface": "Podle způsobu čtení",
-      "unknown": "Počítá se pro projekt, který endpoint zveřejňuje, jakmile se využití načte",
+      "notCounted": {
+        "shared": "Využití počítá projekt, který tento endpoint zveřejňuje.",
+        "loading": "Načítá se využití…",
+        "failed": "Využití se nepodařilo načíst; za minutu obnovte stránku."
+      },
       "none": "Za posledních 7 dní žádná zodpovězená volání",
       "byCaller": "Podle volajícího",
       "caller": {

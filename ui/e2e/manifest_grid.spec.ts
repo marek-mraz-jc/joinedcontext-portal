@@ -180,6 +180,24 @@ for (const width of [1440, 400]) {
       expect(await axeViolations(page)).toEqual([]);
     });
 
+    test("the panel says in words when an Endpoint had no calls or is counted elsewhere (T-6186)", async ({ page }, info) => {
+      await stub(page);
+      await page.goto("/projects/helsinki/endpoints?lang=en");
+      await page.getByRole("button", { name: "Details of Parking occupancy" }).click();
+      const zero = page.getByRole("dialog", { name: "Parking occupancy" });
+      await zero.getByText("No answered calls in the last 7 days").scrollIntoViewIfNeeded();
+      await expect(zero.getByText("No answered calls in the last 7 days")).toBeVisible();
+      await page.screenshot({ path: info.outputPath(`endpoints-panel-calls-zero-${width}.png`) });
+      await page.keyboard.press("Escape");
+      await page.getByRole("button", { name: "Details of City bikes in Espoo" }).click();
+      const shared = page.getByRole("dialog", { name: "City bikes in Espoo" });
+      const reason = shared.getByText("Usage is counted by the project that publishes this Endpoint.");
+      await reason.scrollIntoViewIfNeeded();
+      await expect(reason).toBeVisible();
+      await page.screenshot({ path: info.outputPath(`endpoints-panel-calls-shared-${width}.png`) });
+      expect(await axeViolations(page)).toEqual([]);
+    });
+
     test("the server's refusal shows on the field", async ({ page }, info) => {
       await stub(page, { refuse: true });
       await page.goto("/projects/helsinki/endpoints?lang=en");
