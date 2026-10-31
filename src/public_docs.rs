@@ -1,6 +1,7 @@
-//! The public documentation (T-4063): the API chapter and the User Guide, served to anyone at
-//! `/docs/{chapter}/{page}`, so a citizen with no account can read how to use a public Endpoint
-//! (API/00 §1). The pages are the markdown of a pinned docs commit, bundled by
+//! The documentation (T-4063): the API chapter and the User Guide, served at
+//! `/docs/{chapter}/{page}` to a signed-in person only (T-6200, API/00 §1): a visitor without a
+//! session is sent to the login page, a script without a token gets 401. A public Endpoint's own
+//! API page (`/d/...`, EP-99) stays open to anyone. The pages are the markdown of a pinned docs commit, bundled by
 //! `scripts/public-docs.sh`; no other chapter is in the bundle, so none can be served.
 //!
 //! The markdown is rendered on the server with raw HTML shown as text and every link either
@@ -14,14 +15,17 @@
 use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
-use axum::extract::{Path, State};
-use axum::http::{header, StatusCode};
-use axum::response::{IntoResponse, Response};
+use axum::extract::{OriginalUri, Path, State};
+use axum::http::{header, HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
 use axum::Router;
 use pulldown_cmark::{html, CowStr, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use rust_embed::RustEmbed;
 
+use crate::auth::refresh::{accepts_html, login_redirect};
+use crate::auth::session::CurrentUser;
+use crate::error::ApiError;
 use crate::state::AppState;
 
 #[derive(RustEmbed)]
@@ -39,9 +43,23 @@ pub fn router() -> Router<AppState> {
 }
 
 async fn serve(
+    user: Result<CurrentUser, ApiError>,
     State(state): State<AppState>,
+    OriginalUri(uri): OriginalUri,
+    headers: HeaderMap,
     Path((chapter, page)): Path<(String, String)>,
 ) -> Response {
+    if let Err(refusal) = user {
+        if !accepts_html(&headers) {
+            return refusal.into_response();
+        }
+        let back = uri.path_and_query().map_or(uri.path(), |pq| pq.as_str());
+        return (
+            [(header::CACHE_CONTROL, "no-store")],
+            Redirect::to(&login_redirect(back)),
+        )
+            .into_response();
+    }
     let mounted = state.space_usage.surfaces().await.unwrap_or_default();
     match render(
         &chapter,
@@ -51,7 +69,8 @@ async fn serve(
         Some(document) => (
             [
                 (header::CONTENT_TYPE, "text/html; charset=utf-8"),
-                (header::CACHE_CONTROL, "public, max-age=300"),
+                // signed-in only: no shared cache may hand the page to a visitor
+                (header::CACHE_CONTROL, "private, max-age=300"),
             ],
             document,
         )

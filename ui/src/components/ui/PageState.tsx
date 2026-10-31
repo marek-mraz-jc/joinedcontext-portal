@@ -3,6 +3,7 @@ import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { ApiError } from "../../api/client";
+import { useAuthStatus } from "../../auth/AuthProvider";
 import { Alert } from "./Alert";
 import { Button } from "./Button";
 import { Icon } from "./icons";
@@ -95,7 +96,10 @@ export function problemSlug(error: unknown): string | undefined {
 
 const PROBLEM_TYPE_BASE = "https://joinedcontext.com/errors/";
 
-/** The public docs section of a problem type (T-4485): one per slug, held to the code by docs CI. */
+/**
+ * The docs section of a problem type (T-4485): one per slug, held to the code by docs CI. The
+ * Portal serves /docs to a signed-in person only (T-6200), so a visitor is never offered it.
+ */
 export function problemPage(slug: string): string {
   return `/docs/API/09-errors#${slug}`;
 }
@@ -127,6 +131,7 @@ export function PageFailed({
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const kind = failureKind(error);
+  const anonymous = useAuthStatus() === "anonymous";
   // A refusal already says who gives access; an ended session and a lost connection have their
   // own sentence. Every other problem says what to do about it (T-3243).
   const hint =
@@ -178,7 +183,7 @@ export function PageFailed({
       {reason}
       {kind === "forbidden" ? <span className="mt-1 block">{t("app.error.forbiddenHint")}</span> : null}
       {hint ? <span className="mt-1 block">{hint}</span> : null}
-      {slug ? (
+      {slug && !anonymous ? (
         <a className="mt-1 block underline" href={problemPage(slug)} target="_blank" rel="noreferrer">
           {t("app.error.problemPage")}
         </a>

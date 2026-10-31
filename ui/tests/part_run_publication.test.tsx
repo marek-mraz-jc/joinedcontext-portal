@@ -32,7 +32,7 @@ let me: { email: string; username: string; roles: string[] } = {
   username: "erik",
   roles: ["portal-editor"],
 };
-vi.mock("../src/auth/AuthProvider", () => ({
+vi.mock("../src/auth/AuthProvider", () => ({ useAuthStatus: () => "authenticated",
   useIdentity: () => me,
   useAuth: () => ({ identity: me, status: "authenticated" }),
 }));

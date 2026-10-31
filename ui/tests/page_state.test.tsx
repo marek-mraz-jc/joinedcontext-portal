@@ -15,7 +15,15 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { ApiError } from "../src/api/client";
 import { PageFailed, PageLoading } from "../src/components/ui/PageState";
+import type { AuthStatus } from "../src/auth/AuthProvider";
 import { expectNoAxeViolations, inEveryLocale } from "./page_contract";
+
+/** The session's status as the page sees it; `undefined` is a page outside any AuthProvider. */
+const authStatus = vi.hoisted(() => ({ value: undefined as AuthStatus | undefined }));
+vi.mock("../src/auth/AuthProvider", () => ({ useAuthStatus: () => authStatus.value }));
+beforeEach(() => {
+  authStatus.value = undefined;
+});
 
 const show = (element: React.ReactElement) =>
   render(<I18nextProvider i18n={i18n}>{element}</I18nextProvider>);
@@ -268,6 +276,18 @@ describe("the page's failed state", () => {
     const crafted = { ...problem(400, "x"), type: "https://joinedcontext.com/errors/x#y\"onclick" };
     show(<PageFailed error={new ApiError(400, "Bad Request", crafted)} />);
     expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("T-6200: a visitor without a session is offered no docs link, the docs being signed-in only", () => {
+    const conflict = { ...problem(409, "changed on main"), type: "https://joinedcontext.com/errors/draft-conflict" };
+    authStatus.value = "anonymous";
+    const { unmount } = show(<PageFailed error={new ApiError(409, "Conflict", conflict)} />);
+    expect(screen.getByText("changed on main")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).toBeNull();
+    unmount();
+    authStatus.value = "authenticated";
+    show(<PageFailed error={new ApiError(409, "Conflict", conflict)} />);
+    expect(screen.getByRole("link", { name: en.app.error.problemPage })).toHaveAttribute("href", "/docs/API/09-errors#draft-conflict");
   });
 
   it("T-3244: offline says so and reads again by itself once the connection is back", () => {
