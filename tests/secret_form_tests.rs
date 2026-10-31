@@ -80,7 +80,8 @@ fn envelope(kind: &str, name: &str, spec: Value) -> ResourceEnvelope {
     }
 }
 
-/// A forge holding `held` (a hand-written SOPS file of project `ovzdusie`), recording each
+/// A forge holding `held` (a hand-written SOPS file of project `ovzdusie`, and the same file in
+/// project `other`), recording each
 /// file write.
 async fn forge(held: &str) -> (MockServer, Arc<Mutex<Vec<Value>>>) {
     let server = MockServer::start().await;
@@ -92,8 +93,15 @@ async fn forge(held: &str) -> (MockServer, Arc<Mutex<Vec<Value>>>) {
             format!("{REPO}/git/trees/main"),
             json!({ "sha": "tree-1", "truncated": false, "tree": [
                 { "path": "projects/ovzdusie/secrets/feed.enc.yaml", "type": "blob", "sha": "b1" },
-                { "path": "projects/ovzdusie/spaces/air/space.yaml", "type": "blob", "sha": "b2" }
+                { "path": "projects/ovzdusie/spaces/air/space.yaml", "type": "blob", "sha": "b2" },
+                // Another project of the same repository (layout 1), declaring the same name: its
+                // file is neither listed nor a reason to refuse `feed` here (F-R2POR3-002).
+                { "path": "projects/other/secrets/feed.enc.yaml", "type": "blob", "sha": "b3" }
             ] }),
+        ),
+        (
+            format!("{REPO}/contents/projects/other/secrets/feed.enc.yaml"),
+            json!({ "sha": "b3", "content": b64(held) }),
         ),
         (
             format!("{REPO}/contents/projects/ovzdusie/secrets/feed.enc.yaml"),

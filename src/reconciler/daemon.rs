@@ -2337,7 +2337,7 @@ impl Syncer {
                     continue;
                 }
                 let resolved = match self.pipeline_secrets.as_ref() {
-                    Some(resolver) => resolver.resolve(repository, &references).await,
+                    Some(resolver) => resolver.resolve(repository, &namespace, &references).await,
                     None => Err(SecretError::NoBackend {
                         name: references[0].name.clone(),
                     }),
@@ -2402,7 +2402,7 @@ impl Syncer {
                     }
                 };
                 let resolved = match self.pipeline_secrets.as_ref() {
-                    Some(resolver) => resolver.one(repository, &reference).await,
+                    Some(resolver) => resolver.one(repository, &namespace, &reference).await,
                     None => Err(crate::pipeline_secrets::SecretError::NoBackend {
                         name: reference.name.clone(),
                     }),
@@ -2489,14 +2489,16 @@ impl Syncer {
                 let mut secrets = Vec::with_capacity(references.len());
                 for reference in references {
                     match self.pipeline_secrets.as_ref() {
-                        Some(resolver) => match resolver.one(repository, reference).await {
-                            Ok(secret) => secrets.push(secret),
-                            // The reference is named, the value never is: this line travels into
-                            // a log collector (PL-17, MF-24).
-                            Err(err) => tracing::warn!(project = %namespace, source = %name,
+                        Some(resolver) => {
+                            match resolver.one(repository, &namespace, reference).await {
+                                Ok(secret) => secrets.push(secret),
+                                // The reference is named, the value never is: this line travels into
+                                // a log collector (PL-17, MF-24).
+                                Err(err) => tracing::warn!(project = %namespace, source = %name,
                                 secret = %reference.name, error = %err,
                                 "a sync source's webhook secret does not resolve"),
-                        },
+                            }
+                        }
                         None => tracing::warn!(project = %namespace, source = %name,
                             secret = %reference.name,
                             "this Portal has no secret backend, so a webhook-driven sync source is not reachable"),

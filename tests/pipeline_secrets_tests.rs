@@ -301,7 +301,10 @@ mod openbao_edges {
     }
 
     async fn refusal(resolver: &Resolver, references: &[SecretRef]) -> (String, String) {
-        match resolver.resolve(Path::new("."), references).await {
+        match resolver
+            .resolve(Path::new("."), "helsinki", references)
+            .await
+        {
             Err(SecretError::Unresolved { name, reason })
             | Err(SecretError::Refused { name, reason }) => (name, reason),
             other => panic!("expected a named refusal, got {other:?}"),
@@ -498,6 +501,7 @@ mod openbao_edges {
         let environment = resolver
             .resolve(
                 Path::new("."),
+                "helsinki",
                 &[
                     reference("mqtt-mesto", Some("password"), "MQTT_PASSWORD"),
                     reference("http-api", None, "HTTP_TOKEN"),
@@ -521,7 +525,7 @@ mod openbao_edges {
             std::env::temp_dir().join("jc-portal-t2503-never"),
         );
         let environment = resolver
-            .resolve(Path::new("."), &[])
+            .resolve(Path::new("."), "helsinki", &[])
             .await
             .expect("nothing to resolve");
         assert!(environment.is_empty());

@@ -41,7 +41,7 @@ const MAX_PAGE: u32 = 100;
 const MAX_NAME: usize = 255;
 /// Session lookups a page of people sends the realm at once: Keycloak serves every admin call from
 /// a database pool of 7 (T-4933), and a page of 50 sent together refused the home page (T-5000).
-const LAST_SEEN_AT_ONCE: usize = 4;
+pub(super) const LAST_SEEN_AT_ONCE: usize = 4;
 
 /// A person as the Portal shows one (API/01 §24).
 #[derive(Debug, Serialize, ToSchema)]
@@ -538,8 +538,9 @@ fn not_self_nor_last(state: &AppState, identity: &Identity, user: &KcUser) -> Re
 pub(super) fn refuse_bearer(identity: &Identity) -> Result<(), ApiError> {
     if identity.client.is_some() {
         return Err(ApiError::Denied(
-            "a person is deleted, or loses a consent or their second factor, only by a person in \
-             the Portal, never with a service account's or an agent's token (AG-133, PF-58)"
+            "a person is deleted, gets a new password or invitation, or loses a consent or their \
+             second factor, only by a person in the Portal, never with a service account's or an \
+             agent's token (AG-133, PF-58)"
                 .into(),
         ));
     }
@@ -1029,6 +1030,8 @@ pub async fn reset_password(
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
     let identity = &user.0.identity;
+    // The answer can carry a temporary password: a credential for a person, never for a token.
+    refuse_bearer(identity)?;
     let (admin, found) = target(&state, identity, Verb::Update, &id).await?;
     let (email_sent, temporary_password) =
         invite(&state, &admin, &found.id, &["UPDATE_PASSWORD"], None).await?;
@@ -1070,6 +1073,7 @@ pub async fn resend_invitation(
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
     let identity = &user.0.identity;
+    refuse_bearer(identity)?;
     let (admin, found) = target(&state, identity, Verb::Create, &id).await?;
     if found.required_actions.is_empty() {
         return Err(ApiError::Conflict(
