@@ -43,7 +43,8 @@ pub const DENIALS_FLAG: i64 = 10;
 /// may name. A segment that proposes lists `jc_change_plan` (a dry run, nothing saved); the one
 /// write, `jc_change_apply`, comes with the connector's `writes` switch alone (AG-149, T-5956).
 /// Cross-project tools (the organization's people, projects, every Endpoint) are in none; a
-/// segment's lookups read inside the project only (`jc_member_list`, T-6039). The UI tools come
+/// segment's lookups read inside the project only (`jc_member_list`, T-6039; `jc_catalog_search`
+/// matches the call's project and the public open-data catalogue, EP-67, T-6194). The UI tools come
 /// with a paired Portal tab, whatever the segments (T-5967).
 pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
     (
@@ -54,6 +55,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_resource_get",
             "jc_kpi_compute",
             "jc_data_query",
+            "jc_catalog_search",
         ],
         &["Endpoint", "ContextSpace", "DataModel"],
     ),
@@ -2035,6 +2037,7 @@ pub(crate) mod tests {
         assert_eq!(
             data_read,
             [
+                "jc_catalog_search",
                 "jc_data_query",
                 "jc_kpi_compute",
                 "jc_resource_get",
@@ -2092,6 +2095,16 @@ pub(crate) mod tests {
         assert!(!narrow.lists(list, "doprava"));
         assert!(narrow.lists(get, "doprava"));
         assert!(narrow.lists(op("jc_kpi_compute"), "doprava"));
+        // A catalogue search matches every object of the project: a whole project lists and
+        // runs it, another project and a narrowed item do neither (T-6194).
+        let search = op("jc_catalog_search");
+        let q = json!({ "q": "schools" });
+        assert!(whole.lists(search, "doprava"));
+        assert_eq!(whole.admits(search, "doprava", &q), Ok(()));
+        assert!(!whole.lists(search, "air"));
+        assert!(whole.admits(search, "air", &q).is_err());
+        assert!(!narrow.lists(search, "doprava"));
+        assert!(narrow.admits(search, "doprava", &q).is_err());
         // query_data names its Endpoint by `endpoint`: the ticked one reads, another is refused.
         let query = op("jc_data_query");
         assert!(narrow.lists(query, "doprava"));
