@@ -468,7 +468,7 @@
     },
     "src/components/grid/ManifestGrid.tsx": {
       "controls": {
-        "Button": 9,
+        "Button": 8,
         "Checkbox": 3,
         "Switch": 1
       },
@@ -1676,7 +1676,7 @@
     },
     "src/pages/models/ModelsList.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 3
       },
       "tests": [
         "models_list_page.test.tsx"

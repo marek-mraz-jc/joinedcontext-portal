@@ -90,6 +90,11 @@
       "lines": 2,
       "group": "ui-pages",
       "reason": "`h-[60vh]` sizes the map against the window and the spacing scale has no viewport step; the colour-ramp swatch takes its fill from the layer's own scale, which is a value, not a token."
+    },
+    "src/pages/models/ModelViews.tsx": {
+      "lines": 1,
+      "group": "ui-parts",
+      "reason": "the LinkML source runs down to near the page bottom, the viewport less the header and tabs above it: a computed size, commented on the line (owner 2026-10-31)."
     }
   },
   "panel_is_a_card": {

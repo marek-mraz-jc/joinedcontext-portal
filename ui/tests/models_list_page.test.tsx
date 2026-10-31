@@ -121,18 +121,18 @@ describe("the list of data models", () => {
   it("offers the three ways to a new model when there is none", async () => {
     await renderRoute({ path: "/projects/helsinki/models", answer: (path) => (path.endsWith("/datamodels") ? jsonResponse(list([])) : answer(path)) });
     expect(await screen.findByText(en.models.page.emptyTitle)).toBeInTheDocument();
+    // One New button; its menu holds the three ways (owner 2026-10-31).
+    await userEvent.click(screen.getAllByRole("button", { name: en.models.page.new.menu })[0]);
     for (const way of ["blank", "file", "sdm"] as const) {
-      const links = screen.getAllByRole("link", { name: en.models.page.new[way] });
-      expect(links[0]).toHaveAttribute("href", `/projects/helsinki/models?new=${way}`);
+      expect(await screen.findByRole("menuitem", { name: en.models.page.new[way] })).toHaveAttribute("href", `/projects/helsinki/models?new=${way}`);
     }
   });
 
   it("gives a person who may not propose a model the reason instead of the way", async () => {
     await renderRoute({ path: "/projects/helsinki/models", answer, permissions: READER });
     await screen.findByRole("table", { name: en.models.page.listCaption });
-    const blank = await screen.findByRole("button", { name: en.models.page.new.blank });
-    expect(blank).toHaveAttribute("aria-disabled", "true");
-    expect(screen.queryByRole("link", { name: en.models.page.new.blank })).toBeNull();
+    await waitFor(() => expect(screen.getByRole("button", { name: en.models.page.new.menu })).toHaveAttribute("aria-disabled", "true"));
+    expect(screen.queryByRole("menuitem", { name: en.models.page.new.blank })).toBeNull();
   });
 
   it("opens the editor when the address asks for one", async () => {
@@ -172,7 +172,7 @@ const withOrganization =
 describe("organization models beside the project's (T-2883, DM-75, DM-79)", () => {
   it("shows two sections, the organization's read-only with the name a model imports it by", async () => {
     await renderRoute({ path: "/projects/helsinki/models", answer: withOrganization(ORGANIZATION) });
-    expect(await screen.findByRole("heading", { level: 2, name: en.models.page.projectSection })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: en.models.page.projectSection })).toBeInTheDocument();
     const section = await screen.findByRole("region", { name: en.models.page.organizationSection });
     const table = await within(section).findByRole("table", { name: en.models.page.organizationCaption });
     const rows = within(table).getAllByRole("row").slice(1);
@@ -234,7 +234,9 @@ describe("a model's own page", () => {
     expect(within(fields).getByText("pm10").closest("tr")).toHaveTextContent(`pm10${en.spaces.fields.types.number} · ${en.models.required}`);
     expect(screen.getByRole("button", { name: "Add field to AirQualityObserved" })).toBeInTheDocument();
     expect(screen.getByText(/good \(Good\), bad/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: en.models.page.back })).toHaveAttribute("href", "/projects/helsinki/models");
+    // The breadcrumb leads back to the list (owner 2026-10-31: no second "All data models" link).
+    expect(within(screen.getByRole("navigation", { name: en.nav.breadcrumb })).getByRole("link", { name: en.nav.models })).toHaveAttribute("href", "/projects/helsinki/models");
+    expect(screen.queryByRole("link", { name: en.models.page.back })).toBeNull();
     expect(screen.getByRole("link", { name: en.models.page.edit })).toHaveAttribute("href", "/projects/helsinki/models?edit=air");
   });
 

@@ -24,6 +24,11 @@ import { usePermissions } from "../../api/permissions";
 import {
   EmptyState,
   Button,
+  Icon,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuTrigger,
   PageHeader,
   buttonClass,
 } from "../../components/ui";
@@ -111,6 +116,37 @@ export function ProposeLink({
   );
 }
 
+/** One New button; its menu holds every way to a model (owner 2026-10-31: one button, the ways as options). */
+function NewModelMenu({ project }: { project: string }): JSX.Element {
+  const { t } = useTranslation();
+  const { can } = usePermissions(project);
+  if (!can("DataModel", "propose")) {
+    return (
+      <Button size="sm" variant="primary" disabled disabledReason={t("permissions.denied", { verb: "propose", kind: "DataModel" })}>
+        {t("models.page.new.menu")}
+      </Button>
+    );
+  }
+  return (
+    <Menu>
+      <MenuTrigger asChild>
+        <Button size="sm" variant="primary" icon={<Icon name="plus" className="size-4" />}>
+          {t("models.page.new.menu")}
+        </Button>
+      </MenuTrigger>
+      <MenuContent align="end">
+        {(["blank", "file", "sdm"] as const).map((way) => (
+          <MenuItem key={way} asChild>
+            <Link to="/projects/$project/models" params={{ project }} search={{ new: way }}>
+              {t(`models.page.new.${way}`)}
+            </Link>
+          </MenuItem>
+        ))}
+      </MenuContent>
+    </Menu>
+  );
+}
+
 function text(value: unknown): string | undefined {
   return typeof value === "string" && value !== "" ? value : undefined;
 }
@@ -139,29 +175,22 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
   );
   const date = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" });
 
-  const create = (
-    <div className="flex flex-wrap gap-2">
-      {(["blank", "file", "sdm"] as const).map((way, index) => (
-        <ProposeLink key={way} project={project} search={{ new: way }} variant={index === 0 ? "primary" : "secondary"}>
-          {t(`models.page.new.${way}`)}
-        </ProposeLink>
-      ))}
-    </div>
-  );
+  const create = <NewModelMenu project={project} />;
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t("nav.models")} description={t("models.page.listLead")} actions={create} />
-
-      <section aria-labelledby="models-project" className="flex flex-col gap-4">
-        <h2 id="models-project" className="text-title font-semibold text-fg">
-          {t("models.page.projectSection")}
-        </h2>
-        {change ? <ChangeNotice change={change} project={project} /> : null}
+      <section aria-label={t("models.page.projectSection")} className="flex flex-col gap-4">
         <ManifestGrid
           caption={t("models.page.listCaption")}
           storageKey="datamodels"
           searchLabel={t("models.page.search")}
+          // One row: the title, the list's search and tools, and one New button (owner 2026-10-31).
+          header={(toolbar) => (
+            <>
+              <PageHeader compact title={t("nav.models")} aside={toolbar} actions={create} />
+              {change ? <ChangeNotice change={change} project={project} /> : null}
+            </>
+          )}
           rows={rows}
           rowKey={(row) => row.model.metadata.name}
           query={models}

@@ -4564,9 +4564,10 @@
       "listLead": "Jedes Datenmodell dieses Projekts: eines je Context Space, und was darauf aufbaut.",
       "listCaption": "Die Datenmodelle des Projekts",
       "new": {
-        "blank": "Neues leeres Modell",
-        "file": "Neues Modell aus einer Datei",
-        "sdm": "Neues Modell aus Smart Data Models"
+        "menu": "Neues Datenmodell",
+        "blank": "Leeres Modell",
+        "file": "Aus einer Datendatei (CSV, Excel, JSON, PDF)",
+        "sdm": "Aus Smart Data Models"
       },
       "emptyTitle": "Noch kein Datenmodell",
       "emptyLead": "Legen Sie eines für einen Space an: leer beginnen, aus einer Datei ableiten oder ein Smart Data Model importieren.",
@@ -4603,7 +4604,7 @@
         "fields": "Felder",
         "diagram": "Diagramm",
         "form": "Formular",
-        "yaml": "YAML",
+        "yaml": "LinkML",
         "used": "Verwendung",
         "history": "Verlauf",
         "mappings": "Mappings"
@@ -4624,8 +4625,8 @@
       },
       "asJson": "Als JSON angezeigt.",
       "yaml": "Die Quelle des Modells (LinkML YAML)",
-      "copyYaml": "YAML kopieren",
-      "downloadYaml": "YAML herunterladen",
+      "copyYaml": "LinkML kopieren",
+      "downloadYaml": "LinkML herunterladen",
       "copied": "Kopiert.",
       "copyFailed": "Der Browser hat das Kopieren nicht erlaubt; markieren Sie den Text und kopieren Sie ihn selbst.",
       "projectSection": "Modelle dieses Projekts",
@@ -11077,7 +11078,6 @@
     "removeFilter": "Filter {column}: {value} entfernen",
     "clearFilters": "Filter löschen",
     "details": "Details",
-    "openDetails": "Details zu {name}",
     "noMatch": "Keine Zeile passt zu Suche und Filtern.",
     "clearAll": "Suche und Filter löschen",
     "footer": "{shown} von {count} angezeigt",

@@ -24,6 +24,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** The row's Details: the first item of its one menu (owner 2026-10-31). */
+async function openDetails(name: string): Promise<void> {
+  await userEvent.click(await screen.findByRole("button", { name: new RegExp(`More actions.*${name}`) }));
+  await userEvent.click(await screen.findByRole("menuitem", { name: en.grid.details }));
+}
+
 describe("fieldWidget reads the control off the kind's schema", () => {
   it("gives Endpoint an audience dropdown, a representation set, a space picker and an MCP switch", () => {
     const audience = fieldWidget("Endpoint", endpointSchema, "audience");
@@ -160,7 +166,7 @@ describe("ManifestGrid", () => {
     renderPage(grid(), { answer });
     const table = await screen.findByRole("table", { name: "Endpoints" });
     expect(within(table).queryByRole("columnheader", { name: /MCP tools/ })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: en.grid.openDetails.replace("{name}", "air-quality") }));
+    await openDetails("air-quality");
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("MCP tools")).toBeInTheDocument();
   });
@@ -182,7 +188,7 @@ describe("ManifestGrid", () => {
     const { sent, answer } = harness((_body, dryRun) => json(dryRun ? { valid: true } : change, dryRun ? 200 : 202));
     const onChange = vi.fn();
     renderPage(grid(onChange), { answer });
-    await userEvent.click(await screen.findByRole("button", { name: en.grid.openDetails.replace("{name}", "air-quality") }));
+    await openDetails("air-quality");
     const dialog = await screen.findByRole("dialog");
     const select = await within(dialog).findByRole("combobox", { name: "Audience" });
     expect(select).toHaveAccessibleDescription(/Pick one of project-list, organization, public\./);
@@ -198,7 +204,7 @@ describe("ManifestGrid", () => {
   it("shows the server's 403 on the field it was for", async () => {
     const { answer } = harness(() => problem(403, "You may not change the audience of Endpoint air-quality."));
     renderPage(grid(), { answer });
-    await userEvent.click(await screen.findByRole("button", { name: en.grid.openDetails.replace("{name}", "air-quality") }));
+    await openDetails("air-quality");
     const dialog = await screen.findByRole("dialog");
     await userEvent.selectOptions(await within(dialog).findByRole("combobox", { name: "Audience" }), "public");
     await userEvent.click(within(dialog).getByRole("button", { name: en.grid.propose }));
@@ -214,7 +220,7 @@ describe("ManifestGrid", () => {
   it("disables the proposal for a person without propose on the kind, with the reason", async () => {
     const { answer } = harness(() => json({}), false);
     renderPage(grid(), { answer });
-    await userEvent.click(await screen.findByRole("button", { name: en.grid.openDetails.replace("{name}", "air-quality") }));
+    await openDetails("air-quality");
     const dialog = await screen.findByRole("dialog");
     await userEvent.selectOptions(await within(dialog).findByRole("combobox", { name: "Audience" }), "public");
     await waitFor(() => expect(within(dialog).getByRole("button", { name: en.grid.propose })).toHaveAttribute("aria-disabled", "true"));

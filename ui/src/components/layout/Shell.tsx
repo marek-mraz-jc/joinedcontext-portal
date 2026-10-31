@@ -971,9 +971,26 @@ export function Shell({
                   {!activeSection && otherPage ? (
                     <li className="flex items-center gap-1">
                       <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
-                      <span aria-current="page" className="font-medium text-fg">
-                        {t(otherPage)}
-                      </span>
+                      {/* One model's page: Data models leads back to the list (owner 2026-10-31). */}
+                      {modelsActive && itemName ? (
+                        <>
+                          <Link
+                            to="/projects/$project/models"
+                            params={{ project }}
+                            className="focus-ring touch-target rounded-sm hover:text-fg hover:underline"
+                          >
+                            {t(otherPage)}
+                          </Link>
+                          <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
+                          <span aria-current="page" className="font-mono font-medium text-fg">
+                            {itemName}
+                          </span>
+                        </>
+                      ) : (
+                        <span aria-current="page" className="font-medium text-fg">
+                          {t(otherPage)}
+                        </span>
+                      )}
                     </li>
                   ) : null}
                 </ol>

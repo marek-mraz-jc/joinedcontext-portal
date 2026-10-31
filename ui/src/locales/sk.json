@@ -4564,9 +4564,10 @@
       "listLead": "Všetky dátové modely tohto projektu: jeden pre každý kontextový priestor a čo je na ňom postavené.",
       "listCaption": "Dátové modely projektu",
       "new": {
-        "blank": "Nový prázdny model",
-        "file": "Nový model zo súboru",
-        "sdm": "Nový model zo Smart Data Models"
+        "menu": "Nový dátový model",
+        "blank": "Prázdny model",
+        "file": "Zo súboru s dátami (CSV, Excel, JSON, PDF)",
+        "sdm": "Zo Smart Data Models"
       },
       "emptyTitle": "Zatiaľ žiadny dátový model",
       "emptyLead": "Vytvorte ho pre priestor: začnite prázdny, odvoďte ho zo súboru alebo importujte Smart Data Model.",
@@ -4603,7 +4604,7 @@
         "fields": "Polia",
         "diagram": "Diagram",
         "form": "Formulár",
-        "yaml": "YAML",
+        "yaml": "LinkML",
         "used": "Kde sa používa",
         "history": "História",
         "mappings": "Mapovania"
@@ -4624,8 +4625,8 @@
       },
       "asJson": "Zobrazené ako JSON.",
       "yaml": "Zdroj modelu (LinkML YAML)",
-      "copyYaml": "Kopírovať YAML",
-      "downloadYaml": "Stiahnuť YAML",
+      "copyYaml": "Kopírovať LinkML",
+      "downloadYaml": "Stiahnuť LinkML",
       "copied": "Skopírované.",
       "copyFailed": "Prehliadač kopírovanie nepovolil; označte text a skopírujte ho ručne.",
       "projectSection": "Modely tohto projektu",
@@ -11077,7 +11078,6 @@
     "removeFilter": "Odstrániť filter {column}: {value}",
     "clearFilters": "Zrušiť filtre",
     "details": "Podrobnosti",
-    "openDetails": "Podrobnosti {name}",
     "noMatch": "Hľadaniu a filtrom nezodpovedá žiadny riadok.",
     "clearAll": "Zrušiť hľadanie a filtre",
     "footer": "Zobrazených {shown} z {count}",

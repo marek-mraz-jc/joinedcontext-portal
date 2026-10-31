@@ -4564,9 +4564,10 @@
       "listLead": "Every data model of this project: one per Context Space, and what builds on it.",
       "listCaption": "The project's data models",
       "new": {
-        "blank": "New blank model",
-        "file": "New model from a file",
-        "sdm": "New model from Smart Data Models"
+        "menu": "New data model",
+        "blank": "Blank model",
+        "file": "From a data file (CSV, Excel, JSON, PDF)",
+        "sdm": "From Smart Data Models"
       },
       "emptyTitle": "No data model yet",
       "emptyLead": "Create one for a space: start blank, infer it from a file, or import a Smart Data Model.",
@@ -4603,7 +4604,7 @@
         "fields": "Fields",
         "diagram": "Diagram",
         "form": "Form",
-        "yaml": "YAML",
+        "yaml": "LinkML",
         "used": "Where used",
         "history": "History",
         "mappings": "Mappings"
@@ -4624,8 +4625,8 @@
       },
       "asJson": "Shown as JSON.",
       "yaml": "The model's source (LinkML YAML)",
-      "copyYaml": "Copy the YAML",
-      "downloadYaml": "Download the YAML",
+      "copyYaml": "Copy LinkML",
+      "downloadYaml": "Download LinkML",
       "copied": "Copied.",
       "copyFailed": "The browser did not allow copying; select the text and copy it instead.",
       "projectSection": "This project's models",
@@ -11077,7 +11078,6 @@
     "removeFilter": "Remove filter {column}: {value}",
     "clearFilters": "Clear filters",
     "details": "Details",
-    "openDetails": "Details of {name}",
     "noMatch": "No rows match the search and filters.",
     "clearAll": "Clear search and filters",
     "footer": "Showing {shown} of {count}",

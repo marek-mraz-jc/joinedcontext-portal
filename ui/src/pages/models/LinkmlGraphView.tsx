@@ -61,7 +61,7 @@ const CHARS = 17;
 /** Pixels per drawing unit: natural size, and how far the buttons go each way. */
 // `readable` is the floor of a fit: below it a slot line is ~6 px and unreadable (T-6090 review:
 // helsinki fitted at 58 % on a laptop, 25 % on a phone); a wider drawing scrolls in its frame.
-const ZOOM = { natural: 1, step: 1.25, min: 0.25, max: 4, fitMax: 2, readable: 0.75 };
+const ZOOM = { natural: 1, step: 1.25, min: 0.25, max: 4, fitMax: 2, readable: 0.6 };
 /**
  * The least zoom the full-screen canvas fits to (T-6094): the slot text, 10 units, is 11 px there.
  * The canvas lays its groups out in as many columns as fit at `canvasColumns`, so a model is
@@ -419,7 +419,10 @@ export function LinkmlGraphView({
     // A phone-narrow canvas opens at one box's width, readable, and is panned; the whole model at
     // a phone's width was a quarter size nobody could read (T-6094 UI judge).
     const narrow = canvas && available < 2 * BOX.width;
-    const fits = Math.min(canvas ? CANVAS_FIT_MAX : ZOOM.natural, available / (narrow ? BOX.width + 16 : wide));
+    // The page's diagram fits its height too, so a model opens as an overview (owner 2026-10-31: "smaller").
+    const tall = Math.max(...placed.map((node) => node.y + node.height)) + 8;
+    const high = canvas ? Infinity : (frame.current?.clientHeight ?? 0) / tall || Infinity;
+    const fits = Math.min(canvas ? CANVAS_FIT_MAX : ZOOM.natural, available / (narrow ? BOX.width + 16 : wide), high);
     const start = Math.max(canvas && !narrow ? READABLE : ZOOM.readable, fits);
     // A drawing wider than its frame at the readable floor opens on its first class, the top-left
     // box, not on the empty corner beside it (T-6090 review: a phone showed one cut box). A canvas

@@ -300,31 +300,31 @@ export function ModelPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        {back}
-        <PageHeader
-          title={localized(model.metadata.title, i18n.language, name)}
-          description={
-            <span className="flex flex-wrap items-center gap-2">
-              <span className="font-mono">{name}</span>
-              {version ? <span className="font-mono">v{version}</span> : null}
-              {lifecycle ? <Badge>{t(`models.lifecycleOption.${lifecycle}`, { defaultValue: lifecycle })}</Badge> : null}
+      {/* One row: the title, what it is in brackets, and the model's actions; the breadcrumb leads back to the list (owner 2026-10-31). */}
+      <PageHeader
+        title={localized(model.metadata.title, i18n.language, name)}
+        titleAction={
+          <span className="ms-2 flex flex-wrap items-center gap-2 text-body text-fg-muted">
+            <span className="font-mono">
+              ({name}
+              {version ? ` v${version}` : ""})
             </span>
-          }
-          actions={
-            <div className="flex flex-wrap items-start gap-2">
-              <ProposeLink project={project} search={{ edit: name }} variant="primary">
-                {t("models.page.edit")}
-              </ProposeLink>
-              <ShareWithOrganization project={project} name={name} version={version} lifecycle={lifecycle} />
-              {/* Removal proposes a Red change (CC-19); shown only to a role that may delete a DataModel. */}
-              <DeleteResourceAction
-                target={{ project, kind: "DataModel", plural: "datamodels", name, label: localized(model.metadata.title, i18n.language, name) }}
-              />
-            </div>
-          }
-        />
-      </div>
+            {lifecycle ? <Badge>{t(`models.lifecycleOption.${lifecycle}`, { defaultValue: lifecycle })}</Badge> : null}
+          </span>
+        }
+        actions={
+          <>
+            <ProposeLink project={project} search={{ edit: name }} variant="primary">
+              {t("models.page.edit")}
+            </ProposeLink>
+            <ShareWithOrganization project={project} name={name} version={version} lifecycle={lifecycle} />
+            {/* Removal proposes a Red change (CC-19); shown only to a role that may delete a DataModel. */}
+            <DeleteResourceAction
+              target={{ project, kind: "DataModel", plural: "datamodels", name, label: localized(model.metadata.title, i18n.language, name) }}
+            />
+          </>
+        }
+      />
 
       {source.data !== undefined ? <OrganizationCopyOffer project={project} name={name} source={source.data} /> : null}
 
