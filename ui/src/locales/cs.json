@@ -177,7 +177,6 @@
       "yaml": "YAML",
       "history": "Historie"
     },
-    "yamlHint": "Celý manifest tak, jak se zapíše do Gitu. Přepnutí zpět na formulář jej znovu načte; obě podoby kontroluje totéž schéma.",
     "yamlError": "Opravte YAML: {message}",
     "yamlCopy": "Kopírovat YAML",
     "yamlCopied": "Zkopírováno.",

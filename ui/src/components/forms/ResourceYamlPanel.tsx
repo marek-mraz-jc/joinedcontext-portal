@@ -44,8 +44,7 @@ export function ResourceYamlPanel<T>({ editor, viewsId, footer }: ResourceYamlPa
   const { t } = useTranslation();
   return (
     <div {...tabPanelProps(viewsId, "yaml")} className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-caption text-fg-muted">{t("form.yamlHint")}</p>
+      <div className="flex justify-end">
         <CopyYaml text={editor.text} />
       </div>
       <div className="overflow-hidden rounded-md border border-border">

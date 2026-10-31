@@ -177,7 +177,6 @@
       "yaml": "YAML",
       "history": "History"
     },
-    "yamlHint": "The whole manifest as it is written to Git. Switching back to the form reads it again; the same schema checks both.",
     "yamlError": "Correct the YAML: {message}",
     "yamlCopy": "Copy YAML",
     "yamlCopied": "Copied.",

@@ -177,7 +177,6 @@
       "yaml": "YAML",
       "history": "Verlauf"
     },
-    "yamlHint": "Das ganze Manifest, wie es nach Git geschrieben wird. Zurück zum Formular liest es wieder ein; dasselbe Schema prüft beides.",
     "yamlError": "Korrigieren Sie das YAML: {message}",
     "yamlCopy": "YAML kopieren",
     "yamlCopied": "Kopiert.",
