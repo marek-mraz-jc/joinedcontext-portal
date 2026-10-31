@@ -312,7 +312,7 @@ fn a_source_of_a_project_the_caller_cannot_read_is_absent_from_the_preview() {
         "KnowledgeSource",
         "roads-web",
         "bbsk",
-        json!({ "source": "website", "startUrls": ["https://intranet.bbsk.sk/"], "visibility": "organization", "categories": ["TRAN"] }),
+        json!({ "source": "website", "startUrls": ["https://intranet.bbsk.sk/"], "visibility": "internal", "categories": ["TRAN"] }),
     ));
     let spec = serde_json::from_value(deployment(json!({
         "sources": ["web", "bbsk/roads-web"],
