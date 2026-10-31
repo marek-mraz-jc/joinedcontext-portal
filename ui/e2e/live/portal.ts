@@ -201,7 +201,10 @@ export async function goSignedIn(
   // every ten seconds, so the network is never idle on any signed-in page. Waiting for it spent
   // the whole test budget on the login hop and every journey read as a timeout on whatever came
   // next (T-2452). Each step below waits for the thing it actually needs instead.
-  await page.goto(url, { waitUntil: "load" });
+  // An anonymous `/` is the public catalogue (T-5627), which never bounces to /login: the sign-in
+  // starts at /login, which returns to `/` once signed in, where a person keeps their home (T-6192).
+  const home = url.startsWith("/") && new URL(url, "http://portal").pathname === "/";
+  await page.goto(home ? `/login?redirect_to=${encodeURIComponent(url)}` : url, { waitUntil: "load" });
   let redirected = false;
   for (let step = 0; step < 4; step += 1) {
     if (await page.locator("#username").count()) {
