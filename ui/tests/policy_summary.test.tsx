@@ -10,6 +10,7 @@ import i18n from "../src/i18n";
 import { PolicySummary } from "../src/pages/policies/PolicySummary";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { jsonResponse, list, problem, renderRoute } from "./pageHarness";
+import { policySchema } from "../src/schemas/kinds";
 
 const READER = { project: "helsinki", bootstrap: false, grants: [{ rule: { kinds: ["*"], verbs: ["read"] } }] };
 
@@ -132,6 +133,27 @@ describe("a Policy with rules[] (F-UI3-015)", () => {
     expect(within(summary).getByTestId("policy-summary-rules")).toHaveTextContent(
       "This Policy grants through 2 rules, one sentence each above.",
     );
+  });
+});
+
+describe("editing a Policy with rules[] (F-R2UI4-003)", () => {
+  it("offers no grantee or operation field beside the rules, which a save would drop", async () => {
+    const ruled = policy("parking-grants", "Who reads and who writes parking", {
+      assigner: "did:web:hel.fi",
+      rules: [{ assignee: { kind: "role", id: "helsinki-readers" }, operations: ["retrieveOps"] }],
+    });
+    await renderRoute({
+      path: "/projects/helsinki/policies/parking-grants/edit?lang=en",
+      answer: answering(ruled, () => jsonResponse({ ...list([]), next: null })),
+    });
+    await screen.findByTestId("policy-summary-rules");
+    const form = (await screen.findByRole("button", { name: /Propose change/ })).closest("form") as HTMLElement;
+    expect(within(form).queryByText(i18n.t("policies.field.assignee"))).toBeNull();
+    expect(within(form).queryByText(i18n.t("policies.field.operations"))).toBeNull();
+    const schema = policySchema(i18n.t, [], [], [], true) as { required: string[]; properties: Record<string, unknown> };
+    expect(schema.required).toEqual(["name", "contextSpaceRef"]);
+    for (const member of ["assignee", "operations", "information", "q", "effect"]) expect(schema.properties).not.toHaveProperty(member);
+    expect(policySchema(i18n.t).properties).toHaveProperty("assignee");
   });
 });
 

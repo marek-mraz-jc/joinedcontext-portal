@@ -113,6 +113,15 @@ describe("the aggregate snippet over a fetched page (PL-41)", () => {
     expect(aggregateBloblang("count", input)).toContain('"pm10Count": { "type": "Property", "value": this.length()');
   });
 
+  it("writes every name as data, never as mapping code (F-R2UI4-007)", () => {
+    const crafted = { ...input, attribute: 'x.y) + env("SECRET") #', type: 'T"\nroot = 1' };
+    const mapping = aggregateBloblang("sum", crafted);
+    expect(mapping).toContain('e -> e."x.y) + env(\\"SECRET\\") #".value');
+    expect(mapping).not.toContain('env("SECRET")');
+    expect(mapping.split("\n").filter((line) => line.startsWith("root = 1"))).toEqual([]);
+    expect(kpiBloblang({ ...KPI, attribute: "a-b" })).toContain('s -> s."a-b".value');
+  });
+
   it("says which entities the number came from", () => {
     expect(aggregateBloblang("sum", input)).toContain('"derivedFrom": { "type": "Property", "value": this.map_each(e -> e.id) }');
   });
@@ -147,8 +156,9 @@ describe("the endpoint a KPI pipeline writes its indicators to", () => {
     expect(findKpiTargetEndpoint("helsinki", [], "hel.fi")).toBeUndefined();
   });
 
-  it("uses a placeholder domain rather than an empty segment in the URN", () => {
-    expect(findKpiTargetEndpoint("helsinki", [kpiEndpoint])).toContain(":local:");
+  it("is nothing while the organization's domain is unknown, as the KPI editor offers (F-R2UI4-005)", () => {
+    expect(findKpiTargetEndpoint("helsinki", [kpiEndpoint])).toBeUndefined();
+    expect(findKpiTargetEndpoint("helsinki", [kpiEndpoint], "")).toBeUndefined();
   });
 });
 

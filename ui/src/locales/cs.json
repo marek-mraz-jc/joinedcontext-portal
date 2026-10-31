@@ -11037,7 +11037,9 @@
     "addKey": "Přidat klíč",
     "addKept": "Přidat klíče, které zůstávají",
     "submit": "Zašifrovat a navrhnout",
-    "sending": "Tajemství se odesílá…"
+    "sending": "Tajemství se odesílá…",
+    "keyMissing": "Pojmenujte tuto hodnotu, např. apiKey.",
+    "keyTwice": "Klíč {key} je už výše: každé hodnotě dejte vlastní klíč."
   },
   "pairedTab": {
     "region": "Karta připojená ke konektoru",

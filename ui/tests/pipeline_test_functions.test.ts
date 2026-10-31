@@ -154,6 +154,12 @@ describe("the mapping a sample drafts (PL-44)", () => {
     expect(draftFromRecord("shmu-csv", { pm10: 1 }, "ovzdusie")?.type).toBe("ShmuCsv");
   });
 
+  it("keeps two columns that fold to one name apart (F-R2UI4-016)", () => {
+    const bloblang = draftFromRecord("x", { id: "1", "a-b": "first", "a b": "second" }, "s")?.bloblang ?? "";
+    expect(bloblang).toContain('root.a_b = { "type": "Property", "value": this."a-b" }');
+    expect(bloblang).toContain('root.a_b_2 = { "type": "Property", "value": this."a b" }');
+  });
+
   it("drafts nothing from a file with no record or no column", () => {
     expect(draftFromSample("empty.csv", "", "ovzdusie")).toBeNull();
     expect(draftFromSample("notes.txt", "a line of prose", "ovzdusie")).toBeNull();

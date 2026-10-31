@@ -88,6 +88,10 @@ describe("the helpers of the views", () => {
     expect(imageOf(row, "own", ORIGIN)).toEqual({ src: `${ORIGIN}/api/endpoint/abc/files/a.jpg` });
     expect(imageOf(row, "far", ORIGIN)).toEqual({ external: "https://images.example/a.jpg" });
     expect(imageOf(row, "bad", ORIGIN)).toBeUndefined();
+    // F-R2UI4-006: an `<img>` sends the viewer's cookies, so only an Endpoint's files are drawn.
+    const paths = station(2, { out: { type: "Property", value: "/logout" }, api: { type: "Property", value: "/api/v1/projects" } });
+    expect(imageOf(paths, "out", ORIGIN)).toEqual({ external: `${ORIGIN}/logout` });
+    expect(imageOf(paths, "api", ORIGIN)).toEqual({ external: `${ORIGIN}/api/v1/projects` });
     expect(imageOf(row, "name", ORIGIN)).toBeUndefined();
     expect(imageOf(row, undefined, ORIGIN)).toBeUndefined();
     expect(linkAttributes([row])).toEqual(["far", "own"]);

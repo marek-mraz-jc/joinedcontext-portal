@@ -11037,7 +11037,9 @@
     "addKey": "Add a key",
     "addKept": "Add the keys it keeps",
     "submit": "Encrypt and propose",
-    "sending": "Sending the secret…"
+    "sending": "Sending the secret…",
+    "keyMissing": "Name this value, e.g. apiKey.",
+    "keyTwice": "The key {key} is already above: give each value its own key."
   },
   "pairedTab": {
     "region": "Tab connected to a connector",

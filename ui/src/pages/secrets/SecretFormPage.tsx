@@ -31,6 +31,7 @@ export function SecretFormPage({
   const [rows, setRows] = useState<Row[]>([{ key: askedKey, value: "" }]);
   const [problems, setProblems] = useState<string[]>([]);
   const [change, setChange] = useState<Change | null>(null);
+  const [checked, setChecked] = useState(false);
   const path = { project };
 
   const stored = useQuery({
@@ -74,8 +75,17 @@ export function SecretFormPage({
       </div>
     );
 
+  // Each key once and none blank: the values are sent as one map, where a second row of a key
+  // would replace the first without a word (F-R2UI4-017).
+  const keyProblem = (index: number): string | undefined => {
+    const key = rows[index]?.key.trim() ?? "";
+    if (!key) return t("secrets.keyMissing");
+    return rows.findIndex((row) => row.key.trim() === key) < index ? t("secrets.keyTwice", { key }) : undefined;
+  };
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    setChecked(true);
+    if (rows.some((_, index) => keyProblem(index))) return;
     save.mutate();
   };
   const setRow = (index: number, patch: Partial<Row>) =>
@@ -118,7 +128,13 @@ export function SecretFormPage({
           {held ? <p className="text-sm text-fg-muted">{t("secrets.replaces", { keys: held.keys.join(", ") })}</p> : null}
           {rows.map((row, index) => (
             <div key={index} className="grid gap-3 sm:grid-cols-2">
-              <Field id={`secret-key-${index}`} label={t("secrets.key")} required help={t("secrets.hint.key")}>
+              <Field
+                id={`secret-key-${index}`}
+                label={t("secrets.key")}
+                required
+                help={t("secrets.hint.key")}
+                errors={checked ? [keyProblem(index)].filter((line): line is string => line !== undefined) : undefined}
+              >
                 <Input
                   id={`secret-key-${index}`}
                   value={row.key}
