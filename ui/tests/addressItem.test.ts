@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addressItem } from "../src/components/layout/Shell";
+import { addressItem, crumbModel } from "../src/components/layout/Shell";
 
 describe("addressItem", () => {
   it("names the item of a section by its address", () => {
@@ -24,5 +24,18 @@ describe("addressItem", () => {
     expect(addressItem("/projects/p/endpoints/new")).toEqual({ creating: true });
     expect(addressItem("/projects/p/endpoints")).toEqual({});
     expect(addressItem("/organization/people/x")).toEqual({});
+  });
+});
+
+describe("crumbModel", () => {
+  it("names a model only on the models pages", () => {
+    expect(crumbModel(false, "air", undefined)).toBeUndefined();
+    expect(crumbModel(true, undefined, undefined)).toBeUndefined();
+  });
+
+  it("takes the address item first, then the editor's model, and \"\" for a new one", () => {
+    expect(crumbModel(true, "air", "other")).toBe("air");
+    expect(crumbModel(true, undefined, "air")).toBe("air");
+    expect(crumbModel(true, undefined, "")).toBe("");
   });
 });
