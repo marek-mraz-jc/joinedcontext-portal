@@ -1128,7 +1128,7 @@ function SpaceData({
           <div className="ml-auto flex items-center gap-1">
             {!copy && correctable && endpoints.length > 0 ? (
               <Button
-                variant={editing ? "secondary" : "ghost"}
+                variant={editing ? "primary" : "secondary"}
                 size="sm"
                 aria-pressed={editing}
                 onClick={() => setEditing((on) => !on)}
@@ -1182,9 +1182,9 @@ function SpaceData({
         </div>
       ) : null}
       {readable && editing && !writer ? (
-        <p role="status" className="text-caption text-fg-muted">
+        <Alert tone="info" role="status">
           {t(tables.asking ? "spaces.toolbar.editChecking" : "spaces.toolbar.editNone", { type: typeTitle })}
-        </p>
+        </Alert>
       ) : null}
       {readable && view === "grid" ? <FilterChips columns={filterColumns} titleOf={filterTitle} value={filters} onChange={setFilters} /> : null}
       {readable && config && view === "grid" && selectedRows.length > 0 ? (
