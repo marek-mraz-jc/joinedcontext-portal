@@ -183,11 +183,14 @@ pub async fn handle_mcp(
     }
 
     if body.len() > MAX_REQUEST_BYTES {
-        return too_large(&format!(
+        return too_large(
+            &format!(
             "the request is {} bytes; this route reads at most {MAX_REQUEST_BYTES}. Send fewer \
              arguments, or put a large manifest in a draft and name it",
             body.len()
-        ));
+        ),
+            &Value::Null,
+        );
     }
 
     if !state.mcp_call_allowed(
@@ -216,11 +219,14 @@ pub async fn handle_mcp(
 /// so it holds for `tools/list` and `tools/call` alike, and for the resource half too.
 pub async fn dispatch_for(state: AppState, caller: crate::ops::Caller, body: Bytes) -> Response {
     if body.len() > MAX_REQUEST_BYTES {
-        return too_large(&format!(
+        return too_large(
+            &format!(
             "the request is {} bytes; this route reads at most {MAX_REQUEST_BYTES}. Send fewer \
              arguments, or put a large manifest in a draft and name it",
             body.len()
-        ));
+        ),
+            &Value::Null,
+        );
     }
     dispatch(state, caller, body).await
 }
@@ -450,10 +456,11 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
             // route lists for this caller; a plan is read one at a time, because reading one
             // asks the forge.
             if may_read(&state, &caller, &project) {
-                let open = crate::api::changes::list_changes_for(&state, &project)
-                    .await
-                    .map(|list| list.items)
-                    .unwrap_or_default();
+                let open =
+                    crate::api::changes::list_changes_readable(&state, &caller.identity, &project)
+                        .await
+                        .map(|list| list.items)
+                        .unwrap_or_default();
                 for change in open {
                     resources.push(json!({
                         "uri": format!("jc://{project}/changes/{}", change.metadata.name),
@@ -701,6 +708,18 @@ async fn answer_call(
             })),
         );
     };
+    // The project goes into the question's page address and text (F-R2POR4-012), and an
+    // operation that ignores it (jc_project_create) would carry any text there.
+    if !crate::resource::is_dns1123(project) {
+        return result(
+            id,
+            problem_result(crate::ops::OpError::InvalidInput {
+                path: "/project".to_owned(),
+                message: "a project name is lower-case letters, digits and '-', such as doprava"
+                    .to_owned(),
+            }),
+        );
+    }
 
     let Some(op) = crate::ops::find(name) else {
         return error(id, -32602, "unknown tool");
@@ -1341,11 +1360,14 @@ pub(crate) fn failure_result(said: &str) -> Value {
 fn json_response(status: StatusCode, body: &Value) -> Response {
     let bytes = serde_json::to_vec(body).unwrap_or_else(|_| b"{}".to_vec());
     if bytes.len() > MAX_RESPONSE_BYTES {
-        return too_large(&format!(
-            "the answer is {} bytes; this route writes at most {MAX_RESPONSE_BYTES}. Ask for \
+        return too_large(
+            &format!(
+                "the answer is {} bytes; this route writes at most {MAX_RESPONSE_BYTES}. Ask for \
              fewer items, one project, or one resource by name",
-            bytes.len()
-        ));
+                bytes.len()
+            ),
+            body.get("id").unwrap_or(&Value::Null),
+        );
     }
     Response::builder()
         .status(status)
@@ -1355,12 +1377,13 @@ fn json_response(status: StatusCode, body: &Value) -> Response {
 }
 
 /// A request or an answer past the byte limit (AG-60): the status, and what to narrow.
-fn too_large(detail: &str) -> Response {
+fn too_large(detail: &str, id: &Value) -> Response {
     (
         StatusCode::PAYLOAD_TOO_LARGE,
         [(header::CONTENT_TYPE, "application/json")],
         Json(json!({
             "jsonrpc": "2.0",
+            "id": id,
             "error": { "code": -32001, "message": detail }
         })),
     )
@@ -1392,6 +1415,64 @@ fn rate_limited() -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// F-R2POR4-016: an answer past the cap is still the answer to its request: the error
+    /// carries the request's id, and a request too large to read carries `null`.
+    #[tokio::test]
+    async fn an_oversized_answer_keeps_its_request_id() {
+        let big = "x".repeat(MAX_RESPONSE_BYTES);
+        let response = json_response(
+            StatusCode::OK,
+            &json!({ "jsonrpc": "2.0", "id": 7, "result": { "text": big } }),
+        );
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        let bytes = axum::body::to_bytes(response.into_body(), 100_000)
+            .await
+            .expect("body");
+        let answer: Value = serde_json::from_slice(&bytes).expect("json");
+        assert_eq!(answer["id"], 7);
+        assert_eq!(answer["error"]["code"], -32001);
+    }
+
+    /// F-R2POR4-012: the project of a call is a project name before any question is asked,
+    /// since it goes into the address and text of the question's page.
+    #[tokio::test]
+    async fn a_project_that_is_no_name_is_refused_before_a_question() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let caller = crate::ops::Caller {
+            bearer: None,
+            identity: crate::auth::session::Identity {
+                subject: "f:1:ana".to_owned(),
+                username: "ana".to_owned(),
+                email: None,
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+                client: None,
+                second_factor: false,
+            },
+            via: crate::ops::Via::Mcp,
+            access: None,
+        };
+        let via = crate::change::ProposedVia::mcp(None);
+        let params = json!({
+            "name": "jc_project_create",
+            "arguments": { "project": "a/../../x", "name": "x" }
+        });
+        let mut answer = None;
+        let envelope = answer_call(&state, caller, json!(3), &params, &via, &mut answer).await;
+        let refused = &envelope["result"];
+        assert_eq!(refused["isError"], true, "{envelope}");
+        assert!(
+            refused.to_string().contains("/project"),
+            "the refusal names the field: {envelope}"
+        );
+        assert!(
+            !envelope.to_string().contains("mcp-elicitations"),
+            "{envelope}"
+        );
+        assert!(answer.is_none());
+    }
 
     /// T-6042: a client hands its model the text alone, so the text names each of `errors`.
     #[test]

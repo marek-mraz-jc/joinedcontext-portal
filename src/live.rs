@@ -111,6 +111,11 @@ impl LiveHub {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .retain(|_, pair| channels.contains_key(pair));
+        // A pair watched again later writes its subscription again (F-R2POR4-015).
+        self.written
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .retain(|pair, _| channels.contains_key(pair));
     }
 
     /// A window's stream of one pair's changes; the subscription is written when it is new or old,
@@ -368,6 +373,12 @@ mod tests {
             1
         );
         assert_eq!(hub.channels.lock().map(|c| c.len()).unwrap_or_default(), 1);
+        // F-R2POR4-015: its renew time goes with it.
+        let written = hub.written.lock().map(|w| w.clone()).unwrap_or_default();
+        assert!(
+            written.keys().all(|(_, space, _)| space == "d"),
+            "{written:?}"
+        );
         assert!(!hub.deliver(&hub.key("p", "a", "Station")));
         assert!(hub.deliver(&hub.key("p", "d", "Station")));
     }

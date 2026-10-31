@@ -136,18 +136,23 @@ impl PlanStore {
         plans.insert(id, plan);
     }
 
-    /// Takes the plan out, so it is applied once: only for its own caller and connector, before
-    /// it expires. Anyone else is told it is not there, which tells them nothing about it.
+    /// Takes the plan out, so it is applied once: only for its own caller, connector and
+    /// project, before it expires. Anyone else is told it is not there, which tells them nothing
+    /// about it, and a call naming another project leaves it in place (F-R2POR4-017).
     fn take(
         &self,
         id: &str,
         owner: &str,
+        project: &str,
         connector: Option<&str>,
         now: DateTime<Utc>,
     ) -> Option<Plan> {
         let mut plans = self.plans.lock().unwrap_or_else(|p| p.into_inner());
         let mine = plans.get(id).is_some_and(|p| {
-            p.owner == owner && p.connector.as_deref() == connector && p.expires_at > now
+            p.owner == owner
+                && p.project == project
+                && p.connector.as_deref() == connector
+                && p.expires_at > now
         });
         mine.then(|| plans.remove(id)).flatten()
     }
@@ -938,13 +943,11 @@ async fn apply(
         .take(
             &input.plan_id,
             &caller.identity.subject,
+            project,
             connector.map(|c| c.id.as_str()),
             now,
         )
         .ok_or_else(not_found)?;
-    if plan.project != project {
-        return Err(not_found());
-    }
     for item in &plan.items {
         through_connector(caller, project, &item.kind, &item.name, true)?;
     }
@@ -1205,6 +1208,11 @@ async fn revert(
             ));
             continue;
         };
+        // A change touching a kind this caller may not read is not there for them, its paths
+        // included: the rule `change_readable` holds on the REST and MCP reads (F-R2POR4-007).
+        if !effective.may_read(&kind) {
+            return Err(missing());
+        }
         // A narrowed connector hears of nothing outside its scope, a conflict included.
         through_connector(caller, project, &kind, &name, false)?;
         if now != made {
@@ -1620,19 +1628,24 @@ mod tests {
         id
     }
 
-    /// A plan answers only its own caller and connector, before it expires, and once.
+    /// A plan answers only its own caller, connector and project, before it expires, and once.
     #[test]
     fn a_plan_is_taken_once_by_its_owner_through_its_connector() {
         let store = PlanStore::default();
         let now = Utc::now();
         let id = kept(&store, "sub-jana", Some("c1"), TTL_MINUTES);
-        assert!(store.take(&id, "sub-eva", Some("c1"), now).is_none());
-        assert!(store.take(&id, "sub-jana", Some("c2"), now).is_none());
-        assert!(store.take(&id, "sub-jana", None, now).is_none());
-        assert!(store.take(&id, "sub-jana", Some("c1"), now).is_some());
-        assert!(store.take(&id, "sub-jana", Some("c1"), now).is_none());
+        let take = |id: &str, owner: &str, project: &str, connector: Option<&str>| {
+            store.take(id, owner, project, connector, now).is_some()
+        };
+        assert!(!take(&id, "sub-eva", "doprava", Some("c1")));
+        assert!(!take(&id, "sub-jana", "doprava", Some("c2")));
+        assert!(!take(&id, "sub-jana", "doprava", None));
+        // F-R2POR4-017: another project is not there, and the plan stays for its own.
+        assert!(!take(&id, "sub-jana", "espoo", Some("c1")));
+        assert!(take(&id, "sub-jana", "doprava", Some("c1")));
+        assert!(!take(&id, "sub-jana", "doprava", Some("c1")));
         let stale = kept(&store, "sub-jana", None, -1);
-        assert!(store.take(&stale, "sub-jana", None, now).is_none());
+        assert!(!take(&stale, "sub-jana", "doprava", None));
     }
 
     /// A LinkML source rides only with a DataModel, never with a delete or into a workspace, and a
@@ -1720,7 +1733,7 @@ mod tests {
         // The plan stays for the Portal.
         assert!(state
             .plans
-            .take(&id, "sub-jana", Some("c1"), Utc::now())
+            .take(&id, "sub-jana", "doprava", Some("c1"), Utc::now())
             .is_some());
     }
 }

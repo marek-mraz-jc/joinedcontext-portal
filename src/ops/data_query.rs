@@ -424,19 +424,26 @@ async fn run(
         .get("ngsild-results-count")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<u64>().ok());
-    let bytes = answer
-        .bytes()
-        .await
-        .map_err(|_| ApiError::Unavailable("the gateway's answer broke off; try again".into()))?;
-    if bytes.len() > MAX_BODY {
-        return Err(invalid(
-            "/limit",
-            "the page is larger than 8 MiB: ask for fewer entities or attributes",
-        ));
-    }
+    let bytes = page_of(answer).await?;
     let body: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
     refusal_of(status, input.temporal.is_some(), name, &slug, &body)?;
     answer_of(&input, body, total)
+}
+
+/// The gateway's page, read to [`MAX_BODY`]: a larger one is refused at the first byte past the
+/// cap, never held whole first (F-R2POR4-009).
+async fn page_of(answer: reqwest::Response) -> Result<Vec<u8>, OpError> {
+    jc_core::outbound::read_capped(answer, MAX_BODY)
+        .await
+        .map_err(|err| match err {
+            jc_core::outbound::BodyError::TooLarge(_) => invalid(
+                "/limit",
+                "the page is larger than 8 MiB: ask for fewer entities or attributes",
+            ),
+            jc_core::outbound::BodyError::Transport(_) => OpError::from(ApiError::Unavailable(
+                "the gateway's answer broke off; try again".into(),
+            )),
+        })
 }
 
 pub fn operations() -> Vec<Operation> {
@@ -464,6 +471,23 @@ pub fn operations() -> Vec<Operation> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// F-R2POR4-009: a page past 8 MiB is the `/limit` refusal, read only to the cap; one at
+    /// the cap is read whole.
+    #[tokio::test]
+    async fn a_page_past_the_cap_is_refused_at_limit() {
+        let page =
+            |size: usize| reqwest::Response::from(axum::http::Response::new(vec![b' '; size]));
+        let refused = page_of(page(MAX_BODY + 1)).await.expect_err("past the cap");
+        assert!(
+            matches!(&refused, OpError::InvalidInput { path, .. } if path == "/limit"),
+            "{refused}"
+        );
+        assert_eq!(
+            page_of(page(MAX_BODY)).await.expect("at the cap").len(),
+            MAX_BODY
+        );
+    }
 
     fn input(args: Value) -> DataQueryInput {
         parse_input(args).expect("input parses")
