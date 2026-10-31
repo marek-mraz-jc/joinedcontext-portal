@@ -3,6 +3,8 @@
 // making the module throw and watching this file go red.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { byLabel } from "./formContract";
+import { narrowsAndOrders } from "./grid_checks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -159,6 +161,25 @@ describe("ckan publishing manager", () => {
     vi.restoreAllMocks();
   });
 
+  // T-6206: the catalogues are on the shared grid: search, sort by address, filter by organization.
+  it("searches, sorts and filters the catalogues", async () => {
+    const instance = (name: string, url: string, organizationDefault: string) => ({ name, url, organizationDefault, apiTokenRef: `ckan-${name}` });
+    renderCkan({
+      ...STATUS,
+      instances: [
+        instance("open-data", "https://data.banskabystrica.sk", "mesto"),
+        instance("archive", "https://archiv.banskabystrica.sk", "archiv"),
+        instance("region", "https://data.bbsk.sk", "mesto"),
+      ],
+    });
+    const table = await screen.findByRole("table", { name: en.ckan.instances.title });
+    await narrowsAndOrders(table, {
+      search: { label: `Search ${en.ckan.instances.title}`, text: "archiv", kept: ["archive"] },
+      sort: { column: en.ckan.instances.url, ascending: ["archive", "open-data", "region"] },
+      filter: { value: /^mesto/, kept: ["open-data", "region"] },
+    });
+  });
+
   it("lists the catalogue by its token reference and never a token (EP-67)", async () => {
     renderCkan();
 
@@ -224,7 +245,7 @@ describe("ckan publishing manager", () => {
 
     // The three fields the form needs are marked required, so each label reads "Name*" and an
     // exact query finds nothing (T-1765).
-    const field = (label: string) => screen.getByLabelText(label, { exact: false });
+    const field = (label: string) => byLabel(label);
     await user.type(await screen.findByLabelText(en.ckan.instances.name, { exact: false }), "open-data-2");
     const url = field(en.ckan.instances.url);
     await user.clear(url);
