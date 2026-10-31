@@ -8160,8 +8160,8 @@
     "propose": "Propose"
   },
   "projectImport": {
-    "number": "A number, such as 30.",
-    "wholeNumber": "A whole number, such as 30.",
+    "number": "Type a number.",
+    "wholeNumber": "Type a whole number.",
     "notNumber": "{names}: type a number, such as 30, or leave the field empty for its default.",
     "title": "Import a project",
     "lead": "Creates the project's repositories from a git export, then proposes its registry entry.",

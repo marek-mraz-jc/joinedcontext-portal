@@ -8160,8 +8160,8 @@
     "propose": "Navrhnúť"
   },
   "projectImport": {
-    "number": "Číslo, napríklad 30.",
-    "wholeNumber": "Celé číslo, napríklad 30.",
+    "number": "Zadajte číslo.",
+    "wholeNumber": "Zadajte celé číslo.",
     "notNumber": "{names}: zadajte číslo, napríklad 30, alebo pole nechajte prázdne pre predvolenú hodnotu.",
     "title": "Importovať projekt",
     "lead": "Vytvorí repozitáre projektu z git exportu a potom navrhne jeho záznam v registri.",
