@@ -219,7 +219,7 @@ describe("the help beside a hand-built form field", () => {
       for (const field of fields) {
         expect(describedText(field).length, `${title}: ${field.id}`).toBeGreaterThan(15);
       }
-      await person.click(within(dialog).getByRole("button", { name: en.form.backToList }));
+      await person.click(within(dialog).getByRole("button", { name: en.form.cancel }));
     }
   });
 

@@ -193,7 +193,6 @@
         "form_asks_the_assistant.test.tsx",
         "form_check_names_the_missing_field.test.tsx",
         "form_empty_check_marks_the_field.test.tsx",
-        "form_yaml_file.test.tsx",
         "resource_history.test.tsx"
       ]
     },
@@ -386,7 +385,7 @@
     },
     "src/components/forms/FormRoute.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 1
       },
       "tests": [
         "form_route.test.tsx"
@@ -410,8 +409,7 @@
     },
     "src/components/forms/ResourceYamlPanel.tsx": {
       "controls": {
-        "Button": 1,
-        "FilePicker": 1
+        "Button": 1
       },
       "tests": [
         "form_dialog_parts.test.tsx"
@@ -419,11 +417,11 @@
     },
     "src/components/forms/theme.tsx": {
       "controls": {
-        "Button": 5,
+        "Button": 3,
         "Checkbox": 2
       },
       "tests": [
-        "form_examples_fill.test.tsx"
+        "part_theme.test.tsx"
       ]
     },
     "src/components/forms/widgets/AccessPresetChoice.tsx": {
@@ -468,7 +466,7 @@
     },
     "src/components/grid/ManifestGrid.tsx": {
       "controls": {
-        "Button": 9,
+        "Button": 8,
         "Checkbox": 3,
         "Switch": 1
       },
@@ -1676,7 +1674,7 @@
     },
     "src/pages/models/ModelsList.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 3
       },
       "tests": [
         "models_list_page.test.tsx"
@@ -2095,7 +2093,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 20,
+        "Button": 19,
         "RadioGroup": 1
       },
       "tests": [

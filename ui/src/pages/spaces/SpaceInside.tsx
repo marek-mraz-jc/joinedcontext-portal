@@ -17,7 +17,6 @@ import { ActivityFeed } from "../../components/ActivityFeed";
 import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import {
   ENDPOINT_LINKS,
-  CopyUrlButton,
   EndpointLink,
   endpointUrl,
   REPRESENTATION_PATHS,
@@ -916,7 +915,8 @@ function SpaceData({
       id="space-data-view"
       label={t("spaces.views.label")}
       variant="pill"
-      tabs={DATA_VIEWS.map((value) => ({ value, label: t(`spaces.views.kind.${value}`) }))}
+      // Grid and API only (owner 2026-10-31); the other kinds' code goes with T-6210.
+      tabs={(["grid", "api"] as const).map((value) => ({ value, label: t(`spaces.views.kind.${value}`) }))}
       value={view}
       onChange={setView}
     />
@@ -2123,18 +2123,13 @@ export function SpaceInside({ project, name }: { project: string; name: string }
 
   return (
     <div className="space-y-4">
-      {/* The name with its identifier as a copy chip and the state beside it, the actions at the right,
-          and what the space is for on one line below (T-6092); the shell's crumb is the way back. PageHeader keeps
-          the description the h1's next sibling, which screen readers and the walker read (T-6138). */}
+      {/* One row (owner 2026-10-31): the name, what the space is for behind the info mark, the state,
+          the actions at the right; the shell's crumb is the way back. */}
       <PageHeader
+        compact
         title={localized(manifest.metadata.title, locale, manifest.metadata.name)}
-        titleAction={
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 ps-2">
-            <CopyUrlButton url={manifest.metadata.name} label={manifest.metadata.name} />
-            <LifecycleBadge kind="phase" value={manifest.status?.phase} />
-          </span>
-        }
-        description={<OneLine text={localized(manifest.metadata.description, locale, "") || t("spaces.inside.lead")} />}
+        titleAction={<LifecycleBadge kind="phase" value={manifest.status?.phase} />}
+        description={localized(manifest.metadata.description, locale, "") || t("spaces.inside.lead")}
         actions={
           <>
             {/* Completing works on one space, so it lives here and not on the list (T-6084). */}
@@ -2449,44 +2444,6 @@ export function SpaceInside({ project, name }: { project: string; name: string }
         </div>
       ) : null}
     </div>
-  );
-}
-
-/** A description on one line, opened whole by "More" (T-6092): the data stays near the top. */
-function OneLine({ text }: { text: string }): JSX.Element {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  // More only when the one line cuts the text at this width; opened, the text stays open.
-  const [cut, setCut] = useState(false);
-  const line = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    const element = line.current;
-    if (!element || open) return;
-    const measure = () => setCut(element.scrollHeight > element.clientHeight + 1);
-    measure();
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
-    observer?.observe(element);
-    return () => observer?.disconnect();
-  }, [open, text]);
-  const toggle =
-    cut || open ? (
-      // The negative margin keeps the toggle's box out of the line height; its target stays whole.
-      <Button variant="ghost" size="xs" className="-my-1" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {open ? t("spaces.inside.less") : t("spaces.inside.more")}
-      </Button>
-    ) : null;
-  // Phrasing content only: PageHeader puts it inside its description <p>. Open, Less follows the text's last word.
-  return open ? (
-    <span>
-      {text} {toggle}
-    </span>
-  ) : (
-    <span className="flex items-baseline gap-2">
-      <span ref={line} className="min-w-0 line-clamp-1">
-        {text}
-      </span>
-      {toggle}
-    </span>
   );
 }
 

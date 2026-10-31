@@ -94,7 +94,15 @@ describe("locale style", () => {
   // The editor is the Model editor (T-2876): LinkML is how it is built, not a word a person has to
   // know. The raw source view may name its format once, quietly; every other string says "model".
   // The glossary is where the word is explained to whoever meets it (T-3236).
-  const LINKML_ALLOWED = new Set(["models.page.yaml", "glossary.linkml.term", "glossary.linkml.definition"]);
+  // The raw source tab and its copy/download name the format the owner asked for (2026-10-31).
+  const LINKML_ALLOWED = new Set([
+    "models.page.yaml",
+    "models.page.view.yaml",
+    "models.page.copyYaml",
+    "models.page.downloadYaml",
+    "glossary.linkml.term",
+    "glossary.linkml.definition",
+  ]);
 
   it.each([
     ["en", en],

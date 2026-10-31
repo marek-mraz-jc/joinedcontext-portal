@@ -177,12 +177,10 @@
       "yaml": "YAML",
       "history": "Historie"
     },
-    "yamlHint": "Celý manifest tak, jak se zapíše do Gitu. Přepnutí zpět na formulář jej znovu načte; obě podoby kontroluje totéž schéma.",
     "yamlError": "Opravte YAML: {message}",
-    "yamlDownload": "Stáhnout YAML",
-    "yamlUpload": "Nahrát YAML",
-    "yamlUploadSecret": "Soubor obsahuje vypsané tajemství ({keys}). Odkažte na něj přes secretRef a nahrajte znovu; nic nebylo načteno.",
-    "yamlUploadMoved": "Soubor pochází z projektu {from}; načte se do {to} a před navržením na něm proběhne kontrola.",
+    "yamlCopy": "Kopírovat YAML",
+    "yamlCopied": "Zkopírováno.",
+    "yamlCopyFailed": "Prohlížeč nepovolil kopírování; označte text a zkopírujte ho.",
     "yamlNotManifest": "dokument není manifest",
     "schemaErrors": "Manifest neodpovídá schématu:",
     "exclusive": "Vyplnit lze jen jedno z těchto polí",
@@ -557,8 +555,6 @@
       "historySize": "Velikost historie"
     },
     "inside": {
-      "more": "Více",
-      "less": "Méně",
       "total": "Prostor obsahuje {count, plural, one {# entitu} few {# entity} other {# entit}}.",
       "history": "Jeho historie obsahuje {count, plural, one {# záznam} few {# záznamy} other {# záznamů}}.",
       "open": "Prohlédnout obsah",
@@ -4562,11 +4558,13 @@
     },
     "page": {
       "listLead": "Všechny datové modely tohoto projektu: jeden pro každý kontextový prostor a co je na něm postaveno.",
+      "modelLead": "Co tento model popisuje a co na něm staví.",
       "listCaption": "Datové modely projektu",
       "new": {
-        "blank": "Nový prázdný model",
-        "file": "Nový model ze souboru",
-        "sdm": "Nový model ze Smart Data Models"
+        "menu": "Nový datový model",
+        "blank": "Prázdný model",
+        "file": "Ze souboru s daty (CSV, Excel, JSON, PDF)",
+        "sdm": "Ze Smart Data Models"
       },
       "emptyTitle": "Zatím žádný datový model",
       "emptyLead": "Vytvořte ho pro prostor: začněte prázdný, odvoďte ho ze souboru nebo importujte Smart Data Model.",
@@ -4603,7 +4601,7 @@
         "fields": "Pole",
         "diagram": "Diagram",
         "form": "Formulář",
-        "yaml": "YAML",
+        "yaml": "LinkML",
         "used": "Kde se používá",
         "history": "Historie",
         "mappings": "Mapování"
@@ -4624,8 +4622,8 @@
       },
       "asJson": "Zobrazeno jako JSON.",
       "yaml": "Zdroj modelu (LinkML YAML)",
-      "copyYaml": "Kopírovat YAML",
-      "downloadYaml": "Stáhnout YAML",
+      "copyYaml": "Kopírovat LinkML",
+      "downloadYaml": "Stáhnout LinkML",
       "copied": "Zkopírováno.",
       "copyFailed": "Prohlížeč kopírování nepovolil; označte text a zkopírujte ho ručně.",
       "projectSection": "Modely tohoto projektu",
@@ -11082,7 +11080,6 @@
     "removeFilter": "Odebrat filtr {column}: {value}",
     "clearFilters": "Zrušit filtry",
     "details": "Podrobnosti",
-    "openDetails": "Podrobnosti {name}",
     "noMatch": "Hledání a filtrům neodpovídá žádný řádek.",
     "clearAll": "Zrušit hledání a filtry",
     "footer": "Zobrazeno {shown} z {count}",

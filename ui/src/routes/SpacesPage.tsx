@@ -348,27 +348,28 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
 
   return (
     <div className="flex flex-col gap-section">
-      <PageHeader
-        compact
-        title={t("spaces.title")}
-        description={t("spaces.lead")}
-        note={<MayNotCreate project={project} kinds={["ContextSpace"]} />}
-        actions={addButton}
-      />
-
-
-      {quotaExceeded ? (
-        <Alert role="status" tone="warning">
-          {t("quota.exceeded", { limit })}
-        </Alert>
-      ) : null}
-
-      {change ? <ChangeNotice change={change} project={project} /> : null}
-
       <ManifestGrid<Manifest>
         caption={t("spaces.title")}
         storageKey="spaces"
         searchLabel={t("grid.searchIn", { list: t("spaces.title") })}
+        header={(toolbar) => (
+          <>
+            <PageHeader
+              compact
+              title={t("spaces.title")}
+              description={t("spaces.lead")}
+              note={<MayNotCreate project={project} kinds={["ContextSpace"]} />}
+              aside={toolbar}
+              actions={addButton}
+            />
+            {quotaExceeded ? (
+              <Alert role="status" tone="warning">
+                {t("quota.exceeded", { limit })}
+              </Alert>
+            ) : null}
+            {change ? <ChangeNotice change={change} project={project} /> : null}
+          </>
+        )}
         rows={spaces}
         rowKey={(space) => space.metadata.name}
         query={list}

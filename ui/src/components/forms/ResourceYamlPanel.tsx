@@ -1,7 +1,7 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Button, FilePicker, tabPanelProps } from "../ui";
+import { Alert, Button, Icon, tabPanelProps } from "../ui";
 import type { YamlEditor } from "./useYamlEditor";
 
 // Monaco is loaded when the YAML view is opened and not before: it is the heaviest thing in
@@ -12,41 +12,41 @@ export interface ResourceYamlPanelProps<T> {
   editor: YamlEditor<T>;
   /** The tab set the panel belongs to. */
   viewsId: string;
-  disabled: boolean;
-  /** The file name a download is saved under, without `.yaml`. */
-  downloadName: string;
   /** The footer under the editor: Cancel, Check, the verdict and the submit. */
   footer: ReactNode;
 }
 
-/** The YAML view of a manifest dialog: the editor, its file in and out, and what it answered. */
-export function ResourceYamlPanel<T>({ editor, viewsId, disabled, downloadName, footer }: ResourceYamlPanelProps<T>): JSX.Element {
+/** Copy the manifest; the view itself is where it is edited (owner 2026-10-31: no upload, no download). */
+function CopyYaml({ text }: { text: string }): JSX.Element {
+  const { t } = useTranslation();
+  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
+  const copy = () => {
+    const writing = navigator.clipboard?.writeText(text);
+    if (!writing) return setState("failed");
+    void writing.then(() => setState("copied")).catch(() => setState("failed"));
+  };
+  return (
+    <span className="flex items-center gap-2">
+      {state === "failed" ? (
+        <span role="alert" className="text-caption text-fg-muted">
+          {t("form.yamlCopyFailed")}
+        </span>
+      ) : null}
+      <Button size="sm" variant="secondary" icon={<Icon name={state === "copied" ? "check" : "copy"} className="size-4" />} onClick={copy}>
+        {state === "copied" ? t("form.yamlCopied") : t("form.yamlCopy")}
+      </Button>
+    </span>
+  );
+}
+
+/** The YAML view of a manifest dialog: the editor, a copy of it, and what it answered. */
+export function ResourceYamlPanel<T>({ editor, viewsId, footer }: ResourceYamlPanelProps<T>): JSX.Element {
   const { t } = useTranslation();
   return (
     <div {...tabPanelProps(viewsId, "yaml")} className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-caption text-fg-muted">{t("form.yamlHint")}</p>
-        <div className="flex gap-2">
-          <Button size="sm" variant="secondary" data-testid="yaml-download" onClick={() => editor.download(downloadName)}>
-            {t("form.yamlDownload")}
-          </Button>
-          {disabled ? null : (
-            <FilePicker
-              label={t("form.yamlUpload")}
-              accept=".yaml,.yml,application/yaml,text/yaml"
-              onFile={(file) => void editor.upload(file)}
-              className="text-body"
-            >
-              <span className="rounded-md border border-border px-3 py-1 text-caption">{t("form.yamlUpload")}</span>
-            </FilePicker>
-          )}
-        </div>
+      <div className="flex justify-end">
+        <CopyYaml text={editor.text} />
       </div>
-      {editor.uploadNote ? (
-        <p role="status" data-testid="yaml-upload-note" className="text-caption text-fg-muted">
-          {editor.uploadNote}
-        </p>
-      ) : null}
       <div className="overflow-hidden rounded-md border border-border">
         <Suspense fallback={<p className="p-3 text-body">{t("models.loadingEditor")}</p>}>
           <MonacoSourceView value={editor.text} onChange={editor.setText} onMount={() => undefined} height="24rem" />

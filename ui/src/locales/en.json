@@ -177,12 +177,10 @@
       "yaml": "YAML",
       "history": "History"
     },
-    "yamlHint": "The whole manifest as it is written to Git. Switching back to the form reads it again; the same schema checks both.",
     "yamlError": "Correct the YAML: {message}",
-    "yamlDownload": "Download YAML",
-    "yamlUpload": "Upload YAML",
-    "yamlUploadSecret": "The file holds a secret written out ({keys}). Reference it with a secretRef and upload again; nothing was read.",
-    "yamlUploadMoved": "The file came from project {from}; it is read into {to}, and Check runs on it before you propose it.",
+    "yamlCopy": "Copy YAML",
+    "yamlCopied": "Copied.",
+    "yamlCopyFailed": "The browser did not allow copying; select the text and copy it.",
     "yamlNotManifest": "the document is not a manifest",
     "schemaErrors": "The manifest does not match the schema:",
     "exclusive": "Only one of these fields may be set",
@@ -557,8 +555,6 @@
       "historySize": "History size"
     },
     "inside": {
-      "more": "More",
-      "less": "Less",
       "total": "The space holds {count, plural, one {# entity} other {# entities}}.",
       "history": "Its history holds {count, plural, one {# record} other {# records}}.",
       "open": "Look inside",
@@ -4562,11 +4558,13 @@
     },
     "page": {
       "listLead": "Every data model of this project: one per Context Space, and what builds on it.",
+      "modelLead": "What this model describes, and what builds on it.",
       "listCaption": "The project's data models",
       "new": {
-        "blank": "New blank model",
-        "file": "New model from a file",
-        "sdm": "New model from Smart Data Models"
+        "menu": "New data model",
+        "blank": "Blank model",
+        "file": "From a data file (CSV, Excel, JSON, PDF)",
+        "sdm": "From Smart Data Models"
       },
       "emptyTitle": "No data model yet",
       "emptyLead": "Create one for a space: start blank, infer it from a file, or import a Smart Data Model.",
@@ -4603,7 +4601,7 @@
         "fields": "Fields",
         "diagram": "Diagram",
         "form": "Form",
-        "yaml": "YAML",
+        "yaml": "LinkML",
         "used": "Where used",
         "history": "History",
         "mappings": "Mappings"
@@ -4624,8 +4622,8 @@
       },
       "asJson": "Shown as JSON.",
       "yaml": "The model's source (LinkML YAML)",
-      "copyYaml": "Copy the YAML",
-      "downloadYaml": "Download the YAML",
+      "copyYaml": "Copy LinkML",
+      "downloadYaml": "Download LinkML",
       "copied": "Copied.",
       "copyFailed": "The browser did not allow copying; select the text and copy it instead.",
       "projectSection": "This project's models",
@@ -11082,7 +11080,6 @@
     "removeFilter": "Remove filter {column}: {value}",
     "clearFilters": "Clear filters",
     "details": "Details",
-    "openDetails": "Details of {name}",
     "noMatch": "No rows match the search and filters.",
     "clearAll": "Clear search and filters",
     "footer": "Showing {shown} of {count}",

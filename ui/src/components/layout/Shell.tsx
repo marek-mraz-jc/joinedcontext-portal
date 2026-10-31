@@ -450,12 +450,12 @@ function decodedSegment(segment: string): string {
  * Context Spaces is named in words (`spacePage`, an i18n key): `/spaces/complete` is no space
  * called "complete" in a monospace crumb.
  */
-export function addressItem(pathname: string): { itemName?: string; spacePage?: string } {
+export function addressItem(pathname: string): { itemName?: string; spacePage?: string; creating?: boolean } {
   const segments = pathname.split("/").filter(Boolean).map(decodedSegment);
   if (segments[0] !== "projects" || segments.length < 4) return {};
   const spacePage = segments[2] === "spaces" && segments.length === 4 ? SPACE_PAGES[segments[3] ?? ""] : undefined;
   if (spacePage) return { spacePage };
-  return segments[3] === "new" ? {} : { itemName: segments[3] };
+  return segments[3] === "new" ? { creating: true } : { itemName: segments[3] };
 }
 
 export function Shell({
@@ -496,6 +496,13 @@ export function Shell({
   // Which page is in hand, so a panel left by a page that threw is cleared by walking away
   // from it (T-2426).
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  // The model editor lives at /models?edit=<id> or ?new=…: its crumb leads back to the list too.
+  const editingModel = useRouterState({
+    select: (state) => {
+      const search = state.location.search as { edit?: unknown; new?: unknown };
+      return typeof search.edit === "string" ? search.edit : search.new !== undefined ? "" : undefined;
+    },
+  });
   // The sidebar is a drawer on a phone; a navigation closes it.
   const [navOpen, setNavOpen] = useState(false);
   // Where the closed assistant's button goes on a phone; the dock renders after the header.
@@ -535,7 +542,7 @@ export function Shell({
     matchRoute({ to: "/projects/$project/workspaces/$name/bring-back" }) ||
     matchRoute({ to: "/projects/$project/workspaces/$name/try-it" });
   // The one thing the page is about: an approval, a copy, or an item named by the address.
-  const { itemName, spacePage } = addressItem(pathname);
+  const { itemName, spacePage, creating } = addressItem(pathname);
   const detail = approvalDetail
     ? { to: "/projects/$project/approvals" as const, name: approvalDetail.id }
     : copyDetail
@@ -961,6 +968,15 @@ export function Shell({
                             {itemName}
                           </Link>
                         </>
+                      ) : creating ? (
+                        // A create form: the section leads back to its list (owner 2026-10-31, no "Back to the list").
+                        <Link
+                          to="/projects/$project/$plural"
+                          params={{ project, plural: activeSection.plural }}
+                          className="focus-ring touch-target rounded-sm hover:text-fg hover:underline"
+                        >
+                          {t(activeSection.labelKey)}
+                        </Link>
                       ) : (
                         <span aria-current="page" className="font-medium text-fg">
                           {t(activeSection.labelKey)}
@@ -971,9 +987,30 @@ export function Shell({
                   {!activeSection && otherPage ? (
                     <li className="flex items-center gap-1">
                       <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
-                      <span aria-current="page" className="font-medium text-fg">
-                        {t(otherPage)}
-                      </span>
+                      {/* One model's page: Data models leads back to the list (owner 2026-10-31). */}
+                      {modelsActive && (itemName || editingModel !== undefined) ? (
+                        <>
+                          <Link
+                            to="/projects/$project/models"
+                            params={{ project }}
+                            className="focus-ring touch-target rounded-sm hover:text-fg hover:underline"
+                          >
+                            {t(otherPage)}
+                          </Link>
+                          {itemName || editingModel ? (
+                            <>
+                              <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
+                              <span aria-current="page" className="font-mono font-medium text-fg">
+                                {itemName || editingModel}
+                              </span>
+                            </>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span aria-current="page" className="font-medium text-fg">
+                          {t(otherPage)}
+                        </span>
+                      )}
                     </li>
                   ) : null}
                 </ol>

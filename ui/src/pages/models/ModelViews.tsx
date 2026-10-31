@@ -210,7 +210,8 @@ export function ModelYaml({ source, name }: { source: string; name: string }): J
       </div>
       <CodeBlock
         label={t("models.page.yaml")}
-        className="max-h-96 rounded border border-border bg-surface-subtle p-3 font-mono text-caption text-fg"
+        // Down to near the page bottom: a model is any length (owner 2026-10-31).
+        className="h-[calc(100dvh-15rem)] min-h-64 rounded border border-border bg-surface-subtle p-3 font-mono text-caption text-fg"
       >
         {lines.map((line, index) => {
           const parts = yamlParts(line);

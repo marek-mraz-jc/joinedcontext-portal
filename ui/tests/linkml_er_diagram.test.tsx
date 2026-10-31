@@ -239,10 +239,10 @@ describe("reading it without the picture", () => {
       // A frame a little narrower than the drawing: it fits the frame's width.
       const frame = Math.round(natural.width * 0.9);
       expect(widthAt(frame).width).toBeCloseTo(frame - 16, 0);
-      // A frame far narrower: the drawing stays at 75 % and scrolls.
+      // A frame far narrower: the drawing stays at 60 %, the overview floor (owner 2026-10-31), and scrolls.
       const narrow = widthAt(216);
-      expect(narrow.level).toBe("Zoom 75 %");
-      expect(narrow.width).toBeCloseTo(natural.width * 0.75, 0);
+      expect(narrow.level).toBe("Zoom 60 %");
+      expect(narrow.width).toBeCloseTo(natural.width * 0.6, 0);
     } finally {
       if (wide) Object.defineProperty(HTMLElement.prototype, "clientWidth", wide);
     }
