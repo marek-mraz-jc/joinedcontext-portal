@@ -381,6 +381,7 @@ function useProjectList(project: string, plural: string) {
  */
 /** The space's endpoints whose grants are read for a writer: a space rarely has more. */
 const MAX_ACCESS_READS = 10;
+const NO_ENDPOINTS: Manifest[] = [];
 
 /** Each endpoint's grant document, as one value `useQueries` keeps while none of them changes. */
 function grantsOf(results: UseQueryResult<GrantDocument>[]): (GrantDocument | undefined)[] {
@@ -388,8 +389,8 @@ function grantsOf(results: UseQueryResult<GrantDocument>[]): (GrantDocument | un
 }
 
 /** Each endpoint's decisions per attribute, as one value `useQueries` keeps while none of them changes. */
-function tablesOf(results: UseQueryResult<AttributeAccess[]>[]): (AttributeAccess[] | undefined)[] {
-  return results.map((result) => result.data);
+function tablesOf(results: UseQueryResult<AttributeAccess[]>[]): { rows: (AttributeAccess[] | undefined)[]; asking: boolean } {
+  return { rows: results.map((result) => result.data), asking: results.some((result) => result.isFetching) };
 }
 
 /**
@@ -748,8 +749,13 @@ function SpaceData({
   // gateway once per endpoint, names a write on this type (T-4826). The grid reads the space and
   // writes through that endpoint with the person's session, so its Policy decides every value
   // (EP-55, UI-67); a person no endpoint lets write, a viewer, gets no editor at all.
+  // Those reads cost two per endpoint (20 on Helsinki, 1-1.7 s each), so they are asked only once the
+  // person turns on Edit or selects rows, never on load (T-6209): reading needs none of them.
+  const [editing, setEditing] = useState(false);
+  const askAccess = editing || selectedRows.length > 0;
+  const accessed = askAccess ? endpoints.slice(0, MAX_ACCESS_READS) : NO_ENDPOINTS;
   const grants = useQueries({
-    queries: endpoints.slice(0, MAX_ACCESS_READS).map((endpoint) => accessQuery(slugOf(endpoint))),
+    queries: accessed.map((endpoint) => accessQuery(slugOf(endpoint))),
     combine: grantsOf,
   });
   // Entities are not part of a copy (T-4868): inside one the grid reads the live space, so it
@@ -762,14 +768,12 @@ function SpaceData({
   // either, whatever slots its LinkML names (T-5769).
   const correctable = !copy && hasJsonSchema(model) && slots.some((slot) => !slot.formula);
   const tables = useQueries({
-    queries: endpoints
-      .slice(0, MAX_ACCESS_READS)
-      .map((endpoint) => attributeAccessQuery(slugOf(endpoint), correctable && type ? type : undefined)),
+    queries: accessed.map((endpoint) => attributeAccessQuery(slugOf(endpoint), correctable && type ? type : undefined)),
     combine: tablesOf,
   });
   const writer = useMemo(
-    () => (copy ? null : writerOf(tables, endpoints, slots)),
-    [copy, tables, endpoints, slots],
+    () => (copy ? null : writerOf(tables.rows, endpoints, slots)),
+    [copy, tables.rows, endpoints, slots],
   );
   // The grid reads again whenever its source changes, and the writer's grant lands after the first
   // read: the source keeps one identity and its patch asks the current writer, so the grant moves
@@ -864,11 +868,12 @@ function SpaceData({
         type,
         ...(columns ? { columns } : {}),
         pageSize: 100,
-        ...(writer ? { mode: "edit" as const, editableAttrs: writer.attrs } : { mode: "view" as const }),
+        // A selection asks for the writer too (the bulk bar's fields), but only Edit turns the cells into editors.
+        ...(editing && writer ? { mode: "edit" as const, editableAttrs: writer.attrs } : { mode: "view" as const }),
         history: { enabled: true },
       }).config ?? null
     );
-  }, [space, type, columns, writer]);
+  }, [space, type, columns, editing, writer]);
 
   // The toolbar's actions, in its row for the other views and under "More" for the grid (T-4883).
   const addField =
@@ -1121,6 +1126,16 @@ function SpaceData({
             </>
           ) : null}
           <div className="ml-auto flex items-center gap-1">
+            {!copy && correctable && endpoints.length > 0 ? (
+              <Button
+                variant={editing ? "secondary" : "ghost"}
+                size="sm"
+                aria-pressed={editing}
+                onClick={() => setEditing((on) => !on)}
+              >
+                {t("spaces.toolbar.edit")}
+              </Button>
+            ) : null}
             {addRow}
             <PermissionGuard project={project} kind="Endpoint" verb="propose">
               <ToolbarPopover label={t("spaces.toolbar.share")} wide end>
@@ -1165,6 +1180,11 @@ function SpaceData({
             </ToolbarPopover>
           </div>
         </div>
+      ) : null}
+      {readable && editing && !writer ? (
+        <p role="status" className="text-caption text-fg-muted">
+          {t(tables.asking ? "spaces.toolbar.editChecking" : "spaces.toolbar.editNone", { type: typeTitle })}
+        </p>
       ) : null}
       {readable && view === "grid" ? <FilterChips columns={filterColumns} titleOf={filterTitle} value={filters} onChange={setFilters} /> : null}
       {readable && config && view === "grid" && selectedRows.length > 0 ? (
@@ -1252,7 +1272,7 @@ function SpaceData({
           <OtherView
             project={project}
             source={gridSource}
-            editable={writer?.attrs ?? []}
+            editable={editing && writer ? writer.attrs : []}
             space={space}
             type={type}
             q={q}

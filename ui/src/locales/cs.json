@@ -1297,6 +1297,9 @@
       "selectRow": "Vybrat řádek",
       "selectAll": "Vybrat všechny načtené řádky",
       "query": "Dotaz",
+      "edit": "Upravit",
+      "editChecking": "Ověřuji, který endpoint vám dovolí opravit {type}…",
+      "editNone": "Žádný endpoint tohoto prostoru vám nedovoluje opravit {type}: můžete jej jen číst. Zápis na endpointu vám může udělit správce projektu.",
       "aggregateOf": "Souhrn pole {field}",
       "aggregate": {
         "none": "Shrnout",

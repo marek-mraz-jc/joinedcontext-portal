@@ -1193,6 +1193,7 @@ describe("the space's own data", () => {
 
     it("offers an editor for the attributes the grant lets the steward write, and sends the reason", async () => {
       const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200, rows }, { source, access: steward, attributes: stewardWrites });
+      await userEvent.click(await screen.findByRole("button", { name: en.spaces.toolbar.edit }));
       // The grid names the column "PM10 (µg/m³)" once the rows are in (T-5598: it no longer waits for the probe).
       const cell = await screen.findByRole("spinbutton", { name: /pm10/i });
       // The grant names pm10 only: the name stays text, with no editor.
@@ -1213,6 +1214,7 @@ describe("the space's own data", () => {
 
     it("reads the grid's first page once, and the probe asks no count (T-6161)", async () => {
       const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200, rows }, { source, access: steward, attributes: stewardWrites });
+      await userEvent.click(await screen.findByRole("button", { name: en.spaces.toolbar.edit }));
       await screen.findByRole("spinbutton", { name: /pm10/i });
       const reads = fetchMock.mock.calls
         .map((call) => urlOf(call[0]))
@@ -1225,6 +1227,26 @@ describe("the space's own data", () => {
       expect(probes.every((url) => url.searchParams.get("count") !== "true")).toBe(true);
     });
 
+    // T-6209: Helsinki's Event tab sent 10 /access and 10 /access/attributes reads on every load.
+    it("asks no endpoint for the person's access on load, only once Edit is turned on", async () => {
+      const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200, rows }, { source, access: steward, attributes: stewardWrites });
+      const accessReads = () => fetchMock.mock.calls.filter(([input]) => /\/access(\/attributes)?$/.test(urlOf(input).pathname));
+      await screen.findByRole("button", { name: `${en.entityGrid.openRow}: Námestie SNP` });
+      expect(accessReads()).toEqual([]);
+      expect(within(screen.getByRole("grid")).queryByRole("spinbutton")).toBeNull();
+
+      const edit = screen.getByRole("button", { name: en.spaces.toolbar.edit });
+      expect(edit).toHaveAttribute("aria-pressed", "false");
+      await userEvent.click(edit);
+      expect(edit).toHaveAttribute("aria-pressed", "true");
+      await screen.findByRole("spinbutton", { name: /pm10/i });
+      // One grant document and one decision table for the one endpoint of the space.
+      expect(accessReads().map(([input]) => urlOf(input).pathname).sort()).toEqual([`/api/endpoint/${SLUG}/access`, `/api/endpoint/${SLUG}/access/attributes`]);
+
+      await userEvent.click(edit);
+      await waitFor(() => expect(within(screen.getByRole("grid")).queryByRole("spinbutton")).toBeNull());
+    });
+
     it("gives a viewer, whose grant names no write, no editor", async () => {
       renderInside({ status: 200, count: 1 }, { status: 200, rows }, {
         source,
@@ -1232,6 +1254,11 @@ describe("the space's own data", () => {
       });
       // The columns follow the answer (DM-102): the open button settles in the Name column once rows arrive.
       await screen.findByRole("button", { name: /: Name$/ });
+      await userEvent.click(screen.getByRole("button", { name: en.spaces.toolbar.edit }));
+      // The page says why Edit changed nothing, once the endpoint answered.
+      expect(
+        await screen.findByText(en.spaces.toolbar.editNone.replace("{type}", "AirQualityObserved")),
+      ).toBeInTheDocument();
       expect(screen.getByRole("button", { name: `${en.entityGrid.openRow}: Námestie SNP` })).toBeInTheDocument();
       // In the grid: the toolbar's Share view panel holds an "Endpoint name" box of its own (T-5186).
       const grid = screen.getByRole("grid");

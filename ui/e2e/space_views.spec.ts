@@ -183,6 +183,8 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await page.setViewportSize({ width, height });
     await stubApi(page, seen, false);
     await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en&view=gallery`);
+    // Moves and date drags are corrections: they are offered once Edit asked the endpoint (T-6209).
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
 
     // Gallery: a card per event with its cover from the Portal's origin.
     const gallery = page.getByTestId("view-gallery");
