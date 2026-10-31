@@ -503,8 +503,20 @@ impl OrderBy {
         Ok(Self { path, descending })
     }
 
+    /// An order by the tie-breaking name alone, for a list whose rows have no field it sorts by
+    /// first (the organization's Endpoints: project, then name).
+    pub fn by_name_alone() -> Self {
+        Self {
+            path: Vec::new(),
+            descending: false,
+        }
+    }
+
     /// The value a manifest sorts by: its first value at the field, null when it has none.
     pub fn key_of(&self, doc: &Value) -> Value {
+        if self.path.is_empty() {
+            return Value::Null;
+        }
         values_at(doc, &self.path)
             .first()
             .map_or(Value::Null, |v| (*v).clone())

@@ -675,6 +675,7 @@ pub fn operations() -> Vec<Operation> {
                     let axum::Json(list) = crate::api::resources::list_endpoints_everywhere(
                         as_user(caller),
                         axum::extract::State(state.clone()),
+                        Ok(crate::api::list_query::ListQuery::default()),
                     )
                     .await?;
                     Ok(serde_json::to_value(list)?)

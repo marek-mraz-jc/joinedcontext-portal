@@ -187,6 +187,7 @@ pub async fn list_blueprints(
         },
         items,
         next_cursor: None,
+        total_count: None,
     }))
 }
 

@@ -1,9 +1,9 @@
-import { lazy, useState } from "react";
+import { lazy, useEffect, useState } from "react";
 import type { ComponentType, JSX } from "react";
 import { RecordLink } from "../components/RecordLink";
 import { ManifestGrid } from "../components/grid/ManifestGrid";
 import { spaceOf } from "../components/endpoints/sharing";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
@@ -101,6 +101,9 @@ const VIEWS: Record<string, ComponentType<{ project: string; edit?: string }>> =
   // revision it carries and the three buttons of MF-30.
   syncsources: SyncSourcesPage,
 };
+
+/** Rows a page of the list reads from the server; Show more reads the next. */
+const GRID_PAGE = 50;
 
 /**
  * The edit form of a kind that has no page of its own. It writes onto the manifest the edit dialog
@@ -282,16 +285,26 @@ export function KindList({
             : t("app.error.generic"),
       ),
   });
-  const list = useQuery({
-    queryKey: queryKeys.list(project, plural),
-    // A change on its way polls until it lands (T-1392).
-    refetchInterval: whilePending,
-    queryFn: async () =>
+  // The server searches and pages the list (API/13 section 2, T-6175): the grid's search is `q`,
+  // sent once typing pauses, and Show more reads the next cursor.
+  const [typed, setTyped] = useState("");
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQ(typed.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [typed]);
+  const list = useInfiniteQuery({
+    queryKey: [...queryKeys.list(project, plural), "pages", q],
+    queryFn: async ({ pageParam }: { pageParam: string | undefined }) =>
       unwrap(
         await api.GET("/api/v1/projects/{project}/{plural}", {
-          params: { path: { project, plural } },
+          params: { path: { project, plural }, query: { limit: GRID_PAGE, count: true, q: q || undefined, cursor: pageParam } },
         }),
       ),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    // A change on its way polls until it lands (T-1392).
+    refetchInterval: (query) => whilePending({ state: { data: { items: query.state.data?.pages.flatMap((each) => each.items) ?? [] } } }),
   });
 
   // The API is what knows the project's kinds: a plural it does not serve is an address with no
@@ -299,7 +312,7 @@ export function KindList({
   if (list.error instanceof ApiError && list.error.status === 404) {
     return <NotFoundState />;
   }
-  const items = asManifests(list.data?.items ?? []);
+  const items = asManifests(list.data?.pages.flatMap((each) => each.items) ?? []);
   // A kind with no page of its own still opens under a heading that names it, in the person's
   // own language where the navigation already has a word for it, and read as words where it
   // does not — never the bare URL segment the table used as its caption (UI-01, UI-16).
@@ -346,6 +359,13 @@ export function KindList({
         rows={items}
         rowKey={(item) => item.metadata.name}
         query={list}
+        pageSize={GRID_PAGE}
+        server={{
+          onSearch: setTyped,
+          total: list.data?.pages.at(-1)?.totalCount ?? undefined,
+          hasMore: list.hasNextPage,
+          loadMore: () => void list.fetchNextPage(),
+        }}
         name={{
           id: "name",
           label: t("resourceList.name"),

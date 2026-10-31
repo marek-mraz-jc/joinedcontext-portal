@@ -96,6 +96,19 @@ export interface ManifestGridProps<T> {
   pageSize?: number;
   /** How many rows the list holds before the page's own search, when `rows` is already narrowed. */
   total?: number;
+  /**
+   * The rows are pages the server reads (API/13 section 2, T-6175): the grid's search goes to the
+   * server as `q`, Show more reads the next cursor and the footer counts the server's `totalCount`.
+   */
+  server?: ServerPages;
+}
+
+export interface ServerPages {
+  onSearch: (text: string) => void;
+  /** The listing's `totalCount`, every page together. */
+  total?: number;
+  hasMore: boolean;
+  loadMore: () => void;
 }
 
 type Sort = { column: string; desc: boolean } | null;
@@ -179,7 +192,9 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
     setMore(0);
   }
   const limit = step + more;
-  const kept = useMemo(() => visibleRows(rows, all, props.search === undefined ? ownSearch : "", filters, sort), [rows, all, props.search, ownSearch, filters, sort]);
+  const server = props.server;
+  const localSearch = props.search === undefined && server === undefined ? ownSearch : "";
+  const kept = useMemo(() => visibleRows(rows, all, localSearch, filters, sort), [rows, all, localSearch, filters, sort]);
   const page = kept.slice(0, limit);
   const width = visibleColumns.length + 2;
   const opened = panel ? rows.find((row) => rowKey(row) === panel) : undefined;
@@ -188,6 +203,10 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
     return <PageFailed error={query.error} onRetry={() => void query.refetch()} />;
   }
 
+  const typeSearch = (text: string) => {
+    setOwnSearch(text);
+    server?.onSearch(text);
+  };
   const choose = (next: string[]) => {
     setShown(next);
     writeShown(storageKey, next);
@@ -214,7 +233,7 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
         rows={rows}
         all={all}
         columns={columns}
-        ownSearch={props.search === undefined ? { value: ownSearch, set: setOwnSearch, label: searchLabel } : undefined}
+        ownSearch={props.search === undefined ? { value: ownSearch, set: typeSearch, label: searchLabel } : undefined}
         filters={filters}
         setFilters={setFilters}
         shown={shown}
@@ -224,7 +243,7 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
         sortId={`${storageKey}-sort`}
       />
 
-      {!query.isPending && rows.length === 0 ? (
+      {!query.isPending && rows.length === 0 && !(server && search.trim()) ? (
         <Card padding="md">{empty}</Card>
       ) : (
       <Table stack data-records="" caption={caption} status={query.isPending ? t("app.loading") : undefined}>
@@ -244,7 +263,7 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
                 {(
                   <div className="flex flex-col items-center gap-2 py-6 text-center">
                     <p className="text-body font-medium text-fg">{t("grid.noMatch")}</p>
-                    <Button variant="secondary" size="sm" onClick={() => { setFilters({}); setOwnSearch(""); props.onSearchChange?.(""); }}>
+                    <Button variant="secondary" size="sm" onClick={() => { setFilters({}); typeSearch(""); props.onSearchChange?.(""); }}>
                       {t("grid.clearAll")}
                     </Button>
                   </div>
@@ -260,7 +279,16 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
       </Table>
       )}
 
-      {query.isPending ? null : <GridFooter shown={page.length} kept={kept.length} total={props.total ?? rows.length} step={step} onMore={() => setMore(limit)} />}
+      {query.isPending ? null : (
+        <GridFooter
+          shown={page.length}
+          kept={kept.length}
+          total={server?.total ?? props.total ?? rows.length}
+          step={step}
+          onMore={() => setMore(limit)}
+          onMoreFromServer={server?.hasMore && page.length === kept.length ? () => { setMore(limit); server.loadMore(); } : undefined}
+        />
+      )}
 
       {opened !== undefined ? (
         <CellPanel
@@ -455,17 +483,38 @@ export function GridRow<T>({
 }
 
 /** "Showing n of m" and Show more, when the list is cut or narrowed. */
-export function GridFooter({ shown, kept, total, step, onMore }: { shown: number; kept: number; total: number; step: number; onMore: () => void }): JSX.Element | null {
+export function GridFooter({
+  shown,
+  kept,
+  total,
+  step,
+  onMore,
+  onMoreFromServer,
+}: {
+  shown: number;
+  kept: number;
+  total: number;
+  step: number;
+  onMore: () => void;
+  /** Reads the next page from the server, once every row read so far is shown. */
+  onMoreFromServer?: () => void;
+}): JSX.Element | null {
   const { t } = useTranslation();
-  if (kept === 0 || (kept === shown && kept === total)) return null;
+  if (kept === 0 || (kept === shown && kept === total && !onMoreFromServer)) return null;
   return (
     <div className="flex flex-wrap items-center gap-3">
       <p role="status" className="text-caption text-fg-muted">
-        {kept === total ? t("grid.footer", { shown, count: kept }) : t("grid.footerOf", { shown, count: kept, total })}
+        {kept === total || onMoreFromServer
+          ? t("grid.footer", { shown, count: total })
+          : t("grid.footerOf", { shown, count: kept, total })}
       </p>
       {kept > shown ? (
         <Button variant="secondary" size="sm" onClick={onMore}>
           {t("grid.showMore", { count: Math.min(step, kept - shown) })}
+        </Button>
+      ) : onMoreFromServer ? (
+        <Button variant="secondary" size="sm" onClick={onMoreFromServer}>
+          {t("grid.showMore", { count: Math.max(1, Math.min(step, total - kept)) })}
         </Button>
       ) : null}
     </div>

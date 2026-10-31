@@ -2110,6 +2110,54 @@
         "summary": "List Endpoints Everywhere",
         "description": "Every Endpoint of every project with its project, for an organization administrator (PF-61, PF-03).",
         "operationId": "list_endpoints_everywhere",
+        "parameters": [
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "One Endpoint field, `-` in front for descending, e.g. -metadata.name; default project, then name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Text searched case-insensitively in each Endpoint's name, title, labels and spec, e.g. air",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "description": "true adds totalCount, the rows of every page together",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "The nextCursor of the previous page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Rows per page, 1 to 1000; the whole list without it",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Every Endpoint of the organization, across projects",
@@ -2117,6 +2165,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ResourceList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A bad sort, q, count, cursor or limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -2133,6 +2191,16 @@
           },
           "404": {
             "description": "Not an administrator of the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A sort field an Endpoint does not have",
             "content": {
               "application/json": {
                 "schema": {
@@ -34289,12 +34357,39 @@
             }
           },
           {
-            "name": "orderBy",
+            "name": "sort",
             "in": "query",
-            "description": "One field, optionally followed by desc; default metadata.name",
+            "description": "One field of the kind, `-` in front for descending, e.g. -metadata.name; default metadata.name",
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "orderBy",
+            "in": "query",
+            "description": "Old name of sort: one field, optionally followed by desc",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Text searched case-insensitively in each manifest's name, title, labels and spec, e.g. air",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "description": "true adds totalCount, the rows of every page together",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           },
           {
@@ -34327,7 +34422,7 @@
           {
             "name": "limit",
             "in": "query",
-            "description": "Page limit",
+            "description": "Rows per page, 1 to 1000; the whole list without it",
             "required": false,
             "schema": {
               "type": "integer",
@@ -34374,7 +34469,7 @@
             }
           },
           "400": {
-            "description": "A bad filter, orderBy, cursor, selector or limit, a revision that is not a commit id, or one beside a workspace",
+            "description": "A bad filter, sort, q, count, cursor, selector or limit, a revision that is not a commit id, or one beside a workspace",
             "content": {
               "application/json": {
                 "schema": {
@@ -34395,6 +34490,16 @@
           },
           "404": {
             "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A sort field the kind does not have",
             "content": {
               "application/json": {
                 "schema": {
@@ -47503,6 +47608,14 @@
               "null"
             ],
             "description": "The `cursor` of the next page; absent on the last one (API/13 section 2)."
+          },
+          "totalCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "How many rows the whole listing holds, every page together; only with `count=true`.",
+            "minimum": 0
           }
         }
       },

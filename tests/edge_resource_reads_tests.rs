@@ -213,8 +213,8 @@ async fn a_query_that_is_not_one_is_the_callers_mistake_and_never_a_page() {
     let (status, body) = get(&state, Some(SPACE_READER), &format!("{spaces}?limit=0")).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
 
-    // A limit that is not a number at all, and one past what a page may be: the first is refused, the
-    // second is served at the ceiling.
+    // A limit that is not a number at all, and one past what a page may be: both are refused, the
+    // second naming limit (API/13 section 2, T-6175).
     for limit in ["abc", "-1", "1.5"] {
         let (status, body) = get(
             &state,
@@ -228,7 +228,8 @@ async fn a_query_that_is_not_one_is_the_callers_mistake_and_never_a_page() {
         );
     }
     let (status, body) = get(&state, Some(SPACE_READER), &format!("{spaces}?limit=9999")).await;
-    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert_eq!(body["errors"][0]["path"], "limit", "{body}");
 
     // A selector that is not a selector.
     for query in [
@@ -435,6 +436,36 @@ async fn the_endpoints_of_every_project_are_for_an_administrator_of_the_organiza
         ],
         "{all}"
     );
+
+    // The one list contract (API/13 section 2, T-6175): sort, q, count and a cursor that walks
+    // the whole list under them, a bad value refused naming its parameter.
+    let ada = Some("ada.admin@hel.fi");
+    let start = "/api/v1/endpoints?sort=-metadata.name&q=BIKES&limit=1&count=true";
+    let (status, first) = get(&state, ada, start).await;
+    assert_eq!(status, StatusCode::OK, "{first}");
+    assert_eq!(first["totalCount"], 2, "{first}");
+    assert_eq!(first["items"][0]["metadata"]["name"], "helsinki-bikes");
+    let cursor: String = url::form_urlencoded::byte_serialize(
+        first["nextCursor"].as_str().expect("a cursor").as_bytes(),
+    )
+    .collect();
+    let (_, second) = get(&state, ada, &format!("{start}&cursor={cursor}")).await;
+    assert_eq!(
+        second["items"][0]["metadata"]["name"], "espoo-bikes",
+        "{second}"
+    );
+    assert!(second.get("nextCursor").is_none(), "{second}");
+    let (_, none) = get(&state, ada, "/api/v1/endpoints?q=trams&count=true").await;
+    assert_eq!(none["totalCount"], 0, "{none}");
+    for (query, status, field) in [
+        ("limit=0", StatusCode::BAD_REQUEST, "limit"),
+        ("count=1", StatusCode::BAD_REQUEST, "count"),
+        ("sort=-nosuch", StatusCode::UNPROCESSABLE_ENTITY, "sort"),
+    ] {
+        let (got, body) = get(&state, ada, &format!("/api/v1/endpoints?{query}")).await;
+        assert_eq!(got, status, "{query}: {body}");
+        assert_eq!(body["errors"][0]["path"], field, "{query}: {body}");
+    }
 
     // Nobody else is offered the page: not a stranger, not a reader of one project's endpoints,
     // not a reader of spaces, and not a person who approves bindings but may not delete them.

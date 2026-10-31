@@ -82,9 +82,8 @@ async fn list(state: &AppState, query: &str) -> common::Answer {
     .await
 }
 
-/// CC-24: a limit that is not a page size is a 400 naming the parameter, and a limit larger than
-/// the ceiling is served at the ceiling rather than refused — a caller asking for everything gets
-/// a page, never a scan and never a 500.
+/// CC-24: a limit that is not a page size is a 400 naming the parameter, a limit past the ceiling
+/// of 1000 too (API/13 section 2, T-6175), and the ceiling itself is a page, never a 500.
 #[tokio::test]
 async fn a_limit_is_bounded_at_both_ends() {
     let state = world().await;
@@ -97,6 +96,8 @@ async fn a_limit_is_bounded_at_both_ends() {
     );
     for query in [
         "limit=-1",
+        "limit=1001",
+        "limit=1000000",
         "limit=9999999999999999999999",
         "limit=abc",
         "limit=",
@@ -114,7 +115,7 @@ async fn a_limit_is_bounded_at_both_ends() {
             answer.text
         );
     }
-    let huge = list(&state, "limit=1000000").await;
+    let huge = list(&state, "limit=1000").await;
     assert_eq!(huge.status, StatusCode::OK, "{}", huge.text);
     let body: Value = serde_json::from_str(&huge.text).expect("a list");
     assert_eq!(
@@ -235,7 +236,7 @@ async fn no_query_reaches_a_project_the_caller_does_not_read() {
         );
     }
     // And the same for a caller who may read it, so the case above is the binding and not the
-    // query: the administrator is answered.
+    // query: the administrator gets the query's own answer, a 400 naming limit (T-6175).
     let answer = common::send(
         &state,
         admin(),
@@ -244,7 +245,8 @@ async fn no_query_reaches_a_project_the_caller_does_not_read() {
         None,
     )
     .await;
-    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+    assert_eq!(answer.status, StatusCode::BAD_REQUEST, "{}", answer.text);
+    assert!(answer.names_field("limit", "1 to 1000"), "{}", answer.text);
 }
 
 /// Percent-encoding for a query value, by hand: the test's own input must reach the server as

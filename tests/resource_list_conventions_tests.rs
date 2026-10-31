@@ -408,3 +408,92 @@ async fn jc_resource_list_takes_the_same_filter_for_every_kind() {
         );
     }
 }
+
+/// T-6175, API/13 section 2: the one list contract on every kind: limit, sort, q, count and a
+/// cursor that pages under its own sort and search.
+#[tokio::test]
+async fn every_list_takes_the_one_list_contract() {
+    let state = world();
+    let errors = |reply: &Reply, field: &str| {
+        reply.body["errors"]
+            .as_array()
+            .is_some_and(|all| all.iter().any(|e| e["path"] == field))
+    };
+    // The organization's Endpoints list is checked in edge_resource_reads_tests, beside its
+    // administrator.
+    for info in resource::kinds() {
+        let base = &format!("/api/v1/projects/{}/{}", home(info), info.plural);
+        let who = reader;
+        for (query, field) in [
+            ("limit=0", "limit"),
+            ("limit=1001", "limit"),
+            ("limit=many", "limit"),
+            ("count=yes", "count"),
+            ("sort=a%20b", "sort"),
+            ("sort=name&orderBy=name", "orderBy"),
+            ("cursor=forged.x", "cursor"),
+        ] {
+            let bad = send(&state, who(), "GET", &format!("{base}?{query}"), &[]).await;
+            problem(&bad, StatusCode::BAD_REQUEST, "invalid-request", base);
+            assert!(errors(&bad, field), "{base}?{query}: {}", bad.body);
+        }
+        let unknown = send(
+            &state,
+            who(),
+            "GET",
+            &format!("{base}?sort=-nosuch.field"),
+            &[],
+        )
+        .await;
+        problem(
+            &unknown,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "unprocessable",
+            base,
+        );
+        assert!(errors(&unknown, "sort"), "{base}: {}", unknown.body);
+
+        // Descending by name, searched for "t5965", two rows a page: the cursor walks it whole.
+        let start = format!("{base}?sort=-metadata.name&q=T5965&limit=2&count=true");
+        let mut uri = start.clone();
+        let mut seen = Vec::new();
+        for _ in 0..5 {
+            let page = send(&state, who(), "GET", &uri, &[]).await;
+            assert_eq!(page.status, StatusCode::OK, "{uri}: {}", page.body);
+            assert_eq!(
+                page.body["totalCount"], 4,
+                "{uri}: every page counts the whole listing"
+            );
+            seen.extend(names(&page));
+            match page.body["nextCursor"].as_str() {
+                Some(cursor) => uri = format!("{start}&cursor={}", encode(cursor)),
+                None => break,
+            }
+        }
+        assert_eq!(seen, ["t5965-d", "t5965-c", "t5965-b", "t5965-a"], "{base}");
+        let plain = send(&state, who(), "GET", &format!("{base}?limit=1"), &[]).await;
+        assert!(
+            plain.body.get("totalCount").is_none(),
+            "{base}: only with count=true"
+        );
+        let cursor = encode(plain.body["nextCursor"].as_str().expect("a cursor"));
+        let other_q = send(
+            &state,
+            who(),
+            "GET",
+            &format!("{base}?limit=1&q=x&cursor={cursor}"),
+            &[],
+        )
+        .await;
+        problem(&other_q, StatusCode::BAD_REQUEST, "invalid-request", base);
+        let none = send(
+            &state,
+            who(),
+            "GET",
+            &format!("{base}?q=no-such-text&count=true"),
+            &[],
+        )
+        .await;
+        assert_eq!(none.body["totalCount"], 0, "{base}");
+    }
+}

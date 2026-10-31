@@ -120,6 +120,42 @@ describe("a kind with no page of its own", () => {
     }
   });
 
+  it("reads_its_rows_page_by_page_from_the_server_and_searches_there", async () => {
+    // T-6175, API/13 section 2: the server pages (limit, cursor), searches (q) and counts
+    // (totalCount); the grid neither loads the whole kind nor filters it in the browser.
+    const all = Array.from({ length: 120 }, (_, index) => blueprint(`bp-${String(index).padStart(3, "0")}`));
+    const asked: URL[] = [];
+    const { calls } = await renderRoute({
+      path: PATH,
+      answer: (path, request) => {
+        if (!path.endsWith("/blueprints")) return undefined;
+        const url = new URL(request.url, window.location.origin);
+        asked.push(url);
+        const q = url.searchParams.get("q") ?? "";
+        const kept = all.filter((each) => each.metadata.name.includes(q));
+        const from = Number(url.searchParams.get("cursor") ?? 0);
+        const limit = Number(url.searchParams.get("limit"));
+        const next = from + limit < kept.length ? String(from + limit) : undefined;
+        return jsonResponse({ ...list(kept.slice(from, from + limit)), nextCursor: next, totalCount: kept.length });
+      },
+    });
+    const table = await screen.findByRole("table");
+    await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(51));
+    expect(asked[0]?.searchParams.get("limit")).toBe("50");
+    expect(asked[0]?.searchParams.get("count")).toBe("true");
+    expect(asked[0]?.searchParams.has("cursor")).toBe(false);
+    expect(screen.getByText(i18n.t("grid.footer", { shown: 50, count: 120 }))).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: i18n.t("grid.showMore", { count: 50 }) }));
+    await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(101));
+    expect(asked.at(-1)?.searchParams.get("cursor")).toBe("50");
+
+    await userEvent.type(screen.getByRole("searchbox"), "bp-11");
+    await waitFor(() => expect(asked.at(-1)?.searchParams.get("q")).toBe("bp-11"));
+    await waitFor(() => expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(11));
+    expect(calls().filter((call) => call.endsWith("/blueprints")).length).toBe(asked.length);
+  });
+
   it("every_row_action_is_reached_and_opened_from_the_keyboard", async () => {
     await renderRoute({ path: PATH, answer: answering([blueprint("alerting")]) });
     const table = await screen.findByRole("table");
