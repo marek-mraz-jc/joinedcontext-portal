@@ -63,10 +63,10 @@ struct PreviewInput {
 fn subject_schema() -> Value {
     json!({
         "type": "object",
-        "description": "Who: {kind: person, id}, {kind: group|role|serviceAccount, name} or {kind: public}",
+        "description": "person takes id; group, role, serviceAccount take name",
         "properties": {
-            "kind": { "type": "string", "enum": ["person", "group", "role", "serviceAccount", "public"], "description": "Which subject" },
-            "id": text("Keycloak user id of a person", ID),
+            "kind": { "type": "string", "enum": ["person", "group", "role", "serviceAccount", "public"], "description": "Subject kind" },
+            "id": text("Keycloak user id", ID),
             "name": text("e.g. city-stewards", NAME)
         },
         "required": ["kind"],
@@ -124,19 +124,19 @@ fn preview_input_schema() -> Value {
         "type": "object",
         "properties": {
             "name": endpoint_name(),
-            "type": text("Entity type of the page, e.g. AirQualityObserved", TERM),
+            "type": text("e.g. AirQualityObserved", TERM),
             "projection": {
                 "type": "object",
-                "description": "Draft ModelProjection: classes and filter",
+                "description": "Draft spec.projection",
                 "properties": {
                     "classes": {
                         "type": "array",
                         "maxItems": 64,
-                        "description": "The classes served, each with its slots",
+                        "description": "Classes served",
                         "items": {
                             "type": "object",
                             "properties": {
-                                "name": text("e.g. AirQualityObserved", TERM),
+                                "name": text("Class", TERM),
                                 "slots": texts("e.g. [pm10]", TERM)
                             },
                             "required": ["name"],
@@ -145,11 +145,12 @@ fn preview_input_schema() -> Value {
                     },
                     "filter": {
                         "type": "object",
+                        "description": "NGSI-LD query parts",
                         "properties": {
                             "q": text("e.g. pm10>40", QUERY),
                             "scopeQ": text("e.g. /city/#", QUERY),
-                            "geoQ": text("georel;geometry;coordinates, e.g. near;maxDistance==500;Point;[19.1,48.7]", QUERY),
-                            "temporalQ": text("timerel;timeAt, e.g. after;2026-10-01T00:00:00Z", QUERY)
+                            "geoQ": text("e.g. near;maxDistance==500;Point;[19.1,48.7]", QUERY),
+                            "temporalQ": text("e.g. after;2026-10-01T00:00:00Z", QUERY)
                         },
                         "additionalProperties": false
                     }
@@ -157,7 +158,7 @@ fn preview_input_schema() -> Value {
                 "required": ["classes"],
                 "additionalProperties": false
             },
-            "hiddenAttributes": texts("Draft spec.projection.hiddenAttributes", TERM),
+            "hiddenAttributes": texts("Draft hidden attributes", TERM),
             "id": { "type": "array", "maxItems": 100, "items": { "type": "string", "maxLength": ID }, "description": "Only these entity ids" },
             "limit": { "type": "integer", "minimum": 1, "maximum": 100, "description": "default 50" },
             "offset": { "type": "integer", "minimum": 0, "description": "Entities skipped" }

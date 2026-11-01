@@ -44,8 +44,16 @@ fn the_tool_definitions_a_model_reads_stay_under_their_byte_ratchet() {
 /// and `jc_knowledge_search` (562), the knowledge segment's two reads, which no other tool
 /// answers (T-6284); 52,379 once `jc_mqtt_captured` joined
 /// (T-6290, 570 bytes): the only door to a capture broker's messages, in the route's own words
-/// (route_coverage_tests).
-const RATCHET: usize = 52_380;
+/// (route_coverage_tests); 63,964 with the fourteen tools an agent needed to do a steward's
+/// page work over MCP (T-6271, T-6380, T-6381, T-6389; T-6372 rows JC2-28..34, 58..60):
+/// jc_endpoint_preview 1,840, jc_access_simulate 1,135, jc_data_write 1,061, jc_pipeline_inspect
+/// 969, jc_change_history 925, jc_space_governance 902, jc_mqtt_test_publish 885,
+/// jc_access_explore 793, jc_attribute_explain 689, jc_model_sdm_search 593,
+/// jc_model_sdm_import 514, jc_model_generate 513, jc_catalogue_draft 466, jc_permissions_me 315.
+/// Four pipeline panels and six governance readings went in one tool each (`view`, `aspect`), and
+/// a connector lists only its segments' share; the assistant's own turn lists none of them
+/// (tools_registry.rs MCP_ONLY).
+const RATCHET: usize = 63_965;
 
 /// The cut never opens a schema: every MCP input stays closed, and `project` stays bounded.
 #[test]

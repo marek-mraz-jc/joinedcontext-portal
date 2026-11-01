@@ -126,7 +126,11 @@ async fn a_smart_data_model_is_found_and_imported_and_a_stranger_reads_none() {
     )
     .await;
     assert!(unknown.status.is_client_error(), "{}", unknown.text());
-    assert!(unknown.text().contains("/model"), "{}", unknown.text());
+    assert!(
+        unknown.text().contains(r#""path":"model""#),
+        "{}",
+        unknown.text()
+    );
     let posts = tools
         .received_requests()
         .await
@@ -347,7 +351,9 @@ async fn an_entity_write_goes_as_the_person_through_their_own_endpoint() {
         input.clone(),
     )
     .await;
-    assert_status(&refused, StatusCode::NOT_FOUND, "stranger");
+    // A write keeps its 403, naming the read on Endpoint it lacks (PF-50).
+    assert_status(&refused, StatusCode::FORBIDDEN, "stranger");
+    assert!(refused.text().contains("Endpoint"), "{}", refused.text());
     // Without the token an MCP client presents, nothing is exchanged and nothing written.
     let tokenless = call("jc_data_write", &mcp(steward()), &state, input.clone()).await;
     assert_status(&tokenless, StatusCode::FORBIDDEN, "no bearer");
