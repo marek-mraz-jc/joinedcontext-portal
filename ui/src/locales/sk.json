@@ -5662,6 +5662,11 @@
     "kindList": "Zoznam",
     "points": "bodov",
     "openTarget": "Otvoriť",
+    "moreInstances": "Ďalšie inštancie: {count}",
+    "wrongKind": "Model očakáva: {kind}",
+    "drillTrail": "Otvorené odkazy",
+    "drillBack": "Späť",
+    "defaultInstance": "predvolená",
     "hint": {
       "filterText": "Vyberte test a napíšte slová, napr. obsahuje Espoo.",
       "filterNumber": "Vyberte test a napíšte číslo, napr. väčšie ako 40.",

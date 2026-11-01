@@ -8,6 +8,7 @@
  * as the entities whose stored end points back (DM-67).
  */
 import type { EntitySource } from "./grid/source";
+import { idChunks } from "./grid/source";
 import type { RichCell, RichRow } from "./grid/model";
 
 /** One end of a relationship on a type, as a grid column or a form field shows it. */
@@ -142,4 +143,40 @@ export async function pointingAt(
     }
   }
   return { byId, full: page.rows.length >= limit };
+}
+
+/**
+ * The targets of one page's relationships the person may read, by URN: one query per target type
+ * (split only where the id list would outgrow a URL), never one read per cell (G-R2GRID2-017).
+ * `wanted` maps each URN to the type it is read as. The source answers through the person's own
+ * grants, so a target that is deleted or not readable is simply absent from the answer, and the
+ * two look the same (EP-59). Only each target's name and type are kept: none of its other values
+ * leaves this function.
+ */
+export async function resolveTargets(
+  source: Pick<EntitySource, "query">,
+  wanted: ReadonlyMap<string, string>,
+): Promise<Map<string, { name?: string; type: string }>> {
+  const byType = new Map<string, string[]>();
+  for (const [urn, type] of wanted) {
+    const list = byType.get(type) ?? [];
+    list.push(urn);
+    byType.set(type, list);
+  }
+  const reads = [...byType].flatMap(([type, urns]) =>
+    idChunks(urns).map((ids) =>
+      source.query({ type, ids }, { offset: 0, limit: ids.length, count: false }).then(
+        (page) => page.rows,
+        // A refused read leaves its targets unresolved: they read as ids, never as links.
+        () => [] as RichRow[],
+      ),
+    ),
+  );
+  const found = new Map<string, { name?: string; type: string }>();
+  for (const rows of await Promise.all(reads)) {
+    for (const row of rows) {
+      if (wanted.has(row.id)) found.set(row.id, { name: nameOf(row), type: row.type });
+    }
+  }
+  return found;
 }

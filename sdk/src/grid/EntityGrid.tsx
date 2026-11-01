@@ -4,9 +4,9 @@ import type { ResolvedGridConfig } from "./config";
 import { cellText } from "./model";
 import type { ColumnLayout, GridLabels, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
 import { readableName } from "./readableName";
-import { MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, NAME_COLUMN, useEntityGrid } from "./useEntityGrid";
-import { CellView, cellDisplayText, columnKind, formatDate, targetName } from "./cells";
-import type { CellLabels, ColumnKind } from "./cells";
+import { DEFAULT_LABELS, MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, NAME_COLUMN, useEntityGrid } from "./useEntityGrid";
+import { CellView, cellDisplayText, columnKind, formatDate, kindOfCell, targetName, webHref } from "./cells";
+import type { CellLabels, ColumnKind, ResolvedTargets } from "./cells";
 import { ColumnMenu } from "./ColumnMenu";
 import { opsForKind, valuesNeeded } from "./filters";
 import type { ColumnFilter, FilterColumn } from "./filters";
@@ -23,7 +23,7 @@ import type { DrawEngine, GeoLabels } from "../geo/GeoEditor";
 import type { GeometryType } from "../geo/validate";
 import { optionLabel } from "../enums";
 import type { EnumOption } from "../enums";
-import { objectsOf, pointingAt, searchTargets } from "../relations";
+import { objectsOf, pointingAt, resolveTargets, searchTargets } from "../relations";
 import type { TargetOption } from "../relations";
 import { NGSI_LD_NULL, RelationPicker } from "./RelationPicker";
 import { CellInspector, DEFAULT_INSPECTOR_LABELS } from "./CellInspector";
@@ -48,7 +48,16 @@ export interface EntityGridProps extends UseEntityGridOptions {
    * a row action) without a second table of its own.
    */
   renderers?: Record<string, (cell: RichCell | RichCell[] | undefined, row: RichRow) => React.ReactNode>;
+  /**
+   * Opens a relationship's target in the host's own place. Without it the grid opens the target
+   * itself, in the same grid, with a breadcrumb back to the rows it came from (G-R2GRID2-017).
+   */
   onOpenRelationship?: (urn: string) => void;
+  /**
+   * Where an enum value's term reads (G-R2GRID2-019): the address of the model term `meaning`
+   * names, or `undefined` for none. Only an http(s) address becomes a link.
+   */
+  termHref?: (meaning: string) => string | undefined;
   /**
    * The page of rows as the source answered it, with the offset it starts at, for a host that
    * exports or counts what is shown.
@@ -206,10 +215,110 @@ function isGeometry(value: unknown): boolean {
   );
 }
 
+/** The kind a model range asks a cell for, where a value of another kind is plainly wrong. */
+function expectedKind(range: string | undefined): ColumnKind | undefined {
+  if (range === "integer" || range === "number") return "number";
+  if (range === "boolean") return "boolean";
+  if (range === "datetime" || range === "date") return "datetime";
+  return undefined;
+}
+
+const NO_TARGETS: ResolvedTargets = new Map();
+
+/** One target opened from a relationship cell: the step of the breadcrumb back (G-R2GRID2-017). */
+interface DrillStep {
+  urn: string;
+  type: string;
+}
+
+/**
+ * The entity grid. A relationship target the host does not open itself opens in this same grid,
+ * read by its id from the same source, so the target's own grants decide what shows; the
+ * breadcrumb above it goes back to the rows it was opened from, which stay mounted and keep their
+ * query, page and scroll.
+ */
 export function EntityGrid(props: EntityGridProps): React.JSX.Element {
+  const [trail, setTrail] = useState<DrillStep[]>([]);
+  const outerType = props.config.type;
+  const [trailOf, setTrailOf] = useState(outerType);
+  if (trailOf !== outerType) {
+    // A new type in the host's picker starts from its own rows.
+    setTrailOf(outerType);
+    setTrail([]);
+  }
+  const host = useRef<HTMLDivElement>(null);
+  const scroll = useRef<{ top: number; left: number }[]>([]);
+  const drill = useCallback((urn: string, type: string) => {
+    if (trail.length === 0) {
+      scroll.current = [...(host.current?.querySelectorAll<HTMLElement>(".jc-grid-scroll") ?? [])].map((el) => ({ top: el.scrollTop, left: el.scrollLeft }));
+    }
+    setTrail((steps) => [...steps, { urn, type }]);
+  }, [trail.length]);
+  const back = useCallback((to: number) => setTrail((steps) => steps.slice(0, to)), []);
+  useEffect(() => {
+    if (trail.length !== 0 || scroll.current.length === 0) return;
+    // Back on the first rows: where the person was when they opened the link.
+    const saved = scroll.current;
+    scroll.current = [];
+    host.current?.querySelectorAll<HTMLElement>(".jc-grid-scroll").forEach((el, at) => {
+      el.scrollTop = saved[at]?.top ?? 0;
+      el.scrollLeft = saved[at]?.left ?? 0;
+    });
+  }, [trail.length]);
+  if (props.onOpenRelationship) return <GridBody {...props} />;
+  const top = trail.at(-1);
+  const labels = { drillTrail: props.labels?.drillTrail ?? DEFAULT_LABELS.drillTrail, drillBack: props.labels?.drillBack ?? DEFAULT_LABELS.drillBack };
+  return (
+    <div ref={host}>
+      {top && (
+        <nav className="jc-grid-trail" aria-label={labels.drillTrail}>
+          <button type="button" className="jc-grid-trail-back" onClick={() => back(trail.length - 1)}>
+            {`← ${labels.drillBack}`}
+          </button>
+          <ol>
+            <li>
+              <button type="button" onClick={() => back(0)}>{outerType}</button>
+            </li>
+            {trail.map((step, at) => (
+              <li key={`${step.urn}-${at}`}>
+                {at === trail.length - 1 ? (
+                  <span aria-current="page" title={step.urn}>{`${step.type} · ${targetName(step.urn).name}`}</span>
+                ) : (
+                  <button type="button" title={step.urn} onClick={() => back(at + 1)}>{`${step.type} · ${targetName(step.urn).name}`}</button>
+                )}
+              </li>
+            ))}
+          </ol>
+        </nav>
+      )}
+      <div hidden={top !== undefined}>
+        <GridBody {...props} onDrill={drill} />
+      </div>
+      {top && (
+        // The target alone, read-only: its own type's columns, none of the host's per-type settings.
+        <GridBody
+          key={`${top.urn}-${trail.length}`}
+          source={props.source}
+          labels={props.labels}
+          locale={props.locale}
+          termHref={props.termHref}
+          config={{ ...props.config, type: top.type, columns: [], mode: "view" }}
+          query={{ ids: [top.urn] }}
+          filterRow={false}
+          queryBox={false}
+          onDrill={drill}
+        />
+      )}
+    </div>
+  );
+}
+
+function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: string) => void }): React.JSX.Element {
   const {
     renderers,
     onOpenRelationship,
+    onDrill,
+    termHref,
     onRows,
     onQuery,
     marks,
@@ -507,6 +616,46 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       live = false;
     };
   }, [computed, pageIds, hookOptions.source]);
+  // The targets of the page's relationships, read once per page as one query per type and never
+  // per cell (G-R2GRID2-017). Only a target that comes back is a link, named by its name; the rest
+  // were deleted or are not readable, and read as their id.
+  const wantedTargets = useMemo(() => {
+    const wanted = new Map<string, string>();
+    for (const row of rows) {
+      for (const [attr, cell] of Object.entries(row.cells)) {
+        for (const urn of objectsOf(cell)) {
+          const type = targetName(urn).type ?? relations?.[attr]?.target;
+          if (type && urn !== NGSI_LD_NULL) wanted.set(urn, type);
+        }
+      }
+    }
+    return wanted;
+  }, [rows, relations]);
+  const wantedKey = [...wantedTargets.keys()].join("\n");
+  const [resolved, setResolved] = useState<{ key: string; found: ResolvedTargets }>({ key: "", found: NO_TARGETS });
+  useEffect(() => {
+    if (wantedTargets.size === 0) return;
+    let live = true;
+    void resolveTargets(hookOptions.source, wantedTargets).then((found) => {
+      if (live) setResolved({ key: [...wantedTargets.keys()].join("\n"), found });
+    });
+    return () => {
+      live = false;
+    };
+  }, [wantedTargets, hookOptions.source]);
+  const targets = resolved.key === wantedKey ? resolved.found : NO_TARGETS;
+  const canOpen = Boolean(onOpenRelationship || onDrill);
+  const openTarget = useCallback(
+    (urn: string, type?: string) => {
+      if (onOpenRelationship) {
+        onOpenRelationship(urn);
+        return;
+      }
+      const kind = type ?? targets.get(urn)?.type;
+      if (onDrill && kind) onDrill(urn, kind);
+    },
+    [onOpenRelationship, onDrill, targets],
+  );
   // One search per target class for as long as the source stays: a new function each render
   // would ask the endpoint again every time the grid draws.
   const searchOf = useMemo(() => {
@@ -604,8 +753,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const cellLabels = useMemo<CellLabels>(
-    () => ({ yes: labels.yes, no: labels.no, points: labels.points, openTarget: labels.openTarget }),
-    [labels.yes, labels.no, labels.points, labels.openTarget],
+    () => ({ yes: labels.yes, no: labels.no, points: labels.points, openTarget: labels.openTarget, moreInstances: labels.moreInstances }),
+    [labels.yes, labels.no, labels.points, labels.openTarget, labels.moreInstances],
   );
 
   const totalPages = useMemo(() => {
@@ -627,14 +776,43 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     const options = column.attr ? hookOptions.enums?.[column.attr] : undefined;
     const one = Array.isArray(cell) ? undefined : cell;
     const option = options && one?.kind !== "relationship" ? options.find((o) => o.value === String(one?.value)) : undefined;
-    if (option) return <>{optionLabel(option)}</>;
-    // The value by what it holds: a number with its unit, a local date, a point, a chip (T-4827).
+    if (option) {
+      // The model's term, where the host says where terms read and it is a web address (G-R2GRID2-019).
+      const href = option.meaning && termHref ? webHref(termHref(option.meaning)) : undefined;
+      if (!href) return <>{optionLabel(option)}</>;
+      return (
+        <a className="jc-cell jc-cell--link" href={href} target="_blank" rel="noopener noreferrer" title={option.meaning} onClick={(e) => e.stopPropagation()}>
+          {optionLabel(option)}
+        </a>
+      );
+    }
     if (column.attr !== null && column.meta === null) {
-      return <CellView cell={cell} locale={where} labels={cellLabels} onOpen={onOpenRelationship} />;
+      // Absent or null: an empty cell, which a screen reader hears as not set (G-R2GRID2-020).
+      if (cell === undefined) {
+        return (
+          <span className="jc-cell jc-cell--empty">
+            <span className="jc-grid-sr-only">{`${column.label}: ${labels.rowNotSet}`}</span>
+          </span>
+        );
+      }
+      // A value the model's list does not hold: as stored, said so, never a label it does not have.
+      if (options && options.length > 0 && one && one.kind !== "relationship" && one.value !== undefined && one.value !== null) {
+        return <span className="jc-cell jc-cell--invalid">{`${String(one.value)} (${labels.notInList})`}</span>;
+      }
+      // A value of another kind than the model's range: the raw text and why, never coerced.
+      const expected = expectedKind(rules?.[column.attr]?.kind);
+      if (expected && one?.kind === "property" && kindOfCell(one) !== expected) {
+        const reason = labels.wrongKind.replace("{kind}", labels[KIND_LABEL[expected]] as string);
+        return (
+          <span className="jc-cell jc-cell--invalid" title={reason}>{`${cellText(one)} (${reason})`}</span>
+        );
+      }
+      // The value by what it holds: a number with its unit, a local date, a point, a chip (T-4827).
+      return <CellView cell={cell} locale={where} labels={cellLabels} onOpen={canOpen ? openTarget : undefined} targets={targets} />;
     }
     // A timestamp column (observed, created, modified) in the reader's own time.
     return <>{ISO_TIMESTAMP.test(text) ? formatDate(text, where) : text}</>;
-  }, [where, cellLabels, cellOf, onOpenRelationship, hookOptions.enums]);
+  }, [where, cellLabels, cellOf, canOpen, openTarget, targets, termHref, rules, hookOptions.enums, labels]);
   const renderCellContent = useCallback((row: RichRow, column: VisibleColumn): React.ReactNode => {
     const { text, cell } = cellOf(row, column);
 
@@ -683,8 +861,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       return (
         <span className="jc-grid-rel-list">
           {pointing.map((one) =>
-            onOpenRelationship ? (
-              <button key={one.id} type="button" className="jc-grid-rel-btn" title={one.id} onClick={(e) => { e.stopPropagation(); onOpenRelationship(one.id); }}>
+            canOpen ? (
+              <button key={one.id} type="button" className="jc-grid-rel-btn" title={one.id} onClick={(e) => { e.stopPropagation(); openTarget(one.id, end.target); }}>
                 {one.name ?? one.id}
               </button>
             ) : (
@@ -721,8 +899,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     }
 
     // A relationship is a chip naming its target, which opens it (T-4827).
-    if (column.attr && column.meta === null && cell && !Array.isArray(cell) && cell.kind === "relationship" && onOpenRelationship) {
-      return <CellView cell={cell} locale={where} labels={cellLabels} onOpen={onOpenRelationship} />;
+    if (column.attr && column.meta === null && cell && !Array.isArray(cell) && cell.kind === "relationship" && canOpen) {
+      return <CellView cell={cell} locale={where} labels={cellLabels} onOpen={openTarget} targets={targets} />;
     }
 
     if (column.attr && editable(column)) {
@@ -786,7 +964,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
     }
 
     return readValue(row, column);
-  }, [readValue, where, cellLabels, cellOf, renderers, onOpenRelationship, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, isPrimary, rowName, openDetail, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell, ruleProblems, rules, labels.yes, labels.no]);
+  }, [readValue, where, cellLabels, cellOf, renderers, canOpen, openTarget, targets, editable, state.edits, labels.edit, labels.empty, labels.notInList, labels.loading, labels.error, labels.relationMore, labels.openRow, isPrimary, rowName, openDetail, hookOptions.enums, setEdit, relations, inverse, searchOf, pickerLabels, refusedCell, ruleProblems, rules, labels.yes, labels.no]);
 
   // One attribute in the row's detail (T-5599): an editor where the row is on the page and the
   // grant writes it, else the value as a reader sees it, an enum by its label, and an attribute
@@ -798,9 +976,23 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
       if (listed && editable(column)) return renderCellContent(row, column);
       const cell = column.attr ? row.cells[column.attr] : undefined;
       if (cellDisplayText(cell, where, cellLabels).trim() === "") return <span className="jc-grid-detail-empty">{labels.rowNotSet}</span>;
+      // Every instance by its datasetId, where the cell shows one with "+N" (G-R2GRID2-020); an edit
+      // still reaches only the shown one, through the cell.
+      if (Array.isArray(cell) && cell.length > 1 && !cell.every((one) => one.kind === "relationship")) {
+        return (
+          <ul className="jc-grid-instances">
+            {cell.map((one, at) => (
+              <li key={`${one.datasetId ?? ""}-${at}`}>
+                <span className="jc-grid-instance-id" title={one.datasetId}>{one.datasetId ? targetName(one.datasetId).name : labels.defaultInstance}</span>{" "}
+                <CellView cell={one} locale={where} labels={cellLabels} onOpen={canOpen ? openTarget : undefined} targets={targets} />
+              </li>
+            ))}
+          </ul>
+        );
+      }
       return listed ? renderCellContent(row, column) : readValue(row, column);
     },
-    [rows, editable, renderCellContent, readValue, where, cellLabels, labels.rowNotSet],
+    [rows, editable, renderCellContent, readValue, where, cellLabels, labels.rowNotSet, labels.defaultInstance, canOpen, openTarget, targets],
   );
 
   // Metadata menu toggle
