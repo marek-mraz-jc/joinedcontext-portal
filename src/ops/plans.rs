@@ -286,6 +286,38 @@ fn verb_through_connector(
     )))
 }
 
+/// Both connector checks on one change: its scope (`write` at apply) and its verb.
+fn connector_admits(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    kind: &str,
+    name: &str,
+    write: bool,
+    verb: ConnectorVerb,
+) -> Result<(), OpError> {
+    through_connector(caller, project, kind, name, write)?;
+    verb_through_connector(caller, state, project, kind, name, verb)
+}
+
+/// The verb a planned change needs: delete, or edit when the forge holds the object, else create.
+fn change_verb(op: &Op, exists: bool) -> ConnectorVerb {
+    match (op, exists) {
+        (Op::Delete, _) => ConnectorVerb::Delete,
+        (_, true) => ConnectorVerb::Edit,
+        (_, false) => ConnectorVerb::Create,
+    }
+}
+
+/// The verb a plan item applies: no manifest deletes, an `absent` base creates, else it edits.
+fn item_verb(has_manifest: bool, base: &str) -> ConnectorVerb {
+    match (has_manifest, base) {
+        (false, _) => ConnectorVerb::Delete,
+        (true, "absent") => ConnectorVerb::Create,
+        (true, _) => ConnectorVerb::Edit,
+    }
+}
+
 /// The manifest a change proposes: the one given, or the object now with the patch merged in.
 fn manifest_of(
     state: &AppState,
@@ -413,16 +445,11 @@ async fn checked(
     if change.source.is_some() {
         source_fits(at, info.kind, change, workspace)?;
     }
-    through_connector(caller, project, info.kind, &change.name, false)?;
     let home = super::resources::home_holding(state, info, project, &change.name);
     // Create or edit is the forge's answer, never the `op` the client sent (T-6302).
     let exists = state.mirror.get(&home, info.kind, &change.name).is_some();
-    let verb = match (&change.op, exists) {
-        (Op::Delete, _) => ConnectorVerb::Delete,
-        (_, true) => ConnectorVerb::Edit,
-        (_, false) => ConnectorVerb::Create,
-    };
-    verb_through_connector(caller, state, project, info.kind, &change.name, verb)?;
+    let verb = change_verb(&change.op, exists);
+    connector_admits(caller, state, project, info.kind, &change.name, false, verb)?;
     let mut manifest = manifest_of(state, at, &home, change)?;
     // The slug is the platform's to mint (EP-75): a typed one is refused under this change's own
     // path here, before the check below mints one and records it on the Endpoint's draft.
@@ -1184,13 +1211,8 @@ async fn apply(
         )
         .ok_or_else(not_found)?;
     for item in &plan.items {
-        through_connector(caller, project, &item.kind, &item.name, true)?;
-        let verb = match (&item.manifest, item.base.as_str()) {
-            (None, _) => ConnectorVerb::Delete,
-            (Some(_), "absent") => ConnectorVerb::Create,
-            (Some(_), _) => ConnectorVerb::Edit,
-        };
-        verb_through_connector(caller, state, project, &item.kind, &item.name, verb)?;
+        let verb = item_verb(item.manifest.is_some(), &item.base);
+        connector_admits(caller, state, project, &item.kind, &item.name, true, verb)?;
     }
     unchanged_and_gated(state, &plan.items).await?;
     let workspace = plan.workspace.as_deref();
