@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { useCallback, useState } from "react";
-import { EndpointDataView, fieldsOf, sortOfLink } from "../src/components/entities/EndpointDataView";
+import { EndpointDataView, fieldsOf, heldView, sortOfLink } from "../src/components/entities/EndpointDataView";
 import type { DataLink } from "../src/components/entities/EndpointDataView";
 import { filtersFromQ } from "../src/components/entities/presetFilters";
 import type { FilterColumn } from "@joinedcontext/sdk";
@@ -686,5 +686,14 @@ describe("filtersFromQ: a default filter as the filter row's inputs (DM-134)", (
     for (const q of ["name==\"a\"|name==\"b\"", "startDate.observedAt>2026-01-01", "missing==1", 'name~="a"', "startDate>=2026-01-01;startDate>=2026-02-01", "(name)", "name>\"a\""]) {
       expect(filtersFromQ(q, columns), q).toBeNull();
     }
+  });
+});
+
+describe("heldView", () => {
+  it("keeps the held view while the grid reports the same text and order, and takes a changed one", () => {
+    const held = { filterText: "a", sort: { attr: "name", dir: "asc" as const } };
+    expect(heldView(held, { filterText: "a", sort: { attr: "name", dir: "asc" } })).toBe(held);
+    expect(heldView(held, { filterText: "a", sort: { attr: "name", dir: "desc" } })).toEqual({ filterText: "a", sort: { attr: "name", dir: "desc" } });
+    expect(heldView(null, { filterText: null, sort: null })).toEqual({ filterText: null, sort: null });
   });
 });

@@ -647,6 +647,57 @@ function useCsvRefusal(
  * the surface's own sentence (a 403 names the grant), a pending one that it loads, a schema without
  * a type that there is nothing to show. Null once the grid can open.
  */
+/**
+ * The order and text the grid reports, kept as the held view when they did not change: a new
+ * object for the same state would set the grid's view again and the two would chase each other.
+ */
+export function heldView(before: OpenedView | null, next: Pick<GridState, "filterText" | "sort">): OpenedView {
+  const filterText = next.filterText ?? null;
+  const sort = next.sort ?? null;
+  const same = before !== null && (before.filterText ?? null) === filterText && before.sort?.attr === sort?.attr && before.sort?.dir === sort?.dir;
+  return same ? before : { filterText, sort };
+}
+
+/** The view the grid is handed: an order only when both its column and its direction are known. */
+function gridViewOf(filterText: string | null, attr: string | undefined, dir: "asc" | "desc" | undefined) {
+  return { filterText, sort: attr && dir ? { attr, dir } : null };
+}
+
+/** The grid's config for one type of the endpoint, or null before a type is known. */
+function gridConfigOf(slug: string, type: string | undefined, columns: GridColumn[], rowsPerPage: number | undefined) {
+  if (!type) return null;
+  return (
+    parseGridConfig({
+      source: { kind: "endpoint", slug },
+      type,
+      columns,
+      pageSize: rowsPerPage ?? 20,
+      // Read only here: a value is corrected in the explorer, where the person chose the endpoint
+      // for that purpose.
+      mode: "view",
+      history: { enabled: true },
+    }).config ?? null
+  );
+}
+
+/** Escape leaves the full window, as it closes a dialog. */
+function useEscapeLeaves(full: boolean, setFull: (full: boolean) => void): void {
+  useEffect(() => {
+    if (!full) return;
+    const leave = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFull(false);
+    };
+    window.addEventListener("keydown", leave);
+    return () => window.removeEventListener("keydown", leave);
+  }, [full, setFull]);
+}
+
+/** A filter condition's title: the column's label, with the system field it reads after a dot. */
+function filterTitleOf(column: FilterColumn, labels: Record<string, string>, t: (key: string) => string): string {
+  const title = labels[column.attr ?? ""] ?? column.attr ?? column.key;
+  return column.meta ? `${title} · ${t(`entityGrid.${column.meta}`)}` : title;
+}
+
 export function schemaState(
   reads: Record<"index" | "schema" | "widget", { error: Error | null; isPending: boolean }>,
   ready: boolean,
@@ -720,51 +771,16 @@ export function EndpointDataView({
   useRowCard(type?.name, klass, slots, shape, kinds, enums, i18n.language, map, onCard);
   const onQuery = useCallback((query: { q?: string }) => setAsked(query.q), []);
   // The grid reports its state on every change; the same text and order keep the held one, or the two would chase each other.
-  const onGridState = useCallback(
-    (next: GridState) =>
-      setView((before) =>
-        before && (before.filterText ?? null) === (next.filterText ?? null) && before.sort?.attr === next.sort?.attr && before.sort?.dir === next.sort?.dir
-          ? before
-          : { filterText: next.filterText ?? null, sort: next.sort ?? null },
-      ),
-    [],
-  );
+  const onGridState = useCallback((next: GridState) => setView((before) => heldView(before, next)), []);
   const sortAttr = opened.sort?.attr;
   const sortDir = opened.sort?.dir;
-  const gridView = useMemo(
-    () => ({ filterText: opened.filterText, sort: sortAttr && sortDir ? { attr: sortAttr, dir: sortDir } : null }),
-    [opened.filterText, sortAttr, sortDir],
-  );
+  const gridView = useMemo(() => gridViewOf(opened.filterText, sortAttr, sortDir), [opened.filterText, sortAttr, sortDir]);
   const { hide } = tools;
   const onHide = useCallback((attr: string) => hide(hiddenNow, attr), [hide, hiddenNow]);
 
-  // Escape leaves the full window, as it closes a dialog.
-  useEffect(() => {
-    if (!full) return;
-    const leave = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setFull(false);
-    };
-    window.addEventListener("keydown", leave);
-    return () => window.removeEventListener("keydown", leave);
-  }, [full]);
+  useEscapeLeaves(full, setFull);
   const rowsPerPage = classView?.pageLength;
-  const config = useMemo(() => {
-    if (!type) {
-      return null;
-    }
-    return (
-      parseGridConfig({
-        source: { kind: "endpoint", slug },
-        type: type.name,
-        columns: gridColumns,
-        pageSize: rowsPerPage ?? 20,
-        // Read only here: a value is corrected in the explorer, where the person chose the endpoint
-        // for that purpose.
-        mode: "view",
-        history: { enabled: true },
-      }).config ?? null
-    );
-  }, [slug, type, gridColumns, rowsPerPage]);
+  const config = useMemo(() => gridConfigOf(slug, type?.name, gridColumns, rowsPerPage), [slug, type, gridColumns, rowsPerPage]);
 
   const compareLabels = useMemo(
     () => ({
@@ -786,10 +802,7 @@ export function EndpointDataView({
   const labels = useMemo(() => gridLabels(t), [t]);
   const renderers = useMemo(() => linkRenderers(links, t("endpoints.data.openLink")), [links, t]);
   const panelFields = useMemo(() => shape.order.map((attr) => ({ value: attr, label: shape.labels[attr] ?? attr })), [shape]);
-  const filterTitle = (column: FilterColumn) => {
-    const title = shape.labels[column.attr ?? ""] ?? column.attr ?? column.key;
-    return column.meta ? `${title} · ${t(`entityGrid.${column.meta}`)}` : title;
-  };
+  const filterTitle = (column: FilterColumn) => filterTitleOf(column, shape.labels, t);
 
   const notReady = schemaState({ index, schema, widget }, Boolean(type && config), t);
   if (notReady || !type || !config) {
