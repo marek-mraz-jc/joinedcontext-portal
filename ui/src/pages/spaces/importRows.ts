@@ -460,6 +460,50 @@ export function serialDate(serial: number, date1904 = false): string {
   return Number.isInteger(serial) ? iso.slice(0, 10) : iso.slice(0, 19);
 }
 
+type Xml = (name: string) => Document | undefined;
+
+/** One cell's text: a shared or inline string, a boolean, a date cell as its ISO date, else the raw value. */
+export function cellValue(cell: Element, shared: string[], dated: boolean[], date1904: boolean): string {
+  const type = cell.getAttribute("t");
+  const value = cell.getElementsByTagName("v")[0]?.textContent ?? "";
+  if (type === "s") return shared[Number(value)] ?? "";
+  if (type === "inlineStr") return Array.from(cell.getElementsByTagName("t")).map((t) => t.textContent ?? "").join("");
+  if (type === "b") return value === "1" ? "true" : "false";
+  const date = (type === null || type === "n") && value !== "" && dated[Number(cell.getAttribute("s") ?? 0)];
+  return date && Number.isFinite(Number(value)) ? serialDate(Number(value), date1904) : value;
+}
+
+/** Per cell style index, whether its number format shows a date or a time. */
+function datedStyles(styles: Document | undefined): boolean[] {
+  const custom = new Map(
+    Array.from(styles?.getElementsByTagName("numFmt") ?? []).map((f) => [Number(f.getAttribute("numFmtId")), f.getAttribute("formatCode") ?? ""]),
+  );
+  const cellXfs = styles?.getElementsByTagName("cellXfs")[0];
+  return Array.from(cellXfs?.getElementsByTagName("xf") ?? []).map((xf) => {
+    const id = Number(xf.getAttribute("numFmtId") ?? 0);
+    return DATE_FORMATS.has(id) || isDateFormat(custom.get(id) ?? "");
+  });
+}
+
+/** The sheets' names and parts: the workbook's own list orders them; without one, sheet2 still comes before sheet10. */
+function sheetParts(entries: Map<string, Uint8Array>, book: Document | undefined, xml: Xml): { name: string; part: string }[] {
+  const targets = new Map(
+    Array.from(xml("xl/_rels/workbook.xml.rels")?.getElementsByTagName("Relationship") ?? []).map((r) => {
+      const target = r.getAttribute("Target") ?? "";
+      return [r.getAttribute("Id") ?? "", target.startsWith("/") ? target.slice(1) : `xl/${target}`];
+    }),
+  );
+  const listed = Array.from(book?.getElementsByTagName("sheet") ?? []).map((s) => ({
+    name: s.getAttribute("name") ?? "",
+    part: targets.get(s.getAttribute("r:id") ?? "") ?? "",
+  }));
+  if (listed.length > 0) return listed;
+  return [...entries.keys()]
+    .filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name))
+    .sort((a, b) => Number(/\d+/.exec(a)?.[0]) - Number(/\d+/.exec(b)?.[0]))
+    .map((part) => ({ name: /sheet\d+/.exec(part)?.[0] ?? part, part }));
+}
+
 /**
  * Every sheet of an XLSX workbook, in the order the spreadsheet shows them (JC1-21); each first
  * row is the header. Shared and inline strings are read, a date cell as its ISO date. A sheet
@@ -467,64 +511,24 @@ export function serialDate(serial: number, date1904 = false): string {
  */
 export async function parseWorkbook(bytes: Uint8Array): Promise<Sheet[]> {
   const entries = await unzip(bytes);
-  const xml = (name: string) => {
+  const xml: Xml = (name) => {
     const entry = entries.get(name);
     return entry ? new DOMParser().parseFromString(new TextDecoder().decode(entry), "application/xml") : undefined;
   };
   const shared = Array.from(xml("xl/sharedStrings.xml")?.getElementsByTagName("si") ?? []).map(
     (si) => Array.from(si.getElementsByTagName("t")).map((t) => t.textContent ?? "").join(""),
   );
-  const styles = xml("xl/styles.xml");
-  const custom = new Map(
-    Array.from(styles?.getElementsByTagName("numFmt") ?? []).map((f) => [Number(f.getAttribute("numFmtId")), f.getAttribute("formatCode") ?? ""]),
-  );
-  const cellXfs = styles?.getElementsByTagName("cellXfs")[0];
-  const dated = Array.from(cellXfs?.getElementsByTagName("xf") ?? []).map((xf) => {
-    const id = Number(xf.getAttribute("numFmtId") ?? 0);
-    return DATE_FORMATS.has(id) || isDateFormat(custom.get(id) ?? "");
-  });
+  const dated = datedStyles(xml("xl/styles.xml"));
   const book = xml("xl/workbook.xml");
   const date1904 = ["1", "true"].includes(book?.getElementsByTagName("workbookPr")[0]?.getAttribute("date1904") ?? "");
-  const targets = new Map(
-    Array.from(xml("xl/_rels/workbook.xml.rels")?.getElementsByTagName("Relationship") ?? []).map((r) => {
-      const target = r.getAttribute("Target") ?? "";
-      return [r.getAttribute("Id") ?? "", target.startsWith("/") ? target.slice(1) : `xl/${target}`];
-    }),
-  );
-  // The workbook's own list names and orders the sheets; without one, sheet2 still comes before sheet10.
-  const listed = Array.from(book?.getElementsByTagName("sheet") ?? []).map((s) => ({
-    name: s.getAttribute("name") ?? "",
-    part: targets.get(s.getAttribute("r:id") ?? "") ?? "",
-  }));
-  const parts = listed.length > 0
-    ? listed
-    : [...entries.keys()]
-        .filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name))
-        .sort((a, b) => Number(/\d+/.exec(a)?.[0]) - Number(/\d+/.exec(b)?.[0]))
-        .map((part) => ({ name: /sheet\d+/.exec(part)?.[0] ?? part, part }));
   const sheets: Sheet[] = [];
-  for (const { name, part } of parts) {
+  for (const { name, part } of sheetParts(entries, book, xml)) {
     const sheet = xml(part);
     if (!sheet) continue;
     const records = Array.from(sheet.getElementsByTagName("row")).map((row) => {
       const record: string[] = [];
       for (const cell of Array.from(row.getElementsByTagName("c"))) {
-        const type = cell.getAttribute("t");
-        const value = cell.getElementsByTagName("v")[0]?.textContent ?? "";
-        const date = (type === null || type === "n") && value !== "" && dated[Number(cell.getAttribute("s") ?? 0)];
-        const text =
-          type === "s"
-            ? (shared[Number(value)] ?? "")
-            : type === "inlineStr"
-              ? Array.from(cell.getElementsByTagName("t")).map((t) => t.textContent ?? "").join("")
-              : type === "b"
-                ? value === "1"
-                  ? "true"
-                  : "false"
-                : date && Number.isFinite(Number(value))
-                  ? serialDate(Number(value), date1904)
-                  : value;
-        record[columnIndex(cell.getAttribute("r") ?? "")] = text;
+        record[columnIndex(cell.getAttribute("r") ?? "")] = cellValue(cell, shared, dated, date1904);
       }
       return Array.from(record, (cell) => cell ?? "");
     });
