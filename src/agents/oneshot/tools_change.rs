@@ -70,12 +70,19 @@ impl Driver {
     /// Why a second resource may not be changed outside a copy (AG-82): the assistant already
     /// holds an open draft of another resource of this person in the project. A change of more
     /// than one resource is made in a workspace and brought back as one Change.
+    ///
+    /// Only drafts this run wrote count (JC1-13): an assistant draft the person left in an
+    /// earlier conversation is theirs to propose or drop, and no reason to refuse this one.
+    /// ponytail: a continued conversation starts its count again; carry the first run's start
+    /// when continuations should share it.
     pub(super) async fn second_resource(&self, kind: &str, name: &str) -> Option<String> {
         let drafts = self.state.drafts.list(&self.project).await.ok()?;
+        let since = chrono::Utc::now() - self.started.elapsed();
         let other = drafts.into_iter().find(|draft| {
             draft.workspace.is_none()
                 && draft.touched_kind == "assistant"
                 && draft.touched_by == self.created_by
+                && draft.updated_at >= since
                 && !(draft.kind == kind && draft.name == name)
         })?;
         Some(format!(
@@ -1404,25 +1411,19 @@ impl Driver {
         }
     }
 
-    /// One catalog search for both doors (AG-70): the platform runs it and records the tool
-    /// step; `None` when nothing in the project matches.
-    async fn catalog(&self, q: &str, step_when_empty: bool) -> Result<Option<Value>, String> {
+    /// The model's catalog search (AG-70): the platform runs it and records the tool step;
+    /// `None` when nothing matches.
+    async fn catalog(&self, q: &str) -> Result<Option<Value>, String> {
         let started = std::time::Instant::now();
         let effective = crate::permissions::for_request(&self.state, &self.identity, &self.project);
         let catalog =
             crate::api::assistant::search(&self.state, &self.project, &effective, q, None).await;
-        if catalog.items.is_empty() && !step_when_empty {
-            return Ok(None);
-        }
         let mut output = serde_json::to_value(&catalog).unwrap_or(Value::Null);
-        // The model's own search also reads the open-data catalogue, which is public (EP-67):
-        // a question about another city finds its published datasets (T-6104).
-        let mut datasets = Vec::new();
-        if step_when_empty {
-            (datasets, _) =
-                crate::api::catalogue::datasets_matching(&self.state, q, CATALOGUE_DATASETS).await;
-            output["datasets"] = json!(datasets);
-        }
+        // The search also reads the open-data catalogue, which is public (EP-67): a question
+        // about another city finds its published datasets (T-6104).
+        let (datasets, _) =
+            crate::api::catalogue::datasets_matching(&self.state, q, CATALOGUE_DATASETS).await;
+        output["datasets"] = json!(datasets);
         self.event(
             "tool",
             json!({
@@ -1437,26 +1438,13 @@ impl Driver {
         Ok((!catalog.items.is_empty() || !datasets.is_empty()).then_some(output))
     }
 
-    /// The search the platform runs before the model: outside the run's access it is skipped,
-    /// and the prompt goes without it (AG-70). Only words that name something are searched ("and
-    /// right now??" names nothing), and a search that finds nothing is no step the person reads:
-    /// it was the platform's, not work done for them (T-2763).
-    pub(super) async fn find(&self, question: &str) -> Result<Option<Value>, String> {
-        if self.granted("jc_catalog_search").is_err()
-            || crate::api::assistant::words(question).is_empty()
-        {
-            return Ok(None);
-        }
-        self.catalog(question, false).await
-    }
-
-    /// A `search_catalog` call of the model, with its own words: the same search and the same
-    /// tool step as [`Self::find`], answered as text the next model call reads.
+    /// A `search_catalog` call of the model, with its own words, answered as text the next
+    /// model call reads.
     pub(super) async fn search(&self, q: &str) -> Result<String, String> {
         if let Err(reason) = self.granted("jc_catalog_search") {
             return Ok(format!("error: {reason}"));
         }
-        Ok(match self.catalog(q, true).await? {
+        Ok(match self.catalog(q).await? {
             Some(output) => output.to_string(),
             None => format!(
                 "nothing in the project, the Endpoints shared with it or the open-data catalogue \
@@ -1683,6 +1671,28 @@ mod workspace_guard_tests {
             )
             .await
             .unwrap();
+        assert_eq!(driver.second_resource("DataSource", "feed").await, None);
+    }
+
+    /// JC1-13: an assistant draft of an earlier conversation is not this run's change.
+    #[tokio::test]
+    async fn an_earlier_conversations_draft_does_not_refuse_this_ones_change() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        state
+            .drafts
+            .put(
+                "helsinki",
+                "Pipeline",
+                "bikes",
+                json!({}),
+                None,
+                "test-user@hel.fi",
+                "assistant",
+            )
+            .await
+            .unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        let driver = Driver::for_tests(state.clone(), "helsinki");
         assert_eq!(driver.second_resource("DataSource", "feed").await, None);
     }
 }
