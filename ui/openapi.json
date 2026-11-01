@@ -15794,7 +15794,7 @@
                 "schema": {
                   "properties": {
                     "datasets": {
-                      "description": "Open-data catalogue datasets: title, url of the dataset page, publisher, formats",
+                      "description": "Open datasets: title, url, publisher, formats, endpoint slug",
                       "items": {
                         "type": "object"
                       },
@@ -17259,7 +17259,7 @@
     },
     "/api/v1/projects/{project}/ops/jc_data_query": {
       "post": {
-        "description": "Reads one Endpoint's entities as you, current or history (temporal), with type, id, q, attrs, a geo-query, count and paging",
+        "description": "Reads one Endpoint's entities, current or history (temporal), by type, id, q, attrs, geo-query, count and paging",
         "operationId": "jc_data_query",
         "parameters": [
           {
@@ -17303,7 +17303,7 @@
                     "type": "string"
                   },
                   "endpoint": {
-                    "description": "Endpoint name, e.g. doprava-counters",
+                    "description": "Endpoint name or public slug, e.g. city-counters",
                     "maxLength": 253,
                     "type": "string"
                   },
