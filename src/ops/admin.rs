@@ -13,6 +13,7 @@ use super::runs::as_user;
 use super::{change_schema, dry_run_output_schema, parse_input, Annotations, OpError, Operation};
 use crate::change::Lane;
 use crate::error::ApiError;
+use crate::state::AppState;
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -71,6 +72,30 @@ pub struct SourcePutInput {
     pub version: Option<String>,
     #[serde(default)]
     pub dry_run: bool,
+}
+
+async fn delete_project(
+    caller: &super::Caller,
+    state: &AppState,
+    project: &str,
+    val: Value,
+) -> Result<Value, OpError> {
+    let input: DeleteProjectInput = parse_input(val)?;
+    // The ceiling (an agent profile, a connector scope) was judged on the project the call is
+    // addressed to: the name confirms that one and no other (JC1-01).
+    if input.name != project {
+        return Err(OpError::InvalidInput {
+            path: "/name".into(),
+            message: format!(
+                "this call is addressed to project {project}: name that project to delete it, \
+                 or address the call to {}",
+                input.name
+            ),
+        });
+    }
+    let change =
+        crate::api::projects::delete_project_for(state, &caller.identity, &input.name).await?;
+    Ok(crate::api::mutate::ProposeOutcome::Change(change).into_value())
 }
 
 fn export_input_schema() -> Value {
@@ -253,30 +278,7 @@ pub fn operations() -> Vec<Operation> {
             verb: None,
             lane: Lane::Red,
             validate: |val| parse_input::<DeleteProjectInput>(val.clone()).map(|_| ()),
-            run: |caller, state, project, val| {
-                Box::pin(async move {
-                    let input: DeleteProjectInput = parse_input(val)?;
-                    // The ceiling (an agent profile, a connector scope) was judged on the project
-                    // the call is addressed to: the name confirms that one and no other (JC1-01).
-                    if input.name != project {
-                        return Err(OpError::InvalidInput {
-                            path: "/name".into(),
-                            message: format!(
-                                "this call is addressed to project {project}: name that project \
-                                 to delete it, or address the call to {}",
-                                input.name
-                            ),
-                        });
-                    }
-                    let change = crate::api::projects::delete_project_for(
-                        state,
-                        &caller.identity,
-                        &input.name,
-                    )
-                    .await?;
-                    Ok(crate::api::mutate::ProposeOutcome::Change(change).into_value())
-                })
-            },
+            run: |caller, state, project, val| Box::pin(delete_project(caller, state, project, val)),
         },
         Operation {
             name: "jc_project_export",
