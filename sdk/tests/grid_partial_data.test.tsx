@@ -196,7 +196,7 @@ describe("missing and partial data (G-R2GRID2-020)", () => {
     };
     render(<EntityGrid config={gridOf("Road", columns)} source={fixtureSource([row])} />);
     const more = await screen.findByText("+2");
-    expect(more).toHaveAttribute("title", "2 more instances");
+    expect(more).toHaveAttribute("title", "2 more instances: 30 (radar), 50 (camera)");
     expect(more.previousElementSibling).toHaveTextContent("40");
     const detail = await openDetail("Instances");
     const items = within(detail).getAllByRole("listitem").map((item) => item.textContent);

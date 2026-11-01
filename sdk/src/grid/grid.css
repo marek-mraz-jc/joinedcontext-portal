@@ -1051,7 +1051,6 @@ button.jc-cell-chip {
 
 .jc-grid-instance-id {
   color: var(--jc-color-muted, #57606a);
-  font-size: var(--jc-font-size-sm, 12px);
 }
 
 /* The way back from an opened relationship target (G-R2GRID2-017). */

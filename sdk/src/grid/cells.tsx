@@ -331,7 +331,10 @@ export function CellView({ cell, locale, labels, onOpen, targets }: CellViewProp
   if (all.length > 1) {
     const shown = shownInstance(all)!;
     const more = all.length - 1;
-    const hint = (labels.moreInstances ?? "{count} more instances").replace("{count}", String(more));
+    const others = all
+      .filter((each) => each !== shown)
+      .map((each) => `${cellDisplayText(each, locale, labels)}${each.datasetId ? ` (${targetName(each.datasetId).name})` : ""}`);
+    const hint = `${(labels.moreInstances ?? "{count} more instances").replace("{count}", String(more))}: ${others.join(", ")}`;
     return (
       <span className="jc-cell-instances">
         <CellView cell={shown} locale={locale} labels={labels} onOpen={onOpen} targets={targets} />
