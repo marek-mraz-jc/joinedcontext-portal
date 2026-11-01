@@ -92,7 +92,7 @@ function useFunction<T = unknown>(name: string, body?: unknown, options?: { enab
 ```
 Invokes a backend server function and manages its response lifecycle.
 
-### Layout (T-2777, UI-84)
+### Layout (UI-84)
 ```ts
 function Page(props: { children; width?: "narrow" | "wide" | "full"; label? }): JSX.Element
 function Header(props: { title; subtitle?; actions?; level?: 1 | 2 | 3 }): JSX.Element
@@ -102,7 +102,7 @@ function Split(props: { children: [ReactNode, ReactNode]; ratio?: "1:1" | "2:1" 
 function Sidebar(props: { label: string; side: ReactNode; children; position?: "start" | "end" }): JSX.Element
 function Tabs(props: { tabs: { id; label; render: () => ReactNode }[]; label: string; initial?; onChange? }): JSX.Element
 ```
-Build every screen from these and the app is responsive at 375 to 2560 px without CSS of its own. Each one lays out by the width it is given (container queries), so a `Grid` inside a `Split` or a framed app adapts to its own box: `Grid` is 1 column, then 2 from 40rem, 3 from 64rem, `columns` (at most 4) from 90rem; `Split` stacks under 48rem; `Sidebar` is a column beside the content from 48rem and a drawer behind a button named `label` on a phone (Escape closes it); `Tabs` follows the WAI-ARIA pattern (arrow keys, Home, End) and scrolls sideways on a phone. `--jc-gutter` and `--jc-font-size-title` grow with the window; `--jc-target` (44 px) is the least height of a control on a phone or a touch screen.
+Each one lays out by the width it is given (container queries), so a `Grid` inside a `Split` or a framed app adapts to its own box: `Grid` is 1 column, then 2 from 40rem, 3 from 64rem, `columns` (at most 4) from 90rem; `Split` stacks under 48rem; `Sidebar` is a column beside the content from 48rem and a drawer behind a button named `label` on a phone (Escape closes it); `Tabs` follows the WAI-ARIA pattern (arrow keys, Home, End) and scrolls sideways on a phone. `--jc-gutter` and `--jc-font-size-title` grow with the window; `--jc-target` (44 px) is the least height of a control on a phone or a touch screen.
 
 ### Shell and entity panel (SDK-39, SDK-40)
 ```ts
@@ -190,7 +190,7 @@ const DEFAULT_LABELS: GridLabels
 function targetName(urn: string): { type?: string; name: string }
 function readableName(attr: string): string
 
-// The filter row as a query (T-1429): the endpoint filters, never the browser; the Portal's queryFromGroup, searchQuery too
+// The filter row as a query: the endpoint filters, never the browser; the Portal's queryFromGroup, searchQuery too
 function queryFromFilters(columns: FilterColumn[], filters: Record<string, ColumnFilter>): { q?: string; idPattern?: string }
 function opsForKind(kind: FilterKind): FilterOp[]
 function andQ(...parts: (string | undefined)[]): string | undefined
@@ -200,26 +200,26 @@ function applyChanges(options: { source, entities, observed?, fallback?, now? })
 function attrsBody(changes: AttributeChange[], observed: Observed, now?: () => string): Record<string, unknown>
 const MAX_ENTITIES = 50
 
-// A typed value checked at its cell against its model's rule before it is pending for Apply (T-3097)
+// A typed value checked at its cell against its model's rule before it is pending for Apply
 function problemOf(rule: ValueRule | undefined, value: unknown, labels: RuleLabels): string | null
 
 // Whether a loaded row matches an NGSI-LD q, for marks decided in the page (API/01 §30); null when the q is beyond the subset
 function matchesQ(row: RichRow, q: string): boolean | null
 function parseQ(q: string): Term[][] | null
 
-// One attribute's history (T-1431): the temporal read as a table and a line
+// One attribute's history: the temporal read as a table and a line
 function EntityHistory(props: EntityHistoryProps): JSX.Element
 function asCsv(points: HistoryPoint[], attr: string): string
 const MAX_POINTS = 1000
 
-// The space beside an endpoint (T-1435): the same page of ids through both doors
+// The space beside an endpoint: the same page of ids through both doors
 function EntityCompare(props: EntityCompareProps): JSX.Element
 function pageSource(rows: RichRow[]): EntitySource
 const DEFAULT_COMPARE_LABELS: CompareLabels
 ```
 One spreadsheet-like grid of one entity type (`role="grid"`; arrow keys, Home/End, PageUp/PageDown): an id column pinned, each cell read by its kind (a number in `locale` with its unit, local time, a point as lat, lon, a relationship as a chip), per column an icon and a menu (sort, filter, hide, rename, resize, move; headers also drag; the `observedAt`, unit, `datasetId`, `createdAt`, `modifiedAt` columns under Details). The config is data (`{ source, type, columns, entityTimestamps, filters, pageSize, mode, editableAttrs, history, compareWith, density, rowActions }`); `parseGridConfig` refuses unknown keys with JSON paths and fills defaults. Props: `config`, `source`, `labels` (every visible string; English defaults), `state` + `onStateChange` (controlled per key), `renderers` by attribute name, cell kind or `id`, `onOpenRelationship`, `onRows` (the rows shown and their offset), `onQuery` (the filters' `q` and `idPattern`, for a host that saves a view), `hidden` + `onHide`, `layout` + `onLayout` (`{ order, width, labels }`), `locale`, `rowTone` (a row's tone and reason, as a named swatch), `toolbar`, `empty`, `rules` (`ValueRule` per attribute: a pending value that breaks it is marked with the reason and holds Review back), `classNames`. `useEntityGrid` is the same without markup. Values render as text; sorting orders the loaded page only, which the header says.
 
-The header's second row filters at the endpoint (UI-66, EP-07): per column the operators its content allows (contains/is/is not/is empty/has a value for text, comparisons and between for numbers and dates, the id by pattern, a metadata column on `attr.observedAt`), composed into one `;`-joined `q` (values quoted, patterns' metacharacters escaped), shown under the grid with a copy button and an "edit as text" switch. The footer carries the endpoint's own `NGSILD-Results-Count`, and nothing when a narrowed answer carried none (R22). In `mode: "edit"` the columns of `editableAttrs` take a typed value — the value itself, not the text, so a unit is kept — which is marked, counted, reviewed as a batch with one `observedAt` choice, and applied one `PATCH …/attrs` per entity through the source's `patch`; a refused entity keeps its cell and the endpoint's own sentence. A source without `patch` has no edit mode, one without `history` no history.
+The header's second row filters at the endpoint (UI-66, EP-07): per column the operators its content allows (contains/is/is not/is empty/has a value for text, comparisons and between for numbers and dates, the id by pattern, a metadata column on `attr.observedAt`), composed into one `;`-joined `q`, shown under the grid with a copy button and an "edit as text" switch. The footer carries the endpoint's own `NGSILD-Results-Count`, and nothing when a narrowed answer carried none (R22). In `mode: "edit"` the columns of `editableAttrs` take a typed value which is marked, counted, reviewed as a batch with one `observedAt` choice, and applied one `PATCH …/attrs` per entity through the source's `patch`; a refused entity keeps its cell and the endpoint's own sentence. A source without `patch` has no edit mode, one without `history` no history.
 
 `EntityHistory` shows one attribute's temporal answer: a numeric series as a line in the first chart colour (time axis in local time, value axis naming `unit`, time and value on hover) and a table of every value for a screen reader. `heading` is the panel's heading in the App's words (the default is the title and the attribute; the entity's id is never shown), `locale` the language times and numbers are written in (the page's by default) and `fractionDigits` the attribute's precision (2 by default). Copy as CSV keeps the raw values.
 
@@ -235,7 +235,7 @@ function originTransport(fetchImpl?: typeof fetch, doc?: Document): Transport //
 class SourceError extends Error { status: number }
 function historyOf(body: unknown, attr: string): HistoryPoint[]
 ```
-Where a grid reads: `query`, `get`, and where the source offers them `history`, `patch`, `remove`, `access`; any store is a source by these (rows by `toRichRow`). `@joinedcontext/sdk/grid` exports the grid alone. The two built-in sources read the normalized representation with `options=sysAttrs` through the person's session; a space's 404 says "no grant on this space" whether or not it exists; an Endpoint's 404 on `history` is an empty series (no instances and no grant look alike, T-2972). The Endpoint's Policy decides every write.
+Where a grid reads: `query`, `get`, and where the source offers them `history`, `patch`, `remove`, `access`; any store with these is a source. `@joinedcontext/sdk/grid` exports the grid alone. The two built-in sources read the normalized representation with `options=sysAttrs` through the person's session; a space's 404 says "no grant on this space" whether or not it exists; an Endpoint's 404 on `history` is an empty series (no instances and no grant look alike, T-2972). The Endpoint's Policy decides every write.
 ```ts
 function toRichRow(entity: object, language?: string): RichRow // { id, type, createdAt, modifiedAt, scope, cells, raw }
 function toRichCell(attr: unknown, language: string): RichCell | null // { kind, value, unitCode, observedAt, datasetId, createdAt, modifiedAt, object, geometryType, languageMap, sub }
@@ -484,7 +484,7 @@ Constructs a server function execution context capturing log statements.
 function recordControls(afterAll: (done: () => Promise<void>) => void, dir?: string): void
 function controlId(element: Element): string
 ```
-Call `recordControls(afterAll)` in the test setup; the gate (T-3373) fails controls no test uses.
+Call `recordControls(afterAll)` in the test setup; the gate fails controls no test uses.
 
 ---
 
