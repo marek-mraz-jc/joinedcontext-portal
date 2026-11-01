@@ -88,7 +88,7 @@ fn create_input_schema() -> Value {
             "kind": {
                 "type": "string",
                 "description": "What kind of run to execute",
-                "enum": ["application", "dashboard", "analysis", "conversation"]
+                "enum": ["application", "dashboard", "analysis"]
             },
             "unattended": {
                 "type": "boolean",
@@ -476,6 +476,18 @@ pub fn operations() -> Vec<Operation> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// JC2-46: jc_run_create offers no kind its route refuses (a conversation starts at
+    /// /assistant/conversations).
+    #[test]
+    fn jc_run_create_offers_no_conversation_kind() {
+        let op = operations()
+            .into_iter()
+            .find(|op| op.name == "jc_run_create")
+            .expect("op");
+        let kinds = (op.input)()["properties"]["kind"]["enum"].clone();
+        assert!(!kinds.to_string().contains("conversation"), "{kinds}");
+    }
 
     /// JC2-23: jc_run_publish answers what its outputSchema declares, the Change wrapped as
     /// every other propose answers it, not the route's bare Change.
