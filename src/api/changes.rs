@@ -1930,8 +1930,17 @@ async fn approve_every_file(
         let envelope = serde_norway::from_str::<ResourceEnvelope>(&content).ok();
         // A secrets file approves only as the form writes it, encrypted; a plain text one under
         // `secrets/` would put a credential in the repository (CC-06, T-6359).
+        // Only its `sops` block may be plain: a fake `sops` key beside a plain value, or a
+        // manifest saved under `secrets/`, is refused before any kind is asked.
         let sealed = crate::secret_files::parse_path(&file.path).is_some()
-            && (file.deleted || crate::secret_files::names(&content).is_some());
+            && (file.deleted || crate::secret_files::sealed(&content));
+        if crate::secret_files::parse_path(&file.path).is_some() && !sealed {
+            return Err(ApiError::Denied(format!(
+                "'{}' is under secrets/ but holds a value SOPS did not encrypt; enter the \
+                 credential in the project's Secrets form instead (CC-06)",
+                file.path
+            )));
+        }
         files.push((file, envelope, sealed));
     }
     for (file, envelope, sealed) in &files {
@@ -3967,6 +3976,11 @@ mod tests {
     /// A forge holding one open secret change (`portal/secret-{project}-{name}`, secrets.rs)
     /// whose only file is `file` with `content`.
     async fn secret_forge(file: &str, content: &str) -> (MockServer, AppState) {
+        secret_forge_with(file, content, "added").await
+    }
+
+    /// [`secret_forge`] with the file's status in the change (`added`, `deleted`).
+    async fn secret_forge_with(file: &str, content: &str, status: &str) -> (MockServer, AppState) {
         let server = MockServer::start().await;
         let client = GiteaClient::new(
             server.uri().parse().unwrap(),
@@ -3994,7 +4008,7 @@ mod tests {
         Mock::given(method("GET"))
             .and(path("/api/v1/repos/test-owner/test-repo/pulls/9/files"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-                { "filename": file, "status": "added" }
+                { "filename": file, "status": status }
             ])))
             .mount(&server)
             .await;
@@ -4140,6 +4154,20 @@ mod tests {
             "a one-space grant reached the project's secrets"
         );
         assert!(!reads("nobody@hel.fi"));
+        let elsewhere = build_proposal(
+            &PullRequest::default(),
+            "ovzdusie",
+            &data,
+            plan::diff(None, None),
+            None,
+            Lane::Green,
+        );
+        let effective =
+            crate::permissions::for_request(&state, &person("writer@hel.fi"), "ovzdusie");
+        assert!(
+            !may_read_change(&effective, &elsewhere),
+            "a DataSource grant in hel-mobility reached another project's secret"
+        );
         let approves = |who: &str| may_approve(&state, &person(who), "hel-mobility", &data);
         assert!(approves("approver@hel.fi").is_ok());
         assert!(matches!(
@@ -4191,5 +4219,58 @@ mod tests {
             ),
             "a plain text file under secrets/ approved"
         );
+    }
+
+    #[tokio::test]
+    async fn a_secrets_file_with_any_plain_value_is_refused_whatever_it_claims_to_be() {
+        let file = "projects/hel-mobility/secrets/github-token.enc.yaml";
+        let pr = PullRequest {
+            number: 9,
+            head_branch: "portal/secret-hel-mobility-github-token".into(),
+            ..PullRequest::default()
+        };
+        let fake_sops = "github-token:\n  token: hunter2\nsops: {}\n";
+        let half_sealed = "github-token:\n  token: ENC[AES256_GCM,data:x,iv:y,tag:z,type:str]\n  \
+                           user: admin\nsops:\n  version: 3.9.0\n";
+        let manifest =
+            "apiVersion: joinedcontext.com/v1alpha1\nkind: DataSource\nmetadata:\n  name: \
+                        github-token\n  namespace: hel-mobility\nspec:\n  token: hunter2\n";
+        for content in [fake_sops, half_sealed, manifest] {
+            let (_server, state) = secret_forge(file, content).await;
+            data_source_grant(&state, "approver@hel.fi", &["approve", "delete"], None);
+            let gitea = state.forge_for("hel-mobility").unwrap();
+            let answer = approve_every_file(
+                &state,
+                &person("approver@hel.fi"),
+                "hel-mobility",
+                &gitea,
+                &pr,
+            )
+            .await;
+            assert!(
+                matches!(&answer, Err(ApiError::Denied(why)) if why.contains("did not encrypt")),
+                "{content}: {answer:?}"
+            );
+        }
+
+        // Taking a secrets file out of the repository needs no encryption check: DataSource
+        // approve and delete decide it.
+        let (_server, state) = secret_forge_with(file, fake_sops, "deleted").await;
+        data_source_grant(&state, "approver@hel.fi", &["approve", "delete"], None);
+        data_source_grant(&state, "air@hel.fi", &["approve"], None);
+        let gitea = state.forge_for("hel-mobility").unwrap();
+        assert!(approve_every_file(
+            &state,
+            &person("approver@hel.fi"),
+            "hel-mobility",
+            &gitea,
+            &pr
+        )
+        .await
+        .is_ok());
+        assert!(matches!(
+            approve_every_file(&state, &person("air@hel.fi"), "hel-mobility", &gitea, &pr).await,
+            Err(ApiError::Denied(_))
+        ));
     }
 }
