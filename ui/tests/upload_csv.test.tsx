@@ -133,6 +133,7 @@ describe("Upload CSV", () => {
       screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"),
       new File([new Uint8Array(workbook)], "garages.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
     );
+    await screen.findByText("garages.xlsx: 1 row, 5 columns.");
     await screen.findByRole("radio", { name: /OffStreetParking/ });
     await user.click(screen.getByRole("button", { name: "Propose the change" }));
     await user.click(await screen.findByRole("button", { name: "Write 1 row" }));

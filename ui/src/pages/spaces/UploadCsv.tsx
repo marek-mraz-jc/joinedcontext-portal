@@ -75,7 +75,8 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
       }
       // The sample is read in the encoding the table was, or a Windows-1250 header reaches the
       // model inference garbled and its slots no longer match the columns (F-UI3-013).
-      // A workbook is a ZIP: its sample is its first sheet as CSV, under a .csv name (JC1-07).
+      // A workbook is a ZIP: its sample is its first sheet as CSV, proposed under a .csv name
+      // while the page keeps naming the file the person chose (JC1-07).
       const workbook = file.name.toLowerCase().endsWith(".xlsx");
       const sample = workbook
         ? sampleOf(tableCsv(table))
@@ -90,7 +91,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
       } catch {
         matches = [];
       }
-      setRead({ table, name: workbook ? file.name.replace(/\.xlsx$/i, ".csv") : file.name, sample, matches });
+      setRead({ table, name: file.name, sample, matches });
       setChoice(matches[0]?.model.id ?? "");
     } catch (error) {
       setProblem(unreadableText(t, error));
@@ -114,7 +115,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
       const answer = await callOperation(
         project,
         "jc_space_complete",
-        uploadInput({ space: space.trim(), fileName: read.name, sample: read.sample, typeName, linkml }),
+        uploadInput({ space: space.trim(), fileName: read.name.replace(/\.xlsx$/i, ".csv"), sample: read.sample, typeName, linkml }),
       );
       if (!answer.ok) {
         setProblem(answer.reason ?? `HTTP ${answer.status}`);
