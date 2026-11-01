@@ -690,6 +690,33 @@ pub fn bump_version(current: &SemVer, severity: &str) -> Result<SemVer, ApiError
     SemVer::new(&bumped).map_err(|e| ApiError::BadRequest(e.to_string()))
 }
 
+/// A breaking change of a published model needs a new major version (DM-22); a model not yet
+/// published breaks nothing, so its first version may hold required slots.
+fn refuse_unversioned_break(
+    published: bool,
+    changes: &[ModelChange],
+    published_version: &SemVer,
+    target_version: &SemVer,
+) -> Result<(), ApiError> {
+    if !published
+        || overall_severity(changes) != "breaking"
+        || target_version.major() > published_version.major()
+    {
+        return Ok(());
+    }
+    let suggested = bump_version(published_version, "breaking")?;
+    Err(ApiError::Invalid {
+        detail: format!(
+            "a breaking change cannot be saved under version {target_version}; publish it as {suggested}"
+        ),
+        errors: changes
+            .iter()
+            .filter(|c| c.severity == "breaking")
+            .map(|c| c.reason.clone())
+            .collect(),
+    })
+}
+
 /// The four generated artifacts of the model `name` at `major` as its manifest names them, and
 /// each as `(path in the model's folder, content)` (DM-02).
 pub(crate) fn artifact_files(
@@ -820,20 +847,9 @@ pub(crate) async fn check_source(
         None => bump_version(&published_version, severity)?,
     };
 
-    if severity == "breaking" && target_version.major() <= published_version.major() {
-        let breaking_reasons: Vec<String> = changes
-            .iter()
-            .filter(|c| c.severity == "breaking")
-            .map(|c| c.reason.clone())
-            .collect();
-        let suggested = bump_version(&published_version, "breaking")?;
-        return Err(ApiError::Invalid {
-            detail: format!(
-                "a breaking change cannot be saved under version {target_version}; publish it as {suggested}"
-            ),
-            errors: breaking_reasons,
-        });
-    }
+    // A model the mirror lacks has no published version a change could break (T-6268).
+    let published = state.mirror.get(project, "DataModel", name).is_some();
+    refuse_unversioned_break(published, &changes, &published_version, &target_version)?;
 
     let imports = resolve_imports(state, identity, project, &next_val).await?;
     let unknown = unknown_ranges(&next_val, &imports);
@@ -1859,6 +1875,28 @@ mod tests {
 
     fn version(raw: &str) -> SemVer {
         SemVer::new(raw).expect("a version")
+    }
+
+    /// DM-22, T-6268: a create compares against nothing, so its required slots count as breaking;
+    /// the gate lets them through at 0.1.0 and still refuses the same change of a published model.
+    #[test]
+    fn only_a_published_model_refuses_a_break_under_its_major() {
+        let next: Value = serde_norway::from_str(
+            "classes:\n  Park:\n    attributes:\n      name: { range: string, required: true }\n",
+        )
+        .expect("yaml");
+        let changes = classify_linkml_changes(&Value::Null, &next);
+        assert_eq!(overall_severity(&changes), "breaking");
+        let first = version("0.1.0");
+        assert!(refuse_unversioned_break(false, &changes, &first, &first).is_ok());
+        let Err(ApiError::Invalid { detail, errors }) =
+            refuse_unversioned_break(true, &changes, &first, &first)
+        else {
+            panic!("a published model's break under its major is refused");
+        };
+        assert!(detail.contains("publish it as 1.0.0"), "{detail}");
+        assert!(!errors.is_empty());
+        assert!(refuse_unversioned_break(true, &changes, &first, &version("1.0.0")).is_ok());
     }
 
     /// DM-22, DM-23, T-1484: breaking bumps the major, additive the minor, anything else the patch; a
