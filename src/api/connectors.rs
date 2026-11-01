@@ -987,7 +987,7 @@ pub async fn pair_tab(
     let tab = state.paired_tabs.pair(
         &connector.id,
         &session.identity.subject,
-        session.issued_at,
+        session.started_at(),
         session.expires_at,
     );
     audit_tab(&state, &session.identity, &connector.id, "tab/connect").await;
@@ -1066,7 +1066,7 @@ pub async fn tab_events(
             &connector.id,
             &tab,
             &session.identity.subject,
-            session.issued_at,
+            session.started_at(),
             session.expires_at,
             now,
         )
@@ -1276,6 +1276,7 @@ mod tests {
             },
             expires_at: 0,
             issued_at: 0,
+            signed_in_at: None,
             id_token: String::new(),
             access_expires_at: 0,
             refresh_token: None,

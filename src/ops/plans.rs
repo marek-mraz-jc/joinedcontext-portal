@@ -2085,6 +2085,7 @@ mod tests {
             client_is_boundary: false,
             state: "active".into(),
             created_at: Utc::now(),
+            granted_at: Utc::now(),
             last_used_at: None,
             url: "https://portal.test/c/c1".into(),
             limits: crate::connectors::DEFAULT_LIMITS,

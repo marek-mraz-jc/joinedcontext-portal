@@ -219,6 +219,7 @@ pub fn of_conversation(run_id: &str, owner: &str, project: &str, segment: &str) 
         approval: None,
         narrowed_by: Vec::new(),
         created_at: now,
+        granted_at: now,
         last_used_at: None,
         url: String::new(),
         limits: PERSON_LIMITS,
@@ -594,7 +595,7 @@ impl Ceiling {
         if self.honours(connector) {
             return Ok(());
         }
-        if now > connector.created_at + Duration::days(self.max_days()) {
+        if now > connector.granted_at + Duration::days(self.max_days()) {
             return Err(format!(
                 "{} lets a connector live {} days, and this one is older; create a new one on the My connectors page",
                 self.named(),
@@ -638,7 +639,7 @@ impl Ceiling {
         if connector.writes && !self.writes() {
             marks.push("writes".to_owned());
         }
-        if connector.expires_at > connector.created_at + Duration::days(self.max_days()) {
+        if connector.expires_at > connector.granted_at + Duration::days(self.max_days()) {
             marks.push(format!("expiry: at most {} days", self.max_days()));
         }
         for client in &connector.allowed_clients {
@@ -811,6 +812,10 @@ struct GrantDoc {
     above: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     approval: Option<Approval>,
+    /// When an edit last judged the grant against the ceiling; absent: at its creation. A
+    /// renewal's age counts from here (JC2-45).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    granted_at: Option<DateTime<Utc>>,
 }
 
 /// Who let a request above the ceiling through, and when.
@@ -871,6 +876,10 @@ pub struct Connector {
     pub narrowed_by: Vec<String>,
     #[schema(value_type = String, format = DateTime)]
     pub created_at: DateTime<Utc>,
+    /// When the grant was last judged against the ceiling (created or edited): its age for the
+    /// ceiling's longest life counts from here (JC2-45).
+    #[serde(skip)]
+    pub granted_at: DateTime<Utc>,
     #[schema(value_type = Option<String>, format = DateTime)]
     pub last_used_at: Option<DateTime<Utc>>,
     /// The MCP address a client adds: `https://portal.{domain}/c/{id}`.
@@ -1240,6 +1249,7 @@ impl Record {
             approval: self.grant.approval.clone(),
             narrowed_by: Vec::new(),
             created_at: self.created_at,
+            granted_at: self.grant.granted_at.unwrap_or(self.created_at),
             last_used_at: self.last_used_at,
             url: address(base, &self.id),
             limits: DEFAULT_LIMITS,
@@ -1734,6 +1744,7 @@ impl ConnectorStore {
                 pending: !above.is_empty(),
                 above,
                 approval: None,
+                granted_at: None,
             },
             created_at: now,
             last_used_at: None,
@@ -1812,6 +1823,7 @@ impl ConnectorStore {
             pending: !above.is_empty() && approval.is_none(),
             above,
             approval,
+            granted_at: Some(Utc::now()),
         };
         match &self.inner {
             Inner::Postgres(pool) => {
@@ -2191,6 +2203,7 @@ pub(crate) mod tests {
                 pending: false,
                 above: vec![],
                 approval: None,
+                granted_at: None,
             },
             created_at: Utc::now(),
             last_used_at: None,
@@ -2834,6 +2847,7 @@ pub(crate) mod tests {
                 pending: false,
                 above: vec![],
                 approval: None,
+                granted_at: None,
             },
             created_at: Utc::now(),
             last_used_at: None,
@@ -3244,8 +3258,18 @@ pub(crate) mod tests {
         assert!(ceiling.door(&live, "mcp-local", Utc::now()).is_err());
         let mut old = live.clone();
         old.created_at = Utc::now() - Duration::days(91);
+        old.granted_at = old.created_at;
         let why = ceiling.door(&old, CLAUDE, Utc::now()).expect_err("too old");
         assert!(why.contains("90 days"), "{why}");
+        // JC2-45: an edit judged against the ceiling today renews it; its age counts from there.
+        let mut renewed = old.clone();
+        renewed.granted_at = Utc::now();
+        renewed.expires_at = renewed.granted_at + Duration::days(89);
+        assert!(ceiling.door(&renewed, CLAUDE, Utc::now()).is_ok());
+        assert!(!ceiling
+            .narrowing(&renewed)
+            .iter()
+            .any(|mark| mark.starts_with("expiry")));
     }
 
     #[test]

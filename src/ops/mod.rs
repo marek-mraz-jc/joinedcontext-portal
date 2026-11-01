@@ -461,6 +461,10 @@ pub fn lane_for(
         "jc_flow_start" => {
             crate::api::blueprints::flow_lane(state, identity, project, input).unwrap_or(op.lane)
         }
+        // A dry run checks the source and proposes nothing: nothing to ask the person (JC2-22).
+        "jc_model_source_put" if input.get("dryRun").and_then(Value::as_bool) == Some(true) => {
+            Lane::Green
+        }
         _ => op.lane,
     }
 }
@@ -879,6 +883,28 @@ fn init_registry() -> Vec<Operation> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// JC2-22: a dry run of jc_model_source_put proposes nothing, so it is Green and the MCP
+    /// door asks the person nothing; the write itself stays Yellow.
+    #[test]
+    fn a_model_source_dry_run_is_green_and_its_write_is_not() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let identity = Identity {
+            client: None,
+            subject: "f:1:ana".into(),
+            username: "ana".into(),
+            email: None,
+            name: None,
+            roles: vec![],
+            groups: vec![],
+            second_factor: false,
+        };
+        let op = find("jc_model_source_put").expect("op");
+        let lane = |input: Value| lane_for(op, &identity, &state, "demo", &input);
+        assert_eq!(lane(json!({ "name": "m", "dryRun": true })), Lane::Green);
+        assert_eq!(lane(json!({ "name": "m", "dryRun": false })), Lane::Yellow);
+        assert_eq!(lane(json!({ "name": "m" })), Lane::Yellow);
+    }
 
     /// What is wrong with a registry entry, empty when nothing is (T-5948). A write needs a verb:
     /// one held on a kind the registry names, the route's or the organization's check, or the verb
