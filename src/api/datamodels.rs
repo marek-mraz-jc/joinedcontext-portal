@@ -824,7 +824,16 @@ pub(crate) async fn check_source(
         )));
     }
 
-    let published_source = read_source(state, project, name).await.ok();
+    // A model the mirror lacks has no published version a change could break (T-6268); one it
+    // holds is compared with its published source, so a forge that cannot read it now refuses
+    // the check instead of reading every slot as new (JC1-09).
+    let published = state.mirror.get(project, "DataModel", name).is_some();
+    let published_source = match read_source(state, project, name).await {
+        Ok(source) => Some(source),
+        Err(ApiError::NotFound(_)) => None,
+        Err(err) if published => return Err(err),
+        Err(_) => None,
+    };
     let prev_val: Value = published_source
         .as_deref()
         .and_then(|s| serde_norway::from_str(s).ok())
@@ -847,8 +856,6 @@ pub(crate) async fn check_source(
         None => bump_version(&published_version, severity)?,
     };
 
-    // A model the mirror lacks has no published version a change could break (T-6268).
-    let published = state.mirror.get(project, "DataModel", name).is_some();
     refuse_unversioned_break(published, &changes, &published_version, &target_version)?;
 
     let imports = resolve_imports(state, identity, project, &next_val).await?;
@@ -1658,6 +1665,46 @@ pub fn router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// JC1-09, DM-24: a published model whose source the forge cannot read now is not checked
+    /// as a model with no published source, which reads every slot as new and lets a removal
+    /// pass under the same major: the check is refused with the forge's reason.
+    #[tokio::test]
+    async fn a_published_model_whose_source_cannot_be_read_is_not_checked_as_new() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        state.mirror.upsert(crate::resource::ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.to_owned(),
+            kind: "DataModel".to_owned(),
+            metadata: crate::resource::ObjectMeta::new("air", "hel"),
+            spec: json!({ "linkml": "model.linkml.yaml", "version": "1.0.0" }),
+            status: None,
+        });
+        let identity = Identity {
+            client: None,
+            subject: "s".into(),
+            username: "jana".into(),
+            email: None,
+            name: None,
+            roles: vec![],
+            groups: vec![],
+            second_factor: false,
+        };
+        let refused = check_source(
+            &state,
+            &identity,
+            "hel",
+            "air",
+            &json!({ "linkml": "model.linkml.yaml", "version": "1.0.0" }),
+            "id: air\nclasses:\n  Station: {}\n",
+            None,
+        )
+        .await
+        .expect_err("no forge to read the published source from");
+        assert!(
+            refused.to_string().contains("git forge"),
+            "{refused}"
+        );
+    }
 
     /// DM-56, T-1484: a model's source stays inside its space's `datamodels/` folder.
     // DM-01, DM-75: a space's model sits in the space's folder, one no space owns in its own.
