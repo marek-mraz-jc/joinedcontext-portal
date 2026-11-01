@@ -67,14 +67,17 @@ async function get(url: string, accept: string): Promise<Response> {
     // The status alone was the whole message, so every caller that shows a failed schema fetch
     // showed a person the bare number "502" and the Problem Details sentence the surface had
     // just sent was dropped on the floor. An unreadable body leaves the status, as before.
-    let detail: string | undefined;
+    // The problem and the edge's request id go along, so a failure state reads the sentence, the
+    // hint and the reference as it does for every other call (PageFailed, T-6313).
+    let problem: ProblemDetails | undefined;
     try {
-      const problem = (await answer.clone().json()) as ProblemDetails;
-      detail = typeof problem.detail === "string" ? problem.detail : undefined;
+      const body: unknown = await answer.clone().json();
+      problem = body && typeof body === "object" && !Array.isArray(body) ? (body as ProblemDetails) : undefined;
     } catch {
-      detail = undefined;
+      problem = undefined;
     }
-    throw new ApiError(answer.status, detail ?? String(answer.status));
+    const detail = typeof problem?.detail === "string" ? problem.detail : undefined;
+    throw new ApiError(answer.status, detail ?? String(answer.status), problem, answer.headers.get("x-request-id") ?? undefined);
   }
   return answer;
 }

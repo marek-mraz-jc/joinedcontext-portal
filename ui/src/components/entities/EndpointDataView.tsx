@@ -15,7 +15,7 @@ import type { ColumnFilter, FilterColumn, FilterKind, GridColumn } from "@joined
 import { fetchJson, publishedTypes } from "../../pages/endpoints/SchemaProjectionPanel";
 import { classSlots, parseModel } from "../../pages/models/linkml";
 import type { ClassView, LinkmlModel, LinkmlSlot } from "../../pages/models/linkml";
-import { Button, Checkbox, Field, InlineError, Select, safeHref } from "../ui";
+import { Button, Checkbox, Field, PageFailed, Select, safeHref } from "../ui";
 import { columnLabel, displayOrder } from "./displayOrder";
 import { gridLabels, PortalEntityGrid } from "./PortalEntityGrid";
 import { filtersFromQ } from "./presetFilters";
@@ -770,10 +770,19 @@ export function EndpointDataView({
   );
   const renderers = useMemo(() => linkRenderers(links, t("endpoints.data.openLink")), [links, t]);
 
-  // A refused or failed schema read says why, in the surface's own sentence (a 403 names the grant).
+  // A refused or failed schema read says why, in the surface's own sentence (a 403 names the grant),
+  // and offers to ask again where that can help, as every page's failure does (T-6313).
   const failed = index.error ?? schema.error;
   if (failed) {
-    return <InlineError>{failed.message}</InlineError>;
+    return (
+      <PageFailed
+        error={failed}
+        onRetry={() => {
+          void index.refetch();
+          void schema.refetch();
+        }}
+      />
+    );
   }
   if (index.isPending || schema.isPending || widget.isPending) {
     return <p role="status">{t("endpoints.projection.loading")}</p>;

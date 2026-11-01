@@ -659,3 +659,39 @@ describe("filtersFromQ: a default filter as the filter row's inputs (DM-134)", (
     }
   });
 });
+
+describe("a failed schema read (T-6313)", () => {
+  it("says the surface's sentence with its reference, and Retry asks again", async () => {
+    let failing = true;
+    let asks = 0;
+    show({}, (url) => {
+      if (url.pathname.endsWith("/schema/index.json")) {
+        asks += 1;
+        if (failing) {
+          return new Response(JSON.stringify({ title: "Service Unavailable", status: 503, detail: "the broker did not answer" }), {
+            status: 503,
+            headers: { "Content-Type": "application/problem+json", "X-Request-Id": "req-6313" },
+          });
+        }
+      }
+      return answer(url);
+    });
+    expect(await screen.findByText("the broker did not answer")).toBeInTheDocument();
+    expect(screen.getByText(/req-6313/)).toBeInTheDocument();
+    const before = asks;
+    failing = false;
+    await userEvent.click(screen.getByRole("button", { name: en.app.error.retry }));
+    await waitFor(() => expect(asks).toBeGreaterThan(before));
+    expect(await screen.findByRole("grid")).toBeInTheDocument();
+  });
+
+  it("offers no Retry for a refusal, which answers the same the second time", async () => {
+    show({}, (url) =>
+      url.pathname.endsWith("/schema/index.json")
+        ? new Response(JSON.stringify({ title: "Forbidden", status: 403, detail: "no policy grants anonymous reads" }), { status: 403, headers: { "Content-Type": "application/problem+json" } })
+        : answer(url),
+    );
+    expect(await screen.findByText("no policy grants anonymous reads")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.app.error.retry })).toBeNull();
+  });
+});
