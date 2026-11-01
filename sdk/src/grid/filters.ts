@@ -26,6 +26,8 @@ export type FilterOp =
   | "empty"
   | "present"
   | "pattern"
+  /** The id begins with the text: an anchored `idPattern` (T-6328). */
+  | "startsWith"
   /** One of the picked values of an enum: NGSI-LD's value list, `attr=="a","b"` (UI-86). */
   | "anyOf";
 
@@ -55,6 +57,10 @@ export type FilterKind =
   | "relationship"
   /** An attribute whose schema is an enum: its values are picked, never typed (UI-86). */
   | "enum"
+  /** A true/false attribute: is yes, is no, empty or not (T-6328). */
+  | "boolean"
+  /** The entity's type, where the grid reads several: the picked ones narrow the `type` list. */
+  | "type"
   | "id"
   | "geo"
   | "none"
@@ -63,7 +69,8 @@ export type FilterKind =
 const TEXT_OPS: FilterOp[] = ["contains", "equals", "notEquals", "empty", "present"];
 const ORDERED_OPS: FilterOp[] = ["equals", "notEquals", "gt", "gte", "lt", "lte", "between", "empty", "present"];
 const REF_OPS: FilterOp[] = ["equals", "notEquals", "empty", "present"];
-const ID_OPS: FilterOp[] = ["pattern", "equals"];
+const ID_OPS: FilterOp[] = ["pattern", "startsWith", "equals"];
+const BOOLEAN_OPS: FilterOp[] = ["equals", "empty", "present"];
 const ENUM_OPS: FilterOp[] = ["anyOf", "empty", "present"];
 
 /** The operators a column offers; `[]` for one that cannot be filtered at the endpoint. */
@@ -80,10 +87,30 @@ export function opsForKind(kind: FilterKind): FilterOp[] {
       return [...ID_OPS];
     case "enum":
       return [...ENUM_OPS];
+    case "boolean":
+      return [...BOOLEAN_OPS];
+    case "type":
+      return ["anyOf"];
     // A geometry is filtered by the map's own geo query (georel), not by a typed value.
     default:
       return [];
   }
+}
+
+/** Whether a column's header filter lists its values to tick (T-6328): what `anyOf` can ask. */
+/**
+ * The `type` the grid asks for under a Type filter: the picked types that the grid reads, joined
+ * as NGSI-LD's type list; the grid's own when none is picked. A picked name the grid does not read
+ * is dropped, so the filter can only narrow.
+ */
+export function typeOfFilter(types: string, filter: ColumnFilter | undefined): string {
+  const served = types.split(",").map((each) => each.trim()).filter(Boolean);
+  const picked = filter?.op === "anyOf" ? (filter.values ?? []).filter((each) => served.includes(each)) : [];
+  return picked.length > 0 ? picked.join(",") : types;
+}
+
+export function listsValues(kind: FilterKind): boolean {
+  return kind === "text" || kind === "number" || kind === "date" || kind === "relationship" || kind === "enum" || kind === "boolean" || kind === "untyped";
 }
 
 /** Whether the operator needs one value, two, or none. */
@@ -190,11 +217,13 @@ function termOf(
       return `${path}<=${literal(filter.value, kind)}`;
     case "between":
       return `${path}>=${literal(filter.value, kind)};${path}<=${literal(filter.value2 ?? "", kind)}`;
-    // An enum's values are strings: each is quoted, whatever it looks like.
+    // An enum's values are strings: each is quoted, whatever it looks like. The values a header's
+    // list picked keep the column's kind, so a number column asks for numbers (T-6328).
     case "anyOf":
-      return `${path}==${(filter.values ?? []).map((value) => literal(value, "text")).join(",")}`;
+      return `${path}==${(filter.values ?? []).map((value) => literal(value, kind === "enum" ? "text" : kind)).join(",")}`;
     // A pattern belongs to the id, which is not part of `q`.
     case "pattern":
+    case "startsWith":
       return undefined;
   }
 }
@@ -211,6 +240,8 @@ export interface FilterColumn {
   unit?: string;
   /** A LanguageProperty: `q` asks its text in any language (`name[*]`), the map itself matches nothing. */
   language?: boolean;
+  /** A `date` column whose values carry a time: its filter picks a date and a time. */
+  datetime?: boolean;
 }
 
 /** The attribute as a `q` path names it: a language map through `[*]`, NGSI-LD's "any language". */
@@ -235,9 +266,14 @@ export function queryFromFilters(
       continue;
     }
     if (column.kind === "id") {
-      // `idPattern` is a regular expression over the whole id; `equals` is one id, anchored.
-      idPattern =
-        filter.op === "equals" ? `^${quotePattern(filter.value)}$` : quotePattern(filter.value);
+      // `idPattern` is a regular expression over the whole id, the typed text escaped so it is
+      // never a pattern of the person's own: `equals` is one id, anchored at both ends; `startsWith`
+      // the id's beginning, which a person types without the `urn:ngsi-ld:Type:` prefix.
+      const text = quotePattern(filter.value);
+      idPattern = filter.op === "equals" ? `^${text}$` : filter.op === "startsWith" ? `^(urn:ngsi-ld:[^:]+:)?${text}` : text;
+      continue;
+    }
+    if (column.kind === "type") {
       continue;
     }
     if (!column.attr) {

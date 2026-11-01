@@ -337,8 +337,9 @@ pub fn classify_manifest(manifest: &crate::resource::ResourceEnvelope, op: Opera
 /// - Federation edges and data-space edges (`ContextSourceRegistration`, `SharedSpaceReference`,
 ///   `DataSpaceParticipant`, `DataOffer`, `DataAgreement`) are `Red`.
 /// - Identity and access kinds (`ServiceAccount`, `Role`, `RoleBinding`, `Group`, `Policy`,
-///   `ScopeDefinition`, `Organization`, `Project`) are `Red` (PF-52, PF-62): who is in a group
-///   is who a binding names, so a membership is reviewed like the binding itself.
+///   `ScopeDefinition`, `Organization`, `Project`, `DelegationPolicy`) are `Red` (PF-52, PF-62,
+///   AG-151): who is in a group is who a binding names, so a membership is reviewed like the
+///   binding itself.
 /// - `Environment` is `Red` (CC-73, CC-75): one file decides the domain of every URN, the image
 ///   every workload runs and where a `secretRef` is resolved, for a whole environment at once.
 /// - `AssistantDeployment` on the `public`, `ckan` or `iframe` channel is `Red`: it answers anyone
@@ -402,7 +403,10 @@ pub fn classify(kind: &str, op: Operation, spec: &serde_json::Value) -> Lane {
         | "Policy"
         | "ScopeDefinition"
         | "Organization"
-        | "Project" => Lane::Red,
+        | "Project"
+        // The ceiling of every connector a person grants an AI client: what it may read and
+        // write is access, reviewed like a Role (AG-151).
+        | "DelegationPolicy" => Lane::Red,
 
         "ContextSpace" if spec.get("isSandbox").and_then(|v| v.as_bool()) == Some(true) => {
             Lane::Green
@@ -646,6 +650,7 @@ mod tests {
             "ScopeDefinition",
             "Organization",
             "Project",
+            "DelegationPolicy",
             // Not identity, but the same weight: the overlay that decides the domain, the
             // images and the secret backend of a whole environment (CC-73, T-0882).
             "Environment",

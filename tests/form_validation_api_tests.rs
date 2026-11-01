@@ -320,7 +320,8 @@ async fn every_kind_refuses_a_secret_typed_in_and_never_repeats_it() {
             Some(json!({ "manifest": typed })),
         )
         .await;
-        if saved.status != StatusCode::BAD_REQUEST {
+        // The draft goes through the operations door, which refuses a credential 422 (T-5971).
+        if saved.status != StatusCode::UNPROCESSABLE_ENTITY {
             problems.push(format!(
                 "{} draft: {} {}",
                 kind.kind, saved.status, saved.text

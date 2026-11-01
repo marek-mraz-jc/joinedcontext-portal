@@ -13,6 +13,7 @@ describe("locales", () => {
     }
     expect(stringsFor("en-GB").locale).toBe("en");
     expect(stringsFor("de").locale).toBe("sk");
+    expect(stringsFor(undefined).locale).toBe("sk");
   });
 
   it("says each export and each missing endpoint in both languages", () => {

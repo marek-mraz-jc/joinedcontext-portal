@@ -107,7 +107,7 @@ async fn a_secret_typed_into_the_manifest_is_refused_at_every_door_and_nothing_i
     ] {
         let refused = doors::call("jc_draft_put", &caller, &state, put(manifest.clone())).await;
         assert_eq!(
-            StatusCode::BAD_REQUEST,
+            StatusCode::UNPROCESSABLE_ENTITY,
             refused.status,
             "{}",
             refused.text()

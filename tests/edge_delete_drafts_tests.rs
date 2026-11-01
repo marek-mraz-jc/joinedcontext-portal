@@ -456,7 +456,7 @@ async fn a_draft_is_a_manifest_a_version_and_never_a_literal_secret() {
         })),
     )
     .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "{answer}");
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{answer}");
     let detail = answer["detail"].as_str().unwrap_or_default();
     assert!(detail.contains("secretRef"), "{detail}");
     assert!(

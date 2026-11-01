@@ -429,12 +429,12 @@ async fn a_source_that_is_not_text_a_caller_or_a_size_is_refused_before_the_forg
         "{status}",
     );
 
-    // A model the project does not hold: creating one needs the space named, and the name has to be a
-    // manifest name.
+    // A model the project does not hold: its name has to be a manifest name, and a space named has to
+    // be one of the project's. Without a space it is a project model (DM-75), so `ghost` alone is no
+    // refusal.
     for (name, query) in [
-        ("ghost", ""),
-        ("ghost", "?space="),
         ("Air-Quality", "?space=mobility"),
+        ("Air-Quality", ""),
         ("air%20quality", "?space=mobility"),
         ("air-quality-", "?space=mobility"),
         ("ghost", "?space=nowhere"),

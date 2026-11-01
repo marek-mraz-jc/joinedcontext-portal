@@ -8,7 +8,7 @@ mod common;
 
 use base64::Engine;
 use serde_json::{json, Value};
-use wiremock::matchers::{method, path};
+use wiremock::matchers::{method, path_regex};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use axum::http::StatusCode;
@@ -26,6 +26,18 @@ const PAGE: &str = "/api/v1/projects/helsinki/pipelines/registry/source-deletes"
 const STREAM: &str = "/streams/helsinki.registry.source-deletes";
 const EVENTS_STREAM: &str = "/streams/helsinki.changes.source-deletes";
 
+/// Each launch has its own stream, the pipeline's name and a random 16-hex suffix (R2POR5).
+fn launch_pattern(stream: &str) -> String {
+    format!("{}\\.[0-9a-f]{{16}}", stream.replace('.', "\\."))
+}
+
+/// Whether `path` is a launch of `stream`.
+fn launch_of(path: &str, stream: &str) -> bool {
+    path.strip_prefix(stream)
+        .and_then(|rest| rest.strip_prefix('.'))
+        .is_some_and(|suffix| suffix.len() == 16 && suffix.bytes().all(|b| b.is_ascii_hexdigit()))
+}
+
 fn id(n: usize) -> String {
     format!("urn:ngsi-ld:Dataset:hel.fi:open:ds-{n}")
 }
@@ -36,7 +48,7 @@ async fn world(max_share: u8) -> (AppState, MockServer) {
     let runner = MockServer::start().await;
     for stream in [STREAM, EVENTS_STREAM] {
         Mock::given(method("POST"))
-            .and(path(stream))
+            .and(path_regex(format!("^{}$", launch_pattern(stream))))
             .respond_with(ResponseTemplate::new(200))
             .mount(&runner)
             .await;
@@ -201,7 +213,7 @@ async fn handed(runner: &MockServer) -> Vec<(Vec<String>, String)> {
     let requests = runner.received_requests().await.unwrap_or_default();
     requests
         .iter()
-        .filter(|r| r.method.as_str() == "POST" && r.url.path() == STREAM)
+        .filter(|r| r.method.as_str() == "POST" && launch_of(r.url.path(), STREAM))
         .map(|r| {
             let stream: Value = serde_json::from_slice(&r.body).expect("stream");
             let mapping = stream["input"]["generate"]["mapping"].as_str().expect("mapping");
@@ -660,14 +672,16 @@ async fn an_events_run_deletes_what_its_source_marked_once_the_run_ends() {
         .expect("marked");
     let before = runner.received_requests().await.unwrap_or_default();
     assert!(
-        !before.iter().any(|r| r.url.path() == EVENTS_STREAM),
+        !before
+            .iter()
+            .any(|r| launch_of(r.url.path(), EVENTS_STREAM)),
         "nothing is deleted before the run ends"
     );
     run(&state, "changes", "r2", &[id(0)], 0, true).await;
     let requests = runner.received_requests().await.unwrap_or_default();
     let streams: Vec<Value> = requests
         .iter()
-        .filter(|r| r.method.as_str() == "POST" && r.url.path() == EVENTS_STREAM)
+        .filter(|r| r.method.as_str() == "POST" && launch_of(r.url.path(), EVENTS_STREAM))
         .map(|r| serde_json::from_slice(&r.body).expect("stream"))
         .collect();
     assert_eq!(streams.len(), 1, "one delete stream per run");

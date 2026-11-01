@@ -7,7 +7,7 @@ import { SourceError } from "./source";
 import type { RichRow, RichCell } from "./model";
 import { attributesOf, cellText } from "./model";
 import { unitSymbol } from "../sdk/units";
-import { andQ, opsForKind, queryFromFilters } from "./filters";
+import { andQ, opsForKind, queryFromFilters, typeOfFilter } from "./filters";
 import type { ColumnFilter, FilterColumn, FilterKind, FilterOp } from "./filters";
 import type { AttributeChange, EntityChange } from "./apply";
 import type { EnumOption } from "../enums";
@@ -67,6 +67,10 @@ export interface GridLabels {
   filterHintDate: string;
   filterHintEnum: string;
   filterHintOther: string;
+  /** The placeholder of a filter's value box, an example of what to type (T-6328). */
+  filterExampleText: string;
+  filterExampleNumber: string;
+  filterExampleId: string;
   /** The hint of the switch that hands the query to the person. */
   editAsTextHint: string;
   /** Before the example query the hint builds from the shown type (T-5415), e.g. "e.g.". */
@@ -93,7 +97,8 @@ export interface GridLabels {
   queryRefused: string;
   /** The disclosure holding the broker's own sentence about a refused query. */
   errorDetail: string;
-  /** What the footer calls the endpoint's own count of matching entities. */
+  /** What the footer calls the endpoint's own count of matching entities: a word after the number, or a
+   *  text holding `{n}` where the number goes, for a language whose word agrees with it (sk "Vyhovuje: {n}"). */
   matching: string;
   /** Beside the loaded rows when the endpoint's answer carries no total (R22, T-4885). */
   noTotal: string;
@@ -202,6 +207,29 @@ export interface GridLabels {
   moveLeft: string;
   moveRight: string;
   details: string;
+  /** A column's header filter (T-6328): its values to tick, a condition, and the chips above the grid. */
+  filterValues: string;
+  searchValues: string;
+  searchValuesHint: string;
+  selectAll: string;
+  /** The button beside a listed value that filters to it alone. */
+  onlyValue: string;
+  valuesLoading: string;
+  valuesFailed: string;
+  noValues: string;
+  /** `{count}` entities read of `{total}`. */
+  valuesCapped: string;
+  filterCondition: string;
+  applyFilter: string;
+  clearFilter: string;
+  /** The header's filter button, with the column's label after it. */
+  openFilter: string;
+  /** Said beside a header whose column is filtered. */
+  filtered: string;
+  activeFilters: string;
+  /** `{name}`: the chip's text. */
+  removeFilter: string;
+  clearFilters: string;
   /** What a header's icon says the column holds. */
   kindText: string;
   kindNumber: string;
@@ -262,14 +290,15 @@ export const DEFAULT_LABELS: GridLabels = {
     contains: "contains",
     equals: "is",
     notEquals: "is not",
-    gt: ">",
-    gte: "≥",
-    lt: "<",
-    lte: "≤",
+    gt: "is greater than",
+    gte: "is at least",
+    lt: "is less than",
+    lte: "is at most",
     between: "between",
     empty: "is empty",
     present: "has a value",
-    pattern: "matches",
+    pattern: "contains",
+    startsWith: "starts with",
     anyOf: "is one of",
   },
   value: "Value",
@@ -278,8 +307,11 @@ export const DEFAULT_LABELS: GridLabels = {
   copyQuery: "Copy the query",
   editAsText: "Edit as text",
   filterRow: "Filters",
-  noFilter: "All",
+  noFilter: "Any",
   filterHintText: "Choose a test, then type the words, e.g. contains Espoo.",
+  filterExampleText: "Bratislava",
+  filterExampleNumber: "1500",
+  filterExampleId: "station-12",
   filterHintNumber: "Choose a test, then type a number, e.g. greater than 40.",
   filterHintDate: "Choose a test, then pick a date, e.g. after 2026-10-01.",
   filterHintEnum: "Choose a test; with any of, pick one or more allowed values:",
@@ -354,10 +386,10 @@ export const DEFAULT_LABELS: GridLabels = {
   yes: "Yes",
   no: "No",
   columnMenu: "Column options",
-  sortAsc: "Sort ascending",
-  sortDesc: "Sort descending",
-  filterColumn: "Filter",
-  hideColumn: "Hide field",
+  sortAsc: "Sort A → Z",
+  sortDesc: "Sort Z → A",
+  filterColumn: "Filter…",
+  hideColumn: "Hide column",
   hiddenFields: "Hidden fields",
   showColumn: "Show field",
   showAllColumns: "Show all",
@@ -368,7 +400,24 @@ export const DEFAULT_LABELS: GridLabels = {
   wider: "Wider",
   moveLeft: "Move left",
   moveRight: "Move right",
-  details: "Details",
+  details: "Column settings",
+  filterValues: "Values",
+  searchValues: "Search values",
+  searchValuesHint: "Type part of a value, then tick the ones to keep.",
+  selectAll: "Select all",
+  onlyValue: "Only",
+  valuesLoading: "Reading the column's values…",
+  valuesFailed: "The values could not be read: choose a condition below, or try again later.",
+  noValues: "No values to list.",
+  valuesCapped: "Values of the first {count} of {total} entities; a condition asks all of them.",
+  filterCondition: "Condition",
+  applyFilter: "Apply",
+  clearFilter: "Clear filter",
+  openFilter: "Filter column",
+  filtered: "filtered",
+  activeFilters: "Active filters",
+  removeFilter: "Remove filter {name}",
+  clearFilters: "Clear all filters",
   kindText: "Text",
   kindNumber: "Number",
   kindBoolean: "Yes or no",
@@ -497,8 +546,8 @@ export interface EntityGrid {
   labels: GridLabels;
   cellOf(row: RichRow, column: VisibleColumn): { text: string; cell?: RichCell | RichCell[] };
   toggleMeta(attr: string, meta: MetaKey): void;
-  /** The filter of one column, or `undefined` to drop it; the answer starts again at page one. */
-  setFilter(key: string, filter: ColumnFilter | undefined): void;
+  /** The filter of one column (or several), or `undefined` to drop it; the answer starts again at page one. */
+  setFilter(key: string | readonly string[], filter: ColumnFilter | undefined): void;
   /** Hands the query to the person as text, or gives the row back (`null`). */
   setFilterText(text: string | null): void;
   /** Every column the filter row can ask about, with what it holds. */
@@ -513,6 +562,8 @@ export interface EntityGrid {
   pendingChanges: EntityChange[];
   /** The query the filters ask for right now, as the endpoint receives it. */
   askedQuery: { q?: string; idPattern?: string };
+  /** The grid's question without one column's own filter: what that column's value list reads (T-6328). */
+  valuesQuery(key: string): GridQuery;
   /** The area drawn on the map, which the filter row cannot hold (UI-72); `null` for none. */
   area: GeoArea | null;
   /** Whether the source is asked for less than the whole type (a q, an id pattern, a scope, an area). */
@@ -677,6 +728,10 @@ export function filterKindOf(
   if (column.key === "id") {
     return "id";
   }
+  // A Type filter only where the grid reads several types: with one, it would offer one box.
+  if (column.key === "entity:type") {
+    return config.type.includes(",") ? "type" : "none";
+  }
   if (column.attr === null) {
     // The entity's own timestamps are not part of `q`; NGSI-LD filters them with its own
     // temporal parameters, which the grid does not send.
@@ -713,12 +768,24 @@ export function filterKindOf(
     if (typeof one.value === "number") {
       return "number";
     }
+    if (typeof one.value === "boolean") {
+      return "boolean";
+    }
     if (typeof one.value === "string" && DATE_VALUE.test(one.value)) {
       return "date";
     }
     return "text";
   }
   return "text";
+}
+
+/** Whether the rows hold the attribute as a timestamp, a date with a time of day. */
+function holdsTime(rows: RichRow[], attr: string): boolean {
+  return rows.some((row) => {
+    const cell = row.cells[attr];
+    const value = (Array.isArray(cell) ? cell[0] : cell)?.value;
+    return typeof value === "string" && /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(value);
+  });
 }
 
 /** Whether the rows hold the attribute as a LanguageProperty, a text per language. */
@@ -850,7 +917,11 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
           attr: column.attr,
           meta: column.meta,
           kind: filterKindOf(column, config, shapeRows, enums),
-          options: column.attr !== null && column.meta === null ? enums?.[column.attr] : undefined,
+          options:
+            column.key === "entity:type"
+              ? config.type.split(",").map((each) => ({ value: each.trim() }))
+              : column.attr !== null && column.meta === null ? enums?.[column.attr] : undefined,
+          ...(column.attr !== null && column.meta === null && holdsTime(shapeRows, column.attr) ? { datetime: true } : {}),
           unit: column.attr !== null && column.meta === null ? unitSymbol(unitOfColumn(shapeRows, column.attr)) : undefined,
           ...(column.attr !== null && column.meta === null && holdsLanguage(shapeRows, column.attr) ? { language: true } : {}),
         }))
@@ -904,7 +975,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   // the page because React flushes such an update synchronously (T-2276). A host passing
   // `query={{ q: "…" }}` inline had the same effect.
   const gridQueryKey = JSON.stringify({
-    type: config.type,
+    type: typeOfFilter(config.type, filters["entity:type"]),
     // The caller's query and the filter row are both true: `;` is how NGSI-LD says "and", so a
     // preset that narrows the grid to one district cannot be widened by a filter (EP-07).
     q: andQ(queryPartial?.q ?? config.filters.preset?.q, askedQuery.q),
@@ -918,6 +989,22 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     area: areaQuery(area) ?? undefined,
     orderBy: serverOrder,
   });
+
+  const valuesQuery = useCallback(
+    (key: string): GridQuery => {
+      const asked = JSON.parse(gridQueryKey) as GridQuery;
+      if (filterText !== null) return { ...asked, orderBy: undefined };
+      const { [key]: _own, ...others } = filters;
+      const built = queryFromFilters(filterColumns, others);
+      return {
+        ...asked,
+        q: andQ(queryPartial?.q ?? config.filters.preset?.q, built.q),
+        idPattern: built.idPattern ?? queryPartial?.idPattern ?? config.filters.preset?.idPattern,
+        orderBy: undefined,
+      };
+    },
+    [gridQueryKey, filterText, filters, filterColumns, queryPartial?.q, queryPartial?.idPattern, config.filters.preset],
+  );
 
   const narrowed = useMemo(() => {
     const asked = JSON.parse(gridQueryKey) as GridQuery;
@@ -1096,12 +1183,14 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
    * three would otherwise show an empty page of a set that does have matches.
    */
   const setFilter = useCallback(
-    (key: string, filter: ColumnFilter | undefined) => {
+    (key: string | readonly string[], filter: ColumnFilter | undefined) => {
       const next = { ...filters };
-      if (filter === undefined) {
-        delete next[key];
-      } else {
-        next[key] = filter;
+      for (const each of typeof key === "string" ? [key] : key) {
+        if (filter === undefined) {
+          delete next[each];
+        } else {
+          next[each] = filter;
+        }
       }
       if (onStateChange) {
         onStateChange({ offset: 0, activeCell, selected, shown, sort, filters: next, filterText, edits });
@@ -1365,6 +1454,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     setFilterText,
     filterColumns,
     askedQuery,
+    valuesQuery,
     area,
     narrowed,
     setArea,

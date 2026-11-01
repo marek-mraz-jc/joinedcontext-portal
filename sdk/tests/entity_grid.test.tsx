@@ -630,6 +630,7 @@ describe("EntityGrid", () => {
         empty: "je prázdne",
         present: "má hodnotu",
         pattern: "vyhovuje",
+        startsWith: "začína na",
         anyOf: "je jedno z",
       },
       value: "Hodnota",
@@ -644,12 +645,15 @@ describe("EntityGrid", () => {
       filterHintDate: "Vyberte test a zvoľte dátum, napr. po 2026-10-01.",
       filterHintEnum: "Vyberte test; pri „ktorákoľvek z“ zvoľte jednu alebo viac povolených hodnôt:",
       filterHintOther: "Vyberte test, napr. má hodnotu alebo prázdne.",
+      filterExampleText: "Trnava",
+      filterExampleNumber: "41",
+      filterExampleId: "stanica-12",
       editAsTextHint: "Napíšte dopyt NGSI-LD sami",
       exampleLead: "napr.",
       queryAll: "všetky záznamy",
       copied: "Skopírované",
       sortPage: "Zoradiť túto stranu podľa",
-      matching: "vyhovujúcich",
+      matching: "Vyhovuje: {n}",
       columnMenu: "Možnosti stĺpca",
       sortAsc: "Zoradiť vzostupne",
       sortDesc: "Zoradiť zostupne",
@@ -764,7 +768,7 @@ describe("EntityGrid", () => {
       await waitFor(() => expect(screen.getByText("Kamppi")).toBeInTheDocument());
       const unset = (screen.getByLabelText("Filter: Bikes") as HTMLSelectElement).options[0];
       expect(unset.value).toBe("");
-      expect(unset.textContent).toBe("All");
+      expect(unset.textContent).toBe("Any");
       unmount();
 
       render(<EntityGrid config={config} source={source} labels={{ noFilter: "Všetky" }} />);
@@ -913,6 +917,11 @@ describe("EntityGrid", () => {
       const { unmount } = render(<EntityGrid config={config} source={counted} />);
       expect(await screen.findByText(`41 ${DEFAULT_LABELS.matching}`)).toBeInTheDocument();
       unmount();
+
+      // A language whose word agrees with the number places it itself (sk "1 vyhovujúcich" was wrong).
+      const placed = render(<EntityGrid config={config} source={counted} labels={{ ...DEFAULT_LABELS, matching: "Vyhovuje: {n}" }} />);
+      expect(await screen.findByText("Vyhovuje: 41")).toBeInTheDocument();
+      placed.unmount();
 
       // A narrowed answer carries no count (R22): the footer then pages without claiming a total.
       const uncounted = { query: async () => ({ rows: [] }), get: async () => null };

@@ -220,10 +220,10 @@ async function stubApi(page: Page, options: { write?: boolean } = {}): Promise<S
   return { writes, reads };
 }
 
-/** Opens a column's menu and its Details, where History and the metadata columns are (T-4827). */
+/** Opens a column's menu and its settings, where History and the metadata columns are (T-4827). */
 async function openColumnDetails(page: Page, column: string): Promise<void> {
   await page.getByRole("button", { name: `Column options: ${column}` }).click();
-  await page.getByRole("dialog", { name: `Column options: ${column}` }).getByText("Details").click();
+  await page.getByRole("dialog", { name: `Column options: ${column}` }).getByText("Column settings").click();
 }
 
 /**

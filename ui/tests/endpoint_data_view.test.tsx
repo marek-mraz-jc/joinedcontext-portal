@@ -562,8 +562,8 @@ describe("the Endpoint's table start (API/11 EP-164, T-5197)", () => {
     expect(asked.some((url) => url.searchParams.get("q") === `startDate>=${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`)).toBe(false);
     expect(asked.find((url) => url.searchParams.get("q"))?.searchParams.get("limit")).toBe("50");
     await waitFor(() => expect(columns().map((text) => text.replace(/[⋮↑↓]/g, "").trim()).slice(0, 4)).toEqual(["ID", "Typ", "Názov", "Začiatok"]));
-    // The filter row is the space's Filter panel now (T-6303): no input row under the headers.
-    expect(columns().some((text) => /^Vyberte test/.test(text))).toBe(false);
+    // The typed filter row under the headers is back (T-6328, owner): one control per column.
+    expect(screen.getByRole("combobox", { name: "Filter: Začiatok" })).toBeInTheDocument();
     const before = asked.length;
     await user.click(screen.getByRole("button", { name: "Zrušiť filtre" }));
     await waitFor(() => expect(asked.slice(before).some((url) => url.pathname.includes("/entities") && !url.searchParams.get("q"))).toBe(true));

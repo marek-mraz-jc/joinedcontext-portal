@@ -30,11 +30,14 @@
       "body": {
         "days": 30
       },
-      "status": 201,
+      "status": 202,
       "expect": {
-        "/recorded": 1,
+        "/recorded": 0,
         "/already": false
       }
+    },
+    {
+      "job": "record-forecasts"
     },
     {
       "call": "POST /api/forecasts",
@@ -48,7 +51,7 @@
       }
     },
     {
-      "call": "GET /api/forecasts?kpi=urn:ngsi-ld:KeyPerformanceIndicator:helsinki:bikes-in-use",
+      "call": "GET /api/forecasts?kpi=urn:ngsi-ld:KeyPerformanceIndicator:helsinki:bikes-in-use&days=30",
       "status": 200,
       "expect": {
         "/0/days": 30,
@@ -64,7 +67,10 @@
       "call": "GET /api/forecasts?kpi=urn:ngsi-ld:KeyPerformanceIndicator:helsinki:bikes-in-use&days=7",
       "status": 200,
       "length": {
-        "": 0
+        "": 1
+      },
+      "expect": {
+        "/0/days": 7
       }
     },
     {
