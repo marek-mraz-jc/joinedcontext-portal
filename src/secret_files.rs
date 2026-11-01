@@ -29,6 +29,14 @@ pub fn path_of(project: &str, name: &str) -> String {
     format!("projects/{project}/secrets/{name}.enc.yaml")
 }
 
+/// The project and secret name of a secrets file, the inverse of [`path_of`]; `None` for any
+/// other path.
+pub fn parse_path(path: &str) -> Option<(&str, &str)> {
+    let (project, file) = path.strip_prefix("projects/")?.split_once("/secrets/")?;
+    let name = file.strip_suffix(".enc.yaml")?;
+    (!project.is_empty() && !project.contains('/') && valid_name(name)).then_some((project, name))
+}
+
 /// Whether `name` may be a secret's name or key: a DNS label's letters, as a `secretRef` names it.
 pub fn valid_name(name: &str) -> bool {
     (1..=63).contains(&name.len())
@@ -186,6 +194,24 @@ fn wrap(data_key: &[u8], recipient: &age::x25519::Recipient) -> Result<String, S
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_secrets_path_names_its_project_and_secret_and_nothing_else_does() {
+        assert_eq!(
+            parse_path(&path_of("hel-mobility", "github-token")),
+            Some(("hel-mobility", "github-token"))
+        );
+        for other in [
+            "projects/p/secrets/x.yaml",
+            "projects/p/secrets/.enc.yaml",
+            "projects/p/secrets/a/b.enc.yaml",
+            "projects/p/spaces/air/secrets/x.enc.yaml",
+            "projects//secrets/x.enc.yaml",
+            "users/secrets/x.enc.yaml",
+        ] {
+            assert_eq!(parse_path(other), None, "{other}");
+        }
+    }
+
     use super::*;
     use jc_core::envelope::SecretRef;
 
