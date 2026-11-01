@@ -2351,6 +2351,18 @@ mod tests {
         state
     }
 
+    /// [`open_together`] with the plan's manifests as the bundle in scope, as [`apply`] runs it.
+    async fn opened_together(state: &AppState, plan: &Plan) -> Result<Vec<Value>, OpError> {
+        let manifests = plan
+            .items
+            .iter()
+            .filter_map(|i| i.manifest.clone())
+            .collect();
+        crate::references::BUNDLE
+            .scope(manifests, open_together(&steward(), state, "p1", plan))
+            .await
+    }
+
     /// JC2-10: a bundled plan holding a DataModel with its LinkML file commits the model's
     /// manifest, source and artifacts onto the plan's one branch and opens one Change for it all.
     #[tokio::test]
@@ -2359,15 +2371,7 @@ mod tests {
         let state = on_forge(&server).await;
         let plan = model_and_space();
         assert!(bundled(&plan));
-        // The apply checks a bundle with its manifests in scope, as apply() does.
-        let manifests = plan
-            .items
-            .iter()
-            .filter_map(|i| i.manifest.clone())
-            .collect();
-        let rows = crate::references::BUNDLE
-            .scope(manifests, open_together(&steward(), &state, "p1", &plan))
-            .await;
+        let rows = opened_together(&state, &plan).await;
         let requests = server.received_requests().await.expect("requests");
         let rows = rows.unwrap_or_else(|err| {
             let seen: Vec<String> = requests
@@ -2435,7 +2439,7 @@ mod tests {
         );
         let server = empty_forge(Some(own)).await;
         let state = on_forge(&server).await;
-        let err = open_together(&steward(), &state, "p1", &model_and_space())
+        let err = opened_together(&state, &model_and_space())
             .await
             .expect_err("an open change on the model");
         let why = err.to_string();
