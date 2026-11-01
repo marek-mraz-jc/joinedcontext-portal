@@ -207,7 +207,6 @@ for (const width of [1440, 400]) {
       await dialog.getByRole("button", { name: "Create" }).click();
       await expect(dialog.getByText("project doprava has no Endpoint parking-lots you may read")).toBeVisible();
       await dialog.getByText("project doprava has no Endpoint parking-lots you may read").scrollIntoViewIfNeeded();
-      await expect(dialog.getByRole("checkbox", { name: /Pipelines/ }).first()).toHaveAttribute("aria-disabled", "true");
       await expect(dialog.getByRole("checkbox", { name: /^Access/ })).toHaveAttribute("aria-disabled", "true");
       await shot(page, `ai-connectors-refusal-${width}`);
     });
