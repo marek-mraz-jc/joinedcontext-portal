@@ -81,7 +81,8 @@ pub async fn settle_in(
     });
     let mut drafted = None;
     if live.is_none() && !name.is_empty() {
-        drafted = crate::ops::drafts::draft_store(state)
+        drafted = state
+            .drafts
             .get_in(workspace, home, "Endpoint", &name)
             .await
             .ok()
@@ -196,7 +197,8 @@ mod tests {
             .await
             .expect("minted");
         let minted = first["spec"]["slug"].as_str().expect("a slug").to_owned();
-        crate::ops::drafts::draft_store(&state)
+        state
+            .drafts
             .put("q", "Endpoint", "bikes", first, None, "jana", "mcp")
             .await
             .expect("drafted");
