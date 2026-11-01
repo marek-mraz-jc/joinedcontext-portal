@@ -99,7 +99,7 @@ fn earlier(conversation: &[(String, String)]) -> Vec<Value> {
     kept.into_iter()
         .flat_map(|(asked, answered)| {
             [
-                user_content(asked),
+                json!({ "role": "user", "content": user_content(asked) }),
                 json!({ "role": "assistant", "content": answered }),
             ]
         })
@@ -169,7 +169,7 @@ impl Driver {
         opening.push_str(conversation::WHERE_THE_ANSWERS_LIVE);
         let system = format!("{SYSTEM}\n\n{opening}");
         let mut messages = earlier(conversation);
-        messages.push(user_content(text));
+        messages.push(json!({ "role": "user", "content": user_content(text) }));
         let mut spent = 0u64;
         for step in 0..MAX_STEPS {
             if spent >= TURN_INPUT_BUDGET {
@@ -441,6 +441,14 @@ mod tests {
         );
         let bodies = sent(&server).await;
         assert_eq!(bodies.len(), 2);
+        // The person's words reach the model as a user turn, never as a bare content value
+        // (which an OpenAI-compatible provider refuses and the Anthropic body read as "null").
+        let opening = &bodies[0]["messages"][0];
+        assert_eq!(opening["role"], "user", "{opening}");
+        assert!(
+            opening["content"].to_string().contains("approve c-1"),
+            "{opening}"
+        );
         let second = bodies[1].to_string();
         assert!(second.contains("errors/forbidden"), "{second}");
         assert!(second.contains("not one of this conversation"), "{second}");

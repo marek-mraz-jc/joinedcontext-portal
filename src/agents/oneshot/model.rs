@@ -335,28 +335,7 @@ impl Driver {
         if answer.pointer("/choices/0/message/content").is_some() {
             return chat_content(&answer);
         }
-        let parts = answer
-            .get("content")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        let mut joined: String = parts
-            .iter()
-            .filter(|part| part.get("type").is_none_or(|t| t == "text"))
-            .filter_map(|part| part.get("text").and_then(Value::as_str))
-            .collect::<Vec<_>>()
-            .join("");
-        for part in parts.iter().filter(|part| part["type"] == "tool_use") {
-            let name = part.get("name").and_then(Value::as_str).unwrap_or_default();
-            joined.push_str(&fence(
-                name,
-                part.get("input").cloned().unwrap_or(Value::Null),
-            ));
-        }
-        if joined.is_empty() {
-            return Err(CallError::Empty);
-        }
-        Ok(joined)
+        messages_text(&answer)
     }
 
     /// One tool completion through the proxy with 402 retry and empty-answer retry (SDK-20).
@@ -799,6 +778,33 @@ fn chat_content(answer: &Value) -> Result<String, CallError> {
     Ok(text)
 }
 
+/// An Anthropic messages answer as text: its text parts joined, each `tool_use` part as the tool
+/// block the conversation's dispatch reads ([`fence`]).
+fn messages_text(answer: &Value) -> Result<String, CallError> {
+    let parts = answer
+        .get("content")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut joined: String = parts
+        .iter()
+        .filter(|part| part.get("type").is_none_or(|t| t == "text"))
+        .filter_map(|part| part.get("text").and_then(Value::as_str))
+        .collect::<Vec<_>>()
+        .join("");
+    for part in parts.iter().filter(|part| part["type"] == "tool_use") {
+        let name = part.get("name").and_then(Value::as_str).unwrap_or_default();
+        joined.push_str(&fence(
+            name,
+            part.get("input").cloned().unwrap_or(Value::Null),
+        ));
+    }
+    if joined.is_empty() {
+        return Err(CallError::Empty);
+    }
+    Ok(joined)
+}
+
 /// A native tool call written as the tool block the conversation's dispatch reads (JC1-10): a
 /// `jc_` tool's input under `arguments`, any other tool's fields beside its name. The name the
 /// provider says wins over a `tool` field inside the input.
@@ -876,6 +882,32 @@ impl Streamed {
         }
     }
 
+    /// One `delta.tool_calls` entry: its name and arguments text joined onto the call at its
+    /// index.
+    fn tool_delta(&mut self, call: &Value) {
+        let at = call
+            .get("index")
+            .and_then(Value::as_u64)
+            .and_then(|i| usize::try_from(i).ok())
+            .unwrap_or(self.calls.len().saturating_sub(1));
+        // ponytail: a provider index past MAX_STREAM_CALLS is dropped, never allocated.
+        if at >= MAX_STREAM_CALLS {
+            return;
+        }
+        if self.calls.len() <= at {
+            self.calls.resize(at + 1, (String::new(), String::new()));
+        }
+        let Some((name, arguments)) = self.calls.get_mut(at) else {
+            return;
+        };
+        if let Some(part) = call.pointer("/function/name").and_then(Value::as_str) {
+            name.push_str(part);
+        }
+        if let Some(part) = call.pointer("/function/arguments").and_then(Value::as_str) {
+            arguments.push_str(part);
+        }
+    }
+
     fn line_done(&mut self, line: &str) {
         let Some(data) = line.trim_end_matches('\r').strip_prefix("data:") else {
             return;
@@ -903,27 +935,7 @@ impl Streamed {
             .into_iter()
             .flatten()
         {
-            let at = call
-                .get("index")
-                .and_then(Value::as_u64)
-                .and_then(|i| usize::try_from(i).ok())
-                .unwrap_or(self.calls.len().saturating_sub(1));
-            // ponytail: a provider index past MAX_STREAM_CALLS is dropped, never allocated.
-            if at >= MAX_STREAM_CALLS {
-                continue;
-            }
-            if self.calls.len() <= at {
-                self.calls.resize(at + 1, (String::new(), String::new()));
-            }
-            let Some((name, arguments)) = self.calls.get_mut(at) else {
-                continue;
-            };
-            if let Some(part) = call.pointer("/function/name").and_then(Value::as_str) {
-                name.push_str(part);
-            }
-            if let Some(part) = call.pointer("/function/arguments").and_then(Value::as_str) {
-                arguments.push_str(part);
-            }
+            self.tool_delta(call);
         }
         if let Some(reason) = frame
             .pointer("/choices/0/finish_reason")
@@ -1146,6 +1158,40 @@ mod stream_tests {
             .as_bytes(),
         );
         assert_eq!(cut.finish_reason.as_deref(), Some("length"));
+    }
+
+    /// JC1-10: a native tool call streamed in pieces is joined by its index, and written as the
+    /// block the dispatch reads; a `jc_` tool's input goes under `arguments`.
+    #[test]
+    fn a_streamed_tool_call_is_joined_and_written_as_its_block() {
+        let delta = |call: Value| {
+            format!(
+                "data: {}\n\n",
+                json!({ "choices": [{ "index": 0, "delta": { "tool_calls": [call] } }] })
+            )
+        };
+        let mut stream = Streamed::default();
+        stream.push(
+            delta(json!({ "index": 0, "function": { "name": "search_", "arguments": "{\"q\":" } }))
+                .as_bytes(),
+        );
+        stream.push(
+            delta(
+                json!({ "index": 0, "function": { "name": "catalog", "arguments": "\"bikes\"}" } }),
+            )
+            .as_bytes(),
+        );
+        stream.push(delta(json!({ "index": 999, "function": { "name": "flood" } })).as_bytes());
+        assert_eq!(
+            stream.calls,
+            [("search_catalog".to_owned(), "{\"q\":\"bikes\"}".to_owned())]
+        );
+        let block = fence("search_catalog", json!({ "q": "bikes", "tool": "other" }));
+        assert_eq!(data_query::search_calls(&block), ["bikes"]);
+        let registry = fence("jc_resource_list", json!({ "kind": "Endpoint" }));
+        let parsed = tools_registry::calls(&registry);
+        assert_eq!(parsed[0].name, "jc_resource_list");
+        assert_eq!(parsed[0].arguments, json!({ "kind": "Endpoint" }));
     }
 
     #[test]
