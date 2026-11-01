@@ -92,12 +92,28 @@ export function targetName(urn: string): { type?: string; name: string } {
 }
 
 /**
- * An id as a cell leads with it (T-6328): its last part, and a long one cut in the middle, so the
- * end that tells two rows apart (`….pocet.101.2012`) still shows. The whole id is the title.
+ * An id as a cell leads with it (T-6328): its last part, split so the cell cuts only the head and the
+ * end that tells two rows apart (`101.2012`) always shows, at any column width. The whole id is the title.
  */
-export function shortId(urn: string, max = 24): string {
+export function idParts(urn: string, tail = 12): [string, string] {
   const name = targetName(urn).name;
-  return name.length <= max ? name : `${name.slice(0, 10)}…${name.slice(-(max - 11))}`;
+  if (name.length <= tail) return ["", name];
+  // Start the tail just after a separator inside the last `tail` characters, so it reads as a part.
+  const window = name.slice(-tail);
+  const cut = window.search(/[.\-_:/][^.\-_:/]/);
+  const from = name.length - tail + (cut >= 0 ? cut + 1 : 0);
+  return [name.slice(0, from), name.slice(from)];
+}
+
+/** The id cell's text: its head, cut with "…" by the cell's width, and its tail, never cut. */
+export function IdLabel({ urn }: { urn: string }) {
+  const [head, tail] = idParts(urn);
+  return (
+    <span className="jc-grid-id">
+      {head ? <span className="jc-grid-id-head">{head}</span> : null}
+      <span className="jc-grid-id-tail">{tail}</span>
+    </span>
+  );
 }
 
 export function formatNumber(value: number, locale: string): string {

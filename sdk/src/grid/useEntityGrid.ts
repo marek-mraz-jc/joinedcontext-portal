@@ -304,7 +304,7 @@ export const DEFAULT_LABELS: GridLabels = {
   copyQuery: "Copy the query",
   editAsText: "Edit as text",
   filterRow: "Filters",
-  noFilter: "All",
+  noFilter: "Any",
   filterHintText: "Choose a test, then type the words, e.g. contains Espoo.",
   filterExampleText: "Bratislava",
   filterExampleNumber: "1500",

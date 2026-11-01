@@ -66,7 +66,7 @@ describe("the filter row, by field kind (T-6328)", () => {
     const asked = await grid();
     op("Category", "anyOf");
     const pick = screen.getByRole("combobox", { name: "Value: Category" }) as HTMLSelectElement;
-    expect([...pick.options].map((o) => o.textContent)).toEqual(["All", "Traffic", "Health"]);
+    expect([...pick.options].map((o) => o.textContent)).toEqual(["Any", "Traffic", "Health"]);
     fireEvent.change(pick, { target: { value: "traffic" } });
     await waitFor(() => expect(asked.at(-1)?.q).toBe('category=="traffic"'));
   });

@@ -5460,7 +5460,7 @@
     "error": "Nenačteno, zkuste znovu",
     "refused": "Toto nemáte povoleno číst",
     "filter": "Filtr",
-    "noFilter": "Vše",
+    "noFilter": "Libovolné",
     "ops": {
       "contains": "obsahuje",
       "equals": "je",

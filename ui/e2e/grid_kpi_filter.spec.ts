@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { attributeTable } from "./attributeAccess";
+import { narrowed } from "./stubQuery";
 
 // T-6328 (owner): a Bratislava KPI dataset on its Endpoint page. The filter row under the headers
 // filters a date column with a date picker and an enum column from its values; the header's funnel
@@ -32,7 +33,7 @@ const SCHEMA = {
 };
 const CATEGORIES = ["doprava", "zdravie", "skolstvo"];
 const ROWS = Array.from({ length: 30 }, (_, n) => ({
-  id: `urn:ngsi-ld:KeyPerformanceIndicator:dopravne-nehody-s-usmrtenim.pocet.${101 + (n % 5)}.${2012 + (n % 10)}`,
+  id: `urn:ngsi-ld:KeyPerformanceIndicator:dopravne-nehody-s-usmrtenim.pocet.${101 + (n % 3)}.${2012 + (n % 10)}`,
   type: "KeyPerformanceIndicator",
   name: { type: "Property", value: `Dopravné nehody s usmrtením ${2012 + (n % 10)}` },
   kpiValue: { type: "Property", value: (n * 7) % 40 },
@@ -62,7 +63,8 @@ async function stub(page: Page, asked: URL[]): Promise<void> {
       asked.push(url);
       const offset = Number(url.searchParams.get("offset") ?? 0);
       const limit = Number(url.searchParams.get("limit") ?? 25);
-      return json(ROWS.slice(offset, offset + limit), { "NGSILD-Results-Count": String(ROWS.length) });
+      const all = narrowed(ROWS, url);
+      return json(all.slice(offset, offset + limit), { "NGSILD-Results-Count": String(all.length) });
     }
     return route.fulfill({ status: 404, body: "{}" });
   });
@@ -94,6 +96,8 @@ for (const width of [1440, 400]) {
     await grid.getByRole("combobox", { name: /^Filter: Kategória/ }).selectOption("anyOf");
     await grid.getByRole("combobox", { name: /^Hodnota: Kategória/ }).selectOption("zdravie");
     await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toBe('category=="zdravie";dateIssued>=2018-01-01');
+    // The stub applies q: only health indicators from 2018 on are left.
+    await expect(grid.getByText("Dopravné nehody s usmrtením 2015")).toHaveCount(0);
     await expect(page.getByRole("list", { name: "Aktívne filtre" })).toBeVisible();
     await page.screenshot({ path: join(dir, `kpi-row-filtered-${width}.png`) });
     await page.getByRole("button", { name: "Zrušiť všetky filtre" }).click();
@@ -104,6 +108,8 @@ for (const width of [1440, 400]) {
     const filter = page.getByRole("dialog", { name: /: Hodnota$/ });
     await filter.getByRole("button", { name: "Iba toto: 14" }).click();
     await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toBe("kpiValue==14");
+    await expect(grid.getByText("Dopravné nehody s usmrtením 2013")).toHaveCount(0);
+    await expect(grid.getByText("Dopravné nehody s usmrtením 2014").first()).toBeVisible();
     await page.screenshot({ path: join(dir, `kpi-header-filtered-${width}.png`) });
   });
 }

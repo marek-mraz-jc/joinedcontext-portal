@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { attributeTable } from "./attributeAccess";
+import { narrowed } from "./stubQuery";
 
 // T-5082: an Endpoint's own page shows its rows, read with the person's own session through the
 // Endpoint. The endpoint orders the whole answer (`orderBy`), the address keeps the type, query and
@@ -87,7 +88,7 @@ async function stub(page: Page, entities: "rows" | "empty" | "refused" | "values
       if (entities === "refused") {
         return json({ title: "Forbidden", detail: "no policy grants you this type on this endpoint" }, {}, 403);
       }
-      const all = entities === "empty" ? [] : ordered(url.searchParams.get("orderBy"));
+      const all = entities === "empty" ? [] : narrowed(ordered(url.searchParams.get("orderBy")), url);
       const offset = Number(url.searchParams.get("offset") ?? 0);
       const limit = Number(url.searchParams.get("limit") ?? 25);
       return json(all.slice(offset, offset + limit), { "NGSILD-Results-Count": String(all.length) });
@@ -186,6 +187,9 @@ for (const width of [1440, 400]) {
       await filter.getByRole("button", { name: `${words.only}: Kallio 0` }).click();
 
       await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toBe('name=="Kallio 0"');
+      // The stub applies q: the one station is the only row left.
+      await expect(grid.getByText("Mannerheimintie 1")).toHaveCount(0);
+      await expect(grid.getByText("Kallio 0").filter({ visible: true }).first()).toBeVisible();
       const chips = page.getByRole("list", { name: words.chips });
       await expect(chips).toBeVisible();
       await expect(grid.getByRole("button", { name: new RegExp(`^${words.open}: ${words.name} \\(`) })).toHaveAttribute("data-active", "");

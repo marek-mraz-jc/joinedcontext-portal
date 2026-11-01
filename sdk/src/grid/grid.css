@@ -1388,6 +1388,7 @@ a.jc-cell--link:focus-visible {
 @media (width <= 640px) {
   .jc-grid-pager { flex-wrap: wrap; column-gap: var(--jc-space-1, 4px); }
   .jc-grid-pager .jc-grid-total { order: -1; flex-basis: 100%; text-align: center; }
+  .jc-grid-pager .jc-grid-total::before { content: none; }
   .jc-grid-pager:has(.jc-grid-pages) .jc-grid-page-info { display: none; }
   .jc-grid-pager-word {
     position: absolute;
@@ -1673,6 +1674,22 @@ a.jc-cell--link:focus-visible {
 .jc-grid-col-menu-details summary {
   padding: 6px 8px;
   font-size: var(--jc-font-size-md, 14px);
+  /* One icon, the gear, as the other items have; the fold shows as a chevron at the end. */
+  list-style: none;
+  display: flex;
+  align-items: center;
+}
+.jc-grid-col-menu-details summary::-webkit-details-marker {
+  display: none;
+}
+.jc-grid-col-menu-details summary::after {
+  content: "›";
+  margin-inline-start: auto;
+  padding-inline-start: 8px;
+  transition: transform 0.15s;
+}
+.jc-grid-col-menu-details[open] summary::after {
+  transform: rotate(90deg);
 }
 
 /* The popup sits inside its header cell, whose label does not wrap: its own text does. */
@@ -1848,26 +1865,19 @@ a.jc-cell--link:focus-visible {
 
 .jc-grid-autofilter-only {
   font: inherit;
-  font-size: var(--jc-font-size-sm, 12px);
+  font-weight: 600;
   border: 0;
   background: none;
   color: var(--jc-color-accent, #0066cc);
   cursor: pointer;
   padding: 4px 8px;
   min-height: 1.75rem;
-  opacity: 0;
 }
 
+/* Always shown: a phone has no hover, and the owner must see the two-click way at once. */
 .jc-grid-autofilter-list li:hover .jc-grid-autofilter-only,
 .jc-grid-autofilter-only:focus-visible {
-  opacity: 1;
   text-decoration: underline;
-}
-
-@media (hover: none) {
-  .jc-grid-autofilter-only {
-    opacity: 1;
-  }
 }
 
 .jc-grid-autofilter-failed {
@@ -1884,10 +1894,45 @@ a.jc-cell--link:focus-visible {
   display: block;
   color: var(--jc-color-muted, #666);
 }
+.jc-grid-autofilter-cause::first-letter {
+  text-transform: uppercase;
+}
 
 .jc-grid-filter-ticked {
   max-width: 10rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The id cell (T-6328): the head is cut with "…", the tail that tells rows apart (`101.2012`) never is. */
+.jc-grid-id {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+}
+.jc-grid-id > span {
+  text-decoration: inherit;
+  white-space: nowrap;
+}
+.jc-grid-id-head {
+  min-width: 1ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jc-grid-id-tail {
+  flex: none;
+}
+
+/* A text column keeps room for a few words a line (T-6328): without a floor the table squeezed a
+   name to one word a line, and its three-line cut hid the end that tells rows apart. */
+.jc-grid td[data-kind="text"] > .jc-grid-cell {
+  min-width: min(14ch, 35vw);
+}
+
+/* The count follows the pager's page with a separator, not run into it. */
+.jc-grid-total::before {
+  content: "·";
+  margin-inline-end: 0.5em;
+  color: var(--jc-color-muted, #666);
 }

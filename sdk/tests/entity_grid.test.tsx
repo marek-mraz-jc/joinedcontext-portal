@@ -768,7 +768,7 @@ describe("EntityGrid", () => {
       await waitFor(() => expect(screen.getByText("Kamppi")).toBeInTheDocument());
       const unset = (screen.getByLabelText("Filter: Bikes") as HTMLSelectElement).options[0];
       expect(unset.value).toBe("");
-      expect(unset.textContent).toBe("All");
+      expect(unset.textContent).toBe("Any");
       unmount();
 
       render(<EntityGrid config={config} source={source} labels={{ noFilter: "Všetky" }} />);

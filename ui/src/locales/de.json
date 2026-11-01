@@ -5460,7 +5460,7 @@
     "error": "Nicht geladen, versuchen Sie es erneut",
     "refused": "Sie dürfen dies nicht lesen",
     "filter": "Filter",
-    "noFilter": "Alle",
+    "noFilter": "Beliebig",
     "ops": {
       "contains": "enthält",
       "equals": "ist",

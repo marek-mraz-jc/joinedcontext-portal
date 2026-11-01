@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { CellView, cellDisplayText, columnKind, formatDate, kindOfCell, shortId, structuredText, structuredText as structuredTextOf, targetName } from "../src/grid/cells";
+import { CellView, cellDisplayText, columnKind, formatDate, idParts, kindOfCell, structuredText, structuredText as structuredTextOf, targetName } from "../src/grid/cells";
 import { toRichCell } from "../src/grid/model";
 
 const labels = { yes: "Yes", no: "No", points: "points", openTarget: "Open" };
@@ -50,11 +50,14 @@ describe("cells by what they hold (T-4827)", () => {
     expect(structuredText({ from: "2012-01-01" }, "en", labels)).toBe("Jan 1, 2012 –");
   });
 
-  it("an id leads with its last part, a long one cut in the middle so its end still tells rows apart", () => {
-    expect(shortId("urn:ngsi-ld:Stop:a")).toBe("a");
-    const short = shortId("urn:ngsi-ld:KeyPerformanceIndicator:dopravne-nehody-s-usmrtenim.pocet.101.2012");
-    expect(short).toBe("dopravne-n…ocet.101.2012");
-    expect(short.length).toBeLessThanOrEqual(24);
+  it("an id leads with its last part, split so the cell cuts only the head and the end that tells rows apart shows", () => {
+    expect(idParts("urn:ngsi-ld:Stop:a")).toEqual(["", "a"]);
+    expect(idParts("urn:ngsi-ld:KeyPerformanceIndicator:dopravne-nehody-s-usmrtenim.pocet.101.2012")).toEqual([
+      "dopravne-nehody-s-usmrtenim.pocet.",
+      "101.2012",
+    ]);
+    // No separator near the end: the last twelve characters.
+    expect(idParts("urn:ngsi-ld:T:abcdefghijklmnopqrstuvwxyz")).toEqual(["abcdefghijklmn", "opqrstuvwxyz"]);
   });
 
   it("a point is its coordinates, latitude first; another shape its type and point count", () => {

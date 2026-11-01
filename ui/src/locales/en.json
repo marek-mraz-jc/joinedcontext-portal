@@ -5460,7 +5460,7 @@
     "error": "Not loaded, try again",
     "refused": "You may not read this",
     "filter": "Filter",
-    "noFilter": "All",
+    "noFilter": "Any",
     "ops": {
       "contains": "contains",
       "equals": "is",

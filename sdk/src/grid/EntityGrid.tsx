@@ -5,7 +5,7 @@ import { cellText } from "./model";
 import type { ColumnLayout, GridLabels, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
 import { readableName } from "./readableName";
 import { DEFAULT_LABELS, MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, NAME_COLUMN, useEntityGrid } from "./useEntityGrid";
-import { CellView, cellDisplayText, columnKind, formatDate, kindOfCell, shortId, targetName, webHref } from "./cells";
+import { CellView, cellDisplayText, columnKind, formatDate, kindOfCell, IdLabel, targetName, webHref } from "./cells";
 import type { CellLabels, ColumnKind, ResolvedTargets } from "./cells";
 import { ColumnMenu } from "./ColumnMenu";
 import { FilterChips, HeaderFilter, useHeaderFilter } from "./AutoFilter";
@@ -845,7 +845,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
             openDetail(row);
           }}
         >
-          {column.key === "id" ? shortId(text) : text || row.id}
+          {column.key === "id" ? <IdLabel urn={text} /> : text || row.id}
         </button>
       );
     }
@@ -1704,6 +1704,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                   <td
                     key={`${row.id}-${col.key}`}
                     data-col={col.attr ? undefined : col.key}
+                    data-kind={col.pinned ? undefined : kindOf.get(col.key)}
                     className={`jc-grid-td${col.pinned ? " jc-grid-pinned" : ""}${locks.get(col.key) !== undefined ? " jc-grid-td--locked" : ""}${classNames?.cell ? ` ${classNames.cell}` : ""}`}
                     {...getCellProps(row, rowIndex, col, colIndex)}
                     onClick={
