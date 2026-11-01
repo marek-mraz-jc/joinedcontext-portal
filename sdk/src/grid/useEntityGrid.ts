@@ -200,6 +200,29 @@ export interface GridLabels {
   moveLeft: string;
   moveRight: string;
   details: string;
+  /** A column's header filter (T-6328): its values to tick, a condition, and the chips above the grid. */
+  filterValues: string;
+  searchValues: string;
+  searchValuesHint: string;
+  selectAll: string;
+  /** The button beside a listed value that filters to it alone. */
+  onlyValue: string;
+  valuesLoading: string;
+  valuesFailed: string;
+  noValues: string;
+  /** `{count}` entities read of `{total}`. */
+  valuesCapped: string;
+  filterCondition: string;
+  applyFilter: string;
+  clearFilter: string;
+  /** The header's filter button, with the column's label after it. */
+  openFilter: string;
+  /** Said beside a header whose column is filtered. */
+  filtered: string;
+  activeFilters: string;
+  /** `{name}`: the chip's text. */
+  removeFilter: string;
+  clearFilters: string;
   /** What a header's icon says the column holds. */
   kindText: string;
   kindNumber: string;
@@ -352,10 +375,10 @@ export const DEFAULT_LABELS: GridLabels = {
   yes: "Yes",
   no: "No",
   columnMenu: "Column options",
-  sortAsc: "Sort ascending",
-  sortDesc: "Sort descending",
-  filterColumn: "Filter",
-  hideColumn: "Hide field",
+  sortAsc: "Sort A → Z",
+  sortDesc: "Sort Z → A",
+  filterColumn: "Filter…",
+  hideColumn: "Hide column",
   hiddenFields: "Hidden fields",
   showColumn: "Show field",
   showAllColumns: "Show all",
@@ -366,7 +389,24 @@ export const DEFAULT_LABELS: GridLabels = {
   wider: "Wider",
   moveLeft: "Move left",
   moveRight: "Move right",
-  details: "Details",
+  details: "Column settings",
+  filterValues: "Values",
+  searchValues: "Search values",
+  searchValuesHint: "Type part of a value, e.g. 2023, then tick the ones to keep.",
+  selectAll: "Select all",
+  onlyValue: "Only",
+  valuesLoading: "Reading the column's values…",
+  valuesFailed: "The values could not be read; a condition still works.",
+  noValues: "No values to list.",
+  valuesCapped: "Values of the first {count} of {total} entities; a condition asks all of them.",
+  filterCondition: "Condition",
+  applyFilter: "Apply",
+  clearFilter: "Clear filter",
+  openFilter: "Filter column",
+  filtered: "filtered",
+  activeFilters: "Active filters",
+  removeFilter: "Remove filter {name}",
+  clearFilters: "Clear all filters",
   kindText: "Text",
   kindNumber: "Number",
   kindBoolean: "Yes or no",
@@ -495,8 +535,8 @@ export interface EntityGrid {
   labels: GridLabels;
   cellOf(row: RichRow, column: VisibleColumn): { text: string; cell?: RichCell | RichCell[] };
   toggleMeta(attr: string, meta: MetaKey): void;
-  /** The filter of one column, or `undefined` to drop it; the answer starts again at page one. */
-  setFilter(key: string, filter: ColumnFilter | undefined): void;
+  /** The filter of one column (or several), or `undefined` to drop it; the answer starts again at page one. */
+  setFilter(key: string | readonly string[], filter: ColumnFilter | undefined): void;
   /** Hands the query to the person as text, or gives the row back (`null`). */
   setFilterText(text: string | null): void;
   /** Every column the filter row can ask about, with what it holds. */
@@ -511,6 +551,8 @@ export interface EntityGrid {
   pendingChanges: EntityChange[];
   /** The query the filters ask for right now, as the endpoint receives it. */
   askedQuery: { q?: string; idPattern?: string };
+  /** The grid's question without one column's own filter: what that column's value list reads (T-6328). */
+  valuesQuery(key: string): GridQuery;
   /** The area drawn on the map, which the filter row cannot hold (UI-72); `null` for none. */
   area: GeoArea | null;
   /** Whether the source is asked for less than the whole type (a q, an id pattern, a scope, an area). */
@@ -917,6 +959,22 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     orderBy: serverOrder,
   });
 
+  const valuesQuery = useCallback(
+    (key: string): GridQuery => {
+      const asked = JSON.parse(gridQueryKey) as GridQuery;
+      if (filterText !== null) return { ...asked, orderBy: undefined };
+      const { [key]: _own, ...others } = filters;
+      const built = queryFromFilters(filterColumns, others);
+      return {
+        ...asked,
+        q: andQ(queryPartial?.q ?? config.filters.preset?.q, built.q),
+        idPattern: built.idPattern ?? queryPartial?.idPattern ?? config.filters.preset?.idPattern,
+        orderBy: undefined,
+      };
+    },
+    [gridQueryKey, filterText, filters, filterColumns, queryPartial?.q, queryPartial?.idPattern, config.filters.preset],
+  );
+
   const narrowed = useMemo(() => {
     const asked = JSON.parse(gridQueryKey) as GridQuery;
     return Boolean(asked.q || asked.idPattern || asked.scopeQ || asked.area || asked.ids);
@@ -1094,12 +1152,14 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
    * three would otherwise show an empty page of a set that does have matches.
    */
   const setFilter = useCallback(
-    (key: string, filter: ColumnFilter | undefined) => {
+    (key: string | readonly string[], filter: ColumnFilter | undefined) => {
       const next = { ...filters };
-      if (filter === undefined) {
-        delete next[key];
-      } else {
-        next[key] = filter;
+      for (const each of typeof key === "string" ? [key] : key) {
+        if (filter === undefined) {
+          delete next[each];
+        } else {
+          next[each] = filter;
+        }
       }
       if (onStateChange) {
         onStateChange({ offset: 0, activeCell, selected, shown, sort, filters: next, filterText, edits });
@@ -1363,6 +1423,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     setFilterText,
     filterColumns,
     askedQuery,
+    valuesQuery,
     area,
     narrowed,
     setArea,

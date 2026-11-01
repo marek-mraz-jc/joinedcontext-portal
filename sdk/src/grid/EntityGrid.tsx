@@ -5,10 +5,12 @@ import { cellText } from "./model";
 import type { ColumnLayout, GridLabels, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
 import { readableName } from "./readableName";
 import { DEFAULT_LABELS, MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, NAME_COLUMN, useEntityGrid } from "./useEntityGrid";
-import { CellView, cellDisplayText, columnKind, formatDate, kindOfCell, targetName, webHref } from "./cells";
+import { CellView, cellDisplayText, columnKind, formatDate, formatNumber, kindOfCell, shortId, targetName, webHref } from "./cells";
 import type { CellLabels, ColumnKind, ResolvedTargets } from "./cells";
 import { ColumnMenu } from "./ColumnMenu";
-import { opsForKind, valuesNeeded } from "./filters";
+import { AutoFilter } from "./AutoFilter";
+import { columnValues } from "./columnValues";
+import { complete, listsValues, opsForKind, valuesNeeded } from "./filters";
 import type { ColumnFilter, FilterColumn } from "./filters";
 import { applyChanges, MAX_ENTITIES, MAX_REASON, reasonOk } from "./apply";
 import type { AttributeChange, EntityChange, Observed, Refusal } from "./apply";
@@ -843,7 +845,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
             openDetail(row);
           }}
         >
-          {column.key === "id" ? targetName(text).name : text || row.id}
+          {column.key === "id" ? shortId(text) : text || row.id}
         </button>
       );
     }
@@ -1028,13 +1030,51 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
     // Back to the button that opened the menu, so a keyboard carries on where it was.
     if (attr) tableRef.current?.querySelector<HTMLElement>(`th[data-col-attr="${attr.replace(/["\\]/g, "\\$&")}"] .jc-grid-meta-btn`)?.focus();
   }, [openMenu]);
+  // A column's header filter (T-6328): one open at a time, under its header, like the menu.
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
   const focusFilter = useCallback((key: string) => {
     setOpenMenu(null);
-    const cells = tableRef.current?.querySelectorAll<HTMLElement>("[data-filter-for]") ?? [];
-    for (const cell of cells) {
-      if (cell.dataset.filterFor === key) cell.querySelector<HTMLElement>("select, input")?.focus();
-    }
+    setOpenFilter(key);
   }, []);
+  const closeFilter = useCallback(() => {
+    const key = openFilter;
+    setOpenFilter(null);
+    if (key) {
+      for (const button of tableRef.current?.querySelectorAll<HTMLElement>("[data-filter-btn]") ?? []) {
+        if (button.dataset.filterBtn === key) button.focus();
+      }
+    }
+  }, [openFilter]);
+  const { source: gridSource } = hookOptions;
+  const { valuesQuery } = grid;
+  const loadValues = useCallback(
+    (column: FilterColumn) => () => columnValues(gridSource, valuesQuery(column.key), column.attr ?? ""),
+    [gridSource, valuesQuery],
+  );
+  /** A listed or chipped value as the column's cells show it. */
+  const valueText = useCallback(
+    (column: FilterColumn, value: string): string => {
+      const option = column.options?.find((each) => each.value === value);
+      if (option) return optionLabel(option);
+      if (column.kind === "relationship") return targetName(value).name;
+      if (column.kind === "number" && value.trim() !== "" && Number.isFinite(Number(value))) return formatNumber(Number(value), where);
+      if (column.kind === "date") return formatDate(value, where);
+      return value;
+    },
+    [where],
+  );
+  /** A filter as its chip reads: the column, the test and the value(s). */
+  const chipText = (column: FilterColumn, label: string, filter: ColumnFilter): string => {
+    if (filter.op === "anyOf") {
+      const values = (filter.values ?? []).map((value) => valueText(column, value));
+      return `${label}: ${values.slice(0, 3).join(", ")}${values.length > 3 ? ` +${values.length - 3}` : ""}`;
+    }
+    const op = labels.ops[filter.op] ?? filter.op;
+    const needed = valuesNeeded(filter.op);
+    if (needed === 0) return `${label} ${op}`;
+    if (needed === 2) return `${label}: ${valueText(column, filter.value)} – ${valueText(column, filter.value2 ?? "")}`;
+    return `${label} ${op} ${valueText(column, filter.value)}`;
+  };
   const hideColumn = useCallback((attr: string) => {
     setOpenMenu(null);
     if (onHide) onHide(attr);
@@ -1088,6 +1128,16 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
+
+  React.useEffect(() => {
+    if (!openFilter) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Element | null;
+      if (!target?.closest?.(".jc-grid-autofilter, [data-filter-btn]")) setOpenFilter(null);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [openFilter]);
 
   // Close menu on outside click
   React.useEffect(() => {
@@ -1423,6 +1473,15 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
           {activeFilters > 0 ? `${labels.filterRow} (${activeFilters})` : labels.filterRow}
         </button>
       )}
+      {!asText && <FilterChips
+        items={columns.flatMap((col) => {
+          const column = filterable.get(col.key);
+          const filter = state.filters[col.key];
+          return column && filter && complete(filter) ? [{ key: col.key, text: chipText(column, col.label, filter) }] : [];
+        })}
+        labels={labels}
+        onRemove={(keys) => setFilter(keys, undefined)}
+      />}
       {!onHide && ownHidden.length > 0 && <HiddenFields attrs={ownHidden} labels={labels} labelOf={hiddenLabel} onShow={showColumns} />}
       {unreadable.length > 0 && <p className="jc-grid-sort-note jc-grid-not-readable">{labels.notReadable.replace("{count}", String(unreadable.length))}</p>}
       {grid.sortedLoadedOnly && rows.length > 0 && (
@@ -1467,11 +1526,14 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                 const at = own === null ? -1 : order.indexOf(own);
                 const fixed = own === NAME_COLUMN;
                 const movable = own !== null && !col.pinned && !fixed;
+                const headerFilter = !asText ? filterable.get(col.key) : undefined;
+                const filtered = complete(state.filters[col.key]);
                 return (
                 <th
                   key={col.key}
-                  className={`jc-grid-th${col.pinned ? " jc-grid-pinned" : ""}${dragOver === col.key ? " jc-grid-th--drop" : ""}`}
-                  style={col.width ? { width: col.width, minWidth: col.width, maxWidth: col.width } : undefined}
+                  className={`jc-grid-th${col.pinned ? " jc-grid-pinned" : ""}${dragOver === col.key ? " jc-grid-th--drop" : ""}${filtered ? " jc-grid-th--filtered" : ""}`}
+                  // No header is squeezed below its first word (T-6328): a set width is the person's own.
+                  style={col.width ? { width: col.width, minWidth: col.width, maxWidth: col.width } : { minWidth: firstWordWidth(col.label) }}
                   data-col-attr={own ?? undefined}
                   draggable={movable}
                   onDragStart={movable ? (e) => { e.dataTransfer.setData(DRAG_TYPE, own!); e.dataTransfer.effectAllowed = "move"; } : undefined}
@@ -1499,6 +1561,36 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                     {col.label}
                     {state.sort?.attr === (col.attr ?? col.key) ? (state.sort.dir === "asc" ? " ↑" : " ↓") : ""}
                   </button>
+                  {headerFilter && (
+                    <button
+                      type="button"
+                      className="jc-grid-filter-btn"
+                      data-filter-btn={col.key}
+                      data-active={filtered ? "" : undefined}
+                      aria-label={`${labels.openFilter}: ${col.label}${filtered ? ` (${labels.filtered})` : ""}`}
+                      title={`${labels.openFilter}: ${col.label}`}
+                      aria-haspopup="dialog"
+                      aria-expanded={openFilter === col.key}
+                      onClick={() => (openFilter === col.key ? closeFilter() : focusFilter(col.key))}
+                    >
+                      <span className="jc-grid-funnel" aria-hidden="true" />
+                    </button>
+                  )}
+                  {headerFilter && openFilter === col.key && (
+                    <AutoFilter
+                      column={headerFilter}
+                      label={col.label}
+                      labels={labels}
+                      filter={state.filters[col.key]}
+                      load={headerFilter.attr && listsValues(headerFilter.kind) ? loadValues(headerFilter) : undefined}
+                      formatValue={(value) => valueText(headerFilter, value)}
+                      onApply={(next) => {
+                        setFilter(col.key, next);
+                        closeFilter();
+                      }}
+                      onClose={closeFilter}
+                    />
+                  )}
                   {locks.get(col.key) !== undefined ? (
                     <span className="jc-grid-lock" role="img" aria-label={`${labels.locked}: ${locks.get(col.key)}`} title={locks.get(col.key)} />
                   ) : null}
@@ -1521,7 +1613,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                       labels={labels}
                       sorted={state.sort?.attr === own ? state.sort.dir : null}
                       onSort={(dir) => { setSort(own, dir); closeMenu(); }}
-                      onFilter={filterable.has(col.key) && !asText ? () => focusFilter(col.key) : undefined}
+                      onFilter={headerFilter ? () => focusFilter(col.key) : undefined}
                       onHide={col.pinned || fixed ? undefined : () => hideColumn(own)}
                       renamed={layout.labels?.[own] !== undefined}
                       onRename={(text) => renameColumn(own, text)}
@@ -1574,7 +1666,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                     />
                   )}
                   {own !== null && (
-                    // The edge a pointer drags; a keyboard has Narrower and Wider in the menu.
+                    // The edge a pointer drags; a keyboard has Narrower and Wider under the menu's settings.
                     <span className="jc-grid-resize" aria-hidden="true" onPointerDown={(e) => startResize(e, own)} />
                   )}
                 </th>
@@ -2148,6 +2240,48 @@ const FALLBACK_VIEWPORT_ROWS = 30;
 const OVERSCAN = 10;
 /** The share of the loaded rows the window's end passes before the next page is asked for. */
 const PREFETCH_AT = 0.6;
+
+/** A header's floor: its first word, the kind glyph, the filter and menu buttons (T-6328). */
+function firstWordWidth(label: string): string {
+  const word = label.trim().split(/\s+/)[0] ?? "";
+  return `calc(${Math.min(word.length, 16)}ch + 4.5rem)`;
+}
+
+/**
+ * The filters a person set, as chips above the grid (T-6328): each says what it asks and one
+ * click removes it; with two or more, one more clears them all.
+ */
+function FilterChips({
+  items,
+  labels,
+  onRemove,
+}: {
+  items: { key: string; text: string }[];
+  labels: Pick<GridLabelsAll, "activeFilters" | "removeFilter" | "clearFilters">;
+  onRemove: (keys: string | string[]) => void;
+}): React.JSX.Element | null {
+  if (items.length === 0) return null;
+  return (
+    <ul className="jc-grid-chips" aria-label={labels.activeFilters}>
+      {items.map((item) => (
+        <li key={item.key} className="jc-grid-chip">
+          <span className="jc-grid-funnel" aria-hidden="true" />
+          <span className="jc-grid-chip-text" title={item.text}>{item.text}</span>
+          <button type="button" aria-label={labels.removeFilter.replace("{name}", item.text)} onClick={() => onRemove(item.key)}>
+            ✕
+          </button>
+        </li>
+      ))}
+      {items.length > 1 && (
+        <li>
+          <button type="button" className="jc-grid-chips-clear" onClick={() => onRemove(items.map((item) => item.key))}>
+            {labels.clearFilters}
+          </button>
+        </li>
+      )}
+    </ul>
+  );
+}
 
 /** The query as a person reads and copies it: the `q`, and the id pattern when one is asked. */
 function queryText(asked: { q?: string; idPattern?: string }): string {

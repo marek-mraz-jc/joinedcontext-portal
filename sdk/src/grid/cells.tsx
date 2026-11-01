@@ -91,6 +91,15 @@ export function targetName(urn: string): { type?: string; name: string } {
   return { name: urn };
 }
 
+/**
+ * An id as a cell leads with it (T-6328): its last part, and a long one cut in the middle, so the
+ * end that tells two rows apart (`….pocet.101.2012`) still shows. The whole id is the title.
+ */
+export function shortId(urn: string, max = 24): string {
+  const name = targetName(urn).name;
+  return name.length <= max ? name : `${name.slice(0, 10)}…${name.slice(-(max - 11))}`;
+}
+
 export function formatNumber(value: number, locale: string): string {
   try {
     return new Intl.NumberFormat(locale, { maximumFractionDigits: 6 }).format(value);
@@ -127,7 +136,25 @@ function scalarText(value: unknown, locale: string, labels: CellLabels): string 
   return "…";
 }
 
-/** `start: 1 Oct 2026 · end: 31 Oct 2026`: an object one level deep, nested values as their text. */
+/** The start and end names a period is stored under. */
+const RANGE_KEYS: readonly (readonly [string, string])[] = [
+  ["from", "to"],
+  ["start", "end"],
+  ["startDate", "endDate"],
+  ["startTime", "endTime"],
+  ["begin", "end"],
+];
+
+/** A record that is only a period's two ends (a `type` beside them aside): its start and end. */
+function rangeOf(record: Record<string, unknown>): [unknown, unknown] | undefined {
+  const keys = Object.keys(record).filter((key) => key !== "type" && key !== "@type" && record[key] !== null && record[key] !== undefined && record[key] !== "");
+  for (const [start, end] of RANGE_KEYS) {
+    if (keys.length > 0 && keys.every((key) => key === start || key === end)) return [record[start], record[end]];
+  }
+  return undefined;
+}
+
+/** `1 Oct 2026 – 31 Oct 2026` for a period, else `kind: car · seats: 4`: an object one level deep. */
 export function structuredText(value: unknown, locale: string, labels: CellLabels): string {
   if (typeof value !== "object" || value === null) return scalarText(value, locale, labels);
   if (Array.isArray(value)) return value.map((each) => structuredText(each, locale, labels)).join(", ");
@@ -136,6 +163,9 @@ export function structuredText(value: unknown, locale: string, labels: CellLabel
   const address = addressLine(record);
   if (address) return address;
   const pairs = Object.entries(record).filter(([, each]) => each !== null && each !== undefined && each !== "");
+  // A period reads as one range in the reader's language: 1. 1. 2012 – 31. 12. 2012 (T-6328).
+  const range = rangeOf(record);
+  if (range) return `${scalarText(range[0], locale, labels)} – ${scalarText(range[1], locale, labels)}`.trim();
   const shown = pairs.slice(0, MAX_PAIRS).map(([key, each]) => {
     const text =
       typeof each === "object" && each !== null && !Array.isArray(each)

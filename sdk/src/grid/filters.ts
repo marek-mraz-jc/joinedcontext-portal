@@ -86,6 +86,11 @@ export function opsForKind(kind: FilterKind): FilterOp[] {
   }
 }
 
+/** Whether a column's header filter lists its values to tick (T-6328): what `anyOf` can ask. */
+export function listsValues(kind: FilterKind): boolean {
+  return kind === "text" || kind === "number" || kind === "date" || kind === "relationship" || kind === "enum" || kind === "untyped";
+}
+
 /** Whether the operator needs one value, two, or none. */
 export function valuesNeeded(op: FilterOp): 0 | 1 | 2 {
   if (op === "empty" || op === "present") {
@@ -190,9 +195,10 @@ function termOf(
       return `${path}<=${literal(filter.value, kind)}`;
     case "between":
       return `${path}>=${literal(filter.value, kind)};${path}<=${literal(filter.value2 ?? "", kind)}`;
-    // An enum's values are strings: each is quoted, whatever it looks like.
+    // An enum's values are strings: each is quoted, whatever it looks like. The values a header's
+    // list picked keep the column's kind, so a number column asks for numbers (T-6328).
     case "anyOf":
-      return `${path}==${(filter.values ?? []).map((value) => literal(value, "text")).join(",")}`;
+      return `${path}==${(filter.values ?? []).map((value) => literal(value, kind === "enum" ? "text" : kind)).join(",")}`;
     // A pattern belongs to the id, which is not part of `q`.
     case "pattern":
       return undefined;

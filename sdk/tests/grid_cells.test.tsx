@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { CellView, cellDisplayText, columnKind, formatDate, kindOfCell, structuredText, targetName } from "../src/grid/cells";
+import { CellView, cellDisplayText, columnKind, formatDate, kindOfCell, shortId, structuredText, targetName } from "../src/grid/cells";
 import { toRichCell } from "../src/grid/model";
 
 const labels = { yes: "Yes", no: "No", points: "points", openTarget: "Open" };
@@ -37,6 +37,22 @@ describe("cells by what they hold (T-4827)", () => {
       "Mannerheimintie 1, 00100 Helsinki",
     );
     expect(structuredText({ a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7 }, "en", labels)).toMatch(/ · …$/);
+  });
+
+  // T-6328: the owner's screenshot read "from: 1. 1. 2012 · to: 31. 12. 2012" in a Slovak page.
+  it("a period is one range in the reader's language, with no English keys", () => {
+    const period = { from: "2012-01-01", to: "2012-12-31" };
+    expect(structuredText(period, "sk", labels)).toBe("1. 1. 2012 – 31. 12. 2012");
+    expect(structuredText(period, "en", labels)).toBe("Jan 1, 2012 – Dec 31, 2012");
+    expect(structuredText({ startDate: "2026-10-01", endDate: "2026-10-31", type: "Period" }, "en", labels)).toBe("Oct 1, 2026 – Oct 31, 2026");
+    expect(structuredText({ from: "2012-01-01" }, "en", labels)).toBe("Jan 1, 2012 –");
+  });
+
+  it("an id leads with its last part, a long one cut in the middle so its end still tells rows apart", () => {
+    expect(shortId("urn:ngsi-ld:Stop:a")).toBe("a");
+    const short = shortId("urn:ngsi-ld:KeyPerformanceIndicator:dopravne-nehody-s-usmrtenim.pocet.101.2012");
+    expect(short).toBe("dopravne-n…ocet.101.2012");
+    expect(short.length).toBeLessThanOrEqual(24);
   });
 
   it("a point is its coordinates, latitude first; another shape its type and point count", () => {

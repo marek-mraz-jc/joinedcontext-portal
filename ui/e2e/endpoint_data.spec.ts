@@ -57,7 +57,7 @@ function ordered(orderBy: string | null) {
   });
 }
 
-async function stub(page: Page, entities: "rows" | "empty" | "refused", asked: URL[]): Promise<void> {
+async function stub(page: Page, entities: "rows" | "empty" | "refused" | "values-fail", asked: URL[]): Promise<void> {
   const list = (items: unknown[]) => ({ apiVersion: API, kind: "List", items });
   await page.route("**/api/v1/**", (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -80,6 +80,10 @@ async function stub(page: Page, entities: "rows" | "empty" | "refused", asked: U
       asked.push(url);
       // The page reads with the person's session cookie, never with a token of its own.
       expect(route.request().headers().authorization).toBeUndefined();
+      // The header filter's value list reads pages of a thousand; this broker is too busy for them.
+      if (entities === "values-fail" && url.searchParams.get("limit") === "1000") {
+        return json({ title: "Service Unavailable", detail: "the broker is busy" }, {}, 503);
+      }
       if (entities === "refused") {
         return json({ title: "Forbidden", detail: "no policy grants you this type on this endpoint" }, {}, 403);
       }
@@ -94,6 +98,7 @@ async function stub(page: Page, entities: "rows" | "empty" | "refused", asked: U
 
 const dir = join("test-results", "T-6303");
 mkdirSync(dir, { recursive: true });
+mkdirSync(join("test-results", "T-6328"), { recursive: true });
 
 for (const width of [1440, 400]) {
   test(`an Endpoint's rows sort through the endpoint and keep their address at ${width} px`, async ({ page }) => {
@@ -152,6 +157,60 @@ for (const width of [1440, 400]) {
     await page.screenshot({ path: join(dir, `data-full-${width}.png`) });
     await page.keyboard.press("Escape");
     await expect(full).toBeHidden();
+  });
+
+  // T-6328: the owner could not see where to click to filter. A header's funnel opens the column's
+  // values over the whole answer; "Only" filters to one of them: two clicks, sent to the endpoint as `q`.
+  for (const lang of ["en", "sk"]) {
+    test(`a column filters from its header in two clicks, ${lang}, at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const asked: URL[] = [];
+      await stub(page, "rows", asked);
+      await page.goto(`/projects/helsinki/endpoints/air?lang=${lang}`);
+      const grid = page.getByRole("grid");
+      await expect(grid).toBeVisible();
+      const words = lang === "sk" ? { open: "Filtrovať stĺpec", filter: "Filter", only: "Iba toto", menu: "Možnosti stĺpca", chips: "Aktívne filtre", remove: "Odstrániť filter" } : { open: "Filter column", filter: "Filter", only: "Only", menu: "Column options", chips: "Active filters", remove: "Remove filter" };
+      const tag = `${lang}-${width}`;
+
+      await grid.getByRole("button", { name: `${words.menu}: Name` }).click();
+      await page.screenshot({ path: join(dir, `../T-6328/menu-open-${tag}.png`) });
+      await page.keyboard.press("Escape");
+
+      await grid.getByRole("button", { name: new RegExp(`^${words.open}: Name`) }).click();
+      const filter = page.getByRole("dialog", { name: /: Name$/ });
+      await expect(filter.getByRole("list")).toBeVisible();
+      // Every one of the 42 rows, not the page of 25, read with only the one attribute.
+      await expect(filter.getByRole("listitem")).toHaveCount(42);
+      expect(asked.some((url) => url.searchParams.get("attrs") === "name" && url.searchParams.get("limit") === "1000")).toBe(true);
+      await page.screenshot({ path: join(dir, `../T-6328/filter-open-${tag}.png`) });
+      await filter.getByRole("button", { name: `${words.only}: Kallio 0` }).click();
+
+      await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toBe('name=="Kallio 0"');
+      const chips = page.getByRole("list", { name: words.chips });
+      await expect(chips).toBeVisible();
+      await expect(grid.getByRole("button", { name: new RegExp(`^${words.open}: Name \\(`) })).toHaveAttribute("data-active", "");
+      await page.screenshot({ path: join(dir, `../T-6328/filtered-${tag}.png`) });
+
+      await chips.getByRole("button", { name: new RegExp(`^${words.remove}`) }).click();
+      await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toBeNull();
+      await expect(chips).toBeHidden();
+    });
+  }
+
+  test(`a header filter whose values cannot be read still offers its condition at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const asked: URL[] = [];
+    await stub(page, "values-fail", asked);
+    await page.goto("/projects/helsinki/endpoints/air?lang=en");
+    const grid = page.getByRole("grid");
+    await grid.getByRole("button", { name: /^Filter column: PM10/ }).click();
+    const filter = page.getByRole("dialog", { name: "Filter: PM10" });
+    await expect(filter.getByRole("alert")).toContainText("The values could not be read");
+    await filter.getByRole("combobox", { name: "Condition: PM10" }).selectOption("gt");
+    await filter.getByRole("spinbutton", { name: "Value: PM10" }).fill("40");
+    await page.screenshot({ path: join(dir, `../T-6328/filter-error-${width}.png`) });
+    await filter.getByRole("button", { name: "Apply" }).click();
+    await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toBe("pm10>40");
   });
 
   test(`an Endpoint with no rows and one that refuses say so at ${width} px`, async ({ page }) => {

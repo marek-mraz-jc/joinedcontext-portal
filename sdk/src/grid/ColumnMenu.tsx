@@ -1,7 +1,8 @@
 /**
- * A column's header menu (T-4827): sort, filter, hide, a label of this view's own, width and
- * place, with the attribute's metadata under "Details". Every action is a button or a field, so a
- * keyboard reaches each one; dragging a header or its edge does the same as Move and Width.
+ * A column's header menu (T-4827, T-6328): Sort A to Z, Z to A, Filter and Hide, each with its
+ * icon, as Baserow and Excel keep it. A label of this view's own, the width and the place sit
+ * folded under the column's settings with the attribute's metadata: dragging the header or its
+ * edge moves and widens it, and these buttons are the keyboard's way to the same.
  */
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { GridLabels } from "./useEntityGrid";
@@ -29,21 +30,12 @@ export interface ColumnMenuProps {
   onClose: () => void;
 }
 
-/** Pixels one Narrower or Wider press moves the edge. */
-export const WIDTH_STEP = 40;
-
-export const ColumnMenu = React.forwardRef<HTMLDivElement, ColumnMenuProps>(function ColumnMenu(
-  { label, labels, sorted, onSort, onFilter, onHide, onRename, renamed, onWiden, onMove, canMoveLeft, canMoveRight, details, onClose },
-  ref,
-) {
-  const id = useId();
-  const [draft, setDraft] = useState(label);
-  const first = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    first.current?.focus();
-  }, []);
-  // The grid clips what overflows it, so under a short grid the menu lost everything below its
-  // first items (T-4924): it sits fixed at its header cell, inside the window, and follows it.
+/**
+ * A popup placed fixed at its header cell, inside the window, following it as the page scrolls.
+ * The grid clips what overflows it, so under a short grid a menu lost everything below its first
+ * items (T-4924).
+ */
+export function usePlaceAtCell(): React.MutableRefObject<HTMLDivElement | null> {
   const box = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => {
     const menu = box.current;
@@ -65,12 +57,33 @@ export const ColumnMenu = React.forwardRef<HTMLDivElement, ColumnMenuProps>(func
     window.addEventListener("resize", place);
     // Opening Details makes it taller: placed again, it may go above the cell.
     menu.addEventListener("toggle", place, true);
+    // A filter's value list arrives after it opened, and makes it taller too.
+    const watch = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(place);
+    watch?.observe(menu);
     return () => {
+      watch?.disconnect();
       window.removeEventListener("scroll", place, true);
       window.removeEventListener("resize", place);
       menu.removeEventListener("toggle", place, true);
     };
   }, []);
+  return box;
+}
+
+/** Pixels one Narrower or Wider press moves the edge. */
+export const WIDTH_STEP = 40;
+
+export const ColumnMenu = React.forwardRef<HTMLDivElement, ColumnMenuProps>(function ColumnMenu(
+  { label, labels, sorted, onSort, onFilter, onHide, onRename, renamed, onWiden, onMove, canMoveLeft, canMoveRight, details, onClose },
+  ref,
+) {
+  const id = useId();
+  const [draft, setDraft] = useState(label);
+  const first = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    first.current?.focus();
+  }, []);
+  const box = usePlaceAtCell();
   const setBox = (el: HTMLDivElement | null) => {
     box.current = el;
     if (typeof ref === "function") ref(el);
@@ -92,70 +105,71 @@ export const ColumnMenu = React.forwardRef<HTMLDivElement, ColumnMenuProps>(func
         if (e.key === "Escape") onClose();
       }}
     >
-      <div className="jc-grid-col-menu-row">
-        <button ref={first} type="button" className="jc-grid-meta-item" aria-pressed={sorted === "asc"} onClick={() => onSort("asc")}>
-          {labels.sortAsc}
-        </button>
-        <button type="button" className="jc-grid-meta-item" aria-pressed={sorted === "desc"} onClick={() => onSort("desc")}>
-          {labels.sortDesc}
-        </button>
-      </div>
+      <button ref={first} type="button" className="jc-grid-meta-item" aria-pressed={sorted === "asc"} onClick={() => onSort("asc")}>
+        <span className="jc-grid-menu-icon" aria-hidden="true">↑</span>
+        {labels.sortAsc}
+      </button>
+      <button type="button" className="jc-grid-meta-item" aria-pressed={sorted === "desc"} onClick={() => onSort("desc")}>
+        <span className="jc-grid-menu-icon" aria-hidden="true">↓</span>
+        {labels.sortDesc}
+      </button>
+      {(onFilter || onHide) && <hr className="jc-grid-menu-sep" />}
       {onFilter && (
         <button type="button" className="jc-grid-meta-item" onClick={onFilter}>
+          <span className="jc-grid-menu-icon jc-grid-funnel" aria-hidden="true" />
           {labels.filterColumn}
         </button>
       )}
       {onHide && (
         <button type="button" className="jc-grid-meta-item" onClick={onHide}>
+          <span className="jc-grid-menu-icon" aria-hidden="true">⊘</span>
           {labels.hideColumn}
         </button>
       )}
-      <label className="jc-grid-col-menu-field" htmlFor={`${id}-label`}>
-        {labels.renameColumn}
-      </label>
-      <input
-        id={`${id}-label`}
-        className="jc-grid-col-menu-input"
-        value={draft}
-        maxLength={80}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") commit();
-        }}
-      />
-      {renamed && (
-        <button type="button" className="jc-grid-meta-item" onClick={() => onRename(undefined)}>
-          {labels.renameReset}
-        </button>
-      )}
-      <div className="jc-grid-col-menu-row" role="group" aria-label={labels.columnWidth}>
-        <button type="button" className="jc-grid-meta-item" onClick={() => onWiden(-WIDTH_STEP)}>
-          {labels.narrower}
-        </button>
-        <button type="button" className="jc-grid-meta-item" onClick={() => onWiden(WIDTH_STEP)}>
-          {labels.wider}
-        </button>
-      </div>
-      {onMove && (
-        <div className="jc-grid-col-menu-row">
-          <button type="button" className="jc-grid-meta-item" disabled={!canMoveLeft} onClick={() => onMove(-1)}>
-            {labels.moveLeft}
+      <details className="jc-grid-col-menu-details">
+        <summary>
+          <span className="jc-grid-menu-icon" aria-hidden="true">⚙</span>
+          {labels.details}
+        </summary>
+        <label className="jc-grid-col-menu-field" htmlFor={`${id}-label`}>
+          {labels.renameColumn}
+        </label>
+        <input
+          id={`${id}-label`}
+          className="jc-grid-col-menu-input"
+          value={draft}
+          maxLength={80}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+          }}
+        />
+        {renamed && (
+          <button type="button" className="jc-grid-meta-item" onClick={() => onRename(undefined)}>
+            {labels.renameReset}
           </button>
-          <button type="button" className="jc-grid-meta-item" disabled={!canMoveRight} onClick={() => onMove(1)}>
-            {labels.moveRight}
+        )}
+        <div className="jc-grid-col-menu-row" role="group" aria-label={labels.columnWidth}>
+          <button type="button" className="jc-grid-meta-item" onClick={() => onWiden(-WIDTH_STEP)}>
+            {labels.narrower}
+          </button>
+          <button type="button" className="jc-grid-meta-item" onClick={() => onWiden(WIDTH_STEP)}>
+            {labels.wider}
           </button>
         </div>
-      )}
-      {details && (
-        <details className="jc-grid-col-menu-details">
-          <summary>{labels.details}</summary>
-          {details}
-        </details>
-      )}
-      <button type="button" className="jc-grid-meta-item" onClick={onClose}>
-        {labels.close}
-      </button>
+        {onMove && (
+          <div className="jc-grid-col-menu-row">
+            <button type="button" className="jc-grid-meta-item" disabled={!canMoveLeft} onClick={() => onMove(-1)}>
+              {labels.moveLeft}
+            </button>
+            <button type="button" className="jc-grid-meta-item" disabled={!canMoveRight} onClick={() => onMove(1)}>
+              {labels.moveRight}
+            </button>
+          </div>
+        )}
+        {details}
+      </details>
     </div>
   );
 });

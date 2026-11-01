@@ -58,7 +58,7 @@ describe("the column header menu (T-4827)", () => {
     expect(screen.getAllByText("Stop").length).toBeGreaterThanOrEqual(3);
     // The name is neither hidden nor moved.
     openMenu("Name");
-    expect(screen.queryByRole("button", { name: "Hide field" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hide column" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Move left" })).toBeNull();
   });
 
@@ -76,19 +76,33 @@ describe("the column header menu (T-4827)", () => {
     render(<EntityGrid config={config} source={fixtureSource(entities)} />);
     await screen.findByText("Alpha");
     openMenu("Count");
-    fireEvent.click(screen.getByRole("button", { name: "Sort descending" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sort Z → A" }));
     await waitFor(() => expect(names()).toEqual(["b", "c", "a"]));
     openMenu("Count");
-    fireEvent.click(screen.getByRole("button", { name: "Sort ascending" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sort A → Z" }));
     await waitFor(() => expect(names()).toEqual(["a", "c", "b"]));
   });
 
-  it("Filter puts the focus on the column's filter", async () => {
+  it("Filter… opens the column's header filter, its values searchable (T-6328)", async () => {
     render(<EntityGrid config={config} source={fixtureSource(entities)} />);
     await screen.findByText("Alpha");
     openMenu("Count");
-    fireEvent.click(screen.getByRole("button", { name: "Filter" }));
-    expect(document.activeElement).toBe(screen.getByRole("combobox", { name: "Filter: Count" }));
+    fireEvent.click(screen.getByRole("button", { name: "Filter…" }));
+    const dialog = screen.getByRole("dialog", { name: "Filter: Count" });
+    expect(document.activeElement).toBe(within(dialog).getByRole("searchbox", { name: "Search values: Count" }));
+  });
+
+  it("is short: sort, filter and hide, the rest folded under the column's settings (T-6328)", async () => {
+    render(<EntityGrid config={config} source={fixtureSource(entities)} />);
+    await screen.findByText("Alpha");
+    openMenu("Count");
+    const menu = screen.getByRole("dialog", { name: "Column options: Count" });
+    const top = [...menu.children].filter((el) => el.tagName === "BUTTON").map((el) => el.textContent);
+    expect(top).toEqual(["↑Sort A → Z", "↓Sort Z → A", "Filter…", "⊘Hide column"]);
+    const settings = within(menu).getByText("Column settings").closest("details")!;
+    expect(settings.open).toBe(false);
+    expect(within(settings).getByLabelText("Label in this view")).toBeInTheDocument();
+    expect(within(settings).getByRole("button", { name: "Wider" })).toBeInTheDocument();
   });
 
   it("hides a field, by the host where it holds hidden, else by itself; the name is never hidden", async () => {
@@ -96,15 +110,15 @@ describe("the column header menu (T-4827)", () => {
     const { unmount } = render(<EntityGrid config={config} source={fixtureSource(entities)} onHide={onHide} />);
     await screen.findByText("Alpha");
     openMenu("Count");
-    fireEvent.click(screen.getByRole("button", { name: "Hide field" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide column" }));
     expect(onHide).toHaveBeenCalledWith("count");
     openMenu("Name");
-    expect(screen.queryByRole("button", { name: "Hide field" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hide column" })).toBeNull();
     unmount();
     render(<EntityGrid config={config} source={fixtureSource(entities)} />);
     await screen.findByText("Alpha");
     openMenu("Count");
-    fireEvent.click(screen.getByRole("button", { name: "Hide field" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide column" }));
     await waitFor(() => expect(screen.queryByRole("button", { name: "Column options: Count" })).toBeNull());
   });
 
@@ -113,9 +127,9 @@ describe("the column header menu (T-4827)", () => {
     await screen.findByText("Alpha");
     expect(screen.queryByRole("button", { name: /^Hidden fields/ })).toBeNull();
     openMenu("Count");
-    fireEvent.click(screen.getByRole("button", { name: "Hide field" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide column" }));
     openMenu("status");
-    fireEvent.click(screen.getByRole("button", { name: "Hide field" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide column" }));
     const toggle = await screen.findByRole("button", { name: "Hidden fields (2)" });
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(toggle);
@@ -135,9 +149,9 @@ describe("the column header menu (T-4827)", () => {
     const { unmount } = render(<EntityGrid config={config} source={fixtureSource(entities)} />);
     await screen.findByText("Alpha");
     openMenu("Count");
-    fireEvent.click(screen.getByRole("button", { name: "Hide field" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide column" }));
     openMenu("status");
-    fireEvent.click(screen.getByRole("button", { name: "Hide field" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide column" }));
     fireEvent.click(await screen.findByRole("button", { name: "Hidden fields (2)" }));
     fireEvent.click(screen.getByRole("button", { name: "Show all" }));
     await screen.findByRole("button", { name: "Column options: Count" });
@@ -195,21 +209,20 @@ describe("the column header menu (T-4827)", () => {
     expect(moveTo(["a", "b", "c"], "c", 0)).toEqual(["c", "a", "b"]);
   });
 
-  it("keeps the metadata under Details, and Escape closes the menu back to its button", async () => {
+  it("keeps the metadata under the column's settings, and Escape closes the menu back to its button", async () => {
     render(<EntityGrid config={config} source={fixtureSource(entities)} />);
     await screen.findByText("Alpha");
     openMenu("Count");
     const menu = screen.getByRole("dialog", { name: "Column options: Count" });
-    expect(within(menu).getByText("Details").tagName).toBe("SUMMARY");
+    expect(within(menu).getByText("Column settings").tagName).toBe("SUMMARY");
     expect(within(menu).getByLabelText("Observed")).toBeInTheDocument();
     fireEvent.keyDown(menu, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Column options: Count" }));
-    // A touch screen has no Escape: the menu's own Close does the same.
+    // A touch screen has no Escape: a tap outside the menu closes it.
     openMenu("Count");
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
+    fireEvent.mouseDown(document.body);
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Column options: Count" }));
   });
 
   // The grid clips what overflows it: the menu is placed in the window, below its header cell
