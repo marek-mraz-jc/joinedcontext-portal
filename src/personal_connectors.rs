@@ -1,7 +1,7 @@
 //! The one move of the old personal connectors (UI-98, kept in a person's preferences and served
 //! at `/api/mcp/me/{name}`) into the connector store (API/14, T-5970), so one store holds every
 //! connector. Each old one becomes a `data-read` connector of the same name, read-only, for the
-//! default ceiling's days, whose scope reaches no more than its selector did: a selector of only
+//! person's ceiling `maxExpiry`, its scope no wider than its selector: a selector of only
 //! projects or spaces keeps them as items, any other is resolved today to the Endpoints it took.
 //! The old list then leaves the preferences document; an old connector that did not move stays
 //! in it under `connectorsNotMoved` with the reason, and a list this Portal cannot read stays where
