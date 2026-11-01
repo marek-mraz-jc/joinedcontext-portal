@@ -84,6 +84,11 @@ export interface GridLabels {
    * other brokers, CIM 009 4.23.1): `{count}` is the number of loaded rows the order is of (T-5618).
    */
   sortedLoaded: string;
+  /**
+   * Under the toolbar when the person may read only some of the type's attributes (T-6210): those
+   * are never rendered, the line says they exist. `{count}` is how many are not shown.
+   */
+  notReadable: string;
   /** Before the problem's title when the broker refused the grid's query (a 400). */
   queryRefused: string;
   /** The disclosure holding the broker's own sentence about a refused query. */
@@ -274,6 +279,7 @@ export const DEFAULT_LABELS: GridLabels = {
   sortPage: "Sort this page by",
   sortAll: "Sort all rows by",
   sortedLoaded: "Sorted within the {count} loaded rows: this view also reads other brokers, which do not sort.",
+  notReadable: "{count} more fields are not shown: your access does not include them.",
   queryRefused: "The broker refused this query",
   errorDetail: "What the broker said",
   matching: "matching",

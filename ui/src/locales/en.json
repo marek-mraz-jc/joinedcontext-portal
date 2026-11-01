@@ -5484,6 +5484,7 @@
     "sortPage": "Sort this page by",
     "sortAll": "Sort all rows by",
     "sortedLoaded": "Sorted within the {count} loaded rows: this view also reads other brokers, which do not sort.",
+    "notReadable": "{count} more fields are not shown: your access does not include them.",
     "queryRefused": "The broker refused this query",
     "errorDetail": "What the broker said",
     "matching": "matching",

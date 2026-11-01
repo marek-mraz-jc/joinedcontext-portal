@@ -1232,6 +1232,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
         </button>
       )}
       {!onHide && ownHidden.length > 0 && <HiddenFields attrs={ownHidden} labels={labels} labelOf={hiddenLabel} onShow={showColumns} />}
+      {unreadable.length > 0 && <p className="jc-grid-sort-note jc-grid-not-readable">{labels.notReadable.replace("{count}", String(unreadable.length))}</p>}
       {grid.sortedLoadedOnly && rows.length > 0 && (
         <p className="jc-grid-sort-note" role="status">{labels.sortedLoaded.replace("{count}", String(rows.length))}</p>
       )}
@@ -1482,6 +1483,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                 {columns.map((col, colIndex) => (
                   <td
                     key={`${row.id}-${col.key}`}
+                    data-col={col.attr ? undefined : col.key}
                     className={`jc-grid-td${col.pinned ? " jc-grid-pinned" : ""}${locks.get(col.key) !== undefined ? " jc-grid-td--locked" : ""}${classNames?.cell ? ` ${classNames.cell}` : ""}`}
                     {...getCellProps(row, rowIndex, col, colIndex)}
                     onClick={

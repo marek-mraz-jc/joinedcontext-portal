@@ -143,6 +143,7 @@ export function gridLabels(t: (key: string, values?: Record<string, string>) => 
     sortPage: t("entityGrid.sortPage"),
     sortAll: t("entityGrid.sortAll"),
     sortedLoaded: t("entityGrid.sortedLoaded"),
+    notReadable: t("entityGrid.notReadable"),
     queryRefused: t("entityGrid.queryRefused"),
     errorDetail: t("entityGrid.errorDetail"),
     matching: t("entityGrid.matching"),

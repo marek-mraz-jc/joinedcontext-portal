@@ -137,6 +137,20 @@ describe("the permission-aware grid", () => {
     for (const attrs of asked) expect(attrs ?? []).not.toContain("operatorNote");
   });
 
+  it("says how many fields the person's access leaves out, without naming them (T-6210)", async () => {
+    const { source } = recorded();
+    render(<EntityGrid config={configOf()} source={source} access={ACCESS} />);
+    await screen.findByDisplayValue("Kamppi");
+    expect(screen.getByText(DEFAULT_LABELS.notReadable.replace("{count}", "1"))).toBeTruthy();
+  });
+
+  it("says nothing about missing fields when the person reads them all", async () => {
+    const { source } = recorded();
+    render(<EntityGrid config={configOf()} source={source} />);
+    await screen.findByDisplayValue("Kamppi");
+    expect(document.querySelector(".jc-grid-not-readable")).toBeNull();
+  });
+
   it("draws no lock on a read-only grid", async () => {
     const { source } = recorded();
     render(<EntityGrid config={{ ...configOf(), mode: "view" }} source={source} access={ACCESS} />);
