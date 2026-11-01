@@ -505,12 +505,12 @@ fn names_manifest(path: &str, project: &str, name: &str) -> bool {
 /// call the listing pays anyway, where the tree walk read every file of the repository once per
 /// open change (T-6347).
 fn manifest_in_files(
-    files: &[crate::git::gitea::ChangedFile],
+    files: Option<&[crate::git::gitea::ChangedFile]>,
     project: &str,
     name: &str,
     deleted: bool,
 ) -> Option<String> {
-    files
+    files?
         .iter()
         .find(|file| file.deleted == deleted && names_manifest(&file.path, project, name))
         .map(|file| file.path.clone())
@@ -674,7 +674,7 @@ async fn bundle_headline(
     gitea: &GiteaClient,
     pr: &PullRequest,
     project: &str,
-    files: &[crate::git::gitea::ChangedFile],
+    files: Option<&[crate::git::gitea::ChangedFile]>,
 ) -> Result<Option<ManifestData>, ApiError> {
     let branch = pr
         .head_branch
@@ -696,6 +696,14 @@ async fn bundle_headline(
         "users/".to_owned()
     } else {
         format!("projects/{project}/")
+    };
+    let fetched;
+    let files = match files {
+        Some(files) => files,
+        None => {
+            fetched = gitea.pull_request_files(pr.number).await?;
+            &fetched
+        }
     };
     let mut files: Vec<_> = files
         .iter()
@@ -763,11 +771,13 @@ async fn bundle_headline(
     Ok(None)
 }
 
+/// The headline manifest of `pr`. `files` is the merge request's file list when the caller holds
+/// it: the manifest is found there before any probe (T-6347); `None` reads it only for a bundle.
 async fn load_manifest_data(
     gitea: &GiteaClient,
     pr: &PullRequest,
     project: &str,
-    files: &[crate::git::gitea::ChangedFile],
+    files: Option<&[crate::git::gitea::ChangedFile]>,
 ) -> Result<Option<ManifestData>, ApiError> {
     let Some(branch_info) = parse_branch_name(&pr.head_branch) else {
         return bundle_headline(gitea, pr, project, files).await;
@@ -1496,7 +1506,7 @@ async fn listed(
     // approval will apply (T-1224) and the headline manifest's path (T-6347): no extra call,
     // and the list stops promising a lane the detail page contradicts.
     let carried = gitea.pull_request_files(pr.number).await?;
-    let Some(data) = load_manifest_data(gitea, pr, project, &carried).await? else {
+    let Some(data) = load_manifest_data(gitea, pr, project, Some(&carried)).await? else {
         return Ok(Listed::Unlisted);
     };
 
@@ -1595,7 +1605,7 @@ pub async fn change_for(
     require_change(state, gitea, project, id, &pr).await?;
 
     let pr_files = gitea.pull_request_files(pr.number).await?;
-    let data = load_manifest_data(gitea, &pr, project, &pr_files)
+    let data = load_manifest_data(gitea, &pr, project, Some(&pr_files))
         .await?
         .ok_or_else(|| {
             ApiError::NotFound(format!(
@@ -2139,8 +2149,7 @@ pub async fn approve_change_for(
 
     let pr = gitea.pull_request(pr_number).await?;
     require_change(state, gitea, project, id, &pr).await?;
-    let pr_files = gitea.pull_request_files(pr.number).await?;
-    let data = load_manifest_data(gitea, &pr, project, &pr_files)
+    let data = load_manifest_data(gitea, &pr, project, None)
         .await?
         .ok_or_else(|| {
             ApiError::NotFound(format!(
@@ -2635,7 +2644,7 @@ pub(crate) async fn merge_if_narrowing(
             return change;
         }
     };
-    let narrowed = match load_manifest_data(&gitea, &pr, project, &files).await {
+    let narrowed = match load_manifest_data(&gitea, &pr, project, Some(&files)).await {
         Ok(Some(ManifestData {
             base_envelope: Some(base),
             head_envelope: Some(head),
@@ -2778,8 +2787,7 @@ pub async fn reject_change_for(
 
     let pr = gitea.pull_request(pr_number).await?;
     require_change(state, gitea, project, id, &pr).await?;
-    let pr_files = gitea.pull_request_files(pr.number).await?;
-    let data = load_manifest_data(gitea, &pr, project, &pr_files)
+    let data = load_manifest_data(gitea, &pr, project, None)
         .await?
         .ok_or_else(|| {
             ApiError::NotFound(format!(
