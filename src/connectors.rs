@@ -302,6 +302,25 @@ fn policy_segment(policy: &DelegationPolicySpec, segment: &str) -> bool {
     })
 }
 
+/// Whether `policy` lets a connector tick `verb` on `kind`: its kinds list, when it has one,
+/// holds the verb, and for a change verb one of its segments reaches the kind and plans
+/// changes (`run`: reaches Pipeline, with the policy's `writes`).
+fn policy_offers(policy: &DelegationPolicySpec, kind: &str, verb: ConnectorVerb) -> bool {
+    let reaches = |plans: bool| {
+        SEGMENTS.iter().any(|(segment, tools, kinds)| {
+            policy_segment(policy, segment)
+                && kinds.contains(&kind)
+                && (!plans || tools.contains(&PLAN))
+        })
+    };
+    let offered = match verb {
+        ConnectorVerb::Read => true,
+        ConnectorVerb::Run => policy.writes && reaches(false),
+        _ => reaches(true),
+    };
+    offered && (policy.kinds.is_none() || verbs_allow(policy.verbs_for(kind), verb))
+}
+
 impl Ceiling {
     /// The policies of the organization that bind `identity`: their `User` subject is its `sub`,
     /// or a `Group` subject names a group of its token or a `Group` manifest listing the person.
@@ -423,7 +442,9 @@ impl Ceiling {
         })
     }
 
-    /// The verbs the ceiling lets a connector tick on each of `kinds`, for the dialog.
+    /// The verbs the ceiling lets a connector tick on each of `kinds`, for the dialog: `read`
+    /// always, a change verb only where a policy's proposing segment reaches the kind, and
+    /// `run` only with that policy's `writes`, so a read-only ceiling greys every change verb.
     pub fn kind_verbs(&self, kinds: &[&str]) -> Vec<KindGrant> {
         kinds
             .iter()
@@ -431,7 +452,7 @@ impl Ceiling {
                 kind: (*kind).to_owned(),
                 verbs: kind_choices(kind)
                     .into_iter()
-                    .filter(|verb| self.allows_verb(None, kind, *verb))
+                    .filter(|verb| self.each().iter().any(|p| policy_offers(p, kind, *verb)))
                     .collect(),
             })
             .collect()
@@ -3022,7 +3043,7 @@ pub(crate) mod tests {
     /// and asks no verb the ceiling withholds; a policy without `kinds` withholds none.
     #[test]
     fn a_kinds_list_is_checked_and_held_to_the_ceiling() {
-        use ConnectorVerb::{Create, Edit, Read, Run};
+        use ConnectorVerb::{Create, Delete, Edit, Read, Run};
         let now = Utc::now();
         let invalid =
             |n: NewConnector, field: &str| match validate(&n, &Ceiling::of_policies(vec![]), now) {
@@ -3070,11 +3091,34 @@ pub(crate) mod tests {
             vec![grant("Endpoint", &[Read, Create]), grant("Pipeline", &[])]
         );
         policy.kinds = None;
-        let open = Ceiling::of_policies(vec![("open".into(), policy)]);
+        let open = Ceiling::of_policies(vec![("open".into(), policy.clone())]);
         assert!(open.allows_verb(Some("doprava"), "Endpoint", Edit));
+        // The dialog offers a change verb only where a proposing segment reaches the kind.
         assert_eq!(
-            open.kind_verbs(&["Pipeline"]),
+            open.kind_verbs(&["Endpoint", "Pipeline"]),
+            vec![
+                grant("Endpoint", &[Read, Create, Edit, Delete]),
+                grant("Pipeline", &[Read])
+            ]
+        );
+        policy.segments = Some(vec![Segment::Operate]);
+        let operate = |writes| {
+            let mut p = policy.clone();
+            p.writes = writes;
+            Ceiling::of_policies(vec![("ops".into(), p)]).kind_verbs(&["Pipeline"])
+        };
+        assert_eq!(
+            operate(false),
+            vec![grant("Pipeline", &[Read, Create, Edit, Delete])]
+        );
+        assert_eq!(
+            operate(true),
             vec![grant("Pipeline", &kind_choices("Pipeline"))]
+        );
+        // The default ceiling (data-read, writes off) offers read alone.
+        assert_eq!(
+            Ceiling::of_policies(vec![]).kind_verbs(&["Endpoint"]),
+            vec![grant("Endpoint", &[Read])]
         );
     }
 }

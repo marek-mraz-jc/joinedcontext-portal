@@ -2559,9 +2559,22 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
         json!([{ "project": own, "spaces": ["lot-tree"], "endpoints": ["lot-tree-cars"],
                  "pipelines": ["lot-tree-load"] }])
     );
+    let mut ceiling = options["ceiling"].clone();
+    let kinds = ceiling
+        .as_object_mut()
+        .and_then(|c| c.remove("kinds"))
+        .unwrap_or_default();
     assert_eq!(
-        options["ceiling"],
+        ceiling,
         json!({ "segments": ["data-read"], "writes": false, "maxDays": 30 })
+    );
+    // The default ceiling plans nothing (data-read, writes off): every kind offers read alone,
+    // so the dialog greys each change verb (T-6302).
+    let rows = kinds.as_array().cloned().unwrap_or_default();
+    assert!(rows.iter().any(|k| k["kind"] == "Endpoint"), "{kinds}");
+    assert!(
+        rows.iter().all(|k| k["verbs"] == json!(["read"])),
+        "{kinds}"
     );
     assert_eq!(options["segments"].as_array().map(Vec::len), Some(9));
     assert_eq!(
