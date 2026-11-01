@@ -230,34 +230,45 @@ fn marked(mut connector: Connector, ceiling: &Ceiling) -> Connector {
 /// named object exists there (AG-150: a connector never reaches past its owner).
 fn reachable(state: &AppState, identity: &Identity, new: &NewConnector) -> Result<(), ApiError> {
     for (i, item) in new.scope.iter().enumerate() {
-        let rights = crate::permissions::for_request(state, identity, &item.project);
-        if !rights.may_read_project() {
-            return Err(ApiError::Denied(format!(
-                "scope[{i}].project: you hold no right in project {}, so a connector of yours cannot reach it",
-                item.project
-            )));
-        }
-        let named = [
-            ("space", "ContextSpace", &item.space),
-            ("endpoint", "Endpoint", &item.endpoint),
-            ("pipeline", "Pipeline", &item.pipeline),
-        ];
-        for (field, kind, name) in named {
-            let Some(name) = name.as_deref().filter(|n| *n != "*") else {
-                continue;
-            };
-            // One answer for an object that is not there and one the owner may not read, so a
-            // refusal tells nothing about what the owner cannot see.
-            let readable = state
-                .mirror
-                .get(&item.project, kind, name)
-                .is_some_and(|env| rights.may_read_envelope(kind, &env));
-            if !readable {
-                return Err(ApiError::Unprocessable {
-                    detail: format!("project {} has no {kind} {name} you may read", item.project),
-                    errors: vec![format!("scope[{i}].{field}")],
-                });
-            }
+        reachable_item(state, identity, i, item)?;
+    }
+    Ok(())
+}
+
+/// [`reachable`] for the one scope item at index `i`.
+pub(crate) fn reachable_item(
+    state: &AppState,
+    identity: &Identity,
+    i: usize,
+    item: &connectors::ScopeItem,
+) -> Result<(), ApiError> {
+    let rights = crate::permissions::for_request(state, identity, &item.project);
+    if !rights.may_read_project() {
+        return Err(ApiError::Denied(format!(
+            "scope[{i}].project: you hold no right in project {}, so a connector of yours cannot reach it",
+            item.project
+        )));
+    }
+    let named = [
+        ("space", "ContextSpace", &item.space),
+        ("endpoint", "Endpoint", &item.endpoint),
+        ("pipeline", "Pipeline", &item.pipeline),
+    ];
+    for (field, kind, name) in named {
+        let Some(name) = name.as_deref().filter(|n| *n != "*") else {
+            continue;
+        };
+        // One answer for an object that is not there and one the owner may not read, so a
+        // refusal tells nothing about what the owner cannot see.
+        let readable = state
+            .mirror
+            .get(&item.project, kind, name)
+            .is_some_and(|env| rights.may_read_envelope(kind, &env));
+        if !readable {
+            return Err(ApiError::Unprocessable {
+                detail: format!("project {} has no {kind} {name} you may read", item.project),
+                errors: vec![format!("scope[{i}].{field}")],
+            });
         }
     }
     Ok(())

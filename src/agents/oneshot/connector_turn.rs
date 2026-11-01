@@ -72,7 +72,7 @@ pub(super) fn tool_specs(offered: &[OperationSummary]) -> Vec<ToolSpec> {
 /// withholding a client's call at `/c/{id}` gets; the removed ones are named beside the answer so
 /// the model can tell the person why they are missing. Models that could not be read are an
 /// `Err`: without their marks nothing personal could be withheld, so the call is refused.
-fn without_personal(
+pub(super) fn without_personal(
     mut output: Value,
     marks: Result<crate::personal_data::Marks, String>,
 ) -> Result<Value, String> {

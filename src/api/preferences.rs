@@ -169,7 +169,7 @@ pub async fn get_preferences(
     user: CurrentUser,
     State(state): State<AppState>,
 ) -> Result<Json<Preferences>, ApiError> {
-    crate::personal_connectors::move_one(&state, &user.0.identity.subject).await?;
+    crate::personal_connectors::move_one(&state, &user.0.identity).await?;
     let stored = db::load_preferences(pool(&state)?, &user.0.identity.subject)
         .await
         .map_err(db_error)?;
@@ -214,7 +214,7 @@ pub async fn put_preferences(
     let pool = pool(&state)?;
     let subject = &user.0.identity.subject;
     // Old connectors still in the row move first, so this whole-document save cannot drop them.
-    crate::personal_connectors::move_one(&state, subject).await?;
+    crate::personal_connectors::move_one(&state, &user.0.identity).await?;
     let mut value = serde_json::to_value(&preferences)
         .map_err(|e| ApiError::Internal(format!("preferences did not serialize: {e}")))?;
     // What the move left (a list it could not read, connectors it kept aside) is carried over.
