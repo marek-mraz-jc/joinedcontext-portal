@@ -2214,4 +2214,238 @@ mod tests {
         );
         assert!(why.contains("may not create ContextSpace parking"), "{why}");
     }
+
+    /// A forge that holds nothing yet and takes every write; `open` is the head branch of a
+    /// change already open on it.
+    async fn empty_forge(open: Option<String>) -> wiremock::MockServer {
+        use wiremock::matchers::{method, path, path_regex};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        let repo = "/api/v1/repos/o/r";
+        Mock::given(method("GET"))
+            .and(path(repo))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })),
+            )
+            .mount(&server)
+            .await;
+        let pull = |number: u64, head: &str| {
+            json!({
+                "number": number, "html_url": format!("https://forge.test/pulls/{number}"),
+                "state": "open", "title": "t", "body": "",
+                "head": { "ref": head }, "base": { "ref": "main" },
+                "created_at": "2026-11-01T20:00:00Z",
+                "user": { "login": "jana", "full_name": "Jana" },
+                "mergeable": true, "merged": false
+            })
+        };
+        let pulls: Vec<Value> = open.iter().map(|head| pull(175, head)).collect();
+        Mock::given(method("GET"))
+            .and(path(format!("{repo}/pulls")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(pulls))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{repo}/pulls")))
+            .respond_with(
+                ResponseTemplate::new(201).set_body_json(pull(176, "portal/import-plan-p1")),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{repo}/branches")))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{repo}/contents")))
+            .respond_with(
+                ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "c0ffee" } })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path_regex(format!("^{repo}/contents/.*")))
+            .respond_with(
+                ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "c0ffee" } })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path_regex(format!("^{repo}/contents/.*")))
+            .respond_with(
+                ResponseTemplate::new(404).set_body_json(json!({ "message": "not found" })),
+            )
+            .mount(&server)
+            .await;
+        server
+    }
+
+    fn steward() -> Caller {
+        let mut steward = caller(None);
+        steward.identity.groups = vec!["portal-approver".into()];
+        steward
+    }
+
+    /// A plan creating DataModel `parking` with its LinkML file and the space naming it.
+    fn model_and_space() -> Plan {
+        let model = json!({
+            "apiVersion": crate::resource::API_VERSION, "kind": "DataModel",
+            "metadata": { "name": "parking", "namespace": "doprava" },
+            "spec": { "contextSpaceRef": "mobility", "linkml": "./parking.linkml.yaml",
+                      "version": "1.0.0", "lifecycle": "draft" }
+        });
+        let space = json!({
+            "apiVersion": crate::resource::API_VERSION, "kind": "ContextSpace",
+            "metadata": { "name": "mobility", "namespace": "doprava" },
+            "spec": { "isSandbox": true, "dataModelRef": "parking" }
+        });
+        let item = |kind: &str, plural: &'static str, name: &str, manifest: Value| Planned {
+            kind: kind.into(),
+            plural,
+            home: "doprava".into(),
+            name: name.into(),
+            manifest: Some(manifest),
+            base: "absent".into(),
+            model: None,
+        };
+        let mut parking = item("DataModel", "datamodels", "parking", model);
+        parking.model = Some(ModelPlan {
+            source: "id: https://example.org/parking\nname: parking\n".into(),
+            checked: SourceDryRunResult {
+                severity: "none".into(),
+                changes: vec![],
+                version: "1.0.0".into(),
+                artifacts: Default::default(),
+            },
+            next_val: json!({ "classes": { "Parking": {} } }),
+            imports: BTreeMap::new(),
+            creating: true,
+            base: String::new(),
+        });
+        Plan {
+            owner: "sub-jana".into(),
+            connector: None,
+            project: "doprava".into(),
+            workspace: None,
+            items: vec![parking, item("ContextSpace", "spaces", "mobility", space)],
+            expires_at: Utc::now() + Duration::minutes(TTL_MINUTES),
+        }
+    }
+
+    async fn on_forge(server: &wiremock::MockServer) -> AppState {
+        let forge = crate::git::GiteaClient::new(server.uri().parse().expect("url"), "o", "r", "t")
+            .expect("client");
+        let state = AppState::new(crate::config::Config::for_tests(), None)
+            .with_gitea(std::sync::Arc::new(forge));
+        let plan = model_and_space();
+        let space = plan.items[1].manifest.as_ref().expect("manifest");
+        super::super::proposals::record_check(
+            &steward(),
+            &state,
+            "doprava",
+            space,
+            &super::super::verdict::Verdict::green(space, None),
+        )
+        .await;
+        state
+    }
+
+    /// JC2-10: a bundled plan holding a DataModel with its LinkML file commits the model's
+    /// manifest, source and artifacts onto the plan's one branch and opens one Change for it all.
+    #[tokio::test]
+    async fn a_bundled_plan_commits_the_model_with_its_source_onto_the_plan_branch() {
+        let server = empty_forge(None).await;
+        let state = on_forge(&server).await;
+        let plan = model_and_space();
+        assert!(bundled(&plan));
+        // The apply checks a bundle with its manifests in scope, as apply() does.
+        let manifests = plan
+            .items
+            .iter()
+            .filter_map(|i| i.manifest.clone())
+            .collect();
+        let rows = crate::references::BUNDLE
+            .scope(manifests, open_together(&steward(), &state, "p1", &plan))
+            .await;
+        let requests = server.received_requests().await.expect("requests");
+        let rows = rows.unwrap_or_else(|err| {
+            let seen: Vec<String> = requests
+                .iter()
+                .map(|r| format!("{} {}", r.method, r.url))
+                .collect();
+            panic!("the plan opens: {err}; forge saw {seen:#?}")
+        });
+        assert_eq!(rows.len(), 1, "one Change: {rows:?}");
+
+        let commits: Vec<Value> = requests
+            .iter()
+            .filter(|r| {
+                matches!(r.method.as_str(), "POST" | "PUT") && r.url.path().contains("/contents")
+            })
+            .map(|r| serde_json::from_slice(&r.body).expect("json"))
+            .collect();
+        assert_eq!(commits.len(), 2, "one commit per change");
+        let model = commits
+            .iter()
+            .find(|c| c["files"].as_array().is_some_and(|f| f.len() > 2))
+            .expect("the model's commit");
+        assert_eq!(model["branch"], "portal/import-plan-p1");
+        let paths: Vec<&str> = model["files"]
+            .as_array()
+            .expect("files")
+            .iter()
+            .filter_map(|f| f["path"].as_str())
+            .collect();
+        for wanted in [
+            "parking.yaml",
+            "parking.linkml.yaml",
+            "json-schema/parking.v1.json",
+            "context/parking.v1.jsonld",
+        ] {
+            assert!(
+                paths.iter().any(|p| p.ends_with(wanted)),
+                "{wanted} in {paths:?}"
+            );
+        }
+        assert!(
+            commits
+                .iter()
+                .all(|c| c["branch"] == "portal/import-plan-p1"),
+            "every write lands on the plan's branch"
+        );
+        let opened: Vec<Value> = requests
+            .iter()
+            .filter(|r| r.method.as_str() == "POST" && r.url.path().ends_with("/pulls"))
+            .map(|r| serde_json::from_slice(&r.body).expect("json"))
+            .collect();
+        assert_eq!(opened.len(), 1, "one merge request");
+        assert_eq!(opened[0]["head"], "portal/import-plan-p1");
+    }
+
+    /// CC-34 (JC2-10): a change already open on the model refuses the plan before a byte of it is
+    /// written, and names the open change.
+    #[tokio::test]
+    async fn a_bundled_plan_is_refused_while_the_model_has_an_open_change() {
+        let own = crate::api::mutate::branch_name(
+            "doprava",
+            "datamodel",
+            "parking",
+            crate::change::Operation::Create,
+        );
+        let server = empty_forge(Some(own)).await;
+        let state = on_forge(&server).await;
+        let err = open_together(&steward(), &state, "p1", &model_and_space())
+            .await
+            .expect_err("an open change on the model");
+        let why = err.to_string();
+        assert!(why.contains("DataModel 'parking' is already open"), "{why}");
+        assert!(why.contains("nothing of the plan was opened"), "{why}");
+        let requests = server.received_requests().await.expect("requests");
+        assert!(
+            requests.iter().all(|r| r.method.as_str() == "GET"),
+            "nothing written: {:?}",
+            requests.iter().map(|r| r.url.path()).collect::<Vec<_>>()
+        );
+    }
 }
