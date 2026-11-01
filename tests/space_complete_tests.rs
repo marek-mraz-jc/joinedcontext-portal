@@ -1249,7 +1249,8 @@ async fn a_completion_leaves_another_persons_draft_of_the_same_name_unchanged() 
     let config = Config::for_tests();
     let state = AppState::new(config.clone(), None);
     let theirs = json!({ "kind": "ContextSpace", "metadata": { "name": "city-bikes" }, "spec": { "isSandbox": true } });
-    joinedcontext_portal::ops::draft_store(&state)
+    state
+        .drafts
         .put(
             "helsinki",
             "ContextSpace",
@@ -1284,7 +1285,8 @@ async fn a_completion_leaves_another_persons_draft_of_the_same_name_unchanged() 
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::CONFLICT);
-    let kept = joinedcontext_portal::ops::draft_store(&state)
+    let kept = state
+        .drafts
         .get("helsinki", "ContextSpace", "city-bikes")
         .await
         .expect("read")
