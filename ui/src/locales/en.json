@@ -10969,6 +10969,7 @@
       "publish": "Publishing",
       "apps": "Apps",
       "operate": "Operations",
+      "knowledge": "Knowledge",
       "admin": "Everything (admin)"
     },
     "segmentHint": {
@@ -10979,6 +10980,7 @@
       "publish": "reads the catalogue and CKAN status",
       "apps": "reads Apps and their runs",
       "operate": "reads activity, changes and sync status",
+      "knowledge": "reads knowledge sources, their crawl state and passages",
       "admin": "every preset above"
     },
     "client": {

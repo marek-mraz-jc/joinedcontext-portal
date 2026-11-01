@@ -221,7 +221,7 @@ describe("the Capabilities control (AG-92)", () => {
     const tools = screen.getByRole("combobox", { name: words.segment.label });
     expect(tools).toHaveValue("");
     expect(tools).toHaveAccessibleDescription(words.segment.help);
-    expect(within(tools).getAllByRole("option")).toHaveLength(9);
+    expect(within(tools).getAllByRole("option")).toHaveLength(10);
     await person.selectOptions(tools, "pipeline");
     expect(tools).toHaveAccessibleDescription(en.aiConnectors.segmentHint.pipeline);
     await person.selectOptions(tools, "");

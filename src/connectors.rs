@@ -148,6 +148,19 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
         ],
         &["Pipeline", "SyncSource"],
     ),
+    (
+        "knowledge",
+        &[
+            "jc_change_plan",
+            "jc_change_revert_plan",
+            "jc_schema_get",
+            "jc_resource_list",
+            "jc_resource_get",
+            "jc_knowledge_status",
+            "jc_knowledge_search",
+        ],
+        &["KnowledgeSource", "AssistantDeployment"],
+    ),
 ];
 
 /// The plan and apply tools (API/14 §4.3).

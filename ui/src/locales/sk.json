@@ -10969,6 +10969,7 @@
       "publish": "Publikovanie",
       "apps": "Aplikácie",
       "operate": "Prevádzka",
+      "knowledge": "Znalosti",
       "admin": "Všetko (správca)"
     },
     "segmentHint": {
@@ -10979,6 +10980,7 @@
       "publish": "číta katalóg a stav CKAN",
       "apps": "číta aplikácie a ich behy",
       "operate": "číta aktivitu, zmeny a stav synchronizácie",
+      "knowledge": "číta zdroje znalostí, stav ich prehľadávania a pasáže",
       "admin": "všetky predvoľby vyššie"
     },
     "client": {

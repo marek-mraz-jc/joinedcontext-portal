@@ -10969,6 +10969,7 @@
       "publish": "Veröffentlichung",
       "apps": "Apps",
       "operate": "Betrieb",
+      "knowledge": "Wissen",
       "admin": "Alles (Admin)"
     },
     "segmentHint": {
@@ -10979,6 +10980,7 @@
       "publish": "liest den Katalog und den CKAN-Status",
       "apps": "liest Apps und ihre Läufe",
       "operate": "liest Aktivität, Änderungen und Sync-Status",
+      "knowledge": "liest Wissensquellen, ihren Crawl-Stand und Passagen",
       "admin": "alle Vorgaben oben"
     },
     "client": {

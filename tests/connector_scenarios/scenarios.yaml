@@ -1741,3 +1741,77 @@
       refused: true
       contains: ['does not reach project']
       absent: ['"steps"']
+- id: S-87
+  segment: knowledge
+  # project-admin: the steward's MCP minute (120 calls, shared by every scenario) is nearly full.
+  as: project-admin
+  says: 'Which knowledge sources does the project have, how far is the crawl of the city website, and what does it say about parking permits, with the pages it used?'
+  given: 'The project declares KnowledgeSource city-web, crawled last night with one failed page.'
+  expect: 'jc_knowledge_status lists city-web with its crawl state, counts and failed reads; jc_knowledge_search answers passages each with its page url and title; a new KnowledgeSource plans (T-6284)'
+  deny: 'a connector without the knowledge segment -> the knowledge tools are not there and KnowledgeSource is refused'
+  script:
+    - proves: expect
+      manifest: { kind: Group, name: knowledge-stewards, spec: { members: [{ user: scn.project-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: knowledge-doprava, spec: { subjects: [{ kind: Group, name: knowledge-stewards }], projects: ['{project}'], segments: [knowledge, data-read], writes: false, maxExpiry: P90D } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s56-knowledge, segments: [knowledge], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      contains: ['jc_knowledge_status', 'jc_knowledge_search', 'jc_change_plan']
+      absent: ['jc_data_query', 'jc_pipeline_logs']
+    - proves: expect
+      via: connector
+      call: jc_resource_list
+      args: { kind: KnowledgeSource }
+      contains: ['city-web']
+    - proves: expect
+      via: connector
+      call: jc_knowledge_status
+      contains: ['"source":"city-web"', '"state":"crawled"', '"pages":12', 'https://city.example/']
+    - proves: expect
+      via: connector
+      call: jc_knowledge_status
+      args: { source: city-web }
+      contains: ['"failed":1', 'https://city.example/old-fees', 'HTTP 404']
+    - proves: expect
+      via: connector
+      call: jc_knowledge_search
+      args: { source: city-web, q: parking permit }
+      contains: ['"title":"Parking permits"', '"url":"https://city.example/parking"', '30 EUR']
+    - proves: expect
+      via: connector
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: KnowledgeSource, name: news-web, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: KnowledgeSource, metadata: { name: news-web, namespace: '{project}' }, spec: { source: website, startUrls: ['https://city.example/news/'], maxDepth: 1 } } }] }
+      contains: ['"planId"', '"ok":true']
+    - proves: deny
+      via: connector
+      call: jc_knowledge_status
+      args: { source: nowhere }
+      refused: true
+      contains: ["KnowledgeSource 'nowhere' not found"]
+    - proves: deny
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s56-data, segments: [data-read], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: deny
+      via: connector
+      contains: ['jc_resource_list']
+      absent: ['jc_knowledge_status', 'jc_knowledge_search']
+    - proves: deny
+      via: connector
+      call: jc_knowledge_search
+      args: { source: city-web, q: parking permit }
+      refused: true
+    - proves: deny
+      via: connector
+      call: jc_resource_list
+      args: { kind: KnowledgeSource }
+      refused: true
+      contains: ['read only']
