@@ -15761,18 +15761,16 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "example": {},
+              "example": {
+                "q": "example"
+              },
               "schema": {
                 "additionalProperties": false,
                 "properties": {
                   "q": {
-                    "description": "Keywords in names, titles and descriptions",
+                    "description": "Required keywords in names, titles and descriptions, e.g. bike",
                     "maxLength": 2048,
-                    "type": "string"
-                  },
-                  "query": {
-                    "description": "Alias of q; q wins",
-                    "maxLength": 2048,
+                    "pattern": "\\S",
                     "type": "string"
                   },
                   "scope": {
@@ -15781,6 +15779,9 @@
                     "type": "string"
                   }
                 },
+                "required": [
+                  "q"
+                ],
                 "type": "object"
               }
             }
@@ -15794,7 +15795,7 @@
                 "schema": {
                   "properties": {
                     "datasets": {
-                      "description": "Open datasets: title, url, publisher, formats, endpoint slug",
+                      "description": "Open datasets: title, url, publisher, formats, resources (format, url), endpoint slug",
                       "items": {
                         "type": "object"
                       },
@@ -21983,6 +21984,11 @@
                   "dataSource": {
                     "description": "The DataSource to read; or sample",
                     "maxLength": 253,
+                    "type": "string"
+                  },
+                  "planId": {
+                    "description": "The jc_change_plan planId adding dataSource, sampled before approval",
+                    "maxLength": 128,
                     "type": "string"
                   },
                   "sample": {

@@ -1489,6 +1489,59 @@ mod tests {
         assert!(answer.is_none());
     }
 
+    /// T-6280: a run of a Pipeline that is not there (only in an open change) is the route's 404
+    /// before any question, and a run of one that is there is still asked about (AG-63).
+    #[tokio::test]
+    async fn a_run_of_an_unknown_pipeline_is_refused_before_a_question() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let caller = || crate::ops::Caller {
+            bearer: None,
+            identity: crate::auth::session::Identity {
+                subject: "f:1:steward".to_owned(),
+                username: "steward".to_owned(),
+                email: None,
+                name: None,
+                roles: Vec::new(),
+                groups: vec![state.config.bootstrap_admins.clone()],
+                client: None,
+                second_factor: true,
+            },
+            via: crate::ops::Via::Mcp,
+            access: None,
+        };
+        let via = crate::change::ProposedVia::mcp(None);
+        let params = json!({
+            "name": "jc_pipeline_run",
+            "arguments": { "project": "ovzdusie", "name": "bikeshare-stations" }
+        });
+        let mut answer = None;
+        let envelope = answer_call(&state, caller(), json!(1), &params, &via, &mut answer).await;
+        let text = envelope["result"]["content"][0]["text"].to_string();
+        assert_eq!(envelope["result"]["isError"], true, "{envelope}");
+        assert!(
+            text.contains("not found") && text.contains("bikeshare-stations"),
+            "{text}"
+        );
+        assert!(text.contains("jc_change_list"), "{text}");
+        assert!(
+            !envelope.to_string().contains("mcp-elicitations"),
+            "{envelope}"
+        );
+
+        state.mirror.upsert(crate::resource::ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.into(),
+            kind: "Pipeline".into(),
+            metadata: crate::resource::ObjectMeta::new("bikeshare-stations", "ovzdusie"),
+            spec: json!({}),
+            status: None,
+        });
+        let envelope = answer_call(&state, caller(), json!(2), &params, &via, &mut answer).await;
+        assert!(
+            envelope.to_string().contains("mcp-elicitations"),
+            "{envelope}"
+        );
+    }
+
     /// T-6042: a client hands its model the text alone, so the text names each of `errors`.
     #[test]
     fn a_refusal_text_names_each_member_its_errors_name() {
