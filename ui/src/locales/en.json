@@ -1290,6 +1290,9 @@
       "selectRow": "Select row",
       "selectAll": "Select all loaded rows",
       "query": "Query",
+      "edit": "Edit",
+      "editChecking": "Checking which endpoint lets you correct {type}…",
+      "editNone": "No endpoint of this space lets you correct {type}: you can read it only. A project admin can grant you a write on an endpoint.",
       "aggregateOf": "Footer of {field}",
       "aggregate": {
         "none": "Summarize",

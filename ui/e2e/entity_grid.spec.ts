@@ -435,6 +435,7 @@ for (const width of [1440, 400]) {
       const { writes } = await stubApi(page, { write: true });
       await stubSpace(page);
       await page.goto(SPACE_PAGE);
+      await page.getByRole("button", { name: "Edit", exact: true }).click();
       const cell = page.getByLabel("Edit Available bike number").first();
       await expect(cell).toHaveValue("0");
 
@@ -472,6 +473,7 @@ for (const width of [1440, 400]) {
       await stubApi(page, { write: true });
       await stubSpace(page, FULL_DOCK);
       await page.goto(SPACE_PAGE);
+      await page.getByRole("button", { name: "Edit", exact: true }).click();
       const cell = page.getByLabel("Edit Available bike number").nth(1);
       await expect(cell).toHaveValue("7");
       await cell.fill("6");
@@ -489,6 +491,10 @@ for (const width of [1440, 400]) {
       await page.goto(SPACE_PAGE);
       await expect(page.getByRole("grid")).toBeVisible();
       await expect(page.getByRole("button", { name: "Open: Rautatientori" }).first()).toBeVisible();
+      await page.screenshot({ path: `${SHOTS}/t6209-load-${width}.png` });
+      // Edit asks the endpoint (T-6209) and says why nothing became editable.
+      await page.getByRole("button", { name: "Edit", exact: true }).click();
+      await expect(page.getByRole("status").filter({ hasText: "No endpoint of this space lets you correct" })).toBeVisible();
       await expect(page.getByLabel("Edit Available bike number")).toHaveCount(0);
       await page.screenshot({ path: `${SHOTS}/t4826-viewer-${width}.png` });
       expect(writes).toEqual([]);

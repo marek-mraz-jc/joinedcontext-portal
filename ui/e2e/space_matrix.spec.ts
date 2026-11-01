@@ -218,6 +218,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
       const patched: unknown[] = [];
       await stubApi(page, { writer: true, liveGate, changed: { audience: 999 }, patched });
       await open(page);
+      await page.getByRole("button", { name: "Edit", exact: true }).click();
       const cell = page.getByRole("spinbutton", { name: /Places/ }).first();
       await cell.fill("15");
       release();
