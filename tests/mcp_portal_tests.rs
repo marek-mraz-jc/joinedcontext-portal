@@ -2637,9 +2637,20 @@ async fn an_organization_models_source_is_listed_beside_its_manifest_to_its_read
         &[],
         &[],
     );
-    let unlisted = uris(rpc(app, &stranger, list).await);
+    let unlisted = uris(rpc(app.clone(), &stranger, list).await);
     assert!(
         !unlisted.iter().any(|u| u.starts_with("jc://-/datamodels/")),
         "a caller who reads no organization model is offered none: {unlisted:?}"
+    );
+    let read = rpc(
+        app,
+        &stranger,
+        json!({ "jsonrpc": "2.0", "id": 2, "method": "resources/read",
+                "params": { "uri": "jc://-/datamodels/city-air/linkml" } }),
+    )
+    .await;
+    assert_eq!(
+        read["error"]["code"], -32002,
+        "nor may read its source: {read}"
     );
 }

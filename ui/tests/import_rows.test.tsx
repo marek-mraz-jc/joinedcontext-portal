@@ -24,6 +24,7 @@ import {
   parseJson,
   csvOf,
   isDateFormat,
+  cellValue,
   serialDate,
   parseWorkbook,
   parseXlsx,
@@ -598,5 +599,24 @@ describe("the import dialog", () => {
     await user.upload(screen.getByLabelText("Choose a file"), new File(["{nope"], "rows.json"));
     expect(await screen.findByRole("alert")).toHaveTextContent("The file could not be read: the file is not JSON");
     expect(screen.getByLabelText("Choose a file")).toBeInTheDocument();
+  });
+});
+
+describe("cellValue", () => {
+  const cell = (xml: string) => new DOMParser().parseFromString(xml, "application/xml").documentElement;
+
+  it("reads each cell type as its text", () => {
+    expect(cellValue(cell('<c t="s"><v>1</v></c>'), ["a", "b"], [], false)).toBe("b");
+    expect(cellValue(cell('<c t="s"><v>9</v></c>'), ["a"], [], false)).toBe("");
+    expect(cellValue(cell('<c t="inlineStr"><is><t>x</t><t>y</t></is></c>'), [], [], false)).toBe("xy");
+    expect(cellValue(cell('<c t="b"><v>1</v></c>'), [], [], false)).toBe("true");
+    expect(cellValue(cell('<c t="b"><v>0</v></c>'), [], [], false)).toBe("false");
+    expect(cellValue(cell("<c><v>42.5</v></c>"), [], [false], false)).toBe("42.5");
+  });
+
+  it("reads a dated style's serial as its ISO date, in either date system", () => {
+    expect(cellValue(cell('<c s="1"><v>46086</v></c>'), [], [false, true], false)).toBe("2026-03-05");
+    expect(cellValue(cell('<c s="1"><v>44624</v></c>'), [], [false, true], true)).toBe("2026-03-05");
+    expect(cellValue(cell('<c t="n" s="1"><v></v></c>'), [], [false, true], false)).toBe("");
   });
 });
