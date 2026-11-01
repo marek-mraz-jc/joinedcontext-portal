@@ -318,6 +318,8 @@ for (const lang of ["en", "sk"] as const) {
       await dialog.getByRole("combobox", { name: t.person }).selectOption({ value: "jana.kovacova" });
       await expect(dialog.getByRole("listitem")).toHaveCount(0);
       await shot(page, `changes-filtered-empty-${lang}-${label}`);
+      await dialog.getByRole("button", { name: lang === "en" ? "Show every change" : "Zobraziť všetky zmeny" }).click();
+      await expect(dialog.getByRole("listitem")).toHaveCount(2);
       // The grid's own reads never ask for versions; only the Changes read does.
       expect(plainReads.filter((query) => query.includes("versions"))).toEqual([]);
 

@@ -2,9 +2,8 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { targetName } from "./cells";
 import type { RichRow } from "./model";
 import type { VisibleColumn } from "./useEntityGrid";
-import { changesShown, EntityChanges, useEntityChanges } from "./EntityChanges";
-import type { ChangesLabels } from "./EntityChanges";
-import type { EntityChange } from "./changes";
+import { useRowChanges } from "./EntityChanges";
+import type { RowChanges } from "./EntityChanges";
 
 export interface RowDetailLabels {
   /** The dialog's own name, before the row's: "Details". */
@@ -47,12 +46,7 @@ export interface RowDetailProps {
    * Who changed what and when (T-6333), where the source reads kept versions: one read per row,
    * a 403 (no `readVersions`) hides the tab and the marks beside changed fields.
    */
-  changes?: {
-    load: (attrs: string[]) => Promise<EntityChange[]>;
-    renderValue: (attr: string, instance: Record<string, unknown>) => React.ReactNode;
-    locale: string;
-    labels?: Partial<ChangesLabels>;
-  };
+  changes?: RowChanges;
   /** The host's own tabs after Fields and History. */
   tabs?: RowDetailTab[];
   /** What the host adds under the attributes, in the Fields tab. */
@@ -132,14 +126,10 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
     setOwnAttr(next);
     onPlace?.({ tab, attr: next });
   };
-  const changesState = useEntityChanges(changes?.load, row.id, attrs.filter((one) => one !== ""));
-  const changesOn = changesShown(changesState);
-  const changedAttrs = new Set(changesState?.status === "ready" ? changesState.changes.map((change) => change.attr) : []);
-  const [changeAttr, setChangeAttr] = useState<string | null>(null);
-  const changesLabel = changes?.labels?.tab ?? "Changes";
+  const rowChanges = useRowChanges(changes, row.id, all.map((column) => ({ attr: column.attr ?? "", label: column.label })), () => setTab("changes"));
   const historyTab = history && all.length > 0 ? [{ id: "history", label: labels.rowHistory }] : [];
   const metadataTab = metadata && all.length > 0 ? [{ id: "metadata", label: labels.rowMetadata ?? "Metadata" }] : [];
-  const list = [{ id: "fields", label: labels.rowFields }, ...historyTab, ...metadataTab, ...(changesOn ? [{ id: "changes", label: changesLabel }] : []), ...tabs.map(({ id, label }) => ({ id, label }))];
+  const list = [{ id: "fields", label: labels.rowFields }, ...historyTab, ...metadataTab, ...rowChanges.tabs, ...tabs.map(({ id, label }) => ({ id, label }))];
   const current = list.some((one) => one.id === tab) ? tab : "fields";
   const tabId = (id: string) => `${tabsId}-tab-${id}`;
   const panelId = (id: string) => `${tabsId}-panel-${id}`;
@@ -223,20 +213,7 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
                 <div key={column.key} className="jc-grid-detail-item">
                   <dt>
                     {column.label}
-                    {column.attr && changedAttrs.has(column.attr) ? (
-                      <button
-                        type="button"
-                        className="jc-grid-changed-mark"
-                        aria-label={(changes?.labels?.showChanges ?? "Show the changes of {attr}").replace("{attr}", column.label)}
-                        onClick={() => {
-                          setChangeAttr(column.attr);
-                          setTab("changes");
-                        }}
-                      >
-                        {changes?.labels?.changed ?? "changed"}
-                        <span aria-hidden="true"> ›</span>
-                      </button>
-                    ) : null}
+                    {rowChanges.mark(column.attr, column.label)}
                   </dt>
                   <dd>{renderValue(row, column)}</dd>
                 </div>
@@ -261,17 +238,7 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
             <React.Fragment key={attr}>{current === "history" ? history?.(attr, label) : metadata?.(attr)}</React.Fragment>
           </>
         ) : null}
-        {current === "changes" && changes && changesState ? (
-          <EntityChanges
-            state={changesState}
-            attr={changeAttr}
-            onAttr={setChangeAttr}
-            attrs={all.map((column) => ({ attr: column.attr ?? "", label: column.label }))}
-            renderValue={changes.renderValue}
-            locale={changes.locale}
-            labels={changes.labels}
-          />
-        ) : null}
+        {current === "changes" ? rowChanges.panel : null}
         {tabs.find((one) => one.id === current)?.content}
       </div>
     </dialog>

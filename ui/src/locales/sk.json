@@ -5595,7 +5595,8 @@
       "reason": "Dôvod",
       "noValue": "(bez hodnoty)",
       "empty": "Zatiaľ nie je uchovaná žiadna zmena tohto riadku. Úprava s uvedeným dôvodom sa tu odteraz zobrazí.",
-      "emptyFiltered": "Týmto filtrom nezodpovedá žiadna zmena. Zvoľte Všetko a uvidíte všetky zmeny.",
+      "emptyFiltered": "Týmto filtrom nezodpovedá žiadna zmena.",
+      "showAll": "Zobraziť všetky zmeny",
       "loading": "Načítavajú sa zmeny…",
       "error": "Zmeny sa nepodarilo načítať. Služba neodpovedala; skúste to znova o chvíľu.",
       "retry": "Skúsiť znova",
@@ -5604,9 +5605,9 @@
       "changed": "zmenené",
       "showChanges": "Zobraziť zmeny atribútu {attr}",
       "kindPerson": "osoba",
-      "kindPipeline": "pipeline",
+      "kindPipeline": "Pipeline",
       "kindServiceAccount": "servisný účet",
-      "kindAgent": "agent"
+      "kindAgent": "asistent"
     },
     "metadata": "Metaúdaje",
     "metaCreated": "Vytvorené",

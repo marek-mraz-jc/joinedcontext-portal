@@ -33,6 +33,8 @@ export interface ChangesLabels {
   empty: string;
   /** No change matches the chosen attribute and person. */
   emptyFiltered: string;
+  /** The button under that sentence that clears both filters. */
+  showAll: string;
   loading: string;
   error: string;
   retry: string;
@@ -58,8 +60,8 @@ export const DEFAULT_CHANGES_LABELS: ChangesLabels = {
   noValue: "(no value)",
   empty:
     "No change of this row is kept yet. An edit made with a reason from now on shows here.",
-  emptyFiltered:
-    "No change matches these filters. Choose All to see every change.",
+  emptyFiltered: "No change matches these filters.",
+  showAll: "Show every change",
   loading: "Loading changes…",
   error:
     "The changes could not be read. The service did not answer; try again in a moment.",
@@ -180,6 +182,14 @@ export function EntityChanges({
         .filter((one): one is string => !!one),
     ),
   ];
+  // Two writers with one short name (user:jana and serviceAccount:jana) are told apart by their full id.
+  const optionName = (one: string) => {
+    const name = actorName({ actor: one });
+    return actors.filter((other) => actorName({ actor: other }) === name)
+      .length > 1
+      ? one
+      : name;
+  };
   const stamp = (at: string) =>
     new Date(at).toLocaleString(locale, {
       dateStyle: "medium",
@@ -238,7 +248,7 @@ export function EntityChanges({
             <option value="">{labels.all}</option>
             {actors.map((one) => (
               <option key={one} value={one}>
-                {actorName({ actor: one })}
+                {optionName(one)}
               </option>
             ))}
           </select>
@@ -262,7 +272,18 @@ export function EntityChanges({
         </span>
       </div>
       {shown.length === 0 ? (
-        <p className="jc-grid-changes-state">{labels.emptyFiltered}</p>
+        <div className="jc-grid-changes-state">
+          <p>{labels.emptyFiltered}</p>
+          <button
+            type="button"
+            onClick={() => {
+              onAttr(null);
+              setActor(null);
+            }}
+          >
+            {labels.showAll}
+          </button>
+        </div>
       ) : (
         <ol className="jc-grid-changes-list">
           {shown.map((change, index) => {
@@ -314,4 +335,93 @@ export function EntityChanges({
       )}
     </section>
   );
+}
+
+/** What a row dialog gives the Changes tab: the read, how a value is drawn, and the words. */
+export interface RowChanges {
+  load: (attrs: string[]) => Promise<EntityChange[]>;
+  renderValue: (
+    attr: string,
+    instance: Record<string, unknown>,
+  ) => React.ReactNode;
+  locale: string;
+  labels?: Partial<ChangesLabels>;
+}
+
+/** The pill beside a field with kept versions: it opens Changes on that field. */
+export function ChangedMark({
+  label,
+  labels,
+  onOpen,
+}: {
+  label: string;
+  labels?: Partial<ChangesLabels>;
+  onOpen: () => void;
+}): React.JSX.Element {
+  const words = { ...DEFAULT_CHANGES_LABELS, ...labels };
+  return (
+    <button
+      type="button"
+      className="jc-grid-changed-mark"
+      aria-label={words.showChanges.replace("{attr}", label)}
+      onClick={onOpen}
+    >
+      {words.changed}
+      <span aria-hidden="true"> ›</span>
+    </button>
+  );
+}
+
+/**
+ * The Changes tab of one open row (T-6333): its tab entry once the first read answered, its panel,
+ * and the mark for a field, which opens the tab (through `open`) filtered to that field.
+ */
+export function useRowChanges(
+  changes: RowChanges | undefined,
+  id: string,
+  columns: { attr: string; label: string }[],
+  open: () => void,
+) {
+  const state = useEntityChanges(
+    changes?.load,
+    id,
+    columns.map((column) => column.attr).filter((attr) => attr !== ""),
+  );
+  const [attr, setAttr] = useState<string | null>(null);
+  const marked = new Set(
+    state?.status === "ready" ? state.changes.map((change) => change.attr) : [],
+  );
+  const tabs =
+    changes && changesShown(state)
+      ? [
+          {
+            id: "changes",
+            label: changes.labels?.tab ?? DEFAULT_CHANGES_LABELS.tab,
+          },
+        ]
+      : [];
+  const panel =
+    changes && state ? (
+      <EntityChanges
+        state={state}
+        attr={attr}
+        onAttr={setAttr}
+        attrs={columns}
+        renderValue={changes.renderValue}
+        locale={changes.locale}
+        labels={changes.labels}
+      />
+    ) : null;
+  const mark = (field: string | null, label: string) =>
+    field !== null && marked.has(field) ? (
+      <ChangedMark
+        label={label}
+        labels={changes?.labels}
+        onOpen={() => {
+          setAttr(field);
+          open();
+        }}
+      />
+    ) : null;
+  return { tabs, panel, mark };
 }

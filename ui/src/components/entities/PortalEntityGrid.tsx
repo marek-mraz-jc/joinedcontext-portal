@@ -86,7 +86,7 @@ function writeLayout(project: string, type: string, layout: Layout): void {
 /** The cell inspector's words (T-5528), each under `entityGrid.inspector`. */
 /** The Changes tab's words read one to one from `entityGrid.changes` (T-6333). */
 const CHANGES_KEYS = [
-  "tab", "attribute", "person", "all", "before", "after", "channel", "organization", "reason", "noValue", "empty", "emptyFiltered",
+  "tab", "attribute", "person", "all", "before", "after", "channel", "organization", "reason", "noValue", "empty", "emptyFiltered", "showAll",
   "loading", "error", "retry", "copy", "copied", "changed",
 ] as const satisfies readonly (keyof NonNullable<GridLabels["changesLabels"]>)[];
 
