@@ -47289,9 +47289,24 @@
           "project",
           "spaces",
           "endpoints",
-          "pipelines"
+          "pipelines",
+          "allowed"
         ],
         "properties": {
+          "allowed": {
+            "type": "boolean",
+            "description": "Whether the caller's ceiling lets a connector reach this project at all; Create refuses\nan item of a project with `false`."
+          },
+          "allowedEndpoints": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "The Endpoints of `endpoints` the ceiling lets an item name when its policy lists\nEndpoints: then the whole project, its spaces and pipelines are refused. Absent when every\nobject of an allowed project may be named."
+          },
           "endpoints": {
             "type": "array",
             "items": {

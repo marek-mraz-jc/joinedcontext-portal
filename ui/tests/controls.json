@@ -310,12 +310,21 @@
         "add_field.test.tsx"
       ]
     },
-    "src/components/entities/EndpointDataView.tsx": {
+    "src/components/entities/DataToolbar.tsx": {
       "controls": {
-        "Button": 6,
-        "Checkbox": 1
+        "Button": 1,
+        "RadioGroup": 1
       },
       "tests": [
+        "data_toolbar.test.tsx"
+      ]
+    },
+    "src/components/entities/EndpointDataView.tsx": {
+      "controls": {
+        "Button": 6
+      },
+      "tests": [
+        "data_toolbar.test.tsx",
         "endpoint_data_view.test.tsx"
       ]
     },
@@ -2085,8 +2094,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 20,
-        "RadioGroup": 1
+        "Button": 19
       },
       "tests": [
         "bulk_bar_loaded.test.tsx",

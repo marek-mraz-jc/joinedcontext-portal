@@ -14,8 +14,10 @@ const OPTIONS = {
   segments: ["data-read", "context", "pipeline", "access", "publish", "apps", "operate", "knowledge", "admin"],
   ceiling: { segments: ["data-read", "knowledge"], writes: false, maxDays: 30 },
   projects: [
-    { project: "doprava", spaces: ["parking", "traffic"], endpoints: ["bike-counters", "parking-lots"], pipelines: ["load-counters"] },
-    { project: "ovzdusie", spaces: ["air"], endpoints: ["air-quality"], pipelines: [] },
+    { project: "doprava", spaces: ["parking", "traffic"], endpoints: ["bike-counters", "parking-lots"], pipelines: ["load-counters"], allowed: true },
+    { project: "ovzdusie", spaces: ["air"], endpoints: ["air-quality"], pipelines: [], allowed: true },
+    // Read by the person, outside their DelegationPolicy (T-6307): greyed before Create.
+    { project: "sharing", spaces: ["bikes"], endpoints: ["bike-share"], pipelines: [], allowed: false },
   ],
   clients: [
     { id: "mcp-mobile", isBoundary: false },
@@ -131,7 +133,14 @@ for (const width of [1440, 400]) {
       await dialog.getByRole("checkbox", { name: "bike-counters" }).check();
       await dialog.getByRole("checkbox", { name: /Claude Code, VS Code/ }).check();
       await dialog.getByRole("checkbox", { name: "Knowledge" }).check();
+      await dialog.getByRole("textbox", { name: /Name/ }).scrollIntoViewIfNeeded();
       await shot(page, `ai-connectors-form-${width}`);
+      const outside = dialog.getByRole("checkbox", { name: /sharing: the whole project/ });
+      await expect(outside).toHaveAttribute("aria-disabled", "true");
+      await expect(dialog.getByRole("checkbox", { name: /bike-share/ })).toHaveAttribute("aria-disabled", "true");
+      await expect(dialog.locator("p", { hasText: /Your organization does not let a connector reach this project yet/ })).toBeVisible();
+      await dialog.getByRole("checkbox", { name: /bike-share/ }).scrollIntoViewIfNeeded();
+      await shot(page, `ai-connectors-greyed-${width}`);
       await dialog.getByRole("button", { name: "Create" }).click();
 
       const card = page.getByRole("region", { name: "doprava-in-claude" });
@@ -168,6 +177,7 @@ for (const width of [1440, 400]) {
       await dialog.getByRole("checkbox", { name: "parking-lots" }).check();
       await dialog.getByRole("button", { name: "Create" }).click();
       await expect(dialog.getByText("project doprava has no Endpoint parking-lots you may read")).toBeVisible();
+      await dialog.getByText("project doprava has no Endpoint parking-lots you may read").scrollIntoViewIfNeeded();
       await expect(dialog.getByRole("checkbox", { name: /Pipelines/ }).first()).toHaveAttribute("aria-disabled", "true");
       await shot(page, `ai-connectors-refusal-${width}`);
     });

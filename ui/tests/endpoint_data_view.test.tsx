@@ -13,7 +13,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
+import { useCallback, useState } from "react";
 import { EndpointDataView, fieldsOf, sortOfLink } from "../src/components/entities/EndpointDataView";
+import type { DataLink } from "../src/components/entities/EndpointDataView";
 import { filtersFromQ } from "../src/components/entities/presetFilters";
 import type { FilterColumn } from "@joinedcontext/sdk";
 import { expectNoAxeViolations, json, renderPart } from "./page_contract";
@@ -109,6 +111,36 @@ describe("what an endpoint answers", () => {
     await waitFor(() => expect(screen.getByRole("grid")).toBeInTheDocument());
     expect(columns().some((header) => header.includes("Temperature"))).toBe(true);
     expect(columns().some((header) => header.includes("Co2"))).toBe(false);
+  });
+
+  it("narrows the rows by a condition of the space's Filter panel, typed in, with the address fed back (T-6303)", async () => {
+    const user = userEvent.setup();
+    // The host writes each link into the address and hands it back, as the Endpoint page does.
+    const links: DataLink[] = [];
+    function Host() {
+      const [link, setLink] = useState<DataLink>({});
+      const onLink = useCallback((next: DataLink) => {
+        links.push(next);
+        setLink(next);
+      }, []);
+      return <EndpointDataView project="helsinki" slug="air-quality" link={link} onLink={onLink} />;
+    }
+    renderPart(<Host />, { answer });
+    await waitFor(() => expect(screen.getByRole("grid")).toBeInTheDocument());
+    await user.click(screen.getByText(en.spaces.toolbar.filter, { selector: "summary" }));
+    await user.click(screen.getByRole("button", { name: en.spaces.toolbar.addCondition }));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: en.spaces.toolbar.field })).toBeInTheDocument());
+    await user.selectOptions(screen.getByRole("combobox", { name: en.spaces.toolbar.field }), "temperature");
+    await user.selectOptions(screen.getByRole("combobox", { name: en.spaces.toolbar.operator }), "gt");
+    // Typing settles: the grid's state and the page's held view do not chase each other.
+    await user.type(screen.getByRole("spinbutton", { name: en.spaces.toolbar.value }), "18");
+    const reads = () =>
+      (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((call) => new URL(String(call[0]), "http://localhost"));
+    await waitFor(() => expect(reads().some((url) => url.pathname.endsWith("/entities") && url.searchParams.get("q") === "temperature>18")).toBe(true));
+    expect(screen.getByRole("list", { name: en.spaces.toolbar.activeFilters })).toBeInTheDocument();
+    // The link names the condition once: a link read back is not the grid's query a second time.
+    await waitFor(() => expect(links.at(-1)?.q).toBe("temperature>18"));
+    expect(links.every((each) => !(each.q ?? "").includes(";"))).toBe(true);
   });
 
   it("reads the type a person chooses", async () => {
@@ -215,11 +247,6 @@ describe("the data section of an endpoint", () => {
     expect(fieldsOf({ properties: { at: { anyOf: [{ type: "string", format: "date-time" }, { type: "null" }] } } }, ["at"])).toEqual([
       { name: "at", kind: "date-time", description: "" },
     ]);
-    const user = userEvent.setup();
-    show();
-    await user.click(await screen.findByText(en.endpoints.data.fields, { selector: "summary" }));
-    expect(await screen.findByText("Air temperature in degrees Celsius")).toBeVisible();
-    expect(screen.getAllByText(en.endpoints.data.noDescription).length).toBeGreaterThan(0);
   });
 
   it("downloads the rows of the current query and order, only where the endpoint serves CSV", async () => {
@@ -385,11 +412,11 @@ describe("the Event column model (T-5192)", () => {
     await i18n.changeLanguage("en");
   });
 
-  it("puts a column back from the Columns list", async () => {
+  it("puts a column back from the toolbar's Hide fields, the space's own tool (T-6303)", async () => {
     await i18n.changeLanguage("en");
     const user = userEvent.setup();
     show({ slug: "events", project: "catalogue" }, eventAnswer([]));
-    await user.click(await screen.findByText(en.endpoints.data.fields, { selector: "summary" }));
+    await user.click(await screen.findByText(en.spaces.toolbar.hide, { selector: "summary" }));
     const box = await screen.findByRole("checkbox", { name: "Provider" });
     expect(box).not.toBeChecked();
     await user.click(box);
@@ -488,14 +515,15 @@ describe("the presentation chain (DM-134, T-5196)", () => {
     const user = userEvent.setup();
     const asked: URL[] = [];
     show({ slug: "events", project: "catalogue" }, presentedAnswer(asked));
-    const op = await screen.findByRole("combobox", { name: /^Filter.*: Začiatok$/ });
-    await waitFor(() => expect(op).toHaveValue("gte"));
+    // The default filter opens as a condition of the toolbar's Filter panel (T-6303), its count on the button.
+    expect(await screen.findByText("Filter", { selector: "summary" })).toHaveTextContent("Filter1");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Pole" })).toHaveValue("startDate"));
+    expect(screen.getByRole("combobox", { name: "Operátor" })).toHaveValue("gte");
     await waitFor(() => expect(asked.some((url) => /^startDate>=\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("q") ?? ""))).toBe(true));
     expect(asked.find((url) => url.searchParams.get("q"))?.searchParams.get("limit")).toBe("10");
-    expect(screen.getByRole("combobox", { name: "Záznamov na stranu" })).toHaveValue("10");
     const before = asked.length;
     await user.click(screen.getByRole("button", { name: "Zrušiť filtre" }));
-    await waitFor(() => expect(screen.getByRole("combobox", { name: /^Filter.*: Začiatok$/ })).toHaveValue(""));
+    await waitFor(() => expect(screen.queryByRole("combobox", { name: "Operátor" })).toBeNull());
     await waitFor(() => expect(asked.slice(before).some((url) => url.pathname.includes("/entities") && !url.searchParams.get("q"))).toBe(true));
     expect(screen.queryByRole("button", { name: "Zrušiť filtre" })).toBeNull();
     await i18n.changeLanguage("en");
@@ -533,8 +561,9 @@ describe("the Endpoint's table start (API/11 EP-164, T-5197)", () => {
     await waitFor(() => expect(asked.some((url) => url.searchParams.get("q") === `startDate>=${day}`)).toBe(true));
     expect(asked.some((url) => url.searchParams.get("q") === `startDate>=${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`)).toBe(false);
     expect(asked.find((url) => url.searchParams.get("q"))?.searchParams.get("limit")).toBe("50");
-    expect(screen.getByRole("combobox", { name: "Záznamov na stranu" })).toHaveValue("50");
-    await waitFor(() => expect(columns().map((text) => text.replace(/[⋮↑↓]/g, "").trim()).slice(0, 5)).toEqual(["ID", "Typ", "Názov", "Začiatok", expect.stringMatching(/^Vyberte test/)]));
+    await waitFor(() => expect(columns().map((text) => text.replace(/[⋮↑↓]/g, "").trim()).slice(0, 4)).toEqual(["ID", "Typ", "Názov", "Začiatok"]));
+    // The filter row is the space's Filter panel now (T-6303): no input row under the headers.
+    expect(columns().some((text) => /^Vyberte test/.test(text))).toBe(false);
     const before = asked.length;
     await user.click(screen.getByRole("button", { name: "Zrušiť filtre" }));
     await waitFor(() => expect(asked.slice(before).some((url) => url.pathname.includes("/entities") && !url.searchParams.get("q"))).toBe(true));

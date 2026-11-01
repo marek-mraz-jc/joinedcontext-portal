@@ -28,9 +28,11 @@ export interface ViewOptionsProps {
   onChange: (next: ViewExtras) => void;
   /** One part alone, as the grid's toolbar opens it in its own panel (T-4883); all three without it. */
   part?: "fields" | "colours" | "group";
+  /** A field's title as its column shows it; the attribute's name without it. */
+  labelOf?: (attr: string) => string;
 }
 
-export function ViewOptions({ attributes, enums, value, onChange, part }: ViewOptionsProps): JSX.Element {
+export function ViewOptions({ attributes, enums, value, onChange, part, labelOf }: ViewOptionsProps): JSX.Element {
   const { t } = useTranslation();
   const id = useId();
   const hidden = new Set(value.hidden ?? []);
@@ -44,7 +46,7 @@ export function ViewOptions({ attributes, enums, value, onChange, part }: ViewOp
           {attributes.map((attr) => (
             <Checkbox
               key={attr}
-              label={attr}
+              label={labelOf?.(attr) ?? attr}
               checked={!hidden.has(attr)}
               onChange={(e) => {
                 const next = new Set(hidden);

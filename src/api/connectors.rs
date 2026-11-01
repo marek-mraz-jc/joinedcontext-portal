@@ -113,6 +113,14 @@ pub struct ProjectReach {
     pub spaces: Vec<String>,
     pub endpoints: Vec<String>,
     pub pipelines: Vec<String>,
+    /// Whether the caller's ceiling lets a connector reach this project at all; Create refuses
+    /// an item of a project with `false`.
+    pub allowed: bool,
+    /// The Endpoints of `endpoints` the ceiling lets an item name when its policy lists
+    /// Endpoints: then the whole project, its spaces and pipelines are refused. Absent when every
+    /// object of an allowed project may be named.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_endpoints: Option<Vec<String>>,
 }
 
 /// The fields of a connector its owner may change (JSON merge patch, API/14 §2); the name stays.
@@ -310,11 +318,25 @@ pub async fn connector_options(
         .into_iter()
         .filter_map(|project| {
             let rights = crate::permissions::for_request(&state, identity, &project);
-            rights.may_read_project().then(|| ProjectReach {
-                spaces: readable_names(&state, &rights, &project, "ContextSpace"),
-                endpoints: readable_names(&state, &rights, &project, "Endpoint"),
-                pipelines: readable_names(&state, &rights, &project, "Pipeline"),
-                project,
+            rights.may_read_project().then(|| {
+                let endpoints = readable_names(&state, &rights, &project, "Endpoint");
+                let allowed = ceiling.allows_project_name(&project);
+                let allowed_endpoints =
+                    (allowed && !ceiling.allows_endpoint(&project, None)).then(|| {
+                        endpoints
+                            .iter()
+                            .filter(|e| ceiling.allows_endpoint(&project, Some(e)))
+                            .cloned()
+                            .collect()
+                    });
+                ProjectReach {
+                    spaces: readable_names(&state, &rights, &project, "ContextSpace"),
+                    pipelines: readable_names(&state, &rights, &project, "Pipeline"),
+                    endpoints,
+                    allowed,
+                    allowed_endpoints,
+                    project,
+                }
             })
         })
         .collect();
@@ -1503,7 +1525,7 @@ mod tests {
             .expect("options");
         assert_eq!(
             serde_json::to_value(&options.projects).expect("json"),
-            json!([{ "project": "helsinki", "spaces": ["air"], "endpoints": ["helsinki-air"], "pipelines": [] }])
+            json!([{ "project": "helsinki", "spaces": ["air"], "endpoints": ["helsinki-air"], "pipelines": [], "allowed": true }])
         );
         assert_eq!(options.ceiling.segments, vec!["data-read"]);
 
@@ -1557,6 +1579,58 @@ mod tests {
             .expect("edited");
         assert_eq!(edited.scope[0].endpoint.as_deref(), Some("helsinki-air"));
         assert_eq!(edited.name, "air");
+    }
+
+    /// T-6307: the options mark what the ceiling refuses, so the dialog greys it before Create
+    /// instead of losing the whole form to one refusal.
+    #[tokio::test]
+    async fn the_options_mark_projects_and_endpoints_the_ceiling_refuses() {
+        let state = reader_world();
+        state.mirror.upsert(envelope(
+            "RoleBinding",
+            "reader-espoo",
+            ORG_NAMESPACE,
+            json!({ "subjects": [{ "user": "reader@hel.fi" }], "role": "reader", "scope": { "project": "espoo" } }),
+        ));
+        state.mirror.upsert(envelope(
+            "Endpoint",
+            "helsinki-noise",
+            "helsinki",
+            json!({ "contextSpaceRef": "air" }),
+        ));
+        state.mirror.upsert(envelope(
+            "DelegationPolicy",
+            "helsinki-air-only",
+            ORG_NAMESPACE,
+            json!({ "subjects": [{ "kind": "Group", "name": "readers" }],
+                    "projects": ["helsinki"], "endpoints": ["helsinki-air"] }),
+        ));
+        state.mirror.upsert(envelope(
+            "Group",
+            "readers",
+            ORG_NAMESPACE,
+            json!({ "members": [{ "user": "reader@hel.fi" }] }),
+        ));
+        let Json(options) = connector_options(user("reader@hel.fi"), State(state.clone()))
+            .await
+            .expect("options");
+        let reach: Vec<(String, bool, Option<Vec<String>>)> = options
+            .projects
+            .into_iter()
+            .map(|p| (p.project, p.allowed, p.allowed_endpoints))
+            .collect();
+        assert_eq!(
+            reach,
+            vec![
+                ("espoo".to_owned(), false, None),
+                (
+                    "helsinki".to_owned(),
+                    true,
+                    Some(vec!["helsinki-air".to_owned()])
+                ),
+            ]
+        );
+        assert!(!options.ceiling.writes);
     }
 
     #[tokio::test]
