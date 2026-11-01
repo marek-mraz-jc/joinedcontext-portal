@@ -1495,8 +1495,8 @@ a.jc-cell--link:focus-visible {
 .jc-grid-hidden-list li:has(> button:only-child) { padding: 0; border: 0; }
 .jc-grid-hidden-list button { min-height: 2.75rem; padding: var(--jc-space-1, 4px) var(--jc-space-3, 12px); border: 0; border-radius: var(--jc-radius-sm, 4px); background: transparent; color: var(--jc-color-accent, #0066cc); font: inherit; text-decoration: underline; cursor: pointer; }
 
-/* On a phone the frozen lead (the checkbox) and the id together keep at most 30% of the width,
-   the same cap as the id alone (T-6210): the checkbox cell loses its side padding, the id the rest. */
+/* On a phone the frozen lead (the checkbox) and the id together keep a quarter of the width, under
+   the 30% the id alone may take (T-6210): the checkbox cell loses its side padding, the id the rest. */
 @media (width <= 640px) {
   .jc-grid .jc-grid-rownum {
     padding-inline: 0.25rem;
@@ -1505,7 +1505,7 @@ a.jc-cell--link:focus-visible {
 
   .jc-grid[data-row-numbers] :is(th, td).jc-grid-pinned {
     box-sizing: border-box;
-    min-width: calc(30vw - var(--jc-grid-rownum-width));
-    max-width: calc(30vw - var(--jc-grid-rownum-width));
+    min-width: calc(25vw - var(--jc-grid-rownum-width));
+    max-width: calc(25vw - var(--jc-grid-rownum-width));
   }
 }
