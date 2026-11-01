@@ -194,6 +194,7 @@ mod tests {
             head_branch: head.into(),
             head_sha: String::new(),
             base_branch: "main".into(),
+            base_sha: String::new(),
             created_at: String::new(),
             author_name: String::new(),
             author_email: None,

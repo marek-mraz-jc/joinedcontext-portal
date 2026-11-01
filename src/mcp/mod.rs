@@ -950,6 +950,22 @@ fn ground(state: &AppState, envelope: &mut Value) {
     }
 }
 
+/// `jc://{project}/changes/{changeId}`, behind `read` on Change for the caller and its run.
+async fn read_change(
+    state: &AppState,
+    caller: &crate::ops::Caller,
+    project: &str,
+    change_id: &str,
+) -> Option<(&'static str, String)> {
+    if !may_read_kind(state, caller, project, "Change") {
+        return None;
+    }
+    let change = crate::api::changes::change_readable(state, &caller.identity, project, change_id)
+        .await
+        .ok()?;
+    Some(("application/json", serde_json::to_string(&change).ok()?))
+}
+
 /// `jc://schemas/{Kind}`, `jc://{project}/drafts/{Kind}/{name}`,
 /// `jc://{project}/changes/{changeId}`, `jc://{project}/datamodels/{name}/linkml` or
 /// `jc://{project}/{plural}/{name}`.
@@ -972,13 +988,7 @@ async fn read_resource(
         // project *and* on the kind the change proposes, so a caller who may read a Pipeline
         // here is not handed a change that rewrites a Role. `change_for` asks neither, and
         // reading it behind a project-level check handed out the whole diff.
-        [project, "changes", change_id] if may_read_kind(state, caller, project, "Change") => {
-            let change =
-                crate::api::changes::change_readable(state, &caller.identity, project, change_id)
-                    .await
-                    .ok()?;
-            Some(("application/json", serde_json::to_string(&change).ok()?))
-        }
+        [project, "changes", change_id] => read_change(state, caller, project, change_id).await,
         // The model's own source. The Portal holds the LinkML; the JSON Schema and the
         // `@context` are the endpoint façade's renderings of it, and are read there (EP-47).
         [project, "datamodels", name, "linkml"]
