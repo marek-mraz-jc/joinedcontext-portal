@@ -133,6 +133,7 @@ describe("rollout-walk apply during the walk", () => {
     tool(bin, "kubectl", 'cat "$RELEASE_FILE"');
     tool(bin, "npx", [
       'person=$(printf "%s\\n" "$@" | sed -n "s/^for the \\(.*\\)\\$$/\\1/p")',
+      '[ -n "${NO_REPORT:-}" ] && exit 1',
       'echo "[]" >"$WALK_REPORT_DIR/walker-$person.json"',
       '[ -n "${ROLL_TO:-}" ] && printf \'{"portal":{"commit":"%s"}}\' "$ROLL_TO" >"$VERSION_FILE"',
       '[ -n "${APPLY_TO:-}" ] && printf "%s" "$APPLY_TO" >"$RELEASE_FILE"',
@@ -189,6 +190,19 @@ describe("rollout-walk apply during the walk", () => {
     const settled = walk(root, { WALK_SETTLE_S: "300" });
     expect(settled.stderr).not.toContain("deferred");
     expect(settled.stdout).toContain("journeys skipped");
+  });
+
+  // T-6334: the 11:10Z walk of 6250cbc was set aside (dev applied during it), the 11:35Z retry met
+  // Chromium's launch failure and wrote no report, and the summary judged the set-aside walk's
+  // reports left in the same directory: a 503 met mid-apply was filed. Each try starts clean.
+  it("never judges the reports of a set-aside walk when the retry writes none", () => {
+    const root = setup();
+    expect(walk(root, { APPLY_TO: "6215c73196995e4acd6fc1f32ba1d0409e7a62c0 2026-10-30T07:29:59Z" }).status).toBe(1);
+    const retry = walk(root, { NO_REPORT: "1" });
+    expect(retry.status).toBe(1);
+    expect(retry.stderr).toContain("no walker report (try 1 of 3)");
+    expect(existsSync(join(root, "evidence", sha, "walker-steward.json"))).toBe(false);
+    expect(existsSync(join(root, "evidence", sha, "summary.json"))).toBe(false);
   });
 
   it("judges a walk when dev stayed as it was, or its apply record cannot be read", () => {
