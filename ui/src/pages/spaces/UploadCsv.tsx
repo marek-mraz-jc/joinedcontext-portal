@@ -127,6 +127,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
   const match = read?.matches.find((m) => m.model.id === choice);
   const typeName = match ? match.model.name : ownType.trim();
   const ready = read !== null && space.trim() !== "" && TYPE_NAME.test(typeName);
+  const missing = read === null || ready ? undefined : !TYPE_NAME.test(typeName) ? t("spaces.upload.missingType") : t("spaces.upload.missingSpace");
 
   const propose = async () => {
     if (!read || !ready) return;
@@ -212,6 +213,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
             {t("spaces.import.read", { name: read.sheets.length > 1 ? `${read.name} (${read.sheet})` : read.name, rows: read.table.rows.length, columns: read.table.columns.length })}
           </p>
         ) : null}
+        {read ? <p className="text-caption text-fg-muted">{t("spaces.upload.columns", { names: read.table.columns.join(", ") })}</p> : null}
         {read && !proposed ? <SheetChoice id="upload-sheet" sheets={read.sheets} value={read.sheet} onChange={takeSheet} /> : null}
         {read?.table.total !== undefined ? <Alert tone="warning">{t("spaces.import.cut", { total: read.table.total, max: MAX_ROWS })}</Alert> : null}
       </Card>
@@ -239,12 +241,18 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
               <Input id="upload-own-type" value={ownType} onChange={(e) => setOwnType(e.target.value)} placeholder="ParkingGarage" />
             </Field>
           ) : null}
-          <Field id="upload-space" label={t("spaces.upload.space")}>
+          <Field id="upload-space" label={t("spaces.upload.space")} help={t("spaces.upload.spaceHint")}>
             <ResourceNamePicker id="upload-space" label={t("spaces.upload.space")} labelled from={{ project, plural: "spaces" }} value={space} onChange={setSpace} create />
           </Field>
-          <Button className="w-fit" onClick={() => void propose()} disabled={!ready || busy} disabledReason={t("spaces.upload.notReady")}>
+          <Button className="w-fit" onClick={() => void propose()} disabled={!ready || busy} disabledReason={missing ?? t("spaces.upload.notReady")}>
             {busy ? t("spaces.upload.proposing") : t("spaces.upload.propose")}
           </Button>
+          {/* What still keeps Propose out of reach, on screen and not only for a screen reader. */}
+          {missing ? (
+            <p className="text-caption text-fg-muted" aria-hidden="true">
+              {missing}
+            </p>
+          ) : null}
         </Card>
       ) : null}
       {proposed ? (

@@ -151,6 +151,18 @@ describe("Upload CSV", () => {
     expectNoRawKeys(container);
   });
 
+  it("says on screen what keeps Propose out of reach, names the columns read and hints the space", async () => {
+    server();
+    const user = userEvent.setup();
+    page("");
+    await user.upload(screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"), new File([CSV], "garages.csv", { type: "text/csv" }));
+    expect(await screen.findByText("Columns: name, totalSpotNumber, availableSpotNumber, lat, lon")).toBeInTheDocument();
+    expect(screen.getAllByText("Choose a Context Space to propose.").find((line) => line.tagName === "P")).toBeVisible();
+    expect(screen.getByText(/An existing space, or a new name in lower case/)).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "My own model" }));
+    expect(screen.getAllByText("Choose a type, or write your own type name.").find((line) => line.tagName === "P")).toBeVisible();
+  });
+
   it("says who can change it when the space refuses the write (JC1-41)", async () => {
     server({
       write: () =>

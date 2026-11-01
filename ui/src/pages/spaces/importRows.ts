@@ -543,7 +543,7 @@ export async function parseXlsx(bytes: Uint8Array, sheet?: string): Promise<Tabl
   return found.table;
 }
 
-/** A table as CSV text, header first: what a text-only door (an op, a question) takes of a sheet. */
+/** A table as CSV text, header first: what a door that takes text (an op, a question) gets of a sheet. */
 export function csvOf(table: Table): string {
   const quote = (text: string) => (/[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text);
   return [table.columns, ...table.rows.map((row) => table.columns.map((column) => row[column] ?? ""))]
@@ -561,7 +561,7 @@ export async function readSheets(file: File): Promise<Sheet[]> {
   return [{ name: "", table: await readTable(file) }];
 }
 
-/** The text name a sheet travels under to a text-only door: `stations.csv`, or `Stops.csv` for one sheet of several. */
+/** The text name a sheet travels under to a door that takes text: `stations.csv`, or `Stops.csv` for one sheet of several. */
 export function sheetFileName(fileName: string, sheets: Sheet[], sheet: Sheet): string {
   const stem = fileName.replace(/\.[^.]+$/, "") || "sample";
   return `${sheets.length > 1 && sheet.name.trim() !== "" ? sheet.name.trim() : stem}.csv`.replace(/[/\\]/g, "-");
