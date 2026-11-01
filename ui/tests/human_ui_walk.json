@@ -2434,6 +2434,20 @@
         "evidence/T-6095/after/endpoints-connect-1440.png",
         "evidence/T-6095/after/spaces-filled-1440.png"
       ]
+    },
+    "src/components/SpaceUsageInfo.tsx": {
+      "walkedBy": "worker-t6208 (stub walk, e2e/space_usage_info.spec.ts)",
+      "date": "2026-10-31",
+      "screenshots": [
+        "evidence/T-6208/spaces-measured-1440.png",
+        "evidence/T-6208/spaces-measured-400.png",
+        "evidence/T-6208/spaces-recalculated-1440.png",
+        "evidence/T-6208/spaces-recalculated-400.png",
+        "evidence/T-6208/spaces-measuring-1440.png",
+        "evidence/T-6208/spaces-measuring-400.png",
+        "evidence/T-6208/spaces-refused-1440.png",
+        "evidence/T-6208/spaces-refused-400.png"
+      ]
     }
   }
 }

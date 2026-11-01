@@ -44,7 +44,10 @@ function detectKind(attr: Record<string, unknown>): CellKind | null {
     if (type === "GeoProperty") return "geo";
     if (type === "LanguageProperty") return "language";
     if (type === "JsonProperty") return "json";
-    if (type === "ListProperty" || type === "ListRelationship") return "list";
+    // A ListRelationship names its targets as a relationship does, so its cell reads them the same
+    // way: one chip per target, each resolved and opened like any other (G-R2GRID2-018).
+    if (type === "ListRelationship") return "relationship";
+    if (type === "ListProperty") return "list";
     if (type === "VocabProperty" || type === "VocabularyProperty") return "vocab";
   }
   // fallback: object present -> relationship, else value present -> property
@@ -87,6 +90,30 @@ function collectSub(attr: Record<string, unknown>, language: string): Record<str
   return hasSub ? sub : undefined;
 }
 
+/** NGSI-LD's null (CIM 009 4.5.9): what a merge writes to say an attribute has no value. */
+export const NGSI_LD_NULL = "urn:ngsi-ld:null";
+
+/** A ListRelationship's targets: `[{object}]` normalized, or the URNs themselves concise. */
+function objectListOf(list: unknown): string[] {
+  const items = Array.isArray(list) ? list : [list];
+  return items.flatMap((item) => {
+    const urn = typeof item === "string" ? item : (item as { object?: unknown } | null)?.object;
+    return typeof urn === "string" ? [urn] : [];
+  });
+}
+
+/**
+ * Whether a cell holds nothing: a JSON null, NGSI-LD's null or no value at all. Such a cell reads
+ * as an attribute that is not set (G-R2GRID2-020), never as the text "null".
+ */
+export function isEmptyCell(cell: RichCell): boolean {
+  if (cell.kind === "relationship") {
+    const objects = Array.isArray(cell.object) ? cell.object : cell.object ? [cell.object] : [];
+    return objects.filter((urn) => urn !== NGSI_LD_NULL).length === 0;
+  }
+  return cell.value === null || cell.value === undefined || cell.value === NGSI_LD_NULL;
+}
+
 export function toRichCell(attr: unknown, language: string): RichCell | null {
   if (attr === null || attr === undefined) return null;
   if (typeof attr !== "object" || Array.isArray(attr)) return null;
@@ -112,7 +139,7 @@ export function toRichCell(attr: unknown, language: string): RichCell | null {
       break;
     }
     case "relationship": {
-      const obj = a.object;
+      const obj = a.objectList !== undefined ? objectListOf(a.objectList) : a.object;
       cell.value = obj;
       cell.object = Array.isArray(obj) ? obj.map(String) : typeof obj === "string" ? obj : undefined;
       break;
@@ -149,14 +176,12 @@ export function toRichRow(entity: Record<string, unknown>, language = "en"): Ric
   const cells: Record<string, RichCell | RichCell[]> = {};
   for (const [key, val] of Object.entries(entity)) {
     if (ENTITY_MEMBERS.includes(key)) continue;
-    if (Array.isArray(val)) {
-      const items = val.map((v) => toRichCell(v, language)).filter((c): c is RichCell => c !== null);
-      if (items.length > 0) {
-        cells[key] = items.length === 1 ? items[0] : items;
-      }
-    } else {
-      const cell = toRichCell(val, language);
-      if (cell) cells[key] = cell;
+    // A null instance is no instance: the attribute reads as not set where none holds a value.
+    const items = (Array.isArray(val) ? val : [val])
+      .map((v) => toRichCell(v, language))
+      .filter((c): c is RichCell => c !== null && !isEmptyCell(c));
+    if (items.length > 0) {
+      cells[key] = items.length === 1 ? items[0] : items;
     }
   }
 

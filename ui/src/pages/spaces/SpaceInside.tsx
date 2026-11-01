@@ -4,9 +4,9 @@ import { clsx } from "clsx";
 import type { JSX, ReactNode } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
-import { andQ, applyChanges, attributesOf, cellText, endpointSource, matchesQ, MAX_ENTITIES, originTransport, parseGridConfig, queryFromGroup, searchQuery, SourceError, sourceFor, targetName } from "@joinedcontext/sdk";
+import { andQ, applyChanges, attributesOf, cellText, endpointSource, matchesQ, MAX_ENTITIES, originTransport, parseGridConfig, queryFromGroup, searchQuery, SourceError, sourceFor } from "@joinedcontext/sdk";
 import type { FilterColumn, FilterGroup, GridState, RichRow } from "@joinedcontext/sdk";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "../../api/client";
 import { bytesOfType, entityBytes, exactBytes, sizeText, spaceUsageQuery, usageRefusal } from "../../api/spaceUsage";
@@ -824,13 +824,7 @@ function SpaceData({
     if (saved !== null || type === "" || loadedFor !== layoutKey) return;
     writeLayout(project, space, type, { hidden: extras.hidden, width: extras.width, order: extras.order, labels: extras.labels });
   }, [saved, loadedFor, layoutKey, project, space, type, extras.hidden, extras.width, extras.order, extras.labels]);
-  // A chip opens its target in the explorer, read through the person's own grant (T-4827).
-  const navigate = useNavigate();
-  const openTarget = useCallback(
-    (urn: string) => void navigate({ to: "/projects/$project/explore", params: { project }, search: { space, type: targetName(urn).type, entityId: urn } }),
-    [navigate, project, space],
-  );
-
+  // A chip opens its target in this grid, read through the person's own grant (G-R2GRID2-017).
   const config = useMemo(() => {
     if (type === "") {
       return null;
@@ -1222,7 +1216,6 @@ function SpaceData({
           onHide={onHide}
           layout={layout}
           onLayout={onLayout}
-          onOpenRelationship={openTarget}
           rowTone={rowTone}
           reloadKey={reloadKey}
           query={gridQuery}

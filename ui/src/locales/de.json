@@ -1375,7 +1375,17 @@
       "declineConfirm": "Löschung ablehnen"
     },
     "sizeMissing": "Vom Broker nicht gemeldet: er konnte diesen Bereich nicht rechtzeitig messen",
-    "historyEstimated": "Aus den Datenbankstatistiken geschätzt"
+    "historyEstimated": "Aus den Datenbankstatistiken geschätzt",
+    "usage": {
+      "info": "Wann die Größe von {space} gemessen wurde",
+      "measured": "Gemessen {when}",
+      "hint": "Große Bereiche werden einmal pro Stunde gemessen, kleine alle fünf Minuten. Der Broker behält eine gemessene Größe fünf Minuten.",
+      "recalculate": "Neu berechnen",
+      "recalculating": "Wird gemessen…",
+      "failed": "Der Bereich konnte nicht gemessen werden: {reason}. Die letzte Größe bleibt angezeigt.",
+      "waiting": "Der Broker zählt den Bereich; das kann bis zu 20 Sekunden dauern.",
+      "done": "Neu gemessen."
+    }
   },
   "endpoints": {
     "surfaceFit": {
@@ -5646,6 +5656,11 @@
     "kindList": "Liste",
     "points": "Punkte",
     "openTarget": "Öffnen",
+    "moreInstances": "{count} weitere Instanzen",
+    "wrongKind": "Das Modell erwartet: {kind}",
+    "drillTrail": "Geöffnete Verknüpfungen",
+    "drillBack": "Zurück",
+    "defaultInstance": "Standard",
     "hint": {
       "filterText": "Einen Test wählen, dann die Wörter tippen, z. B. enthält Espoo.",
       "filterNumber": "Einen Test wählen, dann eine Zahl tippen, z. B. größer als 40.",

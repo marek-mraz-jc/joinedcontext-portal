@@ -1,5 +1,5 @@
 #!/bin/sh
-# Which ci.yml jobs a change needs (T-4985). Prints rust=, ui=, apps= as true/false and ui_scope=
+# Which ci.yml jobs a change needs (T-4985). Prints rust=, ui=, apps=, sdk= as true/false and ui_scope=
 # for $GITHUB_OUTPUT, from the paths changed between <base> and HEAD (or read on stdin, one per line).
 # No base, a line `*`, or ci.yml itself runs everything; gitleaks runs on every push and main's
 # base (its last green commit, T-4696) is decided in ci.yml.
@@ -20,7 +20,9 @@
 # ui/tests/ (but its setup file) or ui/e2e/: the ui job then runs only the tests that import a
 # changed file, the changed tests and every test that reads the tree (scripts/ci/ui-related.sh).
 # Anything else the suite reads (the SDK, the package or config files, public-docs/, the Rust
-# fixtures, a new folder) is `full`: the whole suite in four shards. ci-full runs the whole suite,
+# fixtures, a new folder) is `full`: the whole suite in four shards. sdk (T-6311) runs the SDK's
+# own vitest, which reads only sdk/: no other lane ran it, so three reds sat on main unseen.
+# ci-full runs the whole suite,
 # the SDK's screens and the component-gallery baselines every day.
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -43,7 +45,7 @@ rust_reads() {
 }
 
 classify() {
-  rust=false ui=false apps=false ui_scope=related catalogues=""
+  rust=false ui=false apps=false sdk=false ui_scope=related catalogues=""
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     case $f in
@@ -54,6 +56,9 @@ classify() {
     esac
     case $f in
       apps/* | sdk/* | builder/* | scripts/*) apps=true ;;
+    esac
+    case $f in
+      sdk/*) sdk=true ;;
     esac
     case $f in
       ui/tests/setup.ts) ui_scope=full ;;
@@ -98,7 +103,7 @@ kinds_added() {
 }
 
 report() {
-  printf 'rust=%s\nui=%s\napps=%s\nui_scope=%s\n' "$rust" "$ui" "$apps" "$ui_scope"
+  printf 'rust=%s\nui=%s\napps=%s\nui_scope=%s\nsdk=%s\n' "$rust" "$ui" "$apps" "$ui_scope" "$sdk"
 }
 
 selftest() {
@@ -106,31 +111,32 @@ selftest() {
     got=$(printf '%b' "$2" | { classify; settle_catalogues ""; report; } | tr '\n' ' ')
     [ "$got" = "$3" ] || { echo "changes selftest: $1: got '$got', want '$3'" >&2; exit 1; }
   }
-  check "a page" 'ui/src/pages/apps/AppTemplates.tsx\n' "rust=false ui=true apps=false ui_scope=related "
-  check "the colour tokens" 'ui/src/tokens.css\n' "rust=false ui=true apps=false ui_scope=related "
-  check "a test and a journey" 'ui/tests/gate_routes.test.ts\nui/e2e/models.spec.ts\n' "rust=false ui=true apps=false ui_scope=related "
-  check "the suite's setup" 'ui/tests/setup.ts\n' "rust=false ui=true apps=false ui_scope=full "
-  check "the UI's package" 'ui/package.json\n' "rust=false ui=true apps=false ui_scope=full "
-  check "the vite config" 'ui/vite.config.ts\n' "rust=false ui=true apps=false ui_scope=full "
-  check "a new ui folder" 'ui/newdir/x.ts\n' "rust=false ui=true apps=false ui_scope=full "
-  check "a page and the lockfile" 'ui/src/App.tsx\nui/pnpm-lock.yaml\n' "rust=false ui=true apps=false ui_scope=full "
-  check "committed OpenAPI spec" 'ui/openapi.json\n' "rust=true ui=true apps=false ui_scope=full "
-  check "a locale the problem-types test reads" 'ui/src/locales/sk.json\n' "rust=true ui=true apps=false ui_scope=related "
-  check "the problem-type test is not a catalogue" 'ui/src/locales/public-groups.json\n' "rust=false ui=true apps=false ui_scope=related "
-  check "the bundle budget" 'scripts/bundle-budget.mjs\n' "rust=true ui=true apps=true ui_scope=related "
-  check "src only" 'src/main.rs\nmigrations/0001.sql\n' "rust=true ui=false apps=false ui_scope=related "
-  check "a fixture the UI suite reads" 'tests/fixtures/bus-expires.blobl\n' "rust=true ui=true apps=false ui_scope=full "
-  check "public docs" 'public-docs/en/x.md\n' "rust=true ui=true apps=false ui_scope=full "
-  check "lock" 'Cargo.lock\n' "rust=true ui=false apps=false ui_scope=related "
-  check "apps only" 'apps/air-quality/ui/src/App.tsx\n' "rust=true ui=false apps=true ui_scope=related "
-  check "sdk" 'sdk/src/sdk/index.ts\n' "rust=true ui=true apps=true ui_scope=full "
-  check "docs only" 'docs/analysis/x.md\nREADME.md\n' "rust=false ui=false apps=false ui_scope=related "
-  check "nested md is not docs" 'src/agents/server_section.md\n' "rust=true ui=false apps=false ui_scope=related "
-  check "unknown folder runs rust" 'newdir/x.txt\n' "rust=true ui=false apps=false ui_scope=related "
-  check "the workflow" '.github/workflows/ci.yml\n' "rust=true ui=true apps=true ui_scope=full "
-  check "another workflow" '.github/workflows/image.yml\n' "rust=true ui=false apps=false ui_scope=related "
-  check "no base" '*\n' "rust=true ui=true apps=true ui_scope=full "
-  check "nothing" '' "rust=false ui=false apps=false ui_scope=related "
+  check "a page" 'ui/src/pages/apps/AppTemplates.tsx\n' "rust=false ui=true apps=false ui_scope=related sdk=false "
+  check "the colour tokens" 'ui/src/tokens.css\n' "rust=false ui=true apps=false ui_scope=related sdk=false "
+  check "a test and a journey" 'ui/tests/gate_routes.test.ts\nui/e2e/models.spec.ts\n' "rust=false ui=true apps=false ui_scope=related sdk=false "
+  check "the suite's setup" 'ui/tests/setup.ts\n' "rust=false ui=true apps=false ui_scope=full sdk=false "
+  check "the UI's package" 'ui/package.json\n' "rust=false ui=true apps=false ui_scope=full sdk=false "
+  check "the vite config" 'ui/vite.config.ts\n' "rust=false ui=true apps=false ui_scope=full sdk=false "
+  check "a new ui folder" 'ui/newdir/x.ts\n' "rust=false ui=true apps=false ui_scope=full sdk=false "
+  check "a page and the lockfile" 'ui/src/App.tsx\nui/pnpm-lock.yaml\n' "rust=false ui=true apps=false ui_scope=full sdk=false "
+  check "committed OpenAPI spec" 'ui/openapi.json\n' "rust=true ui=true apps=false ui_scope=full sdk=false "
+  check "a locale the problem-types test reads" 'ui/src/locales/sk.json\n' "rust=true ui=true apps=false ui_scope=related sdk=false "
+  check "the problem-type test is not a catalogue" 'ui/src/locales/public-groups.json\n' "rust=false ui=true apps=false ui_scope=related sdk=false "
+  check "the bundle budget" 'scripts/bundle-budget.mjs\n' "rust=true ui=true apps=true ui_scope=related sdk=false "
+  check "src only" 'src/main.rs\nmigrations/0001.sql\n' "rust=true ui=false apps=false ui_scope=related sdk=false "
+  check "a fixture the UI suite reads" 'tests/fixtures/bus-expires.blobl\n' "rust=true ui=true apps=false ui_scope=full sdk=false "
+  check "public docs" 'public-docs/en/x.md\n' "rust=true ui=true apps=false ui_scope=full sdk=false "
+  check "lock" 'Cargo.lock\n' "rust=true ui=false apps=false ui_scope=related sdk=false "
+  check "apps only" 'apps/air-quality/ui/src/App.tsx\n' "rust=true ui=false apps=true ui_scope=related sdk=false "
+  check "sdk" 'sdk/src/sdk/index.ts\n' "rust=true ui=true apps=true ui_scope=full sdk=true "
+  check "an SDK test" 'sdk/tests/grid_narrow.test.ts\n' "rust=true ui=true apps=true ui_scope=full sdk=true "
+  check "docs only" 'docs/analysis/x.md\nREADME.md\n' "rust=false ui=false apps=false ui_scope=related sdk=false "
+  check "nested md is not docs" 'src/agents/server_section.md\n' "rust=true ui=false apps=false ui_scope=related sdk=false "
+  check "unknown folder runs rust" 'newdir/x.txt\n' "rust=true ui=false apps=false ui_scope=related sdk=false "
+  check "the workflow" '.github/workflows/ci.yml\n' "rust=true ui=true apps=true ui_scope=full sdk=true "
+  check "another workflow" '.github/workflows/image.yml\n' "rust=true ui=false apps=false ui_scope=related sdk=false "
+  check "no base" '*\n' "rust=true ui=true apps=true ui_scope=full sdk=true "
+  check "nothing" '' "rust=false ui=false apps=false ui_scope=related sdk=false "
   a=$(mktemp) b=$(mktemp)
   printf '{"problem":{"x":"A"},"spaces":{"size":"Size"}}' >"$a"
   printf '{"spaces":{"size":"Bytes"},"problem":{"x":"A"}}' >"$b"
@@ -148,7 +154,7 @@ selftest() {
 }
 
 everything() {
-  rust=true ui=true apps=true ui_scope=full
+  rust=true ui=true apps=true sdk=true ui_scope=full
 }
 
 case ${1:-} in

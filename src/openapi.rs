@@ -195,6 +195,7 @@ use crate::tools::model_tools::{
         crate::api::quality::get_checks,
         crate::api::quality::get_endpoint_quality,
         crate::api::space_usage::get_usage,
+        crate::api::space_usage::recalculate_usage,
         crate::api::flow_map::get_flow_map,
         crate::api::space_retention::preview_retention,
         crate::api::space_retention::retention_deleted,

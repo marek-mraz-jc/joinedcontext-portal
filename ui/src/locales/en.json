@@ -1375,7 +1375,17 @@
       "declineConfirm": "Decline erasure"
     },
     "sizeMissing": "Not reported by the broker: it could not measure this space in time",
-    "historyEstimated": "Estimated from the database statistics"
+    "historyEstimated": "Estimated from the database statistics",
+    "usage": {
+      "info": "When the size of {space} was measured",
+      "measured": "Measured {when}",
+      "hint": "Large spaces are measured once an hour, small ones every five minutes. The broker keeps a measured size for five minutes.",
+      "recalculate": "Recalculate",
+      "recalculating": "Measuring…",
+      "failed": "The space could not be measured: {reason}. The last size stays shown.",
+      "waiting": "The broker is counting the space; this can take up to 20 seconds.",
+      "done": "Measured again."
+    }
   },
   "endpoints": {
     "surfaceFit": {
@@ -5646,6 +5656,11 @@
     "kindList": "List",
     "points": "points",
     "openTarget": "Open",
+    "moreInstances": "{count} more instances",
+    "wrongKind": "The model expects: {kind}",
+    "drillTrail": "Opened links",
+    "drillBack": "Back",
+    "defaultInstance": "default",
     "hint": {
       "filterText": "Choose a test, then type the words, e.g. contains Espoo.",
       "filterNumber": "Choose a test, then type a number, e.g. greater than 40.",

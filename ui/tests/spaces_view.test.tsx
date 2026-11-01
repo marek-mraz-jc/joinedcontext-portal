@@ -580,8 +580,10 @@ describe("a viewer on the spaces list", () => {
     // The name opens the space (T-6095); everything else is one menu, not four buttons.
     expect(within(row).getByRole("link", { name: "Air quality" })).toBeInTheDocument();
     expect(within(row).queryByRole("link", { name: en.spaces.inside.open })).toBeNull();
-    // One menu ends the row, Details its first item (owner 2026-10-31).
-    const buttons = within(row).getAllByRole("button");
+    // One menu ends the row, Details its first item (owner 2026-10-31); the size's (i) is a reading, not an action (T-6208).
+    const buttons = within(row)
+      .getAllByRole("button")
+      .filter((button) => !/^When the size of /.test(button.getAttribute("title") ?? ""));
     expect(buttons).toHaveLength(1);
 
     await userEvent.click(within(row).getByRole("button", { name: /More actions/ }));
