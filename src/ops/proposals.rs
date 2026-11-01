@@ -1041,6 +1041,58 @@ mod tests {
             .is_some());
     }
 
+    /// JC2-38: a proposal from a draft the caller may not read answers 404, the answer of a draft
+    /// that is not there, and leaves the draft in place.
+    #[tokio::test]
+    async fn a_proposal_from_an_unreadable_draft_is_not_found() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let manifest = json!({ "kind": "Policy", "metadata": { "name": "hidden", "namespace": "p" },
+            "spec": { "contextSpaceRef": { "name": "closed" } } });
+        draft_store(&state)
+            .put("p", "Policy", "hidden", manifest, None, "sub-a", "person")
+            .await
+            .expect("kept");
+        let stranger = Caller::new(
+            crate::auth::session::Identity {
+                client: None,
+                subject: "f:1:x".into(),
+                username: "x".into(),
+                email: None,
+                name: None,
+                roles: vec![],
+                groups: vec![],
+                second_factor: true,
+            },
+            Via::Session,
+        );
+        let input = ManifestInput {
+            manifest: None,
+            draft: Some(DraftRef {
+                kind: "Policy".into(),
+                name: "hidden".into(),
+            }),
+        };
+        let refused = propose_with_optional_draft(
+            &stranger,
+            &state,
+            "p",
+            "policies",
+            "jc_manifest_dry_run",
+            input,
+        )
+        .await
+        .expect_err("refused");
+        assert!(
+            matches!(refused, OpError::Api(ApiError::NotFound(_))),
+            "{refused}"
+        );
+        assert!(draft_store(&state)
+            .get("p", "Policy", "hidden")
+            .await
+            .expect("read")
+            .is_some());
+    }
+
     /// F-POR3-020: a check of manifest M is never recorded on draft D of another kind or name.
     #[test]
     fn an_inline_manifest_pairs_only_with_its_own_draft() {
