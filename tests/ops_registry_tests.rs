@@ -1120,29 +1120,33 @@ fn the_change_list_pages_by_limit_and_cursor() {
     };
     let input = |value: Value| -> ChangeListInput { serde_json::from_value(value).expect("input") };
 
-    let first = page_of(list.clone(), &input(json!({ "limit": 5 }))).expect("a page");
+    let first = page_of(list.clone(), &input(json!({ "limit": 5 })), |item| item).expect("a page");
     assert_eq!(names(&first).len(), 5);
     assert_eq!(first["next"], json!("chg-00000004"));
     let second = page_of(
         list.clone(),
         &input(json!({ "limit": 5, "cursor": "chg-00000004" })),
+        |item| item,
     )
     .expect("a page");
     assert_eq!(names(&second)[0], "chg-00000005");
     let last = page_of(
         list.clone(),
         &input(json!({ "limit": 5, "cursor": "chg-00000009" })),
+        |item| item,
     )
     .expect("a page");
     assert_eq!(names(&last), vec!["chg-0000000a", "chg-0000000b"]);
     assert_eq!(last.get("next"), None, "the end names no next");
 
     assert_eq!(
-        names(&page_of(list.clone(), &input(json!({}))).expect("a page")).len(),
+        names(&page_of(list.clone(), &input(json!({})), |item| item).expect("a page")).len(),
         12
     );
 
-    let gone = page_of(list, &input(json!({ "cursor": "chg-ffffffff" })));
+    let gone = page_of(list, &input(json!({ "cursor": "chg-ffffffff" })), |item| {
+        item
+    });
     assert!(
         matches!(gone, Err(ops::OpError::InvalidInput { ref path, .. }) if path == "cursor"),
         "{gone:?}"

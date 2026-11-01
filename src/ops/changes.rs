@@ -8,6 +8,7 @@ use super::OperationAnnotations;
 use super::{parse_input, OpError};
 use crate::api::changes::{self, ChangeList};
 use crate::change::Lane;
+use crate::state::AppState;
 use jc_core::kinds::Verb;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -46,10 +47,15 @@ fn change_list_input_schema() -> Value {
     })
 }
 
-/// One page of `list` for an operation (T-6291): the changes after `cursor`, at most
-/// `limit` and [`bounds::PAGE_BYTES`] of them, and `next`, the name of the last one, while more
-/// follow. The REST list stays whole: the page a person reads renders every open change.
-pub fn page_of(list: ChangeList, input: &ChangeListInput) -> Result<Value, OpError> {
+/// One page of `list` for an operation (T-6291): the changes after `cursor`, each as `shown`
+/// makes it, at most `limit` and [`bounds::PAGE_BYTES`] of them, and `next`, the name of the
+/// last one, while more follow. The REST list stays whole: the page a person reads renders every
+/// open change.
+pub fn page_of(
+    list: ChangeList,
+    input: &ChangeListInput,
+    shown: impl Fn(Value) -> Value,
+) -> Result<Value, OpError> {
     let ChangeList {
         mut items, outside, ..
     } = list;
@@ -68,22 +74,28 @@ pub fn page_of(list: ChangeList, input: &ChangeListInput) -> Result<Value, OpErr
     let limit = input.limit.unwrap_or(CHANGES).clamp(1, MAX_CHANGES);
     let mut more = items.len() > limit;
     items.truncate(limit);
+    let mut items = items
+        .into_iter()
+        .map(|change| serde_json::to_value(change).map(&shown))
+        .collect::<Result<Vec<_>, _>>()?;
     let kept = bounds::fitting(&items, bounds::PAGE_BYTES);
     more |= kept < items.len();
     items.truncate(kept);
     let next = more
-        .then(|| items.last().map(|change| change.metadata.name.clone()))
+        .then(|| items.last()?.pointer("/metadata/name").cloned())
         .flatten();
-    let mut page = ChangeList::new(items);
-    // The merge requests that are no Change are told once, on the first page.
-    if input.cursor.is_none() {
-        page.outside = outside;
+    let mut page = serde_json::to_value(ChangeList::new(Vec::new()))?;
+    if let Some(map) = page.as_object_mut() {
+        map.insert("items".into(), Value::Array(items));
+        // The merge requests that are no Change are told once, on the first page.
+        if input.cursor.is_none() && !outside.is_empty() {
+            map.insert("outside".into(), serde_json::to_value(outside)?);
+        }
+        if let Some(next) = next {
+            map.insert("next".into(), next);
+        }
     }
-    let mut value = serde_json::to_value(page)?;
-    if let (Some(next), Some(map)) = (next, value.as_object_mut()) {
-        map.insert("next".into(), Value::String(next));
-    }
-    Ok(value)
+    Ok(page)
 }
 
 fn change_approve_input_schema() -> Value {
@@ -176,6 +188,7 @@ fn change_list_output_schema() -> Value {
                         "lane": { "type": "string", "enum": ["green", "yellow", "red"] },
                         "phase": { "type": "string" },
                         "mergeRequest": { "type": "string" },
+                        "url": { "type": "string", "description": "The Portal page where a person decides it" },
                         "proposedBy": { "type": "string" }
                     }
                 }
@@ -184,6 +197,25 @@ fn change_list_output_schema() -> Value {
         },
         "required": ["apiVersion", "kind", "items"]
     })
+}
+
+/// The Portal page where a person decides change `id` (T-6293): the `url` every change tool
+/// answers, while the forge's merge request stays `mergeRequest`.
+pub(super) fn approval_url(state: &AppState, project: &str, id: &str) -> String {
+    let base = state.config.public_base_url.as_str().trim_end_matches('/');
+    format!("{base}/projects/{project}/approvals/{id}")
+}
+
+/// A `Change` document with its approval page as `url`.
+pub(super) fn with_approval_url(state: &AppState, project: &str, mut change: Value) -> Value {
+    let id = change
+        .pointer("/metadata/name")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    if let (Some(id), Some(doc)) = (id, change.as_object_mut()) {
+        doc.insert("url".into(), json!(approval_url(state, project, &id)));
+    }
+    change
 }
 
 /// The `Change` the approval answers: the resource itself, with no wrapper around it.
@@ -217,7 +249,7 @@ pub fn operations() -> Vec<Operation> {
                     let input: ChangeListInput = parse_input(val)?;
                     let list =
                         changes::list_changes_readable(state, &caller.identity, project).await?;
-                    page_of(list, &input)
+                    page_of(list, &input, |item| with_approval_url(state, project, item))
                 })
             },
         },

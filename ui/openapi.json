@@ -16284,6 +16284,10 @@
                     },
                     "summary": {
                       "type": "object"
+                    },
+                    "url": {
+                      "description": "The Portal page where a person decides it",
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -16433,6 +16437,10 @@
                             "type": "string"
                           },
                           "title": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "description": "The Portal page where a person decides it",
                             "type": "string"
                           }
                         },
