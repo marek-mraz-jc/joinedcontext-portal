@@ -964,7 +964,9 @@ async fn a_file_without_a_feed_becomes_a_drafted_space_without_the_model() {
         .iter()
         .filter_map(|d| d["kind"].as_str())
         .collect();
-    for kind in ["ContextSpace", "DataModel"] {
+    // JC1-17: the rows load through Import, which writes through an Endpoint and the person's
+    // own grant: both are drafted with the space.
+    for kind in ["ContextSpace", "DataModel", "Endpoint", "Policy"] {
         assert!(drafted.contains(&kind), "{kind} in {drafted:?}");
     }
     assert!(
@@ -1229,10 +1231,10 @@ async fn a_page_that_is_not_one_of_this_project_is_refused() {
     );
 }
 
-/// T-2763: the platform searches the catalog before the model only when the words name something,
-/// and a follow-up such as "and right now??" runs no search and shows no step.
+/// JC1-10: no search runs before the model; a question is the model's to answer, and it
+/// searches the catalog itself when it needs to.
 #[tokio::test]
-async fn a_follow_up_that_names_nothing_runs_no_search() {
+async fn no_search_runs_before_the_model() {
     let started = start(
         BUILDER,
         json!({ "message": "which data do we have about bikes?" }),
@@ -1243,62 +1245,165 @@ async fn a_follow_up_that_names_nothing_runs_no_search() {
     )
     .await;
     assert_eq!(started.status, StatusCode::ACCEPTED, "{}", started.body);
-    let run = started.body["id"].as_str().expect("run id");
     let events = events_until(&started, |e| {
         e.kind == "thought" || e.kind == "message" && e.payload["sentBy"] == "agent"
     })
     .await;
-    let searches = |events: &[AgentRunEvent]| {
-        of_kind(events, "tool")
+    assert!(
+        of_kind(&events, "tool")
             .iter()
-            .filter(|tool| tool["tool"] == "search_catalog")
-            .count()
+            .all(|tool| tool["tool"] != "search_catalog"),
+        "the platform searched before the model: {events:?}"
+    );
+}
+
+/// A model stub answering each call with the next of `answers`, each a chat `message` (its
+/// `content`, its native `tool_calls` or both); the last answers every later call.
+async fn native_model(answers: &[Value]) -> MockServer {
+    let proxy = MockServer::start().await;
+    let reply = |message: &Value| {
+        ResponseTemplate::new(200).set_body_json(json!({
+            "id": "chatcmpl-1", "object": "chat.completion",
+            "choices": [{ "index": 0, "message": message, "finish_reason": "stop" }],
+            "usage": { "total_tokens": 100 }
+        }))
     };
-    assert_eq!(
-        searches(&events),
-        1,
-        "a question that names bikes is searched"
-    );
-    let before = started
-        .proxy
-        .received_requests()
-        .await
-        .unwrap_or_default()
-        .len();
-    let (status, _) = send(
-        &started.state,
-        &started.config,
-        BUILDER,
-        &format!("/api/v1/projects/helsinki/agent-runs/{run}/messages"),
-        json!({ "text": "and right now??" }),
-    )
-    .await;
-    assert_eq!(status, StatusCode::NO_CONTENT);
-    for _ in 0..200 {
-        if started
-            .proxy
-            .received_requests()
-            .await
-            .unwrap_or_default()
-            .len()
-            > before
-        {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(25)).await;
+    let (last, first) = answers.split_last().expect("one answer at least");
+    for message in first {
+        Mock::given(method("POST"))
+            .and(path("/v1/llm/chat/completions"))
+            .respond_with(reply(message))
+            .up_to_n_times(1)
+            .mount(&proxy)
+            .await;
     }
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    let events = started
-        .state
-        .agents
-        .events_since(run, 0)
-        .await
-        .expect("events");
-    assert_eq!(
-        searches(&events),
-        1,
-        "the follow-up ran no search of its own"
-    );
+    Mock::given(method("POST"))
+        .and(path("/v1/llm/chat/completions"))
+        .respond_with(reply(last))
+        .mount(&proxy)
+        .await;
+    proxy
+}
+
+/// JC1-10: on every dock path the turn is an agent loop over native tool calls: a question in
+/// the person's own language goes to the model with the path's tools as native definitions, the
+/// tool the model calls runs as the person, and its result reaches the answer. Seven paths: this
+/// installation hides dashboards, so Build a dashboard is not offered (JC_PORTAL_DASHBOARDS).
+#[tokio::test]
+async fn every_dock_path_answers_a_question_in_any_language_by_native_tool_calls() {
+    let cases = [
+        (
+            "integrate-pipeline",
+            "Ako beží pipeline s bicyklami?",
+            "jc_resource_list",
+            json!({ "kind": "Pipeline" }),
+        ),
+        (
+            "upload-data",
+            "In welchen Raum lade ich die Datei?",
+            "jc_resource_list",
+            json!({ "kind": "ContextSpace" }),
+        ),
+        (
+            "find-data",
+            "Aké dáta máme o bicykloch?",
+            "search_catalog",
+            json!({ "q": "bicykle" }),
+        ),
+        (
+            "share-data",
+            "Quels endpoints puis-je partager ?",
+            "jc_resource_list",
+            json!({ "kind": "Endpoint" }),
+        ),
+        (
+            "build-app",
+            "Které endpointy může aplikace číst?",
+            "jc_resource_list",
+            json!({ "kind": "Endpoint" }),
+        ),
+        (
+            "create-data-model",
+            "Aké dátové modely už máme?",
+            "jc_resource_list",
+            json!({ "kind": "DataModel" }),
+        ),
+        (
+            "define-kpi",
+            "Mistä tilasta KPI lasketaan?",
+            "jc_resource_list",
+            json!({ "kind": "ContextSpace" }),
+        ),
+    ];
+    for (path_id, question, tool, arguments) in cases {
+        let answer = format!("Hotovo: {path_id}.");
+        let proxy = native_model(&[
+            json!({ "role": "assistant", "content": null, "tool_calls": [{
+                "id": "call-1", "type": "function",
+                "function": { "name": tool, "arguments": arguments.to_string() }
+            }] }),
+            json!({ "role": "assistant", "content": answer }),
+        ])
+        .await;
+        let config = config(&proxy.uri());
+        let state = AppState::new(config.clone(), None).with_mirror(mirror());
+        let (status, body) = send(
+            &state,
+            &config,
+            BUILDER,
+            "/api/v1/projects/helsinki/assistant/conversations",
+            json!({ "path": path_id, "message": question }),
+        )
+        .await;
+        let started = Started {
+            state,
+            config,
+            status,
+            body,
+            proxy,
+        };
+        assert_eq!(
+            started.status,
+            StatusCode::ACCEPTED,
+            "{path_id}: {}",
+            started.body
+        );
+        let events = events_until(&started, |e| {
+            e.kind == "thought"
+                && e.payload["text"]
+                    .as_str()
+                    .is_some_and(|t| t == answer || t.contains("failed"))
+        })
+        .await;
+        let ran = of_kind(&events, "tool")
+            .into_iter()
+            .find(|step| step["tool"] == tool)
+            .unwrap_or_else(|| panic!("{path_id}: {tool} did not run: {events:?}"));
+        assert_eq!(ran["status"], "ok", "{path_id}: {ran}");
+        let said: Vec<&str> = of_kind(&events, "thought")
+            .iter()
+            .filter_map(|t| t["text"].as_str())
+            .collect();
+        assert!(said.contains(&answer.as_str()), "{path_id}: {said:?}");
+        let calls = started.proxy.received_requests().await.unwrap_or_default();
+        let first: Value = serde_json::from_slice(&calls[0].body).expect("a JSON body");
+        let offered: Vec<&str> = first["tools"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{path_id}: no native tools in {first}"))
+            .iter()
+            .filter_map(|t| t["function"]["name"].as_str())
+            .collect();
+        assert!(offered.contains(&tool), "{path_id}: {offered:?}");
+        assert!(
+            first.to_string().contains(question),
+            "{path_id}: the question in the person's words reaches the model"
+        );
+        let second = String::from_utf8_lossy(&calls[1].body).into_owned();
+        assert!(
+            second.contains(tool),
+            "{path_id}: the tool's result reaches the next call"
+        );
+    }
 }
 
 /// T-2768: "open my draft" opens the page of the draft's own kind, filled from it. The owner's

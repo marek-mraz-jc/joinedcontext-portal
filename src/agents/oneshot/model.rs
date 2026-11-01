@@ -66,19 +66,29 @@ impl Driver {
         user: &str,
         budget: u32,
     ) -> Result<String, String> {
-        self.complete_within_as(system, user, budget, false).await
+        self.complete_within_as(system, user, budget, false, &[])
+            .await
     }
 
     /// One conversation turn with the model's words shown while it writes them: an
     /// OpenAI-compatible call streams, and the prose before its first tool fence is written as
     /// `partial` events (ADR-N-032 §4, API/04 §4). Anthropic's messages keep the whole call.
+    /// `tools` go as native tool definitions; each call the model makes comes back as the tool
+    /// block the turn's dispatch reads (JC1-10, [`fence`]).
     pub(super) async fn complete_streamed(
         &self,
         system: &str,
         user: &str,
+        tools: &[ToolSpec],
     ) -> Result<String, String> {
-        self.complete_within_as(system, user, OUTPUT_BUDGET, self.provider != "anthropic")
-            .await
+        self.complete_within_as(
+            system,
+            user,
+            OUTPUT_BUDGET,
+            self.provider != "anthropic",
+            tools,
+        )
+        .await
     }
 
     async fn complete_within_as(
@@ -87,13 +97,20 @@ impl Driver {
         user: &str,
         budget: u32,
         stream: bool,
+        tools: &[ToolSpec],
     ) -> Result<String, String> {
-        let first = match self.complete_once(system, user, budget, stream).await {
-            Err(CallError::Empty) => self.complete_once(system, user, budget, stream).await,
+        let first = match self
+            .complete_once(system, user, budget, stream, tools)
+            .await
+        {
+            Err(CallError::Empty) => {
+                self.complete_once(system, user, budget, stream, tools)
+                    .await
+            }
             Err(CallError::Credit {
                 affordable: Some(afford),
             }) if afford >= MIN_CREDIT_BUDGET && afford < budget => {
-                self.complete_once(system, user, afford - afford / 20, stream)
+                self.complete_once(system, user, afford - afford / 20, stream, tools)
                     .await
             }
             other => other,
@@ -104,6 +121,8 @@ impl Driver {
     /// One POST to the proxy, asked once more when a gateway failed, answering the response
     /// only when it succeeded: a 402 is the key's credit, any other refusal says its status.
     async fn send_llm(&self, path: &str, body: &Value) -> Result<reqwest::Response, CallError> {
+        let effortful = with_effort(path, body, self.reasoning_effort.as_deref());
+        let body = effortful.as_ref().unwrap_or(body);
         // A provider that was busy or failed for a moment is asked once more before the person
         // is told: on dev one 502 ended an answer and had the person send it again, and a 429 or
         // a dropped connection reads the same (T-2772). A call that timed out is not asked
@@ -243,10 +262,17 @@ impl Driver {
             return Err(cut_at(budget));
         }
         // No delta at all is a stream that carried no answer; asked once more like an empty one.
-        if stream.text.is_empty() && stream.finish_reason.is_none() {
+        if stream.text.is_empty() && stream.calls.is_empty() && stream.finish_reason.is_none() {
             return Err(CallError::Empty);
         }
-        Ok(stream.text)
+        let mut text = stream.text;
+        for (name, arguments) in &stream.calls {
+            text.push_str(&fence(
+                name,
+                serde_json::from_str(arguments).unwrap_or(Value::Null),
+            ));
+        }
+        Ok(text)
     }
 
     /// One call through the proxy, in the body the profile's provider reads (AG-53); `stream`
@@ -257,9 +283,20 @@ impl Driver {
         user: &str,
         budget: u32,
         stream: bool,
+        tools: &[ToolSpec],
     ) -> Result<String, CallError> {
-        if stream && self.provider != "anthropic" {
-            let body = json!({
+        let anthropic = self.provider == "anthropic";
+        let with_tools = |mut body: Value| {
+            if !tools.is_empty() {
+                body["tools"] = json!(tools_json(anthropic, tools));
+                if !anthropic {
+                    body["parallel_tool_calls"] = json!(true);
+                }
+            }
+            body
+        };
+        if stream && !anthropic {
+            let body = with_tools(json!({
                 "model": self.model,
                 "max_tokens": budget,
                 "stream": true,
@@ -267,30 +304,30 @@ impl Driver {
                     { "role": "system", "content": system },
                     { "role": "user", "content": user_content(user) },
                 ],
-            });
+            }));
             return self.post_llm_streamed(&body, budget).await;
         }
         let (path, body) = if self.provider == "anthropic" {
             (
                 "/v1/llm/messages",
-                json!({
+                with_tools(json!({
                     "model": self.model,
                     "max_tokens": budget,
                     "system": system,
                     "messages": [{ "role": "user", "content": user_content(user) }],
-                }),
+                })),
             )
         } else {
             (
                 "/v1/llm/chat/completions",
-                json!({
+                with_tools(json!({
                     "model": self.model,
                     "max_tokens": budget,
                     "messages": [
                         { "role": "system", "content": system },
                         { "role": "user", "content": user_content(user) },
                     ],
-                }),
+                })),
             )
         };
         let answer = self.post_llm(path, &body, budget).await?;
@@ -298,17 +335,24 @@ impl Driver {
         if answer.pointer("/choices/0/message/content").is_some() {
             return chat_content(&answer);
         }
-        let joined: String = answer
+        let parts = answer
             .get("content")
             .and_then(Value::as_array)
-            .map(|parts| {
-                parts
-                    .iter()
-                    .filter_map(|part| part.get("text").and_then(Value::as_str))
-                    .collect::<Vec<_>>()
-                    .join("")
-            })
+            .cloned()
             .unwrap_or_default();
+        let mut joined: String = parts
+            .iter()
+            .filter(|part| part.get("type").is_none_or(|t| t == "text"))
+            .filter_map(|part| part.get("text").and_then(Value::as_str))
+            .collect::<Vec<_>>()
+            .join("");
+        for part in parts.iter().filter(|part| part["type"] == "tool_use") {
+            let name = part.get("name").and_then(Value::as_str).unwrap_or_default();
+            joined.push_str(&fence(
+                name,
+                part.get("input").cloned().unwrap_or(Value::Null),
+            ));
+        }
         if joined.is_empty() {
             return Err(CallError::Empty);
         }
@@ -351,16 +395,7 @@ impl Driver {
     ) -> Result<ToolAnswer, CallError> {
         let messages = &cache_marked(messages);
         if self.provider == "anthropic" {
-            let tools_json = tools
-                .iter()
-                .map(|t| {
-                    json!({
-                        "name": t.name,
-                        "description": t.description,
-                        "input_schema": t.input_schema,
-                    })
-                })
-                .collect::<Vec<_>>();
+            let tools_json = tools_json(true, tools);
             let merged = merge_anthropic_messages(messages);
             let body = json!({
                 "model": self.model,
@@ -413,19 +448,7 @@ impl Driver {
                 output_tokens,
             })
         } else {
-            let tools_json = tools
-                .iter()
-                .map(|t| {
-                    json!({
-                        "type": "function",
-                        "function": {
-                            "name": t.name,
-                            "description": t.description,
-                            "parameters": t.input_schema,
-                        }
-                    })
-                })
-                .collect::<Vec<_>>();
+            let tools_json = tools_json(false, tools);
             let mut full_messages = vec![json!({ "role": "system", "content": system })];
             full_messages.extend_from_slice(messages);
             // Several calls per answer (T-3075): the loop runs all of them and answers them in
@@ -713,6 +736,16 @@ pub(super) struct ToolAnswer {
 }
 
 /// A whole answer read as JSON; one cut at the output budget applied nothing and says so.
+/// `body` with the profile's reasoning effort (AG-72, JC1-26) in the OpenAI-compatible
+/// `reasoning` member OpenRouter reads, or `None` when there is none to add.
+/// ponytail: the Anthropic messages body gets none; add `thinking` when a profile runs on it.
+fn with_effort(path: &str, body: &Value, effort: Option<&str>) -> Option<Value> {
+    let effort = effort.filter(|_| path.ends_with("/chat/completions"))?;
+    let mut body = body.clone();
+    body["reasoning"] = json!({ "effort": effort });
+    Some(body)
+}
+
 fn whole_answer(text: &str, budget: u32) -> Result<Value, CallError> {
     let answer: Value = serde_json::from_str(text)
         .map_err(|err| CallError::Failed(format!("the model's answer is not JSON: {err}")))?;
@@ -739,12 +772,69 @@ fn cut_at(budget: u32) -> CallError {
 
 /// An OpenAI-compatible answer's text, `choices[0].message.content`.
 fn chat_content(answer: &Value) -> Result<String, CallError> {
-    answer
+    let content = answer
         .pointer("/choices/0/message/content")
-        .and_then(Value::as_str)
-        .map(str::to_owned)
-        .ok_or(CallError::Empty)
+        .and_then(Value::as_str);
+    let calls = answer
+        .pointer("/choices/0/message/tool_calls")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if content.is_none() && calls.is_empty() {
+        return Err(CallError::Empty);
+    }
+    let mut text = content.unwrap_or_default().to_owned();
+    for call in &calls {
+        let name = call
+            .pointer("/function/name")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let arguments = call
+            .pointer("/function/arguments")
+            .and_then(Value::as_str)
+            .and_then(|a| serde_json::from_str(a).ok())
+            .unwrap_or(Value::Null);
+        text.push_str(&fence(name, arguments));
+    }
+    Ok(text)
 }
+
+/// A native tool call written as the tool block the conversation's dispatch reads (JC1-10): a
+/// `jc_` tool's input under `arguments`, any other tool's fields beside its name. The name the
+/// provider says wins over a `tool` field inside the input.
+pub(super) fn fence(name: &str, input: Value) -> String {
+    let block = if name.starts_with("jc_") {
+        json!({ "tool": name, "arguments": input })
+    } else {
+        let mut fields = match input {
+            Value::Object(fields) => fields,
+            _ => serde_json::Map::new(),
+        };
+        fields.insert("tool".into(), json!(name));
+        Value::Object(fields)
+    };
+    format!("\n\n```json\n{block}\n```\n")
+}
+
+/// The tool definitions in the body the provider reads.
+fn tools_json(anthropic: bool, tools: &[ToolSpec]) -> Vec<Value> {
+    tools
+        .iter()
+        .map(|t| {
+            if anthropic {
+                json!({ "name": t.name, "description": t.description, "input_schema": t.input_schema })
+            } else {
+                json!({
+                    "type": "function",
+                    "function": { "name": t.name, "description": t.description, "parameters": t.input_schema },
+                })
+            }
+        })
+        .collect()
+}
+
+/// The most native tool calls one streamed answer may carry.
+const MAX_STREAM_CALLS: usize = 32;
 
 /// What a `partial` shows of the answer so far: the prose before the first tool fence, without a
 /// fence's first backticks still arriving, so a tool call's JSON never reaches the screen.
@@ -759,6 +849,8 @@ fn partial_prose(text: &str) -> &str {
 struct Streamed {
     line: Vec<u8>,
     text: String,
+    /// The native tool calls so far, by their index in the stream: name and arguments text.
+    calls: Vec<(String, String)>,
     finish_reason: Option<String>,
     error: Option<String>,
 }
@@ -804,6 +896,34 @@ impl Streamed {
             .and_then(Value::as_str)
         {
             self.text.push_str(delta);
+        }
+        for call in frame
+            .pointer("/choices/0/delta/tool_calls")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            let at = call
+                .get("index")
+                .and_then(Value::as_u64)
+                .and_then(|i| usize::try_from(i).ok())
+                .unwrap_or(self.calls.len().saturating_sub(1));
+            // ponytail: a provider index past MAX_STREAM_CALLS is dropped, never allocated.
+            if at >= MAX_STREAM_CALLS {
+                continue;
+            }
+            if self.calls.len() <= at {
+                self.calls.resize(at + 1, (String::new(), String::new()));
+            }
+            let Some((name, arguments)) = self.calls.get_mut(at) else {
+                continue;
+            };
+            if let Some(part) = call.pointer("/function/name").and_then(Value::as_str) {
+                name.push_str(part);
+            }
+            if let Some(part) = call.pointer("/function/arguments").and_then(Value::as_str) {
+                arguments.push_str(part);
+            }
         }
         if let Some(reason) = frame
             .pointer("/choices/0/finish_reason")
@@ -1053,5 +1173,56 @@ mod stream_tests {
         assert_eq!(partial_prose("```json\n{\"tool\":\"x\"}\n```\nAfter"), "");
         assert_eq!(partial_prose(""), "");
         assert_eq!(partial_prose("Use `q` to filter."), "Use `q` to filter.");
+    }
+}
+
+#[cfg(test)]
+mod effort_tests {
+    use super::*;
+
+    /// JC1-26: the profile's reasoning effort reaches every chat call the run makes.
+    #[tokio::test]
+    async fn every_chat_call_carries_the_profiles_reasoning_effort() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "choices": [{ "message": { "role": "assistant", "content": "Done." } }],
+            })))
+            .mount(&server)
+            .await;
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        let mut driver = Driver::for_tests(state, "helsinki");
+        driver.proxy_base = server.uri();
+        driver.provider = "openrouter".into();
+        driver.reasoning_effort = Some("medium".into());
+        driver
+            .complete_once("rules", "hello", 100, false, &[])
+            .await
+            .expect("an answer");
+        driver
+            .complete_tools_once(
+                "rules",
+                &[json!({ "role": "user", "content": "hi" })],
+                &[],
+                100,
+            )
+            .await
+            .expect("an answer");
+        let bodies: Vec<Value> = server
+            .received_requests()
+            .await
+            .expect("recorded")
+            .iter()
+            .map(|request| serde_json::from_slice(&request.body).expect("a JSON body"))
+            .collect();
+        assert_eq!(bodies.len(), 2);
+        for body in &bodies {
+            assert_eq!(body["reasoning"], json!({ "effort": "medium" }), "{body}");
+        }
+        assert_eq!(
+            with_effort("/v1/llm/chat/completions", &json!({}), None),
+            None,
+            "no effort named, none sent"
+        );
     }
 }

@@ -756,6 +756,22 @@ pub(crate) fn artifact_files(
     Ok((spec, files))
 }
 
+/// Sets `spec.version` and `spec.artifacts` of the model `name` the way a save writes them and
+/// answers the artifact files, each as `(path in the model's folder, content)` (DM-02). The
+/// editor's save and `jc_space_complete`'s proposal both write a model through it (JC1-06).
+pub(crate) fn place_artifacts(
+    spec: &mut Value,
+    name: &str,
+    version: &SemVer,
+    artifacts: &Artifacts,
+) -> Result<Vec<(String, String)>, ApiError> {
+    let (artifacts_spec, files) = artifact_files(name, version.major(), artifacts)?;
+    spec["version"] = Value::String(version.to_string());
+    spec["artifacts"] = serde_json::to_value(&artifacts_spec)
+        .map_err(|e| ApiError::Internal(format!("serialize artifacts: {e}")))?;
+    Ok(files)
+}
+
 /// The artifacts Model Tools renders from one LinkML source (DM-02); the export reuses it for a
 /// model whose repository holds no JSON Schema (MF-41).
 pub(crate) async fn compile_artifacts(
@@ -1297,7 +1313,6 @@ pub(crate) async fn propose_model(
     let target_version =
         SemVer::new(&version).map_err(|e| ApiError::BadRequest(format!("invalid version: {e}")))?;
 
-    let major = target_version.major();
     let empty_map = serde_json::Map::new();
     let next_classes = next_val
         .get("classes")
@@ -1308,12 +1323,9 @@ pub(crate) async fn propose_model(
     classes.sort();
     classes.dedup();
 
-    let (artifacts_spec, artifact_writes) = artifact_files(name, major, &artifacts)?;
-
     let mut new_spec = proposal.envelope.spec.clone();
-    new_spec["version"] = Value::String(target_version.to_string());
+    let artifact_writes = place_artifacts(&mut new_spec, name, &target_version, &artifacts)?;
     new_spec["classes"] = serde_json::to_value(&classes).unwrap_or(Value::Array(Vec::new()));
-    new_spec["artifacts"] = serde_json::to_value(&artifacts_spec).unwrap_or(Value::Null);
 
     let typed_spec: DataModelSpec = serde_json::from_value(new_spec.clone())
         .map_err(|e| ApiError::BadRequest(format!("invalid DataModel spec: {e}")))?;

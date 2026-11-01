@@ -89,6 +89,9 @@ const EVERY_PATH: &[&str] = &[
     "jc_draft_list",
     "jc_change_list",
     "jc_activity_list",
+    // The way forward a second resource's refusal names (AG-82, JC1-13).
+    "jc_workspace_open",
+    "jc_workspace_compare",
 ];
 
 impl Path {
@@ -344,6 +347,19 @@ pub fn known_tool(name: &str) -> Option<&'static str> {
         .find(|tool| *tool == name)
 }
 
+/// Every tool of the conversation, on a path or on none, each once: what a turn offers as
+/// native tool definitions before [`Path::offers`] narrows it (JC1-10).
+pub fn every_tool() -> Vec<&'static str> {
+    let mut every: Vec<&'static str> = Path::ALL
+        .iter()
+        .flat_map(|path| path.tools())
+        .chain(OFF_PATH_TOOLS.iter().copied())
+        .collect();
+    every.sort_unstable();
+    every.dedup();
+    every
+}
+
 /// The paths as `choose_path` offers them to the model: one line each.
 pub fn menu() -> String {
     Path::ALL
@@ -393,6 +409,16 @@ mod tests {
     }
 
     use super::*;
+
+    /// JC1-13: the refusal of a second resource names `jc_workspace_open` and
+    /// `jc_workspace_compare`, so every path lets the model call them.
+    #[test]
+    fn every_path_may_open_the_copy_a_second_resource_needs() {
+        for path in Path::ALL {
+            assert!(path.allows("jc_workspace_open"), "{}", path.id());
+            assert!(path.allows("jc_workspace_compare"), "{}", path.id());
+        }
+    }
 
     /// T-2696: the pack gives each path's steps, and each names the tool it ends with, which
     /// the path must allow; Share data asks with whom before anything opens.

@@ -1,5 +1,7 @@
 //! Tests for `jc_space_complete` operation (T-0642).
 
+mod common;
+
 use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
 use axum_extra::extract::cookie::PrivateCookieJar;
@@ -1289,4 +1291,110 @@ async fn a_completion_leaves_another_persons_draft_of_the_same_name_unchanged() 
         .expect("their draft is still there");
     assert_eq!(kept.manifest, theirs);
     assert_eq!(kept.touched_by, "colleague");
+}
+
+/// JC1-06: a space proposed through `jc_space_complete` commits its model the way the model
+/// editor's save does: the four compiled artifacts beside the LinkML, and `spec.artifacts` naming
+/// them in the committed manifest.
+#[tokio::test]
+async fn a_proposed_space_commits_its_model_with_the_compiled_artifacts() {
+    let gitea = common::forge().await;
+    let model_tools = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/generate"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "jsonSchema": { "title": "Booking" },
+            "context": { "@context": { "Booking": "https://example.org/Booking" } },
+            "docs": "# bookings",
+            "example": { "id": "urn:ngsi-ld:Booking:1", "type": "Booking" },
+        })))
+        .mount(&model_tools)
+        .await;
+    let mut config = Config::for_tests();
+    config.model_tools_url = Some(model_tools.uri());
+    let client = joinedcontext_portal::git::GiteaClient::new(
+        gitea.uri().parse().expect("mock url"),
+        "test-owner",
+        "test-repo",
+        "token-xyz",
+    )
+    .expect("client");
+    let state = AppState::new(config.clone(), None).with_gitea(std::sync::Arc::new(client));
+    let cookie = session_cookie(
+        &config,
+        "steward.user",
+        Some("steward@hel.fi"),
+        vec!["portal-approver"],
+        vec![],
+    );
+    let payload = json!({
+        "space": "room-bookings",
+        "typeName": "Booking",
+        "files": [{ "name": "room-bookings.linkml.yaml", "content": BOOKING_LINKML }],
+        "propose": true,
+    });
+    let resp = server::app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/projects/helsinki/ops/jc_space_complete")
+                .header(header::COOKIE, cookie)
+                .header(CSRF_HEADER, TEST_CSRF_TOKEN)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&payload).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = resp.status();
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body["change"].is_object(), "{body}");
+
+    // The bundle's files as the forge took them: path and decoded content.
+    let prefix = format!("{}/contents/", common::REPO);
+    let files: Vec<(String, String)> = gitea
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == "PUT")
+        .filter_map(|r| {
+            let path = r.url.path().strip_prefix(&prefix)?.to_owned();
+            let body: Value = serde_json::from_slice(&r.body).ok()?;
+            use base64::Engine;
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(body["content"].as_str()?)
+                .ok()?;
+            Some((path, String::from_utf8(bytes).ok()?))
+        })
+        .collect();
+    let content = |suffix: &str| {
+        files
+            .iter()
+            .find(|(path, _)| path.ends_with(suffix))
+            .map(|(_, content)| content.clone())
+            .unwrap_or_else(|| panic!("no file ending {suffix} in {files:?}"))
+    };
+    let folder = "projects/helsinki/spaces/room-bookings/datamodels";
+    for file in [
+        "json-schema/room-bookings.v0.json",
+        "context/room-bookings.v0.jsonld",
+        "docs/room-bookings.md",
+        "examples/room-bookings.example.jsonld",
+    ] {
+        content(&format!("{folder}/{file}"));
+    }
+    assert!(content("json-schema/room-bookings.v0.json").contains("Booking"));
+    let manifest: Value =
+        serde_norway::from_str(&content(&format!("{folder}/room-bookings.yaml"))).expect("yaml");
+    assert_eq!(
+        manifest["spec"]["artifacts"]["jsonSchema"], "./json-schema/room-bookings.v0.json",
+        "{manifest}"
+    );
+    assert_eq!(
+        manifest["spec"]["artifacts"]["example"],
+        "./examples/room-bookings.example.jsonld"
+    );
 }

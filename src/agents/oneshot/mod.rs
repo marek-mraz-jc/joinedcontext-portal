@@ -251,6 +251,8 @@ struct Driver {
     proxy_base: String,
     model: String,
     provider: String,
+    /// The profile's `model.reasoningEffort`, sent on every chat call (AG-72, JC1-26).
+    reasoning_effort: Option<String>,
     ttl: Duration,
     /// How long one model call of a conversation may take before the turn fails (T-2462).
     answer_timeout: Duration,
@@ -374,6 +376,7 @@ pub fn spawn(
         proxy_base: settings.proxy_base.trim_end_matches('/').to_owned(),
         model: profile.model_name.clone(),
         provider: profile.model_provider.clone(),
+        reasoning_effort: profile.reasoning_effort.clone(),
         ttl: Duration::from_secs(settings.run_ttl_secs.max(1) as u64),
         answer_timeout: ANSWER_TIMEOUT,
         passes: AtomicU32::new(0),
@@ -428,6 +431,7 @@ impl Driver {
             proxy_base: "http://localhost:8080".into(),
             model: "test-model".into(),
             provider: "anthropic".into(),
+            reasoning_effort: None,
             ttl: Duration::from_secs(60),
             answer_timeout: ANSWER_TIMEOUT,
             passes: AtomicU32::new(0),
@@ -518,10 +522,21 @@ impl Driver {
     async fn drive(&self) -> Result<(), String> {
         // The stream is subscribed before anything moves, so a message sent while the first
         // pass runs is not lost between the preview and the loop.
+        // What the run stored before the subscription is no event to answer: a lagging inbox
+        // reads the store after it (JC1-31).
+        let stored = self
+            .state
+            .agents
+            .events_since(&self.run_id, 0)
+            .await
+            .ok()
+            .and_then(|events| events.last().map(|event| event.seq))
+            .unwrap_or(0);
         let mut inbox = self.state.agent_events.subscribe(&self.run_id).await;
         let deadline = tokio::time::Instant::now() + self.ttl;
 
         if self.kind == "conversation" {
+            let mut inbox = crate::agents::events::RunInbox::new(inbox, &self.run_id, stored);
             return self.drive_conversation(&mut inbox, deadline).await;
         }
         // Unreadable, the data needs pass as given, less the abstract base class (see `types`).
