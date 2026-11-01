@@ -405,6 +405,10 @@ pub struct PullRequest {
     /// push between the two is refused instead of merged unread (PF-57, T-1683).
     pub head_sha: String,
     pub base_branch: String,
+    /// The commit the base branch pointed at when the forge answered, empty when it did not say.
+    /// With `head_sha` it names everything the list reads of an open change (T-6347).
+    #[serde(default)]
+    pub base_sha: String,
     pub created_at: String,
     pub author_name: String,
     pub author_email: Option<String>,
@@ -676,7 +680,7 @@ impl From<GiteaPullResponse> for PullRequest {
             (Some(head), Some(base)) if head == base
         );
         let (head_branch, head_sha) = raw.head.map(|h| (h.git_ref, h.sha)).unwrap_or_default();
-        let base_branch = raw.base.map(|b| b.git_ref).unwrap_or_default();
+        let (base_branch, base_sha) = raw.base.map(|b| (b.git_ref, b.sha)).unwrap_or_default();
 
         PullRequest {
             number: raw.number,
@@ -687,6 +691,7 @@ impl From<GiteaPullResponse> for PullRequest {
             head_branch,
             head_sha,
             base_branch,
+            base_sha,
             created_at: raw.created_at.unwrap_or_default(),
             author_name,
             author_email,

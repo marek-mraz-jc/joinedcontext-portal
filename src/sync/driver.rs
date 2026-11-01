@@ -493,6 +493,7 @@ mod tests {
             head_branch: branch.to_owned(),
             head_sha: "sync-head-sha".to_owned(),
             base_branch: "main".to_owned(),
+            base_sha: String::new(),
             created_at: String::new(),
             author_name: "joinedcontext reconciler".to_owned(),
             author_email: None,
