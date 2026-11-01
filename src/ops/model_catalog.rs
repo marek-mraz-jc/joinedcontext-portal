@@ -388,7 +388,7 @@ mod tests {
             description: Some("A street segment where vehicles park".into()),
             attributes: vec!["availableSpotNumber".into()],
         };
-        for q in ["onstreet", "dataModel.parking", "vehicles", "availablespot"] {
+        for q in ["onstreet", "datamodel.parking", "vehicles", "availablespot"] {
             assert!(matches(&model, q), "{q}");
         }
         assert!(!matches(&model, "airquality"));

@@ -966,7 +966,12 @@ mod tests {
         {
             found.push(format!("{} writes {} but names no verb", op.name, op.kind));
         }
-        if op.verb == Some(Verb::Read) && !op.annotations.read_only_hint {
+        // The entity write's grant is the Endpoint Policy's, decided by the gateway per entity;
+        // the Portal's half is reading the Endpoint (T-6389).
+        if op.verb == Some(Verb::Read)
+            && !op.annotations.read_only_hint
+            && op.name != data_write::NAME
+        {
             found.push(format!("{} writes with only the read verb", op.name));
         }
         let input = (op.input)();

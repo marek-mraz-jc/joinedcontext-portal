@@ -2856,6 +2856,7 @@ pub(crate) mod tests {
         assert_eq!(
             data_read,
             [
+                "jc_attribute_explain",
                 "jc_catalog_search",
                 "jc_data_query",
                 "jc_kpi_compute",
