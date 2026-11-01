@@ -792,6 +792,17 @@ export async function createInBatches(
 }
 
 /** The rejected rows as CSV, for the person to fix and import again. */
+/**
+ * A table as CSV text, its header first: what a workbook's model is inferred from, since the
+ * inference reads text and a workbook's bytes are a ZIP (JC1-07).
+ */
+export function tableCsv(table: Table): string {
+  const quote = (text: string) => (/[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text);
+  const lines = [table.columns.map(quote).join(",")];
+  for (const row of table.rows) lines.push(table.columns.map((column) => quote(row[column] ?? "")).join(","));
+  return `${lines.join("\n")}\n`;
+}
+
 export function rejectedCsv(rejected: Rejected[]): string {
   // A cell a spreadsheet would run as a formula (`=`, `+`, `-`, `@`, tab, CR) is written as text.
   const inert = (text: string) => (/^[=+\-@\t\r]/.test(text) ? `'${text}` : text);
