@@ -109,6 +109,31 @@ impl Access {
             .is_some_and(|verbs| verbs.contains(verb))
     }
 
+    /// The profile's half of one call of a kind-`*` operation (T-6366): each kind its input names
+    /// needs `read` for a read-only operation and `propose` for any other, as [`Access::names`]
+    /// asks it of an operation with a fixed kind. An input that names no manifest kind is left to
+    /// [`Access::names`]; without an access block the read-only default stands.
+    pub fn admits(&self, op: &Operation, input: &Value) -> bool {
+        self.refused_kind(op, input).is_none()
+    }
+
+    /// The first kind the input names that [`Access::admits`] refuses. Every kind is checked
+    /// (`kind`, `manifest.kind`, `draft.kind`), so a granted one beside it hides nothing.
+    pub fn refused_kind<'a>(&self, op: &Operation, input: &'a Value) -> Option<&'a str> {
+        let declared = self.declared.as_ref().filter(|_| op.kind == "*")?;
+        let verb = if op.annotations.read_only_hint {
+            "read"
+        } else {
+            "propose"
+        };
+        ops::named_kinds(input).find(|kind| {
+            !declared
+                .kinds
+                .get(*kind)
+                .is_some_and(|verbs| verbs.contains(verb))
+        })
+    }
+
     /// The profile's half of reading a kind's manifests outside a tool (MCP `resources/*`):
     /// without an access block, every kind the person reads; with one, a kind it grants `read`.
     pub fn reads(&self, kind: &str) -> bool {
@@ -325,6 +350,100 @@ mod tests {
             !access.names(op("jc_manifest_dry_run")),
             "read-only but not named"
         );
+    }
+
+    /// A kind-`*` operation reaches only the kinds the profile grants, with the verb the call
+    /// needs: read for a read-only one, propose otherwise (T-6366, AG-70). Naming the operation
+    /// used to be enough, so a run that may read Pipelines read and proposed Policies too.
+    #[test]
+    fn a_kind_star_operation_needs_the_named_kinds_verb() {
+        let access = Access::from_spec(&json!({ "access": {
+            "operations": [
+                "jc_resource_list", "jc_resource_get", "jc_resource_propose", "jc_resource_delete",
+                "jc_draft_put", "jc_draft_get", "jc_draft_drop", "jc_manifest_dry_run"
+            ],
+            "kinds": [
+                { "kind": "Pipeline", "verbs": ["read", "propose"] },
+                { "kind": "Endpoint", "verbs": ["read"] }
+            ]
+        }}));
+        let named = |kind: &str| json!({ "kind": kind, "name": "x" });
+        assert!(access.admits(op("jc_resource_get"), &named("Pipeline")));
+        assert!(access.admits(op("jc_resource_list"), &named("Endpoint")));
+        assert!(!access.admits(op("jc_resource_get"), &named("Policy")));
+        assert!(!access.admits(op("jc_resource_list"), &named("Policy")));
+        assert!(access.admits(op("jc_draft_put"), &named("Pipeline")));
+        assert!(
+            !access.admits(op("jc_draft_put"), &named("Endpoint")),
+            "read is no propose"
+        );
+        assert!(!access.admits(op("jc_draft_get"), &named("Policy")));
+        assert!(!access.admits(op("jc_draft_drop"), &named("Endpoint")));
+        assert!(!access.admits(op("jc_resource_delete"), &named("Policy")));
+        let manifest = json!({ "manifest": { "kind": "Policy", "metadata": { "name": "x" } } });
+        assert!(!access.admits(op("jc_resource_propose"), &manifest));
+        assert!(!access.admits(op("jc_manifest_dry_run"), &manifest));
+        let draft = json!({ "draft": { "kind": "Policy", "name": "x" } });
+        assert!(!access.admits(op("jc_resource_propose"), &draft));
+        assert!(access.admits(
+            op("jc_resource_propose"),
+            &json!({ "draft": { "kind": "Pipeline", "name": "x" } })
+        ));
+        // Every kind the input names counts: a granted one beside it hides nothing.
+        let mixed = json!({ "kind": "Pipeline", "manifest": { "kind": "Policy", "metadata": { "name": "x" } } });
+        assert!(!access.admits(op("jc_resource_propose"), &mixed));
+        let mixed = json!({ "kind": "Pipeline", "draft": { "kind": "Policy", "name": "x" } });
+        assert!(!access.admits(op("jc_draft_put"), &mixed));
+        // A kind of no manifest is the input's 422, which the call answers.
+        assert!(access.admits(op("jc_resource_get"), &named("Nothing")));
+        // A profile without an access block keeps its read-only default, which `names` holds.
+        assert!(Access::default().admits(op("jc_resource_get"), &named("Policy")));
+        assert!(access.reads("Endpoint"));
+        assert!(!access.reads("Policy"));
+        assert!(Access::default().reads("Policy"));
+    }
+
+    /// The door itself refuses, before the person is asked or the input is parsed: one refusal
+    /// per operation family through `ops::call` (T-6366).
+    #[tokio::test]
+    async fn the_door_refuses_a_kind_the_profile_does_not_grant() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let access = Access::from_spec(&json!({ "access": {
+            "operations": ["jc_resource_get", "jc_resource_propose", "jc_draft_get", "jc_draft_put"],
+            "kinds": [{ "kind": "Pipeline", "verbs": ["read"] }]
+        }}));
+        let caller = ops::Caller::for_run(
+            Identity {
+                client: None,
+                subject: "s".into(),
+                username: "jana".into(),
+                email: None,
+                name: None,
+                roles: vec![],
+                groups: vec![],
+                second_factor: false,
+            },
+            access,
+        );
+        let manifest = json!({ "kind": "Policy", "metadata": { "name": "x" } });
+        for (name, input) in [
+            ("jc_resource_get", json!({ "kind": "Policy", "name": "x" })),
+            ("jc_resource_propose", json!({ "manifest": manifest })),
+            ("jc_draft_get", json!({ "kind": "Policy", "name": "x" })),
+            (
+                "jc_draft_put",
+                json!({ "kind": "Pipeline", "name": "x", "manifest": {} }),
+            ),
+        ] {
+            let refused = ops::call(op(name), &caller, &state, "p", input).await;
+            assert!(
+                matches!(
+                    refused,
+                    Err(ops::OpError::Api(crate::error::ApiError::Denied(_)))
+                ),
+                "{name}: {refused:?}"
+            );
+        }
     }
 
     #[test]
