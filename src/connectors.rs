@@ -429,16 +429,44 @@ impl Ceiling {
         })
     }
 
+    /// Whether every binding policy lists the verbs per kind.
+    fn lists_kinds(&self) -> bool {
+        let each = self.each();
+        !each.is_empty() && each.iter().all(|p| p.kinds.is_some())
+    }
+
     pub fn writes(&self) -> bool {
         self.each().iter().any(|p| p.writes)
     }
 
     /// Whether some policy (over `project`, when named) lets a connector `verb` on `kind`
     /// (T-6302). A policy listing no kinds leaves changes to the segments and `writes`.
+    /// A policy's segments must reach the kind too, as the dialog offers it, so a policy
+    /// narrowed after a connector was made takes the kinds its segments dropped (JC2-07).
     pub fn allows_verb(&self, project: Option<&str>, kind: &str, verb: ConnectorVerb) -> bool {
         self.each().iter().any(|p| {
             project.is_none_or(|project| Self::allows_project(p, project))
-                && (p.kinds.is_none() || verbs_allow(p.verbs_for(kind), verb))
+                && policy_offers(p, kind, verb)
+        })
+    }
+
+    /// Whether one policy over `project` lets a connector `verb` the object `kind`/`name`: the
+    /// verb as [`Self::allows_verb`] reads it and, for an Endpoint, the policy's Endpoint list
+    /// holding `name` (JC2-07).
+    pub fn allows_change(
+        &self,
+        project: &str,
+        kind: &str,
+        name: &str,
+        verb: ConnectorVerb,
+    ) -> bool {
+        self.each().iter().any(|p| {
+            Self::allows_project(p, project)
+                && policy_offers(p, kind, verb)
+                && (kind != "Endpoint"
+                    || p.endpoints
+                        .as_ref()
+                        .is_none_or(|listed| listed.iter().any(|l| l == name)))
         })
     }
 
@@ -1332,8 +1360,9 @@ fn above(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Vec<(Stri
             above.push((format!("scope[{i}].project"), why));
         } else if !ceiling.allows_endpoint(&item.project, item.endpoint.as_deref()) {
             let why = format!(
-                "{named} lets a connector reach only the Endpoints it lists in project {}: name one",
-                item.project
+                "{named} lets a connector reach only the Endpoints it lists in project {}: name one (asked {})",
+                item.project,
+                item.endpoint.as_deref().unwrap_or("every Endpoint")
             );
             above.push((format!("scope[{i}].endpoint"), why));
         }
@@ -1363,6 +1392,14 @@ fn above(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Vec<(Stri
             }
         }
     }
+    // Without a kinds list a connector changes whatever its segments reach; where every policy
+    // lists the verbs per kind, that is above it and an approval must not cover it (JC2-06).
+    if new.kinds.is_none() && ceiling.lists_kinds() {
+        above.push((
+            "kinds".into(),
+            format!("{named} names the verbs a connector holds per kind: tick them"),
+        ));
+    }
     if new.writes && !ceiling.writes() {
         above.push((
             "writes".into(),
@@ -1371,7 +1408,12 @@ fn above(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Vec<(Stri
     }
     let days = ceiling.max_days();
     if new.expires_at > now + Duration::days(days) {
-        let why = format!("{named} lets a connector live at most {days} days");
+        // The asked date is part of the line, so an approval of it covers no later one (JC2-06).
+        let why = format!(
+            "{named} lets a connector live at most {days} days; asked until {}",
+            new.expires_at
+                .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+        );
         above.push(("expiresAt".into(), why));
     }
     for (i, client) in new.allowed_clients.iter().enumerate() {
@@ -3386,6 +3428,18 @@ pub(crate) mod tests {
             ]
         );
         policy.segments = Some(vec![Segment::Operate]);
+        // JC2-07: a policy whose segments reach no Endpoint lets no connector change one, kinds
+        // list or not; nor an Endpoint its own list leaves out.
+        let pipelines_only = Ceiling::of_policies(vec![("ops".into(), policy.clone())]);
+        assert!(!pipelines_only.allows_verb(Some("doprava"), "Endpoint", Create));
+        assert!(!pipelines_only.allows_change("doprava", "Endpoint", "counters", Create));
+        assert!(pipelines_only.allows_change("doprava", "Pipeline", "counters", Edit));
+        let mut listed = policy.clone();
+        listed.segments = Some(vec![Segment::Context]);
+        listed.endpoints = Some(vec!["counters".into()]);
+        let listed = Ceiling::of_policies(vec![("listed".into(), listed)]);
+        assert!(listed.allows_change("doprava", "Endpoint", "counters", Edit));
+        assert!(!listed.allows_change("doprava", "Endpoint", "parking", Edit));
         let operate = |writes| {
             let mut p = policy.clone();
             p.writes = writes;
@@ -3404,5 +3458,41 @@ pub(crate) mod tests {
             Ceiling::of_policies(vec![]).kind_verbs(&["Endpoint"]),
             vec![grant("Endpoint", &[Read])]
         );
+    }
+
+    /// JC2-06: what an approval covers is the exact request; a later expiry, another Endpoint
+    /// or a connector without a kinds list under policies that list kinds reads as a new line,
+    /// so an edit to it waits for a new approval.
+    #[test]
+    fn an_above_ceiling_line_names_what_was_asked() {
+        let now = Utc::now();
+        let mut policy = default_policy();
+        policy.projects = vec!["doprava".into()];
+        policy.segments = Some(vec![Segment::Context]);
+        policy.endpoints = Some(vec!["counters".into()]);
+        policy.kinds = Some(vec![KindVerbs {
+            kind: "Endpoint".into(),
+            verbs: vec![ConnectorVerb::Read],
+        }]);
+        let ceiling = Ceiling::of_policies(vec![("listed".into(), policy)]);
+        let mut ask = new(&["context"], false, 100);
+        ask.scope = vec![item("doprava", Some("parking"))];
+        let first = above(&ask, &ceiling, now);
+        assert!(first.iter().any(|(f, _)| f == "kinds"), "{first:?}");
+        ask.expires_at = now + Duration::days(300);
+        ask.scope = vec![item("doprava", Some("bikes"))];
+        let later = above(&ask, &ceiling, now);
+        for field in ["expiresAt", "scope[0].endpoint"] {
+            let line = |lines: &[(String, String)]| {
+                lines
+                    .iter()
+                    .find(|(f, _)| f == field)
+                    .cloned()
+                    .expect(field)
+            };
+            assert_ne!(line(&first), line(&later), "{field}");
+        }
+        ask.kinds = Some(vec![grant("Endpoint", &[ConnectorVerb::Read])]);
+        assert!(!above(&ask, &ceiling, now).iter().any(|(f, _)| f == "kinds"));
     }
 }
