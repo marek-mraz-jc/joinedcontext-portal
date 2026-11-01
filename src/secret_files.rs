@@ -230,7 +230,7 @@ mod tests {
             (format!("t:\n  token: hunter2\n{sops}"), false),
             (format!("t:\n  token: {enc}\n  other: plain\n{sops}"), false),
             (format!("t:\n  port: 5432\n{sops}"), false),
-            (format!("x:\n  token: plain\nsops: {{}}\n"), false),
+            ("x:\n  token: plain\nsops: {}\n".to_owned(), false),
             (format!("t:\n  token: {enc}\nsops: 3\n"), false),
             (format!("t:\n  token: {enc}\n"), false),
             (
