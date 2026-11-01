@@ -453,6 +453,21 @@ async fn public_address(url: &str, path: &str) -> Result<(), OpError> {
 /// name that resolves to nothing passes: the runner cannot fetch it either and says so. The
 /// runner resolves it again; its egress policy stays the last guard.
 pub(crate) async fn sample_address(url: &str, path: &str) -> Result<(), OpError> {
+    let refused = |message: String| OpError::InvalidInput {
+        path: path.into(),
+        message,
+    };
+    // A name the Portal cannot resolve may still resolve in the runner's pod, whose DNS search
+    // list names its own namespace: a single-label or cluster-internal name is refused as written.
+    if let Ok(parsed) = url::Url::parse(url) {
+        if let Some(url::Host::Domain(host)) = parsed.host() {
+            if cluster_name(host) {
+                return Err(refused(format!(
+                    "'{host}' is a name inside the cluster, not a public host; outbound calls reach public hosts only (AG-65)"
+                )));
+            }
+        }
+    }
     match resolved_address(url, path).await? {
         Some((host, addresses)) if !addresses.is_empty() => resolved_public(&host, &addresses)
             .map_err(|message| OpError::InvalidInput {
@@ -490,6 +505,16 @@ async fn resolved_address(
         _ => Vec::new(),
     };
     Ok(Some((host.to_owned(), addresses)))
+}
+
+/// Whether `host` names something inside the cluster or the pod's own network rather than the
+/// public internet: one label (`gitea`), or a cluster or local suffix.
+fn cluster_name(host: &str) -> bool {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    !host.contains('.')
+        || [".local", ".svc", ".internal", ".localdomain", ".home.arpa"]
+            .iter()
+            .any(|suffix| host.ends_with(suffix))
 }
 
 /// Why a host that resolved to `addresses` is not called: none at all, or one that is not public.
@@ -1087,6 +1112,24 @@ mod tests {
         assert!(resolved_public("nowhere.invalid", &[])
             .expect_err("no address")
             .contains("does not resolve"));
+    }
+
+    /// JC1-27: a name only the cluster's DNS answers is refused as written, whatever the
+    /// Portal's own pod resolves; a public name is left to its resolution.
+    #[test]
+    fn a_cluster_name_is_never_a_public_host() {
+        for host in [
+            "gitea",
+            "portal.portal.svc",
+            "portal.portal.svc.cluster.local.",
+            "metadata.google.internal",
+            "printer.local",
+        ] {
+            assert!(cluster_name(host), "{host}");
+        }
+        for host in ["data.example.org", "api.citybik.es", "svc.example.com"] {
+            assert!(!cluster_name(host), "{host}");
+        }
     }
 
     /// AG-158 (T-6265): an MCP client and an agent run get a sample without the fields the
